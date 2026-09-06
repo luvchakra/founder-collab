@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import type { Business, Product, Workspace } from "../tenancy/types";
 import {
   getProspectCountsForWorkspaces,
@@ -10,53 +11,60 @@ import { getWorkspaceUsageForWorkspaces } from "../usage/queries";
 export type AccountWorkspaceEntry = { workspace: Workspace; product: Product; business: Business };
 
 type ProductRow = Product & { workspaces: Workspace[] };
-type BusinessRow = Business & { products: ProductRow[] };
 
 /**
- * Every business/product/workspace on an account, resolved with a single embedded
- * PostgREST query (businesses -> products -> workspaces, following the foreign keys from
- * supabase/migrations/20260904182540_tenancy_schema.sql) instead of three sequential
- * round trips, and memoized per accountId for the lifetime of the request via React's
- * cache(). Row Level Security still applies per table for embedded resources -- Supabase
- * evaluates each nested table's own policies, so this reads exactly the same rows the
- * three-query version did, just in one trip. app/(dashboard)/layout.tsx (runs on every
- * dashboard page) and the /dashboard page itself both need this full account scan --
- * without memoizing by the one primitive argument they share (accountId), each would run
- * its own copy of this query back to back on every visit to /dashboard specifically.
- * cache() only dedupes by argument identity, and an array of ids built fresh in each
- * caller would never match another caller's array by reference, which is why this takes
- * accountId (a primitive, safe to key on) rather than a pre-built id list.
+ * Every business/product/workspace on an account. Two queries, not one embedded
+ * PostgREST call: businesses live in `core` (Epic 2's C-1) while products/workspaces
+ * stay in `discovery`, and PostgREST can't embed a nested select across two schemas
+ * exposed through two differently-scoped clients. Memoized per accountId for the
+ * lifetime of the request via React's cache(). Row Level Security still applies per
+ * table -- Supabase evaluates each query's own policies.
+ * app/(dashboard)/layout.tsx (runs on every dashboard page) and the /dashboard page
+ * itself both need this full account scan -- without memoizing by the one primitive
+ * argument they share (accountId), each would run its own copy of this query back to
+ * back on every visit to /dashboard specifically. cache() only dedupes by argument
+ * identity, and an array of ids built fresh in each caller would never match another
+ * caller's array by reference, which is why this takes accountId (a primitive, safe to
+ * key on) rather than a pre-built id list.
  */
 export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const core = await createCoreClient({ schema: "core" });
+  const { data: businesses, error: businessesError } = await core
     .from("businesses")
-    .select("*, products(*, workspaces(*))")
+    .select("*")
     .eq("account_id", accountId)
-    .order("created_at", { ascending: true })
-    .order("created_at", { ascending: true, referencedTable: "products" });
-  if (error) throw error;
+    .order("created_at", { ascending: true });
+  if (businessesError) throw businessesError;
 
-  const rows = (data ?? []) as unknown as BusinessRow[];
-
-  const businesses: Business[] = [];
   const productsByBusiness: Record<string, Product[]> = {};
   const allProducts: Product[] = [];
   const entries: AccountWorkspaceEntry[] = [];
+  const businessById = new Map<string, Business>((businesses ?? []).map((b) => [b.id, b]));
+  for (const business of businesses ?? []) {
+    productsByBusiness[business.id] = [];
+  }
 
-  for (const { products, ...business } of rows) {
-    businesses.push(business);
-    const businessProducts: Product[] = [];
-    for (const { workspaces, ...product } of products) {
-      businessProducts.push(product);
+  const businessIds = [...businessById.keys()];
+  if (businessIds.length > 0) {
+    const supabase = await createClient();
+    const { data: productRows, error } = await supabase
+      .from("products")
+      .select("*, workspaces(*)")
+      .in("business_id", businessIds)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+
+    for (const { workspaces, ...product } of (productRows ?? []) as ProductRow[]) {
+      const business = businessById.get(product.business_id);
+      if (!business) continue;
+      productsByBusiness[business.id]!.push(product);
       allProducts.push(product);
       const workspace = workspaces[0];
       if (workspace) entries.push({ workspace, product, business });
     }
-    productsByBusiness[business.id] = businessProducts;
   }
 
-  return { businesses, productsByBusiness, allProducts, entries };
+  return { businesses: businesses ?? [], productsByBusiness, allProducts, entries };
 });
 
 /**

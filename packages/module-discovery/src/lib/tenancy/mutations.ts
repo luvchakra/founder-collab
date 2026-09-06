@@ -1,5 +1,11 @@
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import type { Business, Product } from "./types";
+
+/** accounts/businesses live in the `core` schema (Epic 2's C-1). */
+function coreClient() {
+  return createCoreClient({ schema: "core" });
+}
 
 /**
  * Tenancy write layer. As with queries.ts, these run through the RLS-scoped server
@@ -16,7 +22,7 @@ export async function createBusiness(
   const name = input.name.trim();
   if (!name) throw new Error("Business name is required.");
 
-  const supabase = await createClient();
+  const supabase = await coreClient();
   const { data, error } = await supabase
     .from("businesses")
     .insert({
@@ -48,7 +54,7 @@ export async function updateBusiness(
     patch.description = input.description.trim() || null;
   }
 
-  const supabase = await createClient();
+  const supabase = await coreClient();
   const { data, error } = await supabase
     .from("businesses")
     .update(patch)

@@ -8,13 +8,11 @@
 -- `public` schema to preserve in a greenfield build), with `workspace_id` intact as the
 -- tenant boundary (ADR-4: workspace_id stays the tenant for discovery only).
 --
--- NOT YET DONE (deliberately, tracked for Epic 2's C-1): `discovery.accounts`,
--- `account_members`, `businesses`, `products`, `workspaces` are co-founder-ai's own
--- tenancy tables, ported here unchanged. 00-MASTER-PLAN.md §5's entity-ownership map
--- says Account/Business are `core` concepts shared by every module ("exists today") —
--- merging these into `core.accounts`/`core.businesses` is Epic 2's job, once `core`
--- exists and there's a second module to share them with. Until then this is discovery's
--- own copy, functionally identical to the source app.
+-- Epic 2's C-1 (20260906090000_core_schema.sql, which runs before this file) moved
+-- `accounts`/`account_members`/`businesses` into `core` -- they were originally created
+-- here, before `core` existed and before there was a second module to share them with.
+-- `products`/`workspaces` stay in `discovery` (ADR-4: workspace_id is discovery's own
+-- tenant boundary) and now carry a cross-schema FK into `core.businesses`.
 --
 -- Every `security definer` helper function and RLS policy below is the exact pattern
 -- from co-founder-ai's migrations, schema-qualified to `discovery` instead of `public`.
@@ -25,36 +23,9 @@ create schema if not exists discovery;
 -- Tenancy: accounts -> account_members / businesses -> products -> workspaces
 -- ---------------------------------------------------------------------------
 
-create table discovery.accounts (
-  id uuid primary key default gen_random_uuid(),
-  name text not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table discovery.account_members (
-  id uuid primary key default gen_random_uuid(),
-  account_id uuid not null references discovery.accounts (id) on delete cascade,
-  user_id uuid not null references auth.users (id) on delete cascade,
-  role text not null default 'owner' check (role in ('owner', 'admin', 'member')),
-  created_at timestamptz not null default now(),
-  unique (account_id, user_id)
-);
-
-create table discovery.businesses (
-  id uuid primary key default gen_random_uuid(),
-  account_id uuid not null references discovery.accounts (id) on delete cascade,
-  name text not null,
-  description text,
-  website text,
-  industry text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
 create table discovery.products (
   id uuid primary key default gen_random_uuid(),
-  business_id uuid not null references discovery.businesses (id) on delete cascade,
+  business_id uuid not null references core.businesses (id) on delete cascade,
   name text not null,
   description text,
   website text,
@@ -73,9 +44,6 @@ create table discovery.workspaces (
   updated_at timestamptz not null default now()
 );
 
-create index account_members_user_id_idx on discovery.account_members (user_id);
-create index account_members_account_id_idx on discovery.account_members (account_id);
-create index businesses_account_id_idx on discovery.businesses (account_id);
 create index products_business_id_idx on discovery.products (business_id);
 create index workspaces_product_id_idx on discovery.workspaces (product_id);
 
@@ -101,7 +69,7 @@ create index product_knowledge_workspace_id_idx on discovery.product_knowledge (
 create table discovery.ai_runs (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null references discovery.workspaces (id) on delete cascade,
-  account_id uuid references discovery.accounts (id) on delete cascade,
+  account_id uuid references core.accounts (id) on delete cascade,
   operation text not null,
   model text not null,
   provider text,
@@ -137,7 +105,7 @@ create table discovery.prospect_discovery_locks (
 -- application code, so only the router's internal credential lookup selects it.
 create table discovery.ai_provider_credentials (
   id uuid primary key default gen_random_uuid(),
-  account_id uuid not null references discovery.accounts (id) on delete cascade,
+  account_id uuid not null references core.accounts (id) on delete cascade,
   provider text not null check (provider in ('openai', 'anthropic', 'google')),
   encrypted_api_key text not null,
   key_fingerprint text not null,
@@ -379,12 +347,6 @@ begin
 end;
 $$;
 
-create trigger accounts_set_updated_at
-  before update on discovery.accounts
-  for each row execute function discovery.set_updated_at();
-create trigger businesses_set_updated_at
-  before update on discovery.businesses
-  for each row execute function discovery.set_updated_at();
 create trigger products_set_updated_at
   before update on discovery.products
   for each row execute function discovery.set_updated_at();
@@ -419,6 +381,10 @@ create trigger ai_provider_credentials_set_updated_at
 -- ---------------------------------------------------------------------------
 -- Tenant-resolution helper functions.
 --
+-- user_account_ids()/user_business_ids() moved to core.* (Epic 2's C-1) alongside the
+-- accounts/businesses tables they query. user_product_ids() stays here but now calls
+-- core.user_business_ids() to resolve the products under the caller's businesses.
+--
 -- SECURITY DEFINER so the body runs with the owning role's privileges and is NOT itself
 -- subject to the RLS policies below -- this is what breaks the recursion that would
 -- otherwise occur (a policy on account_members calling a function that queries
@@ -426,34 +392,14 @@ create trigger ai_provider_credentials_set_updated_at
 -- auth.uid(), so it never leaks another user's data despite bypassing RLS internally.
 -- ---------------------------------------------------------------------------
 
-create function discovery.user_account_ids()
-returns setof uuid
-language sql
-stable
-security definer
-set search_path = discovery
-as $$
-  select account_id from discovery.account_members where user_id = auth.uid();
-$$;
-
-create function discovery.user_business_ids()
-returns setof uuid
-language sql
-stable
-security definer
-set search_path = discovery
-as $$
-  select b.id from discovery.businesses b where b.account_id in (select discovery.user_account_ids());
-$$;
-
 create function discovery.user_product_ids()
 returns setof uuid
 language sql
 stable
 security definer
-set search_path = discovery
+set search_path = discovery, core
 as $$
-  select p.id from discovery.products p where p.business_id in (select discovery.user_business_ids());
+  select p.id from discovery.products p where p.business_id in (select core.user_business_ids());
 $$;
 
 create function discovery.user_workspace_ids()
@@ -466,12 +412,8 @@ as $$
   select w.id from discovery.workspaces w where w.product_id in (select discovery.user_product_ids());
 $$;
 
-revoke execute on function discovery.user_account_ids() from public, anon;
-revoke execute on function discovery.user_business_ids() from public, anon;
 revoke execute on function discovery.user_product_ids() from public, anon;
 revoke execute on function discovery.user_workspace_ids() from public, anon;
-grant execute on function discovery.user_account_ids() to authenticated;
-grant execute on function discovery.user_business_ids() to authenticated;
 grant execute on function discovery.user_product_ids() to authenticated;
 grant execute on function discovery.user_workspace_ids() to authenticated;
 
@@ -479,9 +421,6 @@ grant execute on function discovery.user_workspace_ids() to authenticated;
 -- Row Level Security
 -- ---------------------------------------------------------------------------
 
-alter table discovery.accounts enable row level security;
-alter table discovery.account_members enable row level security;
-alter table discovery.businesses enable row level security;
 alter table discovery.products enable row level security;
 alter table discovery.workspaces enable row level security;
 alter table discovery.product_knowledge enable row level security;
@@ -500,72 +439,23 @@ alter table discovery.messages enable row level security;
 alter table discovery.chat_messages enable row level security;
 alter table discovery.interest_signups enable row level security;
 
--- accounts: members can view; owners/admins can update. No client-side insert/delete --
--- accounts are created only via handle_new_user() below.
-create policy "members can view their accounts"
-  on discovery.accounts for select
-  using (id in (select discovery.user_account_ids()));
+-- accounts/account_members/businesses RLS policies moved to core_schema.sql alongside
+-- their tables (Epic 2's C-1).
 
-create policy "owners and admins can update their accounts"
-  on discovery.accounts for update
-  using (
-    id in (
-      select account_id from discovery.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
-
--- account_members: members can view membership of their own accounts; owners/admins can
--- manage membership.
-create policy "members can view membership of their accounts"
-  on discovery.account_members for select
-  using (account_id in (select discovery.user_account_ids()));
-
-create policy "owners and admins can add members"
-  on discovery.account_members for insert
-  with check (
-    account_id in (
-      select account_id from discovery.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
-
-create policy "owners and admins can remove members"
-  on discovery.account_members for delete
-  using (
-    account_id in (
-      select account_id from discovery.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
-
--- businesses: any member of the owning account can view/create/update/delete.
-create policy "members can view businesses in their account"
-  on discovery.businesses for select
-  using (account_id in (select discovery.user_account_ids()));
-create policy "members can create businesses in their account"
-  on discovery.businesses for insert
-  with check (account_id in (select discovery.user_account_ids()));
-create policy "members can update businesses in their account"
-  on discovery.businesses for update
-  using (account_id in (select discovery.user_account_ids()));
-create policy "members can delete businesses in their account"
-  on discovery.businesses for delete
-  using (account_id in (select discovery.user_account_ids()));
-
--- products: any member of the owning business's account.
+-- products: any member of the owning business's account (core.user_business_ids() now
+-- that businesses live in core).
 create policy "members can view products in their businesses"
   on discovery.products for select
-  using (business_id in (select discovery.user_business_ids()));
+  using (business_id in (select core.user_business_ids()));
 create policy "members can create products in their businesses"
   on discovery.products for insert
-  with check (business_id in (select discovery.user_business_ids()));
+  with check (business_id in (select core.user_business_ids()));
 create policy "members can update products in their businesses"
   on discovery.products for update
-  using (business_id in (select discovery.user_business_ids()));
+  using (business_id in (select core.user_business_ids()));
 create policy "members can delete products in their businesses"
   on discovery.products for delete
-  using (business_id in (select discovery.user_business_ids()));
+  using (business_id in (select core.user_business_ids()));
 
 -- workspaces: view/update only -- creation happens via create_default_workspace() below.
 create policy "members can view workspaces in their products"
@@ -614,16 +504,16 @@ create policy "members can delete discovery locks in their workspaces"
 
 create policy "members can view their account's ai provider credential"
   on discovery.ai_provider_credentials for select
-  using (account_id in (select discovery.user_account_ids()));
+  using (account_id in (select core.user_account_ids()));
 create policy "members can create their account's ai provider credential"
   on discovery.ai_provider_credentials for insert
-  with check (account_id in (select discovery.user_account_ids()));
+  with check (account_id in (select core.user_account_ids()));
 create policy "members can update their account's ai provider credential"
   on discovery.ai_provider_credentials for update
-  using (account_id in (select discovery.user_account_ids()));
+  using (account_id in (select core.user_account_ids()));
 create policy "members can delete their account's ai provider credential"
   on discovery.ai_provider_credentials for delete
-  using (account_id in (select discovery.user_account_ids()));
+  using (account_id in (select core.user_account_ids()));
 
 create policy "members can view icp profiles in their workspaces"
   on discovery.icp_profiles for select
@@ -744,39 +634,8 @@ create policy "members can create chat messages in their workspaces"
 -- Auto-provisioning
 -- ---------------------------------------------------------------------------
 
--- Every new auth user gets their own account as owner. Prefers the signup form's Name
--- field (raw_user_meta_data.full_name) over the email-prefix fallback.
-create function discovery.handle_new_user()
-returns trigger
-language plpgsql
-security definer
-set search_path = discovery
-as $$
-declare
-  new_account_id uuid;
-begin
-  insert into discovery.accounts (name)
-  values (
-    coalesce(
-      nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''),
-      nullif(split_part(new.email, '@', 1), ''),
-      'My'
-    ) || '''s Account'
-  )
-  returning id into new_account_id;
-
-  insert into discovery.account_members (account_id, user_id, role)
-  values (new_account_id, new.id, 'owner');
-
-  return new;
-end;
-$$;
-
-revoke execute on function discovery.handle_new_user() from public, anon, authenticated;
-
-create trigger on_discovery_user_created
-  after insert on auth.users
-  for each row execute function discovery.handle_new_user();
+-- New-user account bootstrap (handle_new_user) moved to core_schema.sql (Epic 2's C-1)
+-- -- account creation is platform-wide, not discovery-specific.
 
 -- Every product gets at least one GTM workspace.
 create function discovery.create_default_workspace()

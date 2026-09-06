@@ -89,16 +89,18 @@ function main() {
       ('22222222-2222-2222-2222-222222222222', 'bob@example.com');
     grant usage on schema discovery to authenticated;
     grant select, insert, update, delete on all tables in schema discovery to authenticated;
+    grant usage on schema core to authenticated;
+    grant select, insert, update, delete on all tables in schema core to authenticated;
     do $$
     declare
       alice_account uuid; bob_account uuid;
       alice_business uuid; bob_business uuid;
       alice_product uuid; bob_product uuid;
     begin
-      select account_id into alice_account from discovery.account_members where user_id = '11111111-1111-1111-1111-111111111111';
-      select account_id into bob_account from discovery.account_members where user_id = '22222222-2222-2222-2222-222222222222';
-      insert into discovery.businesses (account_id, name) values (alice_account, 'Alice Co') returning id into alice_business;
-      insert into discovery.businesses (account_id, name) values (bob_account, 'Bob Co') returning id into bob_business;
+      select account_id into alice_account from core.account_members where user_id = '11111111-1111-1111-1111-111111111111';
+      select account_id into bob_account from core.account_members where user_id = '22222222-2222-2222-2222-222222222222';
+      insert into core.businesses (account_id, name) values (alice_account, 'Alice Co') returning id into alice_business;
+      insert into core.businesses (account_id, name) values (bob_account, 'Bob Co') returning id into bob_business;
       insert into discovery.products (business_id, name) values (alice_business, 'Alice Product') returning id into alice_product;
       insert into discovery.products (business_id, name) values (bob_business, 'Bob Product') returning id into bob_product;
     end $$;
@@ -108,20 +110,20 @@ function main() {
   `);
 
   console.log("Verifying auto-provisioning...");
-  assertEqual(psql("select count(*) from discovery.accounts"), "2", "handle_new_user created one account per signup");
+  assertEqual(psql("select count(*) from core.accounts"), "2", "handle_new_user created one account per signup");
   assertEqual(psql("select count(*) from discovery.workspaces"), "2", "create_default_workspace created one workspace per product");
 
   console.log("Verifying tenant isolation (read)...");
   assertEqual(psqlAsAlice("select count(*) from discovery.prospects"), "1", "Alice sees only her own prospect");
   assertEqual(psqlAsAlice("select company_name from discovery.prospects"), "Prospect for Alice Product", "Alice's prospect is the right one");
   assertEqual(psqlAsBob("select count(*) from discovery.prospects"), "1", "Bob sees only his own prospect");
-  assertEqual(psqlAsAlice("select count(*) from discovery.accounts"), "1", "Alice sees only her own account");
+  assertEqual(psqlAsAlice("select count(*) from core.accounts"), "1", "Alice sees only her own account");
 
   console.log("Verifying tenant isolation (write)...");
   const bobWorkspace = psql(`
     select w.id from discovery.workspaces w
     join discovery.products p on p.id = w.product_id
-    join discovery.businesses b on b.id = p.business_id
+    join core.businesses b on b.id = p.business_id
     where b.name = 'Bob Co'
   `);
   assertThrows(

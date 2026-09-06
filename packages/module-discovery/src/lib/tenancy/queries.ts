@@ -1,7 +1,15 @@
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import type { Account, Business, Product, Workspace } from "./types";
+
+/** accounts/businesses live in the `core` schema (Epic 2's C-1) -- every module shares
+ * them, so they're never queried through discovery's own schema-scoped client. */
+function coreClient() {
+  return createCoreClient({ schema: "core" });
+}
 
 /**
  * Tenancy read layer. Every function runs the request as the authenticated user through
@@ -29,7 +37,7 @@ export const requireUser = cache(async () => {
 
 /** MVP assumes one account per user (see blueprint §9); returns the first membership. */
 export const getCurrentAccount = cache(async (): Promise<Account | null> => {
-  const supabase = await createClient();
+  const supabase = await coreClient();
   const { data, error } = await supabase
     .from("accounts")
     .select("*")
@@ -41,7 +49,7 @@ export const getCurrentAccount = cache(async (): Promise<Account | null> => {
 });
 
 export const listBusinesses = cache(async (accountId: string): Promise<Business[]> => {
-  const supabase = await createClient();
+  const supabase = await coreClient();
   const { data, error } = await supabase
     .from("businesses")
     .select("*")
@@ -55,7 +63,7 @@ export const getBusiness = cache(async (
   businessId: string,
   client?: SupabaseClient,
 ): Promise<Business | null> => {
-  const supabase = client ?? (await createClient());
+  const supabase = client ?? (await coreClient());
   const { data, error } = await supabase
     .from("businesses")
     .select("*")
@@ -184,7 +192,13 @@ export async function getAccountIdForWorkspace(
   const product = await getProduct(workspace.product_id, client);
   if (!product) return null;
 
-  const business = await getBusiness(product.business_id, client);
+  // `client`, when passed, is a discovery-schema admin client (the no-session webhook
+  // path) -- businesses live in `core` now, so the business lookup needs its own
+  // core-schema admin client rather than the one threaded through for workspace/product.
+  const business = await getBusiness(
+    product.business_id,
+    client ? createCoreAdminClient({ schema: "core" }) : undefined,
+  );
   if (!business) return null;
 
   return business.account_id;
