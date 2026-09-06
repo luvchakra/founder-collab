@@ -111,7 +111,18 @@ function main() {
 
   console.log("Verifying auto-provisioning...");
   assertEqual(psql("select count(*) from core.accounts"), "2", "handle_new_user created one account per signup");
+  assertEqual(psql("select count(*) from core.user_profiles"), "2", "handle_new_user created one profile per signup");
   assertEqual(psql("select count(*) from discovery.workspaces"), "2", "create_default_workspace created one workspace per product");
+
+  console.log("Seeding business_members/business_settings/employees (C-2)...");
+  psqlAsAlice(`
+    insert into core.business_members (business_id, user_id, role)
+    select id, '11111111-1111-1111-1111-111111111111', 'owner' from core.businesses where name = 'Alice Co';
+    insert into core.business_settings (business_id, gstin)
+    select id, 'ALICE_GSTIN' from core.businesses where name = 'Alice Co';
+    insert into core.employees (business_id, user_id, job_title)
+    select id, '11111111-1111-1111-1111-111111111111', 'Owner' from core.businesses where name = 'Alice Co';
+  `);
 
   console.log("Verifying tenant isolation (read)...");
   assertEqual(psqlAsAlice("select count(*) from discovery.prospects"), "1", "Alice sees only her own prospect");
@@ -129,6 +140,19 @@ function main() {
   assertThrows(
     () => psqlAsAlice(`insert into discovery.prospects (workspace_id, company_name) values ('${bobWorkspace}', 'Malicious insert')`),
     "Alice cannot insert a prospect into Bob's workspace (RLS with-check)",
+  );
+
+  console.log("Verifying tenant isolation on C-2 tables (business_members/business_settings/employees)...");
+  assertEqual(psqlAsAlice("select count(*) from core.business_members"), "1", "Alice sees only her own business's membership");
+  assertEqual(psqlAsBob("select count(*) from core.business_members"), "0", "Bob sees none of Alice's business membership");
+  assertEqual(psqlAsAlice("select gstin from core.business_settings"), "ALICE_GSTIN", "Alice sees her own business settings");
+  assertEqual(psqlAsBob("select count(*) from core.business_settings"), "0", "Bob sees none of Alice's business settings");
+  assertEqual(psqlAsAlice("select count(*) from core.employees"), "1", "Alice sees her own business's employees");
+  assertEqual(psqlAsBob("select count(*) from core.employees"), "0", "Bob sees none of Alice's employees");
+  const aliceBusiness = psql(`select id from core.businesses where name = 'Alice Co'`);
+  assertThrows(
+    () => psqlAsBob(`insert into core.employees (business_id, job_title) values ('${aliceBusiness}', 'Intruder')`),
+    "Bob cannot insert an employee into Alice's business (RLS with-check)",
   );
 
   console.log("Verifying anonymous access is denied...");

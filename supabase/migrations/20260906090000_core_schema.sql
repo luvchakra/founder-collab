@@ -107,10 +107,30 @@ as $$
   select b.id from core.businesses b where b.account_id in (select core.user_account_ids());
 $$;
 
+-- Separate from user_account_ids() -- a policy that self-references account_members
+-- (e.g. "can I add a member to this account") needs to filter by role too, and doing
+-- that filter inline in the policy (rather than through this function) is exactly the
+-- self-referencing subquery that caused "infinite recursion detected in policy for
+-- relation" the first time this was tried directly against business_members (a table
+-- with the identical role-gated insert/delete shape) -- fixed here before it could bite
+-- account_members too.
+create function core.user_admin_account_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = core
+as $$
+  select account_id from core.account_members
+  where user_id = auth.uid() and role in ('owner', 'admin');
+$$;
+
 revoke execute on function core.user_account_ids() from public, anon;
 revoke execute on function core.user_business_ids() from public, anon;
+revoke execute on function core.user_admin_account_ids() from public, anon;
 grant execute on function core.user_account_ids() to authenticated;
 grant execute on function core.user_business_ids() to authenticated;
+grant execute on function core.user_admin_account_ids() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security
@@ -128,12 +148,7 @@ create policy "members can view their accounts"
 
 create policy "owners and admins can update their accounts"
   on core.accounts for update
-  using (
-    id in (
-      select account_id from core.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
+  using (id in (select core.user_admin_account_ids()));
 
 -- account_members: members can view membership of their own accounts; owners/admins can
 -- manage membership.
@@ -143,21 +158,11 @@ create policy "members can view membership of their accounts"
 
 create policy "owners and admins can add members"
   on core.account_members for insert
-  with check (
-    account_id in (
-      select account_id from core.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
+  with check (account_id in (select core.user_admin_account_ids()));
 
 create policy "owners and admins can remove members"
   on core.account_members for delete
-  using (
-    account_id in (
-      select account_id from core.account_members
-      where user_id = (select auth.uid()) and role in ('owner', 'admin')
-    )
-  );
+  using (account_id in (select core.user_admin_account_ids()));
 
 -- businesses: any member of the owning account can view/create/update/delete.
 create policy "members can view businesses in their account"
