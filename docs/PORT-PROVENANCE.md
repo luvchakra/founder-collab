@@ -476,9 +476,31 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   Copied verbatim, import paths rewritten; both tabs' full dependency chain was already
   in place, so no new shared components were needed.
 
+- **Settings pages (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
+  `dashboard/settings/{profile,appearance,ai-provider,usage,billing}/{page.tsx,
+  loading.tsx}` (+ `profile/actions.ts`, `ai-provider/actions.ts`) — profile (avatar
+  upload + name/bio/phone form), appearance (the already-ported `ThemeToggle`), AI
+  provider (connect/replace/disconnect a BYOK key against the already-ported
+  `ai-providers` lib), account-wide usage (credits used across every business/product,
+  not just one workspace), and a static billing/free-tier explainer page. Copied
+  verbatim, import paths rewritten. Unlike every other batch this session, these pages
+  and their supporting `components/settings/{avatar-upload-form,profile-form,
+  ai-provider-form}.tsx` were placed directly under `apps/web/` rather than in
+  `module-discovery` — profile/appearance/billing are platform-wide account concerns
+  with no discovery dependency at all, and even ai-provider/usage (which do read
+  discovery's `ai-providers`/`usage`/`tenancy` libs) are account-level settings, not a
+  workspace-scoped discovery feature, matching where the auth flow was placed earlier.
+  Brought one migration along that had no equivalent yet:
+  `supabase/migrations/20260906110000_avatars_storage_bucket.sql` — a public
+  `avatars` storage bucket with per-user-folder RLS (`storage.foldername(name)[1] =
+  auth.uid()::text`), platform-wide (not module-owned), required for the profile
+  page's avatar upload to work; `lint:migrations` passes since the file contains no
+  `create table` DDL for it to check. Not yet applied to the real dev Supabase project
+  (see the network note above — nothing has been since `P-5` started).
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
-sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
-settings pages, and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`,
-continuing story by story.
+sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`
+and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing story by
+story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
