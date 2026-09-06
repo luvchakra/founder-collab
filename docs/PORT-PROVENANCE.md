@@ -68,6 +68,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/{actions/onboarding.ts,components/onboarding/wizard.tsx,components/errors/*.tsx}`, `apps/web/app/onboarding/page.tsx` | co-founder-ai | `app/onboarding/{actions.ts,page.tsx}`, `components/onboarding/wizard.tsx`, `components/errors/*.tsx` | `19af424b4d80acd9265149a201702463f413345d` | P-5 (UI layer) |
 | `apps/web/app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `apps/web/components/dashboard/dashboard-chrome.tsx`, `packages/module-discovery/src/{components/tenancy/create-business-modal.tsx,components/prospects/conversion-funnel-panel.tsx,components/ui/native-select.tsx,lib/tenancy/active-path.ts,lib/alerts/derive.ts,lib/usage/format.ts}`, `packages/core/src/{hooks/use-dismiss.ts,components/ui/submit-button.tsx}` | co-founder-ai | `app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `components/tenancy/create-business-modal.tsx`, `components/prospects/conversion-funnel-panel.tsx`, `components/ui/select.tsx`, `lib/tenancy/active-path.ts`, `lib/alerts/derive.ts`, `lib/usage/format.ts`, `hooks/use-dismiss.ts`, `components/ui/submit-button.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer, adapted) |
 | `apps/web/app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `packages/module-discovery/src/components/{tenancy/{editable-name,editable-text,breadcrumbs}.tsx,ui/loading-skeleton.tsx}` | co-founder-ai | `app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `components/tenancy/{editable-name,editable-text,breadcrumbs}.tsx`, `components/ui/loading-skeleton.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
+| `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `packages/module-discovery/src/components/{tenancy/product-nav.tsx,ui/{expandable-text,expandable-box,collapsible-card}.tsx,ai/ai-action-form.tsx,knowledge/knowledge-source-card.tsx}` | co-founder-ai | `app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `components/tenancy/product-nav.tsx`, `components/ui/{expandable-text,expandable-box,collapsible-card}.tsx`, `components/ai/ai-action-form.tsx`, `components/knowledge/knowledge-source-card.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -409,12 +410,25 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   the binary PNG brand assets not yet copied over (tracked below) — rendered as a plain
   spinner for now, no logo.
 
+- **Product detail page + overview tab (`P-5`):**
+  `app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/
+  {layout.tsx,page.tsx,actions.ts,error.tsx,loading.tsx}` — the product layout (name/
+  description header, `ProductNav`'s four-tab chevron strip, breadcrumbs) and the
+  Overview tab (editable description/website, AI-generated product profile via
+  `AiActionForm`, knowledge-source list/upload). Copied verbatim, import paths
+  rewritten. Brought the remaining generic UI primitives along:
+  `product-nav.tsx` (→ `module-discovery/src/components/tenancy/`),
+  `expandable-text.tsx`/`expandable-box.tsx`/`collapsible-card.tsx` (→
+  `module-discovery/src/components/ui/` — same reasoning as `loading-skeleton.tsx`
+  earlier: generic, but only discovery consumes them so far), `ai-action-form.tsx` (→
+  `module-discovery/src/components/ai/` — the shared "AI action with inline BYOK-failure
+  handling" form wrapper every AI-invoking button in the app uses), and
+  `knowledge-source-card.tsx` (→ `module-discovery/src/components/knowledge/`).
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
-sidebar-toggle,business-selector,business-list,product-nav},alerts,chat,ai,
-knowledge/knowledge-source-card,marketing,ui/logo-mark}/*`,
-`app/(dashboard)/dashboard/businesses/[businessId]/products/**` (the product detail page
-and its subpages: ICP, prospects list/discover/import, prospect detail, conversions,
-usage — the core GTM pipeline screens), settings pages, and `app/api/webhooks/*`.
+sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
+the product's ICP/prospects/conversions/usage tabs (the core GTM pipeline: prospect
+discovery, research, scoring, outreach), settings pages, and `app/api/webhooks/*`.
 Tracked as the remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
