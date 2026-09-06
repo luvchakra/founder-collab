@@ -69,6 +69,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `apps/web/app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `apps/web/components/dashboard/dashboard-chrome.tsx`, `packages/module-discovery/src/{components/tenancy/create-business-modal.tsx,components/prospects/conversion-funnel-panel.tsx,components/ui/native-select.tsx,lib/tenancy/active-path.ts,lib/alerts/derive.ts,lib/usage/format.ts}`, `packages/core/src/{hooks/use-dismiss.ts,components/ui/submit-button.tsx}` | co-founder-ai | `app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `components/tenancy/create-business-modal.tsx`, `components/prospects/conversion-funnel-panel.tsx`, `components/ui/select.tsx`, `lib/tenancy/active-path.ts`, `lib/alerts/derive.ts`, `lib/usage/format.ts`, `hooks/use-dismiss.ts`, `components/ui/submit-button.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer, adapted) |
 | `apps/web/app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `packages/module-discovery/src/components/{tenancy/{editable-name,editable-text,breadcrumbs}.tsx,ui/loading-skeleton.tsx}` | co-founder-ai | `app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `components/tenancy/{editable-name,editable-text,breadcrumbs}.tsx`, `components/ui/loading-skeleton.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 | `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `packages/module-discovery/src/components/{tenancy/product-nav.tsx,ui/{expandable-text,expandable-box,collapsible-card}.tsx,ai/ai-action-form.tsx,knowledge/knowledge-source-card.tsx}` | co-founder-ai | `app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `components/tenancy/product-nav.tsx`, `components/ui/{expandable-text,expandable-box,collapsible-card}.tsx`, `components/ai/ai-action-form.tsx`, `components/knowledge/knowledge-source-card.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
+| `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/icp/*` | co-founder-ai | same path | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -425,9 +426,17 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   handling" form wrapper every AI-invoking button in the app uses), and
   `knowledge-source-card.tsx` (→ `module-discovery/src/components/knowledge/`).
 
+- **ICP tab (`P-5`):** `.../products/[productId]/icp/{page.tsx,actions.ts,error.tsx}` —
+  generate/regenerate an ICP draft from the approved product profile, approve it, and
+  hand-edit every field (industries, company sizes, geographies, roles, pain points,
+  buying signals, exclusions — one-per-line textareas via `parseListField`). Copied
+  verbatim, import paths rewritten; every dependency (`generateIcp`, `icp/mutations`,
+  `AiActionForm`, `runAiAction`) was already in place from earlier batches, so this one
+  needed no new shared components.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
 sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
-the product's ICP/prospects/conversions/usage tabs (the core GTM pipeline: prospect
+the product's prospects/conversions/usage tabs (the core GTM pipeline: prospect
 discovery, research, scoring, outreach), settings pages, and `app/api/webhooks/*`.
 Tracked as the remaining scope of `P-5`, continuing story by story.
 
