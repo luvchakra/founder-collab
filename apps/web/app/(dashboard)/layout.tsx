@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { getAccountWorkspaceEntries } from "@cofounderai/module-discovery/lib/dashboard/queries";
+import {
+  getAccountUsageAndProspects,
+  getAccountWorkspaceEntries,
+} from "@cofounderai/module-discovery/lib/dashboard/queries";
+import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { DashboardChrome } from "@/components/dashboard/dashboard-chrome";
 import { createBusinessAction } from "@/app/(dashboard)/dashboard/actions";
@@ -19,9 +23,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   // cache()-wrapped by accountId, so the /dashboard page below reuses this exact result
   // instead of re-running its own full account scan in the same request.
-  const { businesses } = account
+  const { businesses, entries } = account
     ? await getAccountWorkspaceEntries(account.id)
-    : { businesses: [] };
+    : { businesses: [], entries: [] };
+  const { usageByWorkspace, prospects } = account
+    ? await getAccountUsageAndProspects(account.id)
+    : { usageByWorkspace: {}, prospects: [] };
+  const alerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
 
   const metadata = user.user_metadata ?? {};
   const displayName = (metadata.full_name || metadata.name || user.email || "Founder") as string;
@@ -33,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       businesses={businesses}
       accountId={account?.id ?? ""}
       user={{ name: displayName, email: user.email ?? "", avatarUrl }}
+      alerts={alerts}
       createBusinessAction={createBusinessAction}
     >
       {children}

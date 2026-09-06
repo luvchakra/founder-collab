@@ -512,8 +512,42 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   already-ported `site.ts` fallback) — all previously used by shipped code but
   undocumented.
 
-Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
-sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`.
-Tracked as the remaining scope of `P-5`, continuing story by story.
+- **Alert bell + AI chat widget (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`,
+  adapted, not verbatim):** the two functional topbar features co-founder-ai's own
+  header carried, re-homed onto the platform's own shell instead of porting
+  co-founder-ai's header wholesale (`components/tenancy/{sidebar,sidebar-account-menu,
+  sidebar-context,sidebar-toggle,business-selector,business-list}` and
+  `components/ui/logo-mark` are superseded by `packages/core/src/components/shell/*`
+  per CLAUDE.md non-negotiable #7 — the platform's own design takes precedence over
+  co-founder-ai's chrome, so those files are intentionally not ported).
+  - **Alert bell**: `components/alerts/alert-bell.tsx` ported to
+    `packages/core/src/components/shell/alert-bell.tsx` — it's purely presentational
+    (a dropdown over whatever alert list it's handed) and doesn't touch discovery at
+    all, so it lives in core like the rest of the shell. Its `Alert` type became a new
+    `ShellAlert` in `shell/types.ts` (core can't import discovery's own `Alert` type
+    from `lib/alerts/derive.ts` — modules depend on core, never the reverse).
+    `AppTopbar`/`DashboardShell` gained an `alerts` prop threading through to it, and
+    `apps/web`'s `DashboardChrome`/dashboard `layout.tsx` now call the already-ported
+    `deriveAccountAlerts` (fetching `getAccountUsageAndProspects` alongside the
+    existing `getAccountWorkspaceEntries` call) and pass the result down.
+  - **AI chat widget**: `components/chat/{ai-chat-widget,chat-markdown}.tsx` ported to
+    `module-discovery/src/components/chat/` (unlike the alert bell, this one is not
+    presentational — it owns its own state and calls discovery's chat lib directly, so
+    it belongs in the module, not core). `app/(dashboard)/chat-actions.ts` became
+    `module-discovery/src/actions/chat.ts`, following the same "actions that call
+    discovery-only functions live in the module" placement as `actions/onboarding.ts`
+    earlier. Every dependency (`lib/ai/chat.ts`, `lib/chat/*`, `lib/tenancy/
+    active-path.ts`, `lib/ai/router.ts`'s `AiProviderError`, `lib/usage/limits.ts`'s
+    `UsageLimitExceededError`) was already ported. Since core can never import a
+    module component directly, `AppTopbar`/`DashboardShell` instead gained a generic
+    `chatSlot?: ReactNode` prop, and `DashboardChrome` (apps/web, which can import any
+    module) passes `<AiChatWidget />` into it. `chat-markdown.tsx` needed two `!`
+    non-null assertions on a regex capture group TypeScript couldn't otherwise narrow
+    (`noUncheckedIndexedAccess`-adjacent strictness on optional regex groups) — same
+    pattern used for array-index assertions elsewhere in this repo.
+
+Not yet ported: `components/marketing/*` (the pre-redirect landing page, `app/page.tsx`
+was rewritten to a session-based redirect early in `P-5` — see above). Tracked as the
+remaining scope of `P-5`.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).

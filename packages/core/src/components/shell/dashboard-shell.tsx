@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { SidebarInset, SidebarProvider } from "../ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
-import type { ShellBusiness, ShellNavModule, ShellUser } from "./types";
+import type { ShellAlert, ShellBusiness, ShellNavModule, ShellUser } from "./types";
 
 /**
  * The platform's dashboard shell (sidebar + topbar + content), per docs/DESIGN.md's
@@ -18,6 +18,8 @@ export function DashboardShell({
   businessHref,
   onCreateBusiness,
   user,
+  alerts,
+  chatSlot,
   onSignOut,
   children,
 }: {
@@ -28,6 +30,8 @@ export function DashboardShell({
   businessHref?: (businessId: string) => string;
   onCreateBusiness?: () => void;
   user: ShellUser;
+  alerts?: ShellAlert[];
+  chatSlot?: ReactNode;
   onSignOut?: () => void;
   children: ReactNode;
 }) {
@@ -42,7 +46,7 @@ export function DashboardShell({
         onCreateBusiness={onCreateBusiness}
       />
       <SidebarInset>
-        <AppTopbar user={user} onSignOut={onSignOut} />
+        <AppTopbar user={user} alerts={alerts} chatSlot={chatSlot} onSignOut={onSignOut} />
         <main className="flex-1 bg-background p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

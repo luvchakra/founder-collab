@@ -23,3 +23,13 @@ export interface ShellBusiness {
   name: string;
   description?: string | null;
 }
+
+/** A derived, non-persisted notification for the topbar's alert bell — see
+ * @cofounderai/module-discovery's lib/alerts/derive.ts for how discovery computes these;
+ * the shell itself has no opinion on where an alert comes from. */
+export interface ShellAlert {
+  id: string;
+  severity: "warning" | "info";
+  message: string;
+  href: string;
+}

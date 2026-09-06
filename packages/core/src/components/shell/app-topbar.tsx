@@ -1,8 +1,8 @@
 "use client";
 
-import { Bell, LogOut, Search } from "lucide-react";
+import type { ReactNode } from "react";
+import { LogOut, Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import {
   DropdownMenu,
@@ -12,7 +12,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import type { ShellUser } from "./types";
+import { AlertBell } from "./alert-bell";
+import type { ShellAlert, ShellUser } from "./types";
 
 function initials(name: string): string {
   return name
@@ -26,8 +27,21 @@ function initials(name: string): string {
 
 /** Top bar — visual chrome per docs/DESIGN.md's reference mockup. `onSignOut` is
  * optional so this still renders (menu just has nothing to do) before a caller wires a
- * real sign-out action. */
-export function AppTopbar({ user, onSignOut }: { user: ShellUser; onSignOut?: () => void }) {
+ * real sign-out action. `alerts` defaults to empty so this still renders before a
+ * caller wires up real alert derivation. `chatSlot` is a generic escape hatch for a
+ * module-owned widget (e.g. module-discovery's AiChatWidget) that core itself can never
+ * import directly — modules depend on core, not the reverse. */
+export function AppTopbar({
+  user,
+  alerts,
+  chatSlot,
+  onSignOut,
+}: {
+  user: ShellUser;
+  alerts?: ShellAlert[];
+  chatSlot?: ReactNode;
+  onSignOut?: () => void;
+}) {
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-card px-6">
       <div className="relative w-full max-w-sm">
@@ -35,9 +49,8 @@ export function AppTopbar({ user, onSignOut }: { user: ShellUser; onSignOut?: ()
         <Input placeholder="Search anything..." className="pl-9" />
       </div>
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Bell className="size-5" />
-        </Button>
+        <AlertBell alerts={alerts ?? []} />
+        {chatSlot}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
