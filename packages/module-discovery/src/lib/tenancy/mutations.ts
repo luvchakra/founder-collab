@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { seedDefaultLicenses } from "@cofounderai/core/licensing/lifecycle";
 import type { Business, Product } from "./types";
 
 /** accounts/businesses live in the `core` schema (Epic 2's C-1). */
@@ -35,6 +36,8 @@ export async function createBusiness(
     .select()
     .single();
   if (error) throw error;
+
+  await seedDefaultLicenses(data.id);
   return data;
 }
 
