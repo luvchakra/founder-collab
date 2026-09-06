@@ -9,7 +9,8 @@
     "./ui-theme.css": "./src/ui-theme.css",
     "./hooks/use-mobile": "./src/hooks/use-mobile.tsx",
     "./lib/utils": "./src/lib/utils.ts",
-    "./db/*": "./src/db/*.ts"
+    "./db/*": "./src/db/*.ts",
+    "./crypto/*": "./src/crypto/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

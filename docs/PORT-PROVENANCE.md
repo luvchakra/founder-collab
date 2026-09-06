@@ -39,24 +39,30 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/lib/utils.ts` | stockpilot-ai-ops | `src/lib/utils.ts` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/hooks/use-mobile.tsx` | stockpilot-ai-ops | `src/hooks/use-mobile.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/ui-theme.css` | stockpilot-ai-ops | `src/styles.css` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
-
-Mechanical changes applied on port (paths/wrapper only, no logic changes): added a
-`"use client"` directive to every file (StockPilot is a Vite SPA and doesn't need one;
-Next.js App Router does), and rewrote each file's internal `@/lib/utils`,
-`@/hooks/use-mobile` and `@/components/ui/*` imports to relative paths matching this
-package's own `src/` layout. Removed one line from `styles.css` (`@source "../src"`) that
-pointed at a path meaningful only in StockPilot's own repo layout; `apps/web/app/globals.css`
-declares the platform's own `@source` globs instead.
-
+| `packages/core/src/crypto/api-key.ts` | co-founder-ai | `lib/crypto/api-key.ts` | `71cf20b0d548e3abd2c12f649126136405fec01a` | P-2 |
 | `packages/module-discovery/src/lib/{ai,prospects,contacts,outreach,messages,icp,research,scoring}/*.ts` (8 files) | co-founder-ai | `lib/ai/schemas.ts`, `lib/{prospects,contacts,outreach,messages,icp,research,scoring}/types.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/prompts/**/*.ts` (9 files) | co-founder-ai | `prompts/**/*.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 
-Copied verbatim (pure Zod schemas / plain TS types / prompt-builder functions — no
-Supabase, no framework coupling), only rewriting each file's `@/lib/...` imports to
-relative paths. This is a deliberately small, fully self-contained, DB-independent first
-slice of `P-5` (`04-CLAUDE-CODE-BACKLOG.md`): the target Supabase project isn't reachable
-from this session (see the network note above), so anything requiring live-DB
-verification — `lib/supabase/*`, `lib/tenancy/*`, the `discovery` schema migrations, the
-dashboard routes, and every other `lib/<domain>` directory that queries Supabase — is
-deferred to a session with real connectivity, story by story, each recorded here as it
-lands. `packages/module-inventory` doesn't exist yet (story `SP-7`).
+Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
+
+- **stockpilot-ai-ops rows (`P-0`):** added a `"use client"` directive to every file
+  (StockPilot is a Vite SPA and doesn't need one; Next.js App Router does), and rewrote
+  each file's internal `@/lib/utils`, `@/hooks/use-mobile` and `@/components/ui/*`
+  imports to relative paths matching this package's own `src/` layout. Removed one line
+  from `styles.css` (`@source "../src"`) that pointed at a path meaningful only in
+  StockPilot's own repo layout; `apps/web/app/globals.css` declares the platform's own
+  `@source` globs instead.
+- **`lib/crypto/api-key.ts` (`P-2`):** copied verbatim, no import changes needed (only
+  depends on `node:crypto`). Added a full round-trip + failure-mode test suite in
+  `packages/core/src/crypto/api-key.test.ts` (none existed upstream).
+- **`module-discovery` prompts + types (`P-5`, partial):** copied verbatim (pure Zod
+  schemas / plain TS types / prompt-builder functions — no Supabase, no framework
+  coupling), only rewriting each file's `@/lib/...` imports to relative paths. A
+  deliberately small, fully self-contained, DB-independent first slice of `P-5`
+  (`04-CLAUDE-CODE-BACKLOG.md`): the target Supabase project isn't reachable from this
+  session (see the network note above), so anything requiring live-DB verification —
+  `lib/supabase/*`, `lib/tenancy/*`, the `discovery` schema migrations, the dashboard
+  routes, and every other `lib/<domain>` directory that queries Supabase — is deferred to
+  a session with real connectivity, story by story, each recorded here as it lands.
+
+`packages/module-inventory` doesn't exist yet (story `SP-7`).
