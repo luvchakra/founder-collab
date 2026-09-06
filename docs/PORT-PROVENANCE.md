@@ -452,12 +452,24 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   (dedup against both the existing pipeline and the rest of the same paste). Copied
   verbatim, import paths rewritten; every dependency was already ported.
 
+- **Prospect detail page (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
+  `.../prospects/[prospectId]/{page.tsx,actions.ts,error.tsx}` — the largest single page
+  in the port (~930 lines): prospect edit form and status update, then a chain of
+  `AiActionForm`-gated sections (Research → Score → Outreach strategy → Message
+  generation) linked by `DependencyArrow`s, a Conversations section rendering each
+  thread's inbound/outbound messages with close-with-outcome/log-reply/generate-reply
+  forms, and a Contacts section (list + add form). Copied verbatim, import paths
+  rewritten; every `<Select>` usage (outbound-message contact picker, status update,
+  generate-strategy contact picker) renamed to `NativeSelect`, same reason as the
+  prospects-list and dashboard filters earlier. Brought `components/prospects/
+  contact-row.tsx` (→ `module-discovery/src/components/prospects/` — inline-edit-toggle
+  contact list item, self-contained, no new dependencies) along verbatim. Every other
+  dependency (`ai-action-form`, `expandable-box`, all `lib/` queries/mutations/AI
+  operations) was already ported in earlier batches.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
 sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
-the prospect detail page (`prospects/[prospectId]/*` — the largest remaining single
-page, ~930 lines: contacts, research, scoring, outreach strategy/message generation,
-conversation threads, reply classification), the conversions/usage tabs, settings
-pages, and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing
-story by story.
+the conversions/usage tabs, settings pages, and `app/api/webhooks/*`. Tracked as the
+remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
