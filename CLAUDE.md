@@ -30,6 +30,15 @@ pattern ADR-5 requires here).
 6. No hard dependencies between modules (ADR-10). Every cross-module feature has a
    documented degraded mode; a contract call may return `MODULE_NOT_LICENSED` and callers
    must treat that as a normal result, not an exception.
+7. **CoFounderAI's own UI/UX design takes precedence over any vendored default.**
+   `packages/core/src/components/ui/*` gives us shadcn *structure* (StockPilot's fuller
+   set, per `P-0`) — it does not give us StockPilot's colors, and it does not give us
+   `co-founder-ai`'s own colors either where they conflict with the platform's actual
+   design reference. The shell (sidebar, topbar, avatar, business switcher) matches the
+   reference mockup recorded in `docs/DESIGN.md`: light theme by default, blue primary
+   accent, white cards on a soft gray-blue background — not StockPilot's teal/amber
+   vendored theme, not `co-founder-ai`'s current dark-violet one. Every module's screens
+   share this one design system; a module never brings its own look.
 
 ## Architecture (locked — do not change without explicit user approval)
 

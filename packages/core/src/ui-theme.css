@@ -4,36 +4,30 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * Design system definition — CLAUDE.md non-negotiable #7: the platform's own design
+ * takes precedence over any vendored default. Palette, radius and type below follow
+ * docs/DESIGN.md's reference mockup (light, blue-primary admin shell) — not
+ * stockpilot-ai-ops's vendored teal/amber theme (P-0) and not co-founder-ai's own
+ * current dark-violet theme, which conflicts with the mockup.
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
+ * The @theme inline block maps CSS custom properties to Tailwind utility classes
+ * (e.g. --color-primary -> bg-primary, text-primary). The :root and .dark blocks define
+ * the actual color values using oklch. All colors MUST use oklch format.
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
- *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * To add a new semantic color: add the variable to :root (light, default) and .dark,
+ * then register it in @theme inline as --color-<name>: var(--<name>).
  */
 
 @theme inline {
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
-  --color-signal: var(--signal);
-  --color-signal-foreground: var(--signal-foreground);
-  --color-warn: var(--warn);
-  --color-warn-foreground: var(--warn-foreground);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -50,6 +44,10 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -70,105 +68,89 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  /* Light theme. Same hue families as .dark (teal signal ~178, amber warn
-   * ~78) so the brand reads the same in both modes, just re-tuned for
-   * contrast on a light background instead of a dark one. */
-  --background: oklch(0.99 0.003 240);
-  --foreground: oklch(0.2 0.02 250);
-  --surface: oklch(0.97 0.006 245);
-  --surface-2: oklch(0.94 0.008 245);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 250);
-  --primary: oklch(0.52 0.13 178);
-  --primary-foreground: oklch(0.99 0.003 240);
-  --signal: oklch(0.52 0.13 178);
-  --signal-foreground: oklch(0.99 0.003 240);
-  --warn: oklch(0.64 0.16 68);
-  --warn-foreground: oklch(0.99 0.003 240);
-  --secondary: oklch(0.95 0.008 245);
-  --secondary-foreground: oklch(0.22 0.02 250);
-  --muted: oklch(0.95 0.006 245);
-  --muted-foreground: oklch(0.48 0.02 250);
-  --accent: oklch(0.92 0.03 190);
-  --accent-foreground: oklch(0.22 0.02 250);
-  --destructive: oklch(0.55 0.21 25);
-  --destructive-foreground: oklch(0.99 0.003 240);
-  --border: oklch(0 0 0 / 9%);
-  --input: oklch(0 0 0 / 12%);
-  --ring: oklch(0.52 0.13 178);
-  --chart-1: oklch(0.52 0.13 178);
-  --chart-2: oklch(0.64 0.16 68);
-  --chart-3: oklch(0.5 0.15 255);
-  --chart-4: oklch(0.55 0.21 25);
-  --chart-5: oklch(0.55 0.08 200);
-  --sidebar: oklch(0.975 0.004 240);
-  --sidebar-foreground: oklch(0.2 0.02 250);
-  --sidebar-primary: oklch(0.52 0.13 178);
-  --sidebar-primary-foreground: oklch(0.99 0.003 240);
-  --sidebar-accent: oklch(0.92 0.03 190);
-  --sidebar-accent-foreground: oklch(0.2 0.02 250);
-  --sidebar-border: oklch(0 0 0 / 8%);
-  --sidebar-ring: oklch(0.52 0.13 178);
+  --radius: 0.625rem;
 
-  --gradient-hero:
-    radial-gradient(120% 90% at 70% 0%, oklch(0.85 0.06 190 / 0.35) 0%, transparent 60%),
-    radial-gradient(90% 70% at 0% 10%, oklch(0.85 0.05 255 / 0.35) 0%, transparent 55%);
-  --gradient-signal: linear-gradient(135deg, oklch(0.52 0.13 178), oklch(0.58 0.13 120));
-  --shadow-lift: 0 24px 60px -20px oklch(0.2 0.03 250 / 0.16);
-  --shadow-glow:
-    0 0 0 1px oklch(0.52 0.13 178 / 0.2), 0 20px 60px -25px oklch(0.52 0.13 178 / 0.35);
+  /* Light theme (default — the mockup has no dark variant; this is the platform's
+   * primary look). Soft gray-blue page background, white cards, a clean mid-blue
+   * primary. */
+  --background: oklch(0.972 0.006 250);
+  --foreground: oklch(0.22 0.02 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 258);
+  --primary: oklch(0.546 0.215 260);
+  --primary-foreground: oklch(0.99 0.002 250);
+  --secondary: oklch(0.955 0.008 250);
+  --secondary-foreground: oklch(0.24 0.02 258);
+  --muted: oklch(0.955 0.007 250);
+  --muted-foreground: oklch(0.52 0.02 255);
+  --accent: oklch(0.93 0.03 260);
+  --accent-foreground: oklch(0.4 0.18 260);
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0.003 240);
+  --success: oklch(0.62 0.15 148);
+  --success-foreground: oklch(0.99 0.003 240);
+  --warning: oklch(0.75 0.15 75);
+  --warning-foreground: oklch(0.28 0.05 75);
+  --border: oklch(0 0 0 / 8%);
+  --input: oklch(0 0 0 / 10%);
+  --ring: oklch(0.546 0.215 260 / 50%);
+  --chart-1: oklch(0.546 0.215 260);
+  --chart-2: oklch(0.62 0.15 148);
+  --chart-3: oklch(0.75 0.15 75);
+  --chart-4: oklch(0.58 0.22 25);
+  --chart-5: oklch(0.55 0.14 300);
+  --sidebar: oklch(0.995 0.002 250);
+  --sidebar-foreground: oklch(0.22 0.02 258);
+  --sidebar-primary: oklch(0.546 0.215 260);
+  --sidebar-primary-foreground: oklch(0.99 0.002 250);
+  --sidebar-accent: oklch(0.93 0.03 260);
+  --sidebar-accent-foreground: oklch(0.4 0.18 260);
+  --sidebar-border: oklch(0 0 0 / 7%);
+  --sidebar-ring: oklch(0.546 0.215 260 / 50%);
 }
 
 .dark {
-  --background: oklch(0.17 0.028 250);
-  --foreground: oklch(0.96 0.008 240);
-  --surface: oklch(0.215 0.03 250);
-  --surface-2: oklch(0.255 0.032 250);
-  --card: oklch(0.215 0.03 250);
-  --card-foreground: oklch(0.96 0.008 240);
-  --popover: oklch(0.215 0.03 250);
-  --popover-foreground: oklch(0.96 0.008 240);
-  --primary: oklch(0.78 0.14 178);
-  --primary-foreground: oklch(0.19 0.03 250);
-  --signal: oklch(0.78 0.14 178);
-  --signal-foreground: oklch(0.19 0.03 250);
-  --warn: oklch(0.82 0.15 78);
-  --warn-foreground: oklch(0.2 0.03 250);
-  --secondary: oklch(0.28 0.032 250);
-  --secondary-foreground: oklch(0.96 0.008 240);
-  --muted: oklch(0.26 0.03 250);
-  --muted-foreground: oklch(0.72 0.02 245);
-  --accent: oklch(0.3 0.04 250);
-  --accent-foreground: oklch(0.96 0.008 240);
-  --destructive: oklch(0.63 0.2 22);
+  /* Dark variant kept for a future theme toggle (not shown in the mockup, which is
+   * light-only) — inverted on the same blue hue rather than StockPilot's teal or
+   * co-founder-ai's violet, so the brand hue stays constant if a toggle ships later. */
+  --background: oklch(0.19 0.02 258);
+  --foreground: oklch(0.97 0.006 250);
+  --card: oklch(0.23 0.022 258);
+  --card-foreground: oklch(0.97 0.006 250);
+  --popover: oklch(0.23 0.022 258);
+  --popover-foreground: oklch(0.97 0.006 250);
+  --primary: oklch(0.7 0.18 260);
+  --primary-foreground: oklch(0.16 0.02 258);
+  --secondary: oklch(0.28 0.022 258);
+  --secondary-foreground: oklch(0.97 0.006 250);
+  --muted: oklch(0.27 0.02 258);
+  --muted-foreground: oklch(0.72 0.015 255);
+  --accent: oklch(0.32 0.05 260);
+  --accent-foreground: oklch(0.85 0.1 260);
+  --destructive: oklch(0.65 0.2 22);
   --destructive-foreground: oklch(0.98 0.005 240);
+  --success: oklch(0.68 0.14 148);
+  --success-foreground: oklch(0.16 0.03 148);
+  --warning: oklch(0.78 0.14 75);
+  --warning-foreground: oklch(0.24 0.04 75);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.78 0.14 178);
-  --chart-1: oklch(0.78 0.14 178);
-  --chart-2: oklch(0.82 0.15 78);
-  --chart-3: oklch(0.65 0.15 250);
-  --chart-4: oklch(0.63 0.2 22);
-  --chart-5: oklch(0.7 0.1 200);
-  --sidebar: oklch(0.19 0.03 250);
-  --sidebar-foreground: oklch(0.96 0.008 240);
-  --sidebar-primary: oklch(0.78 0.14 178);
-  --sidebar-primary-foreground: oklch(0.19 0.03 250);
-  --sidebar-accent: oklch(0.26 0.03 250);
-  --sidebar-accent-foreground: oklch(0.96 0.008 240);
+  --ring: oklch(0.7 0.18 260 / 55%);
+  --chart-1: oklch(0.7 0.18 260);
+  --chart-2: oklch(0.68 0.14 148);
+  --chart-3: oklch(0.78 0.14 75);
+  --chart-4: oklch(0.65 0.2 22);
+  --chart-5: oklch(0.65 0.13 300);
+  --sidebar: oklch(0.21 0.02 258);
+  --sidebar-foreground: oklch(0.97 0.006 250);
+  --sidebar-primary: oklch(0.7 0.18 260);
+  --sidebar-primary-foreground: oklch(0.16 0.02 258);
+  --sidebar-accent: oklch(0.32 0.05 260);
+  --sidebar-accent-foreground: oklch(0.85 0.1 260);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.78 0.14 178);
-
-  --gradient-hero:
-    radial-gradient(120% 90% at 70% 0%, oklch(0.35 0.09 190 / 0.5) 0%, transparent 60%),
-    radial-gradient(90% 70% at 0% 10%, oklch(0.32 0.07 255 / 0.55) 0%, transparent 55%);
-  --gradient-signal: linear-gradient(135deg, oklch(0.82 0.14 178), oklch(0.86 0.14 120));
-  --shadow-lift: 0 24px 60px -20px oklch(0.1 0.03 250 / 0.85);
-  --shadow-glow:
-    0 0 0 1px oklch(0.78 0.14 178 / 0.25), 0 20px 60px -25px oklch(0.78 0.14 178 / 0.5);
+  --sidebar-ring: oklch(0.7 0.18 260 / 55%);
 }
 
 @layer base {
@@ -179,50 +161,15 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-  }
-}
-
-@layer base {
-  body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
-
-  h1,
-  h2,
-  h3,
-  h4 {
-    font-family: var(--font-display);
-    letter-spacing: -0.02em;
-  }
 }
 
-@utility hero-glow {
-  background-image: var(--gradient-hero);
-}
-
-@utility text-signal-gradient {
-  background-image: var(--gradient-signal);
-  background-clip: text;
-  color: transparent;
-}
-
-@utility panel {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-}
-
-@utility lift {
-  box-shadow: var(--shadow-lift);
-}
-
-@utility glow {
-  box-shadow: var(--shadow-glow);
-}
-
-/* Printing an invoice: hide everything except the marked print area,
-   regardless of where Radix's dialog portal placed it in the DOM. */
+/* Printing an invoice: hide everything except the marked print area, regardless of
+   where Radix's dialog portal placed it in the DOM. Kept from the P-0 vendor (stockpilot
+   -ai-ops) — this is brand-neutral mechanism, not StockPilot's color scheme, so it
+   stays under CLAUDE.md non-negotiable #7. */
 @media print {
   body * {
     visibility: hidden;
@@ -240,9 +187,9 @@
     display: none !important;
   }
 
-  /* Barcode/QR label sheet: each label sized for a common 2in x 1in
-     thermal label (e.g. Zebra-compatible printers), laid out so a label
-     never splits across a page break. */
+  /* Barcode/QR label sheet: each label sized for a common 2in x 1in thermal label
+     (e.g. Zebra-compatible printers), laid out so a label never splits across a page
+     break. */
   .print-area.label-sheet {
     padding: 0;
   }

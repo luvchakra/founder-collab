@@ -40,6 +40,9 @@ function ownerOf(fileAbsPath) {
 }
 
 function checkSpecifier(owner, specifier, file, violations) {
+  if (specifier === "@cofounderai/module-registry" || specifier.startsWith("@cofounderai/module-registry/")) {
+    return; // the registry package, not a business module -- see ownerOf()'s own "registry" kind
+  }
   const match = specifier.match(/^@cofounderai\/module-([^/]+)(\/.*)?$/);
   if (!match) return;
   const [, targetModule, subpath = ""] = match;
