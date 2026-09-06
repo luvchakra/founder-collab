@@ -58,6 +58,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/email/render.ts` | co-founder-ai | `lib/email/render.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-2 |
 | `packages/core/src/site.ts` | co-founder-ai | `lib/site.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-2 (adapted) |
 | `packages/module-discovery/src/lib/{conversations,knowledge,usage,tenancy,interest}/types.ts`, `lib/interest/notify.ts`, `lib/prospects/pipeline.ts` | co-founder-ai | same paths | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (partial) |
+| `packages/module-discovery/src/lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | co-founder-ai | `lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | `951d326361e4997ec26c6f8761631867416c1699` | P-5 (partial) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -157,13 +158,28 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   rewritten to the new locations of `tenancy/queries`, `crypto/api-key`, and the
   `ai/model-registry`/`operation-registry`/`provider-factory`/`client` pieces `P-2`
   already moved into `packages/core`.
+- **AI operation functions + their dependencies (`P-5`, partial):**
+  `understand-product.ts`, `generate-icp.ts`, `research-prospect.ts`, and
+  `discover-prospects.ts` — the four AI-calling functions that generate a product
+  profile, draft an ICP, research a single prospect (two-call web-search + structuring
+  pattern via the BYOK router), and discover new prospect candidates (same two-call
+  pattern, behind a per-workspace advisory lock) — copied verbatim, only import paths
+  rewritten (`@/lib/supabase/server` → `../../db/server`, same-domain imports → relative
+  paths, `@cofounderai/core/ai/provider-factory` for `createWebSearchTools`). Their
+  blocking dependencies came along in the same batch: `lib/ai/dedup.ts` (input-hash
+  dedup window), `lib/ai/hash.ts` (`hashInput`), `lib/usage/{queries,limits}.ts`
+  (monthly free-tier run/cost caps), `lib/knowledge/queries.ts`
+  (`listProductKnowledge`), and `lib/prospects/duplicates.ts`
+  (`findDuplicateProspect`, shared by discovery/CSV-import/manual-add). One
+  `noUncheckedIndexedAccess` fix in `understand-product.ts` (`sources[0]!.updated_at`,
+  same pattern as `P-2`'s `email/render.ts` fix) — the array is already known non-empty
+  by the preceding length check, TS just can't see it through `.reduce`'s seed argument.
 
-Not yet ported (still needs the DB-coupled operation functions in `lib/ai/*.ts` —
-`understand-product.ts`, `generate-icp.ts`, `research-prospect.ts`,
-`discover-prospects.ts`, `generate-message.ts`, `generate-reply.ts`,
-`generate-strategy.ts`, `classify-reply.ts`, `chat.ts`, `dedup.ts` — plus
-`ai-providers/*`, `messages/*`, `conversations/*`, `knowledge/*`, `dashboard/*`,
-`usage/*`, `interest/mutations.ts`, and every route/component/auth flow): tracked as the
+Not yet ported (still needs `generate-message.ts`, `generate-reply.ts`,
+`generate-strategy.ts`, `classify-reply.ts`, `chat.ts` from `lib/ai/*.ts` — plus
+`ai-providers/{queries,mutations}.ts`, `messages/*`, `conversations/*`,
+`knowledge/mutations.ts`, `dashboard/*`, `chat/queries.ts`, `interest/mutations.ts`,
+`prospects/{bulk-actions,csv}.ts`, and every route/component/auth flow): tracked as the
 remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
