@@ -8,15 +8,23 @@
     "./ui/*": "./src/components/ui/*.tsx",
     "./ui-theme.css": "./src/ui-theme.css",
     "./hooks/use-mobile": "./src/hooks/use-mobile.tsx",
-    "./lib/utils": "./src/lib/utils.ts",
+    "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
     "./ai/*": "./src/ai/*.ts",
-    "./ai-providers/*": "./src/ai-providers/*.ts"
+    "./ai-providers/*": "./src/ai-providers/*.ts",
+    "./email/*": "./src/email/*.ts",
+    "./actions/*": "./src/actions/*.ts",
+    "./site": "./src/site.ts",
+    "./shell/types": "./src/components/shell/types.ts",
+    "./shell/*": "./src/components/shell/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
+  },
+  "peerDependencies": {
+    "next": "16.3.4"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",

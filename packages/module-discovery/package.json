@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "resend": "^6.26.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
