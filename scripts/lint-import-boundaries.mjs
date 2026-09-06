@@ -6,11 +6,15 @@
  * never another module's internals. `core` and `module-registry` may not
  * import any module at all. Violating this fails CI, not a warning
  * (04-CLAUDE-CODE-BACKLOG.md, Epic 1 house rules).
+ *
+ * `runLint(root)` is exported so lint-import-boundaries.test.mjs can prove the rule
+ * actually bites against a fixture tree (P-4's "deliberately-failing fixture test"),
+ * not just that it passes on the real repo.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
-const ROOT = new URL("..", import.meta.url).pathname;
+const DEFAULT_ROOT = new URL("..", import.meta.url).pathname;
 const SCAN_DIRS = ["apps", "packages"];
 const IGNORED = new Set(["node_modules", ".next", "dist", "build"]);
 const IMPORT_RE = /(?:from|require\()\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g;
@@ -26,8 +30,8 @@ function walk(dir, out = []) {
   return out;
 }
 
-function ownerOf(fileAbsPath) {
-  const rel = relative(ROOT, fileAbsPath).split(sep);
+function ownerOf(root, fileAbsPath) {
+  const rel = relative(root, fileAbsPath).split(sep);
   if (rel[0] === "apps") return { kind: "app", name: rel[1] };
   if (rel[0] === "packages" && rel[1] === "core") return { kind: "core", name: "core" };
   if (rel[0] === "packages" && rel[1] === "module-registry") {
@@ -39,7 +43,7 @@ function ownerOf(fileAbsPath) {
   return { kind: "other", name: rel.join("/") };
 }
 
-function checkSpecifier(owner, specifier, file, violations) {
+function checkSpecifier(root, owner, specifier, file, violations) {
   if (specifier === "@cofounderai/module-registry" || specifier.startsWith("@cofounderai/module-registry/")) {
     return; // the registry package, not a business module -- see ownerOf()'s own "registry" kind
   }
@@ -51,7 +55,7 @@ function checkSpecifier(owner, specifier, file, violations) {
 
   if (owner.kind === "core" || owner.kind === "registry") {
     violations.push(
-      `${relative(ROOT, file)}: "${owner.name}" may not import module "${targetModule}" (${specifier}) — core/module-registry must not depend on any module.`,
+      `${relative(root, file)}: "${owner.name}" may not import module "${targetModule}" (${specifier}) — core/module-registry must not depend on any module.`,
     );
     return;
   }
@@ -59,17 +63,17 @@ function checkSpecifier(owner, specifier, file, violations) {
   const isContractEntry = subpath === "" || subpath === "/contract" || subpath.startsWith("/contract/");
   if (!isContractEntry) {
     violations.push(
-      `${relative(ROOT, file)}: imports "${specifier}" — only "@cofounderai/module-${targetModule}/contract" is a legal cross-module import (00-MASTER-PLAN.md §6).`,
+      `${relative(root, file)}: imports "${specifier}" — only "@cofounderai/module-${targetModule}/contract" is a legal cross-module import (00-MASTER-PLAN.md §6).`,
     );
   }
 }
 
-function main() {
+export function runLint(root) {
   const violations = [];
   let scanned = 0;
 
   for (const dir of SCAN_DIRS) {
-    const abs = join(ROOT, dir);
+    const abs = join(root, dir);
     let files;
     try {
       files = walk(abs);
@@ -78,14 +82,20 @@ function main() {
     }
     for (const file of files) {
       scanned += 1;
-      const owner = ownerOf(file);
+      const owner = ownerOf(root, file);
       const source = readFileSync(file, "utf8");
       for (const m of source.matchAll(IMPORT_RE)) {
         const specifier = m[1] ?? m[2];
-        if (specifier) checkSpecifier(owner, specifier, file, violations);
+        if (specifier) checkSpecifier(root, owner, specifier, file, violations);
       }
     }
   }
+
+  return { violations, scanned };
+}
+
+function main() {
+  const { violations, scanned } = runLint(DEFAULT_ROOT);
 
   if (violations.length > 0) {
     console.error(`Import boundary violations (${violations.length}):\n`);
@@ -97,4 +107,4 @@ function main() {
   console.log(`lint:boundaries — ${scanned} files scanned, no violations.`);
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) main();
