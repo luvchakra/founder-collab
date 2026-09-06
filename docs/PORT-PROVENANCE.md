@@ -62,6 +62,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | co-founder-ai | `lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | co-founder-ai | `lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | `3c88122b7f5fc47e641c301ad747b7f5f6195f77` | P-5 (partial) |
 | `packages/module-discovery/src/lib/messages/{queries,mutations,send,ingest-send-status}.ts`, `lib/conversations/{mutations,ingest-inbound-email}.ts` | co-founder-ai | same paths under `lib/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
+| `packages/module-discovery/src/lib/dashboard/queries.ts`, `lib/prospects/{bulk-actions,csv}.ts`, `lib/scoring/score-prospect.ts` | co-founder-ai | same paths under `lib/` | `11896ff43896bc07b75e98a010696601c0f2d844` | P-5 (complete: `lib/` domain layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -232,8 +233,27 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   pattern as `classify-reply.ts`/`interest/mutations.ts`: a delivery-status or inbound
   webhook has no logged-in user for RLS to key off of.
 
-Not yet ported (still needs `dashboard/queries.ts`, `prospects/{bulk-actions,csv}.ts`,
-and every route/component/auth flow): tracked as the remaining scope of `P-5`,
-continuing story by story.
+- **Dashboard account-scan queries, prospect bulk actions/CSV import, deterministic
+  scoring (`P-5`, completes the `lib/` domain layer):** `dashboard/queries.ts`
+  (`getAccountWorkspaceEntries`/`getAccountUsageAndProspects`, the single embedded
+  business→product→workspace PostgREST query the dashboard and its layout share, both
+  `cache()`-memoized per account so two callers on the same request don't pay for it
+  twice), `prospects/bulk-actions.ts` ("research all new"/"score all researched",
+  sequential not parallel so a hit usage ceiling stops the batch cleanly),
+  `prospects/csv.ts` (the pasted-CSV import parser), and `scoring/score-prospect.ts`
+  (the ICP-fit/intent/timing scorer — entirely deterministic per CLAUDE.md principle 4,
+  no AI call; append-only `prospect_scores` rows so score history/trend has something to
+  read). Copied verbatim, only import paths rewritten; two more
+  `noUncheckedIndexedAccess` non-null assertions in `csv.ts` (`lines[0]!`, `lines[i]!` —
+  both already loop/length-guaranteed, same pattern as the earlier `understand-product.ts`
+  and `chat.ts` fixes).
+  This closes out every file under `co-founder-ai`'s `lib/` tree that `docs/
+  BASELINE-DISCOVERY.md`'s parity checklist called for — the full domain/business-logic
+  layer (queries, mutations, AI operations, webhooks) is now in `module-discovery`.
+
+Not yet ported: every route/component/auth flow (`app/(dashboard)/...`, `components/`,
+login/signup/onboarding, `proxy.ts`'s session-refresh middleware) — the UI/wiring layer
+that calls the functions above. Tracked as the remaining scope of `P-5`, continuing
+story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
