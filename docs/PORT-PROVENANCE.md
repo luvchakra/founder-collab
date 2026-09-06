@@ -60,6 +60,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/{conversations,knowledge,usage,tenancy,interest}/types.ts`, `lib/interest/notify.ts`, `lib/prospects/pipeline.ts` | co-founder-ai | same paths | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | co-founder-ai | `lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | `951d326361e4997ec26c6f8761631867416c1699` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | co-founder-ai | `lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
+| `packages/module-discovery/src/lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | co-founder-ai | `lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | `3c88122b7f5fc47e641c301ad747b7f5f6195f77` | P-5 (partial) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -201,10 +202,24 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   untyped `.from(table)` against `Database = any` already, so the literal schema-name
   generic never carried real type safety to begin with.
 
-Not yet ported (still needs `ai-providers/{queries,mutations}.ts`, `messages/*`,
-`conversations/{mutations,ingest-inbound-email}.ts`, `knowledge/mutations.ts`,
-`dashboard/queries.ts`, `interest/mutations.ts`, `prospects/{bulk-actions,csv}.ts`, and
-every route/component/auth flow): tracked as the remaining scope of `P-5`, continuing
-story by story.
+- **BYOK settings UI layer + last two standalone mutations (`P-5`):**
+  `ai-providers/{types,queries,mutations}.ts` (the account-level "connect/disconnect
+  provider" flow the settings page uses — tests the key via
+  `@cofounderai/core/ai-providers/test-connection` before ever persisting it, mirroring
+  `connectAiProvider`'s "never save a key that failed its first validation" invariant),
+  `knowledge/mutations.ts` (add/update/delete a knowledge source, plus file upload with
+  real PDF/DOCX text extraction via `pdf-parse`/`mammoth` — added as new dependencies to
+  `module-discovery`'s `package.json`, versions matched to `co-founder-ai`'s own), and
+  `interest/mutations.ts` (`recordInterestSignup`, the one other mutation besides
+  `classifyReply` that runs on the admin client directly, since an anonymous "Show
+  Interest" submission has no session for RLS to key off of). All copied verbatim, only
+  import paths rewritten (`@/lib/crypto/api-key` → `@cofounderai/core/crypto/api-key`,
+  `./test-connection` → `@cofounderai/core/ai-providers/test-connection`, `@/lib/ai/
+  model-registry`'s `AiProvider` → `@cofounderai/core/ai/model-registry`).
+
+Not yet ported (still needs `messages/*`,
+`conversations/{mutations,ingest-inbound-email}.ts`, `dashboard/queries.ts`,
+`prospects/{bulk-actions,csv}.ts`, and every route/component/auth flow): tracked as the
+remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
