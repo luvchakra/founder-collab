@@ -7,7 +7,9 @@
   "exports": {
     "./lib/*": "./src/lib/*.ts",
     "./prompts/*": "./src/prompts/*.ts",
-    "./db/*": "./src/db/*.ts"
+    "./db/*": "./src/db/*.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./actions/*": "./src/actions/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

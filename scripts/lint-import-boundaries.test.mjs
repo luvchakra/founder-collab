@@ -73,6 +73,19 @@ test("allows a module importing its own internals", () => {
   }
 });
 
+test("allows apps/* to import a module's internals, not just its contract", () => {
+  const root = makeFixture({
+    "apps/web/app/page.tsx": `import { helper } from "@cofounderai/module-discovery/lib/tenancy/queries";\nexport { helper };\n`,
+    "packages/module-discovery/src/lib/tenancy/queries.ts": `export const helper = 1;\n`,
+  });
+  try {
+    const { violations } = runLint(root);
+    assert.deepEqual(violations, []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("does not misclassify @cofounderai/module-registry as a business module", () => {
   const root = makeFixture({
     "packages/core/src/nav.ts": `import { moduleRegistry } from "@cofounderai/module-registry";\nexport { moduleRegistry };\n`,

@@ -65,6 +65,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/dashboard/queries.ts`, `lib/prospects/{bulk-actions,csv}.ts`, `lib/scoring/score-prospect.ts` | co-founder-ai | same paths under `lib/` | `11896ff43896bc07b75e98a010696601c0f2d844` | P-5 (complete: `lib/` domain layer) |
 | `packages/core/src/components/theme/{theme-provider,theme-script,theme-toggle}.tsx`, `src/components/navigation/top-progress-bar.tsx`, `apps/web/app/layout.tsx` | co-founder-ai | `components/theme/*.tsx`, `components/navigation/top-progress-bar.tsx`, `app/layout.tsx` | `72da3b5d03092f6f4b20d733218b8b183aea0c5b` | P-5 (UI layer, starting) |
 | `packages/core/src/db/middleware.ts`, `apps/web/proxy.ts`, `apps/web/app/(auth)/**`, `apps/web/app/auth/callback/route.ts`, `apps/web/components/auth/*.tsx` | co-founder-ai | `lib/supabase/middleware.ts`, `proxy.ts`, `app/(auth)/**`, `app/auth/callback/route.ts`, `components/auth/*.tsx` | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (UI layer) |
+| `packages/module-discovery/src/{actions/onboarding.ts,components/onboarding/wizard.tsx,components/errors/*.tsx}`, `apps/web/app/onboarding/page.tsx` | co-founder-ai | `app/onboarding/{actions.ts,page.tsx}`, `components/onboarding/wizard.tsx`, `components/errors/*.tsx` | `19af424b4d80acd9265149a201702463f413345d` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -303,9 +304,38 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   visually with Playwright screenshots of `/login` before and after that fix, not just
   typecheck.
 
+- **Import-boundary rule fix, required by the onboarding port (`P-5`):**
+  `scripts/lint-import-boundaries.mjs`'s `checkSpecifier` applied the same
+  contract-only restriction to `apps/web` as to a peer module, which would have blocked
+  every page in `apps/web` from importing anything from `module-discovery` except a
+  `contract/` entry point that doesn't exist yet — `packages/module-discovery`'s
+  `package.json` `exports` map (`./lib/*`, `./prompts/*`, `./db/*`, and now
+  `./components/*`/`./actions/*`) is that module's real declared public surface, and
+  `apps/web`'s own repo-structure doc explicitly describes its per-module route groups
+  as "re-exporting from packages" — i.e. reaching into a module's route/action/component
+  code, not just a `contract/`. Fixed by exempting `owner.kind === "app"` from the
+  cross-module contract check (a one-line addition plus an updated docstring) — the
+  module-to-module restriction (`00-MASTER-PLAN.md` §6's actual stated concern) is
+  unchanged; only the host app, which every module's `package.json` exports already
+  gates, is exempt. Added a fixture test proving apps/* can now import a module's
+  internals, alongside the four pre-existing fixture tests (all still passing).
+  This is a narrow lint-rule correction to match documented intent, not an architecture
+  change requiring separate approval.
+- **Onboarding flow (`P-5`):** the two-question wizard (`OnboardingWizard`) plus its
+  backing server actions (`runOnboardingAction`/`approveOnboardingIcpAction` — create
+  business+product+knowledge source, then run the same `understandProduct`/`generateIcp`
+  pipeline the dashboard's own product/ICP pages use) live fully inside
+  `module-discovery` (`src/actions/onboarding.ts`, `src/components/onboarding/wizard.tsx`)
+  rather than split into `apps/web`, since every function they call is discovery's own
+  domain logic — `apps/web/app/onboarding/page.tsx` is a thin page that resolves the
+  current user/account and renders the wizard. Also ported `components/errors/
+  {ai-error-notice,ai-error-options}.tsx` into `module-discovery/src/components/errors/`
+  (the shared BYOK-failure error boundary body the wizard, and later every AI action
+  form, use). Copied verbatim, import paths rewritten. Verified with a real `next build`
+  producing the `/onboarding` route alongside typecheck/lint/boundaries/tests.
+
 Not yet ported: `components/{tenancy,prospects,settings,knowledge,chat,ai,alerts,
-onboarding,errors,marketing,ui}/*`, `app/(dashboard)/dashboard/*`, `app/onboarding/`,
-and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing story by
-story.
+marketing,ui}/*`, `app/(dashboard)/dashboard/*`, and `app/api/webhooks/*`. Tracked as
+the remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).

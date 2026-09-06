@@ -7,6 +7,14 @@
  * import any module at all. Violating this fails CI, not a warning
  * (04-CLAUDE-CODE-BACKLOG.md, Epic 1 house rules).
  *
+ * `apps/*` (the composition root, not a peer module) is exempt from the contract-only
+ * restriction: the repo structure doc describes `apps/web`'s per-module route groups as
+ * "re-exporting from packages", which needs a module's route/page code, not just its
+ * `contract/`. An app can still only reach whatever a module's own `package.json`
+ * `exports` map actually publishes (enforced by Node/TS module resolution, not this
+ * script) — this rule is specifically about module-to-module coupling, and an app is
+ * never the target of that coupling.
+ *
  * `runLint(root)` is exported so lint-import-boundaries.test.mjs can prove the rule
  * actually bites against a fixture tree (P-4's "deliberately-failing fixture test"),
  * not just that it passes on the real repo.
@@ -52,6 +60,7 @@ function checkSpecifier(root, owner, specifier, file, violations) {
   const [, targetModule, subpath = ""] = match;
 
   if (owner.kind === "module" && owner.name === targetModule) return; // self-import, fine
+  if (owner.kind === "app") return; // the composition root, not a peer module -- see the file docstring
 
   if (owner.kind === "core" || owner.kind === "registry") {
     violations.push(
