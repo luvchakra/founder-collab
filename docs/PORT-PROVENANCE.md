@@ -498,9 +498,22 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   `create table` DDL for it to check. Not yet applied to the real dev Supabase project
   (see the network note above — nothing has been since `P-5` started).
 
+- **Webhook routes (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
+  `apps/web/app/api/webhooks/{email-inbound,email-status}/route.ts` — the
+  provider-agnostic inbound-email webhook (shared-secret header, delegates to the
+  already-ported `ingestInboundEmail`) and the Resend delivery-status webhook (manual
+  Svix HMAC-SHA256 signature verification, delegates to the already-ported
+  `ingestSendStatus`). Copied verbatim, import paths rewritten; no UI, no new
+  dependencies. Also filled in `apps/web/.env.example`, which had fallen behind the
+  libs it now documents: `EMAIL_INBOUND_WEBHOOK_SECRET`/`RESEND_WEBHOOK_SECRET` (new,
+  needed by these two routes), plus `RESEND_API_KEY`/`RESEND_FROM_EMAIL` (needed by the
+  already-ported `lib/messages/send.ts`), `API_KEY_ENCRYPTION_SECRET` (needed by the
+  already-ported BYOK `crypto/api-key.ts`), and `NEXT_PUBLIC_SITE_URL` (optional,
+  already-ported `site.ts` fallback) — all previously used by shipped code but
+  undocumented.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
-sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`
-and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing story by
-story.
+sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`.
+Tracked as the remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
