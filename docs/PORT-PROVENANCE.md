@@ -71,6 +71,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `packages/module-discovery/src/components/{tenancy/product-nav.tsx,ui/{expandable-text,expandable-box,collapsible-card}.tsx,ai/ai-action-form.tsx,knowledge/knowledge-source-card.tsx}` | co-founder-ai | `app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/*`, `components/tenancy/product-nav.tsx`, `components/ui/{expandable-text,expandable-box,collapsible-card}.tsx`, `components/ai/ai-action-form.tsx`, `components/knowledge/knowledge-source-card.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 | `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/icp/*` | co-founder-ai | same path | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 | `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/prospects/{page.tsx,actions.ts}`, `packages/module-discovery/src/components/prospects/{add-prospect-modal,prospect-toolbar-actions,prospect-filters,prospects-table,prospects-board}.tsx` | co-founder-ai | `.../prospects/{page.tsx,actions.ts}`, `components/prospects/{add-prospect-modal,prospect-toolbar-actions,prospect-filters,prospects-table,prospects-board}.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
+| `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/products/[productId]/prospects/{discover,import}/*` | co-founder-ai | same paths | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -445,10 +446,18 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   needed earlier, same reason — a plain GET-form `<select>`, not core's vendored
   Radix-based `Select`).
 
+- **Prospect discover + import pages (`P-5`):** the AI-discovery review screen
+  (search the web for up to 10 ICP-matching companies, review/approve/discard each
+  suggestion before anything touches the real pipeline) and the CSV-paste import flow
+  (dedup against both the existing pipeline and the rest of the same paste). Copied
+  verbatim, import paths rewritten; every dependency was already ported.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
 sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
-the prospect discover/import/detail pages, the conversions/usage tabs, settings pages,
-and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing story by
-story.
+the prospect detail page (`prospects/[prospectId]/*` — the largest remaining single
+page, ~930 lines: contacts, research, scoring, outreach strategy/message generation,
+conversation threads, reply classification), the conversions/usage tabs, settings
+pages, and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing
+story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
