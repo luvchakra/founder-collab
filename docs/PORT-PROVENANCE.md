@@ -467,9 +467,18 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   dependency (`ai-action-form`, `expandable-box`, all `lib/` queries/mutations/AI
   operations) was already ported in earlier batches.
 
+- **Conversions + usage tabs (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
+  `.../products/[productId]/{conversions,usage}/{page.tsx,error.tsx}` — the conversion
+  funnel (built entirely from `listProspects` + the already-ported
+  `computeConversionFunnel`/`ConversionFunnelPanel`, no new query or AI call) plus a
+  won-deals list, and the monthly AI usage tab (credits-used bar, per-operation run
+  counts) reading `getWorkspaceUsage`/`creditsUsedPercent`/`FREE_TIER_MONTHLY_RUN_LIMIT`.
+  Copied verbatim, import paths rewritten; both tabs' full dependency chain was already
+  in place, so no new shared components were needed.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
 sidebar-toggle,business-selector,business-list},alerts,chat,marketing,ui/logo-mark}/*`,
-the conversions/usage tabs, settings pages, and `app/api/webhooks/*`. Tracked as the
-remaining scope of `P-5`, continuing story by story.
+settings pages, and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`,
+continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
