@@ -14,11 +14,17 @@ Tracks the exact source commit SHA behind every directory ported from `co-founde
 > **Network note (2026-09-06):** this session's egress policy blocks direct access to
 > `jazdtomcgqjxjueedmck.supabase.co` (both the Postgres port and the HTTPS REST endpoint
 > returned a 403 from the environment's egress proxy — a policy denial, not a transient
-> failure), and the project does not appear in this session's Supabase MCP project list
-> (which only lists 5 projects, none matching this ref). P-0 has no schema/migration work,
-> so this didn't block scaffolding, but no one has verified from this environment that the
-> project is reachable, is in `ap-south-1`, or is otherwise correctly provisioned. Verify
-> connectivity and region before Epic 2 (the first epic to touch this database).
+> failure, reconfirmed later in the same session), and the project does not appear in
+> this session's Supabase MCP project list (which only lists 5 projects, none matching
+> this ref). No one has verified from this environment that the project is reachable, is
+> in `ap-south-1`, or is otherwise correctly provisioned — **the `discovery` schema
+> migration below has never been applied to it.** It has been verified against a local
+> Postgres 16 instance instead (`scripts/test-discovery-rls.mjs`, wired into CI with a
+> `postgres:16` service container) — same engine, same RLS mechanism, real tenant-
+> isolation assertions, but `auth`/`storage` are minimal stubs
+> (`supabase/tests/local-stub.sql`), not the genuine Supabase project. Apply and re-verify
+> against the real target the moment a session has connectivity to it, before building
+> anything further on top that assumes it's already there.
 
 ## Source repositories (read-only reference material — never push to these)
 
@@ -35,6 +41,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 
 | Platform path | Source repo | Source path | Source commit SHA | Story |
 |---|---|---|---|---|
+| `supabase/migrations/20260906100000_discovery_schema.sql` | co-founder-ai | all 23 files in `supabase/migrations/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 |
 | `packages/core/src/components/ui/*.tsx` (46 files) | stockpilot-ai-ops | `src/components/ui/*.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/lib/utils.ts` | stockpilot-ai-ops | `src/lib/utils.ts` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/hooks/use-mobile.tsx` | stockpilot-ai-ops | `src/hooks/use-mobile.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
@@ -111,5 +118,20 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
 - **`packages/core/src/components/shell/*` (new, not a port):** `AppSidebar`/`AppTopbar`/
   `DashboardShell` are new components built directly against the reference mockup — no
   upstream source in either `co-founder-ai` or `stockpilot-ai-ops` has this design.
+- **`supabase/migrations/20260906100000_discovery_schema.sql` (`P-5`, consolidated, not
+  verbatim):** the end state of all 23 `co-founder-ai` migrations, per
+  `05-SP0-AUDIT-AND-GREENFIELD-REVISION.md` §B.3 ("extract, don't replay") — one file
+  instead of 23, schema-qualified to `discovery` instead of `public`, in a `discovery`
+  schema from day one (§B.2: no legacy `public` to preserve). Every table, index,
+  trigger, `security definer` tenant-resolution function, RLS policy, and storage-bucket
+  policy is the same logic as the source, just re-qualified. `discovery.accounts`/
+  `account_members`/`businesses`/`products`/`workspaces` are co-founder-ai's own tenancy
+  tables ported unchanged — **not yet merged into `core`** (00-MASTER-PLAN.md §5 says
+  Account/Business are `core` concepts shared by every module; that merge is Epic 2's
+  `C-1`, once `core` exists and there's a second module to share them with). Verified
+  against a local Postgres via `scripts/test-discovery-rls.mjs` (see the network note
+  above) — schema applies cleanly, `handle_new_user`/`create_default_workspace` fire
+  correctly, and RLS genuinely isolates two tenants on both read and write. Not yet
+  applied to the real target project.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
