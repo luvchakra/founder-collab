@@ -61,6 +61,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | co-founder-ai | `lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | `951d326361e4997ec26c6f8761631867416c1699` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | co-founder-ai | `lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | co-founder-ai | `lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | `3c88122b7f5fc47e641c301ad747b7f5f6195f77` | P-5 (partial) |
+| `packages/module-discovery/src/lib/messages/{queries,mutations,send,ingest-send-status}.ts`, `lib/conversations/{mutations,ingest-inbound-email}.ts` | co-founder-ai | same paths under `lib/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -217,9 +218,22 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   `./test-connection` → `@cofounderai/core/ai-providers/test-connection`, `@/lib/ai/
   model-registry`'s `AiProvider` → `@cofounderai/core/ai/model-registry`).
 
-Not yet ported (still needs `messages/*`,
-`conversations/{mutations,ingest-inbound-email}.ts`, `dashboard/queries.ts`,
-`prospects/{bulk-actions,csv}.ts`, and every route/component/auth flow): tracked as the
-remaining scope of `P-5`, continuing story by story.
+- **Messages + conversations mutation/webhook layer (`P-5`):**
+  `messages/{queries,mutations,send,ingest-send-status}.ts` (list messages;
+  update/approve/mark-sent/delete a draft; `sendMessage`'s real Resend send integration,
+  the only channel with automated sending; the Resend delivery-status webhook handler)
+  and `conversations/{mutations,ingest-inbound-email}.ts` (lazy conversation
+  creation/status transitions, manually logging a reply, and the inbound-email webhook
+  that matches a reply to a contact by address and classifies it). Copied verbatim, only
+  import paths rewritten (`@/lib/email/render` → `@cofounderai/core/email/render`, the
+  rest to their new relative locations). `messages/types.ts` was already identical to
+  the source (ported in an earlier batch) — confirmed with a diff, not re-copied.
+  `ingest-send-status.ts` and `ingest-inbound-email.ts` both run on the admin client, same
+  pattern as `classify-reply.ts`/`interest/mutations.ts`: a delivery-status or inbound
+  webhook has no logged-in user for RLS to key off of.
+
+Not yet ported (still needs `dashboard/queries.ts`, `prospects/{bulk-actions,csv}.ts`,
+and every route/component/auth flow): tracked as the remaining scope of `P-5`,
+continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
