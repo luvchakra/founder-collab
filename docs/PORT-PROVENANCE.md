@@ -48,5 +48,15 @@ package's own `src/` layout. Removed one line from `styles.css` (`@source "../sr
 pointed at a path meaningful only in StockPilot's own repo layout; `apps/web/app/globals.css`
 declares the platform's own `@source` globs instead.
 
-Nothing else has been ported yet — `packages/module-discovery` and `packages/module-inventory`
-don't exist until stories `P-5` and `SP-7` respectively.
+| `packages/module-discovery/src/lib/{ai,prospects,contacts,outreach,messages,icp,research,scoring}/*.ts` (8 files) | co-founder-ai | `lib/ai/schemas.ts`, `lib/{prospects,contacts,outreach,messages,icp,research,scoring}/types.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
+| `packages/module-discovery/src/prompts/**/*.ts` (9 files) | co-founder-ai | `prompts/**/*.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
+
+Copied verbatim (pure Zod schemas / plain TS types / prompt-builder functions — no
+Supabase, no framework coupling), only rewriting each file's `@/lib/...` imports to
+relative paths. This is a deliberately small, fully self-contained, DB-independent first
+slice of `P-5` (`04-CLAUDE-CODE-BACKLOG.md`): the target Supabase project isn't reachable
+from this session (see the network note above), so anything requiring live-DB
+verification — `lib/supabase/*`, `lib/tenancy/*`, the `discovery` schema migrations, the
+dashboard routes, and every other `lib/<domain>` directory that queries Supabase — is
+deferred to a session with real connectivity, story by story, each recorded here as it
+lands. `packages/module-inventory` doesn't exist yet (story `SP-7`).
