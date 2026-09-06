@@ -13,19 +13,36 @@ import type { ShellBusiness, ShellNavModule, ShellUser } from "./types";
 export function DashboardShell({
   modules,
   business,
+  businesses,
+  activeBusinessId,
+  businessHref,
+  onCreateBusiness,
   user,
+  onSignOut,
   children,
 }: {
   modules: ShellNavModule[];
   business: ShellBusiness;
+  businesses?: ShellBusiness[];
+  activeBusinessId?: string | null;
+  businessHref?: (businessId: string) => string;
+  onCreateBusiness?: () => void;
   user: ShellUser;
+  onSignOut?: () => void;
   children: ReactNode;
 }) {
   return (
     <SidebarProvider>
-      <AppSidebar modules={modules} business={business} />
+      <AppSidebar
+        modules={modules}
+        business={business}
+        businesses={businesses}
+        activeBusinessId={activeBusinessId}
+        businessHref={businessHref}
+        onCreateBusiness={onCreateBusiness}
+      />
       <SidebarInset>
-        <AppTopbar user={user} />
+        <AppTopbar user={user} onSignOut={onSignOut} />
         <main className="flex-1 bg-background p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

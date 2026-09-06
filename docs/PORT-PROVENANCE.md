@@ -66,6 +66,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/components/theme/{theme-provider,theme-script,theme-toggle}.tsx`, `src/components/navigation/top-progress-bar.tsx`, `apps/web/app/layout.tsx` | co-founder-ai | `components/theme/*.tsx`, `components/navigation/top-progress-bar.tsx`, `app/layout.tsx` | `72da3b5d03092f6f4b20d733218b8b183aea0c5b` | P-5 (UI layer, starting) |
 | `packages/core/src/db/middleware.ts`, `apps/web/proxy.ts`, `apps/web/app/(auth)/**`, `apps/web/app/auth/callback/route.ts`, `apps/web/components/auth/*.tsx` | co-founder-ai | `lib/supabase/middleware.ts`, `proxy.ts`, `app/(auth)/**`, `app/auth/callback/route.ts`, `components/auth/*.tsx` | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (UI layer) |
 | `packages/module-discovery/src/{actions/onboarding.ts,components/onboarding/wizard.tsx,components/errors/*.tsx}`, `apps/web/app/onboarding/page.tsx` | co-founder-ai | `app/onboarding/{actions.ts,page.tsx}`, `components/onboarding/wizard.tsx`, `components/errors/*.tsx` | `19af424b4d80acd9265149a201702463f413345d` | P-5 (UI layer) |
+| `apps/web/app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `apps/web/components/dashboard/dashboard-chrome.tsx`, `packages/module-discovery/src/{components/tenancy/create-business-modal.tsx,components/prospects/conversion-funnel-panel.tsx,components/ui/native-select.tsx,lib/tenancy/active-path.ts,lib/alerts/derive.ts,lib/usage/format.ts}`, `packages/core/src/{hooks/use-dismiss.ts,components/ui/submit-button.tsx}` | co-founder-ai | `app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `components/tenancy/create-business-modal.tsx`, `components/prospects/conversion-funnel-panel.tsx`, `components/ui/select.tsx`, `lib/tenancy/active-path.ts`, `lib/alerts/derive.ts`, `lib/usage/format.ts`, `hooks/use-dismiss.ts`, `components/ui/submit-button.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer, adapted) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -334,8 +335,70 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   form, use). Copied verbatim, import paths rewritten. Verified with a real `next build`
   producing the `/onboarding` route alongside typecheck/lint/boundaries/tests.
 
-Not yet ported: `components/{tenancy,prospects,settings,knowledge,chat,ai,alerts,
-marketing,ui}/*`, `app/(dashboard)/dashboard/*`, and `app/api/webhooks/*`. Tracked as
-the remaining scope of `P-5`, continuing story by story.
+- **Real authenticated dashboard shell + home page (`P-5`, adapted, not verbatim):**
+  the P-0-era placeholder (`DashboardShell` rendered at `/` with hardcoded
+  `PLACEHOLDER_BUSINESS`/`PLACEHOLDER_USER` and no auth) is retired. `/` now redirects
+  to `/dashboard` or `/login` based on session state; the real, authenticated
+  `/dashboard` lives at `apps/web/app/(dashboard)/{layout.tsx,dashboard/page.tsx}`.
+
+  This is the first piece of `P-5`'s UI layer that couldn't be a verbatim port:
+  co-founder-ai's own dashboard chrome (`components/tenancy/sidebar.tsx`,
+  `sidebar-account-menu.tsx`, `business-selector.tsx` — dark-violet, business/product
+  drill-down nav) is exactly what CLAUDE.md non-negotiable #7 says the platform's own
+  `AppSidebar`/`AppTopbar`/`DashboardShell` (built in `P-0`/`P-3`, light/blue, per
+  `docs/DESIGN.md`'s reference mockup) supersede. Their docstrings said business
+  switching / sign-out were "a placeholder until Epic 2's C-5" — but functional parity
+  ("make sure all features present in CoFounderAI project work the same") doesn't
+  require Epic 2's cross-module `core` tenancy/licensing migration: it only needs
+  `discovery`'s own already-ported, already-RLS-tested account→business→product chain to
+  be wired up, which the shell was simply never given yet. So both were extended with
+  real functionality while keeping the new visual design:
+  - `ShellBusiness` gained `id`/`description`; `AppSidebar` takes optional
+    `businesses`/`activeBusinessId`/`businessHref`/`onCreateBusiness` and renders a real
+    (if simpler than upstream's popover) switchable list in its footer, matching the
+    mockup's existing "Businesses" section instead of a dropdown.
+  - `AppTopbar`'s avatar is a real `DropdownMenu` (vendored StockPilot primitive) with a
+    working "Sign out" item (`onSignOut`), replacing the static name/email display.
+  - `apps/web/components/dashboard/dashboard-chrome.tsx` (new, not a port): a client
+    wrapper owning the create-business modal's open state and deriving the active
+    business from the URL via `getActiveIdsFromPath` (same `/dashboard/businesses/[id]`
+    shape co-founder-ai's own Sidebar/BusinessSelector agreed on) — the same job
+    upstream's client components did, just recomposed for the new shell's prop shape.
+    `apps/web/app/(dashboard)/layout.tsx` is a thin Server Component that fetches the
+    real account/businesses/user and passes them straight through.
+
+  Everything else ported verbatim: `dashboard/page.tsx`'s KPI cards + business/product
+  filter + `ConversionFunnelPanel`, `dashboard/actions.ts`'s
+  `createBusinessAction`/`createProductAction`, `create-business-modal.tsx`,
+  `lib/tenancy/active-path.ts`, `lib/alerts/derive.ts`, `lib/usage/format.ts`,
+  `hooks/use-dismiss.ts` (→ `packages/core/src/hooks/`, generic enough for any module),
+  and `components/ui/submit-button.tsx` (→ `packages/core/src/components/ui/`, same
+  reasoning). One necessary rename: co-founder-ai's own hand-rolled
+  `components/ui/select.tsx` (a native `<select>`, needed here because the dashboard's
+  business/product filter is a plain GET `<form>`) collides on name with
+  `@cofounderai/core/ui/select` — StockPilot's vendored Radix-based composable Select,
+  a different component entirely. Ported as `NativeSelect` in
+  `module-discovery/src/components/ui/native-select.tsx` instead of overwriting or
+  aliasing the vendored one.
+  `components/tenancy/business-selector.tsx`, `sidebar.tsx`, `sidebar-account-menu.tsx`,
+  `sidebar-context.tsx`, `sidebar-toggle.tsx`, `breadcrumbs.tsx`, `editable-name.tsx`,
+  `editable-text.tsx`, `product-nav.tsx`, `business-list.tsx`, and
+  `components/ui/logo-mark.tsx` (depends on binary PNG brand assets not yet copied over)
+  were **not** ported — their functionality is now covered by the shell extension above
+  or belongs inside the business/product detail pages once those exist, not the global
+  layout. `components/alerts/alert-bell.tsx` and `components/chat/ai-chat-widget.tsx`
+  are deferred too (additive, don't block the dashboard home page).
+
+  Verified with a real `next build` (`/dashboard` compiles), a running dev server
+  confirming `/` → `/login` and `/dashboard` → `/login` redirects for an anonymous
+  visitor (both via curl, not just typecheck), plus the full typecheck/lint/boundaries/
+  test suite.
+
+Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
+sidebar-toggle,business-selector,business-list,breadcrumbs,editable-name,editable-text,
+product-nav},alerts,chat,ai,knowledge/knowledge-source-card,marketing,ui/logo-mark}/*`,
+`app/(dashboard)/dashboard/businesses/**` (business/product detail pages — the actual
+GTM pipeline screens), settings pages, and `app/api/webhooks/*`. Tracked as the
+remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).

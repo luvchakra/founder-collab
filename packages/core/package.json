@@ -8,6 +8,7 @@
     "./ui/*": "./src/components/ui/*.tsx",
     "./ui-theme.css": "./src/ui-theme.css",
     "./hooks/use-mobile": "./src/hooks/use-mobile.tsx",
+    "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./crypto/*": "./src/crypto/*.ts",

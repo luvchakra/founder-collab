@@ -1,21 +1,13 @@
-import { moduleRegistry } from "@cofounderai/module-registry";
-import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
+import { redirect } from "next/navigation";
+import { createClient } from "@cofounderai/core/db/server";
 
-// Placeholder business/user data — Epic 2's C-5 (business switcher + session
-// resolution) replaces this with the real thing. Only the shell's look is settled here
-// (docs/DESIGN.md), not its data source.
-const PLACEHOLDER_BUSINESS = { name: "Acme Trading Pvt. Ltd." };
-const PLACEHOLDER_USER = { name: "Demo User", email: "demo@cofounderai.app" };
-
-export default function Home() {
-  return (
-    <DashboardShell modules={moduleRegistry} business={PLACEHOLDER_BUSINESS} user={PLACEHOLDER_USER}>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">Good morning</h1>
-        <p className="text-muted-foreground">
-          Scaffold complete (P-0–P-3). Module screens land in later epics.
-        </p>
-      </div>
-    </DashboardShell>
-  );
+// co-founder-ai's own "/" is its marketing landing page (components/marketing/*, not
+// yet ported — tracked in docs/PORT-PROVENANCE.md). Until then, "/" just routes to
+// somewhere real instead of the P-0 scaffold's fabricated DashboardShell preview.
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  redirect(user ? "/dashboard" : "/login");
 }

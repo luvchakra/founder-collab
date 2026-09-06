@@ -19,5 +19,7 @@ export interface ShellUser {
 }
 
 export interface ShellBusiness {
+  id: string;
   name: string;
+  description?: string | null;
 }
