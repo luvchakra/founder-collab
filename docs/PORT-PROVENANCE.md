@@ -490,13 +490,15 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   with no discovery dependency at all, and even ai-provider/usage (which do read
   discovery's `ai-providers`/`usage`/`tenancy` libs) are account-level settings, not a
   workspace-scoped discovery feature, matching where the auth flow was placed earlier.
-  Brought one migration along that had no equivalent yet:
-  `supabase/migrations/20260906110000_avatars_storage_bucket.sql` — a public
-  `avatars` storage bucket with per-user-folder RLS (`storage.foldername(name)[1] =
-  auth.uid()::text`), platform-wide (not module-owned), required for the profile
-  page's avatar upload to work; `lint:migrations` passes since the file contains no
-  `create table` DDL for it to check. Not yet applied to the real dev Supabase project
-  (see the network note above — nothing has been since `P-5` started).
+  This batch's initial commit also added a migration
+  (`20260906110000_avatars_storage_bucket.sql`) for the profile page's avatar upload,
+  believing no equivalent existed yet — wrong: `20260906100000_discovery_schema.sql`
+  already carries the exact same `avatars` bucket + per-user-folder storage policies
+  (added speculatively in an earlier lib-porting batch, ahead of the UI that would use
+  it). `CREATE POLICY` has no `IF NOT EXISTS`, so the duplicate broke `test:db`'s
+  from-scratch migration apply in CI; caught via the PR's CI check failing, fixed by
+  deleting the redundant file in a follow-up commit. Lesson: grep existing migrations
+  for the feature before adding a new one, not just the lib layer.
 
 - **Webhook routes (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
   `apps/web/app/api/webhooks/{email-inbound,email-status}/route.ts` — the
