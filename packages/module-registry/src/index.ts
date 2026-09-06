@@ -50,7 +50,7 @@ export const moduleRegistry: ModuleManifest[] = [
   },
   {
     key: "fsm",
-    name: "Field Service",
+    name: "Service",
     icon: "Wrench",
     routePrefix: "/fsm",
     nav: [{ label: "Overview", href: "/fsm" }],
