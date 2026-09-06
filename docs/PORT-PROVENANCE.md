@@ -67,6 +67,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/db/middleware.ts`, `apps/web/proxy.ts`, `apps/web/app/(auth)/**`, `apps/web/app/auth/callback/route.ts`, `apps/web/components/auth/*.tsx` | co-founder-ai | `lib/supabase/middleware.ts`, `proxy.ts`, `app/(auth)/**`, `app/auth/callback/route.ts`, `components/auth/*.tsx` | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (UI layer) |
 | `packages/module-discovery/src/{actions/onboarding.ts,components/onboarding/wizard.tsx,components/errors/*.tsx}`, `apps/web/app/onboarding/page.tsx` | co-founder-ai | `app/onboarding/{actions.ts,page.tsx}`, `components/onboarding/wizard.tsx`, `components/errors/*.tsx` | `19af424b4d80acd9265149a201702463f413345d` | P-5 (UI layer) |
 | `apps/web/app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `apps/web/components/dashboard/dashboard-chrome.tsx`, `packages/module-discovery/src/{components/tenancy/create-business-modal.tsx,components/prospects/conversion-funnel-panel.tsx,components/ui/native-select.tsx,lib/tenancy/active-path.ts,lib/alerts/derive.ts,lib/usage/format.ts}`, `packages/core/src/{hooks/use-dismiss.ts,components/ui/submit-button.tsx}` | co-founder-ai | `app/(dashboard)/{layout.tsx,dashboard/{page.tsx,actions.ts}}`, `components/tenancy/create-business-modal.tsx`, `components/prospects/conversion-funnel-panel.tsx`, `components/ui/select.tsx`, `lib/tenancy/active-path.ts`, `lib/alerts/derive.ts`, `lib/usage/format.ts`, `hooks/use-dismiss.ts`, `components/ui/submit-button.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer, adapted) |
+| `apps/web/app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `packages/module-discovery/src/components/{tenancy/{editable-name,editable-text,breadcrumbs}.tsx,ui/loading-skeleton.tsx}` | co-founder-ai | `app/(dashboard)/{loading.tsx,dashboard/{error.tsx,businesses/[businessId]/*}}`, `components/tenancy/{editable-name,editable-text,breadcrumbs}.tsx`, `components/ui/loading-skeleton.tsx` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -394,11 +395,26 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   visitor (both via curl, not just typecheck), plus the full typecheck/lint/boundaries/
   test suite.
 
+- **Business detail page (`P-5`):** `app/(dashboard)/dashboard/businesses/[businessId]/
+  {page.tsx,actions.ts,loading.tsx}` — the business's product list (with per-product
+  profile/ICP/prospect-count status chips) plus inline rename/description-edit and a
+  create-product form. Copied verbatim, import paths rewritten. Brought
+  `components/tenancy/{editable-name,editable-text,breadcrumbs}.tsx` (→
+  `module-discovery/src/components/tenancy/`, generic inline-edit controls the product
+  detail page will reuse) and `components/ui/loading-skeleton.tsx` (→
+  `module-discovery/src/components/ui/`, no name collision with core's `skeleton.tsx` —
+  a different, StockPilot-vendored shimmer-block primitive) along verbatim.
+  `app/(dashboard)/loading.tsx` and `dashboard/error.tsx` ported too, the former with one
+  simplification: it originally centered `LogoMark` inside the spinner, which depends on
+  the binary PNG brand assets not yet copied over (tracked below) — rendered as a plain
+  spinner for now, no logo.
+
 Not yet ported: `components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,
-sidebar-toggle,business-selector,business-list,breadcrumbs,editable-name,editable-text,
-product-nav},alerts,chat,ai,knowledge/knowledge-source-card,marketing,ui/logo-mark}/*`,
-`app/(dashboard)/dashboard/businesses/**` (business/product detail pages — the actual
-GTM pipeline screens), settings pages, and `app/api/webhooks/*`. Tracked as the
-remaining scope of `P-5`, continuing story by story.
+sidebar-toggle,business-selector,business-list,product-nav},alerts,chat,ai,
+knowledge/knowledge-source-card,marketing,ui/logo-mark}/*`,
+`app/(dashboard)/dashboard/businesses/[businessId]/products/**` (the product detail page
+and its subpages: ICP, prospects list/discover/import, prospect detail, conversions,
+usage — the core GTM pipeline screens), settings pages, and `app/api/webhooks/*`.
+Tracked as the remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
