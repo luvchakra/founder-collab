@@ -63,6 +63,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | co-founder-ai | `lib/ai-providers/{types,queries,mutations}.ts`, `lib/knowledge/mutations.ts`, `lib/interest/mutations.ts` | `3c88122b7f5fc47e641c301ad747b7f5f6195f77` | P-5 (partial) |
 | `packages/module-discovery/src/lib/messages/{queries,mutations,send,ingest-send-status}.ts`, `lib/conversations/{mutations,ingest-inbound-email}.ts` | co-founder-ai | same paths under `lib/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/lib/dashboard/queries.ts`, `lib/prospects/{bulk-actions,csv}.ts`, `lib/scoring/score-prospect.ts` | co-founder-ai | same paths under `lib/` | `11896ff43896bc07b75e98a010696601c0f2d844` | P-5 (complete: `lib/` domain layer) |
+| `packages/core/src/components/theme/{theme-provider,theme-script,theme-toggle}.tsx`, `src/components/navigation/top-progress-bar.tsx`, `apps/web/app/layout.tsx` | co-founder-ai | `components/theme/*.tsx`, `components/navigation/top-progress-bar.tsx`, `app/layout.tsx` | `72da3b5d03092f6f4b20d733218b8b183aea0c5b` | P-5 (UI layer, starting) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -251,9 +252,30 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   BASELINE-DISCOVERY.md`'s parity checklist called for — the full domain/business-logic
   layer (queries, mutations, AI operations, webhooks) is now in `module-discovery`.
 
-Not yet ported: every route/component/auth flow (`app/(dashboard)/...`, `components/`,
-login/signup/onboarding, `proxy.ts`'s session-refresh middleware) — the UI/wiring layer
-that calls the functions above. Tracked as the remaining scope of `P-5`, continuing
-story by story.
+- **UI layer scope decision, and the first slice of it (`P-5`):** `docs/plan/04-CLAUDE-CODE-BACKLOG.md`'s `P-5` row ("move discovery into a package") is superseded by
+  `docs/plan/05-SP0-AUDIT-AND-GREENFIELD-REVISION.md` §B.2's revision, which is explicit:
+  `P-5` ports `lib/`, `components/`, `app/(dashboard)/dashboard/*`, `prompts/`, `types/`
+  from `co-founder-ai` **at its existing URL structure**
+  (`/dashboard/businesses/[businessId]/products/[productId]/...`) — the
+  `[businessSlug]`-per-module restructuring in `CLAUDE.md`'s "Repository structure"
+  section is Epic 2 (`C-5`, business switcher + `proxy.ts` route resolution) and later,
+  which doesn't exist yet. Started with the shared, cross-module pieces every route
+  needs: the theme system (`theme-provider`/`theme-script`/`theme-toggle` — hand-rolled
+  light/dark/system, no new dependency, ported verbatim) and `top-progress-bar.tsx`
+  (link-navigation loading indicator). These are platform-shell concerns rather than
+  discovery-specific ones (CLAUDE.md non-negotiable #7: "every module's screens share
+  this one design system"), so they landed in `packages/core/src/components/{theme,
+  navigation}/` — new `./theme/*` and `./navigation/*` export map entries — not
+  `module-discovery`. `apps/web/app/layout.tsx` now wires `ThemeScript`/`ThemeProvider`/
+  `TopProgressBar` and real `<head>` metadata (via `@cofounderai/core/site`'s `SITE_URL`)
+  in place of the `P-0`-era placeholder shell, verified with a real `next build` and a
+  Playwright screenshot (light theme, blue accent, `DashboardShell` sidebar/topbar
+  render correctly) rather than typecheck alone.
+
+Not yet ported: `components/{auth,tenancy,prospects,settings,knowledge,chat,ai,alerts,
+onboarding,errors,marketing,ui}/*`, every `app/(auth)/`, `app/(dashboard)/dashboard/*`,
+`app/onboarding/`, `app/api/webhooks/*`, and `app/auth/callback/route.ts` route/action
+file, and the session-refresh middleware (`lib/supabase/middleware.ts` → `proxy.ts`).
+Tracked as the remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
