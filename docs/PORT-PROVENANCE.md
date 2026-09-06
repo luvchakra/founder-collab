@@ -42,6 +42,8 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | Platform path | Source repo | Source path | Source commit SHA | Story |
 |---|---|---|---|---|
 | `supabase/migrations/20260906100000_discovery_schema.sql` | co-founder-ai | all 23 files in `supabase/migrations/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 |
+| `packages/module-discovery/src/lib/{tenancy,contacts,prospects,icp,research,scoring,outreach}/{queries,mutations}.ts` | co-founder-ai | same paths under `lib/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` / `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 |
+| `packages/module-discovery/src/lib/ai/{router,usage,discovery-lock}.ts` | co-founder-ai | `lib/ai/{router,usage,discovery-lock}.ts` | `0b23246f08a669ee7ce5f402507b337821a91a73` | P-5 |
 | `packages/core/src/components/ui/*.tsx` (46 files) | stockpilot-ai-ops | `src/components/ui/*.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/lib/utils.ts` | stockpilot-ai-ops | `src/lib/utils.ts` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/hooks/use-mobile.tsx` | stockpilot-ai-ops | `src/hooks/use-mobile.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
@@ -133,5 +135,35 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   above) — schema applies cleanly, `handle_new_user`/`create_default_workspace` fire
   correctly, and RLS genuinely isolates two tenants on both read and write. Not yet
   applied to the real target project.
+
+- **Schema-targeting mechanism (`P-5`), added to `packages/core/src/db/{client,server,admin}.ts`:**
+  each now takes an optional `{ schema }` option, passed through to `@supabase/ssr`/
+  `@supabase/supabase-js`'s `db.schema`. `03-STOCKPILOT-MIGRATION.md` mechanism M1's
+  "one file changed" pointed at a single client factory getting `.schema('inventory')`;
+  the platform has one client factory per module instead (three, actually — client/
+  server/admin), so the equivalent is core's factories taking the schema as a parameter
+  and each module's own thin `db/{client,server,admin}.ts` (new,
+  `packages/module-discovery/src/db/*`) baking its schema name in once. Every ported
+  query/mutation file below needed zero changes to its actual Supabase calls (`.from(...)`
+  bare table names, exactly as upstream) — only the `createClient` import path changed,
+  confirming M1's "minimum code changes" premise holds for discovery too.
+- **`lib/{tenancy,contacts,prospects,icp,research,scoring,outreach}/{queries,mutations}.ts`
+  (`P-5`):** copied verbatim; only `@/lib/supabase/server` → `../../db/server` and the
+  couple of same-domain type/util imports (`@/lib/url`, `@/lib/tenancy/queries`, etc.)
+  rewritten to their new locations. No logic changes.
+- **`lib/ai/{router,usage,discovery-lock}.ts` (`P-5`):** the AI Router (workspace →
+  account → BYOK credential → decrypted key → provider-bound model), the `ai_runs`
+  usage-ledger writer, and the discovery in-flight lock — copied verbatim, imports
+  rewritten to the new locations of `tenancy/queries`, `crypto/api-key`, and the
+  `ai/model-registry`/`operation-registry`/`provider-factory`/`client` pieces `P-2`
+  already moved into `packages/core`.
+
+Not yet ported (still needs the DB-coupled operation functions in `lib/ai/*.ts` —
+`understand-product.ts`, `generate-icp.ts`, `research-prospect.ts`,
+`discover-prospects.ts`, `generate-message.ts`, `generate-reply.ts`,
+`generate-strategy.ts`, `classify-reply.ts`, `chat.ts`, `dedup.ts` — plus
+`ai-providers/*`, `messages/*`, `conversations/*`, `knowledge/*`, `dashboard/*`,
+`usage/*`, `interest/mutations.ts`, and every route/component/auth flow): tracked as the
+remaining scope of `P-5`, continuing story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).

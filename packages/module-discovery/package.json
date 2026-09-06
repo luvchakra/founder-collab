@@ -6,15 +6,22 @@
   "sideEffects": false,
   "exports": {
     "./lib/*": "./src/lib/*.ts",
-    "./prompts/*": "./src/prompts/*.ts"
+    "./prompts/*": "./src/prompts/*.ts",
+    "./db/*": "./src/db/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@cofounderai/core": "*",
+    "@supabase/supabase-js": "^2.115.0",
+    "react": "19.2.8",
     "resend": "^6.26.0",
     "zod": "^4.5.4"
+  },
+  "peerDependencies": {
+    "next": "16.3.4"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
