@@ -546,8 +546,33 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
     (`noUncheckedIndexedAccess`-adjacent strictness on optional regex groups) — same
     pattern used for array-index assertions elsewhere in this repo.
 
-Not yet ported: `components/marketing/*` (the pre-redirect landing page, `app/page.tsx`
-was rewritten to a session-based redirect early in `P-5` — see above). Tracked as the
-remaining scope of `P-5`.
+- **Marketing landing page (`P-5`, `befc3ac1a1413e220afab1f6f9cea1509f801d2e`):**
+  `components/marketing/*` (14 section components: `navbar`, `hero`, `founder-problem`,
+  `transformation`, `how-it-works`, `benefits`, `differentiation`,
+  `prospect-intelligence`, `trust`, `pricing`, `social-proof`, `faq`, `final-cta`,
+  `footer`) plus the shared `landing-button`/`fade-in`/`animated-score`/`show-interest`
+  primitives, all copied verbatim (import paths rewritten) into `apps/web/components/
+  marketing/` — platform-wide, not discovery-owned, same placement reasoning as the
+  auth flow. `app/page.tsx` now renders this page for a signed-out visitor instead of
+  redirecting straight to `/login` (a signed-in visitor still skips straight to
+  `/dashboard`, preserving the P-0 redirect's original purpose). Copied `public/
+  logo-lockup.png` alongside it — the only binary asset the marketing page's `<Image>`
+  tags reference (`components/ui/logo-mark.tsx`'s two-PNG light/dark swap is dashboard
+  chrome, not marketing, and stays unported per the non-negotiable #7 reasoning above).
+  `show-interest.tsx`'s backing `app/actions.ts` (`submitInterestAction`) became
+  `module-discovery/src/actions/interest.ts` — its lib (`lib/interest/{mutations,
+  notify,types}.ts`) and the `discovery.interest_signups` table were already ported in
+  an earlier bulk-lib batch, so this was the last missing piece. Verified end-to-end
+  with a real dev-server + Playwright pass (temporary placeholder `.env.local`, deleted
+  immediately after): the full page renders correctly section-by-section on real
+  scroll; only a `fullPage` screenshot (which stitches via CDP without dispatching real
+  scroll events) showed blank sections below the fold, a `FadeIn`
+  IntersectionObserver + screenshot-tooling interaction, not an app bug.
+
+This completes `P-5`'s UI-layer port. Remaining unported by design (see the
+non-negotiable #7 discussion above): co-founder-ai's own
+`components/{tenancy/{sidebar,sidebar-account-menu,sidebar-context,sidebar-toggle,
+business-selector,business-list},ui/logo-mark}/*` — its dashboard chrome, superseded by
+`packages/core/src/components/shell/*`.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
