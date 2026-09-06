@@ -1,0 +1,4 @@
+@import "@cofounderai/core/ui-theme.css";
+
+@source "./**/*.{ts,tsx}";
+@source "../../../packages/core/src/**/*.{ts,tsx}";
