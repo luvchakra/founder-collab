@@ -64,7 +64,15 @@ create table core.business_members (
   id uuid primary key default gen_random_uuid(),
   business_id uuid not null references core.businesses (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
-  role text not null default 'member' check (role in ('owner', 'admin', 'member')),
+  -- 'owner'/'admin' are platform-level (full business management, incl. membership
+  -- itself); the rest are C-7's StockPilot-derived operational roles, each carrying its
+  -- own permission set via core.role_permissions -- a business_members row holds exactly
+  -- one role, same as StockPilot's own organization_members.role.
+  role text not null default 'viewer' check (role in (
+    'owner', 'admin',
+    'inventory_manager', 'procurement_manager', 'sales_manager', 'accountant',
+    'warehouse_operator', 'viewer'
+  )),
   created_at timestamptz not null default now(),
   unique (business_id, user_id)
 );
@@ -208,6 +216,10 @@ create policy "business owners and admins can add members"
       select b.id from core.businesses b
       where b.account_id in (select core.user_admin_account_ids())
     )
+    -- self-service: any account member (any role) can add themselves as a member of a
+    -- business their account already owns -- covers createBusiness() adding its own
+    -- creator regardless of that creator's account-level role.
+    or (user_id = (select auth.uid()) and business_id in (select core.user_business_ids()))
   );
 create policy "business owners and admins can remove members"
   on core.business_members for delete

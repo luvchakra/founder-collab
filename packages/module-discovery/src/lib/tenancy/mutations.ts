@@ -37,6 +37,18 @@ export async function createBusiness(
     .single();
   if (error) throw error;
 
+  // The creator becomes the business's own owner (core.business_members) -- separate
+  // from account-level membership, this is what C-7's has_permission() resolves against.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { error: memberError } = await supabase
+      .from("business_members")
+      .insert({ business_id: data.id, user_id: user.id, role: "owner" });
+    if (memberError) throw memberError;
+  }
+
   await seedDefaultLicenses(data.id);
   return data;
 }

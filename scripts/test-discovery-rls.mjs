@@ -170,6 +170,18 @@ function main() {
   assertEqual(psql(`select core.has_module_write('${aliceBusiness}', 'inventory')`), "f", "grace-period license denies write access");
   assertEqual(psql(`select core.has_module('${aliceBusiness}', 'fsm')`), "f", "no license for a module denies access");
 
+  console.log("Verifying has_permission() (C-7)...");
+  assertEqual(psqlAsAlice(`select core.has_permission('${aliceBusiness}', 'inventory.delete')`), "t", "owner has every permission");
+  assertEqual(psqlAsAlice(`select core.has_permission('${aliceBusiness}', 'settings.manage')`), "t", "owner has settings.manage");
+  const bobBusiness = psql(`select id from core.businesses where name = 'Bob Co'`);
+  psql(`
+    insert into core.business_members (business_id, user_id, role)
+    values ('${bobBusiness}', '22222222-2222-2222-2222-222222222222', 'warehouse_operator');
+  `);
+  assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.view')`), "t", "warehouse_operator has inventory.view");
+  assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.delete')`), "f", "warehouse_operator lacks inventory.delete");
+  assertEqual(psqlAsBob("select count(*) from core.permissions"), "23", "the permission catalogue is readable by any authenticated user");
+
   console.log("Verifying tenant isolation on licenses (C-3)...");
   assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");
   assertEqual(psqlAsBob("select count(*) from core.licenses"), "0", "Bob sees none of Alice's licenses");
