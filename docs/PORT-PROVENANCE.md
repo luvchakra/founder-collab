@@ -64,6 +64,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/module-discovery/src/lib/messages/{queries,mutations,send,ingest-send-status}.ts`, `lib/conversations/{mutations,ingest-inbound-email}.ts` | co-founder-ai | same paths under `lib/` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/lib/dashboard/queries.ts`, `lib/prospects/{bulk-actions,csv}.ts`, `lib/scoring/score-prospect.ts` | co-founder-ai | same paths under `lib/` | `11896ff43896bc07b75e98a010696601c0f2d844` | P-5 (complete: `lib/` domain layer) |
 | `packages/core/src/components/theme/{theme-provider,theme-script,theme-toggle}.tsx`, `src/components/navigation/top-progress-bar.tsx`, `apps/web/app/layout.tsx` | co-founder-ai | `components/theme/*.tsx`, `components/navigation/top-progress-bar.tsx`, `app/layout.tsx` | `72da3b5d03092f6f4b20d733218b8b183aea0c5b` | P-5 (UI layer, starting) |
+| `packages/core/src/db/middleware.ts`, `apps/web/proxy.ts`, `apps/web/app/(auth)/**`, `apps/web/app/auth/callback/route.ts`, `apps/web/components/auth/*.tsx` | co-founder-ai | `lib/supabase/middleware.ts`, `proxy.ts`, `app/(auth)/**`, `app/auth/callback/route.ts`, `components/auth/*.tsx` | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (UI layer) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -272,10 +273,39 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   Playwright screenshot (light theme, blue accent, `DashboardShell` sidebar/topbar
   render correctly) rather than typecheck alone.
 
-Not yet ported: `components/{auth,tenancy,prospects,settings,knowledge,chat,ai,alerts,
-onboarding,errors,marketing,ui}/*`, every `app/(auth)/`, `app/(dashboard)/dashboard/*`,
-`app/onboarding/`, `app/api/webhooks/*`, and `app/auth/callback/route.ts` route/action
-file, and the session-refresh middleware (`lib/supabase/middleware.ts` → `proxy.ts`).
-Tracked as the remaining scope of `P-5`, continuing story by story.
+- **Session-refresh middleware + full auth flow (`P-5`):** `lib/supabase/middleware.ts`
+  → `packages/core/src/db/middleware.ts` (`updateSession` — cookie refresh + the
+  authenticated/unauthenticated route boundary; only the anon-key env var name changed,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` → this platform's `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`),
+  wired from a new `apps/web/proxy.ts` (Next.js 16 renamed `middleware.ts`; business-
+  switcher resolution and per-module license gating are still Epic 2's `C-5`, not this
+  story). Session/auth is a platform-wide concern, not a `discovery` one, so both landed
+  in `packages/core`/`apps/web` directly rather than `module-discovery`. Login/signup/
+  forgot-password/reset-password pages, their form components, `app/(auth)/actions.ts`'s
+  five server actions, and `app/auth/callback/route.ts` (the Supabase email-link code
+  exchange) ported the same way — actions.ts and its four form components are tightly
+  coupled to this one route group and don't need to be shared by any other module, so
+  they live directly under `apps/web/app/(auth)/` and a new `apps/web/components/auth/`,
+  not split into a package. Copied verbatim; only `@/lib/supabase/server` →
+  `@cofounderai/core/db/server` and `@/components/ui/*` → `@cofounderai/core/ui/*`
+  import rewrites.
+  Ported co-founder-ai's own dark-violet `.landing-theme` token block (marketing/auth
+  brand identity, `docs/landing-page-requirements.md`) into `apps/web/app/globals.css`
+  verbatim, since CLAUDE.md non-negotiable #7 governs the dashboard *shell*
+  (sidebar/topbar/avatar/business switcher), not pre-login marketing/auth pages — for
+  those, "very closely follow the design of CoFounderAI pages" (the platform owner's own
+  words) is the more specific, more recent instruction. One deliberate addition beyond a
+  literal port: scoped `--primary`/`--primary-foreground`/`--ring` overrides inside
+  `.landing-theme` to the same violet as `--landing-accent`, matching what was actually
+  true upstream (co-founder-ai's app-wide `--primary` **was** this violet; `--landing-*`
+  just duplicated it under its own name) — without this override, a shared `Button` on
+  an auth page would incorrectly render in the dashboard shell's blue instead. Verified
+  visually with Playwright screenshots of `/login` before and after that fix, not just
+  typecheck.
+
+Not yet ported: `components/{tenancy,prospects,settings,knowledge,chat,ai,alerts,
+onboarding,errors,marketing,ui}/*`, `app/(dashboard)/dashboard/*`, `app/onboarding/`,
+and `app/api/webhooks/*`. Tracked as the remaining scope of `P-5`, continuing story by
+story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
