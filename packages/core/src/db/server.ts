@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 /**
@@ -11,9 +12,12 @@ import { cookies } from "next/headers";
  * 03-STOCKPILOT-MIGRATION.md mechanism M1. Every module's own db/server.ts should wrap
  * this with its schema baked in, rather than every call site passing it.
  */
-export async function createClient(options?: { schema?: string }) {
+export async function createClient(options?: { schema?: string }): Promise<SupabaseClient> {
   const cookieStore = await cookies();
 
+  // Cast: see db/admin.ts's docstring on the same pattern — a non-"public" schema
+  // widens the SchemaName generic to `string`, which carries no real type safety here
+  // since every caller uses untyped `.from(table)` against `Database = any`.
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -35,5 +39,5 @@ export async function createClient(options?: { schema?: string }) {
         },
       },
     },
-  );
+  ) as SupabaseClient;
 }

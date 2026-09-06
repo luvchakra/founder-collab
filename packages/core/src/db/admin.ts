@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Service-role Supabase client. BYPASSES Row Level Security entirely.
@@ -14,7 +14,12 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
  * `schema` targets a module's own Postgres schema instead of the default `public` — see
  * db/server.ts's docstring.
  */
-export function createAdminClient(options?: { schema?: string }) {
+export function createAdminClient(options?: { schema?: string }): SupabaseClient {
+  // Cast: targeting a non-"public" schema widens the client's own SchemaName generic to
+  // `string`, but every caller here uses untyped `.from(table)` calls against `Database =
+  // any` anyway, so the literal schema-name type parameter carries no real type safety to
+  // preserve — the cast just lets every caller keep accepting the plain `SupabaseClient`
+  // type instead of threading a schema-specific generic through every function signature.
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -22,5 +27,5 @@ export function createAdminClient(options?: { schema?: string }) {
       auth: { autoRefreshToken: false, persistSession: false },
       db: options?.schema ? { schema: options.schema } : undefined,
     },
-  );
+  ) as SupabaseClient;
 }

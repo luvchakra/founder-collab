@@ -59,6 +59,7 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/site.ts` | co-founder-ai | `lib/site.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-2 (adapted) |
 | `packages/module-discovery/src/lib/{conversations,knowledge,usage,tenancy,interest}/types.ts`, `lib/interest/notify.ts`, `lib/prospects/pipeline.ts` | co-founder-ai | same paths | `0b30fa168a0f929d37822fb098bbb3ce19e7713f` | P-5 (partial) |
 | `packages/module-discovery/src/lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | co-founder-ai | `lib/ai/{dedup,hash,understand-product,generate-icp,research-prospect,discover-prospects}.ts`, `lib/usage/{queries,limits}.ts`, `lib/knowledge/queries.ts`, `lib/prospects/duplicates.ts` | `951d326361e4997ec26c6f8761631867416c1699` | P-5 (partial) |
+| `packages/module-discovery/src/lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | co-founder-ai | `lib/ai/{generate-message,generate-reply,generate-strategy,classify-reply,chat}.ts`, `lib/conversations/queries.ts`, `lib/chat/queries.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 
 Notes on the mechanical changes applied per row (paths/wrapper only, no logic changes):
 
@@ -175,11 +176,35 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   same pattern as `P-2`'s `email/render.ts` fix) — the array is already known non-empty
   by the preceding length check, TS just can't see it through `.reduce`'s seed argument.
 
-Not yet ported (still needs `generate-message.ts`, `generate-reply.ts`,
-`generate-strategy.ts`, `classify-reply.ts`, `chat.ts` from `lib/ai/*.ts` — plus
-`ai-providers/{queries,mutations}.ts`, `messages/*`, `conversations/*`,
-`knowledge/mutations.ts`, `dashboard/*`, `chat/queries.ts`, `interest/mutations.ts`,
-`prospects/{bulk-actions,csv}.ts`, and every route/component/auth flow): tracked as the
-remaining scope of `P-5`, continuing story by story.
+- **Remaining AI operation functions + their last dependencies (`P-5`, completes the
+  `lib/ai/*.ts` operation layer):** `generate-message.ts` (approved-strategy → draft
+  outbound message), `generate-reply.ts` (drafts a follow-up from the latest classified
+  inbound reply), `generate-strategy.ts` (research + score → outreach strategy, at the
+  "reasoning" quality tier), `classify-reply.ts` (runs on the *admin* client — its only
+  caller is the inbound-email webhook, which has no user session — so `resolveAiModel`/
+  `recordAiRun`/`assertWithinUsageLimit` all take the admin client explicitly), and
+  `chat.ts` (the header AI assistant, grounded in whatever business/product is currently
+  in view). Copied verbatim, only import paths rewritten. Brought their two remaining
+  blocking dependencies along: `lib/conversations/queries.ts` (`getConversation`,
+  `getOpenConversation`, `listConversations`) and `lib/chat/queries.ts`
+  (`listChatMessages`/`appendChatMessage` — has a type-only circular import with
+  `lib/ai/chat.ts` in the original source, preserved as-is since type-only imports erase
+  at compile time and cause no runtime cycle).
+  This also surfaced a real, previously-latent type bug in
+  `packages/core/src/db/{client,server,admin}.ts`: passing a non-`"public"` schema string
+  to `db.schema` widens the returned client's `SchemaName` generic from the literal
+  `"public"` to plain `string`, which `classify-reply.ts` (the first ported file to pass
+  an admin client into `resolveAiModel`/`recordAiRun`/`assertWithinUsageLimit`, all typed
+  to accept the default-generic `SupabaseClient`) was the first thing to actually hit.
+  Fixed by giving all three factories an explicit `SupabaseClient` return type plus a
+  cast at the return statement — safe because every caller in this codebase queries with
+  untyped `.from(table)` against `Database = any` already, so the literal schema-name
+  generic never carried real type safety to begin with.
+
+Not yet ported (still needs `ai-providers/{queries,mutations}.ts`, `messages/*`,
+`conversations/{mutations,ingest-inbound-email}.ts`, `knowledge/mutations.ts`,
+`dashboard/queries.ts`, `interest/mutations.ts`, `prospects/{bulk-actions,csv}.ts`, and
+every route/component/auth flow): tracked as the remaining scope of `P-5`, continuing
+story by story.
 
 `packages/module-inventory` doesn't exist yet (story `SP-7`).
