@@ -155,6 +155,27 @@ function main() {
     "Bob cannot insert an employee into Alice's business (RLS with-check)",
   );
 
+  console.log("Seeding licenses (C-3)...");
+  psql(`
+    insert into core.licenses (account_id, business_id, module_key, status)
+    select account_id, id, 'discovery', 'active' from core.businesses where name = 'Alice Co';
+    insert into core.licenses (account_id, business_id, module_key, status, grace_ends_at)
+    select account_id, id, 'inventory', 'grace', now() + interval '10 days' from core.businesses where name = 'Alice Co';
+  `);
+
+  console.log("Verifying has_module()/has_module_write() (C-3)...");
+  assertEqual(psql(`select core.has_module('${aliceBusiness}', 'discovery')`), "t", "active license grants read access");
+  assertEqual(psql(`select core.has_module_write('${aliceBusiness}', 'discovery')`), "t", "active license grants write access");
+  assertEqual(psql(`select core.has_module('${aliceBusiness}', 'inventory')`), "t", "grace-period license still grants read access");
+  assertEqual(psql(`select core.has_module_write('${aliceBusiness}', 'inventory')`), "f", "grace-period license denies write access");
+  assertEqual(psql(`select core.has_module('${aliceBusiness}', 'fsm')`), "f", "no license for a module denies access");
+
+  console.log("Verifying tenant isolation on licenses (C-3)...");
+  assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");
+  assertEqual(psqlAsBob("select count(*) from core.licenses"), "0", "Bob sees none of Alice's licenses");
+  assertEqual(psql("select count(*) from core.modules"), "5", "the five module rows are seeded");
+  assertEqual(psqlAsBob("select count(*) from core.modules"), "5", "the module catalogue is readable by any authenticated user");
+
   console.log("Verifying anonymous access is denied...");
   assertEqual(
     psql("set local role authenticated; select count(*) from discovery.prospects"),
