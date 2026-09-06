@@ -40,6 +40,8 @@ stockpilot-ai-ops) are read-only reference material for the same reason — insp
 | `packages/core/src/hooks/use-mobile.tsx` | stockpilot-ai-ops | `src/hooks/use-mobile.tsx` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/ui-theme.css` | stockpilot-ai-ops | `src/styles.css` | `853608f76cb2bfe1bdf947cd587d4b80ab46593b` | P-0 |
 | `packages/core/src/crypto/api-key.ts` | co-founder-ai | `lib/crypto/api-key.ts` | `71cf20b0d548e3abd2c12f649126136405fec01a` | P-2 |
+| `packages/core/src/ai/{model-registry,operation-registry,provider-factory,client,hash}.ts` | co-founder-ai | `lib/ai/{model-registry,operation-registry,provider-factory,client,hash}.ts` | `ae844087ed0cd9b0cc411125427296400d6b4398` | P-2 |
+| `packages/core/src/ai-providers/{is-provider-failure,types,test-connection}.ts` | co-founder-ai | `lib/ai-providers/{is-provider-failure,types,test-connection}.ts` | `ae844087ed0cd9b0cc411125427296400d6b4398` | P-2 |
 | `packages/module-discovery/src/lib/{ai,prospects,contacts,outreach,messages,icp,research,scoring}/*.ts` (8 files) | co-founder-ai | `lib/ai/schemas.ts`, `lib/{prospects,contacts,outreach,messages,icp,research,scoring}/types.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 | `packages/module-discovery/src/prompts/**/*.ts` (9 files) | co-founder-ai | `prompts/**/*.ts` | `befc3ac1a1413e220afab1f6f9cea1509f801d2e` | P-5 (partial) |
 
@@ -55,6 +57,18 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
 - **`lib/crypto/api-key.ts` (`P-2`):** copied verbatim, no import changes needed (only
   depends on `node:crypto`). Added a full round-trip + failure-mode test suite in
   `packages/core/src/crypto/api-key.test.ts` (none existed upstream).
+- **BYOK AI provider layer (`P-2`):** the model registry, per-operation quality-tier
+  routing, the Vercel AI SDK provider factory (+ per-provider web-search tool builders),
+  cost estimation, deterministic input hashing, and the provider-connection-test /
+  error-classification helpers — copied verbatim per `00-MASTER-PLAN.md` §6 ("`ai/` moved
+  from `lib/ai` — shared by every module"), only rewriting the two `@/lib/ai/model-registry`
+  imports in `lib/ai-providers/*` to relative paths. Deliberately excludes everything in
+  `lib/ai/` and `lib/ai-providers/` that queries Supabase (`router.ts`, `usage.ts`, the
+  `understand-product.ts`/`generate-icp.ts`/etc. operation implementations, `queries.ts`,
+  `mutations.ts`) — those need the `discovery`/`core` schema and land with the rest of
+  `P-5`. Added test suites for every pure function (none existed upstream): model
+  resolution, operation spec lookup, cost estimation, input hashing, and the
+  provider-failure regex.
 - **`module-discovery` prompts + types (`P-5`, partial):** copied verbatim (pure Zod
   schemas / plain TS types / prompt-builder functions — no Supabase, no framework
   coupling), only rewriting each file's `@/lib/...` imports to relative paths. A
