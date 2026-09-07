@@ -21,6 +21,7 @@
     "./items/*": "./src/items/*.ts",
     "./numbering/*": "./src/numbering/*.ts",
     "./documents/*": "./src/documents/*.ts",
+    "./payments/*": "./src/payments/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",
