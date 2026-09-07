@@ -1,19 +1,34 @@
 import type { IcpProfile } from "../../lib/icp/types";
 import type { ProductProfile } from "../../lib/ai/schemas";
 
-export const DISCOVER_PROSPECTS_PROMPT_VERSION = "v1";
+export const DISCOVER_PROSPECTS_PROMPT_VERSION = "v2";
+
+/** Optional, per-run narrowing on top of the ICP's own (broader) criteria -- filled in
+ * on the Discover page for a single search, never persisted back to the ICP itself. Any
+ * field left blank falls back to the ICP's own corresponding field. */
+export type DiscoveryFilters = {
+  industry?: string;
+  companySize?: string;
+  location?: string;
+  keywords?: string;
+};
 
 export function discoverProspectsPrompt({
   productName,
   productProfile,
   icp,
   knownCompanies,
+  filters,
 }: {
   productName: string;
   productProfile: ProductProfile;
   icp: IcpProfile;
   knownCompanies: string[];
+  filters?: DiscoveryFilters;
 }): string {
+  const hasFilters =
+    filters && (filters.industry || filters.companySize || filters.location || filters.keywords);
+
   return `You are sourcing net-new sales prospects for ${productName}.
 
 PRODUCT
@@ -29,8 +44,16 @@ Company sizes: ${icp.company_sizes.join(", ")}
 Geographies: ${icp.geographies.join(", ")}
 Buying signals to look for: ${icp.buying_signals.join(", ")}
 Exclude: ${icp.exclusions.join(", ")}
-
-Search the web for real, currently-operating companies that match this ICP.
+${
+  hasFilters
+    ? `
+NARROW THIS SEARCH TO (set by the founder for this run only -- treat these as hard
+constraints, more specific than the ICP fields above; where a field below is set it
+replaces the corresponding ICP field, not adds to it):
+${filters!.industry ? `Industry: ${filters!.industry}\n` : ""}${filters!.companySize ? `Company size: ${filters!.companySize}\n` : ""}${filters!.location ? `Location: ${filters!.location}\n` : ""}${filters!.keywords ? `Also look for: ${filters!.keywords}\n` : ""}`
+    : ""
+}
+Search the web for real, currently-operating companies that match this ICP${hasFilters ? " and the narrowed search above" : ""}.
 Do not suggest any company already in our pipeline:
 ${knownCompanies.length ? knownCompanies.join(", ") : "(none yet)"}
 

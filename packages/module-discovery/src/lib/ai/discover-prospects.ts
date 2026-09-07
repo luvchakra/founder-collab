@@ -9,6 +9,7 @@ import {
   discoverProspectsPrompt,
   structureDiscoveryPrompt,
   DISCOVER_PROSPECTS_PROMPT_VERSION,
+  type DiscoveryFilters,
 } from "../../prompts/prospecting/discover_prospects_v1";
 import { hashInput } from "./hash";
 import { DiscoveredProspectsSchema } from "./schemas";
@@ -38,8 +39,16 @@ const OPERATION = "discover_prospects";
  * the ICP + known-companies list this searches from shifts as prospects are added, so
  * there's no stable "same input" to key off; an explicit per-workspace lock (R6) is what
  * stops two overlapping runs from both billing instead.
+ *
+ * `filters` (industry/companySize/location/keywords) let the founder narrow a single
+ * search run beyond the ICP's own broader criteria -- e.g. the ICP allows "50-500
+ * employees" across three industries, but this run should only look at fintech in
+ * Bangalore. They're query-time only, never written back to the ICP.
  */
-export async function discoverProspects(workspaceId: string): Promise<ProspectSuggestion[]> {
+export async function discoverProspects(
+  workspaceId: string,
+  filters?: DiscoveryFilters,
+): Promise<ProspectSuggestion[]> {
   const workspace = await getWorkspace(workspaceId);
   if (!workspace) throw new Error("Workspace not found.");
 
@@ -66,6 +75,7 @@ export async function discoverProspects(workspaceId: string): Promise<ProspectSu
       productProfile: product.product_profile,
       icp,
       knownCompanies,
+      filters,
     });
 
     const { accountId, provider, modelId, model, modelAtTier } = await resolveAiModel(

@@ -5,7 +5,10 @@ import {
   getWorkspaceForProduct,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listProspectSuggestions } from "@cofounderai/module-discovery/lib/prospects/queries";
+import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Input } from "@cofounderai/core/ui/input";
+import { Label } from "@cofounderai/core/ui/label";
 import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
 import {
   runDiscoveryAction,
@@ -25,7 +28,10 @@ export default async function DiscoverProspectsPage({
   const workspace = await getWorkspaceForProduct(product.id);
   if (!workspace) notFound();
 
-  const suggestions = await listProspectSuggestions(workspace.id);
+  const [suggestions, icp] = await Promise.all([
+    listProspectSuggestions(workspace.id),
+    getIcpProfile(workspace.id),
+  ]);
   const prospectsPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
 
   return (
@@ -34,7 +40,7 @@ export default async function DiscoverProspectsPage({
         ← Back to prospects
       </Link>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-lg font-medium">Discover prospects</h1>
           <p className="text-sm text-muted-foreground">
@@ -42,12 +48,50 @@ export default async function DiscoverProspectsPage({
             added to your pipeline until you review and approve it below.
           </p>
         </div>
+
         <AiActionForm
           action={runDiscoveryAction.bind(null, businessId, productId, workspace.id)}
           buttonLabel="Find 10 new prospects"
           pendingText="Searching the web..."
           buttonProps={{ size: "default" }}
-        />
+          formClassName="flex flex-col gap-3"
+          wrapperClassName="flex flex-col items-start gap-2 rounded-md border p-4"
+        >
+          <p className="text-sm font-medium">Narrow this search (optional)</p>
+          <p className="text-xs text-muted-foreground">
+            Leave a field blank to fall back to your ICP&apos;s own criteria.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                name="industry"
+                placeholder={icp?.industries.join(", ") || "e.g. Fintech, Healthcare"}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="companySize">Company size</Label>
+              <Input
+                id="companySize"
+                name="companySize"
+                placeholder={icp?.company_sizes.join(", ") || "e.g. 50-500 employees"}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                name="location"
+                placeholder={icp?.geographies.join(", ") || "e.g. Bengaluru, India"}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="keywords">Also look for</Label>
+              <Input id="keywords" name="keywords" placeholder="e.g. recently raised funding" />
+            </div>
+          </div>
+        </AiActionForm>
       </div>
 
       {suggestions.length === 0 ? (
