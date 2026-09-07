@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Link from "next/link";
 import { ChevronsUpDown } from "lucide-react";
 import { useDismiss } from "../../hooks/use-dismiss";
 import { cn } from "../../lib/utils";
@@ -13,15 +14,26 @@ import type { ShellNavModule } from "./types";
  * below its own trigger row. Picking a module closes the popover immediately and the
  * trigger row itself becomes that module's label/icon, so the drawer always shows
  * exactly one module's content (ModuleContent) above this row.
+ *
+ * Dashboard (top) and Admin (bottom) are plain navigation shortcuts, not licensed
+ * modules from module-registry -- they don't have their own ModuleContent panel, so
+ * picking one navigates straight there and closes the drawer instead of becoming the
+ * trigger's persisted selection. Styled visibly lighter (muted color, no bold-when-
+ * selected treatment, separated by a hairline) so they read as a different kind of row
+ * from the licensed modules in between.
  */
 export function ModuleSelector({
   modules,
   selectedKey,
   onSelect,
+  onNavigate,
 }: {
   modules: ShellNavModule[];
   selectedKey: string;
   onSelect: (key: string) => void;
+  /** Closes the whole sidebar drawer -- used by the Dashboard/Admin shortcuts, which
+   * navigate directly rather than switching the drawer's own selected module. */
+  onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,6 +48,21 @@ export function ModuleSelector({
           role="menu"
           className="absolute inset-x-0 bottom-full mb-1 rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
         >
+          <Link
+            href="/dashboard"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNavigate?.();
+            }}
+            className="flex items-center gap-2.5 rounded-sm px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60"
+          >
+            <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Dashboard</span>
+          </Link>
+
+          <div className="my-1 border-t border-border" />
+
           {modules.map((module) => (
             <button
               key={module.key}
@@ -54,6 +81,21 @@ export function ModuleSelector({
               <span className="min-w-0 flex-1 truncate">{module.name}</span>
             </button>
           ))}
+
+          <div className="my-1 border-t border-border" />
+
+          <Link
+            href="/dashboard/settings/licenses"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNavigate?.();
+            }}
+            className="flex items-center gap-2.5 rounded-sm px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60"
+          >
+            <ModuleIcon name="Shield" className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Admin</span>
+          </Link>
         </div>
       ) : null}
 

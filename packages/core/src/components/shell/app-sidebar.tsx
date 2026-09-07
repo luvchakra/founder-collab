@@ -221,18 +221,14 @@ export function AppSidebar({
         aria-label="Main"
         className="fixed top-14 bottom-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-base shadow-2xl"
       >
-        <div className="flex items-center justify-end px-3 py-2.5">
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Close sidebar"
-            className="text-muted-foreground transition-colors hover:text-foreground active:scale-90"
-          >
-            <X className="size-4" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="border-t border-sidebar-border" />
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close sidebar"
+          className="absolute top-1.5 right-1.5 z-10 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground active:scale-90"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ModuleContent
@@ -246,7 +242,12 @@ export function AppSidebar({
           />
         </div>
 
-        <ModuleSelector modules={modules} selectedKey={selectedModule} onSelect={handleSelectModule} />
+        <ModuleSelector
+          modules={modules}
+          selectedKey={selectedModule}
+          onSelect={handleSelectModule}
+          onNavigate={() => setOpen(false)}
+        />
 
         {creditsUsedPercent !== undefined ? (
           <a

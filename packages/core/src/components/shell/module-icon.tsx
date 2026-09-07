@@ -7,6 +7,7 @@ import {
   Inbox,
   Receipt,
   LayoutDashboard,
+  Shield,
   type LucideIcon,
 } from "lucide-react";
 
@@ -16,6 +17,8 @@ const ICONS: Record<string, LucideIcon> = {
   Wrench,
   Inbox,
   Receipt,
+  LayoutDashboard,
+  Shield,
 };
 
 /** Resolves a module manifest's lucide-react icon name to its component, falling back
