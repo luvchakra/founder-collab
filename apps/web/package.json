@@ -13,6 +13,7 @@
   "dependencies": {
     "@cofounderai/core": "*",
     "@cofounderai/module-discovery": "*",
+    "@cofounderai/module-inventory": "*",
     "@cofounderai/module-registry": "*",
     "next": "16.3.4",
     "react": "19.2.8",
