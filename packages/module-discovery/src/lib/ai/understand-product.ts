@@ -12,16 +12,19 @@ import { ProductProfileSchema, type ProductProfile } from "./schemas";
 import { recordAiRun } from "./usage";
 import { assertWithinUsageLimit } from "../usage/limits";
 import { hasRecentSuccess } from "./dedup";
-import { resolveAiModel, toAiProviderError } from "./router";
-import { createWebSearchTools } from "@cofounderai/core/ai/provider-factory";
+import { resolveAiModel, toAiProviderError, AiProviderError } from "./router";
+import { createUrlContextTools } from "@cofounderai/core/ai/provider-factory";
 
 const OPERATION = "understand_product";
 
 /**
- * Synthesizes a structured ProductProfile by researching the product's own website via
- * the provider-executed web search tool, then structuring those findings (plus the
- * product's description and any product_knowledge sources) into ProductProfileSchema.
- * The website is a hard requirement -- there's nothing to research without one.
+ * Synthesizes a structured ProductProfile by researching the product's own website via a
+ * provider-executed tool that actually retrieves that one URL (createUrlContextTools --
+ * Gemini's dedicated url_context tool for Google, the same web_search tool OpenAI/
+ * Anthropic already use to fetch specific URLs otherwise), then structuring those
+ * findings (plus the product's description and any product_knowledge sources) into
+ * ProductProfileSchema. The website is a hard requirement -- there's nothing to research
+ * without one.
  *
  * Caching: ai_runs has no result column (blueprint §9), so "cache" here means freshness --
  * if products.product_profile was generated after the website/description/every current
@@ -86,12 +89,45 @@ export async function understandProduct(
   try {
     const searchResponse = await generateText({
       model,
-      tools: createWebSearchTools(provider),
+      tools: createUrlContextTools(provider),
       prompt: researchPrompt,
     });
 
+    // Gemini reports per-URL retrieval status on urlContextMetadata (not available for
+    // OpenAI/Anthropic, whose web_search tool has no equivalent structured status) --
+    // logged unconditionally during development so a retrieval failure is diagnosable
+    // from Vercel function logs instead of only showing up as "no findings" below.
+    const googleMetadata = searchResponse.providerMetadata?.google as unknown as
+      | { urlContextMetadata?: { urlMetadata?: { retrievedUrl: string; urlRetrievalStatus: string }[] } }
+      | undefined;
+    const urlMetadata = googleMetadata?.urlContextMetadata?.urlMetadata;
+    if (urlMetadata) {
+      console.log(
+        `[ai/understand-product] Gemini url_context retrieval for ${product.website}:`,
+        JSON.stringify(urlMetadata),
+      );
+      const failed = urlMetadata.find((entry) => entry.urlRetrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS");
+      if (failed) {
+        throw new AiProviderError(
+          "url_retrieval_failed",
+          `Gemini could not retrieve ${failed.retrievedUrl} (status: ${failed.urlRetrievalStatus}). The site may be blocking automated access, redirecting, or returning an error -- check it loads without a login and isn't behind a WAF/CDN challenge.`,
+          provider,
+        );
+      }
+    }
+    console.log(
+      `[ai/understand-product] raw findings for ${product.website} (${searchResponse.text.length} chars):`,
+      searchResponse.text.slice(0, 2000),
+    );
+
     const findings = searchResponse.text.trim();
-    if (!findings) throw new Error("Could not find any information on that website.");
+    if (!findings) {
+      throw new AiProviderError(
+        "no_content_found",
+        `${provider} retrieved ${product.website} but found no useful product information there. The page's content may only render after client-side JavaScript runs, or it may not describe the product -- add details manually as a knowledge source instead.`,
+        provider,
+      );
+    }
 
     const structurePrompt = understandProductPrompt({
       productName: product.name,

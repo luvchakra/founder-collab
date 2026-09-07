@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { APICallError, RetryError, type LanguageModel } from "ai";
+import { APICallError, NoObjectGeneratedError, RetryError, type LanguageModel } from "ai";
 import { createClient } from "../../db/server";
 import { getAccountIdForWorkspace } from "../tenancy/queries";
 import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
@@ -20,14 +20,21 @@ export type AiErrorCode =
   | "model_unavailable"
   | "provider_unavailable"
   | "timeout"
+  | "url_retrieval_failed"
+  | "no_content_found"
+  | "invalid_response"
   | "unknown";
 
 /**
  * Every user-facing AI failure in BYOK mode normalizes to one of these codes (GTM-031)
- * so the UI can render "Your {provider} API key could not complete this request."
- * without parsing provider-specific error shapes, and ai_runs.error_code stays
- * queryable. There is deliberately no code path that falls back to a company-owned AI
- * account on any of these -- docs/byok-ai-requirements.md §6.
+ * so callers get a specific, accurate message without parsing provider-specific error
+ * shapes, and ai_runs.error_code stays queryable. Only `invalid_key` is actually an API
+ * key problem -- the others (rate limit, retrieval, content, structured-response
+ * failures) have their own distinct causes and must not be worded as key issues, since
+ * `isAiProviderFailure`'s "what you can do" box on the client specifically tells the
+ * founder to check/replace their key, which is only correct advice for `invalid_key` and
+ * `no_provider_connected`. There is deliberately no code path that falls back to a
+ * company-owned AI account on any of these -- docs/byok-ai-requirements.md §6.
  */
 export class AiProviderError extends Error {
   readonly code: AiErrorCode;
@@ -189,7 +196,7 @@ export function toAiProviderError(error: unknown, provider: AiProvider): AiProvi
     }
     return new AiProviderError(
       "unknown",
-      `Your ${provider} API key could not complete this request.${detail}`,
+      `Your request to ${provider} could not be completed.${detail}`,
       provider,
       error,
     );
@@ -204,9 +211,21 @@ export function toAiProviderError(error: unknown, provider: AiProvider): AiProvi
     );
   }
 
+  // generateObject exhausts its repair attempts and throws this when the model's output
+  // doesn't parse/validate against the schema -- a real, distinct failure mode from
+  // "wrong API key" (e.g. the model returned prose instead of JSON, or truncated output).
+  if (NoObjectGeneratedError.isInstance(cause)) {
+    return new AiProviderError(
+      "invalid_response",
+      `${provider} returned a response that couldn't be understood as structured data.${detail}`,
+      provider,
+      error,
+    );
+  }
+
   return new AiProviderError(
     "unknown",
-    `Your ${provider} API key could not complete this request.${detail}`,
+    `The request to ${provider} failed unexpectedly.${detail}`,
     provider,
     error,
   );

@@ -55,3 +55,23 @@ export function createWebSearchTools(provider: AiProvider): ToolSet {
       return { google_search: google.tools.googleSearch({}) };
   }
 }
+
+/**
+ * Tools for researching one already-known URL (e.g. understandProduct(), which has the
+ * product's own website in hand and needs its actual content, not a broad search).
+ *
+ * Google's google_search tool is search *grounding*: the model issues search queries and
+ * gets back result snippets, it never actually fetches the given page, so a prompt like
+ * "read this website: <url>" silently returns nothing for a site Google's own search
+ * index doesn't already have well-summarized -- Gemini's dedicated url_context tool is
+ * what actually retrieves a specific URL's content server-side (its response carries
+ * urlContextMetadata.urlMetadata[].urlRetrievalStatus, which callers can inspect to tell
+ * "fetched fine" apart from "fetch failed" instead of guessing from empty output).
+ * OpenAI's and Anthropic's web_search tools already fetch specific URLs referenced in the
+ * prompt as part of their normal search-then-browse loop, so they don't need a distinct
+ * tool for this.
+ */
+export function createUrlContextTools(provider: AiProvider): ToolSet {
+  if (provider === "google") return { url_context: google.tools.urlContext({}) };
+  return createWebSearchTools(provider);
+}
