@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Check,
   ClipboardList,
   FileText,
   Package,
@@ -177,6 +177,7 @@ export function AppSidebar({
   onSignOut?: () => void;
 }) {
   const { open, setOpen } = useSidebar();
+  const router = useRouter();
   const [selectedModule, setSelectedModule] = useState(modules[0]?.key ?? "discovery");
 
   useEffect(() => {
@@ -195,6 +196,16 @@ export function AppSidebar({
   // exists, even before the founder has navigated into any business yet.
   const effectiveBusinessId = activeBusinessId ?? businesses[0]?.id ?? null;
 
+  function handleSelectModule(key: string) {
+    setSelectedModule(key);
+    // No business active yet (e.g. plain /dashboard) -- auto-select the first one by
+    // navigating there, so the navbar's own business switcher picks it up too (it derives
+    // the active business from the URL, same as this sidebar does).
+    if (!activeBusinessId && businesses.length > 0) {
+      router.push(businessHref(businesses[0]!.id));
+    }
+  }
+
   return (
     <>
       <div
@@ -206,10 +217,7 @@ export function AppSidebar({
         aria-label="Main"
         className="fixed top-14 bottom-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-base shadow-2xl"
       >
-        <div className="flex items-center justify-between px-3 py-2.5">
-          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Menu
-          </span>
+        <div className="flex items-center justify-end px-3 py-2.5">
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -221,37 +229,6 @@ export function AppSidebar({
         </div>
 
         <div className="border-t border-sidebar-border" />
-
-        <a
-          href="/dashboard"
-          onClick={() => setOpen(false)}
-          className="flex items-center gap-2.5 px-3 py-2.5 font-medium hover:bg-sidebar-accent"
-        >
-          Dashboard
-        </a>
-
-        <div className="flex flex-col divide-y divide-sidebar-border border-t border-b border-sidebar-border">
-          {businesses.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">No businesses yet.</p>
-          ) : (
-            businesses.map((business) => (
-              <a
-                key={business.id}
-                href={businessHref(business.id)}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-sidebar-accent",
-                  business.id === activeBusinessId && "bg-sidebar-accent font-medium",
-                )}
-              >
-                <span className="min-w-0 flex-1 truncate">{business.name}</span>
-                {business.id === activeBusinessId ? (
-                  <Check className="size-3.5 shrink-0 text-primary" aria-hidden="true" />
-                ) : null}
-              </a>
-            ))
-          )}
-        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ModuleContent
@@ -265,7 +242,7 @@ export function AppSidebar({
           />
         </div>
 
-        <ModuleSelector modules={modules} selectedKey={selectedModule} onSelect={setSelectedModule} />
+        <ModuleSelector modules={modules} selectedKey={selectedModule} onSelect={handleSelectModule} />
 
         {creditsUsedPercent !== undefined ? (
           <a

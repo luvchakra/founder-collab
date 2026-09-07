@@ -2,25 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
-
-const NOTCH = 12;
 
 type StageId = "overview" | "icp" | "prospects" | "conversions";
 
-/** Chevron-shaped tab: a point on the right (unless last) and a matching notch cut into
- * the left (unless first), so consecutive tabs interlock into one continuous arrow strip
- * -- the ServiceNow/wizard "stage tracker" look, not a plain underlined tab row. */
-function clipPathFor(index: number, count: number): string {
-  const isFirst = index === 0;
-  const isLast = index === count - 1;
-  const points = ["0 0", isLast ? "100% 0" : `calc(100% - ${NOTCH}px) 0`];
-  if (!isLast) points.push("100% 50%");
-  points.push(isLast ? "100% 100%" : `calc(100% - ${NOTCH}px) 100%`, "0 100%");
-  if (!isFirst) points.push(`${NOTCH}px 50%`);
-  return `polygon(${points.join(", ")})`;
-}
-
+/**
+ * Stage tabs, built with flexbox rather than the clip-path/negative-margin interlocking
+ * chevrons this repo tried three times before (co-founder-ai's own component) -- that
+ * version repeatedly clipped/overlapped adjacent tabs on the reporter's real phone,
+ * confirmed by screenshot each time, despite this session being unable to reproduce it in
+ * any sandboxed check and finding no global CSS override responsible (audited
+ * ui-theme.css/globals.css: the only `position: absolute` in the whole theme is scoped to
+ * `.print-area`, unrelated). Root cause: two adjacent tabs' clip-path shapes are only
+ * text-safe if their painted regions line up exactly with each other and with the
+ * negative margin pulling them together -- any mismatch (font metrics, subpixel
+ * rounding, engine-specific clip-path rasterization) makes one tab's shape cut into the
+ * next tab's own rendered text, because the two shapes are two separate elements
+ * whose alignment isn't actually guaranteed by the browser, just by both browsers this
+ * session could check agreeing on the arithmetic.
+ *
+ * This version can't have that failure mode: every step is `flex: 1` with `min-width: 0`
+ * and `overflow: hidden`, so steps can never overlap or shrink below zero -- the browser
+ * itself enforces that from ordinary flex layout, not from two elements' shapes lining up
+ * by coincidence. The chevron is a small icon *inside* each step's own box (not a shape
+ * extending into the next step), so it can never paint over another step's label. Labels
+ * truncate with an ellipsis if a step is ever too narrow for its own text, instead of
+ * overlapping a neighbor.
+ */
 export function ProductNav({
   basePath,
   completed,
@@ -50,7 +59,7 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="flex text-sm">
+    <nav aria-label="Product sections" className="flex w-full overflow-hidden rounded-md text-sm">
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
@@ -59,10 +68,8 @@ export function ProductNav({
             key={tab.href}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            style={{ clipPath: clipPathFor(i, tabs.length), marginLeft: i === 0 ? 0 : -NOTCH }}
             className={cn(
-              "flex h-8 shrink-0 items-center justify-center gap-1.5 pr-4 pl-5 font-medium whitespace-nowrap transition-colors",
-              i === 0 && "pl-4",
+              "flex h-8 min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden px-2.5 font-medium transition-colors",
               isActive
                 ? "bg-primary text-primary-foreground"
                 : isCompleted
@@ -70,7 +77,16 @@ export function ProductNav({
                   : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
             )}
           >
-            {tab.label}
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{tab.label}</span>
+            {i < tabs.length - 1 ? (
+              <ChevronRight
+                className={cn(
+                  "size-3.5 shrink-0",
+                  isActive ? "text-primary-foreground/70" : "text-current opacity-50",
+                )}
+                aria-hidden="true"
+              />
+            ) : null}
           </Link>
         );
       })}
