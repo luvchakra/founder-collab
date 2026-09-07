@@ -1,0 +1,195 @@
+"use client";
+
+import { useEffect, useState, useTransition } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Plus, RotateCcw } from "lucide-react";
+import { Button } from "@cofounderai/core/ui/button";
+import { Badge } from "@cofounderai/core/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cofounderai/core/ui/table";
+import { ReturnForm, type ReturnActionState } from "./return-form";
+import { ReturnDetail } from "./return-detail";
+import {
+  primaryAction,
+  type EligibleSalesOrder,
+  type SalesReturn,
+  type SalesReturnItem,
+  type SoItemForReturn,
+} from "../../lib/sales-returns/types";
+
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  draft: "secondary",
+  approved: "outline",
+  completed: "default",
+  cancelled: "destructive",
+};
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Ported from stockpilot-ai-ops's routes/_authenticated/sales-returns.tsx
+ * `SalesReturns` component. Reads the `so` query param (set by Sales Orders' own
+ * "Create return" navigation) to preselect and open the create form, then clears it --
+ * matches the original's own validateSearch + navigate({search:{}}) round trip. */
+export function ReturnsList({
+  salesReturns,
+  eligibleSalesOrders,
+  canCreate,
+  canApprove,
+  canCancel,
+  createAction,
+  approveAction,
+  setStatusAction,
+  fetchItems,
+  fetchSoItems,
+}: {
+  salesReturns: SalesReturn[];
+  eligibleSalesOrders: EligibleSalesOrder[];
+  canCreate: boolean;
+  canApprove: boolean;
+  canCancel: boolean;
+  createAction: (prevState: ReturnActionState, formData: FormData) => Promise<ReturnActionState>;
+  approveAction: (returnId: string) => Promise<void>;
+  setStatusAction: (returnId: string, status: string) => Promise<void>;
+  fetchItems: (returnId: string) => Promise<SalesReturnItem[]>;
+  fetchSoItems: (salesOrderId: string) => Promise<SoItemForReturn[]>;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const soFromQuery = searchParams.get("so");
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<SalesReturn | null>(null);
+  const [detailItems, setDetailItems] = useState<SalesReturnItem[]>([]);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (soFromQuery) setFormOpen(true);
+  }, [soFromQuery]);
+
+  const closeForm = () => {
+    setFormOpen(false);
+    if (soFromQuery) router.replace(pathname);
+  };
+
+  const canRunPrimaryAction = (status: string) => {
+    if (status === "draft" || status === "approved") return canApprove;
+    return false;
+  };
+
+  const openDetail = async (r: SalesReturn) => {
+    setDetailTarget(r);
+    setDetailItems(await fetchItems(r.id));
+  };
+
+  const runPrimaryAction = (r: SalesReturn) => {
+    const action = primaryAction(r.status);
+    if (!action) return;
+    startTransition(async () => {
+      if (action.kind === "approve") await approveAction(r.id);
+      else await setStatusAction(r.id, action.next);
+      if (detailTarget?.id === r.id) await openDetail(r);
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      {canCreate ? (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            New return
+          </Button>
+        </div>
+      ) : null}
+
+      {salesReturns.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
+          <RotateCcw className="size-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">No sales returns yet. Create one from a shipped or delivered order.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Return #</TableHead>
+                <TableHead>Order</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {salesReturns.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-mono text-xs">{r.return_number}</TableCell>
+                  <TableCell className="font-medium">{r.so_number}</TableCell>
+                  <TableCell>{r.customer_name}</TableCell>
+                  <TableCell>{formatDate(r.created_at)}</TableCell>
+                  <TableCell>
+                    <Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openDetail(r)}>
+                        View
+                      </Button>
+                      {primaryAction(r.status) && canRunPrimaryAction(r.status) ? (
+                        <Button size="sm" disabled={pending} onClick={() => runPrimaryAction(r)}>
+                          {primaryAction(r.status)!.label}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {formOpen ? (
+        <ReturnForm
+          action={createAction}
+          eligibleSalesOrders={eligibleSalesOrders}
+          initialSalesOrderId={soFromQuery ?? undefined}
+          fetchSoItems={fetchSoItems}
+          onClose={closeForm}
+        />
+      ) : null}
+
+      {detailTarget
+        ? (() => {
+            const current = salesReturns.find((r) => r.id === detailTarget.id) ?? detailTarget;
+            const action = primaryAction(current.status);
+            return (
+              <ReturnDetail
+                salesReturn={current}
+                items={detailItems}
+                canCancel={canCancel}
+                primaryLabel={action && canRunPrimaryAction(current.status) ? action.label : null}
+                onCancel={() =>
+                  startTransition(async () => {
+                    await setStatusAction(current.id, "cancelled");
+                    setDetailTarget(null);
+                  })
+                }
+                onPrimaryAction={() => runPrimaryAction(current)}
+                onClose={() => setDetailTarget(null)}
+              />
+            );
+          })()
+        : null}
+    </div>
+  );
+}
