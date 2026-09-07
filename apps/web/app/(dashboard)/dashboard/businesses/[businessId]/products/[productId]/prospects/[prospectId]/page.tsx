@@ -24,7 +24,7 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
-import { NativeSelect } from "@cofounderai/module-discovery/components/ui/native-select";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { ExpandableBox } from "@cofounderai/module-discovery/components/ui/expandable-box";
 import { ContactRow } from "@cofounderai/module-discovery/components/prospects/contact-row";

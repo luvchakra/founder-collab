@@ -11,7 +11,7 @@ import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/
 import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/prospects/conversion-funnel-panel";
 import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
-import { NativeSelect } from "@cofounderai/module-discovery/components/ui/native-select";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 
 function KpiCard({
   label,

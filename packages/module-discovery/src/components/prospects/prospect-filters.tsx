@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@cofounderai/core/lib/utils";
 import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
-import { NativeSelect } from "../ui/native-select";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import type { ProspectStatus } from "../../lib/prospects/types";
 import { PROSPECT_STAGES, PROSPECT_STAGE_LABEL } from "../../lib/prospects/pipeline";
 

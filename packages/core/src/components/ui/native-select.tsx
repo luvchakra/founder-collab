@@ -1,14 +1,18 @@
 import * as React from "react";
 import { ChevronDown } from "lucide-react";
-import { cn } from "@cofounderai/core/lib/utils";
+import { cn } from "../../lib/utils";
 
 /**
  * A native <select> styled to match Input exactly. Named NativeSelect (not Select) to
  * avoid colliding with @cofounderai/core/ui/select, which is StockPilot's vendored
  * Radix-based composable Select (Root/Trigger/Content/Item) -- a genuinely different
  * component co-founder-ai never had. This one stays a real <select> (no custom listbox)
- * specifically because several discovery pages submit it as a plain GET-form field
- * (e.g. the dashboard's business/product filter), which a Radix Select can't do.
+ * specifically because several pages submit it as a plain form field (e.g. discovery's
+ * dashboard business/product filter, a GET form; inventory's product/warehouse forms,
+ * a Server Action POST), which a Radix Select can't do without extra client JS syncing
+ * a hidden input. Originally module-discovery's own component (P-5); moved here (SP-7)
+ * once module-inventory needed the same thing -- a plain, non-domain-specific form
+ * control belongs in the shared UI kit, not duplicated per module.
  */
 function NativeSelect({ className, children, ...props }: React.ComponentProps<"select">) {
   return (
