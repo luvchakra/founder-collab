@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { drainDomainEvents } from "@cofounderai/core/events/drain";
+// Side-effect import: populates core/events/registry.ts's in-process handler map before
+// the drain loop below runs. Every module's own events/handlers.ts is imported here for
+// exactly this reason (00-MASTER-PLAN.md's module contract layout) -- an event whose
+// type has no handler registered fails permanently on its very next drain attempt.
+import "@cofounderai/module-inventory/events/handlers";
 
 /**
  * Drains due core.domain_events (D-9) -- point a Vercel Cron job (or any scheduler) at

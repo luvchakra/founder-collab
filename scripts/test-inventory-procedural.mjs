@@ -124,6 +124,34 @@ async function main() {
       );
 
       // ---------------------------------------------------------------------
+      // 1c. adjust_stock_for_contract() (SP-9)
+      // ---------------------------------------------------------------------
+      console.log("Verifying adjust_stock_for_contract() -- module-inventory's contract/index.ts RPC...");
+      const contractItem = psqlAsAlice(`insert into core.items (business_id, name, sku) values ('${business}', 'Contract Widget', 'CW-1') returning id;`);
+      psqlAsAlice(`insert into inventory.stock_movements (business_id, item_id, warehouse_id, type, quantity) values ('${business}', '${contractItem}', '${whSource}', 'inbound', 100);`);
+      const contractLevel = (col) =>
+        psqlAsAlice(`select ${col} from inventory.stock_levels where item_id = '${contractItem}' and warehouse_id = '${whSource}'`);
+      const adjust = (type, qty) =>
+        psqlAsAlice(`select inventory.adjust_stock_for_contract('${business}', '${contractItem}', '${whSource}', '${type}', ${qty})`);
+
+      adjust("reserve", 30);
+      assertEqual(contractLevel("reserved"), "30.00", "reserve within available succeeds and adds to reserved");
+      assertThrows(() => adjust("reserve", 80), "reserve rejected when it exceeds available (70 available, asked for 80)");
+
+      adjust("unreserve", 10);
+      assertEqual(contractLevel("reserved"), "20.00", "unreserve within reserved succeeds and subtracts from reserved");
+      assertThrows(() => adjust("unreserve", 50), "unreserve rejected when releasing more than is reserved (20 reserved, asked to release 50)");
+
+      adjust("outbound", 60);
+      assertEqual(contractLevel("quantity"), "40.00", "outbound within available succeeds and subtracts from quantity");
+      assertThrows(() => adjust("outbound", 25), "outbound rejected when it exceeds available (20 available, asked for 25)");
+      assertThrows(() => adjust("reserve", 0), "zero quantity is rejected");
+      assertThrows(
+        () => psqlAsAlice(`select inventory.adjust_stock_for_contract('${business}', '${contractItem}', '${whSource}', 'inbound', 10)`),
+        "a movement type outside reserve/unreserve/outbound is rejected",
+      );
+
+      // ---------------------------------------------------------------------
       // 2. Alert engine
       // ---------------------------------------------------------------------
       console.log("Verifying the alert engine opens, updates, and auto-resolves...");

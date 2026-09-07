@@ -6,6 +6,7 @@ import type { AuditLogEntry } from "./types";
 export const ACTION_LABEL: Record<string, string> = {
   "document.status_changed": "Document status changed",
   "stock.adjusted": "Stock adjusted",
+  "stock.contract_adjusted": "Stock adjusted via module contract",
   "business_settings.updated": "Business settings changed",
 };
 
