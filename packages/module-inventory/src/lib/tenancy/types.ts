@@ -12,3 +12,8 @@ export type Business = {
   created_at: string;
   updated_at: string;
 };
+
+export type BusinessGstProfile = {
+  gstin: string | null;
+  state: string | null;
+};
