@@ -27,6 +27,7 @@ export function DashboardChrome({
   modules,
   businesses,
   productsByBusiness,
+  creditsUsedPercent,
   accountId,
   user,
   alerts,
@@ -36,6 +37,7 @@ export function DashboardChrome({
   modules: ShellNavModule[];
   businesses: ShellBusiness[];
   productsByBusiness?: Record<string, ShellProduct[]>;
+  creditsUsedPercent?: number;
   accountId: string;
   user: ShellUser;
   alerts?: ShellAlert[];
@@ -54,6 +56,7 @@ export function DashboardChrome({
         activeBusinessId={activeBusinessId}
         businessHref={(businessId) => `/dashboard/businesses/${businessId}`}
         productsByBusiness={productsByBusiness}
+        creditsUsedPercent={creditsUsedPercent}
         onCreateBusiness={() => setCreating(true)}
         user={user}
         alerts={alerts}

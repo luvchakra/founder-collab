@@ -17,6 +17,7 @@ export function DashboardShell({
   activeBusinessId,
   businessHref,
   productsByBusiness,
+  creditsUsedPercent,
   onCreateBusiness,
   user,
   alerts,
@@ -29,6 +30,8 @@ export function DashboardShell({
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
   productsByBusiness?: Record<string, ShellProduct[]>;
+  /** % of AI credits used this month, blended across every workspace on the account. */
+  creditsUsedPercent?: number;
   onCreateBusiness?: () => void;
   user: ShellUser;
   alerts?: ShellAlert[];
@@ -54,6 +57,8 @@ export function DashboardShell({
           activeBusinessId={activeBusinessId}
           businessHref={hrefFor}
           productsByBusiness={productsByBusiness}
+          creditsUsedPercent={creditsUsedPercent}
+          onCreateBusiness={onCreateBusiness}
           user={user}
           onSignOut={onSignOut}
         />
