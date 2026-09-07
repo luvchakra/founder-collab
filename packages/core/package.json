@@ -16,6 +16,7 @@
     "./ai-providers/*": "./src/ai-providers/*.ts",
     "./licensing/*": "./src/licensing/*.ts",
     "./rbac/*": "./src/rbac/*.ts",
+    "./parties/*": "./src/parties/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",
