@@ -33,6 +33,10 @@ export default async function ProductPage({
 
   const sources = await listProductKnowledge(workspace.id);
   const profile = product.product_profile;
+  // understandProduct() also reads product.description/website directly (see its own
+  // docstring) -- so those count as a source for gating purposes too, not just rows in
+  // "Knowledge sources" below.
+  const hasAnySource = sources.length > 0 || Boolean(product.description?.trim());
 
   return (
     <div className="flex flex-col gap-8">
@@ -59,15 +63,15 @@ export default async function ProductPage({
             action={generateProductProfileAction.bind(null, businessId, productId)}
             buttonLabel={profile ? "Regenerate" : "Generate profile"}
             pendingText="Generating..."
-            buttonProps={{ disabled: sources.length === 0 }}
+            buttonProps={{ disabled: !hasAnySource }}
           >
             {profile ? <input type="hidden" name="force" value="true" /> : null}
           </AiActionForm>
         </div>
 
-        {sources.length === 0 ? (
+        {!hasAnySource ? (
           <p className="text-sm text-muted-foreground">
-            Add a knowledge source below first.
+            Add a description above or a knowledge source below first.
           </p>
         ) : !profile ? (
           <p className="text-sm text-muted-foreground">

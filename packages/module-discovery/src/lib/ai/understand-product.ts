@@ -34,14 +34,29 @@ export async function understandProduct(
   if (!workspace) throw new Error("Workspace not found for product.");
 
   const sources = await listProductKnowledge(workspace.id);
-  if (sources.length === 0) {
+
+  // The description/website edited directly on the product page (EditableText, not "Add
+  // a file") are real product info too -- without this, a product whose only knowledge
+  // source is e.g. a screenshot with no extractable text gets a profile of all "No
+  // information provided" even though the page shows a real description right above it.
+  const productInfoLines = [
+    product.description ? `Description: ${product.description}` : null,
+    product.website ? `Website: ${product.website}` : null,
+  ].filter((line): line is string => line !== null);
+  const productInfoSource =
+    productInfoLines.length > 0
+      ? [{ source_type: "manual", source_name: "Product info", content: productInfoLines.join("\n") }]
+      : [];
+
+  const allSources = [...productInfoSource, ...sources];
+  if (allSources.length === 0) {
     throw new Error("Add at least one knowledge source before generating a product profile.");
   }
 
-  const latestSourceUpdate = sources.reduce(
-    (latest, s) => (s.updated_at > latest ? s.updated_at : latest),
-    sources[0]!.updated_at,
-  );
+  const latestSourceUpdate = [
+    ...(productInfoSource.length > 0 ? [product.updated_at] : []),
+    ...sources.map((s) => s.updated_at),
+  ].reduce((latest, ts) => (ts > latest ? ts : latest));
 
   if (
     !options.force &&
@@ -56,7 +71,7 @@ export async function understandProduct(
 
   const prompt = understandProductPrompt({
     productName: product.name,
-    sources: sources.map((s) => ({
+    sources: allSources.map((s) => ({
       sourceType: s.source_type,
       sourceName: s.source_name,
       content: s.content,
