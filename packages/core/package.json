@@ -26,6 +26,7 @@
     "./custom-fields/*": "./src/custom-fields/*.ts",
     "./attachments/*": "./src/attachments/*.ts",
     "./events/*": "./src/events/*.ts",
+    "./audit/*": "./src/audit/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",
