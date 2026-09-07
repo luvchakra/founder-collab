@@ -46,7 +46,16 @@ export function DashboardShell({
         onCreateBusiness={onCreateBusiness}
       />
       <SidebarInset>
-        <AppTopbar user={user} alerts={alerts} chatSlot={chatSlot} onSignOut={onSignOut} />
+        <AppTopbar
+          user={user}
+          businesses={businesses}
+          activeBusinessId={activeBusinessId}
+          businessHref={businessHref}
+          onCreateBusiness={onCreateBusiness}
+          alerts={alerts}
+          chatSlot={chatSlot}
+          onSignOut={onSignOut}
+        />
         <main className="flex-1 bg-background p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>

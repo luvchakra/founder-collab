@@ -13,7 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { AlertBell } from "./alert-bell";
-import type { ShellAlert, ShellUser } from "./types";
+import { BusinessSwitcher } from "./business-switcher";
+import type { ShellAlert, ShellBusiness, ShellUser } from "./types";
 
 function initials(name: string): string {
   return name
@@ -33,20 +34,38 @@ function initials(name: string): string {
  * import directly — modules depend on core, not the reverse. */
 export function AppTopbar({
   user,
+  businesses,
+  activeBusinessId,
+  businessHref,
+  onCreateBusiness,
   alerts,
   chatSlot,
   onSignOut,
 }: {
   user: ShellUser;
+  businesses?: ShellBusiness[];
+  activeBusinessId?: string | null;
+  businessHref?: (businessId: string) => string;
+  onCreateBusiness?: () => void;
   alerts?: ShellAlert[];
   chatSlot?: ReactNode;
   onSignOut?: () => void;
 }) {
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-card px-6">
-      <div className="relative w-full max-w-sm">
-        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search anything..." className="pl-9" />
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {businesses ? (
+          <BusinessSwitcher
+            businesses={businesses}
+            activeBusinessId={activeBusinessId}
+            businessHref={businessHref ?? (() => "#")}
+            onCreateBusiness={onCreateBusiness}
+          />
+        ) : null}
+        <div className="relative w-full max-w-sm">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Search anything..." className="pl-9" />
+        </div>
       </div>
       <div className="flex items-center gap-4">
         <AlertBell alerts={alerts ?? []} />

@@ -11,6 +11,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "../ui/sidebar";
+import { LogoMark } from "./logo-mark";
 import { ModuleIcon } from "./module-icon";
 import type { ShellBusiness, ShellNavModule } from "./types";
 
@@ -43,9 +44,7 @@ export function AppSidebar({
     <Sidebar>
       <SidebarHeader className="px-3 py-4">
         <div className="flex items-center gap-2 px-1">
-          <span className="flex size-6 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            C
-          </span>
+          <LogoMark className="size-6 shrink-0" />
           <span className="text-base font-semibold text-sidebar-foreground">CoFounderAI</span>
         </div>
       </SidebarHeader>
