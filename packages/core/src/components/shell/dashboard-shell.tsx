@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
 import { SidebarProvider } from "./sidebar-context";
-import type { ShellAlert, ShellBusiness, ShellNavModule, ShellUser } from "./types";
+import type { ShellAlert, ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
 /**
  * The platform's dashboard shell (topbar + drawer + content), structurally ported from
@@ -16,6 +16,7 @@ export function DashboardShell({
   businesses,
   activeBusinessId,
   businessHref,
+  productsByBusiness,
   onCreateBusiness,
   user,
   alerts,
@@ -27,6 +28,7 @@ export function DashboardShell({
   businesses: ShellBusiness[];
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
+  productsByBusiness?: Record<string, ShellProduct[]>;
   onCreateBusiness?: () => void;
   user: ShellUser;
   alerts?: ShellAlert[];
@@ -51,6 +53,7 @@ export function DashboardShell({
           businesses={businesses}
           activeBusinessId={activeBusinessId}
           businessHref={hrefFor}
+          productsByBusiness={productsByBusiness}
           user={user}
           onSignOut={onSignOut}
         />

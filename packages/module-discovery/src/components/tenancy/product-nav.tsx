@@ -2,25 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
-
-const NOTCH = 12;
 
 type StageId = "overview" | "icp" | "prospects" | "conversions";
 
-/** Chevron-shaped tab: a point on the right (unless last) and a matching notch cut into
- * the left (unless first), so consecutive tabs interlock into one continuous arrow strip
- * -- the ServiceNow/wizard "stage tracker" look, not a plain underlined tab row. */
-function clipPathFor(index: number, count: number): string {
-  const isFirst = index === 0;
-  const isLast = index === count - 1;
-  const points = ["0 0", isLast ? "100% 0" : `calc(100% - ${NOTCH}px) 0`];
-  if (!isLast) points.push("100% 50%");
-  points.push(isLast ? "100% 100%" : `calc(100% - ${NOTCH}px) 100%`, "0 100%");
-  if (!isFirst) points.push(`${NOTCH}px 50%`);
-  return `polygon(${points.join(", ")})`;
-}
-
+/**
+ * Stage tabs, chevron-separated -- same visual language as this app's own breadcrumbs
+ * (Dashboard > Business > Product). NOT co-founder-ai's interlocking clip-path chevron
+ * tabs: that version clipped/overlapped adjacent tabs on the reporter's real phone on
+ * two separate occasions, including after widening the clip-path clearance -- it
+ * rendered correctly in every desktop and simulated-mobile check this session could run,
+ * so the failure lives somewhere in mobile rendering this sandbox can't reproduce or
+ * safely iterate against. Each tab here is a plain rectangle with normal padding --
+ * clip-path never touches the text-bearing element, so tabs cannot overlap or clip
+ * regardless of device, font metrics, or viewport width. This is the final design for
+ * this component; do not reintroduce the clip-path/negative-margin version.
+ */
 export function ProductNav({
   basePath,
   completed,
@@ -50,35 +48,30 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="flex overflow-x-auto text-sm">
+    <nav aria-label="Product sections" className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm">
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
         return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            aria-current={isActive ? "page" : undefined}
-            style={{ clipPath: clipPathFor(i, tabs.length), marginLeft: i === 0 ? 0 : -NOTCH }}
-            className={cn(
-              // pl-6 (24px), not co-founder-ai's pl-5 (20px): 12px more clearance past
-              // the NOTCH than strictly required by the shape's own math, as a margin of
-              // safety against font-metric variance this session couldn't fully pin down
-              // (webfont-swap, OS font scale, engine-specific clip-path rasterization) --
-              // 4px of extra padding is not a visible design change, but it's real
-              // headroom against the exact failure mode that hit this on a real phone
-              // twice already.
-              "flex h-8 w-max shrink-0 items-center justify-center gap-1.5 pr-4 pl-6 font-medium whitespace-nowrap transition-colors",
-              i === 0 && "pl-4",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : isCompleted
-                  ? "bg-primary/20 text-primary hover:bg-primary/30"
-                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </Link>
+          <div key={tab.href} className="flex shrink-0 items-center gap-1">
+            {i > 0 ? (
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            ) : null}
+            <Link
+              href={tab.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "flex h-8 w-max shrink-0 items-center justify-center rounded-md px-3.5 font-medium whitespace-nowrap transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : isCompleted
+                    ? "bg-primary/20 text-primary hover:bg-primary/30"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </Link>
+          </div>
         );
       })}
     </nav>

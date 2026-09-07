@@ -24,6 +24,13 @@ export interface ShellBusiness {
   description?: string | null;
 }
 
+/** A discovery product/workspace belonging to a business -- shown under the sidebar's
+ * Discovery section for whichever business is currently active. */
+export interface ShellProduct {
+  id: string;
+  name: string;
+}
+
 /** A derived, non-persisted notification for the topbar's alert bell — see
  * @cofounderai/module-discovery's lib/alerts/derive.ts for how discovery computes these;
  * the shell itself has no opinion on where an alert comes from. */

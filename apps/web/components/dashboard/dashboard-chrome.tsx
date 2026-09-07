@@ -4,7 +4,13 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
-import type { ShellAlert, ShellBusiness, ShellNavModule, ShellUser } from "@cofounderai/core/shell/types";
+import type {
+  ShellAlert,
+  ShellBusiness,
+  ShellNavModule,
+  ShellProduct,
+  ShellUser,
+} from "@cofounderai/core/shell/types";
 import { CreateBusinessModal } from "@cofounderai/module-discovery/components/tenancy/create-business-modal";
 import { AiChatWidget } from "@cofounderai/module-discovery/components/chat/ai-chat-widget";
 import { getActiveIdsFromPath } from "@cofounderai/module-discovery/lib/tenancy/active-path";
@@ -20,6 +26,7 @@ import { signOut } from "@/app/(auth)/actions";
 export function DashboardChrome({
   modules,
   businesses,
+  productsByBusiness,
   accountId,
   user,
   alerts,
@@ -28,6 +35,7 @@ export function DashboardChrome({
 }: {
   modules: ShellNavModule[];
   businesses: ShellBusiness[];
+  productsByBusiness?: Record<string, ShellProduct[]>;
   accountId: string;
   user: ShellUser;
   alerts?: ShellAlert[];
@@ -45,6 +53,7 @@ export function DashboardChrome({
         businesses={businesses}
         activeBusinessId={activeBusinessId}
         businessHref={(businessId) => `/dashboard/businesses/${businessId}`}
+        productsByBusiness={productsByBusiness}
         onCreateBusiness={() => setCreating(true)}
         user={user}
         alerts={alerts}

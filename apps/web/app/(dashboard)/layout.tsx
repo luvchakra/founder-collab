@@ -23,9 +23,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   // cache()-wrapped by accountId, so the /dashboard page below reuses this exact result
   // instead of re-running its own full account scan in the same request.
-  const { businesses, entries } = account
+  const { businesses, productsByBusiness, entries } = account
     ? await getAccountWorkspaceEntries(account.id)
-    : { businesses: [], entries: [] };
+    : { businesses: [], productsByBusiness: {}, entries: [] };
   const { usageByWorkspace, prospects } = account
     ? await getAccountUsageAndProspects(account.id)
     : { usageByWorkspace: {}, prospects: [] };
@@ -39,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <DashboardChrome
       modules={moduleRegistry}
       businesses={businesses}
+      productsByBusiness={productsByBusiness}
       accountId={account?.id ?? ""}
       user={{ name: displayName, email: user.email ?? "", avatarUrl }}
       alerts={alerts}
