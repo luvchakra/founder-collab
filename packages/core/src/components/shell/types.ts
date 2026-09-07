@@ -16,6 +16,11 @@ export interface ShellUser {
   name: string;
   email: string;
   avatarUrl?: string;
+  /** Gates the account menu's "Admin" link -- a cross-tenant, environment-controlled
+   * gate (PLATFORM_ADMIN_EMAILS), unrelated to any business's own membership/role. Not
+   * itself a security boundary: the /dashboard/admin page and its server actions each
+   * re-check requirePlatformAdmin() regardless of what this renders. */
+  isPlatformAdmin?: boolean;
 }
 
 export interface ShellBusiness {

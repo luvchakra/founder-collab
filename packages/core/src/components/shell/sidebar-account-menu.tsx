@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Settings, SunMoon, User } from "lucide-react";
+import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Settings, ShieldCheck, SunMoon, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
@@ -117,6 +117,21 @@ export function SidebarAccountMenu({
             <Settings className="size-4 text-muted-foreground" aria-hidden="true" />
             Settings
           </Link>
+
+          {user.isPlatformAdmin ? (
+            <Link
+              href="/dashboard/admin"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onNavigate();
+              }}
+              className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+            >
+              <ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />
+              Admin
+            </Link>
+          ) : null}
 
           <div className="my-1 border-t" />
 

@@ -28,6 +28,7 @@
     "./events/*": "./src/events/*.ts",
     "./audit/*": "./src/audit/*.ts",
     "./audit-log/*": "./src/components/audit-log/*.tsx",
+    "./admin/*": "./src/admin/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",

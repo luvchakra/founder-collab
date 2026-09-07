@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
+import { isPlatformAdminEmail } from "@cofounderai/core/rbac/platform-admin";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import {
   getAccountUsageAndProspects,
@@ -52,7 +53,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       productsByBusiness={productsByBusiness}
       creditsUsedPercent={creditsPercent}
       accountId={account?.id ?? ""}
-      user={{ name: displayName, email: user.email ?? "", avatarUrl }}
+      user={{
+        name: displayName,
+        email: user.email ?? "",
+        avatarUrl,
+        isPlatformAdmin: isPlatformAdminEmail(user.email),
+      }}
       alerts={alerts}
       createBusinessAction={createBusinessAction}
     >
