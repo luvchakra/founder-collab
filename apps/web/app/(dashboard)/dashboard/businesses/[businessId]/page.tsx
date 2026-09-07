@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import {
   getBusiness,
   getWorkspaceForProduct,
@@ -67,7 +67,16 @@ export default async function BusinessPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
-      <Breadcrumbs items={[{ label: "Dashboard", href: "/dashboard" }, { label: business.name }]} />
+      <div className="flex items-center justify-between gap-2">
+        <Breadcrumbs items={[{ label: "Dashboard", href: "/dashboard" }, { label: business.name }]} />
+        <Link
+          href={`/dashboard/businesses/${business.id}/usage`}
+          className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+        >
+          <Sparkles className="size-3.5" aria-hidden="true" />
+          AI usage
+        </Link>
+      </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

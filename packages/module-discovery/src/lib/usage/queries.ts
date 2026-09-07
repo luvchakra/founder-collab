@@ -1,7 +1,8 @@
 import { cache } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../db/server";
-import type { WorkspaceUsage } from "./types";
+import { listProducts, listWorkspacesForProducts } from "../tenancy/queries";
+import type { BusinessUsage, WorkspaceUsage } from "./types";
 
 function currentMonthRange(): { start: string; end: string } {
   const now = new Date();
@@ -107,4 +108,43 @@ export async function getWorkspaceUsageForWorkspaces(
     };
   }
   return result;
+}
+
+/**
+ * Discovery's own usage rolled up across every product/workspace under one business --
+ * the "Discovery" section of the business-level, per-module AI usage page
+ * (apps/web/.../businesses/[businessId]/usage). AI usage is inherently workspace-scoped
+ * (discovery.ai_runs, keyed by workspace_id, per co-founder-ai's original single-module
+ * design -- ADR-3's aspiration of a shared core.ai_runs table hasn't been built yet,
+ * since no other module calls an LLM at all today), so "this business's discovery usage"
+ * means summing every one of its products' own workspace ledgers, not a single row.
+ */
+export async function getBusinessUsage(businessId: string): Promise<BusinessUsage> {
+  const products = await listProducts(businessId);
+  const workspaces = await listWorkspacesForProducts(products.map((p) => p.id));
+  const usageByWorkspace = await getWorkspaceUsageForWorkspaces(workspaces.map((w) => w.id));
+  const { start, end } = currentMonthRange();
+
+  const byOperationMap = new Map<string, { runs: number; cost: number }>();
+  for (const usage of Object.values(usageByWorkspace)) {
+    for (const op of usage.byOperation) {
+      const entry = byOperationMap.get(op.operation) ?? { runs: 0, cost: 0 };
+      entry.runs += op.runs;
+      entry.cost += op.cost;
+      byOperationMap.set(op.operation, entry);
+    }
+  }
+
+  const byOperation = Array.from(byOperationMap.entries())
+    .map(([operation, v]) => ({ operation, runs: v.runs, cost: v.cost }))
+    .sort((a, b) => b.cost - a.cost);
+
+  return {
+    businessId,
+    periodStart: start,
+    periodEnd: end,
+    totalRuns: byOperation.reduce((sum, o) => sum + o.runs, 0),
+    totalCost: byOperation.reduce((sum, o) => sum + o.cost, 0),
+    byOperation,
+  };
 }

@@ -1,20 +1,8 @@
 import { notFound } from "next/navigation";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getWorkspaceUsage } from "@cofounderai/module-discovery/lib/usage/queries";
-import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
+import { creditsUsedPercent, OPERATION_LABEL } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
-
-const OPERATION_LABEL: Record<string, string> = {
-  understand_product: "Product profile",
-  generate_icp: "ICP generation",
-  research_prospect: "Prospect research",
-  discover_prospects: "Prospect discovery",
-  generate_outreach_strategy: "Outreach strategy",
-  generate_outreach_message: "Message generation",
-  generate_reply: "Reply generation",
-  classify_reply: "Reply classification",
-  chat: "AI assistant",
-};
 
 export default async function UsagePage({
   params,
