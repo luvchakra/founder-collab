@@ -18,6 +18,17 @@ do $$ begin
 end $$;
 
 create schema if not exists auth;
+-- A real Supabase project grants USAGE on `auth` broadly (anon/authenticated/service_role
+-- all call auth.uid()/auth.role() directly). Without this, a table column DEFAULT of
+-- auth.uid() still works under a test role (that expression is parsed once, at DDL time,
+-- by the migration-applying superuser, and stored pre-resolved in pg_attrdef -- no fresh
+-- name lookup happens at INSERT time), but any FRESH SQL text containing `auth.uid()` --
+-- typed directly, or inside a plpgsql function body that isn't SECURITY DEFINER, which
+-- parses under the calling role -- fails with "permission denied for schema auth" purely
+-- because of this stub's own gap, not because of anything wrong in the migration under
+-- test. inventory.ship_stock_transfer() (SP-3b) is the first thing in this migration
+-- timeline to hit that path, which is what surfaced this.
+grant usage on schema auth to anon, authenticated, service_role;
 create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text unique,

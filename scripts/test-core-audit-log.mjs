@@ -43,9 +43,13 @@ async function main() {
         returning id;
       `);
       const aliceParty = psqlAsAlice(`insert into core.parties (business_id, name) values ('${aliceBusiness}', 'Acme Inc') returning id;`);
+      // source_module is deliberately NOT 'inventory' -- SP-3b added a status-transition
+      // permission trigger scoped to source_module='inventory' rows only, and this test is
+      // about the generic document status-change audit trigger, not inventory's permission
+      // model, so it uses a source_module that trigger explicitly passes through untouched.
       const aliceDoc = psqlAsAlice(`
         insert into core.documents (business_id, doc_type, source_module, party_id)
-        values ('${aliceBusiness}', 'sales_order', 'inventory', '${aliceParty}') returning id;
+        values ('${aliceBusiness}', 'sales_order', 'fsm', '${aliceParty}') returning id;
       `);
 
       console.log("Verifying the write helper directly...");
