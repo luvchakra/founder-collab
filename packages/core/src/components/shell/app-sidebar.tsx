@@ -14,6 +14,7 @@ import {
   RefreshCw,
   RotateCcw,
   ShoppingCart,
+  Shield,
   Truck,
   Users,
   Warehouse,
@@ -67,6 +68,10 @@ const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; ic
       { label: "Suppliers", slug: "suppliers", icon: Truck },
       { label: "Purchase Orders", slug: "purchase-orders", icon: ClipboardList },
     ],
+  },
+  {
+    heading: "Administration",
+    items: [{ label: "Team", slug: "team", icon: Shield }],
   },
 ];
 

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
-import type { Business, BusinessGstProfile } from "./types";
+import type { Business, BusinessGstProfile, BusinessMember } from "./types";
 
 /** accounts/businesses live in the `core` schema (Epic 2's C-1) -- every module shares
  * them, so they're never queried through inventory's own schema-scoped client. Mirrors
@@ -41,4 +41,35 @@ export const getBusinessGstProfile = cache(async (businessId: string): Promise<B
     .maybeSingle();
   if (error) throw error;
   return { gstin: data?.gstin ?? null, state: data?.state ?? null };
+});
+
+/** Ported from stockpilot-ai-ops's routes/_authenticated/team.tsx `members` useQuery --
+ * business_members.user_id has no foreign key to user_profiles (a service-created member
+ * never requires a matching auth user up front), so names are joined here rather than
+ * embedded in the select, same as the original's own client-side join. RLS-scoped: a
+ * caller only ever sees the members of businesses they themselves belong to. */
+export const listBusinessMembers = cache(async (businessId: string): Promise<BusinessMember[]> => {
+  const supabase = await coreClient();
+  const { data: rows, error } = await supabase
+    .from("business_members")
+    .select("id, user_id, role, created_at")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const userIds = rows.map((r) => r.user_id);
+  const { data: profiles, error: profilesError } = userIds.length
+    ? await supabase.from("user_profiles").select("id, full_name, email").in("id", userIds)
+    : { data: [], error: null };
+  if (profilesError) throw profilesError;
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+
+  return rows.map((r) => ({
+    id: r.id,
+    user_id: r.user_id,
+    role: r.role,
+    created_at: r.created_at,
+    full_name: profileById.get(r.user_id)?.full_name ?? null,
+    email: profileById.get(r.user_id)?.email ?? null,
+  }));
 });
