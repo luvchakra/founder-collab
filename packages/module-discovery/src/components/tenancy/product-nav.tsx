@@ -4,22 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@cofounderai/core/lib/utils";
 
-const NOTCH = 12;
-
 type StageId = "overview" | "icp" | "prospects" | "conversions";
-
-/** Chevron-shaped tab: a point on the right (unless last) and a matching notch cut into
- * the left (unless first), so consecutive tabs interlock into one continuous arrow strip
- * -- the ServiceNow/wizard "stage tracker" look, not a plain underlined tab row. */
-function clipPathFor(index: number, count: number): string {
-  const isFirst = index === 0;
-  const isLast = index === count - 1;
-  const points = ["0 0", isLast ? "100% 0" : `calc(100% - ${NOTCH}px) 0`];
-  if (!isLast) points.push("100% 50%");
-  points.push(isLast ? "100% 100%" : `calc(100% - ${NOTCH}px) 100%`, "0 100%");
-  if (!isFirst) points.push(`${NOTCH}px 50%`);
-  return `polygon(${points.join(", ")})`;
-}
 
 export function ProductNav({
   basePath,
@@ -50,7 +35,7 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="flex text-sm">
+    <nav aria-label="Product sections" className="flex gap-1 overflow-x-auto text-sm">
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
@@ -59,10 +44,8 @@ export function ProductNav({
             key={tab.href}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            style={{ clipPath: clipPathFor(i, tabs.length), marginLeft: i === 0 ? 0 : -NOTCH }}
             className={cn(
-              "flex h-8 shrink-0 items-center justify-center gap-1.5 pr-4 pl-5 font-medium whitespace-nowrap transition-colors",
-              i === 0 && "pl-4",
+              "flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md px-3.5 font-medium whitespace-nowrap transition-colors",
               isActive
                 ? "bg-primary text-primary-foreground"
                 : isCompleted
