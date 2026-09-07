@@ -6,6 +6,7 @@ import { understandProductPrompt, UNDERSTAND_PRODUCT_PROMPT_VERSION } from "./pr
 import type { ProductProfile } from "../lib/ai/schemas";
 
 const productProfile: ProductProfile = {
+  description: "Automated invoice reconciliation for finance teams.",
   category: "B2B SaaS",
   problem: "manual invoice reconciliation",
   solution: "automated matching",

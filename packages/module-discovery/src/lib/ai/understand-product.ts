@@ -188,6 +188,10 @@ export async function understandProduct(
     .update({
       product_profile: profile,
       product_profile_generated_at: new Date().toISOString(),
+      // Auto-fills the product's own description from the research, but only when the
+      // founder hasn't written one themselves -- "auto-populate" should fill gaps, not
+      // silently overwrite something they typed.
+      ...(product.description ? {} : { description: profile.description }),
     })
     .eq("id", productId);
   if (updateError) throw updateError;

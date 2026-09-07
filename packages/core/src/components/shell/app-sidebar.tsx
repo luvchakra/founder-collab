@@ -100,21 +100,25 @@ function ModuleContent({
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
     const products = effectiveBusinessId ? (productsByBusiness?.[effectiveBusinessId] ?? []) : [];
-    if (products.length === 0) {
-      return <p className="px-3 py-3 text-sm text-muted-foreground">No products yet.</p>;
-    }
     return (
       <div className="flex flex-col gap-0.5 px-2 py-2">
-        {products.map((product) => (
-          <a
-            key={product.id}
-            href={`${businessHref(effectiveBusinessId!)}/products/${product.id}`}
-            onClick={onNavigate}
-            className="truncate rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-          >
-            {product.name}
-          </a>
-        ))}
+        <span className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          Products
+        </span>
+        {products.length === 0 ? (
+          <p className="px-2 py-1.5 text-sm text-muted-foreground">No products yet.</p>
+        ) : (
+          products.map((product) => (
+            <a
+              key={product.id}
+              href={`${businessHref(effectiveBusinessId!)}/products/${product.id}`}
+              onClick={onNavigate}
+              className="truncate rounded-md px-2 py-1.5 text-base text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            >
+              {product.name}
+            </a>
+          ))
+        )}
       </div>
     );
   }
@@ -123,7 +127,7 @@ function ModuleContent({
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
     return (
-      <div className="flex flex-col gap-3 px-2 py-2">
+      <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
         {INVENTORY_NAV.map((group) => (
           <div key={group.heading} className="flex flex-col gap-0.5">
             <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">

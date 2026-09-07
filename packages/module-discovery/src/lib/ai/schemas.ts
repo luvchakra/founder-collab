@@ -6,6 +6,11 @@ import { z } from "zod";
  * prompts/product/understand_product_v1.ts for the anti-hallucination instructions.
  */
 export const ProductProfileSchema = z.object({
+  description: z
+    .string()
+    .describe(
+      "A concise 1-2 sentence plain-language summary of the product, suitable as its short description",
+    ),
   category: z
     .string()
     .describe("What kind of product this is, e.g. 'B2B SaaS - invoice reconciliation'"),

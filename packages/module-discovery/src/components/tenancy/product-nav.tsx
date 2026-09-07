@@ -22,13 +22,16 @@ type StageId = "overview" | "icp" | "prospects" | "conversions";
  * whose alignment isn't actually guaranteed by the browser, just by both browsers this
  * session could check agreeing on the arithmetic.
  *
- * This version can't have that failure mode: every step is `flex: 1` with `min-width: 0`
- * and `overflow: hidden`, so steps can never overlap or shrink below zero -- the browser
- * itself enforces that from ordinary flex layout, not from two elements' shapes lining up
- * by coincidence. The chevron is a small icon *inside* each step's own box (not a shape
- * extending into the next step), so it can never paint over another step's label. Labels
- * truncate with an ellipsis if a step is ever too narrow for its own text, instead of
- * overlapping a neighbor.
+ * This version can't have that failure mode: every step sizes to its own label content
+ * (`flex-initial`, the ordinary flex default) with `min-width: 0` and `overflow: hidden`,
+ * so steps can never overlap -- the browser itself enforces that from ordinary flex
+ * layout, not from two elements' shapes lining up by coincidence. The chevron is a small
+ * icon *inside* each step's own box (not a shape extending into the next step), so it can
+ * never paint over another step's label. Labels only truncate with an ellipsis in the
+ * (now rare) case where the container itself is too narrow to fit every step at its
+ * natural width, instead of overlapping a neighbor. The strip sizes to its own content
+ * (`inline-flex`, no `w-full`) rather than stretching every step equally across the full
+ * available width.
  */
 export function ProductNav({
   basePath,
@@ -59,7 +62,7 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="flex w-full overflow-hidden rounded-md text-sm">
+    <nav aria-label="Product sections" className="inline-flex max-w-full overflow-hidden rounded-md text-sm">
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
@@ -69,7 +72,7 @@ export function ProductNav({
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex h-8 min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden px-2.5 font-medium transition-colors",
+              "flex h-8 min-w-0 flex-initial items-center justify-center gap-1 overflow-hidden px-3 font-medium transition-colors",
               isActive
                 ? "bg-primary text-primary-foreground"
                 : isCompleted
