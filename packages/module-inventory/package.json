@@ -16,12 +16,15 @@
   "dependencies": {
     "@cofounderai/core": "*",
     "@supabase/supabase-js": "^2.115.0",
+    "jsbarcode": "^3.12.3",
+    "qrcode": "^1.5.4",
     "react": "19.2.8"
   },
   "peerDependencies": {
     "next": "16.3.4"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "typescript": "^5.9.3",
     "vitest": "^5.0.0"
   }

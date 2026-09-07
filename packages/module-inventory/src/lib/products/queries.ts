@@ -22,6 +22,15 @@ export const listProducts = cache(async (businessId: string, canViewCost: boolea
   return data.map((p) => ({ ...p, cost_price: null }));
 });
 
+/** Just the SKUs, for the CSV import flow's duplicate check -- avoids pulling every
+ * column for a business that may have a large catalogue. */
+export const listProductSkus = cache(async (businessId: string): Promise<string[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("products").select("sku").eq("org_id", businessId);
+  if (error) throw error;
+  return data.map((p) => p.sku).filter((sku): sku is string => Boolean(sku));
+});
+
 export const listCategoryOptions = cache(async (businessId: string): Promise<LookupOption[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase.from("categories").select("id, name").eq("org_id", businessId);

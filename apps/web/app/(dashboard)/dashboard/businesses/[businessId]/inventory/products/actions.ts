@@ -6,6 +6,7 @@ import {
   createProduct,
   updateProduct,
   setProductStatus,
+  generateBarcodesForProducts,
 } from "@cofounderai/module-inventory/lib/products/mutations";
 import type { ProductInput } from "@cofounderai/module-inventory/lib/products/mutations";
 import type { ProductActionState } from "@cofounderai/module-inventory/components/products/product-modal";
@@ -88,5 +89,11 @@ export async function toggleProductStatusAction(
 ): Promise<void> {
   await requirePermission(businessId, "inventory.edit");
   await setProductStatus(productId, status);
+  revalidatePath(productsPath(businessId));
+}
+
+export async function generateBarcodesAction(businessId: string, productIds: string[]): Promise<void> {
+  await requirePermission(businessId, "inventory.edit");
+  await generateBarcodesForProducts(productIds);
   revalidatePath(productsPath(businessId));
 }

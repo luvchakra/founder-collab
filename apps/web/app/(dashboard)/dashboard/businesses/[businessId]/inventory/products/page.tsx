@@ -7,14 +7,22 @@ import {
 } from "@cofounderai/module-inventory/lib/products/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { ProductsList } from "@cofounderai/module-inventory/components/products/products-list";
-import { createProductAction, updateProductAction, toggleProductStatusAction } from "./actions";
+import {
+  createProductAction,
+  updateProductAction,
+  toggleProductStatusAction,
+  generateBarcodesAction,
+} from "./actions";
 
 export default async function ProductsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessId: string }>;
+  searchParams: Promise<{ imported?: string; skipped?: string; duplicates?: string }>;
 }) {
   const { businessId } = await params;
+  const { imported, skipped, duplicates } = await searchParams;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
@@ -38,6 +46,16 @@ export default async function ProductsPage({
         </p>
       </div>
 
+      {imported ? (
+        <p className="rounded-md border bg-muted p-3 text-sm">
+          Imported {imported} product{imported === "1" ? "" : "s"}.
+          {skipped && skipped !== "0" ? ` Skipped ${skipped} row(s) missing sku/name or invalid.` : ""}
+          {duplicates && duplicates !== "0"
+            ? ` Skipped ${duplicates} row(s) already in your catalogue.`
+            : ""}
+        </p>
+      ) : null}
+
       <ProductsList
         products={products}
         categoryNameById={categoryNameById}
@@ -48,6 +66,8 @@ export default async function ProductsPage({
         createAction={createProductAction.bind(null, businessId)}
         updateAction={updateProductAction.bind(null, businessId)}
         toggleStatusAction={toggleProductStatusAction.bind(null, businessId)}
+        generateBarcodesAction={generateBarcodesAction.bind(null, businessId)}
+        importHref={`/dashboard/businesses/${businessId}/inventory/products/import`}
       />
     </div>
   );

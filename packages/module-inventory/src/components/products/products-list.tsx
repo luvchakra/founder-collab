@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Package, Pencil, Plus } from "lucide-react";
+import Link from "next/link";
+import { Barcode, Package, Pencil, Plus, Upload } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
@@ -15,13 +16,13 @@ import {
 } from "@cofounderai/core/ui/table";
 import { inr } from "@cofounderai/core/lib/format";
 import { ProductModal, type ProductActionState } from "./product-modal";
+import { BarcodeLabelDialog } from "./barcode-label-dialog";
 import type { LookupOption, Product } from "../../lib/products/types";
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/products.tsx `Products`
- * component -- list + create/edit dialog + activate/deactivate, rebuilt as Server
- * Actions (see WarehousesList's docstring for why). Barcode/QR generation and the
- * spreadsheet import dialog are deferred to a later pass; the mobile-only card layout is
- * dropped the same way it was for warehouses. */
+ * component -- list + create/edit dialog + activate/deactivate + barcode/QR label
+ * generation + CSV import, rebuilt as Server Actions (see WarehousesList's docstring for
+ * why). The mobile-only card layout is dropped the same way it was for warehouses. */
 export function ProductsList({
   products,
   categoryNameById,
@@ -32,6 +33,8 @@ export function ProductsList({
   createAction,
   updateAction,
   toggleStatusAction,
+  generateBarcodesAction,
+  importHref,
 }: {
   products: Product[];
   categoryNameById: Map<string, string>;
@@ -46,13 +49,26 @@ export function ProductsList({
     formData: FormData,
   ) => Promise<ProductActionState>;
   toggleStatusAction: (productId: string, status: "active" | "inactive") => Promise<void>;
+  generateBarcodesAction: (productIds: string[]) => Promise<void>;
+  importHref: string;
 }) {
   const [modalTarget, setModalTarget] = useState<"create" | Product | null>(null);
+  const [barcodeDialogOpen, setBarcodeDialogOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-4">
       {canEdit ? (
-        <div className="flex justify-end">
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setBarcodeDialogOpen(true)}>
+            <Barcode className="size-4" aria-hidden="true" />
+            Generate barcode / QR
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link href={importHref}>
+              <Upload className="size-4" aria-hidden="true" />
+              Import products
+            </Link>
+          </Button>
           <Button size="sm" onClick={() => setModalTarget("create")}>
             <Plus className="size-4" aria-hidden="true" />
             New product
@@ -137,6 +153,13 @@ export function ProductsList({
           onClose={() => setModalTarget(null)}
         />
       ) : null}
+
+      <BarcodeLabelDialog
+        open={barcodeDialogOpen}
+        onOpenChange={setBarcodeDialogOpen}
+        products={products}
+        generateAction={generateBarcodesAction}
+      />
     </div>
   );
 }

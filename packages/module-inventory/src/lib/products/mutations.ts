@@ -20,8 +20,9 @@ export type ProductInput = {
   reorder_quantity: number;
 };
 
-/** Ported from stockpilot-ai-ops's `saveProduct` mutation's category resolution. */
-async function resolveCategoryId(
+/** Ported from stockpilot-ai-ops's `saveProduct` mutation's category resolution. Exported
+ * for `createProductsBulk`, which resolves one category per row the same way. */
+export async function resolveCategoryId(
   supabase: SupabaseClient,
   businessId: string,
   categoryName: string | null | undefined,
@@ -96,4 +97,51 @@ export async function setProductStatus(productId: string, status: "active" | "in
   const supabase = await createClient();
   const { error } = await supabase.from("products").update({ status }).eq("id", productId);
   if (error) throw error;
+}
+
+/**
+ * Bulk-creates products from a parsed CSV paste (see `../products/csv.ts`), one insert
+ * call for the whole batch -- same shape as module-discovery's `createProspectsBulk`.
+ * Category names are resolved (find-or-create) per row before the insert since
+ * PostgREST can't resolve a free-text name inline; duplicate category names across rows
+ * safely resolve to the same id via `resolveCategoryId`'s own find-then-create lookup.
+ */
+export async function createProductsBulk(businessId: string, inputs: ProductInput[]): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const supabase = await createClient();
+
+  const rows = [];
+  for (const input of inputs) {
+    const categoryId = await resolveCategoryId(supabase, businessId, input.categoryName);
+    rows.push({ org_id: businessId, ...payloadFrom(input, categoryId) });
+  }
+
+  const { data, error } = await supabase.from("products").insert(rows).select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/**
+ * Generates a barcode for every given product that doesn't already have one, encoding
+ * its SKU (never overwrites an existing barcode -- matches stockpilot-ai-ops's own
+ * BarcodeLabelDialog behavior, so re-generating a label never changes a code that's
+ * already printed and out on a shelf or box). Returns how many rows were actually
+ * updated -- products that already had a barcode are silently skipped, not an error.
+ */
+export async function generateBarcodesForProducts(productIds: string[]): Promise<number> {
+  if (productIds.length === 0) return 0;
+  const supabase = await createClient();
+
+  const { data: products, error: fetchError } = await supabase
+    .from("products")
+    .select("id, sku, barcode")
+    .in("id", productIds);
+  if (fetchError) throw fetchError;
+
+  const toUpdate = (products ?? []).filter((p) => !p.barcode);
+  for (const p of toUpdate) {
+    const { error } = await supabase.from("products").update({ barcode: p.sku }).eq("id", p.id);
+    if (error) throw error;
+  }
+  return toUpdate.length;
 }
