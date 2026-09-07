@@ -19,6 +19,7 @@
     "./parties/*": "./src/parties/*.ts",
     "./addresses/*": "./src/addresses/*.ts",
     "./items/*": "./src/items/*.ts",
+    "./numbering/*": "./src/numbering/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",

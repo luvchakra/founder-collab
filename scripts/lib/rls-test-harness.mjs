@@ -7,9 +7,12 @@
  * per-module) to a throwaway database, so the setup/teardown is identical regardless of
  * which module's tables a given script is actually asserting against.
  */
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export function run(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
@@ -21,6 +24,26 @@ function makePsql(testDb) {
   };
 }
 
+/** Async counterpart to psql -- exists for concurrent-caller tests (e.g. D-5's
+ * core.next_number()), where the whole point is issuing several calls at once and
+ * observing how Postgres serializes them, which a synchronous psql() can't do. */
+function makePsqlAsync(testDb) {
+  return async function psqlAsync(sql) {
+    const { stdout } = await execFileAsync("psql", [
+      "-d",
+      testDb,
+      "-v",
+      "ON_ERROR_STOP=1",
+      "-t",
+      "-A",
+      "-q",
+      "-c",
+      sql,
+    ]);
+    return stdout.trim();
+  };
+}
+
 /** Runs `sql` as `userId` would see it -- sets the same session-local role/JWT claim
  * Supabase's PostgREST layer sets for an authenticated request, so RLS policies (and any
  * SECURITY DEFINER helper that reads auth.uid(), like core.has_module()/has_permission())
@@ -28,6 +51,16 @@ function makePsql(testDb) {
 function makePsqlAs(psql) {
   return function psqlAs(userId, sql) {
     return psql(`
+      set local role authenticated;
+      set local request.jwt.claim.sub = '${userId}';
+      ${sql}
+    `);
+  };
+}
+
+function makePsqlAsAsync(psqlAsync) {
+  return function psqlAsAsync(userId, sql) {
+    return psqlAsync(`
       set local role authenticated;
       set local request.jwt.claim.sub = '${userId}';
       ${sql}
@@ -63,6 +96,8 @@ export async function withTestDatabase({ dbNamePrefix, migrationsDir, stubFile, 
   const testDb = `${dbNamePrefix}_${process.pid}`;
   const psql = makePsql(testDb);
   const psqlAs = makePsqlAs(psql);
+  const psqlAsync = makePsqlAsync(testDb);
+  const psqlAsAsync = makePsqlAsAsync(psqlAsync);
 
   console.log(`Setting up ${testDb}...`);
   try {
@@ -82,7 +117,7 @@ export async function withTestDatabase({ dbNamePrefix, migrationsDir, stubFile, 
   }
 
   try {
-    await testFn({ psql, psqlAs, assertEqual, assertThrows });
+    await testFn({ psql, psqlAs, psqlAsync, psqlAsAsync, assertEqual, assertThrows });
   } finally {
     try {
       run("dropdb", ["--if-exists", testDb]);
