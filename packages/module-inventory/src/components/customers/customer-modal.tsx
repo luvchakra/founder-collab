@@ -7,7 +7,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { INDIAN_STATES } from "../../lib/gst";
+import { INDIAN_STATES } from "@cofounderai/core/lib/gst";
 import type { Customer } from "../../lib/customers/types";
 
 export type CustomerActionState = { error: string } | { success: true } | null;

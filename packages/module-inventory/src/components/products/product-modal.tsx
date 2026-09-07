@@ -8,7 +8,7 @@ import { Label } from "@cofounderai/core/ui/label";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { GST_RATE_SLABS } from "../../lib/gst";
+import { GST_RATE_SLABS } from "@cofounderai/core/lib/gst";
 import type { LookupOption, Product } from "../../lib/products/types";
 
 export type ProductActionState = { error: string } | { success: true } | null;

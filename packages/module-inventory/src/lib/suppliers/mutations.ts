@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import { isValidGstin } from "../gst";
+import { isValidGstin } from "@cofounderai/core/lib/gst";
 
 export type SupplierInput = {
   name: string;

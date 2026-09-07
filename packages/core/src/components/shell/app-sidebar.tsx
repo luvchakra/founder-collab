@@ -7,6 +7,7 @@ import {
   FileText,
   Package,
   Plus,
+  Receipt,
   RefreshCw,
   RotateCcw,
   ShoppingCart,
@@ -58,6 +59,23 @@ const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; ic
   },
 ];
 
+/**
+ * GST's own nav -- the 3 sections stockpilot-ai-ops had folded into its account/profile
+ * settings page (GST profile, e-Way Bill credentials, e-Invoicing credentials), plus its
+ * separate top-level GST Filing route, promoted to their own menu items under this
+ * platform's `gst` module instead: per docs/plan/00-MASTER-PLAN.md §5's entity-
+ * ownership map, "gst module: e-invoice, e-way bill, credentials, return workspaces" is
+ * gst-owned, not a business-settings afterthought or an inventory-module page. Only
+ * "GST Profile" has a real page as of this slice; the other 3 404 until their own
+ * slices land, same "link now, build later" pattern INVENTORY_NAV already established.
+ */
+const GST_NAV: { label: string; slug: string; icon: LucideIcon }[] = [
+  { label: "GST Profile", slug: "profile", icon: Receipt },
+  { label: "e-Way Bill", slug: "eway-bill", icon: Truck },
+  { label: "e-Invoicing", slug: "einvoicing", icon: FileText },
+  { label: "GST Filing", slug: "filing", icon: ClipboardList },
+];
+
 function CreateBusinessPrompt({ onCreateBusiness }: { onCreateBusiness?: () => void }) {
   return (
     <div className="flex flex-col gap-2 px-3 py-3">
@@ -75,10 +93,10 @@ function CreateBusinessPrompt({ onCreateBusiness }: { onCreateBusiness?: () => v
 }
 
 /** The selected module's content -- what the drawer's middle, scrollable area shows.
- * Discovery lists the effective business's products (real routes); Inventory shows the
- * full nav tree (routes that 404 until SP-7 lands, by explicit instruction); every other
- * module is a flat "not available yet" placeholder, since nothing else has any real nav
- * to show. */
+ * Discovery lists the effective business's products (real routes); Inventory and GST
+ * each show their own nav tree (routes that 404 until built, by explicit instruction);
+ * every other module is a flat "not available yet" placeholder, since nothing else has
+ * any real nav to show. */
 function ModuleContent({
   moduleKey,
   businesses,
@@ -149,6 +167,29 @@ function ModuleContent({
             })}
           </div>
         ))}
+      </div>
+    );
+  }
+
+  if (moduleKey === "gst") {
+    if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
+
+    return (
+      <div className="flex flex-col gap-0.5 px-2 py-2">
+        {GST_NAV.map((item) => {
+          const Icon = item.icon;
+          return (
+            <a
+              key={item.slug}
+              href={`${businessHref(effectiveBusinessId!)}/gst/${item.slug}`}
+              onClick={onNavigate}
+              className="flex items-center gap-2.5 truncate rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <Icon className="size-4 shrink-0" aria-hidden="true" />
+              {item.label}
+            </a>
+          );
+        })}
       </div>
     );
   }

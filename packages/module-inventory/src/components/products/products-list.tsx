@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cofounderai/core/ui/table";
-import { inr } from "../../lib/format";
+import { inr } from "@cofounderai/core/lib/format";
 import { ProductModal, type ProductActionState } from "./product-modal";
 import type { LookupOption, Product } from "../../lib/products/types";
 
