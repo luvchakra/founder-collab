@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { useDismiss } from "../../hooks/use-dismiss";
 import { cn } from "../../lib/utils";
 import { ModuleIcon } from "./module-icon";
@@ -72,13 +72,19 @@ export function ModuleSelector({
                 onSelect(module.key);
                 setOpen(false);
               }}
+              aria-current={module.key === selectedKey ? "true" : undefined}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-sm px-3 py-2 text-left text-sm hover:bg-accent",
-                module.key === selectedKey && "bg-accent font-medium",
+                "flex w-full items-center gap-2.5 rounded-sm border-l-2 px-3 py-2 text-left text-sm",
+                module.key === selectedKey
+                  ? "border-primary bg-accent font-medium text-accent-foreground"
+                  : "border-transparent hover:bg-accent/60",
               )}
             >
               <ModuleIcon name={module.icon} className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate">{module.name}</span>
+              {module.key === selectedKey ? (
+                <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+              ) : null}
             </button>
           ))}
 

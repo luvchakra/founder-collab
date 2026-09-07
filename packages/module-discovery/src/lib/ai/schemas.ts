@@ -182,8 +182,12 @@ export const ChatResponseSchema = z.object({
   followUp: z
     .string()
     .describe(
-      "One natural follow-up question the founder might ask next, given this context " +
-        "and conversation so far. A short, complete question.",
+      "One natural follow-up message the founder might send next, given this context " +
+        "and conversation so far. Phrase it in the founder's own voice, as a short, " +
+        "complete sentence starting with 'I would like to...' or 'I want to...' -- " +
+        "never as a question posed back to the founder (e.g. never 'Would you like " +
+        "to...?'), since this is prefilled into the founder's own message box for them " +
+        "to send as-is.",
     ),
 });
 

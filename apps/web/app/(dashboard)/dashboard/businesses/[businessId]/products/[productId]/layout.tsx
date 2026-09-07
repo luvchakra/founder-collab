@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { Sparkles } from "lucide-react";
 import {
   getBusiness,
   getProduct,
@@ -10,14 +9,8 @@ import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { ProductNav } from "@cofounderai/module-discovery/components/tenancy/product-nav";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
-import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
-import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
-import {
-  generateProductProfileAction,
-  renameProductAction,
-  updateProductWebsiteAction,
-} from "./actions";
+import { renameProductAction } from "./actions";
 
 export default async function ProductLayout({
   children,
@@ -53,7 +46,6 @@ export default async function ProductLayout({
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Dashboard", href: "/dashboard" },
           { label: business.name, href: `/dashboard/businesses/${businessId}` },
           { label: product.name },
         ]}
@@ -67,31 +59,6 @@ export default async function ProductLayout({
           action={renameProductAction.bind(null, businessId, productId)}
           headingClassName="text-xl font-semibold"
         />
-        <EditableText
-          value={product.website}
-          action={updateProductWebsiteAction.bind(null, businessId, productId)}
-          placeholder="Add a website"
-          textClassName="text-sm"
-        />
-        <AiActionForm
-          action={generateProductProfileAction.bind(null, businessId, productId)}
-          buttonLabel={
-            <>
-              Let AI Auto-Populate Info
-              <Sparkles className="size-3.5" aria-hidden="true" />
-            </>
-          }
-          pendingText="Populating..."
-          buttonProps={{
-            variant: "link",
-            size: "sm",
-            className: "h-auto gap-1.5 p-0 text-muted-foreground hover:text-primary",
-            disabled: !product.website,
-            title: product.website ? undefined : "Add a website first",
-          }}
-        >
-          <input type="hidden" name="force" value="true" />
-        </AiActionForm>
       </div>
       <ProductNav basePath={basePath} completed={completed} />
       {children}

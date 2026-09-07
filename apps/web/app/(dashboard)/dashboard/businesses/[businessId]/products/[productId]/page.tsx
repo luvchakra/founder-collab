@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import {
   getProduct,
   getWorkspaceForProduct,
@@ -18,6 +19,7 @@ import {
   deleteSourceAction,
   generateProductProfileAction,
   updateProductDescriptionAction,
+  updateProductWebsiteAction,
   updateSourceAction,
 } from "./actions";
 
@@ -38,6 +40,34 @@ export default async function ProductPage({
 
   return (
     <div className="flex flex-col gap-8">
+      <section className="flex flex-col gap-1">
+        <EditableText
+          value={product.website}
+          action={updateProductWebsiteAction.bind(null, businessId, productId)}
+          placeholder="Add a website"
+          textClassName="text-sm"
+        />
+        <AiActionForm
+          action={generateProductProfileAction.bind(null, businessId, productId)}
+          buttonLabel={
+            <>
+              Let AI Auto-Populate Info
+              <Sparkles className="size-3.5" aria-hidden="true" />
+            </>
+          }
+          pendingText="Populating..."
+          buttonProps={{
+            variant: "link",
+            size: "sm",
+            className: "h-auto gap-1.5 p-0 text-muted-foreground hover:text-primary",
+            disabled: !product.website,
+            title: product.website ? undefined : "Add a website first",
+          }}
+        >
+          <input type="hidden" name="force" value="true" />
+        </AiActionForm>
+      </section>
+
       <section className="flex flex-col gap-2">
         <EditableText
           value={product.description}

@@ -1,4 +1,4 @@
-export const CHAT_PROMPT_VERSION = "chat_v3";
+export const CHAT_PROMPT_VERSION = "chat_v4";
 
 /** System prompt for the header AI assistant (lib/ai/chat.ts). `contextText` is a short,
  * pre-computed summary of the business/product currently in view (see

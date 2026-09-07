@@ -136,8 +136,22 @@ function CreateBusinessPrompt({ onCreateBusiness }: { onCreateBusiness?: () => v
  * each show their own nav tree (routes that 404 until built, by explicit instruction);
  * every other module is a flat "not available yet" placeholder, since nothing else has
  * any real nav to show. */
+/** Shared styling for a drawer nav row -- an accent-tinted background, a left accent
+ * bar, and a bolder foreground color when it's the current page, so the founder can
+ * always tell what they're looking at without having to read every label. */
+function navItemClassName(isActive: boolean, extra?: string) {
+  return cn(
+    "flex items-center gap-2.5 truncate rounded-md border-l-2 px-2 py-1.5 text-sm transition-colors",
+    isActive
+      ? "border-primary bg-sidebar-accent font-medium text-foreground"
+      : "border-transparent text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+    extra,
+  );
+}
+
 function ModuleContent({
   moduleKey,
+  pathname,
   businesses,
   effectiveBusinessId,
   businessHref,
@@ -146,6 +160,7 @@ function ModuleContent({
   onNavigate,
 }: {
   moduleKey: string;
+  pathname: string | null;
   businesses: ShellBusiness[];
   effectiveBusinessId: string | null;
   businessHref: (businessId: string) => string;
@@ -165,16 +180,21 @@ function ModuleContent({
         {products.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">No products yet.</p>
         ) : (
-          products.map((product) => (
-            <a
-              key={product.id}
-              href={`${businessHref(effectiveBusinessId!)}/products/${product.id}`}
-              onClick={onNavigate}
-              className="truncate rounded-md px-2 py-1.5 text-base text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-            >
-              {product.name}
-            </a>
-          ))
+          products.map((product) => {
+            const href = `${businessHref(effectiveBusinessId!)}/products/${product.id}`;
+            const isActive = pathname === href || pathname?.startsWith(`${href}/`);
+            return (
+              <a
+                key={product.id}
+                href={href}
+                onClick={onNavigate}
+                aria-current={isActive ? "page" : undefined}
+                className={navItemClassName(Boolean(isActive), "text-base")}
+              >
+                <span className="min-w-0 flex-1 truncate">{product.name}</span>
+              </a>
+            );
+          })
         )}
       </div>
     );
@@ -192,12 +212,15 @@ function ModuleContent({
             </span>
             {group.items.map((item) => {
               const Icon = item.icon;
+              const href = `${businessHref(effectiveBusinessId!)}/inventory/${item.slug}`;
+              const isActive = pathname === href;
               return (
                 <a
                   key={item.slug}
-                  href={`${businessHref(effectiveBusinessId!)}/inventory/${item.slug}`}
+                  href={href}
                   onClick={onNavigate}
-                  className="flex items-center gap-2.5 truncate rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+                  aria-current={isActive ? "page" : undefined}
+                  className={navItemClassName(isActive)}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden="true" />
                   {item.label}
@@ -217,12 +240,15 @@ function ModuleContent({
       <div className="flex flex-col gap-0.5 px-2 py-2">
         {GST_NAV.map((item) => {
           const Icon = item.icon;
+          const href = `${businessHref(effectiveBusinessId!)}/gst/${item.slug}`;
+          const isActive = pathname === href;
           return (
             <a
               key={item.slug}
-              href={`${businessHref(effectiveBusinessId!)}/gst/${item.slug}`}
+              href={href}
               onClick={onNavigate}
-              className="flex items-center gap-2.5 truncate rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+              aria-current={isActive ? "page" : undefined}
+              className={navItemClassName(isActive)}
             >
               <Icon className="size-4 shrink-0" aria-hidden="true" />
               {item.label}
@@ -341,9 +367,10 @@ export function AppSidebar({
           <X className="size-4" aria-hidden="true" />
         </button>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-sidebar-accent/10">
           <ModuleContent
             moduleKey={selectedModule}
+            pathname={pathname}
             businesses={businesses}
             effectiveBusinessId={effectiveBusinessId}
             businessHref={businessHref}
