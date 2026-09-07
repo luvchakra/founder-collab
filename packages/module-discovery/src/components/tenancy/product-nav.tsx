@@ -2,36 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 
 type StageId = "overview" | "icp" | "prospects" | "conversions";
 
 /**
- * Stage tabs, built with flexbox rather than the clip-path/negative-margin interlocking
- * chevrons this repo tried three times before (co-founder-ai's own component) -- that
- * version repeatedly clipped/overlapped adjacent tabs on the reporter's real phone,
- * confirmed by screenshot each time, despite this session being unable to reproduce it in
- * any sandboxed check and finding no global CSS override responsible (audited
- * ui-theme.css/globals.css: the only `position: absolute` in the whole theme is scoped to
- * `.print-area`, unrelated). Root cause: two adjacent tabs' clip-path shapes are only
- * text-safe if their painted regions line up exactly with each other and with the
- * negative margin pulling them together -- any mismatch (font metrics, subpixel
- * rounding, engine-specific clip-path rasterization) makes one tab's shape cut into the
- * next tab's own rendered text, because the two shapes are two separate elements
- * whose alignment isn't actually guaranteed by the browser, just by both browsers this
- * session could check agreeing on the arithmetic.
+ * Progress-bar stepper, replacing the earlier single-row tab strips (co-founder-ai's
+ * clip-path chevrons, then a flexbox tab strip with the label and a chevron side by
+ * side). Both of those put a step's full label on one line next to its neighbors, so on
+ * a narrow real phone -- where four labels plus padding genuinely don't fit one row --
+ * the only options were clipping mid-word (ellipsis) or overlapping. Putting the label
+ * *below* a small circular step indicator, instead of beside it, removes that ceiling
+ * entirely: each step is its own flex:1 column, and a label that doesn't fit on one line
+ * just wraps onto a second instead of losing letters -- the full word is always visible
+ * regardless of viewport width.
  *
- * This version can't have that failure mode: every step sizes to its own label content
- * (`flex-initial`, the ordinary flex default) with `min-width: 0` and `overflow: hidden`,
- * so steps can never overlap -- the browser itself enforces that from ordinary flex
- * layout, not from two elements' shapes lining up by coincidence. The chevron is a small
- * icon *inside* each step's own box (not a shape extending into the next step), so it can
- * never paint over another step's label. Labels only truncate with an ellipsis in the
- * (now rare) case where the container itself is too narrow to fit every step at its
- * natural width, instead of overlapping a neighbor. The strip sizes to its own content
- * (`inline-flex`, no `w-full`) rather than stretching every step equally across the full
- * available width.
+ * The connecting line between two steps is two plain (non-interactive, aria-hidden)
+ * flex:1 divs on either side of the circle, filled solid once the step to their left has
+ * been passed -- ordinary flex layout, no absolute positioning or negative margins, so
+ * it can't reproduce the earlier overlap bugs either.
  */
 export function ProductNav({
   basePath,
@@ -39,12 +29,9 @@ export function ProductNav({
 }: {
   basePath: string;
   /** Real workflow progress (profile generated, ICP exists, prospects added) -- reached
-   * stages get a tinted-primary fill instead of the neutral muted one, so progress reads
-   * from color alone (muted -> tinted -> solid primary for the current stage) with no
-   * separate checkmark icon. Conversions has no completion concept, so it's omitted here
-   * and stays neutral unless it's the current tab. Usage lives next to the product name
-   * (see the product layout), not as a tab here -- as a fifth tab it stretched this strip
-   * too wide. */
+   * stages get a checkmark and a tinted-primary circle instead of a numbered, neutral
+   * one. Conversions has no completion concept, so it's omitted here and stays neutral
+   * unless it's the current step. */
   completed?: Partial<Record<StageId, boolean>>;
 }) {
   const pathname = usePathname();
@@ -62,34 +49,53 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="inline-flex max-w-full overflow-hidden rounded-md text-sm">
+    <nav aria-label="Product sections" className="flex w-full items-start">
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
+        const isPast = i < activeIndex;
+
         return (
           <Link
             key={tab.href}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "flex h-8 min-w-0 flex-initial items-center justify-center gap-1 overflow-hidden px-3 font-medium transition-colors",
-              isActive
-                ? "bg-primary text-primary-foreground"
-                : isCompleted
-                  ? "bg-primary/20 text-primary hover:bg-primary/30"
-                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground",
-            )}
+            className="flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-md py-1 transition-opacity hover:opacity-80"
           >
-            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{tab.label}</span>
-            {i < tabs.length - 1 ? (
-              <ChevronRight
+            <div className="flex w-full items-center" aria-hidden="true">
+              <div
                 className={cn(
-                  "size-3.5 shrink-0",
-                  isActive ? "text-primary-foreground/70" : "text-current opacity-50",
+                  "h-0.5 flex-1 rounded-full",
+                  i === 0 ? "bg-transparent" : isPast || isCompleted ? "bg-primary" : "bg-muted",
                 )}
-                aria-hidden="true"
               />
-            ) : null}
+              <span
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : isCompleted
+                      ? "bg-primary/20 text-primary"
+                      : "bg-muted text-muted-foreground",
+                )}
+              >
+                {isCompleted ? <Check className="size-3.5" /> : i + 1}
+              </span>
+              <div
+                className={cn(
+                  "h-0.5 flex-1 rounded-full",
+                  i === tabs.length - 1 ? "bg-transparent" : isPast ? "bg-primary" : "bg-muted",
+                )}
+              />
+            </div>
+            <span
+              className={cn(
+                "max-w-full text-center text-xs leading-tight font-medium break-words",
+                isActive ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {tab.label}
+            </span>
           </Link>
         );
       })}
