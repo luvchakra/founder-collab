@@ -23,6 +23,7 @@ const CARD_CLASS =
 export function OnboardingWizard({ accountId }: { accountId: string }) {
   const [step, setStep] = useState<Step>(1);
   const [productDescription, setProductDescription] = useState("");
+  const [website, setWebsite] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [result, setResult] = useState<OnboardingResult | null>(null);
   const [approving, setApproving] = useState(false);
@@ -57,7 +58,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
         <h1 className="text-2xl font-semibold text-landing-fg">Hey Founder 👋</h1>
         <p className="mt-1 text-landing-fg">What are you building?</p>
         <p className="mt-2 text-sm text-landing-muted">
-          Tell me about your product in your own words.
+          Tell me about your product in your own words, and where I can see it live.
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <Label htmlFor="productDescription" className="sr-only">
@@ -71,10 +72,20 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
             placeholder="e.g. A tool that helps small e-commerce shops automate their return requests..."
             autoFocus
           />
+          <Label htmlFor="website" className="sr-only">
+            Your website
+          </Label>
+          <Textarea
+            id="website"
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
+            rows={1}
+            placeholder="Your product's website (e.g. https://example.com)"
+          />
         </div>
         <Button
           className="mt-6 w-full"
-          disabled={!productDescription.trim()}
+          disabled={!productDescription.trim() || !website.trim()}
           onClick={() => setStep(2)}
         >
           Next
@@ -90,6 +101,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
         <form action={formAction} className="mt-6 flex flex-col gap-2">
           <input type="hidden" name="accountId" value={accountId} />
           <input type="hidden" name="productDescription" value={productDescription} />
+          <input type="hidden" name="website" value={website} />
           <Label htmlFor="targetAudience" className="sr-only">
             Who do you think needs it?
           </Label>

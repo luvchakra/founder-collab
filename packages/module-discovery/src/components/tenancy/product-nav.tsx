@@ -68,7 +68,7 @@ export function ProductNav({
               // 4px of extra padding is not a visible design change, but it's real
               // headroom against the exact failure mode that hit this on a real phone
               // twice already.
-              "flex h-8 shrink-0 items-center justify-center gap-1.5 pr-4 pl-6 font-medium whitespace-nowrap transition-colors",
+              "flex h-8 w-max shrink-0 items-center justify-center gap-1.5 pr-4 pl-6 font-medium whitespace-nowrap transition-colors",
               i === 0 && "pl-4",
               isActive
                 ? "bg-primary text-primary-foreground"

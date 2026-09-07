@@ -55,15 +55,20 @@ export default async function ProductPage({
             action={generateProductProfileAction.bind(null, businessId, productId)}
             buttonLabel="Regenerate"
             pendingText="Generating..."
+            buttonProps={{ disabled: !product.website }}
           >
             <input type="hidden" name="force" value="true" />
           </AiActionForm>
         </div>
 
-        {!profile ? (
+        {!product.website ? (
           <p className="text-sm text-muted-foreground">
-            Not generated yet. Click &quot;Regenerate&quot; to have AI analyze the
-            sources below.
+            Add a website above first -- the profile is researched from it.
+          </p>
+        ) : !profile ? (
+          <p className="text-sm text-muted-foreground">
+            Not generated yet. Click &quot;Regenerate&quot; to have AI research the
+            website.
           </p>
         ) : (
           <ExpandableBox collapsedHeight={240}>

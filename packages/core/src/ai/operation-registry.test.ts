@@ -22,7 +22,8 @@ describe("getOperationSpec", () => {
     }
   });
 
-  it("requires web search only for research and discovery", () => {
+  it("requires web search only for operations that actually research something", () => {
+    expect(getOperationSpec("understand_product").requiresWebSearch).toBe(true);
     expect(getOperationSpec("research_prospect").requiresWebSearch).toBe(true);
     expect(getOperationSpec("discover_prospects").requiresWebSearch).toBe(true);
     expect(getOperationSpec("chat").requiresWebSearch).toBe(false);

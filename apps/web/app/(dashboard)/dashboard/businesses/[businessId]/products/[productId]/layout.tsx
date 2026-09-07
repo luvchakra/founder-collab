@@ -86,6 +86,8 @@ export default async function ProductLayout({
             variant: "link",
             size: "sm",
             className: "h-auto gap-1.5 p-0 text-muted-foreground hover:text-primary",
+            disabled: !product.website,
+            title: product.website ? undefined : "Add a website first",
           }}
         >
           <input type="hidden" name="force" value="true" />

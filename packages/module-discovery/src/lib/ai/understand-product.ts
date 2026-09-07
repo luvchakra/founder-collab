@@ -1,27 +1,32 @@
-import { generateObject } from "ai";
+import { generateObject, generateText } from "ai";
 import { createClient } from "../../db/server";
 import { getProduct, getWorkspaceForProduct } from "../tenancy/queries";
 import { listProductKnowledge } from "../knowledge/queries";
+import { understandProductPrompt } from "../../prompts/product/understand_product_v1";
 import {
-  understandProductPrompt,
-  UNDERSTAND_PRODUCT_PROMPT_VERSION,
-} from "../../prompts/product/understand_product_v1";
+  researchProductWebsitePrompt,
+  RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
+} from "../../prompts/product/research_product_website_v1";
 import { hashInput } from "./hash";
 import { ProductProfileSchema, type ProductProfile } from "./schemas";
 import { recordAiRun } from "./usage";
 import { assertWithinUsageLimit } from "../usage/limits";
 import { hasRecentSuccess } from "./dedup";
 import { resolveAiModel, toAiProviderError } from "./router";
+import { createWebSearchTools } from "@cofounderai/core/ai/provider-factory";
 
 const OPERATION = "understand_product";
 
 /**
- * Synthesizes a structured ProductProfile from the workspace's product_knowledge sources.
+ * Synthesizes a structured ProductProfile by researching the product's own website via
+ * the provider-executed web search tool, then structuring those findings (plus the
+ * product's description and any product_knowledge sources) into ProductProfileSchema.
+ * The website is a hard requirement -- there's nothing to research without one.
  *
  * Caching: ai_runs has no result column (blueprint §9), so "cache" here means freshness --
- * if products.product_profile was generated after every current knowledge source's last
- * update, it's returned as-is instead of calling the AI again. Pass { force: true } to
- * regenerate regardless (e.g. a founder-triggered "Regenerate" button).
+ * if products.product_profile was generated after the website/description/every current
+ * knowledge source's last update, it's returned as-is instead of researching again. Pass
+ * { force: true } to regenerate regardless (e.g. a founder-triggered "Regenerate" click).
  */
 export async function understandProduct(
   productId: string,
@@ -29,62 +34,49 @@ export async function understandProduct(
 ): Promise<ProductProfile> {
   const product = await getProduct(productId);
   if (!product) throw new Error("Product not found.");
+  if (!product.website) {
+    throw new Error("Add a website before generating a product profile.");
+  }
 
   const workspace = await getWorkspaceForProduct(productId);
   if (!workspace) throw new Error("Workspace not found for product.");
 
   const sources = await listProductKnowledge(workspace.id);
 
-  // The description edited directly on the product page (EditableText, not "Add a file")
-  // is real product info too -- without this, a product whose only knowledge source is
-  // e.g. a screenshot with no extractable text gets a profile of all "No information
-  // provided" even though the page shows a real description right above it. Website is
-  // deliberately not included here: it's a bare URL string, not fetched content, so
-  // treating it as source material for the model would just be noise.
-  const productInfoSource = product.description
-    ? [{ source_type: "manual", source_name: "Product info", content: `Description: ${product.description}` }]
-    : [];
-
-  const allSources = [...productInfoSource, ...sources];
-  if (allSources.length === 0) {
-    throw new Error("Add at least one knowledge source before generating a product profile.");
-  }
-
-  const latestSourceUpdate = [
-    ...(productInfoSource.length > 0 ? [product.updated_at] : []),
-    ...sources.map((s) => s.updated_at),
-  ].reduce((latest, ts) => (ts > latest ? ts : latest));
+  const latestUpdate = [product.updated_at, ...sources.map((s) => s.updated_at)].reduce(
+    (latest, ts) => (ts > latest ? ts : latest),
+  );
 
   if (
     !options.force &&
     product.product_profile &&
     product.product_profile_generated_at &&
-    product.product_profile_generated_at > latestSourceUpdate
+    product.product_profile_generated_at > latestUpdate
   ) {
     return product.product_profile;
   }
 
   await assertWithinUsageLimit(workspace.id);
 
-  const prompt = understandProductPrompt({
-    productName: product.name,
-    sources: allSources.map((s) => ({
-      sourceType: s.source_type,
-      sourceName: s.source_name,
-      content: s.content,
-    })),
-  });
+  const { accountId, provider, modelId, model, modelAtTier } = await resolveAiModel(
+    workspace.id,
+    OPERATION,
+  );
 
-  const { accountId, provider, modelId, model } = await resolveAiModel(workspace.id, OPERATION);
+  const researchPrompt = researchProductWebsitePrompt({
+    productName: product.name,
+    website: product.website,
+  });
   const inputHash = hashInput({
-    prompt,
-    version: UNDERSTAND_PRODUCT_PROMPT_VERSION,
+    researchPrompt,
+    version: RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
     model: modelId,
   });
 
   // Guards the force-regenerate path specifically -- the freshness check above already
   // covers everything else, but "Regenerate" intentionally bypasses it, so a double-click
-  // there would otherwise re-bill for identical input every time.
+  // there would otherwise re-run the most expensive step (web search) twice for the same
+  // input.
   if (await hasRecentSuccess(workspace.id, OPERATION, inputHash, undefined, modelId)) {
     if (product.product_profile) return product.product_profile;
   }
@@ -92,21 +84,46 @@ export async function understandProduct(
   let profile: ProductProfile;
   const startedAt = Date.now();
   try {
-    const response = await generateObject({
+    const searchResponse = await generateText({
       model,
-      schema: ProductProfileSchema,
-      prompt,
+      tools: createWebSearchTools(provider),
+      prompt: researchPrompt,
     });
-    profile = response.object;
+
+    const findings = searchResponse.text.trim();
+    if (!findings) throw new Error("Could not find any information on that website.");
+
+    const structurePrompt = understandProductPrompt({
+      productName: product.name,
+      sources: [
+        { sourceType: "website", sourceName: product.website, content: findings },
+        ...(product.description
+          ? [{ sourceType: "manual", sourceName: "Product info", content: `Description: ${product.description}` }]
+          : []),
+        ...sources.map((s) => ({
+          sourceType: s.source_type,
+          sourceName: s.source_name,
+          content: s.content,
+        })),
+      ],
+    });
+
+    const structureResponse = await generateObject({
+      model: modelAtTier("fast"),
+      schema: ProductProfileSchema,
+      prompt: structurePrompt,
+    });
+    profile = structureResponse.object;
 
     await recordAiRun({
       workspaceId: workspace.id,
       operation: OPERATION,
       model: modelId,
-      promptVersion: UNDERSTAND_PRODUCT_PROMPT_VERSION,
+      promptVersion: RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
       inputHash,
-      inputTokens: response.usage.inputTokens,
-      outputTokens: response.usage.outputTokens,
+      inputTokens: (searchResponse.usage.inputTokens ?? 0) + (structureResponse.usage.inputTokens ?? 0),
+      outputTokens: (searchResponse.usage.outputTokens ?? 0) + (structureResponse.usage.outputTokens ?? 0),
+      searchCount: searchResponse.toolCalls.length,
       status: "succeeded",
       accountId,
       provider,
@@ -118,7 +135,7 @@ export async function understandProduct(
       workspaceId: workspace.id,
       operation: OPERATION,
       model: modelId,
-      promptVersion: UNDERSTAND_PRODUCT_PROMPT_VERSION,
+      promptVersion: RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
       inputHash,
       status: "failed",
       accountId,

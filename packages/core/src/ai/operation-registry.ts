@@ -21,7 +21,11 @@ export type AiOperationSpec = {
 };
 
 const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
-  understand_product: { qualityTier: "balanced", requiresWebSearch: false },
+  // Reasoning + web search: understandProduct() researches the product's own website
+  // via the provider-executed search tool before structuring a profile, same shape as
+  // research_prospect below -- not just "balanced" text extraction from static sources
+  // anymore.
+  understand_product: { qualityTier: "reasoning", requiresWebSearch: true },
   generate_icp: { qualityTier: "balanced", requiresWebSearch: false },
   research_prospect: { qualityTier: "reasoning", requiresWebSearch: true },
   discover_prospects: { qualityTier: "reasoning", requiresWebSearch: true },
