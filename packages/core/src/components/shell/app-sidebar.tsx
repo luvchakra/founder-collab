@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   ClipboardList,
   FileText,
   History,
@@ -38,6 +39,7 @@ const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; ic
     heading: "Overview",
     items: [
       { label: "Dashboard", slug: "dashboard", icon: LayoutDashboard },
+      { label: "Alerts", slug: "alerts", icon: Bell },
       { label: "Audit Log", slug: "audit-log", icon: History },
     ],
   },
