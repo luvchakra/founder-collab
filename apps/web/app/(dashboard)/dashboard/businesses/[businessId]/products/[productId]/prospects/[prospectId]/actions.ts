@@ -162,9 +162,12 @@ export async function generateMessageAction(
   productId: string,
   prospectId: string,
   strategyId: string,
+  _prevState: AiActionState,
+  formData: FormData,
 ): Promise<AiActionState> {
+  const resendTemplateId = String(formData.get("resendTemplateId") ?? "").trim() || undefined;
   return runAiAction(async () => {
-    await generateOutreachMessage(strategyId);
+    await generateOutreachMessage(strategyId, resendTemplateId);
     revalidatePath(prospectPath(businessId, productId, prospectId));
   });
 }

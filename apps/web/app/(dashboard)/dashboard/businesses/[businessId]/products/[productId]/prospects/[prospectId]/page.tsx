@@ -11,6 +11,7 @@ import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scor
 import { WEIGHTS as SCORE_WEIGHTS } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { getLatestOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/queries";
 import { listMessages } from "@cofounderai/module-discovery/lib/messages/queries";
+import { listResendTemplates } from "@cofounderai/module-discovery/lib/messages/resend-templates";
 import { listConversations } from "@cofounderai/module-discovery/lib/conversations/queries";
 import {
   deriveProspectPipelineState,
@@ -147,8 +148,13 @@ function OutboundMessageCard({
   return (
     <li className={cn("flex flex-col gap-2 rounded-md border p-3 text-sm", className)}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase text-muted-foreground">
+        <span className="flex items-center gap-2 text-xs font-medium uppercase text-muted-foreground">
           {message.channel} · {MESSAGE_STATUS_LABEL[message.status] ?? message.status}
+          {message.resend_template_name ? (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 normal-case text-primary">
+              Template: {message.resend_template_name}
+            </span>
+          ) : null}
         </span>
         <form
           action={deleteMessageAction.bind(null, businessId, productId, prospectId, message.id)}
@@ -169,7 +175,7 @@ function OutboundMessageCard({
         )}
         className="flex flex-col gap-2"
       >
-        {isEmail ? (
+        {isEmail && !message.resend_template_id ? (
           message.status === "sent" ? (
             message.subject ? (
               <p className="font-medium">{message.subject}</p>
@@ -178,10 +184,16 @@ function OutboundMessageCard({
             <Input name="subject" defaultValue={message.subject ?? ""} placeholder="Subject" />
           )
         ) : null}
+        {message.resend_template_id ? (
+          <p className="text-xs text-muted-foreground">
+            Resend applies this template&apos;s own subject at send time. Edit the values
+            below (one &quot;KEY: value&quot; per line).
+          </p>
+        ) : null}
         <Textarea
           name="content"
           defaultValue={message.content}
-          rows={2}
+          rows={message.resend_template_id ? Math.max(3, Object.keys(message.template_variables ?? {}).length) : 2}
           disabled={message.status === "sent"}
         />
         {message.status !== "sent" ? (
@@ -320,6 +332,14 @@ export default async function ProspectDetailPage({
     listMessages(prospect.id),
     listConversations(prospect.id),
   ]);
+
+  // Template selection is an optional enhancement to message generation -- a Resend
+  // outage or missing RESEND_API_KEY should never break this whole page, just fall back
+  // to the free-form "Generate message" path with no template picker shown.
+  const resendTemplates =
+    strategy?.status === "approved" && strategy.channel === "email"
+      ? await listResendTemplates().catch(() => [])
+      : [];
   const score = scores[0] ?? null;
   const previousScore = scores[1] ?? null;
   const drafts = messages.filter((m) => !m.conversation_id);
@@ -696,7 +716,19 @@ export default async function ProspectDetailPage({
               )}
               buttonLabel="Generate message"
               pendingText="Generating..."
-            />
+              formClassName="flex flex-wrap items-center gap-2"
+            >
+              {resendTemplates.length > 0 ? (
+                <NativeSelect name="resendTemplateId" defaultValue="" className="w-auto max-w-56">
+                  <option value="">No template (AI writes freely)</option>
+                  {resendTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              ) : null}
+            </AiActionForm>
           ) : null}
         </div>
 

@@ -11,7 +11,13 @@ import type { Message } from "./types";
  * message row (docs/prospects-pipeline-redesign-requirements.md R1/R2) -- status
  * becomes the provider's actual result ('sent' or 'failed' with a reason), never a
  * manual self-report. Only the email channel has a send integration; linkedin/whatsapp
- * messages are still marked sent by the founder by hand after delivering them. */
+ * messages are still marked sent by the founder by hand after delivering them.
+ *
+ * A message generated from a Resend template (`resend_template_id` set -- see
+ * lib/ai/generate-message.ts) sends via Resend's own `template: { id, variables }` API
+ * instead of our rendered html/text -- Resend substitutes the variables and applies the
+ * template's own subject/from at send time, so `message.subject`/content are display-only
+ * for these. */
 export async function sendMessage(messageId: string): Promise<Message> {
   const supabase = await createClient();
   const { data: message, error: fetchError } = await supabase
@@ -54,18 +60,27 @@ export async function sendMessage(messageId: string): Promise<Message> {
   const websiteUrl = product?.website ?? business?.website ?? null;
 
   const resend = new Resend(apiKey);
-  const result = await resend.emails.send({
-    from: fromAddress,
-    to: toEmail,
-    subject: message.subject ?? `Quick note for ${prospect.company_name}`,
-    text: renderEmailText(message.content),
-    html: renderEmailHtml({
-      brandName,
-      body: message.content,
-      websiteUrl,
-      replyToEmail: fromAddress,
-    }),
-  });
+  const result = message.resend_template_id
+    ? await resend.emails.send({
+        from: fromAddress,
+        to: toEmail,
+        template: {
+          id: message.resend_template_id,
+          variables: message.template_variables ?? undefined,
+        },
+      })
+    : await resend.emails.send({
+        from: fromAddress,
+        to: toEmail,
+        subject: message.subject ?? `Quick note for ${prospect.company_name}`,
+        text: renderEmailText(message.content),
+        html: renderEmailHtml({
+          brandName,
+          body: message.content,
+          websiteUrl,
+          replyToEmail: fromAddress,
+        }),
+      });
 
   if (result.error) {
     const { data, error } = await supabase

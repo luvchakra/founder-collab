@@ -3,10 +3,14 @@ import {
   getOrCreateConversation,
   markConversationAwaitingReply,
 } from "../conversations/mutations";
+import { parseTemplateContent } from "./template-content";
 import type { Message } from "./types";
 
 /** Editing content resets an approved message back to draft -- it needs re-approval.
- * `subject` is only meaningful for email; pass null/undefined for other channels. */
+ * `subject` is only meaningful for a free-form email; ignored (and left untouched) for a
+ * templated one, since Resend applies the template's own subject at send time -- instead,
+ * for a templated message, the edited "KEY: value" content lines are re-parsed back into
+ * `template_variables`, the values `sendMessage` actually sends. */
 export async function updateMessageContent(
   messageId: string,
   content: string,
@@ -16,9 +20,20 @@ export async function updateMessageContent(
   if (!trimmed) throw new Error("Message content is required.");
 
   const supabase = await createClient();
+  const { data: existing, error: fetchError } = await supabase
+    .from("messages")
+    .select("resend_template_id")
+    .eq("id", messageId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const update = existing.resend_template_id
+    ? { content: trimmed, template_variables: parseTemplateContent(trimmed), status: "draft" }
+    : { content: trimmed, subject: subject?.trim() || null, status: "draft" };
+
   const { data, error } = await supabase
     .from("messages")
-    .update({ content: trimmed, subject: subject?.trim() || null, status: "draft" })
+    .update(update)
     .eq("id", messageId)
     .select()
     .single();
