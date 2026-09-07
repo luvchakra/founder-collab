@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
@@ -43,15 +42,13 @@ export function BusinessSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex max-w-56 items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
         >
-          <span className="truncate">{activeBusiness?.name ?? "Select business"}</span>
+          <span className="truncate">{activeBusiness?.name ?? "Select Business"}</span>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
-        <DropdownMenuLabel>Businesses</DropdownMenuLabel>
-        <DropdownMenuSeparator />
         {businesses.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">No businesses yet.</p>
         ) : (
@@ -64,7 +61,12 @@ export function BusinessSwitcher({
                   business.id === activeBusinessId && "font-medium",
                 )}
               >
-                <span className="min-w-0 flex-1 truncate">{business.name}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {business.name}
+                  {business.description ? (
+                    <span className="text-muted-foreground"> - {business.description}</span>
+                  ) : null}
+                </span>
                 {business.id === activeBusinessId ? (
                   <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 ) : null}

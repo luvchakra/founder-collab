@@ -37,16 +37,11 @@ export function DashboardChrome({
   const [creating, setCreating] = useState(false);
   const pathname = usePathname();
   const { businessId: activeBusinessId } = getActiveIdsFromPath(pathname ?? "");
-  const activeBusiness = businesses.find((b) => b.id === activeBusinessId) ?? businesses[0] ?? {
-    id: "",
-    name: "No business yet",
-  };
 
   return (
     <>
       <DashboardShell
         modules={modules}
-        business={activeBusiness}
         businesses={businesses}
         activeBusinessId={activeBusinessId}
         businessHref={(businessId) => `/dashboard/businesses/${businessId}`}

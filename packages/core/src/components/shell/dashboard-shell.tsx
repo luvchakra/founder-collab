@@ -1,18 +1,18 @@
 import type { ReactNode } from "react";
-import { SidebarInset, SidebarProvider } from "../ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { AppTopbar } from "./app-topbar";
+import { SidebarProvider } from "./sidebar-context";
 import type { ShellAlert, ShellBusiness, ShellNavModule, ShellUser } from "./types";
 
 /**
- * The platform's dashboard shell (sidebar + topbar + content), per docs/DESIGN.md's
- * reference mockup. `modules`/`business`/`user` are supplied by the caller — this
- * component has no opinion on where that data comes from (module-registry, a session,
- * etc.), keeping it usable before Epic 2's real tenancy/session wiring lands.
+ * The platform's dashboard shell (topbar + drawer + content), structurally ported from
+ * co-founder-ai's app/(dashboard)/layout.tsx (docs/PORT-PROVENANCE.md) per the reference
+ * mockup in docs/DESIGN.md. `modules`/`business`/`user` are supplied by the caller --
+ * this component has no opinion on where that data comes from (module-registry, a
+ * session, etc.).
  */
 export function DashboardShell({
   modules,
-  business,
   businesses,
   activeBusinessId,
   businessHref,
@@ -24,8 +24,7 @@ export function DashboardShell({
   children,
 }: {
   modules: ShellNavModule[];
-  business: ShellBusiness;
-  businesses?: ShellBusiness[];
+  businesses: ShellBusiness[];
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
   onCreateBusiness?: () => void;
@@ -35,29 +34,28 @@ export function DashboardShell({
   onSignOut?: () => void;
   children: ReactNode;
 }) {
+  const hrefFor = businessHref ?? (() => "#");
   return (
     <SidebarProvider>
-      <AppSidebar
-        modules={modules}
-        business={business}
-        businesses={businesses}
-        activeBusinessId={activeBusinessId}
-        businessHref={businessHref}
-        onCreateBusiness={onCreateBusiness}
-      />
-      <SidebarInset>
+      <div className="flex min-h-full flex-1 flex-col">
         <AppTopbar
-          user={user}
           businesses={businesses}
           activeBusinessId={activeBusinessId}
-          businessHref={businessHref}
+          businessHref={hrefFor}
           onCreateBusiness={onCreateBusiness}
           alerts={alerts}
           chatSlot={chatSlot}
+        />
+        <AppSidebar
+          modules={modules}
+          businesses={businesses}
+          activeBusinessId={activeBusinessId}
+          businessHref={hrefFor}
+          user={user}
           onSignOut={onSignOut}
         />
         <main className="flex-1 bg-background p-6">{children}</main>
-      </SidebarInset>
+      </div>
     </SidebarProvider>
   );
 }
