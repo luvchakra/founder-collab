@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
   FileText,
@@ -75,6 +75,45 @@ const GST_NAV: { label: string; slug: string; icon: LucideIcon }[] = [
   { label: "e-Invoicing", slug: "einvoicing", icon: FileText },
   { label: "GST Filing", slug: "filing", icon: ClipboardList },
 ];
+
+const MODULE_STORAGE_KEY = "cofounderai:selected-module";
+
+/**
+ * Infers the active module from the URL for the routes that unambiguously indicate one
+ * (/inventory/... and /gst/...) -- everything else (bare business page, discovery's own
+ * /products/... routes, non-module pages like settings) returns null so the caller falls
+ * back to the last explicitly selected module. Written locally rather than reusing
+ * module-discovery's `getActiveIdsFromPath` since `packages/core` cannot depend on any
+ * module (lint:boundaries).
+ */
+function inferModuleFromPath(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const match = pathname.match(/\/businesses\/[^/]+(?:\/([^/]+))?/);
+  if (!match) return null;
+  const section = match[1];
+  if (section === "inventory") return "inventory";
+  if (section === "gst") return "gst";
+  if (!section || section === "products") return "discovery";
+  return null;
+}
+
+function readStoredModule(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(MODULE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredModule(key: string) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(MODULE_STORAGE_KEY, key);
+  } catch {
+    // Storage unavailable (private browsing, quota) -- selection just won't persist.
+  }
+}
 
 function CreateBusinessPrompt({ onCreateBusiness }: { onCreateBusiness?: () => void }) {
   return (
@@ -223,7 +262,38 @@ export function AppSidebar({
 }) {
   const { open, setOpen } = useSidebar();
   const router = useRouter();
-  const [selectedModule, setSelectedModule] = useState(modules[0]?.key ?? "discovery");
+  const pathname = usePathname();
+  // Full navigations inside the drawer use plain <a> tags (deliberately, so they work the
+  // same whether the target route exists yet or not), which reloads the page and remounts
+  // this component. Persisting across that reload -- rather than always resetting to
+  // modules[0] -- needs two sources, preferred in order: what the URL itself indicates
+  // (most reliable, since it's exactly where the founder ended up), then the last module
+  // explicitly picked from the selector, stashed in localStorage for pages whose URL
+  // doesn't indicate a module (bare /dashboard, settings, etc).
+  const [selectedModule, setSelectedModuleState] = useState<string>(() => {
+    const fromUrl = inferModuleFromPath(pathname);
+    if (fromUrl && modules.some((m) => m.key === fromUrl)) return fromUrl;
+    const stored = readStoredModule();
+    if (stored && modules.some((m) => m.key === stored)) return stored;
+    return modules[0]?.key ?? "discovery";
+  });
+
+  function setSelectedModule(key: string) {
+    setSelectedModuleState(key);
+    writeStoredModule(key);
+  }
+
+  // Client-side navigations (e.g. the selector's own "Dashboard" link) don't remount this
+  // component, so re-derive from the URL whenever it changes too -- keeps the drawer in
+  // sync without waiting for the next full reload.
+  useEffect(() => {
+    const fromUrl = inferModuleFromPath(pathname);
+    if (fromUrl && modules.some((m) => m.key === fromUrl)) {
+      setSelectedModuleState(fromUrl);
+      writeStoredModule(fromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
