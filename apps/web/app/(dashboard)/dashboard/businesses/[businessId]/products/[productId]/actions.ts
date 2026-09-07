@@ -4,6 +4,7 @@ import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
   addFileKnowledgeSource,
+  addKnowledgeSource,
   deleteKnowledgeSource,
   updateKnowledgeSource,
 } from "@cofounderai/module-discovery/lib/knowledge/mutations";
@@ -87,6 +88,18 @@ export async function addFileSourceAction(
     throw new Error("Choose a file to upload.");
   }
   await addFileKnowledgeSource(workspaceId, file);
+  revalidatePath(productPath(businessId, productId));
+}
+
+export async function addTextSourceAction(
+  businessId: string,
+  productId: string,
+  workspaceId: string,
+  formData: FormData,
+) {
+  const content = String(formData.get("content") ?? "");
+  const sourceName = String(formData.get("sourceName") ?? "");
+  await addKnowledgeSource(workspaceId, { sourceType: "manual", sourceName, content });
   revalidatePath(productPath(businessId, productId));
 }
 

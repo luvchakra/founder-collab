@@ -8,14 +8,16 @@ import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-act
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { KnowledgeSourceCard } from "@cofounderai/module-discovery/components/knowledge/knowledge-source-card";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Input } from "@cofounderai/core/ui/input";
+import { Textarea } from "@cofounderai/core/ui/textarea";
 import { CollapsibleCard } from "@cofounderai/module-discovery/components/ui/collapsible-card";
 import { ExpandableBox } from "@cofounderai/module-discovery/components/ui/expandable-box";
 import {
   addFileSourceAction,
+  addTextSourceAction,
   deleteSourceAction,
   generateProductProfileAction,
   updateProductDescriptionAction,
-  updateProductWebsiteAction,
   updateSourceAction,
 } from "./actions";
 
@@ -33,10 +35,6 @@ export default async function ProductPage({
 
   const sources = await listProductKnowledge(workspace.id);
   const profile = product.product_profile;
-  // understandProduct() also reads product.description/website directly (see its own
-  // docstring) -- so those count as a source for gating purposes too, not just rows in
-  // "Knowledge sources" below.
-  const hasAnySource = sources.length > 0 || Boolean(product.description?.trim());
 
   return (
     <div className="flex flex-col gap-8">
@@ -48,12 +46,6 @@ export default async function ProductPage({
           multiline
           textClassName="text-sm text-muted-foreground"
         />
-        <EditableText
-          value={product.website}
-          action={updateProductWebsiteAction.bind(null, businessId, productId)}
-          placeholder="Add a website"
-          textClassName="text-sm"
-        />
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border p-4">
@@ -61,21 +53,16 @@ export default async function ProductPage({
           <h2 className="font-medium">Product profile</h2>
           <AiActionForm
             action={generateProductProfileAction.bind(null, businessId, productId)}
-            buttonLabel={profile ? "Regenerate" : "Generate profile"}
+            buttonLabel="Regenerate"
             pendingText="Generating..."
-            buttonProps={{ disabled: !hasAnySource }}
           >
-            {profile ? <input type="hidden" name="force" value="true" /> : null}
+            <input type="hidden" name="force" value="true" />
           </AiActionForm>
         </div>
 
-        {!hasAnySource ? (
+        {!profile ? (
           <p className="text-sm text-muted-foreground">
-            Add a description above or a knowledge source below first.
-          </p>
-        ) : !profile ? (
-          <p className="text-sm text-muted-foreground">
-            Not generated yet. Click &quot;Generate profile&quot; to have AI analyze the
+            Not generated yet. Click &quot;Regenerate&quot; to have AI analyze the
             sources below.
           </p>
         ) : (
@@ -170,27 +157,51 @@ export default async function ProductPage({
           </div>
         )}
 
-        <CollapsibleCard label="Add a file">
-          <form
-            action={addFileSourceAction.bind(null, businessId, productId, workspace.id)}
-            className="flex flex-col gap-3"
-          >
-            <input
-              type="file"
-              name="file"
-              required
-              accept=".pdf,.doc,.docx,.txt,.md,image/*"
-              className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
-            />
-            <p className="text-xs text-muted-foreground">
-              PDF and Word documents are read for AI context; images and other files are
-              attached for reference only.
-            </p>
-            <SubmitButton size="sm" className="self-start" pendingText="Uploading...">
-              Upload
-            </SubmitButton>
-          </form>
-        </CollapsibleCard>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <CollapsibleCard label="Add a file">
+              <form
+                action={addFileSourceAction.bind(null, businessId, productId, workspace.id)}
+                className="flex flex-col gap-3"
+              >
+                <input
+                  type="file"
+                  name="file"
+                  required
+                  accept=".pdf,.doc,.docx,.txt,.md,image/*"
+                  className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
+                />
+                <p className="text-xs text-muted-foreground">
+                  PDF and Word documents are read for AI context; images and other files are
+                  attached for reference only.
+                </p>
+                <SubmitButton size="sm" className="self-start" pendingText="Uploading...">
+                  Upload
+                </SubmitButton>
+              </form>
+            </CollapsibleCard>
+          </div>
+
+          <div className="flex-1">
+            <CollapsibleCard label="Add text">
+              <form
+                action={addTextSourceAction.bind(null, businessId, productId, workspace.id)}
+                className="flex flex-col gap-3"
+              >
+                <Input name="sourceName" placeholder="Source name (optional)" />
+                <Textarea
+                  name="content"
+                  placeholder="Paste or write anything about this product"
+                  rows={4}
+                  required
+                />
+                <SubmitButton size="sm" className="self-start" pendingText="Adding...">
+                  Add
+                </SubmitButton>
+              </form>
+            </CollapsibleCard>
+          </div>
+        </div>
       </section>
     </div>
   );

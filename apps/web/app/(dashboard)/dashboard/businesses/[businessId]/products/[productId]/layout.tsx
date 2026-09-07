@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Sparkles } from "lucide-react";
@@ -11,9 +10,14 @@ import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { ProductNav } from "@cofounderai/module-discovery/components/tenancy/product-nav";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
-import { ExpandableText } from "@cofounderai/module-discovery/components/ui/expandable-text";
+import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
-import { renameProductAction } from "./actions";
+import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
+import {
+  generateProductProfileAction,
+  renameProductAction,
+  updateProductWebsiteAction,
+} from "./actions";
 
 export default async function ProductLayout({
   children,
@@ -58,24 +62,34 @@ export default async function ProductLayout({
         <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Product
         </span>
-        <div className="flex items-center gap-2">
-          <EditableName
-            name={product.name}
-            action={renameProductAction.bind(null, businessId, productId)}
-            headingClassName="text-xl font-semibold"
-          />
-          <Link
-            href={`${basePath}/usage`}
-            aria-label="AI usage"
-            title="AI usage"
-            className="text-muted-foreground transition-colors hover:text-primary"
-          >
-            <Sparkles className="size-4" aria-hidden="true" />
-          </Link>
-        </div>
-        {product.description ? (
-          <ExpandableText text={product.description} className="text-sm text-muted-foreground" />
-        ) : null}
+        <EditableName
+          name={product.name}
+          action={renameProductAction.bind(null, businessId, productId)}
+          headingClassName="text-xl font-semibold"
+        />
+        <EditableText
+          value={product.website}
+          action={updateProductWebsiteAction.bind(null, businessId, productId)}
+          placeholder="Add a website"
+          textClassName="text-sm"
+        />
+        <AiActionForm
+          action={generateProductProfileAction.bind(null, businessId, productId)}
+          buttonLabel={
+            <>
+              Let AI Auto-Populate Info
+              <Sparkles className="size-3.5" aria-hidden="true" />
+            </>
+          }
+          pendingText="Populating..."
+          buttonProps={{
+            variant: "link",
+            size: "sm",
+            className: "h-auto gap-1.5 p-0 text-muted-foreground hover:text-primary",
+          }}
+        >
+          <input type="hidden" name="force" value="true" />
+        </AiActionForm>
       </div>
       <ProductNav basePath={basePath} completed={completed} />
       {children}

@@ -35,18 +35,15 @@ export async function understandProduct(
 
   const sources = await listProductKnowledge(workspace.id);
 
-  // The description/website edited directly on the product page (EditableText, not "Add
-  // a file") are real product info too -- without this, a product whose only knowledge
-  // source is e.g. a screenshot with no extractable text gets a profile of all "No
-  // information provided" even though the page shows a real description right above it.
-  const productInfoLines = [
-    product.description ? `Description: ${product.description}` : null,
-    product.website ? `Website: ${product.website}` : null,
-  ].filter((line): line is string => line !== null);
-  const productInfoSource =
-    productInfoLines.length > 0
-      ? [{ source_type: "manual", source_name: "Product info", content: productInfoLines.join("\n") }]
-      : [];
+  // The description edited directly on the product page (EditableText, not "Add a file")
+  // is real product info too -- without this, a product whose only knowledge source is
+  // e.g. a screenshot with no extractable text gets a profile of all "No information
+  // provided" even though the page shows a real description right above it. Website is
+  // deliberately not included here: it's a bare URL string, not fetched content, so
+  // treating it as source material for the model would just be noise.
+  const productInfoSource = product.description
+    ? [{ source_type: "manual", source_name: "Product info", content: `Description: ${product.description}` }]
+    : [];
 
   const allSources = [...productInfoSource, ...sources];
   if (allSources.length === 0) {
