@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { normalizeUrl } from "@cofounderai/core/lib/url";
+import { ensureProspectParty, markProspectPartyWon } from "./party-sync";
 import type { Prospect, ProspectOutcome, ProspectStatus } from "./types";
 
 export type ProspectInput = {
@@ -45,13 +46,26 @@ export async function createProspect(
   input: ProspectInput,
 ): Promise<Prospect> {
   const supabase = await createClient();
+  const row = toRow(input);
   const { data, error } = await supabase
     .from("prospects")
-    .insert({ workspace_id: workspaceId, ...toRow(input) })
+    .insert({ workspace_id: workspaceId, ...row })
     .select()
     .single();
   if (error) throw error;
-  return data;
+
+  const partyId = await ensureProspectParty(workspaceId, data.party_id, {
+    name: row.company_name,
+    email: row.company_email,
+  });
+  const { data: linked, error: linkError } = await supabase
+    .from("prospects")
+    .update({ party_id: partyId })
+    .eq("id", data.id)
+    .select()
+    .single();
+  if (linkError) throw linkError;
+  return linked;
 }
 
 export async function updateProspect(
@@ -98,6 +112,14 @@ export async function setProspectOutcome(
     .select()
     .single();
   if (error) throw error;
+
+  // Winning adds the 'customer' role to the same party -- it never copies a record
+  // (00-MASTER-PLAN.md §5). No party yet (a pre-D-3 prospect never backfilled) is not
+  // this action's job to fix; it just skips the role sync rather than failing the outcome
+  // change the caller actually asked for.
+  if (outcome === "won" && data.party_id) {
+    await markProspectPartyWon(data.workspace_id, data.party_id);
+  }
   return data;
 }
 
@@ -111,13 +133,37 @@ export async function createProspectsBulk(
 ): Promise<number> {
   if (inputs.length === 0) return 0;
   const supabase = await createClient();
-  const { error, count } = await supabase
+  const { data, error } = await supabase
     .from("prospects")
-    .insert(inputs.map((input) => ({ workspace_id: workspaceId, ...toRow(input) })), {
-      count: "exact",
-    });
+    .insert(inputs.map((input) => ({ workspace_id: workspaceId, ...toRow(input) })))
+    .select();
   if (error) throw error;
-  return count ?? inputs.length;
+
+  await linkPartiesForProspects(workspaceId, data ?? []);
+  return data?.length ?? 0;
+}
+
+/** Links each newly-inserted prospect to its own core.parties row. One insert per
+ * prospect (not a single batched call) -- CSV-paste/suggestion-approval volumes are
+ * modest (tens to low hundreds), and Supabase JS has no batched "insert then link" RPC
+ * to reach for here without adding a stored procedure this story doesn't otherwise need. */
+async function linkPartiesForProspects(
+  workspaceId: string,
+  prospects: Pick<Prospect, "id" | "party_id" | "company_name" | "company_email">[],
+): Promise<void> {
+  if (prospects.length === 0) return;
+  const supabase = await createClient();
+  for (const prospect of prospects) {
+    const partyId = await ensureProspectParty(workspaceId, prospect.party_id, {
+      name: prospect.company_name,
+      email: prospect.company_email,
+    });
+    const { error } = await supabase
+      .from("prospects")
+      .update({ party_id: partyId })
+      .eq("id", prospect.id);
+    if (error) throw error;
+  }
 }
 
 /** Moves selected suggestions into `prospects` and removes them from the staging
@@ -158,6 +204,8 @@ export async function approveProspectSuggestions(
     )
     .select();
   if (insertError) throw insertError;
+
+  await linkPartiesForProspects(workspaceId, inserted ?? []);
 
   const researchRows = suggestions
     .map((suggestion, i) => ({ suggestion, prospect: inserted?.[i] }))

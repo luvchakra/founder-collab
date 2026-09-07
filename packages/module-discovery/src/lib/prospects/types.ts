@@ -23,6 +23,7 @@ export type Prospect = {
   linkedin_url: string | null;
   twitter_url: string | null;
   company_email: string | null;
+  party_id: string | null;
   created_at: string;
   updated_at: string;
 };

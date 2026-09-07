@@ -1,4 +1,8 @@
+import { addPartyContact } from "@cofounderai/core/parties/mutations";
 import { createClient } from "../../db/server";
+import { ensureProspectParty } from "../prospects/party-sync";
+import { getProspect } from "../prospects/queries";
+import { getBusinessIdForWorkspace } from "../tenancy/queries";
 import type { Contact } from "./types";
 
 export async function createContact(
@@ -29,6 +33,30 @@ export async function createContact(
     .select()
     .single();
   if (error) throw error;
+
+  // Mirror this contact into core.party_contacts under the prospect's party (D-3) --
+  // updates/deletes to this discovery.contacts row are not propagated (no stored link
+  // back to the party_contacts row to find it by); this is a one-way snapshot at
+  // creation time, which is all any current consumer of core.party_contacts needs.
+  const prospect = await getProspect(prospectId);
+  const businessId = prospect ? await getBusinessIdForWorkspace(workspaceId) : null;
+  if (prospect && businessId) {
+    const partyId = await ensureProspectParty(workspaceId, prospect.party_id, {
+      name: prospect.company_name,
+      email: prospect.company_email,
+    });
+    await addPartyContact({
+      businessId,
+      partyId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      jobTitle: input.jobTitle,
+      email: input.email,
+      phone: input.phone,
+      linkedinUrl: input.linkedinUrl,
+    });
+  }
+
   return data;
 }
 

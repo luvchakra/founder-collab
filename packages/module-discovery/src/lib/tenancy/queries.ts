@@ -203,3 +203,19 @@ export async function getAccountIdForWorkspace(
 
   return business.account_id;
 }
+
+/** business_id (not account_id) for a workspace -- core.parties/party_roles (D-1/D-3) are
+ * scoped by business_id, not account_id, since a business's customer ledger is shared
+ * across every product/workspace it markets (ADR-4). */
+export async function getBusinessIdForWorkspace(
+  workspaceId: string,
+  client?: SupabaseClient,
+): Promise<string | null> {
+  const workspace = await getWorkspace(workspaceId, client);
+  if (!workspace) return null;
+
+  const product = await getProduct(workspace.product_id, client);
+  if (!product) return null;
+
+  return product.business_id;
+}
