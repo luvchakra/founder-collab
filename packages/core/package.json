@@ -20,6 +20,7 @@
     "./addresses/*": "./src/addresses/*.ts",
     "./items/*": "./src/items/*.ts",
     "./numbering/*": "./src/numbering/*.ts",
+    "./documents/*": "./src/documents/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",
