@@ -25,6 +25,7 @@
     "./tags/*": "./src/tags/*.ts",
     "./custom-fields/*": "./src/custom-fields/*.ts",
     "./attachments/*": "./src/attachments/*.ts",
+    "./events/*": "./src/events/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",

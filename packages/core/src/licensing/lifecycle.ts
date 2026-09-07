@@ -1,4 +1,5 @@
 import { createAdminClient } from "../db/admin";
+import { replayParkedEvents } from "../events/drain";
 import type { LicenseEventType, LicenseStatus, ModuleKey } from "./types";
 
 const GRACE_PERIOD_DAYS = 30;
@@ -8,11 +9,13 @@ function coreAdmin() {
 }
 
 /**
- * Writes to core.license_events (C-3) -- the durable record of every state transition.
- * Cross-module event publishing (a `license.activated` row on core.domain_events other
- * modules can react to -- e.g. FSM replaying parked events per ADR-9) is deferred to
- * D-9, which hasn't built core.domain_events yet; this is the audit trail in the
- * meantime, not a substitute for it.
+ * Writes to core.license_events (C-3) -- the durable record of every state transition --
+ * and, now that D-9 has built core.domain_events, also publishes a `license.<eventType>`
+ * domain event other modules can react to (e.g. an onboarding checklist reacting to a
+ * module being bought). Inserted directly through the admin client rather than the
+ * publish() helper (D-9): activateLicense()/deactivateLicense() can run with no signed-in
+ * user in scope (a billing webhook, admin tooling), and publish() needs the RLS-scoped
+ * session client's cookie context to resolve who's publishing.
  */
 async function recordLicenseEvent(
   licenseId: string,
@@ -28,6 +31,13 @@ async function recordLicenseEvent(
     event_type: eventType,
   });
   if (error) throw error;
+
+  const { error: eventError } = await supabase.from("domain_events").insert({
+    business_id: businessId,
+    type: `license.${eventType}`,
+    payload: { module_key: moduleKey, license_id: licenseId },
+  });
+  if (eventError) throw eventError;
 }
 
 /**
@@ -61,6 +71,7 @@ export async function activateLicense(businessId: string, moduleKey: ModuleKey):
       .eq("id", existing.id);
     if (error) throw error;
     await recordLicenseEvent(existing.id, businessId, moduleKey, "reactivated");
+    await replayParkedEvents(businessId, moduleKey);
     return;
   }
 
@@ -84,6 +95,7 @@ export async function activateLicense(businessId: string, moduleKey: ModuleKey):
   if (insertError) throw insertError;
 
   await recordLicenseEvent(created.id, businessId, moduleKey, "activated");
+  await replayParkedEvents(businessId, moduleKey);
 }
 
 /**
