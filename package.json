@@ -13,7 +13,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present && npm run test:scripts",
     "test:scripts": "node --test scripts/*.test.mjs",
-    "test:db": "node scripts/test-discovery-rls.mjs && node scripts/test-core-parties-rls.mjs && node scripts/test-core-addresses-rls.mjs && node scripts/test-discovery-party-backfill.mjs",
+    "test:db": "node scripts/test-discovery-rls.mjs && node scripts/test-core-parties-rls.mjs && node scripts/test-core-addresses-rls.mjs && node scripts/test-discovery-party-backfill.mjs && node scripts/test-core-items-rls.mjs",
     "perf:rls": "node scripts/perf-check-tenant-license-rls.mjs",
     "lint:boundaries": "node scripts/lint-import-boundaries.mjs",
     "lint:migrations": "node scripts/lint-migration-schema.mjs"
