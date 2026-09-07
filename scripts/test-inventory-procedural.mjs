@@ -103,6 +103,27 @@ async function main() {
       assertEqual(psqlAsAlice(`select in_transit from inventory.stock_levels where item_id = '${item1b}' and warehouse_id = '${whDest}'`), "0.00", "xfer_cancel_arrive reverses the xfer_arrive (net zero)");
 
       // ---------------------------------------------------------------------
+      // 1b. Stock-adjustment audit logging (20260907180000)
+      // ---------------------------------------------------------------------
+      console.log("Verifying stock-adjustment movements write to core.audit_log...");
+      post("adjustment", 7, whSource);
+      assertEqual(
+        psqlAsAlice(`select count(*) from core.audit_log where business_id = '${business}' and action = 'stock.adjusted'`),
+        "3",
+        "damage/expired/adjustment each logged one stock.adjusted audit entry",
+      );
+      assertEqual(
+        psqlAsAlice(`select count(*) from core.audit_log where business_id = '${business}' and action = 'stock.adjusted' and entity_type = 'stock_movement'`),
+        "3",
+        "every stock.adjusted entry is entity_type stock_movement",
+      );
+      assertEqual(
+        psqlAsAlice(`select (after->>'type') from core.audit_log where business_id = '${business}' and action = 'stock.adjusted' order by created_at desc limit 1`),
+        "adjustment",
+        "the latest entry's after-state records the movement type",
+      );
+
+      // ---------------------------------------------------------------------
       // 2. Alert engine
       // ---------------------------------------------------------------------
       console.log("Verifying the alert engine opens, updates, and auto-resolves...");

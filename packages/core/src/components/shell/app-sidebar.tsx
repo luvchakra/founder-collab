@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ClipboardList,
   FileText,
+  History,
+  LayoutDashboard,
   Package,
   Plus,
   Receipt,
@@ -32,6 +34,13 @@ import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./t
  * into.
  */
 const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; icon: LucideIcon }[] }[] = [
+  {
+    heading: "Overview",
+    items: [
+      { label: "Dashboard", slug: "dashboard", icon: LayoutDashboard },
+      { label: "Audit Log", slug: "audit-log", icon: History },
+    ],
+  },
   {
     heading: "Catalog & Inventory",
     items: [
