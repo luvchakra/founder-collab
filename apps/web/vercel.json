@@ -1,4 +1,0 @@
-{
-  "installCommand": "npm ci",
-  "buildCommand": "ls -la ../../node_modules/@cofounderai 2>&1; readlink -f ../../node_modules/@cofounderai/module-fsm; npm run build"
-}
