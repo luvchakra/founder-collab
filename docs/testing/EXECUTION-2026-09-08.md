@@ -141,7 +141,7 @@ TC-SHELL-002 "Pass" — it only checked TC-SHELL-001 (nav items sourced from the
 which is true) and incorrectly extended that to entitlement filtering, which it never
 checked. TC-SHELL-001 stays Pass; TC-SHELL-002 is corrected to Fail here.**
 
-### 6. Two `fsm` nav items 404 — no route exists on disk (P0) — TC-MENU-FSM-001/002
+### 6. Two `fsm` nav items 404 — no route exists on disk (P0) — TC-MENU-FSM-001/002 — **Fixed 2026-09-08**
 Confirmed by filesystem check (`ls apps/web/app/(dashboard)/dashboard/businesses/
 [businessId]/fsm/`: `invoices, jobs, my-day, opportunities, reports, schedule, settings`
 — no `page.tsx` at the `fsm` root and no `customers/` folder at all), and by the new
@@ -150,6 +150,20 @@ expected-fail for exactly these two). `fsm`'s root nav item ("Dashboard," `slug:
 its "Customers" item both point at routes that were never built, despite the registry
 declaring them — the module's own root route, its single highest-visibility nav item,
 404s.
+
+Fix: built both routes per `docs/plan/02-FSM-PRD.md` §5's own spec.
+`fsm/page.tsx` is a real dispatcher dashboard (`getDispatcherDashboard()` +
+`DispatcherDashboardView`) covering all five PRD-named widgets -- today's schedule,
+unassigned queue, jobs in progress, overdue invoices, estimates awaiting response --
+reusing each list page's own already-tested query rather than duplicating join logic.
+`fsm/customers/page.tsx` lists `core.parties` holding the `customer` role (PRD: "shared
+list with inventory when both licensed -- same data, module-appropriate columns"), with
+each party's own open job/opportunity counts. `menu-routes.test.ts`'s `KNOWN_FAILING`
+set removed; all 31 tests now assert for real (0 expected-fail). Live-confirmed the
+exact query shapes against the real dev project (a business with a real `customer`-role
+party plus all five modules licensed) -- no jobs/opportunities exist for that specific
+business yet, so the dashboard's empty-state paths are what's exercised live; the
+customer-list query itself returned the correct single row.
 
 ## P0 cases executed, no gap found
 

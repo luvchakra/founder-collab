@@ -8,7 +8,9 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 // server, no auth, no database -- so it runs in every `npm test` pass and fails
 // immediately (rather than only when someone happens to click that exact menu item)
 // if a route folder or its page.tsx goes missing while the registry still lists it.
-// This would have caught both fsm gaps this file documents as known-failing.
+// The two fsm gaps this file used to document as known-failing (root "Dashboard" and
+// "Customers") were fixed 2026-09-08 -- see menu-smoke.md TC-MENU-FSM-001/002 -- so
+// every item now asserts for real; no KNOWN_FAILING set is needed until the next gap.
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BUSINESS_ROUTE_ROOT = join(
@@ -21,14 +23,6 @@ const BUSINESS_ROUTE_ROOT = join(
   "[businessId]",
 );
 
-// Known-failing at the time this test was written -- see menu-smoke.md TC-MENU-FSM-001
-// and TC-MENU-FSM-007. Remove an entry here the same commit its route is fixed, so
-// this test starts asserting it like every other item instead of skipping it forever.
-const KNOWN_FAILING = new Set([
-  "fsm::", // Dashboard (root) -- apps/web/.../fsm/page.tsx does not exist
-  "fsm::customers", // Customers -- apps/web/.../fsm/customers/ does not exist at all
-]);
-
 describe("every module-registry nav item resolves to a real page", () => {
   for (const module of moduleRegistry) {
     // discovery's real nav is dynamic (product list), not this static registry entry
@@ -39,18 +33,9 @@ describe("every module-registry nav item resolves to a real page", () => {
 
     for (const group of module.nav) {
       for (const item of group.items) {
-        const routeKey = `${module.key}::${item.slug}`;
         const testName = `${module.name} \u2192 "${item.label}" (/${prefix}${
           item.slug ? `/${item.slug}` : ""
         })`;
-
-        if (KNOWN_FAILING.has(routeKey)) {
-          it.fails(`${testName} [known-failing, tracked in menu-smoke.md]`, () => {
-            const pagePath = join(BUSINESS_ROUTE_ROOT, prefix, item.slug, "page.tsx");
-            expect(existsSync(pagePath)).toBe(true);
-          });
-          continue;
-        }
 
         it(testName, () => {
           const pagePath = join(BUSINESS_ROUTE_ROOT, prefix, item.slug, "page.tsx");
