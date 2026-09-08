@@ -164,6 +164,30 @@ async function main() {
       assertEqual(as(`select count(*) from core.documents where id = '${soId}'`), "0", "deleting through the sales_orders view removed the document");
 
       // -----------------------------------------------------------------------
+      console.log("Verifying sales_orders_instead_of_insert() persists header totals even with zero line items (the tax-fields fix)...");
+      const soZeroLines = as(`
+        insert into inventory.sales_orders (org_id, customer_id, warehouse_id, subtotal, cgst_amount, sgst_amount, igst_amount, discount_amount, shipping_amount, total_amount)
+        values ('${business}', '${customerId2}', '${warehouse}', 500, 45, 45, 0, 10, 20, 600)
+        returning id;
+      `);
+      assertEqual(
+        as(`select subtotal, cgst_amount, sgst_amount, igst_amount, total_amount from core.documents where id = '${soZeroLines}'`),
+        "500.00|45.00|45.00|0.00|600.00",
+        "a header posted with tax/subtotal/total fields keeps them even before any line item exists (core.recompute_document_totals() has nothing to fire on yet)",
+      );
+      // Any update through the view always touches discount_amount/shipping_amount,
+      // which fires core.documents' own pre-existing
+      // documents_recompute_totals_on_discount_shipping_change trigger --
+      // recompute-from-lines (authoritative) always wins over whatever the update also
+      // tried to set directly, by design (not the bug this migration fixes).
+      as(`update inventory.sales_orders set subtotal = 700, cgst_amount = 63, sgst_amount = 63, igst_amount = 0, total_amount = 826 where id = '${soZeroLines}'`);
+      assertEqual(
+        as(`select subtotal, cgst_amount, sgst_amount, total_amount from core.documents where id = '${soZeroLines}'`),
+        "0.00|0.00|0.00|10.00",
+        "an update recomputes from lines (still zero) regardless of what was also set directly -- discount(10)/shipping(20) unchanged, so total_amount = 20 - 10",
+      );
+
+      // -----------------------------------------------------------------------
       console.log("Verifying inventory.sales_invoices resolves customer_gstin/addresses live from the party...");
       const customerId3 = as(`
         insert into inventory.customers (org_id, name, gstin, billing_address, shipping_address)
@@ -193,6 +217,18 @@ async function main() {
       `);
       assertEqual(as(`select unit_cost from inventory.purchase_order_items where id = '${poItemId}'`), "40.00", "unit_cost round-trips (mapped from document_lines.unit_price)");
       assertEqual(as(`select cgst_amount, sgst_amount, igst_amount from core.documents where id = '${poId}'`), "0.00|0.00|0.00", "sanity: no tax posted yet");
+
+      console.log("Verifying purchase_orders_instead_of_insert() persists header totals even with zero line items (the tax-fields fix)...");
+      const poZeroLines = as(`
+        insert into inventory.purchase_orders (org_id, supplier_id, warehouse_id, subtotal, cgst_amount, sgst_amount, igst_amount, discount_amount, shipping_amount, total_amount)
+        values ('${business}', '${supplierId2}', '${warehouse}', 400, 36, 36, 0, 5, 15, 482)
+        returning id;
+      `);
+      assertEqual(
+        as(`select subtotal, cgst_amount, sgst_amount, igst_amount, total_amount from core.documents where id = '${poZeroLines}'`),
+        "400.00|36.00|36.00|0.00|482.00",
+        "a purchase order header posted with tax/subtotal/total fields keeps them even before any line item exists",
+      );
       as(`update core.documents set cgst_amount = 18, sgst_amount = 18, igst_amount = 0 where id = '${poId}'`);
       assertEqual(as(`select tax_amount from inventory.purchase_orders where id = '${poId}'`), "36.00", "tax_amount is computed as cgst+sgst+igst, matching StockPilot's own cached-sum column");
 
