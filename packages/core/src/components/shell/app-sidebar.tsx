@@ -7,6 +7,7 @@ import {
   ClipboardList,
   FileText,
   History,
+  KeyRound,
   LayoutDashboard,
   Package,
   Plus,
@@ -71,7 +72,10 @@ const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; ic
   },
   {
     heading: "Administration",
-    items: [{ label: "Team", slug: "team", icon: Shield }],
+    items: [
+      { label: "Team", slug: "team", icon: Shield },
+      { label: "API Keys", slug: "api-keys", icon: KeyRound },
+    ],
   },
 ];
 

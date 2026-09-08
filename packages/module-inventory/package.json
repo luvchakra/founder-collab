@@ -10,7 +10,8 @@
     "./components/*": "./src/components/*.tsx",
     "./manifest": "./src/manifest.ts",
     "./contract/*": "./src/contract/*.ts",
-    "./events/*": "./src/events/*.ts"
+    "./events/*": "./src/events/*.ts",
+    "./api-v1/*": "./src/api-v1/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
