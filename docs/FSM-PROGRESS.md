@@ -23,7 +23,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-12 | Done | Reports |
 | F-13 | Done | Discovery -> FSM handoff |
 | F-14 | Done | Inventory <-> FSM integration |
-| F-15 | Not started | FSM settings screens |
+| F-15 | Done | FSM settings screens |
 
 ## Known blockers
 
@@ -1245,3 +1245,105 @@ Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (37
 migrations, unchanged); full `test:db` suite green (permission count still 41,
 unchanged); `npm run build --workspace=apps/web` succeeds; live end-to-end verification
 against the dev Supabase project as described above.
+
+## F-15 -- FSM settings screens
+
+**No new migration, no new permissions.** `fsm.service_types`/`job_charge_types`/
+`settings` (F-1) already had every column this story's screens edit; reused the
+existing `settings.manage` permission (seeded for `inventory`'s own settings, F-1-era
+`core.permissions`) rather than minting an `fsm`-specific duplicate -- same "permission
+keys are role-capability checks, not module-ownership checks" reasoning F-8 already
+established for `invoices.*`.
+
+**A real mistake caught before it shipped, worth recording**: while building the
+numbering tab, I initially wrote a migration adding a `select` RLS policy to
+`core.number_sequences`, assuming its "RLS enabled, zero policies" state (flagged by
+every prior story's Supabase security advisor run) was an oversight. Running `test:db`
+immediately failed `scripts/test-core-number-sequences.mjs`'s own assertion: "the
+counter table itself is unreadable directly (zero policies), even by a member of the
+business it belongs to, though rows exist" -- a *deliberate*, already-tested invariant
+(D-4's own design: the only sanctioned access path is `core.next_number()`'s SECURITY
+DEFINER RPC), not a bug. Deleted the migration and rewrote the numbering read to go
+through the admin client instead, with its own explicit `requirePermission` check
+standing in for RLS -- the "privileged path, explicit authorization check in code"
+pattern `core/db/admin.ts`'s own docstring calls for. Left as a reminder for future
+stories: an advisor finding is a prompt to go read why, not a diff to write on sight.
+
+`packages/module-fsm/src/lib/{service-types,job-charge-types,settings,numbering}/` +
+`components/settings/settings-view.tsx` + one new route (`/fsm/settings`, already linked
+from `SERVICE_NAV`'s "Administration" group since F-1). Notable decisions:
+
+- **Service types and job charge types get full CRUD** (create, rename, deactivate/
+  reactivate) -- deactivate, never delete, since both are already referenced by
+  existing opportunities/jobs and `core.document_lines.job_charge_type_id`
+  respectively; the active-only picker lists (`listActiveServiceTypeOptions`/
+  `listActiveJobChargeTypeOptions`, F-2/F-3) already filter on the same flag this
+  story's toggle flips.
+- **The document/reminders form is one upsert against `fsm.settings`**
+  (`onConflict: business_id`, the table's own primary key) -- the row that has never
+  existed for any business until now. This is the exact toggle F-8's
+  `auto_invoice_on_complete`, F-9's `reminder_lead_hours`, and F-10's
+  `customer_center_enabled`/`contact_form_enabled` each documented as "correctly wired,
+  no UI to turn it on yet" -- all four features go live the moment a business saves
+  this form for the first time, no code changes needed in any of them.
+- **Message templates are explicitly not built** -- confirmed by grep before writing
+  this (not assumed) that no `core.message_templates` table exists anywhere in this
+  schema. This is the exact same gap F-11's own "Known blockers" section already
+  documents for the Messages tab (`core.messages`/`threads`/`message_templates` are all
+  story `S-3`, Epic 6, not yet built) -- per CLAUDE.md non-negotiable #5, no
+  `fsm`-only parallel table was created to work around it.
+- **Company logo and a document footer field are also not built** -- confirmed no
+  logo/branding column or upload feature exists anywhere in the platform. Unlike
+  message templates, this isn't blocked on another epic's table so much as it's a
+  genuinely separate feature (storage bucket, upload UI, and rendering it into three
+  already-built pages: the estimate/invoice/customer-center views) that this "M" story's
+  scope doesn't cover -- documented as deferred rather than adding an unused settings
+  column with nothing to consume it (CLAUDE.md principle 7).
+- **Numbering is read-only** -- shows the current prefix/next-value per scope
+  (`job`/`estimate`/`invoice`/`credit_note`, the scopes FSM's own flows actually mint)
+  so staff can see what's coming next, but there's no edit action: rewriting a live
+  counter risks colliding with an already-issued number, and nothing in the PRD's MUST
+  scope asks for that risk.
+
+No new SQL-level test file: no new tables, columns, constraints, or permissions --
+every table this story's screens touch already has its own coverage (F-1's tenant
+isolation for `service_types`/`job_charge_types`/`settings`,
+`test-core-number-sequences.mjs`'s own numbering coverage, unaffected since nothing here
+changed its access pattern). `scripts/test-discovery-rls.mjs`'s permission-count
+assertion stays at 41 (no permissions added).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: created, renamed, and deactivated a service type and confirmed every step
+round-trips; created and renamed a job charge type; confirmed no `fsm.settings` row
+exists for a fresh business, then mirrored `updateFsmSettings()`'s own upsert twice --
+the first save creates the row and every field round-trips, the second updates it in
+place rather than duplicating it. No assertion failures, zero residue after rollback.
+The settings page's own permission gate (`hasPermission(businessId, 'settings.manage')`,
+shown as a plain "you don't have permission" message rather than a crash for anyone
+else) and every form's browser interaction were not exercised in an actual browser,
+same documented gap as every other UI addition in this module.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (37
+migrations, unchanged -- confirming the number_sequences migration was correctly
+reverted, not just written and forgotten); full `test:db` suite green, including
+`test-core-number-sequences.mjs`'s own "still unreadable directly" assertion still
+passing; `npm run build --workspace=apps/web` succeeds (the new `/fsm/settings` route
+compiles and registers); live end-to-end verification against the dev Supabase project
+as described above.
+
+---
+
+## Epic 5 (FSM) summary
+
+Every backlog story except F-11 (blocked on `S-3`, Epic 6's own `core.messages`/
+`threads`/`message_templates`) is done: F-1 through F-10 and F-12 through F-15. Each
+story was committed directly to `main`, verified end-to-end against the dev Supabase
+project, and confirmed deployed (Vercel production `READY`) before the next one
+started. Two real gaps found and left honestly documented rather than silently
+papered over, both requiring another epic's own tables before they can close:
+F-11 (Messages tab) and message templates (folded into F-15's own section above) --
+both blocked on the same `S-3` story. Two smaller, deliberately deferred pieces:
+company logo/document-footer branding (F-15, needs upload infrastructure this
+platform doesn't have yet) and per-employee reminder lead time (F-9, no such
+preference column exists in the schema). Every other MUST-scope PRD requirement across
+all fifteen stories has a real, live-verified implementation.
