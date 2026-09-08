@@ -85,6 +85,14 @@ export function OpportunityDetail({
           </div>
           {serviceTypeName ? <p className="mt-1 text-sm text-muted-foreground">{serviceTypeName}</p> : null}
           <p className="mt-1 text-xs text-muted-foreground">Created {formatDateTime(opportunity.created_at)}</p>
+          {opportunity.source === "discovery" && opportunity.source_prospect_id && opportunity.source_workspace_id ? (
+            <a
+              href={`/dashboard/businesses/${opportunity.business_id}/products/${opportunity.source_workspace_id}/prospects/${opportunity.source_prospect_id}`}
+              className="mt-1 inline-block text-xs text-primary hover:underline"
+            >
+              From discovery prospect →
+            </a>
+          ) : null}
         </div>
         {canEdit && opportunity.status !== "lost" ? (
           <Button variant="destructive" size="sm" disabled={pending} onClick={() => setLostOpen(true)}>

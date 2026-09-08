@@ -21,7 +21,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-10 | Done | Customer Center + contact form |
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
 | F-12 | Done | Reports |
-| F-13 | Not started | Discovery -> FSM handoff |
+| F-13 | Done | Discovery -> FSM handoff |
 | F-14 | Not started | Inventory <-> FSM integration |
 | F-15 | Not started | FSM settings screens |
 
@@ -1036,3 +1036,111 @@ migrations, unchanged); full `test:db` suite green (permission count still 41,
 unchanged); `npm run build --workspace=apps/web` succeeds (the new `/fsm/reports` route
 compiles and registers); live end-to-end verification against the dev Supabase project
 as described above.
+
+## F-13 -- Discovery -> FSM handoff
+
+**Live-source discrepancy, flagged per CLAUDE.md rather than silently reconciled**:
+`02-FSM-PRD.md` §6's own payload sketch for `prospect.won` is `{ workspace_id,
+prospect_id, party_id, contact_ids[], conversation_id }`. `module-discovery`'s actual
+`Prospect` type (`lib/prospects/types.ts`) has neither a contact-list nor a
+conversation-summary concept -- confirmed by reading the type before writing this, not
+assumed. The published payload instead carries `companyName`/`description` (fields that
+do exist), the closest real substitute for "seed the new opportunity's own scope of work
+from". `primary_contact_id` on the created opportunity is left null for the same reason
+-- there's nothing to resolve it from yet.
+
+One migration (`20260908090000_fsm_discovery_handoff.sql`) adds
+`fsm.opportunities.source_workspace_id` (bare/no-FK, same treatment as the existing
+`source_prospect_id`/`marketing_source_id`) -- needed for the reverse backlink, since the
+prospect detail page's own route (`/products/[workspaceId]/prospects/[prospectId]`)
+needs the workspace id, not just the prospect id, to link back. No new permissions: the
+handler runs as a system cron consumer (admin client), same as
+`drainDomainEvents`/`module-inventory`'s own handler, not a user-permission-gated action.
+
+`packages/module-discovery/src/lib/prospects/mutations.ts#setProspectOutcome` +
+`packages/module-fsm/src/events/handlers.ts` (new) + `packages/module-fsm/src/contract/
+{index,types}.ts` (new -- module-fsm's first contract, mirroring module-inventory's own
+SP-9 shape) + a small UI addition on both the prospect detail page (discovery) and the
+opportunity detail page (fsm). Notable decisions:
+
+- **Discovery publishes, already resolving `business_id` itself** (via the existing
+  `getBusinessIdForWorkspace`, already used by `markProspectPartyWon` one line above) --
+  `core.domain_events.business_id` is `not null`, so there's no "processor resolves the
+  tenant later" step the PRD's phrasing implies; the publish call already has everything
+  it needs.
+- **Published with `requiredModule: 'fsm'`** -- an unlicensed business's event parks
+  (`status='parked'`, no attempts penalty) rather than failing, and
+  `core.replay_parked_events()` (already wired into `activateLicense()`, C-4) un-parks it
+  automatically the moment `fsm` is licensed, with zero new code needed for that half of
+  the requirement.
+- **`opportunity.created` is deliberately NOT published** from the new handler, despite
+  the PRD's own step 3 saying to -- nothing in this platform subscribes to it yet (no
+  `crm`, nothing in `gst` cares about opportunity creation), and `core/events/drain.ts`
+  treats an event type with no registered handler as an immediate, permanent failure
+  (`failed_permanent`), not a harmless park. Publishing it today would only clutter
+  `core.domain_events` with permanently-failed rows for a consumer that doesn't exist --
+  CLAUDE.md principle 7 ("never implement speculative functionality") applies directly
+  here. A future module that actually needs it can register a handler and this decision
+  gets revisited then.
+- **The handler is idempotent by construction**: before inserting, it checks for an
+  existing `fsm.opportunities` row with `source='discovery'` and this exact
+  `source_prospect_id`, and returns (no-op) if one exists. This is what makes "reactivate
+  a cancelled license and replay its parked events" (CLAUDE.md non-negotiable #4) safe --
+  a `prospect.won` event parked for weeks and then replayed can never produce a second,
+  duplicate opportunity for the same prospect (PRD §7 acceptance criterion #1).
+- **`fsm.opportunities.created_by` has no session to default `auth.uid()` from** inside a
+  cron-drained handler -- resolved to the business's own owner, the exact same pattern
+  F-10's `submitWorkRequest()` already established for the same underlying problem (a
+  system-originated write with no signed-in user and no "system" user anywhere in this
+  platform to attribute it to instead).
+- **The forward backlink** (opportunity → prospect) is a plain link on the opportunity
+  detail page, shown only when `source==='discovery'` and both `source_prospect_id`/
+  `source_workspace_id` are set, built from `businessId` (already on the opportunity
+  row) + the two new/existing bare ids -- no query needed, just a URL.
+- **The reverse backlink** (prospect → opportunity/job/invoice) is
+  `module-fsm/contract/index.ts#getHandoffStatusForProspect(businessId, prospectId)` --
+  module-fsm's first `contract/index.ts` (this repo's very first real cross-module
+  contract call of any kind). Returns `{ok:false, error:"MODULE_NOT_LICENSED"}` as a
+  normal result (ADR-10) when the viewing business hasn't licensed `fsm`, so the
+  prospect page degrades cleanly rather than throwing. The call itself lives in
+  `apps/web`'s own prospect detail `page.tsx`, not inside `module-discovery`'s package --
+  `apps/*` is the composition root and is exempt from the module-to-module
+  contract-only restriction (confirmed by re-reading `lint-import-boundaries.mjs`'s own
+  doc comment before relying on this), so `module-discovery`'s own code never imports
+  `module-fsm` at all; the presentational panel component it owns
+  (`components/prospects/fsm-handoff-panel.tsx`) only takes plain data props. Also fixed
+  `module-fsm`'s package-wide `sideEffects: false` (the exact SP-9-era bug already found
+  and fixed for `module-inventory`, present here too since nothing had exercised
+  `events/handlers.ts`'s side-effecting registration until this story) and wired the new
+  handler's import into `apps/web/app/api/cron/drain-events/route.ts` alongside
+  `module-inventory`'s own.
+
+No new SQL-level test file: the only new SQL primitive is one nullable, unconstrained
+column (`source_workspace_id`) -- covered by the same tenant-isolation coverage every
+other `fsm.opportunities` column already has from F-1/F-2. `scripts/test-discovery-
+rls.mjs`'s permission-count assertion stays at 41 (no permissions added).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: published a `prospect.won` event with `required_module='fsm'` against a
+business with no `fsm` license and confirmed `core.record_domain_event_attempt(...,
+'parked')` leaves it `status='parked'` (never failed, never processed); mirrored the
+handler's own idempotency check (found zero matching opportunities, inserted one,
+confirmed a second identical lookup finds exactly one, never two); confirmed
+`source_workspace_id` round-trips on the new opportunity; and mirrored
+`getHandoffStatusForProspect()`'s own three-way join (opportunity → job →
+invoice, via `converted_job_id` and `source_ref->>'job_id'`) against a seeded won
+opportunity with a completed job and an issued invoice, confirming it resolves the
+right status and invoice number end to end. No assertion failures, zero residue after
+rollback. The actual TypeScript handler function itself was not invoked live (it runs
+inside the Next.js/Node runtime, not something a SQL-editor session can call) -- its
+logic was verified by direct code review plus the SQL mirror above of every query it
+issues; the cross-module contract call and both UI panels were not exercised in an
+actual browser, same documented gap as every other UI addition in this module.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (37
+migrations); full `test:db` suite green (permission count still 41, unchanged);
+`lint:boundaries` specifically confirms the new cross-module contract usage
+(`module-fsm/contract/index.ts` called only from `apps/web`, never from inside
+`module-discovery`'s own package) violates nothing; `npm run build --workspace=apps/web`
+succeeds; Supabase security advisor shows no new findings; live end-to-end verification
+against the dev Supabase project as described above.

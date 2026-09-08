@@ -13,6 +13,7 @@ export interface Opportunity {
   scope_of_work: string | null;
   source: OpportunitySource;
   source_prospect_id: string | null;
+  source_workspace_id: string | null;
   status: OpportunityStatus;
   lost_reason: string | null;
   marketing_source_id: string | null;

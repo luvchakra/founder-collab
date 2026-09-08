@@ -5,6 +5,7 @@ import { drainDomainEvents } from "@cofounderai/core/events/drain";
 // exactly this reason (00-MASTER-PLAN.md's module contract layout) -- an event whose
 // type has no handler registered fails permanently on its very next drain attempt.
 import "@cofounderai/module-inventory/events/handlers";
+import "@cofounderai/module-fsm/events/handlers";
 
 /**
  * Drains due core.domain_events (D-9) -- point a Vercel Cron job (or any scheduler) at

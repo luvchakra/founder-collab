@@ -29,6 +29,8 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { ExpandableBox } from "@cofounderai/module-discovery/components/ui/expandable-box";
 import { ContactRow } from "@cofounderai/module-discovery/components/prospects/contact-row";
+import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
+import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { ConversationChannel } from "@cofounderai/module-discovery/lib/conversations/types";
@@ -349,6 +351,14 @@ export default async function ProspectDetailPage({
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
   const basePath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
 
+  // F-13's own backlink -- only meaningful once a prospect has actually won (nothing to
+  // show otherwise), and `getHandoffStatusForProspect` itself returns
+  // `{ok:false, error:"MODULE_NOT_LICENSED"}` as a normal result (ADR-10) rather than
+  // throwing when this business hasn't licensed fsm, so the whole page degrades cleanly.
+  const handoffResult = prospect.outcome === "won" ? await getHandoffStatusForProspect(businessId, prospect.id) : null;
+  const showHandoffPanel = handoffResult !== null && !(handoffResult.ok === false && handoffResult.error === "MODULE_NOT_LICENSED");
+  const handoffStatus = handoffResult?.ok ? handoffResult.data : null;
+
   const latestConversation = conversations.reduce<(typeof conversations)[number] | null>(
     (latest, c) => (!latest || c.last_message_at > latest.last_message_at ? c : latest),
     null,
@@ -397,6 +407,8 @@ export default async function ProspectDetailPage({
           )}
         </div>
       </div>
+
+      {showHandoffPanel ? <FsmHandoffPanel status={handoffStatus} /> : null}
 
       <section className="flex flex-col gap-4 rounded-md border p-4">
         <div className="flex items-center justify-between gap-4">

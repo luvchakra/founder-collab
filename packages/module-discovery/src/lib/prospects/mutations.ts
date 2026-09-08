@@ -1,5 +1,7 @@
 import { createClient } from "../../db/server";
 import { normalizeUrl } from "@cofounderai/core/lib/url";
+import { publish } from "@cofounderai/core/events/mutations";
+import { getBusinessIdForWorkspace } from "../tenancy/queries";
 import { ensureProspectParty, markProspectPartyWon } from "./party-sync";
 import type { Prospect, ProspectOutcome, ProspectStatus } from "./types";
 
@@ -119,6 +121,34 @@ export async function setProspectOutcome(
   // change the caller actually asked for.
   if (outcome === "won" && data.party_id) {
     await markProspectPartyWon(data.workspace_id, data.party_id);
+
+    // F-13's own handoff trigger (02-FSM-PRD.md §6): publish once the party's own
+    // customer role is guaranteed to exist, so any consumer reacting to this can safely
+    // assume it's already there. `requiredModule: 'fsm'` parks the event (not a failure)
+    // until an fsm license exists for this business -- core.replay_parked_events()
+    // un-parks it on activation, same as every other required-module event in this
+    // platform. The PRD's own payload sketch (`contact_ids[]`, `conversation_id`) doesn't
+    // match what a Prospect actually carries today (no contact or conversation concept
+    // exists here yet, confirmed against ./types.ts before writing this) -- substituted
+    // with `companyName`/`description`, the closest real fields to "seed the new
+    // opportunity's own scope of work from", and flagged here per CLAUDE.md's "live
+    // source wins, flag the discrepancy" rule rather than silently inventing the missing
+    // fields.
+    const businessId = await getBusinessIdForWorkspace(data.workspace_id);
+    if (businessId) {
+      await publish({
+        businessId,
+        type: "prospect.won",
+        requiredModule: "fsm",
+        payload: {
+          workspaceId: data.workspace_id,
+          prospectId: data.id,
+          partyId: data.party_id,
+          companyName: data.company_name,
+          description: data.description,
+        },
+      });
+    }
   }
   return data;
 }
