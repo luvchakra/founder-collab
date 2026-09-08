@@ -3,6 +3,7 @@ import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { listEventsForRange, listJobOptionsForScheduling, listOpportunityOptionsForScheduling } from "@cofounderai/module-fsm/lib/events/queries";
 import { listEmployees, listTechnicianRoster } from "@cofounderai/module-fsm/lib/employees/queries";
+import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
 import { ScheduleCalendar } from "@cofounderai/module-fsm/components/schedule/schedule-calendar";
 import {
   cancelEventAction,
@@ -58,6 +59,13 @@ export default async function SchedulePage({
     hasPermission(businessId, "schedule.print_work_orders"),
   ]);
 
+  // F-14: "stock.low surfaced to the dispatcher" -- the schedule page is this platform's
+  // own dispatcher surface (no dedicated /fsm dashboard route exists yet). Degrades to
+  // nothing when inventory isn't licensed (ADR-10's own normal-result contract, not an
+  // exception) rather than showing an error.
+  const lowStockResult = await listLowStockAlerts(businessId);
+  const lowStockAlerts = lowStockResult.ok ? lowStockResult.data : [];
+
   const stepBy = view === "week" ? 7 : 1;
   const href = (d: string, v: "day" | "week") => `/dashboard/businesses/${businessId}/fsm/schedule?date=${d}&view=${v}`;
 
@@ -67,6 +75,17 @@ export default async function SchedulePage({
         <h1 className="text-xl font-semibold">Schedule</h1>
         <p className="mt-1 text-sm text-muted-foreground">Work, estimate, and reminder events for {business.name}, by technician.</p>
       </div>
+
+      {lowStockAlerts.length > 0 ? (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">Low stock ({lowStockAlerts.length})</p>
+          <ul className="mt-1 list-disc pl-5">
+            {lowStockAlerts.slice(0, 5).map((a) => (
+              <li key={a.id}>{a.title}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <ScheduleCalendar
         businessId={businessId}

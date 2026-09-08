@@ -2,6 +2,7 @@ import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { resolveCustomerPartyId } from "../opportunities/mutations";
 import { getOrCreateInvoiceForJob } from "../invoices/mutations";
+import { consumeJobParts, reserveJobParts } from "../inventory-integration/mutations";
 import type { CreateJobInput, Job, UpdateJobInput } from "./types";
 
 function coreClient() {
@@ -68,6 +69,7 @@ async function transition(id: string, businessId: string, fromStatuses: string[]
  * this transition for real once an event is actually created. */
 export async function markJobScheduled(id: string, businessId: string): Promise<void> {
   await transition(id, businessId, ["unscheduled"], { status: "scheduled" });
+  await reserveJobParts(businessId, id).catch(() => {});
 }
 
 /** `scheduled -> in_progress` (PRD §4: "start or first clock-in" -- clock-in is F-7's
@@ -94,6 +96,7 @@ export async function resumeJob(id: string, businessId: string): Promise<void> {
  * screen. */
 export async function completeJob(id: string, businessId: string): Promise<void> {
   await transition(id, businessId, ["in_progress", "on_hold"], { status: "completed", completed_at: new Date().toISOString() });
+  await consumeJobParts(businessId, id).catch(() => {});
 
   const fsm = await createClient();
   const { data: settings } = await fsm.from("settings").select("auto_invoice_on_complete").eq("business_id", businessId).maybeSingle();

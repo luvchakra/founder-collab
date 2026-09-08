@@ -2,7 +2,7 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { publish } from "@cofounderai/core/events/mutations";
 import { createClient } from "../db/server";
-import type { ContractAvailability, ContractResult, ContractWarehouse, UpsertItemInput } from "./types";
+import type { ContractAvailability, ContractLowStockAlert, ContractResult, ContractWarehouse, UpsertItemInput } from "./types";
 
 /**
  * module-inventory's public API surface (00-MASTER-PLAN.md §6 mechanism 2; SP-9) -- the
@@ -67,6 +67,26 @@ export async function getAvailability(
       available: Number(l.quantity) - Number(l.reserved) - Number(l.damaged) - Number(l.expired),
     })),
   };
+}
+
+/** Open low-stock alerts (F-14, `fsm`'s own dispatcher surface: "stock.low surfaced to
+ * the dispatcher") -- `inventory.alerts` rows of `type='low_stock'` and `status='open'`,
+ * written by `inventory.check_stock_alerts()`'s own trigger, never by the app. */
+export async function listLowStockAlerts(businessId: string): Promise<ContractResult<ContractLowStockAlert[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("alerts")
+    .select("id, title, description, severity, created_at")
+    .eq("business_id", businessId)
+    .eq("type", "low_stock")
+    .eq("status", "open")
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true, data: data.map((a) => ({ id: a.id, title: a.title, description: a.description, severity: a.severity, createdAt: a.created_at })) };
 }
 
 /**

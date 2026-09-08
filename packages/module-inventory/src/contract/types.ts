@@ -18,6 +18,14 @@ export type ContractAvailability = {
   available: number;
 };
 
+export type ContractLowStockAlert = {
+  id: string;
+  title: string;
+  description: string | null;
+  severity: "info" | "warning" | "critical";
+  createdAt: string;
+};
+
 export type UpsertItemInput = {
   /** Update this item by id when given; otherwise find-or-create by `sku` (when given),
    * else always insert a new row. */

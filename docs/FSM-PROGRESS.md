@@ -22,7 +22,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
 | F-12 | Done | Reports |
 | F-13 | Done | Discovery -> FSM handoff |
-| F-14 | Not started | Inventory <-> FSM integration |
+| F-14 | Done | Inventory <-> FSM integration |
 | F-15 | Not started | FSM settings screens |
 
 ## Known blockers
@@ -1143,4 +1143,105 @@ migrations); full `test:db` suite green (permission count still 41, unchanged);
 (`module-fsm/contract/index.ts` called only from `apps/web`, never from inside
 `module-discovery`'s own package) violates nothing; `npm run build --workspace=apps/web`
 succeeds; Supabase security advisor shows no new findings; live end-to-end verification
+against the dev Supabase project as described above.
+
+## F-14 -- Inventory <-> FSM integration
+
+**No new migration.** Every primitive this story needs already existed:
+`module-inventory/contract/index.ts`'s `reserveStock`/`releaseStock`/`consumeStock`/
+`listWarehouses` (SP-9), `inventory.alerts`'s own `low_stock` rows (written by
+`inventory.check_stock_alerts()`'s trigger, SP-3a/SP-3b), and `core.items.kind='good'`
+as the exact signal `core.item_inventory_attrs`'s own invariant already ties to real
+stock tracking. This story only adds one new contract function
+(`listLowStockAlerts`, `module-inventory/contract/index.ts`) and a new module-fsm
+package (`lib/inventory-integration/`) wiring the existing pieces together.
+
+`packages/module-fsm/src/lib/inventory-integration/mutations.ts` (new) +
+two lines each in `lib/jobs/mutations.ts` (`markJobScheduled`, `completeJob`) and
+`lib/events/mutations.ts` (`tryAdvanceJobToScheduled`) + a low-stock banner on the
+`/fsm/schedule` page. Notable decisions:
+
+- **"Job parts" reads from the job's own originating *estimate*, not its invoice** --
+  the estimate (`job.opportunity_id -> fsm.opportunities -> its core.documents` row) is
+  the one charge-line source reliably available at both "on schedule" (before any
+  invoice typically exists, per F-8) and "on completion" (F-8's invoice generation is
+  itself best-effort and may not have run). A job created directly (no opportunity, F-5)
+  or whose estimate was never approved has no parts source under this design and both
+  hooks correctly no-op for it -- a real, documented limitation (a directly-created
+  job's charges added straight to its invoice never trigger stock reservation), not a
+  silently dropped requirement. Filtered to lines whose `core.items.kind='good'` --
+  confirmed by reading `20260906103000_core_items.sql`'s own comment before building
+  this, not assumed, that `kind='good'` is specifically the invariant
+  `core.item_inventory_attrs` (and therefore real stock tracking) ties to.
+- **Reservation fires exactly once per job**, on the specific DB update that actually
+  flips `unscheduled -> scheduled` (`tryAdvanceJobToScheduled`'s own `.select("id")`
+  now checks whether a row was actually updated) -- a second work event scheduled
+  against an already-`scheduled` job does not double-reserve the same lines. The manual
+  `markJobScheduled()` fallback (F-5, still reachable from the job detail page) gets the
+  same call, since it's a second real path to the same transition.
+- **Consuming on completion always releases first, then consumes** --
+  `inventory.adjust_stock_for_contract()`'s own `outbound` check only looks at
+  `quantity - reserved - damaged - expired` (confirmed by reading the RPC's own SQL
+  before relying on this, not assumed) -- it does *not* implicitly clear a prior
+  reservation, so consuming the same units a job reserved earlier requires releasing the
+  hold first or the outbound check would double-count them against availability.
+  Live-verified this exact release-then-consume sequence directly against the RPC (see
+  below).
+- **Every reservation/consumption call is best-effort, per line, independently caught**
+  -- neither an unlicensed `inventory` (checked once via `hasModule` before doing any
+  work at all) nor a single line's stock shortfall ever blocks scheduling or completing
+  a job (PRD §7 acceptance criterion #4: "the same job completes cleanly with the parts
+  as plain charges" if unlicensed -- extended here to a licensed-but-insufficient-stock
+  case too, since a dispatcher's own low-stock banner, not a hard block, is how Kickserv
+  itself would surface that problem).
+- **Warehouse selection is "the first active warehouse for this business"** -- no
+  per-job or per-line warehouse picker exists (multi-warehouse dispatch is out of this
+  "M" story's scope); a documented simplification for businesses with more than one
+  active warehouse, not a silently dropped feature.
+- **"`stock.low` surfaced to the dispatcher"** lives on `/fsm/schedule` -- no dedicated
+  `/fsm` root dispatcher-dashboard route exists yet (PRD §5 lists one, but no F-story has
+  built it; it isn't in the current backlog either), and the schedule page is this
+  platform's own closest match to "the dispatcher's tool" (PRD §1.7's own description).
+  Reads `module-inventory/contract/index.ts#listLowStockAlerts` (new) directly from the
+  page (`apps/web`, exempt from the module-to-module contract-only restriction, same
+  pattern F-13 already established) -- `module-fsm`'s own package never imports
+  `module-inventory` for this. Degrades to nothing when `inventory` isn't licensed
+  (`MODULE_NOT_LICENSED` as a normal result, not an error).
+- **`module-fsm/package.json` now depends on `@cofounderai/module-inventory`** (added,
+  lockfile regenerated) -- the one real cross-module *code* import this story needs
+  (`lib/inventory-integration/mutations.ts` calls `module-inventory`'s contract
+  directly, since that logic lives in `module-fsm`'s own job lifecycle, not in
+  `apps/web`). Checked deliberately against the exact class of bug the Vercel deploy
+  fix earlier in this epic already taught: a missing workspace dependency in
+  `package.json` builds fine locally (a bare `npm install` hoists every workspace
+  regardless of who declares it) but breaks Vercel's narrower, declaration-scoped
+  install.
+
+No new SQL-level test file: the only new SQL surface is one new contract function
+reading an existing table (`inventory.alerts`) with existing columns -- `reserveStock`/
+`releaseStock`/`consumeStock`/`listWarehouses` and the `low_stock` alert trigger were
+already covered by SP-9-era tests. `scripts/test-discovery-rls.mjs`'s permission-count
+assertion stays at 41 (no permissions added).
+
+Live-verified the exact reserve/release/consume/alert sequence against the dev Supabase
+project inside one self-cleaning (rolled-back) transaction (as the seeded business's own
+owner, via `set_config('request.jwt.claim.sub', ...)` so `adjust_stock_for_contract()`'s
+own `auth.uid()`-sourced `created_by` resolves, matching how a real signed-in session
+would call the same RPC): confirmed `kind='good'` correctly distinguishes a stocked
+part from a `kind='service'` line; reserved 3 units of a 10-on-hand item and confirmed
+`reserved` became 3 with `quantity` unchanged; released then consumed those same 3
+units and confirmed `reserved` returned to 0 while `quantity` dropped to 7 (proving the
+release-then-consume ordering this code depends on is correct, not merely assumed); then
+dropped the item below its own `reorder_point` and confirmed an open `low_stock` alert
+appears, exactly the row `listLowStockAlerts()` reads. No assertion failures, zero
+residue after rollback. The TypeScript integration functions themselves (`reserveJobParts`/
+`consumeJobParts`) were not invoked live (same reasoning as F-13's handler: they run
+inside the Next.js runtime, not something a SQL-editor session can call) -- verified by
+direct code review plus the SQL mirror of every RPC call and query they issue. The
+low-stock banner's own rendering was not exercised in an actual browser, same documented
+gap as every other UI addition in this module.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (37
+migrations, unchanged); full `test:db` suite green (permission count still 41,
+unchanged); `npm run build --workspace=apps/web` succeeds; live end-to-end verification
 against the dev Supabase project as described above.

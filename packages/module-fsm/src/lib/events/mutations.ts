@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import { createClient } from "../../db/server";
+import { reserveJobParts } from "../inventory-integration/mutations";
 import type { CreateEventInput, RescheduleEventInput } from "./types";
 
 function coreClient() {
@@ -18,8 +19,19 @@ function coreClient() {
  * not a failure). */
 async function tryAdvanceJobToScheduled(businessId: string, jobId: string): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("jobs").update({ status: "scheduled" }).eq("id", jobId).eq("business_id", businessId).eq("status", "unscheduled");
+  const { data, error } = await supabase
+    .from("jobs")
+    .update({ status: "scheduled" })
+    .eq("id", jobId)
+    .eq("business_id", businessId)
+    .eq("status", "unscheduled")
+    .select("id");
   if (error) throw error;
+  // F-14: reserve the job's own stocked parts the moment it actually becomes scheduled
+  // (not on every work event -- a second event against an already-scheduled job would
+  // otherwise double-reserve the same lines). Best-effort, same reasoning
+  // reserveJobParts documents internally.
+  if (data.length > 0) await reserveJobParts(businessId, jobId).catch(() => {});
 }
 
 /** `new -> estimate_scheduled` (PRD §4: "schedule an estimate event ... moves to Estimate
