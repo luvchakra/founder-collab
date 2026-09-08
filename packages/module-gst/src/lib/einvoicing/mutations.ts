@@ -1,4 +1,8 @@
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { createClient } from "../../db/server";
+import { createAdminClient } from "../../db/admin";
+import { callGsp } from "../gsp-client";
+import type { Einvoice } from "./types";
 
 export type EinvoiceCredentialsInput = {
   gsp_provider: string;
@@ -30,4 +34,122 @@ export async function upsertEinvoiceCredentials(
     client_secret: input.client_secret || null,
   });
   if (error) throw error;
+}
+
+/**
+ * S-2's own "generate an e-invoice/IRN" workflow -- runs entirely via the admin client:
+ * `gst.einvoice_credentials` has no SELECT grant to `authenticated` at all (its own
+ * migration's own lockdown), so reading a business's GSP secrets to actually call its
+ * `generate_url` can only happen through `service_role`, regardless of who triggered
+ * this call -- an interactive "Generate" button (gated by
+ * `requirePermission(businessId, 'gst.generate')` at the server-action layer) or the
+ * `document.issued` domain-event consumer (events/handlers.ts), which has no signed-in
+ * user at all. Idempotent: a document that already has a row here (any status) is
+ * returned as-is rather than calling the GSP a second time, matching this table's own
+ * "one row per document, ever" design (`unique(document_id)`).
+ *
+ * The request/response field names below (DocDtls/ValDtls on the way in, Irn/AckNo/
+ * AckDt/SignedQRCode on the way back) are the real NIC e-invoice (IRP) API shape, not
+ * an invented one -- grounded in the actual integration even though, same as every
+ * Resend email send elsewhere in this platform, this was never exercised against a
+ * live GSP sandbox in this session (none is reachable, and no demo business here has
+ * real GSP credentials to test against). Only the fields this schema actually stores
+ * are sent -- not a fully IRP-compliant payload (seller/buyer GSTIN, item lines, etc.),
+ * a deliberate simplification documented alongside this story.
+ */
+export async function generateEinvoice(businessId: string, documentId: string): Promise<Einvoice> {
+  const admin = createAdminClient();
+
+  const { data: existing, error: existingError } = await admin
+    .from("einvoices")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("document_id", documentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return existing;
+
+  const { data: credentials, error: credentialsError } = await admin
+    .from("einvoice_credentials")
+    .select("generate_url, gsp_username, gsp_password, client_id, client_secret")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
+  if (!credentials) throw new Error("No e-Invoicing credentials configured for this business.");
+
+  const core = createCoreAdminClient({ schema: "core" });
+  const { data: document, error: documentError } = await core
+    .from("documents")
+    .select("number, subtotal, cgst_amount, sgst_amount, igst_amount, total_amount, doc_date")
+    .eq("id", documentId)
+    .eq("business_id", businessId)
+    .single();
+  if (documentError) throw documentError;
+
+  const response = await callGsp(credentials.generate_url, credentials, {
+    DocDtls: { No: document.number, Dt: document.doc_date },
+    ValDtls: {
+      AssVal: document.subtotal,
+      CgstVal: document.cgst_amount,
+      SgstVal: document.sgst_amount,
+      IgstVal: document.igst_amount,
+      TotInvVal: document.total_amount,
+    },
+  });
+
+  const { data: row, error: insertError } = await admin
+    .from("einvoices")
+    .insert({
+      business_id: businessId,
+      document_id: documentId,
+      irn: (response.Irn as string | undefined) ?? null,
+      ack_no: (response.AckNo as string | undefined) ?? null,
+      ack_date: (response.AckDt as string | undefined) ?? null,
+      qr_code: (response.SignedQRCode as string | undefined) ?? null,
+    })
+    .select()
+    .single();
+  if (insertError) throw insertError;
+  return row;
+}
+
+/** Cancels a previously generated e-invoice (real IRN cancellation is only valid within
+ * 24 hours of generation per GST rules -- not enforced here, same as this schema not
+ * modeling reissue: a GSP that rejects a late cancellation surfaces as an ordinary
+ * `callGsp` error). Idempotent: cancelling an already-cancelled row just returns it. */
+export async function cancelEinvoice(businessId: string, documentId: string, reason?: string): Promise<Einvoice> {
+  const admin = createAdminClient();
+
+  const { data: existing, error: existingError } = await admin
+    .from("einvoices")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("document_id", documentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new Error("No e-Invoice exists for this document.");
+  if (existing.status === "cancelled") return existing;
+
+  const { data: credentials, error: credentialsError } = await admin
+    .from("einvoice_credentials")
+    .select("cancel_url, gsp_username, gsp_password, client_id, client_secret")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
+  if (!credentials) throw new Error("No e-Invoicing credentials configured for this business.");
+
+  await callGsp(credentials.cancel_url, credentials, {
+    Irn: existing.irn,
+    CnlRsn: "1",
+    CnlRem: reason || "Cancelled",
+  });
+
+  const { data: row, error: updateError } = await admin
+    .from("einvoices")
+    .update({ status: "cancelled", cancel_reason: reason ?? null, cancelled_at: new Date().toISOString() })
+    .eq("id", existing.id)
+    .select()
+    .single();
+  if (updateError) throw updateError;
+  return row;
 }

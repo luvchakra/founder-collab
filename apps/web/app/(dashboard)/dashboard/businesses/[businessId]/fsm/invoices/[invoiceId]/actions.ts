@@ -13,6 +13,13 @@ import {
   sendInvoice,
   voidInvoiceViaCreditNote,
 } from "@cofounderai/module-fsm/lib/invoices/mutations";
+import {
+  cancelDocumentEinvoice,
+  cancelDocumentEwayBill,
+  generateDocumentEinvoice,
+  generateDocumentEwayBill,
+} from "@cofounderai/module-gst/contract/index";
+import type { ContractResult } from "@cofounderai/module-gst/contract/types";
 
 function detailPath(businessId: string, invoiceId: string) {
   return `/dashboard/businesses/${businessId}/fsm/invoices/${invoiceId}`;
@@ -78,5 +85,33 @@ export async function markInvoiceUnpaidAction(businessId: string, invoiceId: str
 export async function voidInvoiceAction(businessId: string, invoiceId: string, reason: string): Promise<void> {
   await requirePermission(businessId, "invoices.cancel");
   await voidInvoiceViaCreditNote(businessId, invoiceId, reason || undefined);
+  revalidatePath(detailPath(businessId, invoiceId));
+}
+
+function unwrap<T>(result: ContractResult<T>): void {
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "GST module is not licensed for this business." : result.error);
+}
+
+export async function generateInvoiceEinvoiceAction(businessId: string, invoiceId: string): Promise<void> {
+  await requirePermission(businessId, "gst.generate");
+  unwrap(await generateDocumentEinvoice(businessId, invoiceId));
+  revalidatePath(detailPath(businessId, invoiceId));
+}
+
+export async function cancelInvoiceEinvoiceAction(businessId: string, invoiceId: string, reason?: string): Promise<void> {
+  await requirePermission(businessId, "gst.generate");
+  unwrap(await cancelDocumentEinvoice(businessId, invoiceId, reason));
+  revalidatePath(detailPath(businessId, invoiceId));
+}
+
+export async function generateInvoiceEwayBillAction(businessId: string, invoiceId: string): Promise<void> {
+  await requirePermission(businessId, "gst.generate");
+  unwrap(await generateDocumentEwayBill(businessId, invoiceId));
+  revalidatePath(detailPath(businessId, invoiceId));
+}
+
+export async function cancelInvoiceEwayBillAction(businessId: string, invoiceId: string, reason?: string): Promise<void> {
+  await requirePermission(businessId, "gst.generate");
+  unwrap(await cancelDocumentEwayBill(businessId, invoiceId, reason));
   revalidatePath(detailPath(businessId, invoiceId));
 }

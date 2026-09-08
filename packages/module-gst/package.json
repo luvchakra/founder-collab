@@ -3,11 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": ["./src/events/handlers.ts"],
   "exports": {
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
-    "./components/*": "./src/components/*.tsx"
+    "./components/*": "./src/components/*.tsx",
+    "./contract/*": "./src/contract/*.ts",
+    "./events/*": "./src/events/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

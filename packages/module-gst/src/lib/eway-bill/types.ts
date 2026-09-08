@@ -11,3 +11,19 @@ export type EwayBillCredentialsStatus = {
   cancel_url: string;
   updated_at: string;
 };
+
+/** A row in `gst.eway_bills` -- one per `core.documents` row, ever, same "no reissue"
+ * simplification as `Einvoice` (einvoicing/types.ts). */
+export type EwayBill = {
+  id: string;
+  business_id: string;
+  document_id: string;
+  status: "generated" | "cancelled";
+  eway_bill_number: string | null;
+  valid_until: string | null;
+  qr_code: string | null;
+  cancel_reason: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};

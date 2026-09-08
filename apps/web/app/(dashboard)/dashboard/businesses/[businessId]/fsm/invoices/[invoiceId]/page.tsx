@@ -6,9 +6,15 @@ import { listActiveJobChargeTypeOptions } from "@cofounderai/module-fsm/lib/job-
 import { getDocumentBalance, listPaymentsForDocument } from "@cofounderai/core/payments/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { InvoiceEditor } from "@cofounderai/module-fsm/components/invoices/invoice-editor";
+import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
+import { GstDocumentPanel } from "@/components/gst/gst-document-panel";
 import {
   addInvoiceChargeLineAction,
+  cancelInvoiceEinvoiceAction,
+  cancelInvoiceEwayBillAction,
   deleteInvoiceChargeLineAction,
+  generateInvoiceEinvoiceAction,
+  generateInvoiceEwayBillAction,
   markInvoicePaidAction,
   markInvoiceUnpaidAction,
   recordInvoicePaymentAction,
@@ -23,7 +29,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const [business, invoice] = await Promise.all([getBusiness(businessId), getInvoice(businessId, invoiceId)]);
   if (!business || !invoice) notFound();
 
-  const [lines, items, jobChargeTypes, balance, payments, canEdit, canVoid] = await Promise.all([
+  const [lines, items, jobChargeTypes, balance, payments, canEdit, canVoid, gstStatus, canGenerateGst] = await Promise.all([
     listInvoiceLines(businessId, invoiceId),
     listChargeableItemOptions(businessId),
     listActiveJobChargeTypeOptions(businessId),
@@ -31,6 +37,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     listPaymentsForDocument(invoiceId),
     hasPermission(businessId, "invoices.edit"),
     hasPermission(businessId, "invoices.cancel"),
+    getGstDocumentStatus(businessId, invoiceId),
+    hasPermission(businessId, "gst.generate"),
   ]);
 
   return (
@@ -61,6 +69,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         markUnpaidAction={markInvoiceUnpaidAction.bind(null, businessId, invoiceId)}
         voidAction={voidInvoiceAction.bind(null, businessId, invoiceId)}
       />
+
+      {gstStatus.ok ? (
+        <GstDocumentPanel
+          canGenerate={canGenerateGst}
+          einvoice={gstStatus.data.einvoice}
+          ewayBill={gstStatus.data.ewayBill}
+          generateEinvoiceAction={generateInvoiceEinvoiceAction.bind(null, businessId, invoiceId)}
+          cancelEinvoiceAction={cancelInvoiceEinvoiceAction.bind(null, businessId, invoiceId)}
+          generateEwayBillAction={generateInvoiceEwayBillAction.bind(null, businessId, invoiceId)}
+          cancelEwayBillAction={cancelInvoiceEwayBillAction.bind(null, businessId, invoiceId)}
+        />
+      ) : null}
     </div>
   );
 }

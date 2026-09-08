@@ -84,9 +84,10 @@ export async function getOrCreateInvoiceForJob(businessId: string, jobId: string
  * counters, shared with `inventory` per F-1's own note: GST needs one continuous
  * invoice sequence per business regardless of which module issued it) and publishes
  * `document.issued` (00-MASTER-PLAN.md §6's own event catalogue: consumed by `gst` for
- * e-invoicing once that module exists, parked with `status='no_consumer'` until then --
- * same "buy the module later and it still works" guarantee every other cross-module
- * event in this platform already gets). Idempotent past the first call. */
+ * e-invoicing, S-2) with `requiredModule: 'gst'` so an unlicensed business's event
+ * parks rather than failing permanently for lack of a registered handler -- same "buy
+ * the module later and it still works" guarantee every other cross-module event in
+ * this platform already gets. Idempotent past the first call. */
 export async function issueInvoice(businessId: string, invoiceId: string): Promise<void> {
   const core = await coreClient();
   const { data: doc, error } = await core.from("documents").select("status").eq("id", invoiceId).eq("business_id", businessId).single();
@@ -99,7 +100,7 @@ export async function issueInvoice(businessId: string, invoiceId: string): Promi
   const { error: updateError } = await core.from("documents").update({ status: "issued", number }).eq("id", invoiceId);
   if (updateError) throw updateError;
 
-  await publish({ businessId, type: "document.issued", payload: { invoiceId, docType: "invoice" } });
+  await publish({ businessId, type: "document.issued", payload: { invoiceId, docType: "invoice" }, requiredModule: "gst" });
 }
 
 /** The customer's email for an invoice's own job -- same resolution order (primary

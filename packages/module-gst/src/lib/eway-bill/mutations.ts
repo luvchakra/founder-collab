@@ -1,4 +1,8 @@
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { createClient } from "../../db/server";
+import { createAdminClient } from "../../db/admin";
+import { callGsp } from "../gsp-client";
+import type { EwayBill } from "./types";
 
 export type EwayBillCredentialsInput = {
   gsp_provider: string;
@@ -33,4 +37,109 @@ export async function upsertEwayBillCredentials(
     client_secret: input.client_secret || null,
   });
   if (error) throw error;
+}
+
+/**
+ * S-2's own "generate an e-way bill" workflow -- same admin-client-throughout reasoning
+ * as `einvoicing/mutations.ts#generateEinvoice` (reading a GSP secret always requires
+ * `service_role`, regardless of caller). Idempotent, same "one row per document, ever"
+ * design.
+ *
+ * Deliberately simplified vs. a real NIC e-way-bill API call: the real request also
+ * needs transport details (vehicle number, transporter id, distance) this schema has
+ * nowhere to capture -- not modeled anywhere in `core.documents`/`fsm.jobs`/inventory's
+ * own tables. Only invoice-value fields are sent; this is why S-2's own UI only ever
+ * offers e-way-bill generation as a manual action, never auto-triggered by
+ * `document.issued` the way `generateEinvoice` is (an e-way bill genuinely can't be
+ * generated from an invoice alone in the real world either -- it needs the shipment,
+ * which doesn't exist yet at the moment an invoice is issued).
+ */
+export async function generateEwayBill(businessId: string, documentId: string): Promise<EwayBill> {
+  const admin = createAdminClient();
+
+  const { data: existing, error: existingError } = await admin
+    .from("eway_bills")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("document_id", documentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return existing;
+
+  const { data: credentials, error: credentialsError } = await admin
+    .from("eway_bill_credentials")
+    .select("generate_url, gsp_username, gsp_password, client_id, client_secret")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
+  if (!credentials) throw new Error("No e-Way Bill credentials configured for this business.");
+
+  const core = createCoreAdminClient({ schema: "core" });
+  const { data: document, error: documentError } = await core
+    .from("documents")
+    .select("number, total_amount, doc_date")
+    .eq("id", documentId)
+    .eq("business_id", businessId)
+    .single();
+  if (documentError) throw documentError;
+
+  const response = await callGsp(credentials.generate_url, credentials, {
+    docNo: document.number,
+    docDate: document.doc_date,
+    totalValue: document.total_amount,
+  });
+
+  const { data: row, error: insertError } = await admin
+    .from("eway_bills")
+    .insert({
+      business_id: businessId,
+      document_id: documentId,
+      eway_bill_number: (response.ewbNo as string | undefined) ?? null,
+      valid_until: (response.validUpto as string | undefined) ?? null,
+      qr_code: (response.signedQRCode as string | undefined) ?? null,
+    })
+    .select()
+    .single();
+  if (insertError) throw insertError;
+  return row;
+}
+
+/** Cancels a previously generated e-way bill (real cancellation is only valid within 24
+ * hours of generation -- not enforced here, same reasoning as `cancelEinvoice`).
+ * Idempotent: cancelling an already-cancelled row just returns it. */
+export async function cancelEwayBill(businessId: string, documentId: string, reason?: string): Promise<EwayBill> {
+  const admin = createAdminClient();
+
+  const { data: existing, error: existingError } = await admin
+    .from("eway_bills")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("document_id", documentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) throw new Error("No e-Way Bill exists for this document.");
+  if (existing.status === "cancelled") return existing;
+
+  const { data: credentials, error: credentialsError } = await admin
+    .from("eway_bill_credentials")
+    .select("cancel_url, gsp_username, gsp_password, client_id, client_secret")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
+  if (!credentials) throw new Error("No e-Way Bill credentials configured for this business.");
+
+  await callGsp(credentials.cancel_url, credentials, {
+    ewbNo: existing.eway_bill_number,
+    cancelRsnCode: "1",
+    cancelRmrk: reason || "Cancelled",
+  });
+
+  const { data: row, error: updateError } = await admin
+    .from("eway_bills")
+    .update({ status: "cancelled", cancel_reason: reason ?? null, cancelled_at: new Date().toISOString() })
+    .eq("id", existing.id)
+    .select()
+    .single();
+  if (updateError) throw updateError;
+  return row;
 }

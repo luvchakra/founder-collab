@@ -8,3 +8,23 @@ export type EinvoiceCredentialsStatus = {
   cancel_url: string;
   updated_at: string;
 };
+
+/** A row in `gst.einvoices` -- one per `core.documents` row, ever (S-2's own
+ * generation-history table). `irn`/`ack_no`/`ack_date`/`qr_code` are null only for a row
+ * this schema never actually produces (every insert this module makes already has a
+ * successful GSP response in hand) -- typed nullable anyway since they're plain text
+ * columns with no not-null constraint. */
+export type Einvoice = {
+  id: string;
+  business_id: string;
+  document_id: string;
+  status: "generated" | "cancelled";
+  irn: string | null;
+  ack_no: string | null;
+  ack_date: string | null;
+  qr_code: string | null;
+  cancel_reason: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
