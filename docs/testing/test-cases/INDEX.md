@@ -23,6 +23,7 @@ file exists) · `Both` · `Partial` · `Not started`.
 | `crm` | [crm.md](test-cases/crm.md) | `test-crm-rls.mjs` | Partial | Deliberately thin — module is still a skeleton (S-1..S-3) |
 | `gst` | [gst.md](test-cases/gst.md) | `test-gst-credentials-rls.mjs`, `test-gst-generation-history-rls.mjs` | Both | Filing-generation workflow (success/failure/cancel) documented only |
 | Platform shell (non-module) | [platform-shell.md](test-cases/platform-shell.md) | `scripts/lint-import-boundaries.mjs` (+ its own test), `perf-check-tenant-license-rls.mjs` | Partial | UI/UX area — hold off on e2e until shell stops churning (see strategy §5) |
+| Menu / navigation smoke (all modules) | [menu-smoke.md](test-cases/menu-smoke.md) | `apps/web/tests/menu-routes.test.ts` | Both | **3 confirmed failing items**: 2 in `fsm` (missing route files) + 1 platform-wide licensing-filter gap that explains the reported CRM/GST 404s (sidebar shows unlicensed modules — confirmed against real dev-DB license data) — fix before next release |
 | Cross-cutting architecture rules | — | `lint-import-boundaries.mjs`, `lint-migration-schema.mjs` | Automated | Enforced in the `npm test`/CI path already; not duplicated here |
 
 ## How to add a new row

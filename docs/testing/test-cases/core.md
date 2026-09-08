@@ -10,11 +10,18 @@ behavior those scripts don't assert.
 **Feature:** `core.licenses` + `has_module()`/`has_module_write()` + route guard.
 **Priority:** P0 · **Story:** C-3, C-5
 **Steps:**
-1. Activate a license for a module the business doesn't have yet.
-2. Load that module's route in `proxy.ts`'s guard.
-3. Attempt a write action inside it.
-**Expected result:** Route resolves (was previously 404'd per the "don't advertise
-unlicensed routes" rule), write succeeds, and `has_module_write()` returns true.
+1. Attempt to load a module's route before activating its license — confirm what
+   the person sees.
+2. Activate a license for that module.
+3. Load the route again.
+4. Attempt a write action inside it.
+**Expected result (step 1, before activation):** Not a bare 404 — an informative
+page naming the module, stating it isn't licensed yet, and linking to
+`/dashboard/settings/licenses` to activate it (see `TC-MENU-LIC-002` for the full
+spec of this page; this case is the first place in the funnel it should appear —
+a prospective user's very first click into a module they haven't turned on yet).
+**Expected result (steps 3-4, after activation):** Route resolves normally, write
+succeeds, and `has_module_write()` returns true.
 
 ### TC-CORE-002: Cancelling a license starts the 30-day read-only grace, not immediate denial
 **Feature:** ADR-9's core guarantee.
@@ -23,7 +30,10 @@ unlicensed routes" rule), write succeeds, and `has_module_write()` returns true.
 1. Cancel an active license.
 2. Immediately attempt a read, then a write, in that module.
 **Expected result:** Read succeeds; write is denied. `core.license_events` records the
-cancellation with a timestamp the 30-day window is computed from.
+cancellation with a timestamp the 30-day window is computed from. The denied write
+shows a clear, specific message — "this module is cancelled and in its read-only
+grace period until [date]; reactivate to resume editing" — not a generic permission
+error, so the person understands this is a countdown, not a dead end.
 
 ### TC-CORE-003: Grace period expiry moves to full denial without deleting data
 **Feature:** ADR-9, second half.
@@ -34,7 +44,9 @@ cancellation with a timestamp the 30-day window is computed from.
 2. Attempt a read.
 3. Query the module's tables directly at the database level.
 **Expected result:** Read is denied (RLS, not just UI hiding). Rows still physically
-exist, untouched.
+exist, untouched. The denial itself is an informative page, not a bare 404/403 —
+naming the module, stating the grace period has ended, confirming the data is
+retained (not deleted), and linking to `/dashboard/settings/licenses` to reactivate.
 
 ### TC-CORE-004: Reactivation restores access and replays parked events
 **Feature:** ADR-9's reactivation guarantee, `core.domain_events` interaction.

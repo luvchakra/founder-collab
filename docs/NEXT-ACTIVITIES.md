@@ -111,6 +111,11 @@ than leaving indefinitely implicit:
 | FSM ↔ inventory (F-14) | `cancelJob()` never releases stock `reserveJobParts()` reserved on scheduling — `inventory.stock_levels.reserved` leaks permanently for any job cancelled instead of completed | `docs/testing/EXECUTION-2026-09-08.md` finding 2, from `TC-FSM-011` |
 | GST credentials | `gst.eway_bill_credentials`/`einvoice_credentials`'s `gsp_password`/`client_secret` are plaintext (access-control-only), unlike BYOK's app-level AES-256-GCM encryption — the migration's own comment already flags this as a known, deferred risk | `docs/testing/EXECUTION-2026-09-08.md` finding 3, from `TC-GST-001` |
 | Licensing enforcement (architecture doc) | `requireModule()`, named by `CLAUDE.md` as one of licensing's four required enforcement layers, doesn't exist anywhere in the codebase — ordinary in-module writes rely on RLS alone, with no app-layer license check of their own | `docs/testing/EXECUTION-2026-09-08.md` finding 4, from `TC-CORE-001` |
+| **Platform shell — sidebar entitlement filtering (P0, likely user-visible)** | `apps/web/app/(dashboard)/layout.tsx` passes the raw, unfiltered `moduleRegistry` into the shell — no `has_module`/license check anywhere in the sidebar/module-selector component tree. Every business sees all 5 modules regardless of actual licenses; likely explanation for a reported "CRM and GST menus lead to page not found" symptom, since `crm`/`gst` routes also have no license check of their own (only RLS protects them today) | `docs/testing/EXECUTION-2026-09-08.md` finding 5, from `TC-SHELL-002`/`TC-MENU-LIC-001`/`TC-MENU-LIC-002` |
+| **FSM — two nav items 404 (P0, user-visible)** | `fsm`'s own root/"Dashboard" nav item (`fsm/page.tsx`) and its "Customers" item (`fsm/customers/`) have no route on disk at all, despite the registry declaring both — confirmed by filesystem check and by the new automated test `apps/web/tests/menu-routes.test.ts` (2 expected-fail) | `docs/testing/EXECUTION-2026-09-08.md` finding 6, from `TC-MENU-FSM-001`/`TC-MENU-FSM-002` |
+| Platform shell — "not licensed" UX (new requirement, not built) | Reaching an unlicensed/cancelled/grace-expired module (via the sidebar bug above, a direct link, bookmark, or stale link) currently hits an undefined/bare-404 state. Test cases refined 2026-09-08 (uploaded revision) now spec a specific informative page instead: names the module, states the reason (not licensed / cancelled / grace period, sourced from `core.license_events`' real status), and links to `/dashboard/settings/licenses` to activate/reactivate — distinct from a genuine "this route never existed" 404. The licenses settings page itself should also state per-module status/grace-end-date/one-click activate clearly, since every one of these pages links back to it | `docs/testing/test-cases/{core,menu-smoke,platform-shell}.md` (`TC-CORE-001`/`002`/`003`, `TC-MENU-LIC-001`/`002`, `TC-SHELL-002`/`006`) |
+| GST/inventory (Epic 4/S-2) | Print/CSV-export panels on Sales Invoices — still open from the original credentials-schema slice's own deferral, independent of GST itself | `docs/EPIC6-PROGRESS.md` §S-2 "Deferred" |
+| Inventory (Epic 4) | Barcode/QR *scanning* (camera-integration) — SHOULD/LATER tier, never picked up; distinct from barcode/QR *label generation* and CSV *import*, both of which already exist (`components/products/barcode-label-dialog.tsx`, `lib/products/csv.ts`) | `docs/EPIC6-PROGRESS.md` §S-2 "Deferred" |
 
 ---
 
@@ -200,20 +205,27 @@ decision to build them next. Original recommended order preserved.
 (they're platform-wide primitives everything else benefits from), then 3–5, then P1's
 mobile pass (6) scoped as its own story per module.
 
-## 7. Pending: test-case documents (uploaded 2026-09-08)
+## 7. Test-case documents (uploaded 2026-09-08, four revisions, landed into the repo)
 
-A second upload provided manually-written, story-traced feature/workflow test-case
-markdown documents (`docs/testing/TESTING_STRATEGY.md` +
-`docs/testing/test-cases/{INDEX,core,crm,discovery,fsm,gst,inventory,platform-shell}.md`),
-authored against commit `4226905` (this repo's own `S-1` commit, since advanced). Per
-their own README, they're additive to — not a duplicate of — the existing
-`scripts/test-*-rls.mjs` suite: feature/workflow-level cases the automated suite doesn't
-cover (e.g. license grace-period expiry, GST filing generate/cancel, FSM parts-reservation
-handoff). `fsm` is flagged by the documents themselves as the highest-value next target
-for automation (largest module by story count, RLS-only coverage today).
+A sequence of uploads provided manually-written, story-traced feature/workflow
+test-case markdown documents, authored against commit `4226905` (this repo's own `S-1`
+commit, since advanced), each revising/extending the last:
+- **Rev 1-2:** `docs/testing/TESTING_STRATEGY.md` +
+  `docs/testing/test-cases/{INDEX,core,crm,discovery,fsm,gst,inventory,platform-shell}.md`
+  (rev 2 added `docs/UX-AUDIT.md`, tracked separately in §6) — additive to, not a
+  duplicate of, the existing `scripts/test-*-rls.mjs` suite.
+- **Rev 3:** added `docs/testing/test-cases/menu-smoke.md` + a real automated test,
+  `apps/web/tests/menu-routes.test.ts` — and reported 3 confirmed-failing menu items
+  (now in §3's table above: the sidebar license-filter bug and 2 `fsm` 404s).
+- **Rev 4:** refined `TC-CORE-001/002/003`, `TC-MENU-LIC-001/002`, and
+  `TC-SHELL-002/006` to spec an informative "not licensed" page instead of a bare
+  404/undefined state — a new, not-yet-built UX requirement, now in §3's table above.
 
-Status: being read and cross-checked against the live system in the current session
-(module by module); not yet committed into the repo. Whether to land
-`docs/testing/TESTING_STRATEGY.md` and `docs/testing/test-cases/*.md` into the repo
-proper (as their own README requests) is still an open call, separate from using them to
-verify current behavior.
+**Status: landed.** All of `docs/testing/TESTING_STRATEGY.md`,
+`docs/testing/test-cases/*.md` (including `menu-smoke.md`), and
+`apps/web/tests/menu-routes.test.ts` are committed into the repo and wired into
+`npm test --workspaces` (the new test: 29 passed, 2 expected-fail, confirming the two
+`fsm` 404s live). Execution results, including the two corrections rev 3 forced onto
+this session's own first pass, are in `docs/testing/EXECUTION-2026-09-08.md`. What's
+still genuinely pending (not yet built/fixed) from all four revisions is tracked in §3's
+table, not here.

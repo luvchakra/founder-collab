@@ -19,12 +19,15 @@ shows the old value, something reintroduced a hardcoded list.
 ### TC-SHELL-002: Sidebar only shows licensed modules for the current business
 **Feature:** Module-registry filtered by entitlements (CLAUDE.md's 4-layer licensing
 enforcement, UI layer).
-**Priority:** P0 · **Story:** C-5/C-6 + registry
+**Priority:** P0 · **Story:** C-5/C-6 + registry · **Status:** CONFIRMED FAILING —
+see `menu-smoke.md` TC-MENU-LIC-002 for the full root-cause writeup (confirmed
+against live `apps/web/app/(dashboard)/layout.tsx` and real dev-DB license data).
 **Steps:**
 1. License only `discovery` and `fsm` for a business.
 **Expected result:** Sidebar shows exactly those two module sections, not all five —
 consistent with the route guard (TC-CORE-001) also blocking direct navigation to the
-unlicensed ones.
+unlicensed ones, and showing the informative not-licensed page (module name, reason,
+link to Settings → Licenses) rather than a bare 404 if one is reached anyway.
 
 ### TC-SHELL-003: Onboarding flow provisions a business with sane defaults
 **Feature:** `925da73` — port onboarding flow.
@@ -58,7 +61,12 @@ content from either source repo.
 **Steps:**
 1. From the licenses admin UI, activate and then cancel a module license.
 **Expected result:** Matches TC-CORE-001/002's backend behavior exactly — the UI
-never shows a module as active when the backend has denied it, or vice versa.
+never shows a module as active when the backend has denied it, or vice versa. The
+licenses page itself is also where every "not licensed"/"in grace" informative page
+elsewhere in the app (TC-CORE-001/003, TC-MENU-LIC-001/002) links back to, so its own
+copy should state plainly, per module: current status, grace-period end date if
+applicable, and a one-click activate/reactivate action — this page is the resolution
+for every blocked state described elsewhere in this doc, not just a status table.
 
 ### TC-SHELL-007: Settings pages (profile, appearance, AI provider, billing, usage) all function post-port
 **Feature:** `535ed0c` — port account settings pages.

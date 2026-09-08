@@ -10,6 +10,14 @@ needed it, live SQL against the dev Supabase project. Cases needing a real brows
 session, real outbound email, or wall-clock time travel are marked **Not verified** below
 and left for the shell/e2e framework once it exists, or for manual QA.
 
+**Update, same day:** a second uploaded review added `docs/testing/test-cases/menu-smoke.md`
++ `apps/web/tests/menu-routes.test.ts` (a real automated test, now landed and wired into
+`npm test --workspaces`) and reported 3 confirmed-failing menu/navigation items,
+including one this doc's own first pass had wrongly marked passing. Findings 5 and 6
+below, and the correction to TC-SHELL-002 in `## P0 cases executed`, are from that
+second pass — independently re-verified against this repo's own source and the dev
+database, not taken on trust.
+
 ## Baseline
 
 - `npm run test:db` (all 21 chained scripts): **green**, exit 0. (Ran as the `postgres`
@@ -98,6 +106,40 @@ write), but a real gap against the architecture doc's own "all four required" fr
 worth either building the shared helper or correcting the doc to describe what's
 actually enforced.
 
+### 5. Sidebar shows every module regardless of license — corrects this doc's own earlier "Pass" verdict (P0) — TC-SHELL-002, TC-MENU-LIC-001/002
+A second uploaded review (`docs/testing/test-cases/menu-smoke.md`, landed same day as
+this correction) checked what this doc's first pass didn't: not just *how* nav items
+render once a module section is shown, but whether the *set of modules shown at all* is
+filtered by license. It isn't. Independently re-verified, not just taken on trust:
+`apps/web/app/(dashboard)/layout.tsx` passes the raw `moduleRegistry` straight through
+(`modules={moduleRegistry}`, no license query anywhere in that file) into
+`DashboardChrome` → `DashboardShell` → `AppSidebar`/`module-selector.tsx`; grepped the
+whole shell component tree and `apps/web/components/dashboard/*.tsx` for
+`has_module`/licensing logic — none exists, only a comment in `module-selector.tsx`
+describing intent ("carved out from the licensed modules in between") that the code
+never actually does. Confirmed against real dev-DB data (business "Aroma Adorn",
+`6a68ff2b-e7b5-4ee1-9c06-7f05cd66c776`, licensed for only `discovery`/`fsm`): the sidebar
+would show all 5 modules regardless. This is the most likely explanation for a
+previously-reported "CRM and GST menus lead to page not found" symptom — clicking into
+an unlicensed module reaches a route with undefined behavior instead of a clean block,
+since (also re-confirmed) `proxy.ts` still has no license logic of its own and
+`crm/page.tsx`/`gst/*/page.tsx` call only `getBusiness()`, never a license check. RLS is
+the only one of `CLAUDE.md`'s 4 enforcement layers actually protecting `crm`/`gst` today.
+**This doc's first pass (`## P0 cases executed, no gap found` below) wrongly marked
+TC-SHELL-002 "Pass" — it only checked TC-SHELL-001 (nav items sourced from the registry,
+which is true) and incorrectly extended that to entitlement filtering, which it never
+checked. TC-SHELL-001 stays Pass; TC-SHELL-002 is corrected to Fail here.**
+
+### 6. Two `fsm` nav items 404 — no route exists on disk (P0) — TC-MENU-FSM-001/002
+Confirmed by filesystem check (`ls apps/web/app/(dashboard)/dashboard/businesses/
+[businessId]/fsm/`: `invoices, jobs, my-day, opportunities, reports, schedule, settings`
+— no `page.tsx` at the `fsm` root and no `customers/` folder at all), and by the new
+automated test `apps/web/tests/menu-routes.test.ts` (landed same commit; 29 passed, 2
+expected-fail for exactly these two). `fsm`'s root nav item ("Dashboard," `slug: ""`) and
+its "Customers" item both point at routes that were never built, despite the registry
+declaring them — the module's own root route, its single highest-visibility nav item,
+404s.
+
 ## P0 cases executed, no gap found
 
 - **TC-CORE-005** (`requirePermission()` blocks a server action) — real, exists
@@ -121,11 +163,13 @@ actually enforced.
 - **TC-INVENTORY-010** / **TC-GST-004** (inventory never imports `module-gst` internals) —
   grepped `module-inventory/src` for any `module-gst` import outside `contract/`: none.
   `lint:boundaries` (655 files) confirms platform-wide. Pass.
-- **TC-SHELL-001/002** (sidebar sourced from `module-registry`, filtered by
-  entitlements) — code-verified against this session's own earlier sidebar-nav commit
+- **TC-SHELL-001** (sidebar's nav *items* sourced from `module-registry`, never
+  hardcoded) — code-verified against this session's own earlier sidebar-nav commit
   (`packages/core/src/components/shell/app-sidebar.tsx`'s `ModuleContent` driven by
-  `navGroups`/`routePrefix` props, no hardcoded nav consts remain) and the licensing
-  route guard above. Pass.
+  `navGroups`/`routePrefix` props, no hardcoded nav consts remain). Pass. **TC-SHELL-002
+  (which module *sections* appear at all, filtered by entitlements) is a separate claim
+  this doc originally lumped in here without separately checking — see Finding 5 above,
+  corrected to Fail.**
 - **TC-SHELL-009** (boundary lint fixture) — see Baseline above. Pass.
 - **TC-CRM-004**, **TC-GST-005** — already continuously exercised by `test-crm-rls.mjs`
   and the `requireLicensed()`/`MODULE_NOT_LICENSED` pattern in every `module-gst`
