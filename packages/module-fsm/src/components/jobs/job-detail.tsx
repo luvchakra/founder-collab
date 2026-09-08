@@ -65,6 +65,7 @@ export function JobDetail({
   reopenAction,
   duplicateAction,
   convertToOpportunityAction,
+  invoiceAction,
   clockInAction,
   clockOutAction,
   addExpenseAction,
@@ -105,6 +106,7 @@ export function JobDetail({
   reopenAction: () => Promise<void>;
   duplicateAction: () => Promise<{ id: string }>;
   convertToOpportunityAction: () => Promise<{ id: string }>;
+  invoiceAction: () => Promise<{ id: string }>;
   clockInAction: () => Promise<void>;
   clockOutAction: () => Promise<void>;
   addExpenseAction: (description: string, amount: number) => Promise<void>;
@@ -204,6 +206,14 @@ export function JobDetail({
               onClick={() => navigate(duplicateAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/jobs/${id}`)}
             >
               Duplicate
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => navigate(invoiceAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/invoices/${id}`)}
+            >
+              Invoice
             </Button>
             {canConvertToOpportunity ? (
               <Button

@@ -16,7 +16,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-5 | Done | Jobs |
 | F-6 | Done | Scheduling |
 | F-7 | Done | Field execution |
-| F-8 | Not started | Invoicing |
+| F-8 | Done | Invoicing |
 | F-9 | Not started | Reminders |
 | F-10 | Not started | Customer Center + contact form |
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
@@ -650,3 +650,121 @@ build --workspace=apps/web` succeeds (the new `/fsm/my-day` route compiles and
 registers alongside the existing job routes); Supabase security advisor shows no new
 findings; live end-to-end verification against the dev Supabase project as described
 above.
+
+## F-8 -- Invoicing
+
+**No new migration.** No new tables (an invoice is a `core.documents` row with
+`doc_type='invoice'`, same as an estimate is `doc_type='estimate'`; payments reuse
+`core.payments`/`payment_allocations`/`document_balances` from D-7, already fully built
+with zero FSM-specific schema) and no new permissions -- `invoices.create`/
+`invoices.edit`/`invoices.cancel` already exist in `core.permissions`, seeded by
+`inventory`'s own migration (`20260906097000_core_permissions.sql`) for its sales-invoice
+flow. Permission keys are role-capability checks, not module-ownership checks -- `core`
+owns `documents`/`payments` for every module, so FSM reuses the same three keys for the
+same underlying concept rather than minting `fsm`-prefixed duplicates. All three are
+granted to owner/admin (the seeded cross join) and to `accountant`/`sales_manager`
+(`invoices.create` only for the latter) exactly as they already were.
+
+`packages/module-fsm/src/lib/invoices/{types,queries,mutations}.ts` +
+`components/invoices/{invoice-editor,invoices-list,public-invoice-view}.tsx` + three new
+routes (`/fsm/invoices` list, `/fsm/invoices/[invoiceId]` detail, `/p/i/[token]` public --
+the first two already linked from `SERVICE_NAV`'s "Billing" group since F-1). Notable
+decisions:
+
+- **Charge-line mutations are reused verbatim from `estimates/mutations.ts`**
+  (`addChargeLine`/`updateChargeLine`/`deleteChargeLine`/`reorderChargeLines`), re-exported
+  from `invoices/mutations.ts` rather than duplicated -- all four were already generic
+  over any `core.documents` id, nothing about them was actually estimate-specific (F-3's
+  own naming just reflects where they were first written). Same reuse for
+  `listEstimateLines` (aliased `listInvoiceLines` in `invoices/queries.ts`) and the
+  now-exported `recomputeAndPersistTotals` (was estimates-private, now shared).
+- **One invoice per job, generated once then edited in place** (PRD §1.4's own model) --
+  `getOrCreateInvoiceForJob()` is idempotent (`core.documents` filtered by
+  `source_ref->>'job_id'`) and copies an approved estimate's charge lines in as a starting
+  point when the job came from one; a job created directly (no opportunity, F-5) or an
+  estimate that was never approved starts with an empty invoice, so the invoice editor
+  is the only charge-line UI such a job ever gets -- closing the gap F-7 deliberately
+  left open ("Charges are deliberately not repeated here" was true only for
+  opportunity-sourced jobs). Copied lines are recomputed fresh via
+  `recomputeAndPersistTotals`, never trusting the estimate's already-computed GST split
+  for what is now a second, independent financial document.
+- **Status machine**: `draft -> issued -> sent -> viewed -> partially_paid/paid`, plus
+  `voided` reachable from any non-draft state. `issueInvoice()` mints a real number via
+  `core.next_number(scope='invoice')` -- the same scope `inventory`'s own sales invoices
+  already use (F-1's own note: GST needs one continuous invoice sequence per business
+  regardless of which module issued it). `sendInvoice()` auto-issues a draft first
+  (sending necessarily makes it real), generates a 90-day tokenised portal link
+  (`fsm.portal_tokens`, scope `'invoice'`, same table F-4 already uses for estimates), and
+  emails it via the same Resend pattern as `sendEstimate`/`notifyOnTheWay`.
+- **`markInvoiceViewed()`** flips `sent -> viewed` on the public page's first load,
+  mirroring `markEstimateViewed`; safe to call on every load since it's conditioned on
+  the current status.
+- **Payments reuse D-7 as-is**: `recordManualPayment()` calls `core.payments`'
+  `recordPayment`+`allocatePayment`, then `syncInvoiceStatusFromBalance()` reads
+  `core.document_balances` (a `security_invoker` view, already tenant-safe) to advance
+  `issued/sent/viewed -> partially_paid -> paid`, never touching `voided`. Added
+  `listPaymentsForDocument()` to `core/payments/queries.ts` (new, but framework-agnostic
+  and generic over any document id -- not FSM-specific) so the invoice screen can show a
+  payment history table without owning payment data itself.
+- **`markInvoicePaid`/`markInvoiceUnpaid`** are a manual override distinct from the
+  payment-driven sync -- PRD §2 lists "mark paid/unpaid" as its own bullet alongside
+  "record manual payment", matching Kickserv's own UI (a manual toggle for money received
+  outside the system, or correcting a mistake). `markInvoiceUnpaid` always reverts to
+  `issued` regardless of prior sent/viewed history -- a documented simplification, not a
+  silently dropped case.
+- **Voiding is a credit note, never deletion** (PRD §1.4/§4, GST's own audit-trail
+  requirement) -- `voidInvoiceViaCreditNote()` inserts a header-only `core.documents` row
+  (`doc_type='credit_note'`, no per-line detail, unlike `inventory.create_credit_note()`'s
+  fuller version, which FSM can't call anyway: it lives in the `inventory` schema, a
+  module-boundary violation) and flips the invoice to `voided`. Confirmed live (see
+  below) that `core.recompute_document_totals()` only fires on `document_lines`
+  changes or on `core.documents` UPDATE of `discount_amount`/`shipping_amount` -- never on
+  `documents` INSERT -- so this header-only insert's manually-set totals are safe from
+  being zeroed out by the trigger.
+- **`completeJob()` (`lib/jobs/mutations.ts`) now auto-generates a draft invoice** when
+  `fsm.settings.auto_invoice_on_complete` is on (PRD §4), via the same
+  `getOrCreateInvoiceForJob()` the invoice screen itself uses -- best-effort (a completed
+  job shouldn't be blocked by invoice-generation failing; the invoice screen's own
+  "Invoice" button is always there to retry). No `fsm.settings` row exists yet for any
+  business (F-15 builds the settings screens) -- the query defaults to `false`/skip when
+  the row is missing, matching the column's own DB default.
+- **Job detail gets an "Invoice" button** (next to Duplicate/Convert-to-opportunity),
+  gated on `invoices.create`, calling the same idempotent `getOrCreateInvoiceForJob()`
+  and navigating to `/fsm/invoices/[invoiceId]` -- same `navigate()` pattern already used
+  for Duplicate and Convert-to-opportunity.
+- **No online payment link** on the public invoice page -- PRD §2 lists it as an explicit
+  SHOULD/LATER item; `/p/i/[token]` is read-only (balance due, line items), same
+  "preview shows the exact customer-facing page" scope as the public estimate page minus
+  its approve/decline actions (there's nothing to approve on an invoice).
+
+No new SQL-level test file: the only new SQL surface is entirely `core.documents`/
+`core.payments` rows with existing `doc_type`/status values (no new check constraints,
+no new columns) -- already-existing coverage (`scripts/test-fsm-rls.mjs`'s tenant
+isolation on `core.documents`, D-7's own payment tests) applies unchanged.
+`scripts/test-discovery-rls.mjs`'s permission-count assertion stays at 41 (no permissions
+added).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: created a job, inserted a draft invoice document, added a charge line and
+confirmed `core.recompute_document_totals()` summed it into the header (total = qty *
+price + GST), issued the invoice, recorded a partial manual payment and confirmed
+`core.document_balances` reflects `paid_amount`/`balance_amount` correctly, inserted a
+header-only credit note document and confirmed its manually-set `total_amount` was
+**not** overwritten by the recompute trigger (the exact safety property
+`voidInvoiceViaCreditNote()` depends on), and voided the invoice -- no assertion
+failures, zero residue after rollback. `core.next_number()` itself (unchanged,
+already-proven infra from F-4/F-5) was not re-exercised live since it requires an
+authenticated session the SQL-editor context doesn't have; literal test numbers were
+used in its place for the rest of the flow. The Resend email send in `sendInvoice()` and
+the invoice editor's browser interactions were **not** exercised in an actual browser in
+this environment, same documented gap as F-4/F-7's own email-sending and canvas/upload
+UI.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (35 migrations,
+unchanged); full `test:db` suite green (permission count still 41); `npm run build
+--workspace=apps/web` succeeds (the three new invoice routes compile and register
+alongside the existing job/opportunity routes); Supabase security advisor shows no new
+findings (same seven pre-existing `rls_enabled_no_policy` infos and 47 pre-existing
+`function_search_path_mutable` warnings from `inventory`'s own compat-view triggers, none
+introduced here); live end-to-end verification against the dev Supabase project as
+described above.

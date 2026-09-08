@@ -26,6 +26,31 @@ export async function listAllocationsForPayment(paymentId: string): Promise<Paym
   return data;
 }
 
+/** A document's own payment history -- joined in JS from `payment_allocations` (the
+ * per-document slice) to `payments` (the actual method/reference/notes), same
+ * no-PostgREST-embed pattern every list query in this platform uses. Generic over any
+ * `core.documents` id, so any module's invoice screen can show "who paid what, when"
+ * without owning payment data itself. */
+export async function listPaymentsForDocument(documentId: string): Promise<(Payment & { allocated_amount: number })[]> {
+  const supabase = await coreClient();
+  const { data: allocations, error: allocError } = await supabase
+    .from("payment_allocations")
+    .select("payment_id, amount")
+    .eq("document_id", documentId);
+  if (allocError) throw allocError;
+  if (allocations.length === 0) return [];
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from("payments")
+    .select("*")
+    .in("id", allocations.map((a) => a.payment_id))
+    .order("payment_date", { ascending: false });
+  if (paymentsError) throw paymentsError;
+
+  const allocatedByPaymentId = new Map(allocations.map((a) => [a.payment_id, Number(a.amount)]));
+  return payments.map((p) => ({ ...p, allocated_amount: allocatedByPaymentId.get(p.id) ?? 0 }));
+}
+
 export async function getDocumentBalance(documentId: string): Promise<DocumentBalance | null> {
   const supabase = await coreClient();
   const { data, error } = await supabase

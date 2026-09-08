@@ -1,6 +1,7 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { resolveCustomerPartyId } from "../opportunities/mutations";
+import { getOrCreateInvoiceForJob } from "../invoices/mutations";
 import type { CreateJobInput, Job, UpdateJobInput } from "./types";
 
 function coreClient() {
@@ -85,11 +86,20 @@ export async function resumeJob(id: string, businessId: string): Promise<void> {
   await transition(id, businessId, ["on_hold"], { status: "in_progress", on_hold_reason: null });
 }
 
-/** `in_progress|on_hold -> completed`. The PRD's own "prompts invoice generation per
- * auto_invoice_on_complete" is F-8 (Invoicing)'s responsibility, not built yet -- the
- * status transition itself is still useful on its own, so it isn't blocked on that. */
+/** `in_progress|on_hold -> completed`. When `fsm.settings.auto_invoice_on_complete` is
+ * on (PRD §4), this also generates the job's invoice (still a draft -- "generation" per
+ * the settings flag, not sending) via the same idempotent `getOrCreateInvoiceForJob`
+ * the invoice screen itself uses; best-effort, since a completed job shouldn't be
+ * blocked by an invoice-generation failure the user can always retry from the invoice
+ * screen. */
 export async function completeJob(id: string, businessId: string): Promise<void> {
   await transition(id, businessId, ["in_progress", "on_hold"], { status: "completed", completed_at: new Date().toISOString() });
+
+  const fsm = await createClient();
+  const { data: settings } = await fsm.from("settings").select("auto_invoice_on_complete").eq("business_id", businessId).maybeSingle();
+  if (settings?.auto_invoice_on_complete) {
+    await getOrCreateInvoiceForJob(businessId, id).catch(() => {});
+  }
 }
 
 export async function cancelJob(id: string, businessId: string): Promise<void> {

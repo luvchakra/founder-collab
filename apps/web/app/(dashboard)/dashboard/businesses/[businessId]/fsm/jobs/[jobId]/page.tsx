@@ -23,6 +23,7 @@ import {
   deleteExpenseAction,
   deleteJobAttachmentAction,
   duplicateJobAction,
+  getOrCreateInvoiceAction,
   holdJobAction,
   markJobScheduledAction,
   removeJobTagAction,
@@ -108,6 +109,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       reopenAction={reopenJobAction.bind(null, businessId, jobId)}
       duplicateAction={duplicateJobAction.bind(null, businessId, jobId)}
       convertToOpportunityAction={convertJobToOpportunityAction.bind(null, businessId, jobId)}
+      invoiceAction={getOrCreateInvoiceAction.bind(null, businessId, jobId)}
       clockInAction={clockInAction.bind(null, businessId, jobId)}
       clockOutAction={clockOutAction.bind(null, businessId, jobId)}
       addExpenseAction={addExpenseAction.bind(null, businessId, jobId)}

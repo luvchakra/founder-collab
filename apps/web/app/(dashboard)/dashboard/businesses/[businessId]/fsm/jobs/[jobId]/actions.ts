@@ -15,6 +15,7 @@ import {
   updateJob,
 } from "@cofounderai/module-fsm/lib/jobs/mutations";
 import { getJob, jobHasInvoice } from "@cofounderai/module-fsm/lib/jobs/queries";
+import { getOrCreateInvoiceForJob } from "@cofounderai/module-fsm/lib/invoices/mutations";
 import { addWorkTag, removeWorkTag } from "@cofounderai/module-fsm/lib/tags/mutations";
 import { setCustomFieldValue } from "@cofounderai/module-fsm/lib/custom-fields/mutations";
 import { clockIn, clockOut } from "@cofounderai/module-fsm/lib/time-entries/mutations";
@@ -111,6 +112,15 @@ export async function convertJobToOpportunityAction(businessId: string, jobId: s
   const job = await getJob(businessId, jobId);
   if (!job) throw new Error("Job not found.");
   const id = await convertJobToOpportunity(job, businessId);
+  return { id };
+}
+
+/** "Generate invoice" from the job header -- idempotent (returns the existing invoice
+ * if one already exists), gated on `invoices.create` rather than `jobs.edit` since
+ * generating an invoice is a billing action, not a job-editing one. */
+export async function getOrCreateInvoiceAction(businessId: string, jobId: string): Promise<{ id: string }> {
+  await requirePermission(businessId, "invoices.create");
+  const id = await getOrCreateInvoiceForJob(businessId, jobId);
   return { id };
 }
 

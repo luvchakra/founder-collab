@@ -56,7 +56,11 @@ export async function getOrCreateEstimate(businessId: string, opportunity: Oppor
  * purchase-orders/mutations.ts#computeTotals, adapted to write back to `core.documents`
  * directly instead of returning to an insert-time caller, since a charge line can be
  * added/edited/removed at any point after the estimate document already exists. */
-async function recomputeAndPersistTotals(businessId: string, estimateId: string): Promise<void> {
+/** Exported (not just estimates-internal) so `invoices/mutations.ts#getOrCreateInvoiceForJob`
+ * can call it once after bulk-copying an approved estimate's lines into a new invoice
+ * document -- it's already generic over any `core.documents` id, nothing here is
+ * actually estimate-specific. */
+export async function recomputeAndPersistTotals(businessId: string, estimateId: string): Promise<void> {
   const core = await coreClient();
 
   const { data: doc, error: docError } = await core
