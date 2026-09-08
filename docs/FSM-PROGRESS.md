@@ -491,17 +491,33 @@ failing.** Discovered while checking on the platform's deployment health -- F-2 
 F-5 (four consecutive deploys) all failed at `next build` with `Module not found` errors
 for files (`@cofounderai/module-fsm/lib/tags/queries`, `.../components/jobs/job-detail`,
 etc.) that genuinely exist in the repo and build cleanly with a local `npm run build
---workspace=apps/web` on the exact same commit. Root cause, confirmed from Vercel's own
-build logs: every one of those deploys shows `Restored build cache from previous
-deployment (9KzwN24H...)` -- the last-*successful* build, which was F-1, before any of
-these files existed. Next.js 16 turns on Turbopack's persistent build-time filesystem
-cache by default (`experimental.turbopackFileSystemCacheForBuild`), and it isn't
-invalidating correctly across separate deployment machines when new files land inside an
-npm-workspace-symlinked package while the lockfile itself is unchanged (true for every
-one of F-2 through F-5 -- none added an external dependency) -- so every subsequent
-deploy kept restoring that same stale, pre-F-2 cache and failing the identical way, since
-a build has never succeeded again to produce a fresh one. Fixed by setting
-`experimental.turbopackFileSystemCacheForBuild: false` in `apps/web/next.config.ts`
-(`next dev`'s own filesystem cache is untouched) -- confirmed with a fresh local
-`npm run build --workspace=apps/web` afterward. This fix and F-6 are in the same PR since
-the app was never actually reachable on production for four full stories otherwise.
+--workspace=apps/web` on the exact same commit. Two wrong turns before the real cause,
+left here because they're worth knowing weren't it:
+
+1. First guess -- a stale Turbopack build cache: every failed deploy's log showed
+   `Restored build cache from previous deployment (9KzwN24H...)`, the last-*successful*
+   build (F-1), before these files existed. Disabling
+   `experimental.turbopackFileSystemCacheForBuild` didn't fix it -- the very next deploy's
+   log showed the option correctly taking effect and *still* failed identically.
+2. Second guess -- a stale `node_modules`: pinned `apps/web/vercel.json`'s
+   `installCommand` to `npm ci` (always wipes and reinstalls from the lockfile). The next
+   deploy's log showed a genuine "added 603 packages" fresh install, and it *still*
+   failed identically -- ruling out caching of any kind. A local `npm ci` +
+   `npm run build --workspace=apps/web` from a wiped `node_modules` succeeds, so it isn't
+   reproducible off Vercel either.
+
+**Actual root cause:** this Vercel project's Root Directory is `apps/web` -- a sibling
+of `packages/*`, not their parent. Turbopack determines its own project root (separately
+from where Vercel runs `next build`) by walking up from the working directory looking for
+a lockfile; `turbopack.root`'s own doc comment is explicit that "only files above this
+directory can be resolved by turbopack." Left unset, this apparently resolves
+differently under Vercel's `vercel build` wrapper than under a plain local
+`next build` from the same working directory -- explaining both why every deploy failed
+identically regardless of caching, and why it was never reproducible locally. Fixed by
+setting `turbopack: { root: path.join(__dirname, "..", "..") }` in
+`apps/web/next.config.ts`, pointing explicitly at the real monorepo root two directories
+up -- confirmed with a fresh local `npm run build --workspace=apps/web` afterward (the
+`turbopackFileSystemCacheForBuild: false` and `npm ci` changes stayed in as harmless,
+reasonable hardening, but neither was the actual fix). This fix and F-6 are in the same
+PR since the app was never actually reachable on production for four full stories
+otherwise.

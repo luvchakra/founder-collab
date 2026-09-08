@@ -1,20 +1,23 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@cofounderai/core", "@cofounderai/module-registry"],
   // Every production deploy since F-1 (F-2 through F-5) has failed on Vercel with
   // "Module not found" for files that genuinely exist in the checkout and build fine
-  // locally -- confirmed via Vercel's own build logs, which show "Restored build cache
-  // from previous deployment" reusing the last-successful (F-1) build's Turbopack
-  // persistent cache every time, before any new file added in a later commit inside a
-  // workspace-symlinked package (e.g. packages/module-fsm/src/lib/tags/) ever gets
-  // resolved. Turbopack's build-time filesystem cache (on by default in Next.js 16) is
-  // the culprit: it doesn't reliably invalidate across separate deployment machines when
-  // new files land inside an npm-workspace-symlinked package but the lockfile itself is
-  // unchanged. Disabling it trades a slightly slower Vercel build for correctness -- dev
-  // (`next dev`)'s own filesystem cache is untouched.
-  experimental: {
-    turbopackFileSystemCacheForBuild: false,
+  // locally with a plain `npm run build --workspace=apps/web`, on the exact same
+  // commit -- confirmed on this repo's Vercel project, which has Root Directory set to
+  // `apps/web` (a sibling of `packages/*`, not their parent). Ruled out along the way:
+  // a stale Turbopack/npm build cache (a from-scratch `npm ci` install still reproduced
+  // it identically). The actual cause is Turbopack's own project-root detection
+  // (`turbopack.root`, "only files above this directory can be resolved by turbopack"):
+  // when `next build`'s cwd is a subdirectory of the real monorepo root, Turbopack must
+  // be told the root explicitly in a workspace layout like this one, or it can pick a
+  // root that excludes the sibling `packages/*` workspace packages entirely -- exactly
+  // reproducing "can't resolve `@cofounderai/module-fsm/...`" for every subpath, on
+  // every deploy, regardless of caching.
+  turbopack: {
+    root: path.join(__dirname, "..", ".."),
   },
 };
 
