@@ -11,7 +11,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 |---|---|---|
 | F-1 | Done | `fsm` schema DDL |
 | F-2 | Done | Opportunities |
-| F-3 | Not started | Estimates |
+| F-3 | Done | Estimates |
 | F-4 | Not started | Public estimate page + send + approve/decline |
 | F-5 | Not started | Jobs |
 | F-6 | Not started | Scheduling |
@@ -148,3 +148,67 @@ Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full
 suite green (including the updated permission-count assertion); `npm run build
 --workspace=apps/web` succeeds (both new routes compile and register); live end-to-end
 verification against the dev Supabase project as described above.
+
+## F-3 -- Estimates
+
+Two small migrations. `20260908030000_core_document_lines_job_charge_type.sql` adds a
+bare `job_charge_type_id uuid` column (no FK) to `core.document_lines` -- CLAUDE.md's
+cross-schema-FK-only-into-`core` rule means a `core` table can't formally reference an
+`fsm`-schema table, so this follows the same bare-uuid, app-validated pattern already used
+by `inventory.alerts.entity_id` and `fsm.opportunities.source_prospect_id`.
+`20260908040000_fsm_estimates_permissions.sql` adds `estimates.edit` (module `fsm`),
+granted to `owner`/`admin` only -- a distinct key from `opportunities.edit` because
+Kickserv's own permission matrix (PRD §12) separates "Job charges" from "Jobs" as
+categories, so a future finer-grained role (e.g. an estimator) could get one without the
+other.
+
+`packages/module-fsm/src/lib/{job-charge-types,estimates}/` +
+`components/estimates/estimate-builder.tsx`, wired into the existing opportunity detail
+page/actions rather than a new route. Notable decisions:
+- **One estimate per opportunity.** The PRD's "multiple estimate options (good/better/
+  best)" is explicitly a SHOULD/LATER item, not MUST -- `getOrCreateEstimate()` finds or
+  lazily creates a single `core.documents` row (`doc_type='estimate'`,
+  `source_module='fsm'`, `source_ref={opportunity_id}`) the first time a charge line is
+  added. Before that, the opportunity detail page shows the builder with no estimate yet
+  (`estimate: Estimate | null`) rather than pre-creating an empty draft document for every
+  opportunity.
+- **Ad-hoc charges are inline `core.items` creation, not a separate concept.**
+  `document_lines.item_id` is `NOT NULL` and shared with `inventory`, so "ad-hoc" (the
+  PRD's own term) just means creating a new `core.items` row (`kind='service'`) on the
+  fly rather than picking an existing catalog item -- matches the entity-ownership map's
+  "Kickserv's Items, StockPilot's products, and FSM charge items are one `core.items`
+  table."
+- **Tax computed server-side**, reusing `@cofounderai/core/lib/gst.ts`'s
+  `computeLineGst`/`aggregateGst`/`resolveStateCode` (the same functions
+  `module-inventory`'s purchase-orders already use) from the business's own
+  `core.business_settings` (seller gstin/state) and the customer's `core.tax_identities`
+  (buyer gstin/state) -- never trusting a client-supplied tax amount for a financial
+  document. Every add/update/delete of a charge line triggers a full recompute of that
+  line's CGST/SGST/IGST split plus the estimate document's aggregated totals.
+- **Reorder via up/down buttons**, not drag-and-drop -- satisfies the PRD's "reorderable
+  by drag handle" requirement's actual effect (explicit, persisted ordering) without
+  adding a new DnD dependency (CLAUDE.md principle 2).
+- `inr` (the existing `Intl.NumberFormat` instance in `@cofounderai/core/lib/format.ts`,
+  already used by `module-inventory`'s dashboard/products views) is reused for currency
+  display -- no new `formatCurrency` export was added.
+
+Existing test `scripts/test-discovery-rls.mjs` hardcoded the exact size of
+`core.permissions` (33) -- bumped to 34 for `estimates.edit`, same recurring update
+pattern as F-2.
+
+No new SQL-level test file: the two migrations add a nullable column and two
+permission-catalog rows, both already covered by the updated count assertion and by
+`core.document_lines`' own pre-existing RLS test from D-6. The actual estimate-building
+flow was live-verified end-to-end against the dev Supabase project inside one
+self-cleaning (rolled-back) transaction as the authenticated business owner: create an
+opportunity, lazily create its estimate, add an existing-catalog-item charge line and an
+ad-hoc charge line, confirm the GST split is correct for an interstate (seller
+Maharashtra, buyer Delhi -- IGST-only) customer, update a line's quantity and confirm the
+recompute, reorder lines, delete a line and confirm the remaining total, and confirm the
+`estimates.edit` permission-catalog wiring (key present, granted to exactly
+owner+admin) -- no assertion failures, zero residue after rollback.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full `test:db`
+suite green (including the updated permission-count assertion); `npm run build
+--workspace=apps/web` succeeds; Supabase security advisor shows no new findings; live
+end-to-end verification against the dev Supabase project as described above.

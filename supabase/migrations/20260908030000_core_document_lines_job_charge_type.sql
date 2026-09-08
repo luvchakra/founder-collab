@@ -1,0 +1,12 @@
+-- Epic 5, story F-3: Estimates. PRD §3 lists `core.document_lines (with
+-- job_charge_type_id, taxable, sort_order)` as an FSM dependency -- `taxable`/
+-- `sort_order` already exist (D-6); only `job_charge_type_id` is new.
+--
+-- Bare uuid, no FK -- `fsm.job_charge_types` lives in FSM's own schema, and CLAUDE.md
+-- non-negotiable #1 restricts cross-schema FKs to point only INTO `core`, never out of
+-- it into a module schema. Same precedent as `fsm.opportunities.source_prospect_id`
+-- (F-1) and `inventory.alerts.entity_id`: a polymorphic/cross-module reference,
+-- validated in application code, not by the database. Purely additive and nullable --
+-- inventory's own existing document_lines rows are untouched (they simply have no
+-- charge-type classification, which is meaningless for their own doc_types anyway).
+alter table core.document_lines add column job_charge_type_id uuid;

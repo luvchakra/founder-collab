@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { markOpportunityLost, reopenLostOpportunity, updateOpportunity } from "@cofounderai/module-fsm/lib/opportunities/mutations";
+import { getOpportunity } from "@cofounderai/module-fsm/lib/opportunities/queries";
 import { addWorkTag, removeWorkTag } from "@cofounderai/module-fsm/lib/tags/mutations";
 import { setCustomFieldValue } from "@cofounderai/module-fsm/lib/custom-fields/mutations";
+import { addChargeLine, deleteChargeLine, getOrCreateEstimate, reorderChargeLines, updateChargeLine } from "@cofounderai/module-fsm/lib/estimates/mutations";
+import type { AddChargeLineInput, UpdateChargeLineInput } from "@cofounderai/module-fsm/lib/estimates/types";
 
 const TAGGABLE_TYPE = "opportunity";
 
@@ -55,5 +58,50 @@ export async function setOpportunityCustomFieldAction(
 ): Promise<void> {
   await requirePermission(businessId, "opportunities.edit");
   await setCustomFieldValue(businessId, fieldDefId, opportunityId, value);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+/** Lazily creates the opportunity's draft estimate document the first time a charge is
+ * added -- there's nothing to show on the detail page until then. */
+export async function addEstimateChargeLineAction(businessId: string, opportunityId: string, input: AddChargeLineInput): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  const opportunity = await getOpportunity(businessId, opportunityId);
+  if (!opportunity) throw new Error("Opportunity not found.");
+  const estimateId = await getOrCreateEstimate(businessId, opportunity);
+  await addChargeLine(businessId, estimateId, input);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+export async function updateEstimateChargeLineAction(
+  businessId: string,
+  estimateId: string,
+  opportunityId: string,
+  lineId: string,
+  patch: UpdateChargeLineInput,
+): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await updateChargeLine(businessId, estimateId, lineId, patch);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+export async function deleteEstimateChargeLineAction(
+  businessId: string,
+  estimateId: string,
+  opportunityId: string,
+  lineId: string,
+): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await deleteChargeLine(businessId, estimateId, lineId);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+export async function reorderEstimateChargeLinesAction(
+  businessId: string,
+  estimateId: string,
+  opportunityId: string,
+  orderedLineIds: string[],
+): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await reorderChargeLines(estimateId, orderedLineIds);
   revalidatePath(detailPath(businessId, opportunityId));
 }
