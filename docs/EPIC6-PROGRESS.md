@@ -11,7 +11,7 @@ and `docs/NEXT-ACTIVITIES.md` for the survey that produced this epic's sequencin
 | S-1 | Done | `crm` module skeleton |
 | S-2 | Mostly done | GST module already more built-out than "skeleton"; generation-history tables + `document.issued` consumer now built too -- remaining scope below |
 | S-3 | Done | `core.threads`/`messages`/`message_templates` |
-| S-4 | Not started | Promote `ai_runs`/`ai_provider_credentials`/`usage_events` to `core` |
+| S-4 | Done | `core.ai_runs`/`ai_provider_credentials` (forward-only, not a literal promotion -- see below) |
 | S-5 | Not started | Platform dashboard from module-contributed widgets |
 
 Also unblocked and shipped by S-3 (an Epic 5 story, not part of Epic 6 itself, but tracked
@@ -324,3 +324,77 @@ migrations); full `test:db` suite green (including the new
 `test-core-messages-rls.mjs`); `npm run build --workspace=apps/web` succeeds; Supabase
 security advisor shows no new findings; live end-to-end verification against the dev
 Supabase project as described above.
+
+## S-4 -- `core.ai_runs` + `core.ai_provider_credentials`
+
+**Same live-source-wins decision this platform already made for `core.messages` (S-3),
+applied to a second, structurally identical case.** The backlog's own line ("promote
+`ai_runs`/`ai_provider_credentials`/`usage_events` to `core`") reads as if discovery's
+existing tables should migrate in place. Two things make that the wrong move, both
+confirmed by direct inspection rather than assumed:
+
+1. `discovery.ai_runs`/`ai_provider_credentials` are `workspace_id`/`account_id`-keyed
+   (discovery's own tenancy grain, ADR-4) -- CLAUDE.md's own non-negotiable says
+   `business_id` is the operational tenant for fsm/inventory/crm/gst. Forcing
+   `business_id` onto a working, tested, workspace-scoped ledger (with its own
+   cache-lookup index keyed on `workspace_id`) for zero current benefit -- confirmed by
+   grep that no other module calls an LLM at all yet -- is exactly the kind of change
+   CLAUDE.md principle 10 says not to make without an explicit reason. `discovery`'s own
+   tables and every one of its callers (`getWorkspaceUsage`/`getBusinessUsage`/
+   `connectAiProvider`/etc.) are completely untouched.
+2. **`usage_events` does not exist anywhere in this codebase, in any migration, ever.**
+   Confirmed by grep across every migration and every package. It is aspirational text
+   in `00-MASTER-PLAN.md` §5/§6 only. There is nothing to "promote" -- inventing a schema
+   for it now with no real caller would be exactly the speculative-functionality
+   CLAUDE.md's development principles warn against. Not built; flagged here as a
+   live-source discrepancy rather than silently reconciled or silently dropped.
+
+One migration (`20260908140000_core_ai_usage.sql`), forward-only: any module that starts
+calling an LLM in the future logs usage and holds its BYOK credential here, at the
+`business_id` grain, instead of reinventing its own copy.
+
+- `core.ai_runs` -- same shape as `discovery.ai_runs` (operation/model/provider/
+  prompt_version/input_hash/tokens/estimated_cost/duration_ms/search_count/status/
+  error_code), `business_id` instead of `workspace_id`/`account_id`, same cache-lookup
+  partial index (`business_id, operation, input_hash where status='succeeded'`).
+- `core.ai_provider_credentials` -- same shape as `discovery.ai_provider_credentials`
+  (one connected provider per tenant, `encrypted_api_key`/`key_fingerprint`/status),
+  `business_id unique` instead of `account_id unique`. Reuses
+  `packages/core/src/crypto/api-key.ts` (AES-256-GCM) and
+  `packages/core/src/ai-providers/test-connection.ts` directly -- both already
+  core-owned shared infrastructure, not duplicated.
+- Tenant-only RLS on both (`business_id in core.user_business_ids()`), **no license
+  gate** -- same reasoning `core.messages` already established: this is cross-module
+  infrastructure, not a licensed module's own feature; whichever module actually calls
+  an LLM enforces its own license before ever reaching this table. `core.ai_runs` is
+  append-only from the app (view + insert only, no update/delete policy at all), same as
+  discovery's own copy.
+
+`packages/core/src/ai-usage/{types,queries,mutations}.ts`: `recordAiRun`/
+`getBusinessAiUsage`/`getAiProviderConnection`/`connectAiProvider`/`disconnectAiProvider`
+-- each a direct mirror of its `module-discovery/lib/{ai,usage,ai-providers}/*` analogue,
+substituting `businessId` for `workspaceId`/`accountId` throughout. No UI wired to any
+of it -- nothing calls it yet (by design; this is the shared path waiting for the first
+non-discovery module that needs it), so there's no dashboard/settings screen to build for
+a story whose entire scope is "the path exists."
+
+New SQL-level test: `scripts/test-core-ai-usage-rls.mjs` (wired into `test:db`) -- read/
+write round-trip on both tables, the append-only behavior on `ai_runs` (an update/delete
+with no policy silently affects zero rows, confirmed this reads as a no-op rather than an
+exception -- `core`'s own default privileges grant table-level UPDATE/DELETE, unlike
+`gst.einvoices`' deliberately narrower grant, so the two tables' "you can't touch this"
+guarantees surface differently at the SQL level even though both are equally
+unmodifiable in practice), the `unique(business_id)` one-credential-per-business
+constraint, tenant isolation on both tables, and confirming zero license gate (a
+business with no licenses of any kind can still record an `ai_runs` row).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: recorded an `ai_runs` row, created an `ai_provider_credentials` row,
+confirmed the `unique(business_id)` constraint rejects a second one, and confirmed an
+update round-trips. No assertion failures, zero residue after rollback.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (43
+migrations); full `test`/`test:db` suites green (including the new
+`test-core-ai-usage-rls.mjs`); `npm run build --workspace=apps/web` succeeds; migration
+applied to the dev Supabase project and live end-to-end verification as described above;
+Supabase security advisor shows no new findings.
