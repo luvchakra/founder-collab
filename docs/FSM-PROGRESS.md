@@ -10,7 +10,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | Story | Status | Notes |
 |---|---|---|
 | F-1 | Done | `fsm` schema DDL |
-| F-2 | Not started | Opportunities |
+| F-2 | Done | Opportunities |
 | F-3 | Not started | Estimates |
 | F-4 | Not started | Public estimate page + send + approve/decline |
 | F-5 | Not started | Jobs |
@@ -94,3 +94,57 @@ directions).
 Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full `test:db`
 suite green; live-applied to the dev Supabase project (`jazdtomcgqjxjueedmck`) and
 confirmed clean on Supabase's own security advisor.
+
+## F-2 -- Opportunities
+
+`supabase/migrations/20260908020000_fsm_opportunities_permissions.sql` adds one new
+permission key, `opportunities.edit` (module `fsm`), granted to `owner`/`admin` only --
+no new FSM-specific role yet (CLAUDE.md principle 7 bans speculative functionality;
+nothing in F-2 needs a role finer than owner/admin vs viewer). Reads are never
+permission-gated beyond `fsm.opportunities`' own tenant-AND-licensed RLS (F-1) -- matches
+`inventory`'s own precedent where even a viewer can read.
+
+`packages/module-fsm/src/lib/{tenancy,tags,custom-fields,service-types,opportunities}/`
++ `components/opportunities/` + two new routes
+(`apps/web/.../fsm/opportunities/{page.tsx,[opportunityId]/page.tsx}`, each with its own
+`actions.ts`). Notable choices:
+- `core.tags`/`core.taggings`/`core.custom_field_defs`/`core.custom_field_values` (D-8)
+  are consumed directly, not recreated -- FSM's own `entity_type`/`taggable_type` values
+  (`'opportunity'`) needed no schema change since D-8 left those columns as plain,
+  unconstrained text.
+- Creating an opportunity either picks an existing `core.parties` row or creates one
+  inline; either way the party is given the `customer` role if it doesn't already have
+  one (idempotent insert, matches the entity-ownership map's "winning a prospect ADDS the
+  role, doesn't copy a record" -- this is the same mechanism, just triggered by a manual
+  opportunity instead of a won prospect).
+- The board view's columns are read-only (no drag) -- the PRD's own drag interaction is
+  specific to Scheduling (F-6), not the opportunities pipeline; status only ever advances
+  through an opportunity's own explicit actions.
+- `reopenLostOpportunity()` (lost -> new) isn't itself a PRD-documented transition (the
+  PRD's §4 state machine only documents `won -> new` as an explicit "undo", gated on the
+  job having no events/charges -- not buildable until F-5's jobs land) -- added anyway as
+  the obvious low-risk corollary of "nothing auto-advances to Lost, human intent
+  required": undoing a mistaken Lost needs the same human-intent standard as making one.
+- `won -> new`, `new|estimate_scheduled -> estimate_sent` (send an estimate), and
+  `estimate_sent -> won` (customer approval) are NOT part of F-2 -- those depend on
+  F-3/F-4's estimate flow and F-5's jobs, deliberately out of scope here.
+
+Existing test `scripts/test-discovery-rls.mjs` hardcoded the exact size of
+`core.permissions` (32) -- bumped to 33 and its own comment updated, the same kind of
+update `stock_transfers.*`/`sales_returns.*` additions already required historically.
+
+No new SQL-level test file: F-2 added no new SQL primitives beyond the one permission
+key (already covered by the updated count assertion above) -- the tables it reads/writes
+(`fsm.opportunities`, `core.parties`/`party_roles`, `core.tags`/`taggings`,
+`core.custom_field_defs`/`values`) each already have their own dedicated RLS/behavior
+test from F-1 and D-8. Instead, the actual application-level mutation flow (create with
+an inline new customer, idempotent customer-role attach, default status, `has_permission`
+check, add/read a tag, set/read a custom field value, mark lost with reason, reopen) was
+live-verified end-to-end against the dev Supabase project inside one rolled-back
+transaction (self-cleaning) as the authenticated business owner, with no assertion
+failures.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full `test:db`
+suite green (including the updated permission-count assertion); `npm run build
+--workspace=apps/web` succeeds (both new routes compile and register); live end-to-end
+verification against the dev Supabase project as described above.
