@@ -61,3 +61,13 @@ export interface UpdateChargeLineInput {
   taxable?: boolean;
   jobChargeTypeId?: string | null;
 }
+
+/** Everything the public, unauthenticated `/p/e/[token]` page needs to render -- resolved
+ * entirely through the token (never trusting a client-supplied business/estimate id). */
+export interface PublicEstimateView {
+  businessName: string;
+  businessWebsite: string | null;
+  partyName: string;
+  estimate: Estimate;
+  lines: EstimateLine[];
+}

@@ -6,7 +6,16 @@ import { markOpportunityLost, reopenLostOpportunity, updateOpportunity } from "@
 import { getOpportunity } from "@cofounderai/module-fsm/lib/opportunities/queries";
 import { addWorkTag, removeWorkTag } from "@cofounderai/module-fsm/lib/tags/mutations";
 import { setCustomFieldValue } from "@cofounderai/module-fsm/lib/custom-fields/mutations";
-import { addChargeLine, deleteChargeLine, getOrCreateEstimate, reorderChargeLines, updateChargeLine } from "@cofounderai/module-fsm/lib/estimates/mutations";
+import {
+  addChargeLine,
+  approveEstimateInternal,
+  declineEstimateInternal,
+  deleteChargeLine,
+  getOrCreateEstimate,
+  reorderChargeLines,
+  sendEstimate,
+  updateChargeLine,
+} from "@cofounderai/module-fsm/lib/estimates/mutations";
 import type { AddChargeLineInput, UpdateChargeLineInput } from "@cofounderai/module-fsm/lib/estimates/types";
 
 const TAGGABLE_TYPE = "opportunity";
@@ -103,5 +112,26 @@ export async function reorderEstimateChargeLinesAction(
 ): Promise<void> {
   await requirePermission(businessId, "estimates.edit");
   await reorderChargeLines(estimateId, orderedLineIds);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+export async function sendEstimateAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await sendEstimate(businessId, opportunityId, estimateId);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+/** Staff-side "approve internally" (F-4 -- PRD §2 Estimates row MUST list): same effect
+ * as a customer approving on the public page, without requiring the customer to click
+ * through it. */
+export async function approveEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await approveEstimateInternal(businessId, opportunityId, estimateId);
+  revalidatePath(detailPath(businessId, opportunityId));
+}
+
+export async function declineEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  await requirePermission(businessId, "estimates.edit");
+  await declineEstimateInternal(businessId, opportunityId, estimateId);
   revalidatePath(detailPath(businessId, opportunityId));
 }

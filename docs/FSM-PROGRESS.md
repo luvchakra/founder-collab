@@ -12,7 +12,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-1 | Done | `fsm` schema DDL |
 | F-2 | Done | Opportunities |
 | F-3 | Done | Estimates |
-| F-4 | Not started | Public estimate page + send + approve/decline |
+| F-4 | Done | Public estimate page + send + approve/decline |
 | F-5 | Not started | Jobs |
 | F-6 | Not started | Scheduling |
 | F-7 | Not started | Field execution |
@@ -212,3 +212,95 @@ Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full
 suite green (including the updated permission-count assertion); `npm run build
 --workspace=apps/web` succeeds; Supabase security advisor shows no new findings; live
 end-to-end verification against the dev Supabase project as described above.
+
+## F-4 -- Public estimate page + send + approve/decline
+
+No new tables (`fsm.portal_tokens` was already created by F-1's own DDL) and no new
+permission key -- send/approve-internally/decline-internally all reuse `estimates.edit`
+(sending and responding to an estimate are the same "do something with this document"
+class of action opportunities.edit already isn't gating). New library code only:
+`packages/module-fsm/src/lib/portal-tokens/tokens.ts` and additions to
+`lib/estimates/{queries,mutations}.ts`, plus the platform's first public
+(non-`/dashboard`) route, `apps/web/app/p/e/[token]/`.
+
+- **Token scheme mirrors `core.api_key_secrets` exactly**, the closest existing precedent
+  for "resolve a secret with zero Supabase session": a random 24-byte hex token is
+  generated per send, sha256-hashed before being stored in
+  `fsm.portal_tokens.token_hash`, and resolved back via a service-role client
+  (`resolvePortalToken()`) -- there is no `auth.uid()` on a customer clicking an emailed
+  link, so RLS can't be the authorization layer here; the token itself is. A fresh token
+  is minted on every send rather than reusing one, so an old emailed link can be
+  superseded without a separate revoke step.
+- **Rate limiting reuses `core.check_api_rate_limit()`** (built for the public API-key
+  layer in the `public_api_v1` work, but generically keyed by `business_id`) rather than
+  a second counter table -- 30 requests/minute per business, generous for a real visitor,
+  enough to blunt token-guessing.
+- **Sending reuses `module-discovery`'s own Resend integration pattern** exactly
+  (`RESEND_API_KEY`/`RESEND_FROM_EMAIL` env vars, `@cofounderai/core/email/render`'s
+  `renderEmailHtml`/`renderEmailText`) rather than inventing a second email path --
+  `resend` was added as a direct dependency of `module-fsm` (already present in the
+  workspace via `module-discovery`, so no new external dependency, just a new package.json
+  entry). The email body avoids the renderer's unsupported markdown-link syntax (only
+  `**bold**` is implemented) and puts the plain estimate URL in the body text instead,
+  which mail clients auto-linkify.
+- **`estimate.sent` transitions both the document and the opportunity**: `core.documents`
+  status `draft -> sent` (only if still draft -- resending an already-sent/viewed
+  estimate doesn't reset it) and `fsm.opportunities` status `new|estimate_scheduled ->
+  estimate_sent`, matching the PRD's own state machine (§4) exactly. Sending is blocked
+  with a clear error if the estimate has no charge lines, or if it was already approved
+  or declined.
+- **`estimate_sent -> won` (PRD §4) creates the job now**, even though the Jobs board/
+  detail screens are F-5's own story -- `fsm.jobs` already exists from F-1's DDL, and the
+  PRD's own acceptance criteria (§7) requires "approved, and become a job" to work
+  end-to-end. The job is minted with a real sequential number via
+  `core.next_number_for_api()` (service-role path, no membership check -- same function
+  the `public_api_v1` work added and already uses for this exact "no session" problem) on
+  the public/customer path, or the ordinary `core.next_number()` (authenticated,
+  membership-checked) on the staff "approve internally" path -- both write the same
+  `core.number_sequences` counter, so numbers never collide regardless of which path
+  minted them. The job copies `party_id`/`primary_contact_id`/`service_address_id`/
+  `service_type_id`/`description`/`scope_of_work` straight from the opportunity and sets
+  `opportunity_id`; `fsm.jobs`' own pre-existing cross-tenant enforcement trigger (F-1)
+  validates every one of those references regardless of which client (service-role or
+  authenticated) performs the insert. Approving is idempotent: an already-approved
+  estimate with a `converted_job_id` already set just returns that job rather than
+  minting a second one.
+- **Declining only marks the estimate document declined**, never the opportunity -- the
+  PRD's own state machine (§4) has an opportunity become `lost` only through explicit
+  human action with a reason; a customer's decline alone doesn't auto-advance it. Staff
+  see the declined estimate and mark the opportunity lost themselves if that's the right
+  call, matching F-2's own `markOpportunityLost()` being the one and only path to `lost`.
+- **"Sent/viewed" tracking (PRD §1: "tracked by icons") reuses the estimate's own
+  `status` column** rather than adding `sent_at`/`viewed_at` timestamp columns to
+  `core.documents` -- `sent -> viewed` flips on the public page's first render
+  (`markEstimateViewed()`, called best-effort so a failed write never blocks the page),
+  and the five-state badge (`draft`/`sent`/`viewed`/`approved`/`declined`) in both the
+  staff-facing `EstimateBuilder` and the public `PublicEstimateView` component reads that
+  one column. No new column, no new concept.
+- **"Approve internally" / "decline internally"** (PRD §2 Estimates row MUST list) are
+  ordinary authenticated server actions on the opportunity detail page for a staff member
+  taking a verbal/phone response -- they share the exact same job-creation helper
+  (`createJobFromApprovedEstimate()`) as the public token path, parameterised only by
+  which numbering function to call.
+
+No new SQL-level test file: F-4 added no new tables, columns, or RLS policies (the tables
+it touches -- `fsm.portal_tokens`, `fsm.jobs`, `core.documents`, `fsm.opportunities` --
+already have their own dedicated RLS/tenant-isolation tests from F-1/F-2/F-3/D-6). The
+actual send/view/approve/decline flow was live-verified end-to-end against the dev
+Supabase project inside one self-cleaning (rolled-back) transaction, split into an
+authenticated-staff phase (create opportunity, create and send an estimate -- confirming
+`draft -> sent` and `new -> estimate_sent`) and a `service_role` phase mirroring exactly
+what the app's own service-role admin client does for an unauthenticated visitor
+(`markEstimateViewed`'s `sent -> viewed` flip, `approveEstimateByToken`'s job creation
+with a correctly-formatted `JOB/YY-YY/0001` number and `opportunity -> won`, and a second,
+independent estimate exercising `declineEstimateByToken` without disturbing its
+opportunity's own status) -- no assertion failures, zero residue after rollback. The
+actual Resend API call itself was not exercised live (no test inbox in this environment)
+-- `sendEstimate()`'s own error handling (missing env vars, Resend's own error response)
+follows `module-discovery/src/lib/messages/send.ts`'s already-proven pattern exactly.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full `test:db`
+suite green; `npm run build --workspace=apps/web` succeeds (the new `/p/e/[token]` public
+route compiles and registers alongside the dashboard routes); Supabase security advisor
+shows no new findings; live end-to-end verification against the dev Supabase project as
+described above.

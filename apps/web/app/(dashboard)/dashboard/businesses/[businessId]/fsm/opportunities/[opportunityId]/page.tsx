@@ -11,11 +11,14 @@ import { EstimateBuilder } from "@cofounderai/module-fsm/components/estimates/es
 import {
   addEstimateChargeLineAction,
   addOpportunityTagAction,
+  approveEstimateInternalAction,
+  declineEstimateInternalAction,
   deleteEstimateChargeLineAction,
   markOpportunityLostAction,
   removeOpportunityTagAction,
   reopenOpportunityAction,
   reorderEstimateChargeLinesAction,
+  sendEstimateAction,
   setOpportunityCustomFieldAction,
   updateEstimateChargeLineAction,
   updateOpportunityAction,
@@ -73,6 +76,9 @@ export default async function OpportunityDetailPage({
           updateLineAction={updateEstimateChargeLineAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
           deleteLineAction={deleteEstimateChargeLineAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
           reorderAction={reorderEstimateChargeLinesAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
+          sendAction={sendEstimateAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
+          approveInternalAction={approveEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
+          declineInternalAction={declineEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
         />
       </div>
     </div>

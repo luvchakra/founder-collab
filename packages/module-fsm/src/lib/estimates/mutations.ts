@@ -1,7 +1,17 @@
+import { Resend } from "resend";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { aggregateGst, computeLineGst, resolveStateCode } from "@cofounderai/core/lib/gst";
+import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
+import { SITE_URL } from "@cofounderai/core/site";
+import { publish } from "@cofounderai/core/events/mutations";
+import { createClient as createFsmClient } from "../../db/server";
+import { generatePortalToken, hashPortalToken, resolvePortalToken } from "../portal-tokens/tokens";
 import type { Opportunity } from "../opportunities/types";
 import type { AddChargeLineInput, UpdateChargeLineInput } from "./types";
+
+// Untyped like every other `.from(table)` caller against these schemas (Database = any).
+type QueryClient = any;
 
 function coreClient() {
   return createCoreClient({ schema: "core" });
@@ -195,4 +205,243 @@ export async function reorderChargeLines(estimateId: string, orderedLineIds: str
       core.from("document_lines").update({ sort_order: index }).eq("id", lineId).eq("document_id", estimateId),
     ),
   );
+}
+
+/** Resolves the customer's email for sending the estimate: the opportunity's own
+ * primary contact if one is set, otherwise the party's own `email` column. */
+async function resolveRecipientEmail(core: QueryClient, opportunity: Opportunity): Promise<string> {
+  if (opportunity.primary_contact_id) {
+    const { data: contact } = await core.from("party_contacts").select("email").eq("id", opportunity.primary_contact_id).maybeSingle();
+    if (contact?.email) return contact.email;
+  }
+  const { data: party } = await core.from("parties").select("email").eq("id", opportunity.party_id).maybeSingle();
+  if (!party?.email) {
+    throw new Error("No email on file for this customer -- add one to the customer or their primary contact before sending.");
+  }
+  return party.email;
+}
+
+/** Sends an approved estimate to the customer by email (PRD §2 Estimates row: "send by
+ * email"). Requires at least one charge line -- an empty estimate has nothing to quote.
+ * Generates a fresh, single-purpose portal token per send (same hash-only-storage scheme
+ * as `core.api_key_secrets`) rather than reusing one across sends, so an old emailed link
+ * can be superseded without a separate revocation step. */
+export async function sendEstimate(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  const core = await coreClient();
+  const fsm = await createFsmClient();
+
+  const [{ data: doc, error: docError }, { data: lineCount }, { data: opportunity, error: oppError }, { data: settings }] = await Promise.all([
+    core.from("documents").select("status, party_id").eq("id", estimateId).single(),
+    core.from("document_lines").select("id").eq("document_id", estimateId).limit(1).maybeSingle(),
+    fsm.from("opportunities").select("*").eq("id", opportunityId).eq("business_id", businessId).single(),
+    fsm.from("settings").select("estimate_expiry_days").eq("business_id", businessId).maybeSingle(),
+  ]);
+  if (docError) throw docError;
+  if (oppError) throw oppError;
+  if (!lineCount) throw new Error("Add at least one charge before sending the estimate.");
+  if (doc.status === "approved") throw new Error("This estimate has already been approved.");
+  if (doc.status === "declined") throw new Error("This estimate was declined -- add new charges before resending.");
+
+  const opportunity_ = opportunity as Opportunity;
+  const toEmail = await resolveRecipientEmail(core, opportunity_);
+
+  const { data: business } = await core.from("businesses").select("name, website").eq("id", businessId).maybeSingle();
+  const brandName = business?.name ?? "Your service provider";
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !fromAddress) {
+    throw new Error("Email sending isn't configured yet -- set RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  }
+
+  const rawToken = generatePortalToken();
+  const expiryDays = settings?.estimate_expiry_days ?? 30;
+  const expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error: tokenError } = await fsm.from("portal_tokens").insert({
+    business_id: businessId,
+    party_id: doc.party_id,
+    token_hash: hashPortalToken(rawToken),
+    scope: "estimate",
+    document_id: estimateId,
+    expires_at: expiresAt,
+  });
+  if (tokenError) throw tokenError;
+
+  const publicUrl = `${SITE_URL}/p/e/${rawToken}`;
+  const resend = new Resend(apiKey);
+  const result = await resend.emails.send({
+    from: fromAddress,
+    to: toEmail,
+    subject: `Estimate from ${brandName}`,
+    text: renderEmailText(`Your estimate is ready to review.\n\n${publicUrl}`),
+    html: renderEmailHtml({
+      brandName,
+      body: `Your estimate is ready to review. **View and approve it at the link below:**\n\n${publicUrl}`,
+      websiteUrl: business?.website ?? null,
+      replyToEmail: fromAddress,
+    }),
+  });
+  if (result.error) throw new Error(`Could not send the estimate email: ${result.error.message}`);
+
+  if (doc.status === "draft") {
+    await core.from("documents").update({ status: "sent" }).eq("id", estimateId);
+  }
+  if (opportunity_.status === "new" || opportunity_.status === "estimate_scheduled") {
+    await fsm.from("opportunities").update({ status: "estimate_sent" }).eq("id", opportunityId).eq("business_id", businessId);
+  }
+
+  await publish({ businessId, type: "estimate.sent", payload: { opportunityId, estimateId } });
+}
+
+/** First view of a sent estimate on the public page flips it to `viewed` -- PRD §1's
+ * "sent/viewed state is tracked by icons." Never downgrades an already-viewed, approved,
+ * or declined estimate; safe to call on every page load. */
+export async function markEstimateViewed(rawToken: string): Promise<void> {
+  const token = await resolvePortalToken(rawToken, "estimate");
+  const core = createCoreAdminClient({ schema: "core" });
+  await core.from("documents").update({ status: "viewed" }).eq("id", token.documentId).eq("status", "sent");
+}
+
+/** Creates the unscheduled job an approved estimate becomes (PRD §4: `estimate_sent ->
+ * won`, `converted_job_id` set) and flips the opportunity to `won`. `mintJobNumber` is
+ * injected because the two callers below mint through different core functions --
+ * `core.next_number` (authenticated, membership-checked) for the internal approval path,
+ * `core.next_number_for_api` (service-role, no session) for the public token path -- both
+ * writing the same `core.number_sequences` counter, so numbers never collide regardless
+ * of which path minted them. */
+async function createJobFromApprovedEstimate(
+  fsm: QueryClient,
+  opportunity: Opportunity,
+  mintJobNumber: () => Promise<string | null>,
+): Promise<string> {
+  const number = await mintJobNumber();
+  const { data: job, error: jobError } = await fsm
+    .from("jobs")
+    .insert({
+      business_id: opportunity.business_id,
+      number,
+      party_id: opportunity.party_id,
+      primary_contact_id: opportunity.primary_contact_id,
+      service_address_id: opportunity.service_address_id,
+      service_type_id: opportunity.service_type_id,
+      description: opportunity.description,
+      scope_of_work: opportunity.scope_of_work,
+      opportunity_id: opportunity.id,
+      created_by: opportunity.created_by,
+    })
+    .select("id")
+    .single();
+  if (jobError) throw jobError;
+
+  const { error: oppError } = await fsm
+    .from("opportunities")
+    .update({ status: "won", converted_job_id: job.id })
+    .eq("id", opportunity.id);
+  if (oppError) throw oppError;
+
+  return job.id;
+}
+
+/** Customer-facing approval from the public estimate page -- no Supabase session exists,
+ * so this runs entirely through service-role clients, with the token itself as the sole
+ * authorization (`resolvePortalToken` already checks scope, expiry, and rate limit).
+ * Idempotent: approving an already-approved estimate just returns the job that was
+ * already created rather than minting a second one. */
+export async function approveEstimateByToken(rawToken: string): Promise<{ jobId: string }> {
+  const token = await resolvePortalToken(rawToken, "estimate");
+  const core = createCoreAdminClient({ schema: "core" });
+  const fsm = createCoreAdminClient({ schema: "fsm" });
+
+  const { data: doc, error: docError } = await core.from("documents").select("status, source_ref").eq("id", token.documentId).single();
+  if (docError) throw docError;
+  if (doc.status === "declined") throw new Error("This estimate was declined and can no longer be approved from this link.");
+
+  const opportunityId = (doc.source_ref as { opportunity_id?: string })?.opportunity_id;
+  if (!opportunityId) throw new Error("This estimate is not linked to an opportunity.");
+
+  const { data: opportunity, error: oppError } = await fsm.from("opportunities").select("*").eq("id", opportunityId).single();
+  if (oppError) throw oppError;
+
+  if (doc.status === "approved" && opportunity.converted_job_id) {
+    return { jobId: opportunity.converted_job_id };
+  }
+
+  const jobId = await createJobFromApprovedEstimate(fsm, opportunity as Opportunity, async () => {
+    const { data } = await core.rpc("next_number_for_api", { p_business_id: token.businessId, p_scope: "job", p_prefix: "JOB" });
+    return data ?? null;
+  });
+
+  await core.from("documents").update({ status: "approved" }).eq("id", token.documentId);
+  await core.from("domain_events").insert({ business_id: token.businessId, type: "estimate.approved", payload: { opportunityId, jobId } });
+
+  return { jobId };
+}
+
+/** Customer-facing decline from the public estimate page. Only marks the estimate
+ * document declined -- per the PRD's own state machine, an opportunity only ever becomes
+ * `lost` through explicit human action with a reason (§4), so a customer's decline alone
+ * doesn't auto-advance it; staff follow up and mark it lost themselves if appropriate. */
+export async function declineEstimateByToken(rawToken: string): Promise<void> {
+  const token = await resolvePortalToken(rawToken, "estimate");
+  const core = createCoreAdminClient({ schema: "core" });
+
+  const { data: doc, error: docError } = await core.from("documents").select("status, source_ref").eq("id", token.documentId).single();
+  if (docError) throw docError;
+  if (doc.status === "approved") throw new Error("This estimate was already approved and can no longer be declined.");
+  if (doc.status === "declined") return;
+
+  await core.from("documents").update({ status: "declined" }).eq("id", token.documentId);
+  await core.from("domain_events").insert({
+    business_id: token.businessId,
+    type: "estimate.declined",
+    payload: { opportunityId: (doc.source_ref as { opportunity_id?: string })?.opportunity_id },
+  });
+}
+
+/** Staff-side "approve internally" (PRD §2 Estimates row MUST list) -- same effect as a
+ * customer approving on the public page (job created, opportunity won), but triggered
+ * from the opportunity detail page by someone who took a verbal/phone approval. */
+export async function approveEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<{ jobId: string }> {
+  const core = await coreClient();
+  const fsm = await createFsmClient();
+
+  const { data: doc, error: docError } = await core.from("documents").select("status").eq("id", estimateId).eq("business_id", businessId).single();
+  if (docError) throw docError;
+  if (doc.status === "declined") throw new Error("This estimate was declined -- reopen or create a new one before approving.");
+
+  const { data: opportunity, error: oppError } = await fsm
+    .from("opportunities")
+    .select("*")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (oppError) throw oppError;
+
+  if (doc.status === "approved" && opportunity.converted_job_id) {
+    return { jobId: opportunity.converted_job_id };
+  }
+
+  const jobId = await createJobFromApprovedEstimate(fsm, opportunity as Opportunity, async () => {
+    const { data } = await core.rpc("next_number", { p_business_id: businessId, p_scope: "job", p_prefix: "JOB" });
+    return data ?? null;
+  });
+
+  await core.from("documents").update({ status: "approved" }).eq("id", estimateId);
+  await publish({ businessId, type: "estimate.approved", payload: { opportunityId, jobId } });
+
+  return { jobId };
+}
+
+/** Staff-side "decline internally" -- marks the estimate declined without requiring the
+ * customer to click through the public page (e.g. a verbal decline over the phone). */
+export async function declineEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  const core = await coreClient();
+  const { data: doc, error: docError } = await core.from("documents").select("status").eq("id", estimateId).eq("business_id", businessId).single();
+  if (docError) throw docError;
+  if (doc.status === "approved") throw new Error("This estimate was already approved and can no longer be declined.");
+  if (doc.status === "declined") return;
+
+  await core.from("documents").update({ status: "declined" }).eq("id", estimateId);
+  await publish({ businessId, type: "estimate.declined", payload: { opportunityId } });
 }
