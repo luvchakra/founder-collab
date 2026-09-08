@@ -20,7 +20,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-9 | Done | Reminders |
 | F-10 | Done | Customer Center + contact form |
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
-| F-12 | Not started | Reports |
+| F-12 | Done | Reports |
 | F-13 | Not started | Discovery -> FSM handoff |
 | F-14 | Not started | Inventory <-> FSM integration |
 | F-15 | Not started | FSM settings screens |
@@ -952,3 +952,87 @@ migrations, unchanged); full `test:db` suite green (permission count still 41,
 unchanged); `npm run build --workspace=apps/web` succeeds (both new public routes
 compile and register); live end-to-end verification against the dev Supabase project as
 described above.
+
+## F-12 -- Reports
+
+**No new migration, no new permissions.** All nine MUST-scope reports (PRD §2 Reports
+row: jobs completed, revenue by service/tag/charge type, marketing sources, customer
+balances, account aging, payments, timecards, productivity per employee) read from
+tables that already existed -- `core.documents`/`document_lines`/`payments`/
+`payment_allocations` (D-7/F-8), `fsm.jobs`/`service_types`/`job_charge_types`/
+`time_entries` (F-1/F-7), `core.tags`/`taggings` (D-8). Report viewing has no separate
+permission -- gated purely by `fsm`'s own tenant-AND-licensed RLS, same "reads stay
+gated by RLS alone" precedent F-2 already established for opportunities.
+
+`packages/module-fsm/src/lib/reports/{types,queries}.ts` +
+`components/reports/reports-view.tsx` + one new route (`/fsm/reports`, already linked
+from `SERVICE_NAV` since F-1). No date-range picker anywhere -- a custom report builder
+is the PRD's own explicit SHOULD/LATER item; each report instead shows its own natural
+default period. Notable decisions:
+
+- **Revenue reports (`by service`/`by tag`/`by charge type`) all read from `core`'s own
+  fsm-issued invoices** (`doc_type='invoice'`, `source_module='fsm'`), never
+  `document_lines` in isolation for the service/tag breakdowns -- a job's *whole* invoice
+  total is what's being attributed to its service type or tags, not a line-level split.
+  Charge type is the one exception: it's genuinely a per-line classification
+  (`document_lines.job_charge_type_id`), so that report sums line amounts directly rather
+  than whole-invoice totals.
+- **Revenue-by-tag counts a multi-tagged job's full invoice amount toward *every* one of
+  its tags** (documented in the code) -- the standard "revenue by tag" reporting
+  convention (a job tagged both "Emergency" and "Repeat customer" contributes to both
+  totals, not a split neither total would then add up correctly against). An untagged
+  job's revenue buckets into "Untagged" rather than being silently dropped.
+- **Marketing-source revenue is correctly wired but inert today** --
+  `fsm.opportunities.marketing_source_id` is a bare/no-FK column (F-1's own design,
+  since `discovery`'s marketing-source concept doesn't have a `contract/index.ts` lookup
+  function yet, and cross-schema FKs outside `core` aren't allowed per CLAUDE.md
+  non-negotiable #1) that nothing in this platform sets yet -- confirmed by grep before
+  building this, not assumed. Every dollar buckets into "Unattributed" until F-13 (the
+  discovery→FSM handoff) starts populating it on `prospect.won`; this is the correct
+  degraded-mode result (ADR-10), not a placeholder -- the report needs zero changes once
+  F-13 lands.
+- **Account aging re-derives `core.document_aging`'s own bucket boundaries
+  (1-30/31-60/61-90/90+ past `due_date`, falling back to `doc_date`) rather than querying
+  that view directly** -- the view is business-wide across every module and carries no
+  `source_module` column to filter fsm's own invoices out of inventory's, so this queries
+  `core.documents`/`document_balances` directly and buckets in JS instead, same "join/
+  filter in JS" pattern already used everywhere else in this module. The bucket
+  boundaries themselves are identical to the view's own, just recomputed rather than
+  reused.
+- **"Payments by date" scopes to payments with at least one allocation against an
+  fsm-sourced document** -- `core.payments` is shared platform-wide (D-7), so a business
+  licensed for both `fsm` and `inventory` would otherwise see the other module's payments
+  mixed in.
+- **Timecards and productivity both report the current calendar month**, not "by pay
+  period" as the PRD literally says -- no pay-period concept (a payroll setting) exists
+  anywhere in this platform, confirmed before building this; a documented simplification,
+  not a silently dropped feature. Both reports deliberately share the same period so
+  they read consistently side by side.
+- **Productivity's "jobs completed" counts a job only once per employee** even if they
+  logged multiple time entries against it in the period, via a `Set` of job ids rather
+  than counting time-entry rows -- otherwise a job with three separate clock-in/out
+  sessions would inflate the count threefold.
+
+No new SQL-level test file: every table and view this story reads already has its own
+coverage from earlier stories (F-1's tenant isolation, D-7's payment/balance tests) --
+these reports are pure aggregation over already-correct, already-tested data, with
+nothing new to assert about the schema itself. `scripts/test-discovery-rls.mjs`'s
+permission-count assertion stays at 41 (no permissions added).
+
+Live-verified the aggregation logic itself (not just schema shape, since this story is
+almost entirely read-side computation) against the dev Supabase project inside one
+self-cleaning (rolled-back) transaction: seeded a completed job tagged "Emergency" with
+a Plumbing service type, invoiced with one Labor-charge-type line (2000 + 18% GST split =
+2360 total) due 45 days ago and never paid, then mirrored each report's own aggregation
+query directly -- confirmed the invoice's full 2360 attributes correctly to its service
+type and to its tag, confirmed the charge-type line sum also lands on 2360, confirmed
+`core.document_balances` shows the full 2360 still outstanding, and confirmed a 45-day-
+overdue due date correctly buckets into `31-60`. No assertion failures, zero residue
+after rollback. Security advisor was not re-run -- no schema changed (`lint:migrations`
+still reports 36 files, unchanged from F-10).
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (36
+migrations, unchanged); full `test:db` suite green (permission count still 41,
+unchanged); `npm run build --workspace=apps/web` succeeds (the new `/fsm/reports` route
+compiles and registers); live end-to-end verification against the dev Supabase project
+as described above.
