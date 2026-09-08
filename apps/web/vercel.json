@@ -1,3 +1,4 @@
 {
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "buildCommand": "echo DIAG_PWD; pwd; echo DIAG_LS; ls -la; echo DIAG_UP1; ls -la ..; echo DIAG_UP2; ls -la ../..; echo DIAG_PACKAGES; ls -la ../../packages 2>&1; echo DIAG_MODULEFSM; ls -la ../../packages/module-fsm/src/components 2>&1; echo DIAG_NM_SCOPE; ls -la node_modules/@cofounderai 2>&1; echo DIAG_REALPATH; readlink -f node_modules/@cofounderai/module-fsm 2>&1; echo DIAG_END; npm run build"
 }
