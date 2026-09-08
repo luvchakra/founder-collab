@@ -1,8 +1,25 @@
+export interface ShellNavItem {
+  label: string;
+  /** Route segment under the module's own `routePrefix`; "" means the module's root
+   * route itself. */
+  slug: string;
+  /** lucide-react icon name, resolved via ./module-icon. */
+  icon: string;
+}
+
+export interface ShellNavGroup {
+  /** Omitted for a flat list with no section heading. */
+  heading?: string;
+  items: ShellNavItem[];
+}
+
 /**
  * Minimal, duck-typed shape the shell needs from a module manifest — deliberately not
  * importing @cofounderai/module-registry's own type here, so packages/core stays
  * decoupled from that package (the caller, e.g. apps/web, maps its real
- * ModuleManifest[] into this shape).
+ * ModuleManifest[] into this shape; module-registry's own `ModuleNavGroup`/
+ * `ModuleNavItem` are structurally identical to `ShellNavGroup`/`ShellNavItem` below, so
+ * passing `moduleRegistry` straight through needs no per-field mapping).
  */
 export interface ShellNavModule {
   key: string;
@@ -10,6 +27,10 @@ export interface ShellNavModule {
   /** lucide-react icon name, resolved via ./module-icon. */
   icon: string;
   routePrefix: string;
+  /** This module's own sidebar nav tree, rendered generically by AppSidebar for every
+   * module except discovery (whose real content is a live per-business product list,
+   * not a static tree — see app-sidebar.tsx's own discovery special case). */
+  nav: ShellNavGroup[];
 }
 
 export interface ShellUser {

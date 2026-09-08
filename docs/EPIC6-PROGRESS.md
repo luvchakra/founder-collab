@@ -18,6 +18,53 @@ Also unblocked and shipped by S-3 (an Epic 5 story, not part of Epic 6 itself, b
 here since it depended on this epic's own S-3): **F-11 (FSM Messages tab)** -- see
 `docs/FSM-PROGRESS.md`'s own F-11 section for the full narrative.
 
+## Sidebar nav now sourced from the module registry (resolved before S-5)
+
+`docs/NEXT-ACTIVITIES.md` §1 flagged a wrinkle worth deciding before any more nav work:
+`packages/module-registry/src/index.ts` (P-3) still had each module's `nav` as a single
+placeholder `{ label: "Overview", href: "/x" }`, while the real per-module navigation
+actually rendered in the sidebar (`INVENTORY_NAV`/`SERVICE_NAV`/`GST_NAV`) was hardcoded
+separately inside `packages/core/src/components/shell/app-sidebar.tsx`, sourced from
+neither the registry nor either module's own `manifest.ts`. Resolved as its own small
+story now (per the plan doc's own suggested sequencing, item 3) rather than folded into
+`S-5`, so the dashboard-widget work doesn't inherit the same shortcut.
+
+- `ModuleManifest.nav` (module-registry) is now `ModuleNavGroup[]` (optional `heading` +
+  `items: { label, slug, icon }[]`, `slug` relative to the module's own `routePrefix`,
+  `""` = the module's own root route) instead of a single flat `{ label, href }[]`. The
+  registry's `inventory`/`fsm`/`gst` entries now carry the real nav trees that used to
+  live only in `app-sidebar.tsx`'s hardcoded consts; `discovery`/`crm` get a one-item
+  placeholder since discovery's real sidebar content is a live per-business product
+  list (not a static tree) and `crm` has no package yet (`S-1`).
+- `module-fsm`/`module-inventory`'s own `manifest.ts` mirrors were updated to match --
+  `moduleRegistry` still can't import either back (`lint:boundaries`: core/
+  module-registry may not depend on any module), so the two stay hand-kept in sync
+  rather than one importing the other, same as before this story.
+- `packages/core/src/components/shell/types.ts`'s `ShellNavModule` gained a `nav:
+  ShellNavGroup[]` field (duck-typed, still not importing `@cofounderai/module-registry`
+  itself -- structurally identical to `ModuleNavGroup`/`ModuleNavItem`, so `moduleRegistry`
+  passed straight through from `apps/web/app/(dashboard)/layout.tsx` needs no per-field
+  mapping).
+- `app-sidebar.tsx`'s `ModuleContent` lost its three copy-pasted `INVENTORY_NAV`/
+  `SERVICE_NAV`/`GST_NAV` branches (and the consts themselves) in favor of one generic
+  branch driven by `modules.find(m => m.key === selectedModule)`'s own `nav`/
+  `routePrefix` -- discovery keeps its own special-cased branch (live product list).
+  `module-icon.tsx`'s icon lookup table grew to cover every icon name the real nav
+  trees use (it already had a name -> component fallback pattern from `P-3`).
+
+No migration, no permission change, no new tables -- this is purely a sidebar-rendering
+refactor; every route it links to is unchanged, so the sidebar renders identically to
+before (same labels, same hrefs, same active-state highlighting), just sourced from
+`moduleRegistry` instead of duplicated in `app-sidebar.tsx`.
+
+Verified: `typecheck`/`lint`/`lint:boundaries` all clean; full `test` suite green across
+every workspace including `module-registry`'s own manifest-shape tests (still checking
+"every module has ≥1 nav group", now genuinely meaningful instead of trivially true) and
+`core`'s existing shell tests; `npm run build --workspace=apps/web` succeeds. Not
+exercised in an actual browser -- same documented gap as every other UI addition in this
+session; the generated hrefs were hand-checked against the exact strings the removed
+hardcoded consts used, module by module, to confirm no behavior actually changed.
+
 ## S-3 -- `core.threads` + `core.messages` + `core.message_templates`
 
 **Deliberate scope decision, made with the user before building this**: the backlog's

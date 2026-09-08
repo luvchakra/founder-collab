@@ -2,152 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Bell,
-  BarChart3,
-  Briefcase,
-  CalendarDays,
-  ClipboardList,
-  FileText,
-  History,
-  KeyRound,
-  LayoutDashboard,
-  Package,
-  Plus,
-  Receipt,
-  RefreshCw,
-  RotateCcw,
-  Settings,
-  ShoppingCart,
-  Shield,
-  Smartphone,
-  Target,
-  Truck,
-  Users,
-  Warehouse,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
 import { ModuleSelector } from "./module-selector";
-import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./types";
-
-/**
- * Inventory's nav tree (Catalog & Inventory / Sales / Purchasing), per the reference
- * screenshots -- explicitly authorized to link to routes that don't exist yet (SP-7/SP-9
- * are what build them; these 404 until then). Slugs match this platform's own
- * business-scoped URL convention (/dashboard/businesses/[id]/inventory/<slug>), not
- * StockPilot's own org-scoped routing, since that's the shape SP-7 will actually build
- * into.
- */
-const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; icon: LucideIcon }[] }[] = [
-  {
-    heading: "Overview",
-    items: [
-      { label: "Dashboard", slug: "dashboard", icon: LayoutDashboard },
-      { label: "Alerts", slug: "alerts", icon: Bell },
-      { label: "Audit Log", slug: "audit-log", icon: History },
-    ],
-  },
-  {
-    heading: "Catalog & Inventory",
-    items: [
-      { label: "Products", slug: "products", icon: Package },
-      { label: "Inventory", slug: "stock", icon: RefreshCw },
-      { label: "Stock Transfers", slug: "transfers", icon: Truck },
-      { label: "Warehouses", slug: "warehouses", icon: Warehouse },
-    ],
-  },
-  {
-    heading: "Sales",
-    items: [
-      { label: "Customers", slug: "customers", icon: Users },
-      { label: "Sales Orders", slug: "sales-orders", icon: ShoppingCart },
-      { label: "Sales Invoices", slug: "sales-invoices", icon: FileText },
-      { label: "Sales Returns", slug: "sales-returns", icon: RotateCcw },
-    ],
-  },
-  {
-    heading: "Purchasing",
-    items: [
-      { label: "Suppliers", slug: "suppliers", icon: Truck },
-      { label: "Purchase Orders", slug: "purchase-orders", icon: ClipboardList },
-    ],
-  },
-  {
-    heading: "Administration",
-    items: [
-      { label: "Team", slug: "team", icon: Shield },
-      { label: "API Keys", slug: "api-keys", icon: KeyRound },
-    ],
-  },
-];
-
-/**
- * FSM's own nav -- per the module-registry's own manifest entry (`name: "Service"`),
- * every FSM screen lives under this single grouped tree, not scattered as separate
- * top-level modules; the module switcher shows one "Service" entry, same as
- * Discovery/Inventory/GST each show one entry for their own multi-screen nav.
- * Route slugs match docs/plan/02-FSM-PRD.md §5 exactly (empty slug = the module's own
- * root route, `/fsm`, the dispatcher dashboard) -- authorized to link ahead of the
- * routes existing yet, same "link now, build later" pattern INVENTORY_NAV established;
- * these 404 until each F-story lands.
- */
-const SERVICE_NAV: { heading: string; items: { label: string; slug: string; icon: LucideIcon }[] }[] = [
-  {
-    heading: "Overview",
-    items: [{ label: "Dashboard", slug: "", icon: LayoutDashboard }],
-  },
-  {
-    heading: "Pipeline",
-    items: [
-      { label: "Opportunities", slug: "opportunities", icon: Target },
-      { label: "Jobs", slug: "jobs", icon: Briefcase },
-    ],
-  },
-  {
-    heading: "Scheduling",
-    items: [
-      { label: "Schedule", slug: "schedule", icon: CalendarDays },
-      { label: "My Day", slug: "my-day", icon: Smartphone },
-    ],
-  },
-  {
-    heading: "Billing",
-    items: [{ label: "Invoices", slug: "invoices", icon: FileText }],
-  },
-  {
-    heading: "Customers",
-    items: [{ label: "Customers", slug: "customers", icon: Users }],
-  },
-  {
-    heading: "Reports",
-    items: [{ label: "Reports", slug: "reports", icon: BarChart3 }],
-  },
-  {
-    heading: "Administration",
-    items: [{ label: "Settings", slug: "settings", icon: Settings }],
-  },
-];
-
-/**
- * GST's own nav -- the 3 sections stockpilot-ai-ops had folded into its account/profile
- * settings page (GST profile, e-Way Bill credentials, e-Invoicing credentials), plus its
- * separate top-level GST Filing route, promoted to their own menu items under this
- * platform's `gst` module instead: per docs/plan/00-MASTER-PLAN.md §5's entity-
- * ownership map, "gst module: e-invoice, e-way bill, credentials, return workspaces" is
- * gst-owned, not a business-settings afterthought or an inventory-module page. Only
- * "GST Profile" has a real page as of this slice; the other 3 404 until their own
- * slices land, same "link now, build later" pattern INVENTORY_NAV already established.
- */
-const GST_NAV: { label: string; slug: string; icon: LucideIcon }[] = [
-  { label: "GST Profile", slug: "profile", icon: Receipt },
-  { label: "e-Way Bill", slug: "eway-bill", icon: Truck },
-  { label: "e-Invoicing", slug: "einvoicing", icon: FileText },
-  { label: "GST Filing", slug: "filing", icon: ClipboardList },
-];
+import { ModuleIcon } from "./module-icon";
+import type { ShellBusiness, ShellNavGroup, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
 const MODULE_STORAGE_KEY = "cofounderai:selected-module";
 
@@ -231,6 +92,8 @@ function ModuleContent({
   productsByBusiness,
   onCreateBusiness,
   onNavigate,
+  routePrefix,
+  navGroups,
 }: {
   moduleKey: string;
   pathname: string | null;
@@ -240,6 +103,12 @@ function ModuleContent({
   productsByBusiness?: Record<string, ShellProduct[]>;
   onCreateBusiness?: () => void;
   onNavigate: () => void;
+  /** This module's own route prefix (e.g. "/fsm") -- unused for discovery, whose
+   * content below is its live product list, not a nav tree. */
+  routePrefix?: string;
+  /** This module's own nav groups, straight from its manifest (module-registry, via
+   * ShellNavModule) -- rendered generically for every module except discovery. */
+  navGroups?: ShellNavGroup[];
 }) {
   if (moduleKey === "discovery") {
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
@@ -273,100 +142,42 @@ function ModuleContent({
     );
   }
 
-  if (moduleKey === "inventory") {
-    if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
+  if (!navGroups || navGroups.length === 0 || !routePrefix) {
+    return <p className="px-3 py-3 text-sm text-muted-foreground">Not available yet.</p>;
+  }
 
-    return (
-      <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
-        {INVENTORY_NAV.map((group) => (
-          <div key={group.heading} className="flex flex-col gap-0.5">
+  if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
+
+  return (
+    <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
+      {navGroups.map((group, groupIndex) => (
+        <div key={group.heading ?? groupIndex} className="flex flex-col gap-0.5">
+          {group.heading ? (
             <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
               {group.heading}
             </span>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const href = `${businessHref(effectiveBusinessId!)}/inventory/${item.slug}`;
-              const isActive = pathname === href;
-              return (
-                <a
-                  key={item.slug}
-                  href={href}
-                  onClick={onNavigate}
-                  aria-current={isActive ? "page" : undefined}
-                  className={navItemClassName(isActive)}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  {item.label}
-                </a>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (moduleKey === "gst") {
-    if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
-
-    return (
-      <div className="flex flex-col gap-0.5 px-2 py-2">
-        {GST_NAV.map((item) => {
-          const Icon = item.icon;
-          const href = `${businessHref(effectiveBusinessId!)}/gst/${item.slug}`;
-          const isActive = pathname === href;
-          return (
-            <a
-              key={item.slug}
-              href={href}
-              onClick={onNavigate}
-              aria-current={isActive ? "page" : undefined}
-              className={navItemClassName(isActive)}
-            >
-              <Icon className="size-4 shrink-0" aria-hidden="true" />
-              {item.label}
-            </a>
-          );
-        })}
-      </div>
-    );
-  }
-
-  if (moduleKey === "fsm") {
-    if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
-
-    return (
-      <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
-        {SERVICE_NAV.map((group) => (
-          <div key={group.heading} className="flex flex-col gap-0.5">
-            <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-              {group.heading}
-            </span>
-            {group.items.map((item) => {
-              const Icon = item.icon;
-              const base = `${businessHref(effectiveBusinessId!)}/fsm`;
-              const href = item.slug ? `${base}/${item.slug}` : base;
-              const isActive = pathname === href;
-              return (
-                <a
-                  key={item.slug || "dashboard"}
-                  href={href}
-                  onClick={onNavigate}
-                  aria-current={isActive ? "page" : undefined}
-                  className={navItemClassName(isActive)}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
-                  {item.label}
-                </a>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return <p className="px-3 py-3 text-sm text-muted-foreground">Not available yet.</p>;
+          ) : null}
+          {group.items.map((item) => {
+            const base = `${businessHref(effectiveBusinessId!)}${routePrefix}`;
+            const href = item.slug ? `${base}/${item.slug}` : base;
+            const isActive = pathname === href;
+            return (
+              <a
+                key={item.slug || "root"}
+                href={href}
+                onClick={onNavigate}
+                aria-current={isActive ? "page" : undefined}
+                className={navItemClassName(isActive)}
+              >
+                <ModuleIcon name={item.icon} className="size-4 shrink-0" />
+                {item.label}
+              </a>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function AppSidebar({
@@ -443,6 +254,7 @@ export function AppSidebar({
   // the sidebar's module content always has *a* business to work from as long as one
   // exists, even before the founder has navigated into any business yet.
   const effectiveBusinessId = activeBusinessId ?? businesses[0]?.id ?? null;
+  const selectedModuleManifest = modules.find((m) => m.key === selectedModule);
 
   function handleSelectModule(key: string) {
     setSelectedModule(key);
@@ -484,6 +296,8 @@ export function AppSidebar({
             productsByBusiness={productsByBusiness}
             onCreateBusiness={onCreateBusiness}
             onNavigate={() => setOpen(false)}
+            routePrefix={selectedModuleManifest?.routePrefix}
+            navGroups={selectedModuleManifest?.nav}
           />
         </div>
 
