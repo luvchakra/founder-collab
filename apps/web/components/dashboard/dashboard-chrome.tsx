@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
@@ -25,6 +25,7 @@ import { signOut } from "@/app/(auth)/actions";
  */
 export function DashboardChrome({
   modules,
+  licensedModuleKeysByBusiness,
   businesses,
   productsByBusiness,
   creditsUsedPercent,
@@ -35,6 +36,11 @@ export function DashboardChrome({
   children,
 }: {
   modules: ShellNavModule[];
+  /** Active-or-grace module keys per business (core.licenses, C-3), from
+   * listLicensedModuleKeysByBusiness() -- CLAUDE.md's 4th licensing-enforcement layer
+   * ("UI built from module-registry filtered by entitlements"). A business missing from
+   * this map has no licensed modules at all, same as an empty array. */
+  licensedModuleKeysByBusiness: Record<string, string[]>;
   businesses: ShellBusiness[];
   productsByBusiness?: Record<string, ShellProduct[]>;
   creditsUsedPercent?: number;
@@ -48,10 +54,22 @@ export function DashboardChrome({
   const pathname = usePathname();
   const { businessId: activeBusinessId } = getActiveIdsFromPath(pathname ?? "");
 
+  // Filtered per the *active* business, not the account as a whole -- switching
+  // businesses (same URL shape the business switcher already navigates to) recomputes
+  // this without a full page reload, same as activeBusinessId itself already does.
+  // Falls back to the first business when none is active yet (bare /dashboard, before
+  // navigating into one) -- mirrors AppSidebar's own effectiveBusinessId fallback so
+  // the module list and the per-business content it renders always agree.
+  const effectiveBusinessId = activeBusinessId ?? businesses[0]?.id ?? null;
+  const licensedModules = useMemo(() => {
+    const licensedKeys = new Set(effectiveBusinessId ? licensedModuleKeysByBusiness[effectiveBusinessId] ?? [] : []);
+    return modules.filter((m) => licensedKeys.has(m.key));
+  }, [modules, licensedModuleKeysByBusiness, effectiveBusinessId]);
+
   return (
     <>
       <DashboardShell
-        modules={modules}
+        modules={licensedModules}
         businesses={businesses}
         activeBusinessId={activeBusinessId}
         businessHref={(businessId) => `/dashboard/businesses/${businessId}`}

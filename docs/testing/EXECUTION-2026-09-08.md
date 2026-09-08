@@ -106,7 +106,18 @@ write), but a real gap against the architecture doc's own "all four required" fr
 worth either building the shared helper or correcting the doc to describe what's
 actually enforced.
 
-### 5. Sidebar shows every module regardless of license — corrects this doc's own earlier "Pass" verdict (P0) — TC-SHELL-002, TC-MENU-LIC-001/002
+### 5. Sidebar shows every module regardless of license — corrects this doc's own earlier "Pass" verdict (P0) — TC-SHELL-002, TC-MENU-LIC-001/002 — **Fixed 2026-09-08**
+Fix: `packages/core/src/licensing/queries.ts`'s new `listLicensedModuleKeysByBusiness()`
+(one batched, RLS-scoped query for every business on the account) is now called from
+`apps/web/app/(dashboard)/layout.tsx` and threaded into `DashboardChrome`, which filters
+`modules` by the active business's active-or-grace licenses (falling back to the first
+business when none is active yet, matching `AppSidebar`'s own existing
+`effectiveBusinessId` fallback) before passing them to `DashboardShell`/`AppSidebar`/
+`module-selector.tsx`. `scripts/test-core-licensed-modules-by-business.mjs` (new, in
+`test:db`) covers tenant isolation on the batched query itself. This fixes the
+*visibility* half only — `proxy.ts`'s route guard still returns a bare 404 for direct/
+typed access to an unlicensed route, which is the separate "informative not-licensed
+page" requirement below, still open.
 A second uploaded review (`docs/testing/test-cases/menu-smoke.md`, landed same day as
 this correction) checked what this doc's first pass didn't: not just *how* nav items
 render once a module section is shown, but whether the *set of modules shown at all* is

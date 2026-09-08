@@ -10,6 +10,7 @@ import {
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
+import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { DashboardChrome } from "@/components/dashboard/dashboard-chrome";
 import { createBusinessAction } from "@/app/(dashboard)/dashboard/actions";
@@ -34,6 +35,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     : { usageByWorkspace: {}, prospects: [] };
   const alerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
 
+  // CLAUDE.md's 4th licensing-enforcement layer ("UI built from module-registry
+  // filtered by entitlements") -- previously missing entirely here: this used to pass
+  // the raw registry straight through with no license check (docs/testing/
+  // EXECUTION-2026-09-08.md finding 5). One batched query for every business on the
+  // account; DashboardChrome filters by whichever business is currently active.
+  const licensedModuleKeysByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
+
   // Same blend as co-founder-ai's own dashboard layout: total spend across every
   // workspace on the account against the free-tier limit times workspace count.
   const totalCost = Object.values(usageByWorkspace).reduce((sum, u) => sum + u.totalCost, 0);
@@ -49,6 +57,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <DashboardChrome
       modules={moduleRegistry}
+      licensedModuleKeysByBusiness={licensedModuleKeysByBusiness}
       businesses={businesses}
       productsByBusiness={productsByBusiness}
       creditsUsedPercent={creditsPercent}
