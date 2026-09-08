@@ -12,7 +12,7 @@ and `docs/NEXT-ACTIVITIES.md` for the survey that produced this epic's sequencin
 | S-2 | Mostly done | GST module already more built-out than "skeleton"; generation-history tables + `document.issued` consumer now built too -- remaining scope below |
 | S-3 | Done | `core.threads`/`messages`/`message_templates` |
 | S-4 | Done | `core.ai_runs`/`ai_provider_credentials` (forward-only, not a literal promotion -- see below) |
-| S-5 | Not started | Platform dashboard from module-contributed widgets |
+| S-5 | Done | Platform dashboard from module-contributed widgets |
 
 Also unblocked and shipped by S-3 (an Epic 5 story, not part of Epic 6 itself, but tracked
 here since it depended on this epic's own S-3): **F-11 (FSM Messages tab)** -- see
@@ -398,3 +398,64 @@ migrations); full `test`/`test:db` suites green (including the new
 `test-core-ai-usage-rls.mjs`); `npm run build --workspace=apps/web` succeeds; migration
 applied to the dev Supabase project and live end-to-end verification as described above;
 Supabase security advisor shows no new findings.
+
+## S-5 -- Platform dashboard from module-contributed widgets
+
+The last Epic 6 story, deliberately sequenced last since it needed every other module to
+have something worth contributing -- and now S-1/S-2's own new schemas (`crm.tickets`,
+`gst.einvoices`) give it real data to show, not just fsm/inventory's.
+
+**No schema change at all** -- this story is pure read-composition of tables every prior
+story already built and RLS-tested. `apps/web/app/(dashboard)/dashboard/page.tsx` (the
+account-level landing page) keeps its existing discovery-specific KPI/conversion-funnel
+section completely unchanged (it's real, tested, valuable -- no reason to touch it) and
+gains a new "Modules" row beneath it: one small stat card per **licensed** non-discovery
+module, assembled from the registry rather than a hardcoded list.
+
+- For each of the account's businesses, `core.licensing.listLicensesForBusiness()`
+  (already-existing, already used by the licenses settings page) resolves which
+  `module_key`s are active/grace there. Businesses are grouped by module, and a module
+  with zero licensed businesses on the account contributes **no card at all** -- ADR-10's
+  own degraded mode, ADR-10 in visual form: ADR-10 says a contract call returns
+  `MODULE_NOT_LICENSED` as a normal value; here the analogous "normal" outcome for a
+  dashboard widget is simply not rendering.
+- One new tiny query function per module, each taking a pre-filtered `businessId[]` (the
+  caller already knows these are licensed -- same "trusts the caller's filtering" pattern
+  `module-discovery/lib/usage/queries.ts#getWorkspaceUsageForWorkspaces` already
+  established): `module-fsm/lib/dashboard/queries.ts#getOpenJobsCount` (status not
+  completed/cancelled), `module-crm/lib/dashboard/queries.ts#getOpenTicketsCount` (status
+  open/pending), `module-gst/lib/dashboard/queries.ts#getEinvoicesThisMonthCount`
+  (status generated, this calendar month). Inventory needed no new function at all --
+  its own `contract/index.ts#listLowStockAlerts` (F-14) already does exactly this,
+  reused directly.
+- The widget-assembly function and its presentational card both live in `apps/web`'s own
+  page file, not `packages/core` -- rendering a widget means importing each module's own
+  dashboard query directly, and `core`/`module-registry` may not depend on any module at
+  all (`lint:boundaries`). `apps/web` is the composition root, exempt from the
+  module-to-module contract-only restriction, same reasoning
+  `components/gst/gst-document-panel.tsx` (S-2) already established for exactly this
+  kind of cross-module UI composition.
+
+No new permission, no new migration, no new SQL-level RLS test -- every underlying query
+(`fsm.jobs`, `crm.tickets`, `gst.einvoices`, inventory's `alerts`) is already tenant+
+license RLS-tested by its own story; this one only composes already-tested reads.
+
+Live-verified the three new aggregate queries' own SQL directly against the dev Supabase
+project inside one self-cleaning (rolled-back) transaction: seeded a business with one
+open + one completed job, one open + one closed ticket, and one generated e-invoice this
+month, and confirmed each widget's own count query returns exactly the expected value
+(1, 1, 1 -- correctly excluding the completed job and closed ticket). No assertion
+failures, zero residue after rollback. The actual page render (does the "Modules" row
+correctly appear/disappear per the signed-in account's real license state) was **not**
+exercised in an actual browser -- same documented gap as every other UI addition in this
+session.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (43
+migrations, unchanged -- no schema change); full `test`/`test:db` suites green,
+unchanged from S-4 (nothing here touches RLS); `npm run build --workspace=apps/web`
+succeeds; live verification of the three new aggregate queries against the dev Supabase
+project as described above; Supabase security advisor shows no new findings.
+
+**Epic 6 is now complete**: S-1 through S-5 all done (S-2's own two explicitly-deferred
+items -- print/CSV-export panels, barcode/QR scanning -- remain open, documented in that
+story's own section above, not architecturally blocking anything).

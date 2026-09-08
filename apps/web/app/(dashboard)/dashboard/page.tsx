@@ -9,9 +9,82 @@ import { computeConversionFunnel } from "@cofounderai/module-discovery/lib/prosp
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
 import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/prospects/conversion-funnel-panel";
+import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
+import { ModuleIcon } from "@cofounderai/core/shell/module-icon";
+import type { ModuleKey } from "@cofounderai/module-registry";
 import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { getOpenJobsCount } from "@cofounderai/module-fsm/lib/dashboard/queries";
+import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
+import { getOpenTicketsCount } from "@cofounderai/module-crm/lib/dashboard/queries";
+import { getEinvoicesThisMonthCount } from "@cofounderai/module-gst/lib/dashboard/queries";
+
+/** S-5: the platform dashboard's module-contributed widget row -- one card per licensed
+ * non-discovery module (discovery gets its own dedicated KPI section above, unchanged;
+ * this row is what "assembled from module-contributed widgets via the registry" adds).
+ * Lives here, not in `packages/core`, because rendering it means importing each
+ * module's own dashboard query directly -- `apps/web` is the composition root exempt
+ * from the module-to-module contract-only restriction, same reasoning
+ * `components/gst/gst-document-panel.tsx` (S-2) already established. A module with zero
+ * licensed businesses on this account contributes nothing at all -- ADR-10's own
+ * degraded mode, not an error or a placeholder card. */
+async function computeModuleWidgets(businessIds: string[]): Promise<{ key: ModuleKey; label: string; icon: string; value: number; detail: string }[]> {
+  if (businessIds.length === 0) return [];
+
+  const licensesByBusiness = await Promise.all(businessIds.map((id) => listLicensesForBusiness(id)));
+  const licensedBusinessIdsByModule = new Map<string, string[]>();
+  licensesByBusiness.forEach((licenses, i) => {
+    for (const license of licenses) {
+      if (license.status !== "active" && license.status !== "grace") continue;
+      const ids = licensedBusinessIdsByModule.get(license.module_key) ?? [];
+      ids.push(businessIds[i]!);
+      licensedBusinessIdsByModule.set(license.module_key, ids);
+    }
+  });
+
+  const widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string }[] = [];
+
+  const fsmIds = licensedBusinessIdsByModule.get("fsm") ?? [];
+  if (fsmIds.length > 0) {
+    const openJobs = await getOpenJobsCount(fsmIds);
+    widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs" });
+  }
+
+  const inventoryIds = licensedBusinessIdsByModule.get("inventory") ?? [];
+  if (inventoryIds.length > 0) {
+    const alertCounts = await Promise.all(inventoryIds.map((id) => listLowStockAlerts(id)));
+    const lowStock = alertCounts.reduce((sum, r) => sum + (r.ok ? r.data.length : 0), 0);
+    widgets.push({ key: "inventory", label: "Inventory", icon: "Package", value: lowStock, detail: "low-stock alerts" });
+  }
+
+  const crmIds = licensedBusinessIdsByModule.get("crm") ?? [];
+  if (crmIds.length > 0) {
+    const openTickets = await getOpenTicketsCount(crmIds);
+    widgets.push({ key: "crm", label: "CRM", icon: "Inbox", value: openTickets, detail: "open tickets" });
+  }
+
+  const gstIds = licensedBusinessIdsByModule.get("gst") ?? [];
+  if (gstIds.length > 0) {
+    const einvoices = await getEinvoicesThisMonthCount(gstIds);
+    widgets.push({ key: "gst", label: "GST", icon: "Receipt", value: einvoices, detail: "e-invoices this month" });
+  }
+
+  return widgets;
+}
+
+function ModuleWidgetCard({ label, icon, value, detail }: { label: string; icon: string; value: number; detail: string }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-md border p-4">
+      <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <ModuleIcon name={icon} className="size-3.5" />
+        {label}
+      </div>
+      <span className="text-2xl font-semibold">{value}</span>
+      <span className="text-xs text-muted-foreground">{detail}</span>
+    </div>
+  );
+}
 
 function KpiCard({
   label,
@@ -52,6 +125,7 @@ export default async function DashboardPage({
   const { usageByWorkspace, countsByWorkspace, prospects } = await getAccountUsageAndProspects(
     account.id,
   );
+  const moduleWidgets = await computeModuleWidgets(businesses.map((b) => b.id));
 
   const prospectCounts = Object.values(countsByWorkspace).reduce(
     (sum, c) => ({
@@ -107,6 +181,17 @@ export default async function DashboardPage({
           />
         </div>
       </section>
+
+      {moduleWidgets.length > 0 ? (
+        <section>
+          <h2 className="text-xl font-semibold">Modules</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {moduleWidgets.map((widget) => (
+              <ModuleWidgetCard key={widget.key} label={widget.label} icon={widget.icon} value={widget.value} detail={widget.detail} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
