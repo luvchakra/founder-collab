@@ -11,8 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/t
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { CustomFieldWithValue } from "../../lib/custom-fields/types";
+import type { Expense } from "../../lib/expenses/types";
+import type { JobAttachmentItem } from "../../lib/attachments/types";
 import type { AuditLogEntry, Job, JobStatus } from "../../lib/jobs/types";
+import type { NoteItem, NoteVisibility } from "../../lib/notes/types";
+import type { SignatureItem } from "../../lib/signatures/types";
 import type { Tag } from "../../lib/tags/types";
+import type { OpenTimeEntry, TimeEntryItem } from "../../lib/time-entries/types";
+import { FieldWorkTab } from "../field/field-work-tab";
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   unscheduled: "Unscheduled",
@@ -37,6 +43,15 @@ export function JobDetail({
   canEdit,
   canReopen,
   canConvertToOpportunity,
+  timeEntries,
+  openTimeEntry,
+  expenses,
+  notes,
+  attachments,
+  signatures,
+  canEditTime,
+  canEditExpenses,
+  canEditNotes,
   updateAction,
   addTagAction,
   removeTagAction,
@@ -50,6 +65,14 @@ export function JobDetail({
   reopenAction,
   duplicateAction,
   convertToOpportunityAction,
+  clockInAction,
+  clockOutAction,
+  addExpenseAction,
+  deleteExpenseAction,
+  addNoteAction,
+  uploadAttachmentAction,
+  deleteAttachmentAction,
+  captureSignatureAction,
 }: {
   job: Job;
   partyName: string;
@@ -60,6 +83,15 @@ export function JobDetail({
   canEdit: boolean;
   canReopen: boolean;
   canConvertToOpportunity: boolean;
+  timeEntries: TimeEntryItem[];
+  openTimeEntry: OpenTimeEntry | null;
+  expenses: Expense[];
+  notes: NoteItem[];
+  attachments: JobAttachmentItem[];
+  signatures: SignatureItem[];
+  canEditTime: boolean;
+  canEditExpenses: boolean;
+  canEditNotes: boolean;
   updateAction: (description: string, scopeOfWork: string) => Promise<void>;
   addTagAction: (name: string) => Promise<void>;
   removeTagAction: (tagId: string) => Promise<void>;
@@ -73,6 +105,14 @@ export function JobDetail({
   reopenAction: () => Promise<void>;
   duplicateAction: () => Promise<{ id: string }>;
   convertToOpportunityAction: () => Promise<{ id: string }>;
+  clockInAction: () => Promise<void>;
+  clockOutAction: () => Promise<void>;
+  addExpenseAction: (description: string, amount: number) => Promise<void>;
+  deleteExpenseAction: (id: string) => Promise<void>;
+  addNoteAction: (body: string, visibility: NoteVisibility) => Promise<void>;
+  uploadAttachmentAction: (formData: FormData) => Promise<void>;
+  deleteAttachmentAction: (id: string) => Promise<void>;
+  captureSignatureAction: (formData: FormData) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -191,6 +231,7 @@ export function JobDetail({
       <Tabs defaultValue="details">
         <TabsList>
           <TabsTrigger value="details">Job details</TabsTrigger>
+          <TabsTrigger value="field">Field work</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -279,6 +320,30 @@ export function JobDetail({
               </div>
             </div>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="field">
+          <FieldWorkTab
+            jobId={job.id}
+            timeEntries={timeEntries}
+            openTimeEntry={openTimeEntry}
+            expenses={expenses}
+            notes={notes}
+            attachments={attachments}
+            signatures={signatures}
+            canEditTime={canEditTime}
+            canEditExpenses={canEditExpenses}
+            canEditNotes={canEditNotes}
+            canEditJob={canEdit}
+            clockInAction={clockInAction}
+            clockOutAction={clockOutAction}
+            addExpenseAction={addExpenseAction}
+            deleteExpenseAction={deleteExpenseAction}
+            addNoteAction={addNoteAction}
+            uploadAttachmentAction={uploadAttachmentAction}
+            deleteAttachmentAction={deleteAttachmentAction}
+            captureSignatureAction={captureSignatureAction}
+          />
         </TabsContent>
 
         <TabsContent value="history">

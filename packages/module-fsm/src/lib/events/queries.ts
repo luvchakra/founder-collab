@@ -69,6 +69,19 @@ export const listEventsForRange = cache(async (businessId: string, startsAtGte: 
   });
 });
 
+/** `/fsm/my-day`'s own read: `listEventsForRange` filtered down to one technician's own
+ * assignments. Filtered in JS rather than a second, narrower SQL query -- `my-day` is a
+ * single day for one employee, a small enough result set that reusing the exact same
+ * join logic (and its cache entry, when the range matches an already-rendered
+ * board) is simpler than maintaining two queries that both resolve job/opportunity/
+ * party names. */
+export const listMyEventsForRange = cache(
+  async (businessId: string, employeeId: string, startsAtGte: string, startsAtLt: string): Promise<ScheduleEventItem[]> => {
+    const events = await listEventsForRange(businessId, startsAtGte, startsAtLt);
+    return events.filter((e) => e.assignee_employee_ids.includes(employeeId));
+  },
+);
+
 /** Jobs a work/reminder event can be attached to -- excludes cancelled jobs (PRD §4's
  * state machine has no transition out of `cancelled`, so scheduling more work against
  * one would be a dead end the UI shouldn't offer). */

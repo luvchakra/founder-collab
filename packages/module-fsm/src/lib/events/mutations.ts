@@ -1,5 +1,12 @@
+import { Resend } from "resend";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import { createClient } from "../../db/server";
 import type { CreateEventInput, RescheduleEventInput } from "./types";
+
+function coreClient() {
+  return createCoreClient({ schema: "core" });
+}
 
 /** `unscheduled -> scheduled` for real, now that events actually exist -- jobs/
  * mutations.ts#markJobScheduled documented this exact gap when F-5 landed ("F-6 will
@@ -105,9 +112,84 @@ export async function setEventAssignees(id: string, businessId: string, employee
   if (insertError) throw insertError;
 }
 
-/** Beyond `scheduled`/`cancelled`, `fsm.events.status`'s remaining values
- * (`en_route`/`arrived`/`done`) belong to F-7's own field-execution "on my way"/clock-in
- * flow on `/fsm/my-day` -- not exposed here. */
+/** The customer's email for a `work` event's own job or opportunity -- same resolution
+ * order `estimates/mutations.ts#resolveRecipientEmail` already established (primary
+ * contact first, then the party's own email), just starting from an event instead of an
+ * opportunity directly. */
+async function resolveEventCustomerEmail(businessId: string, eventId: string): Promise<string> {
+  const fsm = await createClient();
+  const { data: event, error: eventError } = await fsm
+    .from("events")
+    .select("job_id, opportunity_id")
+    .eq("id", eventId)
+    .eq("business_id", businessId)
+    .single();
+  if (eventError) throw eventError;
+
+  const subject = event.job_id
+    ? await fsm.from("jobs").select("party_id, primary_contact_id").eq("id", event.job_id).single()
+    : await fsm.from("opportunities").select("party_id, primary_contact_id").eq("id", event.opportunity_id).single();
+  if (subject.error) throw subject.error;
+
+  const core = await coreClient();
+  if (subject.data.primary_contact_id) {
+    const { data: contact } = await core.from("party_contacts").select("email").eq("id", subject.data.primary_contact_id).maybeSingle();
+    if (contact?.email) return contact.email;
+  }
+  const { data: party } = await core.from("parties").select("email").eq("id", subject.data.party_id).maybeSingle();
+  if (!party?.email) throw new Error("No email on file for this customer.");
+  return party.email;
+}
+
+/** "Swipe to Notify the customer 'on the way' (SMS + email)" (PRD §1.8) -- email-only
+ * here. No SMS provider exists anywhere in this platform yet (confirmed before building
+ * this: no Twilio or equivalent dependency, no phone-sending code) -- adding one is an
+ * infrastructure decision (a new external dependency, API keys, per-message cost)
+ * bigger than this one action justifies on its own, so it's deferred rather than
+ * silently dropped; F-9 (automatic customer reminders, which also needs SMS) will need
+ * the same provider decision. Reuses module-discovery's own Resend pattern exactly, same
+ * as F-4's `sendEstimate`. Advances `scheduled -> en_route`; safe to call again (a
+ * second notify just re-sends the email without erroring). */
+export async function notifyOnTheWay(businessId: string, eventId: string): Promise<void> {
+  const toEmail = await resolveEventCustomerEmail(businessId, eventId);
+
+  const core = await coreClient();
+  const { data: business } = await core.from("businesses").select("name, website").eq("id", businessId).maybeSingle();
+  const brandName = business?.name ?? "Your service provider";
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const fromAddress = process.env.RESEND_FROM_EMAIL;
+  if (!apiKey || !fromAddress) {
+    throw new Error("Email sending isn't configured yet -- set RESEND_API_KEY and RESEND_FROM_EMAIL.");
+  }
+
+  const resend = new Resend(apiKey);
+  const result = await resend.emails.send({
+    from: fromAddress,
+    to: toEmail,
+    subject: `${brandName} is on the way`,
+    text: renderEmailText("Your technician is on the way."),
+    html: renderEmailHtml({ brandName, body: "Your technician is **on the way**.", websiteUrl: business?.website ?? null, replyToEmail: fromAddress }),
+  });
+  if (result.error) throw new Error(`Could not send the notification email: ${result.error.message}`);
+
+  const fsm = await createClient();
+  const { error } = await fsm.from("events").update({ status: "en_route" }).eq("id", eventId).eq("business_id", businessId);
+  if (error) throw error;
+}
+
+export async function markEventArrived(id: string, businessId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("events").update({ status: "arrived" }).eq("id", id).eq("business_id", businessId);
+  if (error) throw error;
+}
+
+export async function markEventDone(id: string, businessId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("events").update({ status: "done" }).eq("id", id).eq("business_id", businessId);
+  if (error) throw error;
+}
+
 export async function cancelEvent(id: string, businessId: string): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ status: "cancelled" }).eq("id", id).eq("business_id", businessId);

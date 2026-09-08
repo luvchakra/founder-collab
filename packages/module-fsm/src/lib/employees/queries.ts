@@ -36,6 +36,33 @@ export const listEmployees = cache(async (businessId: string): Promise<EmployeeO
   }));
 });
 
+/** The caller's own `core.employees` row for this business, if they have one -- backs
+ * `/fsm/my-day` (whose schedule this is) and clock-in/out (whose time entry this is).
+ * `null` for a business member who isn't a technician (e.g. an owner who only dispatches
+ * and never clocks in) -- callers treat that as "nothing to show/do here", not an error. */
+export const getCurrentEmployee = cache(async (businessId: string): Promise<EmployeeOption | null> => {
+  const core = await coreClient();
+  const {
+    data: { user },
+  } = await core.auth.getUser();
+  if (!user) return null;
+
+  const { data: row, error } = await core
+    .from("employees")
+    .select("id, user_id, job_title")
+    .eq("business_id", businessId)
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) return null;
+
+  const { data: profile, error: profileError } = await core.from("user_profiles").select("full_name, email").eq("id", user.id).maybeSingle();
+  if (profileError) throw profileError;
+
+  return { id: row.id, user_id: row.user_id ?? "", job_title: row.job_title, full_name: profile?.full_name ?? null, email: profile?.email ?? null };
+});
+
 /** Every business member alongside whether they're already a technician (has an active
  * `core.employees` row) -- backs the roster toggle on the schedule page. No employee
  * CRUD/"Manage Users" screen exists anywhere in the platform yet (a genuine gap upstream

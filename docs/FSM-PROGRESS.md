@@ -15,7 +15,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-4 | Done | Public estimate page + send + approve/decline |
 | F-5 | Done | Jobs |
 | F-6 | Done | Scheduling |
-| F-7 | Not started | Field execution |
+| F-7 | Done | Field execution |
 | F-8 | Not started | Invoicing |
 | F-9 | Not started | Reminders |
 | F-10 | Not started | Customer Center + contact form |
@@ -530,3 +530,123 @@ with a fresh `npm run build --workspace=apps/web`. All three wrong-guess changes
 `turbopack.root`) were reverted; only the missing dependency line and the regenerated
 lockfile remain. This fix and F-6 are in the same PR since the app was never actually
 reachable on production for four full stories otherwise.
+
+## F-7 -- Field execution
+
+No new tables (`fsm.time_entries`/`expenses`/`notes`/`signatures` and `core.attachments`
+are all F-1's/D-8's own DDL). One migration
+(`20260908070000_fsm_field_execution_permissions.sql`) adds three permission keys --
+**`time_entries.edit`**, **`expenses.edit`**, **`notes.edit`** -- matching Kickserv's own
+permission matrix (PRD §12), which treats "Job charges", "Expenses", "Time entries" and
+"Notes" as separate categories from "Jobs" itself (the same reasoning F-3 used to keep
+`estimates.edit` distinct from `opportunities.edit`). Attachments and signature capture
+have no separate category in that matrix, so both stay gated on the existing `jobs.edit`
+-- a photo or a signature is part of the job's own record, same as its description. All
+three owner/admin only today, same minimal-role treatment every prior FSM permission has
+gotten.
+
+`packages/module-fsm/src/lib/{time-entries,expenses,notes,signatures,attachments}/` +
+`components/field/{field-work-tab,signature-pad,my-day-list}.tsx` + one new route
+(`apps/web/.../fsm/my-day/{page.tsx,actions.ts}`, already linked from `SERVICE_NAV`
+since F-1) + a new "Field work" tab on the existing job detail page. Notable decisions:
+
+- **Clock in/out is job-scoped, not a job-less global toggle** -- `fsm.time_entries.job_id`
+  is `not null` (F-1's own DDL), so "Clock In to track time" (PRD §1.8) always means
+  clocking into a specific job. `clockOut()` takes the job id too (not just "whichever
+  entry is open") so tapping "Clock out" on the wrong job's card, while genuinely clocked
+  into a different one, fails loudly instead of silently closing the wrong entry. The
+  DB's own `time_entries_one_open_per_employee` unique index (F-1) is the actual
+  enforcement of "can't be clocked into two jobs at once" -- the 23505 catch in
+  `clockIn()` only turns that into a clear message.
+- **`getCurrentEmployee()`** (new, `lib/employees/queries.ts`) resolves the caller's own
+  `core.employees` row for a business via `auth.getUser()` -- backs both `/fsm/my-day`
+  ("whose schedule is this") and clock-in/out ("whose time entry is this"). Returns
+  `null` for a business member who isn't a technician (e.g. an owner who only
+  dispatches), which every caller treats as "nothing to show/do", not an error.
+- **Attachments reuse `core.attachments` (D-8) directly** -- no new storage concept.
+  `entity_type='job'` for photos/videos/PDFs captured in the field, a separate
+  `entity_type='job_signature'` for signature images, so the two never mix in either
+  list. Added `core.attachments/queries.ts#getAttachmentSignedUrl()` (new) since this is
+  the first story to actually render an attachment back to a user -- the bucket is
+  private (D-8's own migration), so a plain `getPublicUrl` would 404; `createSignedUrl`
+  is itself RLS-checked at generation time against the same "member of this business"
+  policy that already gates the underlying object's own read.
+- **Signature capture is a plain `<canvas>` pointer-events pad**
+  (`components/field/signature-pad.tsx`), not a signature-capture library -- drawing a
+  line and exporting a PNG via `canvas.toBlob()` is the entire feature, and every
+  mainstream library wraps exactly that (CLAUDE.md principle 2). The captured image
+  uploads through `uploadAttachment()` (`entity_type='job_signature'`) and
+  `fsm.signatures.image_attachment_id` points at it -- no separate image-storage path.
+- **"Notify on the way" is email-only, not "SMS + email"** (PRD §1.8's own phrasing).
+  Confirmed before building this: no SMS provider (Twilio or equivalent) exists anywhere
+  in the platform, and no phone-sending code of any kind. Adding one is an
+  infrastructure decision (a new external dependency, API keys, per-message cost) bigger
+  than this one action justifies alone, so it's deferred rather than silently dropped --
+  documented here because F-9 (automatic customer reminders) will hit the exact same gap
+  and needs the same provider decision made once, not re-litigated. Reuses
+  `module-discovery`'s own Resend pattern exactly, same as F-4's `sendEstimate` --
+  advances the event's own status `scheduled -> en_route`.
+- **`fsm.events.status`'s remaining values now have real transitions**:
+  `notifyOnTheWay()` (`scheduled -> en_route`, sends the email above), `markEventArrived()`
+  (`-> arrived`), `markEventDone()` (`-> done`) -- the three F-6 explicitly deferred to
+  this story. All three are plain, unconditional status updates (no "was it in the right
+  prior state" guard, unlike the job status machine's own `transition()` helper) --
+  Kickserv's own field-execution flow doesn't document a stricter state machine here, and
+  a technician correcting their own tap (e.g. marking arrived twice) shouldn't be an
+  error.
+- **`/fsm/my-day` is a single scrollable list, not a calendar grid** -- "home screen is
+  today's schedule" (PRD §1.8) reads far better mobile-first as a list of cards than as
+  the desktop schedule board's day/week grid. "Swipe to Notify" becomes a plain button
+  (no gesture library); "tap the map for GPS routing" becomes a link to
+  `maps.google.com` built from the customer's own name (no map SDK, no new dependency --
+  the device's own default maps app still gets the technician real turn-by-turn). Reuses
+  `listEventsForRange` (F-6) filtered in JS down to the caller's own assignments
+  (`listMyEventsForRange`, new) rather than a second SQL query -- a single day for one
+  employee is a small enough result set that reusing the exact join logic (job/
+  opportunity/party name resolution) is simpler than maintaining two queries that both
+  do it.
+- **Charges are deliberately not repeated here** -- PRD §1.8 lists "add charges" as part
+  of the field-execution flow, but `EstimateBuilder` (F-3) already covers charge-line
+  editing (`core.document_lines`, GST computation, reorder) on the opportunity/estimate
+  side; a job doesn't get a second charge-line editor with different code for the same
+  `core.items`/`core.document_lines` concept. Charges on completed jobs become invoicing
+  once F-8 lands.
+- **Payment collection is out of scope** -- PRD §1.8's "collect signature and payment" is
+  split: signature is this story, payment is F-8 (Invoicing)'s own concern (recording a
+  payment against a document that doesn't exist yet would be building the wrong table).
+
+Existing test `scripts/test-discovery-rls.mjs` hardcoded the exact size of
+`core.permissions` (38) -- bumped to 41 for `time_entries.edit`/`expenses.edit`/
+`notes.edit`, same recurring update pattern as F-2/F-3/F-5/F-6. No new SQL-level test
+file: the only new SQL primitives are the three permission-catalog rows (covered by the
+updated count assertion); `fsm.time_entries`' own one-open-per-employee unique index and
+generated `duration_minutes` column already have dedicated coverage in
+`scripts/test-fsm-rls.mjs` from F-1 (re-run as part of the same `test:db` pass, not
+duplicated here), and `fsm.expenses`/`notes`/`signatures` and `core.attachments` already
+have their own RLS/tenant-isolation coverage from F-1/D-8.
+
+The full field-execution flow was live-verified end-to-end against the dev Supabase
+project inside one self-cleaning (rolled-back) transaction as the authenticated business
+owner: create a job, clock in, confirm a second clock-in for the same employee is
+rejected by the DB's own unique index, clock out and confirm `duration_minutes`
+computed, log an expense, add a customer-visible note, record an attachment's metadata
+row (`entity_type='job'`), capture a signature referencing it, walk a work event through
+`scheduled -> en_route -> arrived -> done`, and confirm the
+`time_entries.edit`/`expenses.edit`/`notes.edit` permission-catalog wiring (all three
+keys present, granted to exactly owner+admin, `has_permission()` true for the owner on
+all three) -- no assertion failures, zero residue after rollback. The actual Resend API
+call for "notify on the way" was not exercised live (no test inbox in this environment),
+same as F-4's own `sendEstimate` -- its error handling (missing env vars, Resend's own
+error response) follows that already-proven pattern exactly. The signature pad's own
+canvas drawing and the file-upload button were **not** exercised in an actual browser in
+this environment -- only their server-side landing points (attachment metadata,
+`fsm.signatures` insert) were verified via the SQL transaction above. Typecheck, lint,
+and build passing confirm the component compiles and its types line up, not that the
+drawing/export/upload interaction itself works end-to-end in a real browser.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full
+`test:db` suite green (including the updated permission-count assertion); `npm run
+build --workspace=apps/web` succeeds (the new `/fsm/my-day` route compiles and
+registers alongside the existing job routes); Supabase security advisor shows no new
+findings; live end-to-end verification against the dev Supabase project as described
+above.
