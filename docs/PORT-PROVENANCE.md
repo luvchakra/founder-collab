@@ -25,6 +25,15 @@ Tracks the exact source commit SHA behind every directory ported from `co-founde
 > (`supabase/tests/local-stub.sql`), not the genuine Supabase project. Apply and re-verify
 > against the real target the moment a session has connectivity to it, before building
 > anything further on top that assumes it's already there.
+>
+> **Update (2026-09-08): stale, kept only as a historical record of the 2026-09-06
+> connectivity gap.** A later session had Supabase MCP access to this exact project and
+> has since applied every migration in `supabase/migrations/` to it directly (through
+> `discovery`, `inventory`, `fsm`, `gst`, and `crm`) and live-verified each one with a
+> rolled-back transaction — see `docs/FSM-PROGRESS.md` (F-1 onward) and
+> `docs/EPIC6-PROGRESS.md` (S-1 through S-5) for the story-by-story record. The project is
+> reachable, correctly provisioned, and has carried every story's schema since. Do not
+> read the paragraph above as describing the current state.
 
 ## Source repositories (read-only reference material — never push to these)
 
@@ -147,8 +156,9 @@ Notes on the mechanical changes applied per row (paths/wrapper only, no logic ch
   `C-1`, once `core` exists and there's a second module to share them with). Verified
   against a local Postgres via `scripts/test-discovery-rls.mjs` (see the network note
   above) — schema applies cleanly, `handle_new_user`/`create_default_workspace` fire
-  correctly, and RLS genuinely isolates two tenants on both read and write. Not yet
-  applied to the real target project.
+  correctly, and RLS genuinely isolates two tenants on both read and write. Not applied
+  to the real target project as of this entry (2026-09-06) -- it has been since, along
+  with every later migration; see the network note's own 2026-09-08 update above.
 
 - **Schema-targeting mechanism (`P-5`), added to `packages/core/src/db/{client,server,admin}.ts`:**
   each now takes an optional `{ schema }` option, passed through to `@supabase/ssr`/
