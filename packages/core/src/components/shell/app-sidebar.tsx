@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  BarChart3,
+  Briefcase,
+  CalendarDays,
   ClipboardList,
   FileText,
   History,
@@ -14,8 +17,11 @@ import {
   Receipt,
   RefreshCw,
   RotateCcw,
+  Settings,
   ShoppingCart,
   Shield,
+  Smartphone,
+  Target,
   Truck,
   Users,
   Warehouse,
@@ -76,6 +82,53 @@ const INVENTORY_NAV: { heading: string; items: { label: string; slug: string; ic
       { label: "Team", slug: "team", icon: Shield },
       { label: "API Keys", slug: "api-keys", icon: KeyRound },
     ],
+  },
+];
+
+/**
+ * FSM's own nav -- per the module-registry's own manifest entry (`name: "Service"`),
+ * every FSM screen lives under this single grouped tree, not scattered as separate
+ * top-level modules; the module switcher shows one "Service" entry, same as
+ * Discovery/Inventory/GST each show one entry for their own multi-screen nav.
+ * Route slugs match docs/plan/02-FSM-PRD.md §5 exactly (empty slug = the module's own
+ * root route, `/fsm`, the dispatcher dashboard) -- authorized to link ahead of the
+ * routes existing yet, same "link now, build later" pattern INVENTORY_NAV established;
+ * these 404 until each F-story lands.
+ */
+const SERVICE_NAV: { heading: string; items: { label: string; slug: string; icon: LucideIcon }[] }[] = [
+  {
+    heading: "Overview",
+    items: [{ label: "Dashboard", slug: "", icon: LayoutDashboard }],
+  },
+  {
+    heading: "Pipeline",
+    items: [
+      { label: "Opportunities", slug: "opportunities", icon: Target },
+      { label: "Jobs", slug: "jobs", icon: Briefcase },
+    ],
+  },
+  {
+    heading: "Scheduling",
+    items: [
+      { label: "Schedule", slug: "schedule", icon: CalendarDays },
+      { label: "My Day", slug: "my-day", icon: Smartphone },
+    ],
+  },
+  {
+    heading: "Billing",
+    items: [{ label: "Invoices", slug: "invoices", icon: FileText }],
+  },
+  {
+    heading: "Customers",
+    items: [{ label: "Customers", slug: "customers", icon: Users }],
+  },
+  {
+    heading: "Reports",
+    items: [{ label: "Reports", slug: "reports", icon: BarChart3 }],
+  },
+  {
+    heading: "Administration",
+    items: [{ label: "Settings", slug: "settings", icon: Settings }],
   },
 ];
 
@@ -275,6 +328,40 @@ function ModuleContent({
             </a>
           );
         })}
+      </div>
+    );
+  }
+
+  if (moduleKey === "fsm") {
+    if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
+
+    return (
+      <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
+        {SERVICE_NAV.map((group) => (
+          <div key={group.heading} className="flex flex-col gap-0.5">
+            <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              {group.heading}
+            </span>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const base = `${businessHref(effectiveBusinessId!)}/fsm`;
+              const href = item.slug ? `${base}/${item.slug}` : base;
+              const isActive = pathname === href;
+              return (
+                <a
+                  key={item.slug || "dashboard"}
+                  href={href}
+                  onClick={onNavigate}
+                  aria-current={isActive ? "page" : undefined}
+                  className={navItemClassName(isActive)}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  {item.label}
+                </a>
+              );
+            })}
+          </div>
+        ))}
       </div>
     );
   }
