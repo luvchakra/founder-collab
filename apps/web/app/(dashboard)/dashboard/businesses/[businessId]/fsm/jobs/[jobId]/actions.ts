@@ -1,0 +1,109 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
+import {
+  cancelJob,
+  completeJob,
+  convertJobToOpportunity,
+  duplicateJob,
+  holdJob,
+  markJobScheduled,
+  reopenJob,
+  resumeJob,
+  startJob,
+  updateJob,
+} from "@cofounderai/module-fsm/lib/jobs/mutations";
+import { getJob, jobHasInvoice } from "@cofounderai/module-fsm/lib/jobs/queries";
+import { addWorkTag, removeWorkTag } from "@cofounderai/module-fsm/lib/tags/mutations";
+import { setCustomFieldValue } from "@cofounderai/module-fsm/lib/custom-fields/mutations";
+
+const TAGGABLE_TYPE = "job";
+
+function detailPath(businessId: string, jobId: string) {
+  return `/dashboard/businesses/${businessId}/fsm/jobs/${jobId}`;
+}
+
+export async function updateJobAction(businessId: string, jobId: string, description: string, scopeOfWork: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await updateJob(jobId, businessId, { description, scopeOfWork });
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function addJobTagAction(businessId: string, jobId: string, name: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await addWorkTag(businessId, TAGGABLE_TYPE, jobId, name);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function removeJobTagAction(businessId: string, jobId: string, tagId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await removeWorkTag(businessId, tagId, jobId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function setJobCustomFieldAction(businessId: string, jobId: string, fieldDefId: string, value: unknown): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await setCustomFieldValue(businessId, fieldDefId, jobId, value);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function markJobScheduledAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await markJobScheduled(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function startJobAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await startJob(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function holdJobAction(businessId: string, jobId: string, reason: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await holdJob(jobId, businessId, reason);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function resumeJobAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await resumeJob(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function completeJobAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await completeJob(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function cancelJobAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await cancelJob(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+/** Admin-only (PRD §4) -- gated on `jobs.reopen`, a permission distinct from the
+ * ordinary `jobs.edit` every other action here uses. */
+export async function reopenJobAction(businessId: string, jobId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.reopen");
+  await reopenJob(jobId, businessId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function duplicateJobAction(businessId: string, jobId: string): Promise<{ id: string }> {
+  await requirePermission(businessId, "jobs.edit");
+  const id = await duplicateJob(jobId, businessId);
+  return { id };
+}
+
+export async function convertJobToOpportunityAction(businessId: string, jobId: string): Promise<{ id: string }> {
+  await requirePermission(businessId, "jobs.edit");
+  const hasInvoice = await jobHasInvoice(businessId, jobId);
+  if (hasInvoice) throw new Error("This job already has an invoice and can no longer be converted back to an opportunity.");
+  const job = await getJob(businessId, jobId);
+  if (!job) throw new Error("Job not found.");
+  const id = await convertJobToOpportunity(job, businessId);
+  return { id };
+}

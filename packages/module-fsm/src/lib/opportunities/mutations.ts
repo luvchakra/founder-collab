@@ -6,14 +6,19 @@ function coreClient() {
   return createCoreClient({ schema: "core" });
 }
 
-/** Resolves `input`'s party -- either the existing one given, or a brand-new
- * `core.parties` row created inline. Either way, ensures the party holds the `customer`
- * role (idempotent: `party_roles`' own `unique (party_id, role)` means "already has it"
- * is a normal, ignorable outcome, not an error) -- an opportunity's party might not have
- * been a `customer` yet (per the entity-ownership map, winning a prospect ADDS the role
- * rather than copying a record; creating an opportunity directly against a brand-new
- * party works the same way). */
-async function resolvePartyId(businessId: string, input: CreateOpportunityInput): Promise<string> {
+/** Resolves a party -- either the existing one given, or a brand-new `core.parties` row
+ * created inline. Either way, ensures the party holds the `customer` role (idempotent:
+ * `party_roles`' own `unique (party_id, role)` means "already has it" is a normal,
+ * ignorable outcome, not an error) -- the party might not have been a `customer` yet (per
+ * the entity-ownership map, winning a prospect ADDS the role rather than copying a
+ * record; creating an opportunity or job directly against a brand-new party works the
+ * same way). Exported so jobs/mutations.ts's own `createJob()` (F-5) can reuse the exact
+ * same resolution instead of duplicating it -- both take the same
+ * `{partyId?, newCustomer?}` shape. */
+export async function resolveCustomerPartyId(
+  businessId: string,
+  input: { partyId?: string; newCustomer?: { name: string; email?: string; phone?: string } },
+): Promise<string> {
   const core = await coreClient();
 
   let partyId = input.partyId;
@@ -50,7 +55,7 @@ async function resolvePartyId(businessId: string, input: CreateOpportunityInput)
 }
 
 export async function createOpportunity(businessId: string, input: CreateOpportunityInput): Promise<string> {
-  const partyId = await resolvePartyId(businessId, input);
+  const partyId = await resolveCustomerPartyId(businessId, input);
 
   const supabase = await createClient();
   const { data, error } = await supabase

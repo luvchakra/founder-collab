@@ -13,7 +13,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-2 | Done | Opportunities |
 | F-3 | Done | Estimates |
 | F-4 | Done | Public estimate page + send + approve/decline |
-| F-5 | Not started | Jobs |
+| F-5 | Done | Jobs |
 | F-6 | Not started | Scheduling |
 | F-7 | Not started | Field execution |
 | F-8 | Not started | Invoicing |
@@ -304,3 +304,89 @@ suite green; `npm run build --workspace=apps/web` succeeds (the new `/p/e/[token
 route compiles and registers alongside the dashboard routes); Supabase security advisor
 shows no new findings; live end-to-end verification against the dev Supabase project as
 described above.
+
+## F-5 -- Jobs
+
+No new tables (`fsm.jobs` was already created by F-1's own DDL). One migration
+(`20260908050000_fsm_jobs_permissions_and_audit.sql`) adds two permission keys and one
+audit-log trigger:
+
+- **`jobs.edit`** gates every ordinary job action (create, update, start, hold, resume,
+  complete, cancel, duplicate, convert-to-opportunity). **`jobs.reopen`** is a separate
+  key for the one transition the PRD explicitly calls out as admin-only (§4:
+  `completed -> in_progress`, "reopen, admin only") -- both granted to owner/admin only
+  today, same minimal-role treatment as every prior FSM permission.
+- **`fsm.log_job_status_change()` + `jobs_log_status_change` trigger** write to
+  `core.audit_log` on every status change automatically, mirroring
+  `core.log_document_status_change()` (D-10) exactly -- this is what backs the job detail
+  page's "History" tab (PRD §5), with zero new schema.
+
+`packages/module-fsm/src/lib/jobs/{types,queries,mutations}.ts` +
+`components/jobs/{jobs-list,create-job-dialog,job-detail}.tsx` + two new routes
+(`apps/web/.../fsm/jobs/{page.tsx,[jobId]/page.tsx}`, each with its own `actions.ts`).
+Notable decisions:
+
+- **Jobs can be created directly**, not only via an approved estimate (PRD §1.3) --
+  `createJob()` reuses `resolveCustomerPartyId()`, the exact same party-resolution helper
+  F-2's `createOpportunity()` uses (exported from `opportunities/mutations.ts` rather than
+  duplicated), and mints a real job number through `core.next_number(business_id, 'job',
+  'JOB')` -- the identical scope F-4's estimate-approval flow already uses to mint job
+  numbers, so a job created directly and one created by approving an estimate share one
+  counter and never collide.
+- **The full state machine is implemented as explicit transition functions** (PRD §4),
+  each taking an explicit set of allowed `fromStatuses` and failing loudly if the job has
+  moved on since the page loaded (`transition()`'s own optimistic-concurrency check via
+  `.in("status", fromStatuses)` + verifying a row actually came back). `scheduled ->
+  in_progress` ("start"), `in_progress <-> on_hold` (hold requires a reason, matching
+  `markOpportunityLost`'s own "human intent needs a stated reason" precedent),
+  `in_progress|on_hold -> completed`, `any -> cancelled`, and `completed -> in_progress`
+  (reopen) are all real, PRD-documented transitions.
+- **`unscheduled -> scheduled` is exposed as a manual "Mark scheduled" staff action**,
+  even though the PRD (§4) ties it to "first work event" -- `fsm.events` rows don't exist
+  yet (F-6, Scheduling, hasn't landed), so without a manual escape hatch every job would
+  be permanently stuck in the board's first column. Same pragmatic-corollary reasoning F-2
+  already used for `reopenLostOpportunity`; F-6 will additionally drive this transition
+  for real once it starts creating events.
+- **`completed`'s own "prompts invoice generation per `auto_invoice_on_complete`" (PRD
+  §4) is deliberately not wired** -- F-8 (Invoicing) hasn't landed, so `completeJob()`
+  only performs the status transition. Documented here rather than silently dropped.
+- **"Convert back to an opportunity" (PRD §1.3, §4: "only if no invoice exists")** --
+  jobs and opportunities are separate tables in this schema (unlike Kickserv's
+  single-entity-different-view model), so converting means reactivating the job's own
+  originating opportunity if it has one (clearing `converted_job_id`) or creating a fresh
+  one from the job's fields if it doesn't, then deleting the job -- the record genuinely
+  moves back rather than existing as both. `jobHasInvoice()` checks
+  `core.documents` for a `doc_type='invoice'` row with this job's id in `source_ref` --
+  always false today since F-8 doesn't exist yet, but becomes a real gate once it does.
+- **"Duplicate"** creates an independent new job (new number, not linked via
+  `opportunity_id` to the original) copying customer/service type/description/scope.
+- **Tags and custom fields are reused as-is** (`core.tags`/`custom_field_defs`, scoped to
+  `taggable_type`/`entity_type = 'job'`) -- zero schema change, same reuse F-2 already
+  established for opportunities.
+- **Job detail's tabs are "Job details" and "History" only** -- PRD §5 additionally lists
+  "Messages" (blocked on S-3, same as F-11) and "Invoice" (F-8, not built) as tabs; both
+  are left out entirely rather than built as empty placeholders, consistent with not
+  building speculative UI ahead of the story that owns it.
+
+Existing test `scripts/test-discovery-rls.mjs` hardcoded the exact size of
+`core.permissions` (34) -- bumped to 36 for `jobs.edit`/`jobs.reopen`, same recurring
+update pattern as F-2/F-3.
+
+No new SQL-level test file: the only new SQL primitives are the two permission-catalog
+rows (covered by the updated count assertion) and the audit-log trigger, both verified
+live below; `fsm.jobs`' own RLS/tenant-isolation coverage already comes from F-1. The full
+job lifecycle was live-verified end-to-end against the dev Supabase project inside one
+self-cleaning (rolled-back) transaction as the authenticated business owner: create a job
+with a real minted number, walk the entire status machine
+(`unscheduled -> scheduled -> in_progress -> on_hold -> in_progress -> completed ->
+in_progress -> cancelled`), confirm the audit trigger wrote exactly one `core.audit_log`
+row per status change, duplicate the job, convert a job with no originating opportunity
+into a fresh opportunity and confirm the job itself is gone, and confirm the
+`jobs.edit`/`jobs.reopen` permission-catalog wiring -- no assertion failures, zero residue
+after rollback.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean; full `test:db`
+suite green (including the updated permission-count assertion); `npm run build
+--workspace=apps/web` succeeds (both new job routes compile and register); Supabase
+security advisor shows no new findings; live end-to-end verification against the dev
+Supabase project as described above.
