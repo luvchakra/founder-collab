@@ -17,7 +17,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-6 | Done | Scheduling |
 | F-7 | Done | Field execution |
 | F-8 | Done | Invoicing |
-| F-9 | Not started | Reminders |
+| F-9 | Done | Reminders |
 | F-10 | Not started | Customer Center + contact form |
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
 | F-12 | Not started | Reports |
@@ -768,3 +768,91 @@ findings (same seven pre-existing `rls_enabled_no_policy` infos and 47 pre-exist
 `function_search_path_mutable` warnings from `inventory`'s own compat-view triggers, none
 introduced here); live end-to-end verification against the dev Supabase project as
 described above.
+
+## F-9 -- Reminders
+
+**Internal reminder events already existed from F-6/F-7** -- `fsm.events` with
+`kind='reminder'` and its assignees are fully creatable through the schedule UI's
+create-event dialog. F-9's actual scope is entirely the *sending* side PRD §1.5 describes
+for both reminder kinds: a scheduled job that emails people before an event happens,
+which nothing before this story ever ran.
+
+One migration (`20260908080000_fsm_reminders.sql`) adds two nullable columns to
+`fsm.events` -- `customer_reminder_sent_at`, `internal_reminder_sent_at` -- the
+idempotency markers the cron needs so re-running it (including a Vercel Hobby-plan cron's
+daily-only cadence re-scanning a window it already covered) never double-sends. No new
+permissions: sending is a system cron, not a user-permission-gated action.
+
+`packages/module-fsm/src/lib/reminders/mutations.ts#sendDueReminders()` +
+`apps/web/app/api/cron/send-reminders/route.ts` + `apps/web/vercel.json` (new). Notable
+decisions:
+
+- **One cron function handles both reminder kinds in one pass**, scanning across every
+  business (not per-tenant) with the admin client -- same reasoning as
+  `core/events/drain.ts#drainDomainEvents`: a cron invocation has no signed-in user, so
+  there's no session for RLS to scope by anyway. Checks `core.has_module(business_id,
+  'fsm')` per event's own business before sending anything, skipping unlicensed
+  businesses' events silently -- the same "unlicensed parks/skips rather than errors"
+  treatment `drainDomainEvents` already gives license gaps, reused here via the identical
+  RPC rather than inventing a second licensing check.
+- **No per-employee "notification lead time" exists anywhere in the schema** (PRD §1.5
+  mentions one specifically for internal reminders, distinct from the business-wide
+  customer-reminder default) -- confirmed before building this: `core.employees` has no
+  such column, and adding one wasn't asked for by this story's own data model
+  (`docs/plan/02-FSM-PRD.md` §3's `fsm.settings` only has one `reminder_lead_hours`
+  column, shared). Both reminder kinds use that same business-wide value (default 48,
+  matching the PRD's customer-reminder default exactly) -- a documented simplification,
+  not a silently dropped feature.
+- **SMS is still not sent** -- the same gap F-7's `notifyOnTheWay` and F-8's
+  `sendInvoice` already documented (no SMS provider anywhere in the platform, adding one
+  is an infrastructure decision bigger than any single action justifies). Both reminder
+  kinds are email-only for now.
+- **The due-window query is bounded to 14 days out** (`HORIZON_HOURS`) and filtered the
+  rest of the way in JS per-event against that business's own `reminder_lead_hours` --
+  same "join/filter in JS rather than a query that has to vary per row" pattern every
+  list query in this module already uses, here because a single SQL `WHERE` clause can't
+  cleanly express "due" against a lead time that differs by business without a join back
+  to `fsm.settings` inside the predicate itself.
+- **Customer reminders only fire for `status='scheduled'` events** -- an event already
+  `en_route`/`arrived`/`done`/`cancelled` has either already gotten its "on the way"
+  notification (F-7) or doesn't need one anymore. Internal reminder events (`kind=
+  'reminder'`) have no such extra gate beyond "not cancelled/done" -- they don't carry
+  the field-execution status machine's own meaning.
+- **`apps/web/vercel.json` is new** -- it didn't exist before this story, even though
+  `api/cron/drain-events` (D-9) has needed a scheduler pointed at it since before FSM
+  started. Both routes are wired into its `crons` array now, once daily each (`0 6 * * *`)
+  -- Vercel's Hobby plan (this project's current plan) only runs cron jobs on a daily
+  cadence, so hourly scheduling would be silently downgraded anyway. A daily cadence is
+  still correct for reminder-sending specifically: the idempotency columns mean a business
+  configured with the 48h default gets its reminder on whichever daily run first crosses
+  the window, never twice: only a business that configures a *very* short
+  `reminder_lead_hours` (well under 24h) risks its reminder landing later than intended
+  under a once-a-day check -- a real but narrow edge case, documented rather than solved
+  by paying for a higher Vercel plan this story has no mandate to buy.
+
+No new SQL-level test file: the only new SQL surface is two nullable timestamp columns
+with no constraints -- `scripts/test-fsm-rls.mjs`'s existing `fsm.events` tenant-isolation
+and check-constraint coverage applies unchanged. `scripts/test-discovery-rls.mjs`'s
+permission-count assertion stays at 41 (no permissions added).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: confirmed `core.has_module()` correctly reports `false` for a freshly created,
+never-licensed business (the exact skip condition `sendDueReminders()` relies on), then
+mirrored the cron's own due-window query directly in SQL across three seeded events -- one
+45 hours out (due under the default 48h lead, no `fsm.settings` row needed), one 100 hours
+out (correctly excluded, not due yet), and one 10 hours out but already marked
+`customer_reminder_sent_at` (correctly excluded regardless of due-ness) -- and got exactly
+the one expected row back. No assertion failures, zero residue after rollback. The actual
+Resend email sends were **not** exercised live (no test inbox in this environment), same
+documented gap as every other Resend-sending mutation in this module; the cron route
+itself was not invoked live either (would require a deployed `CRON_SECRET` and a real HTTP
+round trip, not a SQL-editor check) -- its own logic is a thin, directly-reviewed
+pass-through to `sendDueReminders()`, same shape as the already-live-verified
+`drain-events` route.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (36 migrations);
+full `test:db` suite green (permission count still 41, unchanged); `npm run build
+--workspace=apps/web` succeeds (the new `/api/cron/send-reminders` route compiles and
+registers); Supabase security advisor shows no new findings (same pre-existing findings
+as F-8, none introduced here); live end-to-end verification against the dev Supabase
+project as described above.
