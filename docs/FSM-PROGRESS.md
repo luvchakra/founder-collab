@@ -14,7 +14,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-3 | Done | Estimates |
 | F-4 | Done | Public estimate page + send + approve/decline |
 | F-5 | Done | Jobs |
-| F-6 | Not started | Scheduling |
+| F-6 | Done | Scheduling |
 | F-7 | Not started | Field execution |
 | F-8 | Not started | Invoicing |
 | F-9 | Not started | Reminders |
@@ -390,3 +390,143 @@ suite green (including the updated permission-count assertion); `npm run build
 --workspace=apps/web` succeeds (both new job routes compile and register); Supabase
 security advisor shows no new findings; live end-to-end verification against the dev
 Supabase project as described above.
+
+## F-6 -- Scheduling
+
+No new tables (`fsm.events`/`fsm.event_assignees` were already created by F-1's own
+DDL). One migration (`20260908060000_fsm_schedule_permissions.sql`) adds two permission
+keys: **`schedule.manage`** (create, reschedule, reassign, cancel schedule events;
+designate technicians) and **`schedule.print_work_orders`** (bulk print) -- kept
+distinct because the PRD's own §1.7 explicitly calls bulk "Print Work Orders" out as
+"admin-only by default, grantable" separately from ordinary schedule management, the
+same reasoning F-3 used to keep `estimates.edit` distinct from `opportunities.edit`.
+Both owner/admin only today, matching every prior FSM permission.
+
+`packages/module-fsm/src/lib/{employees,events}/` +
+`components/schedule/{schedule-calendar,create-event-dialog,print-work-orders-dialog,
+technician-roster-panel}.tsx` + one new route (`apps/web/.../fsm/schedule/{page.tsx,
+actions.ts}`, already linked from `SERVICE_NAV` since F-1). Notable decisions:
+
+- **No employee-management screen exists anywhere in the platform yet.** `core.employees`
+  (F-1's DDL, the entity-ownership map's canonical "technician" home) had zero rows and
+  no creation path -- not the inventory `team` page (that's `core.business_members`,
+  account roles, read-only), not any FSM story's own scope. Scheduling is unusable
+  without a way to say "this business member is a technician", so this story adds the
+  minimal escape hatch it needs: a roster panel on the schedule page toggling a
+  `core.employees` row's `is_active` for a business member (idempotent upsert,
+  deactivate-not-delete -- matches ADR-9's "cancelling never deletes data" spirit for a
+  technician's own history). A fuller employee record (job title, employment type,
+  time-off) stays a future story's job -- same pragmatic-corollary precedent as F-2's
+  `reopenLostOpportunity` and F-5's `markJobScheduled`.
+- **`unscheduled -> scheduled` and `new -> estimate_scheduled` now happen for real.**
+  F-5 and F-2 each documented this exact gap when `fsm.events` didn't exist yet ("F-6
+  will additionally drive this transition for real once it starts creating events").
+  `createEvent()` now does it as a best-effort, filtered update (not the throw-on-no-
+  match `transition()` a user-initiated action would use) immediately after inserting a
+  `work` event against a job or an `estimate` event against an opportunity -- scheduling
+  a second visit against a job/opportunity that's already moved on is normal, not an
+  error, so it silently no-ops rather than surfacing one.
+- **Board model: rows = technicians (+ "Unassigned"), columns = day(s)** (day or week
+  view), not a pixel-precise hour grid -- matches this codebase's own list/board visual
+  language (`JobsList`'s board columns) rather than introducing a calendar-grid
+  dependency. An event with two assignees genuinely renders once per assignee's row (plus
+  once under Unassigned if it has none), which is how a shared calendar naturally reads.
+- **"Drag to reschedule" (PRD §2, MUST) is native HTML5 drag-and-drop** (`draggable`,
+  `onDragStart`/`onDrop`) -- zero new dependency, per CLAUDE.md principle 2. One drag
+  gesture does two things at once when relevant: dropping on a different day column
+  always retimes the event to that day (same time-of-day, `retimeToDay()`); dropping on
+  a *different* technician row additionally reassigns to exactly that technician (or
+  clears every assignee if dropped on Unassigned) -- dropping back on the *same* row,
+  just a different day, leaves a multi-assigned event's full assignee set untouched
+  instead of narrowing it to one. Multi-technician assignment itself is only created via
+  the create-event dialog's checkboxes, not by drag, so one drag gesture stays
+  unambiguous.
+- **Reminder events are internal-only here.** PRD §1.5 splits reminders into internal
+  (a scheduled, assignable calendar event -- squarely this story's own "one calendar
+  table, three kinds" scope) and automatic customer reminders (48h-before, email+SMS,
+  arrival window -- F-9's own story). This story creates the calendar row for an
+  internal reminder attached to a job or an opportunity; the lead-time notification
+  delivery itself is F-9's job, not built here.
+- **Beyond `scheduled`/`cancelled`, `fsm.events.status`'s remaining values
+  (`en_route`/`arrived`/`done`) are F-7's own field-execution "on my way"/clock-in flow**
+  on `/fsm/my-day` -- not exposed on this board.
+- **"Print Work Orders" reuses the existing global `.print-area`/`.no-print` CSS
+  mechanism** (`packages/core/src/ui-theme.css`, already established by
+  `module-inventory`'s barcode-label dialog) rather than a new route or a PDF library --
+  pick a day (from whichever day/week is currently on screen -- no extra round trip) and
+  an optional employee filter, preview, `window.print()`. A "work order" is a `work`-kind
+  event specifically (Kickserv's own literal meaning), not estimate/reminder events.
+- **No per-tenant timezone handling** -- `core.business_settings.timezone` exists but
+  nothing in the platform wires it into date math anywhere yet (confirmed before
+  building this: `formatDate`/`formatDateTime` both use the runtime's default timezone).
+  The schedule page's own day/week boundary math runs in UTC (pure calendar-date
+  arithmetic, unambiguous); the create/edit dialogs' `datetime-local` inputs and the
+  calendar's own drag-retime math run in whatever timezone the code executes in (browser
+  for the client-side drag math, server for parsing a submitted form) -- documented here
+  as a known simplification in the same class as the existing tax/rounding notes
+  elsewhter in this doc, not silently dropped.
+
+Existing test `scripts/test-discovery-rls.mjs` hardcoded the exact size of
+`core.permissions` (36) -- bumped to 38 for `schedule.manage`/`schedule.print_work_orders`,
+same recurring update pattern as F-2/F-3/F-5.
+
+No new SQL-level test file: the only new SQL primitive is the two permission-catalog
+rows (covered by the updated count assertion); `fsm.events`/`fsm.event_assignees`'s own
+RLS/tenant-isolation/cross-tenant-reference coverage already comes from F-1 (including
+the exact `event_assignees.employee_id` smuggling case this story's roster panel now
+populates rows for). The actual scheduling flow was live-verified end-to-end against the
+dev Supabase project inside one self-cleaning (rolled-back) transaction as the
+authenticated business owner: designate a technician (roster panel's own upsert), create
+an opportunity and a job, create a `work` event against the job with that technician
+assigned and confirm the job auto-advanced `unscheduled -> scheduled`, create an
+`estimate` event against the opportunity and confirm it auto-advanced
+`new -> estimate_scheduled`, drag-reschedule the work event to a later day, clear its
+assignees (drop-to-Unassigned), cancel and then delete the estimate event, and confirm
+the `schedule.manage`/`schedule.print_work_orders` permission-catalog wiring (both keys
+present, granted to exactly owner+admin, `has_permission()` true for the owner on both)
+-- no assertion failures, zero residue after rollback.
+
+**Also fixed this story: every Vercel production deployment since F-1 was silently
+failing.** Discovered while checking on the platform's deployment health -- F-2 through
+F-5 (four consecutive deploys) all failed at `next build` with `Module not found` errors
+for files (`@cofounderai/module-fsm/lib/tags/queries`, `.../components/jobs/job-detail`,
+etc.) that genuinely exist in the repo and build cleanly with a local `npm run build
+--workspace=apps/web` on the exact same commit. Three wrong guesses before the real
+cause, left here because the eventual diagnostic method (not the guesses) is the useful
+part:
+
+1. A stale Turbopack build cache -- every failed deploy's log showed `Restored build
+   cache from previous deployment (9KzwN24H...)`, the last-*successful* build (F-1),
+   before these files existed. Disabling `experimental.turbopackFileSystemCacheForBuild`
+   didn't fix it -- confirmed taking effect in the next deploy's log, still failed
+   identically.
+2. A stale `node_modules` -- pinned the install command to `npm ci` (always wipes and
+   reinstalls from the lockfile). The next deploy's log showed a genuine "added 603
+   packages" fresh install, and it *still* failed identically.
+3. Turbopack's own project-root detection (`turbopack.root`) -- Vercel's Root Directory
+   for this project is `apps/web`, a sibling of `packages/*`, and that option's own doc
+   comment says "only files above this directory can be resolved by turbopack." Setting
+   it explicitly to the real monorepo root also made no difference.
+
+None of those three were reproducible locally under any condition, which was the actual
+tell that they were all wrong: a genuinely stale cache or a wrong Turbopack root would
+have been reproducible with the right local setup, and none were. The diagnostic that
+actually worked: temporarily overriding `vercel.json`'s `buildCommand` to `ls` the
+install output before running `next build`, redeployed twice to work around its
+256-character limit and to correct which directory to inspect. That surfaced it directly:
+`node_modules/@cofounderai/` on Vercel was missing exactly one symlink --
+`module-fsm` -- while `core`/`module-discovery`/`module-gst`/`module-inventory`/
+`module-registry` were all there. Checking `apps/web/package.json`'s own `dependencies`
+found the real bug: `@cofounderai/module-fsm` was never listed there, unlike every other
+module package -- a plain oversight, invisible locally because a bare `npm install` at
+the repo root links every workspace package regardless of who declares it as a
+dependency, but not invisible to whatever narrower, workspace-scoped install Vercel's
+build actually runs. Reproduced locally on demand with
+`npm ci --workspace=apps/web --include-workspace-root` (skips exactly `module-fsm`,
+confirming the theory) and fixed by adding the missing dependency line and regenerating
+`package-lock.json` -- confirmed clean again with the same scoped command afterward, and
+with a fresh `npm run build --workspace=apps/web`. All three wrong-guess changes
+(`turbopackFileSystemCacheForBuild`, `vercel.json`'s `installCommand`/`buildCommand`,
+`turbopack.root`) were reverted; only the missing dependency line and the regenerated
+lockfile remain. This fix and F-6 are in the same PR since the app was never actually
+reachable on production for four full stories otherwise.
