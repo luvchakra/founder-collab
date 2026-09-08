@@ -16,6 +16,7 @@ import {
 } from "@cofounderai/module-fsm/lib/jobs/mutations";
 import { getJob, jobHasInvoice } from "@cofounderai/module-fsm/lib/jobs/queries";
 import { getOrCreateInvoiceForJob } from "@cofounderai/module-fsm/lib/invoices/mutations";
+import { sendCustomerCenterAccess } from "@cofounderai/module-fsm/lib/customer-center/mutations";
 import { addWorkTag, removeWorkTag } from "@cofounderai/module-fsm/lib/tags/mutations";
 import { setCustomFieldValue } from "@cofounderai/module-fsm/lib/custom-fields/mutations";
 import { clockIn, clockOut } from "@cofounderai/module-fsm/lib/time-entries/mutations";
@@ -122,6 +123,14 @@ export async function getOrCreateInvoiceAction(businessId: string, jobId: string
   await requirePermission(businessId, "invoices.create");
   const id = await getOrCreateInvoiceForJob(businessId, jobId);
   return { id };
+}
+
+/** Staff-side "give this customer Customer Center access" (F-10) -- gated on
+ * `jobs.edit` like every other job-header action, not a separate permission: sending a
+ * portal link is a routine part of managing this job's own customer relationship. */
+export async function sendCustomerCenterAccessAction(businessId: string, partyId: string): Promise<void> {
+  await requirePermission(businessId, "jobs.edit");
+  await sendCustomerCenterAccess(businessId, partyId);
 }
 
 export async function clockInAction(businessId: string, jobId: string): Promise<void> {

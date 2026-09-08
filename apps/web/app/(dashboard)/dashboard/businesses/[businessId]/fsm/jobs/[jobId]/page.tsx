@@ -25,6 +25,7 @@ import {
   duplicateJobAction,
   getOrCreateInvoiceAction,
   holdJobAction,
+  sendCustomerCenterAccessAction,
   markJobScheduledAction,
   removeJobTagAction,
   reopenJobAction,
@@ -110,6 +111,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       duplicateAction={duplicateJobAction.bind(null, businessId, jobId)}
       convertToOpportunityAction={convertJobToOpportunityAction.bind(null, businessId, jobId)}
       invoiceAction={getOrCreateInvoiceAction.bind(null, businessId, jobId)}
+      sendCustomerCenterAccessAction={sendCustomerCenterAccessAction.bind(null, businessId, job.party_id)}
       clockInAction={clockInAction.bind(null, businessId, jobId)}
       clockOutAction={clockOutAction.bind(null, businessId, jobId)}
       addExpenseAction={addExpenseAction.bind(null, businessId, jobId)}

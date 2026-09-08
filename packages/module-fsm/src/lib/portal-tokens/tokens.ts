@@ -64,3 +64,40 @@ export async function resolvePortalToken(rawToken: string, scope: PortalTokenSco
 
   return { id: token.id, businessId: token.business_id, partyId: token.party_id, documentId: token.document_id };
 }
+
+export interface CenterTokenContext {
+  id: string;
+  businessId: string;
+  partyId: string;
+}
+
+/** Same resolution as `resolvePortalToken`, minus the `document_id` requirement -- a
+ * `center` token (F-10) is scoped to a customer across every one of their documents, not
+ * one document, so `fsm.portal_tokens.document_id` is legitimately null for this scope. */
+export async function resolveCenterToken(rawToken: string): Promise<CenterTokenContext> {
+  const fsm = createCoreAdminClient({ schema: "fsm" });
+  const tokenHash = hashPortalToken(rawToken);
+
+  const { data: token } = await fsm
+    .from("portal_tokens")
+    .select("id, business_id, party_id, expires_at")
+    .eq("token_hash", tokenHash)
+    .eq("scope", "center")
+    .maybeSingle();
+  if (!token || new Date(token.expires_at).getTime() < Date.now()) {
+    throw new PortalTokenError("invalid");
+  }
+
+  const core = createCoreAdminClient({ schema: "core" });
+  const { data: withinLimit, error: limitError } = await core.rpc("check_api_rate_limit", {
+    _business_id: token.business_id,
+    _limit: RATE_LIMIT_PER_MINUTE,
+  });
+  if (limitError || withinLimit === false) {
+    throw new PortalTokenError("rate_limited");
+  }
+
+  void fsm.from("portal_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", token.id);
+
+  return { id: token.id, businessId: token.business_id, partyId: token.party_id };
+}

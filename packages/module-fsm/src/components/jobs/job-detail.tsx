@@ -66,6 +66,7 @@ export function JobDetail({
   duplicateAction,
   convertToOpportunityAction,
   invoiceAction,
+  sendCustomerCenterAccessAction,
   clockInAction,
   clockOutAction,
   addExpenseAction,
@@ -107,6 +108,7 @@ export function JobDetail({
   duplicateAction: () => Promise<{ id: string }>;
   convertToOpportunityAction: () => Promise<{ id: string }>;
   invoiceAction: () => Promise<{ id: string }>;
+  sendCustomerCenterAccessAction: () => Promise<void>;
   clockInAction: () => Promise<void>;
   clockOutAction: () => Promise<void>;
   addExpenseAction: (description: string, amount: number) => Promise<void>;
@@ -123,12 +125,15 @@ export function JobDetail({
   const [holdOpen, setHoldOpen] = useState(false);
   const [holdReason, setHoldReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const run = (fn: () => Promise<void>) => {
+  const run = (fn: () => Promise<void>, onSuccessNotice?: string) => {
     setError(null);
+    setNotice(null);
     startTransition(async () => {
       try {
         await fn();
+        if (onSuccessNotice) setNotice(onSuccessNotice);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
@@ -215,6 +220,14 @@ export function JobDetail({
             >
               Invoice
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(sendCustomerCenterAccessAction, "Customer Center access sent.")}
+            >
+              Send Customer Center access
+            </Button>
             {canConvertToOpportunity ? (
               <Button
                 variant="ghost"
@@ -230,6 +243,7 @@ export function JobDetail({
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
 
       {job.status === "on_hold" && job.on_hold_reason ? (
         <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">

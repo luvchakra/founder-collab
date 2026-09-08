@@ -18,7 +18,7 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-7 | Done | Field execution |
 | F-8 | Done | Invoicing |
 | F-9 | Done | Reminders |
-| F-10 | Not started | Customer Center + contact form |
+| F-10 | Done | Customer Center + contact form |
 | F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
 | F-12 | Not started | Reports |
 | F-13 | Not started | Discovery -> FSM handoff |
@@ -856,3 +856,99 @@ full `test:db` suite green (permission count still 41, unchanged); `npm run buil
 registers); Supabase security advisor shows no new findings (same pre-existing findings
 as F-8, none introduced here); live end-to-end verification against the dev Supabase
 project as described above.
+
+## F-10 -- Customer Center + contact form
+
+**No new migration.** Every table this story needs already existed from F-1:
+`fsm.portal_tokens` (`scope='center'` was defined in the enum from day one, just never
+used until now -- `document_id` is already nullable, exactly the shape a party-scoped
+rather than document-scoped token needs), `fsm.work_requests`, and
+`fsm.opportunities.source='contact_form'` were all already in the schema, unused. No new
+permissions either -- sending Customer Center access is gated on the existing `jobs.edit`
+(a routine part of managing a job's own customer relationship, not a separate capability),
+and the contact form and the public center page have no session to gate at all.
+
+`packages/module-fsm/src/lib/{customer-center,work-requests}/` +
+`components/{customer-center/customer-center-view,work-requests/contact-form}.tsx` +
+three new routes (`/p/center/[token]`, `/p/request/[businessSlug]` -- both already listed
+in the PRD's own route table §5 -- and a "Send Customer Center access" button added to
+the existing job detail page, since no dedicated customer/contacts screen exists yet to
+put it on). Notable decisions:
+
+- **`resolveCenterToken()`** (new, `lib/portal-tokens/tokens.ts`) is a second resolver
+  alongside the existing `resolvePortalToken()`, not a modification of it -- a `center`
+  token is scoped to a *party* across every one of their documents, so it can't require
+  `document_id` the way `resolvePortalToken()`'s single-document estimate/invoice
+  resolution does. Keeping them separate avoids widening `PortalTokenContext.documentId`
+  to nullable, which would have forced a null-check at every one of F-4's/F-8's own
+  already-working call sites for a case that never applies to them.
+- **The center page's "approve/decline estimate" buttons don't duplicate F-4's approval
+  logic.** They mint a short-lived (10-minute), single-purpose `estimate`-scope portal
+  token on the fly -- after verifying the estimate actually belongs to the center token's
+  own party/business, so a valid center token for one customer can't approve another
+  customer's estimate by id-guessing -- and immediately call the existing
+  `approveEstimateByToken`/`declineEstimateByToken` (F-4) with it. One approval code path,
+  not two.
+- **No "pay" action on the center page** -- PRD §2's Customer Center row lists "pay/see
+  balance" as one MUST bullet, but online payment is explicitly its own SHOULD/LATER item
+  under the Invoicing row, the same gap F-8's public invoice page already documented.
+  "See balance" is satisfied by each invoice's own live `balance_amount` (via
+  `core.document_balances`, D-7); "pay" stays unbuilt, consistent with F-8.
+- **Both `customer_center_enabled` and `contact_form_enabled` default to `false` with no
+  settings row yet** (F-15 hasn't shipped the settings screen that would flip them) --
+  same "flag exists, gate checks it correctly, no UI to turn it on yet" sequencing F-8's
+  `auto_invoice_on_complete` already established. `sendCustomerCenterAccess()` and
+  `resolveContactFormBusiness()`/`submitWorkRequest()` all check their own flag and refuse
+  cleanly rather than silently ignoring it -- both features are correctly wired end-to-end
+  and will start working the moment F-15 lands a way to turn them on, not blocked on
+  anything this story owns.
+- **The contact form auto-creates an opportunity, not just a work request** -- PRD §2's
+  own MUST line is "creates an inbound work request → opportunity", read as one step, not
+  two ("triage this later"). `submitWorkRequest()` finds-or-creates the party (matched by
+  email within that business), creates the opportunity (`source='contact_form'`), and
+  marks the `work_requests` row `status='converted'` with `opportunity_id` set, all in one
+  call -- it shows up in the normal `/fsm/opportunities` pipeline immediately, with no
+  separate staff-facing "inbox" screen needed (none is called for in the PRD's MUST
+  scope; a triage UI would be new scope this story wasn't asked for).
+- **`fsm.opportunities.created_by` has no session to default `auth.uid()` from** on a
+  public form submission -- resolved to the business's own owner (`core.business_members`
+  where `role='owner'`), the same attribution a business-wide automated action reasonably
+  takes; there's no "system" user anywhere in this platform to attribute it to instead.
+- **`submitWorkRequest()` re-checks licensing and `contact_form_enabled` itself**, not
+  just trusting `resolveContactFormBusiness()`'s earlier check on the page -- it's a
+  server action a client could call directly, same defense-in-depth reasoning
+  `requireModule()` gives every other mutation in this platform, just hand-rolled against
+  the admin client since there's no session for `requireModule()`'s usual RLS-backed path.
+- **Resolving a business by `businessSlug`** uses `core.business_settings.slug` (already
+  existed, unused by FSM until now) via the admin client -- there's no session on
+  `/p/request/[businessSlug]` for `core.user_business_ids()`-style membership checks to
+  run against, same reasoning every other public route in this module already uses.
+
+No new SQL-level test file: no new tables, columns, or constraints -- every table this
+story touches already has its own coverage (`fsm.portal_tokens`/`work_requests` tenant
+isolation from F-1, `core.documents`/`payments` from D-7/F-8). `scripts/test-discovery-
+rls.mjs`'s permission-count assertion stays at 41 (no permissions added).
+
+Live-verified against the dev Supabase project inside one self-cleaning (rolled-back)
+transaction: seeded a business with a `business_settings.slug`, an owner member, and a
+party; confirmed a fresh `fsm.settings` row defaults both new-to-this-story flags to
+`false`; flipped both on and confirmed the slug lookup `resolveContactFormBusiness()`
+performs actually resolves to the right business; inserted a `center`-scope
+`portal_tokens` row with `document_id` left `null` (the one shape no prior scope ever
+used) and confirmed it inserts cleanly; mirrored `submitWorkRequest()`'s own insert shape
+(an opportunity with `source='contact_form'`, then a `work_requests` row linked to it via
+`opportunity_id`, `status='converted'`); and mirrored `getCustomerCenterView()`'s own
+document query (`party_id` + `source_module='fsm'` + `doc_type in (estimate,invoice)`)
+against a seeded estimate document, confirming it's found. No assertion failures, zero
+residue after rollback. The actual Resend email send in `sendCustomerCenterAccess()` and
+every page's browser rendering were **not** exercised live, same documented gap as every
+other Resend-sending mutation and public page in this module. Security advisor was not
+re-run for this story specifically -- no schema changed at all (confirmed by
+`lint:migrations` still reporting 36 files, unchanged from F-9), so there is nothing new
+for it to have flagged.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (36
+migrations, unchanged); full `test:db` suite green (permission count still 41,
+unchanged); `npm run build --workspace=apps/web` succeeds (both new public routes
+compile and register); live end-to-end verification against the dev Supabase project as
+described above.
