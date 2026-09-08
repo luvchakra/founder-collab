@@ -19,21 +19,11 @@ whole premise (source commit SHA per ported directory) doesn't apply here.
 | F-8 | Done | Invoicing |
 | F-9 | Done | Reminders |
 | F-10 | Done | Customer Center + contact form |
-| F-11 | **Blocked** | Messages tab on jobs -- see "Known blockers" below |
+| F-11 | Done | Messages tab on jobs |
 | F-12 | Done | Reports |
 | F-13 | Done | Discovery -> FSM handoff |
 | F-14 | Done | Inventory <-> FSM integration |
 | F-15 | Done | FSM settings screens |
-
-## Known blockers
-
-**F-11 (Messages tab) blocked on S-3.** F-11's own spec says "reading `core.messages`" --
-but `core.messages`/`core.threads`/`core.message_templates` are story `S-3`
-(`docs/plan/04-CLAUDE-CODE-BACKLOG.md`), scheduled in **Epic 6** (after Epic 5 in the
-backlog's own ordering) and not yet built. Per the entity-ownership map
-(`00-MASTER-PLAN.md` §5) and CLAUDE.md non-negotiable #5 ("if the concept already has a
-canonical home in `core`, use it — don't create a parallel one"), F-11 will not be
-satisfied with a parallel `fsm`-only messages table. Deferred until S-3 lands.
 
 ## F-1 -- `fsm` schema DDL
 
@@ -952,6 +942,80 @@ migrations, unchanged); full `test:db` suite green (permission count still 41,
 unchanged); `npm run build --workspace=apps/web` succeeds (both new public routes
 compile and register); live end-to-end verification against the dev Supabase project as
 described above.
+
+## F-11 -- Messages tab on jobs
+
+Was blocked on `S-3` (`core.threads`/`core.messages`/`core.message_templates`, Epic 6),
+which landed first per `docs/NEXT-ACTIVITIES.md`'s sequencing. Built entirely on that new
+generic store -- `discovery.messages`/`discovery.conversations` (AI-outreach drafting,
+its own `classification`/`recommended_action`/draft-approve-send workflow) remain
+completely untouched, per the user's own explicit decision when S-3 was scoped.
+
+`packages/module-fsm/src/lib/messages/{types,queries,mutations}.ts`:
+- `listJobMessages(businessId, jobId)` resolves the job's thread via
+  `getThreadForEntity(businessId, "job", jobId)` then lists its messages; returns `[]`
+  when no thread exists yet (no customer reply and no staff message sent so far).
+- `sendJobMessage(businessId, jobId, body, subject?)` -- staff composing an outbound
+  message from the job's Messages tab. Resolves the customer's email (same primary-
+  contact-then-party-email order as `invoices/mutations.ts`/`events/mutations.ts`,
+  duplicated rather than shared, matching those two files' own existing precedent),
+  get-or-creates the job's thread, sends via Resend, records the message with
+  `postMessage`.
+- `ingestInboundJobReply(fromEmail, subject, text)` -- the FSM half of the shared
+  inbound-email webhook (`apps/web/app/api/webhooks/email-inbound/route.ts`), tried after
+  discovery's own `ingestInboundEmail` fails to match. Matches the sender to a
+  `core.parties` row by email (global, business-unscoped lookup -- the same
+  simplification discovery's own matcher already uses, since neither side of the
+  webhook payload carries a "which business's inbox received this" signal to
+  disambiguate on) and picks that party's own most-recently-updated non-cancelled job.
+
+**Documented limitation -- which job a reply lands on.** When a customer has more than
+one active job open at once, a reply is attributed to whichever was updated most
+recently, not necessarily the one the email thread was actually about. Real
+per-conversation threading needs a unique reply-to address or Message-ID/In-Reply-To
+tracking; Resend sends don't currently capture/store `provider_message_id` for FSM
+messages, and building that is out of scope for this story's size. Acceptable because
+it's the same simplification discovery's pre-existing inbound matcher already makes, not
+a new gap introduced here.
+
+**Documented limitation -- participant notifications.** PRD §9 lists "job participants
+(creator, sender of the estimate/invoice, assigned worker)" as who gets notified when a
+customer replies. `resolveJobParticipantEmails()` resolves the job's creator and every
+technician ever assigned to one of its events -- "sender of the estimate/invoice" is left
+out because no column anywhere in `core.documents` (or elsewhere) records who sent a
+document. Notification itself is best-effort: it silently no-ops if `RESEND_API_KEY`/
+`RESEND_FROM_EMAIL` are unset or there are zero resolvable recipients, same as every
+other Resend-sending mutation in this module.
+
+**Permission.** One new key, `messages.manage` ("View and send messages on a job"),
+seeded owner/admin-only via the same cross-join every other FSM permission uses
+(`supabase/migrations/20260908110000_fsm_messages_permission.sql`). Single key rather
+than a view/send split, matching the PRD's own singular "the messaging permission"
+phrasing -- unlike `time_entries.edit`'s precedent, there's no PRD table listing view and
+send as separate matrix entries for this category.
+
+UI: `packages/module-fsm/src/components/messages/messages-tab.tsx` renders message
+history (customer-reply vs. sent badges, subject, body, timestamp) plus a compose form
+gated on `canManage`; wired into `job-detail.tsx` as a new "Messages" tab next to Field
+work/History, and into the job detail page/actions (`sendJobMessageAction`, gated on
+`messages.manage`).
+
+Live-verified against the dev Supabase project in a rolled-back transaction: seeded a
+business/party/job, created the job's thread, posted one outbound and one inbound
+message (mirroring `sendJobMessage`/`ingestInboundJobReply`'s own `postMessage` calls),
+confirmed both landed on the same thread, and confirmed `ingestInboundJobReply`'s own
+job-matching query (party-by-email, most-recently-updated non-cancelled job) resolves
+the seeded job -- then rolled back and confirmed zero residue. `messages.manage`
+permission seeding (owner + admin) confirmed directly. The actual Resend sends in
+`sendJobMessage`/`sendParticipantNotification` were **not** exercised live, same
+documented gap as every other Resend-sending mutation in this module. `get_advisors`
+(security) shows no new findings -- every listed finding is a pre-existing one already
+tracked in `docs/NEXT-ACTIVITIES.md`.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (39
+migrations); full `test:db` suite green (permission count now 42, up from 41 -- the new
+`messages.manage` row); `npm run build --workspace=apps/web` succeeds; migration applied
+to the dev Supabase project and live end-to-end verification as described above.
 
 ## F-12 -- Reports
 

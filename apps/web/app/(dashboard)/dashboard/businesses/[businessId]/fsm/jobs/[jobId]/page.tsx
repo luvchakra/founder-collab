@@ -8,6 +8,7 @@ import { listExpensesForJob } from "@cofounderai/module-fsm/lib/expenses/queries
 import { listNotesForJob } from "@cofounderai/module-fsm/lib/notes/queries";
 import { listJobAttachments } from "@cofounderai/module-fsm/lib/attachments/queries";
 import { listSignaturesForJob } from "@cofounderai/module-fsm/lib/signatures/queries";
+import { listJobMessages } from "@cofounderai/module-fsm/lib/messages/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { JobDetail } from "@cofounderai/module-fsm/components/jobs/job-detail";
 import {
@@ -30,6 +31,7 @@ import {
   removeJobTagAction,
   reopenJobAction,
   resumeJobAction,
+  sendJobMessageAction,
   setJobCustomFieldAction,
   startJobAction,
   updateJobAction,
@@ -58,6 +60,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     canEditTime,
     canEditExpenses,
     canEditNotes,
+    messages,
+    canManageMessages,
   ] = await Promise.all([
     getJobContext(job),
     listTagsFor(businessId, "job", jobId),
@@ -75,6 +79,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     hasPermission(businessId, "time_entries.edit"),
     hasPermission(businessId, "expenses.edit"),
     hasPermission(businessId, "notes.edit"),
+    listJobMessages(businessId, jobId),
+    hasPermission(businessId, "messages.manage"),
   ]);
 
   return (
@@ -120,6 +126,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       uploadAttachmentAction={uploadJobAttachmentAction.bind(null, businessId, jobId)}
       deleteAttachmentAction={deleteJobAttachmentAction.bind(null, businessId, jobId)}
       captureSignatureAction={captureSignatureAction.bind(null, businessId, jobId)}
+      messages={messages}
+      canManageMessages={canManageMessages}
+      sendMessageAction={sendJobMessageAction.bind(null, businessId, jobId)}
     />
   );
 }

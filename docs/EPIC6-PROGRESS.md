@@ -14,6 +14,10 @@ and `docs/NEXT-ACTIVITIES.md` for the survey that produced this epic's sequencin
 | S-4 | Not started | Promote `ai_runs`/`ai_provider_credentials`/`usage_events` to `core` |
 | S-5 | Not started | Platform dashboard from module-contributed widgets |
 
+Also unblocked and shipped by S-3 (an Epic 5 story, not part of Epic 6 itself, but tracked
+here since it depended on this epic's own S-3): **F-11 (FSM Messages tab)** -- see
+`docs/FSM-PROGRESS.md`'s own F-11 section for the full narrative.
+
 ## S-3 -- `core.threads` + `core.messages` + `core.message_templates`
 
 **Deliberate scope decision, made with the user before building this**: the backlog's

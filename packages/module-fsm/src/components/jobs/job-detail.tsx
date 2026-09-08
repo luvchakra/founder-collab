@@ -18,7 +18,9 @@ import type { NoteItem, NoteVisibility } from "../../lib/notes/types";
 import type { SignatureItem } from "../../lib/signatures/types";
 import type { Tag } from "../../lib/tags/types";
 import type { OpenTimeEntry, TimeEntryItem } from "../../lib/time-entries/types";
+import type { Message } from "@cofounderai/core/messages/types";
 import { FieldWorkTab } from "../field/field-work-tab";
+import { MessagesTab } from "../messages/messages-tab";
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   unscheduled: "Unscheduled",
@@ -75,6 +77,9 @@ export function JobDetail({
   uploadAttachmentAction,
   deleteAttachmentAction,
   captureSignatureAction,
+  messages,
+  canManageMessages,
+  sendMessageAction,
 }: {
   job: Job;
   partyName: string;
@@ -117,6 +122,9 @@ export function JobDetail({
   uploadAttachmentAction: (formData: FormData) => Promise<void>;
   deleteAttachmentAction: (id: string) => Promise<void>;
   captureSignatureAction: (formData: FormData) => Promise<void>;
+  messages: Message[];
+  canManageMessages: boolean;
+  sendMessageAction: (body: string, subject?: string) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -256,6 +264,7 @@ export function JobDetail({
         <TabsList>
           <TabsTrigger value="details">Job details</TabsTrigger>
           <TabsTrigger value="field">Field work</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
@@ -368,6 +377,10 @@ export function JobDetail({
             deleteAttachmentAction={deleteAttachmentAction}
             captureSignatureAction={captureSignatureAction}
           />
+        </TabsContent>
+
+        <TabsContent value="messages">
+          <MessagesTab messages={messages} canManage={canManageMessages} sendAction={sendMessageAction} />
         </TabsContent>
 
         <TabsContent value="history">

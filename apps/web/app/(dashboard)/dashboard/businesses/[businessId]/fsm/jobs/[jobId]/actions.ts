@@ -24,6 +24,7 @@ import { addExpense, deleteExpense } from "@cofounderai/module-fsm/lib/expenses/
 import { addNote } from "@cofounderai/module-fsm/lib/notes/mutations";
 import { uploadJobAttachment, deleteJobAttachment } from "@cofounderai/module-fsm/lib/attachments/mutations";
 import { captureSignature } from "@cofounderai/module-fsm/lib/signatures/mutations";
+import { sendJobMessage } from "@cofounderai/module-fsm/lib/messages/mutations";
 import type { NoteVisibility } from "@cofounderai/module-fsm/lib/notes/types";
 
 const TAGGABLE_TYPE = "job";
@@ -183,5 +184,11 @@ export async function captureSignatureAction(businessId: string, jobId: string, 
   const image = formData.get("image");
   if (!(image instanceof Blob)) throw new Error("No signature image provided.");
   await captureSignature(businessId, jobId, signerName, image);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+export async function sendJobMessageAction(businessId: string, jobId: string, body: string, subject?: string): Promise<void> {
+  await requirePermission(businessId, "messages.manage");
+  await sendJobMessage(businessId, jobId, body, subject);
   revalidatePath(detailPath(businessId, jobId));
 }

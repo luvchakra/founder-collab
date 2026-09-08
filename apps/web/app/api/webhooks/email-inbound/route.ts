@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ingestInboundEmail } from "@cofounderai/module-discovery/lib/conversations/ingest-inbound-email";
+import { ingestInboundJobReply } from "@cofounderai/module-fsm/lib/messages/mutations";
 
 /**
  * Provider-agnostic inbound email webhook (Epic 9). Point your email provider's
@@ -25,17 +26,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await ingestInboundEmail({
-    from: body.from,
-    subject: typeof body.subject === "string" ? body.subject : null,
-    text: body.text,
-  });
+  const subject = typeof body.subject === "string" ? body.subject : null;
 
-  if (!result.matched) {
-    // 200, not an error -- an unmatched sender (e.g. an out-of-office auto-reply from an
-    // address we don't track) isn't a webhook failure, and returning an error status would
-    // make most providers retry indefinitely.
-    return NextResponse.json({ matched: false, reason: result.reason });
+  const result = await ingestInboundEmail({ from: body.from, subject, text: body.text });
+  if (result.matched) {
+    return NextResponse.json({ matched: true, messageId: result.message.id });
   }
-  return NextResponse.json({ matched: true, messageId: result.message.id });
+
+  // F-11: discovery's own contact match found nothing -- try FSM's job-thread match
+  // before giving up. Same "one shared inbox, try each module's own tenant in turn"
+  // reasoning as discovery's own lookup, just for a different entity shape.
+  const fsmResult = await ingestInboundJobReply(body.from, subject, body.text);
+  if (fsmResult.matched) {
+    return NextResponse.json({ matched: true, messageId: fsmResult.message!.id });
+  }
+
+  // 200, not an error -- an unmatched sender (e.g. an out-of-office auto-reply from an
+  // address we don't track) isn't a webhook failure, and returning an error status would
+  // make most providers retry indefinitely.
+  return NextResponse.json({ matched: false, reason: result.reason });
 }
