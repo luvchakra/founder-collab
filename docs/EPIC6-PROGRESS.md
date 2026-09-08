@@ -8,7 +8,7 @@ and `docs/NEXT-ACTIVITIES.md` for the survey that produced this epic's sequencin
 
 | Story | Status | Notes |
 |---|---|---|
-| S-1 | Not started | `crm` module skeleton |
+| S-1 | Done | `crm` module skeleton |
 | S-2 | Mostly done | GST module already more built-out than "skeleton"; generation-history tables + `document.issued` consumer now built too -- remaining scope below |
 | S-3 | Done | `core.threads`/`messages`/`message_templates` |
 | S-4 | Not started | Promote `ai_runs`/`ai_provider_credentials`/`usage_events` to `core` |
@@ -64,6 +64,69 @@ every workspace including `module-registry`'s own manifest-shape tests (still ch
 exercised in an actual browser -- same documented gap as every other UI addition in this
 session; the generated hrefs were hand-checked against the exact strings the removed
 hardcoded consts used, module by module, to confirm no behavior actually changed.
+
+## S-1 -- `crm` module skeleton
+
+Package, manifest, license key (already seeded platform-wide since C-3 -- `core.modules`
+has carried a `crm` row from the start), real nav, `crm` schema (`channels`/`tickets`/
+`routing_rules`, structure only), and placeholder screens behind the license -- exactly
+`04-CLAUDE-CODE-BACKLOG.md`'s own S-1 line.
+
+One migration (`20260908130000_crm_schema.sql`), built fresh (not ported -- CRM has no
+StockPilot/co-founder-ai analogue), mirroring `fsm_schema.sql`'s (F-1) own DDL-only split
+exactly:
+
+- `crm.channels` (`business_id`, `kind` a real enum `email`/`sms`/`whatsapp`/`social`,
+  `name`, `is_active`).
+- `crm.tickets` (`business_id`, `channel_id` → `crm.channels`, `party_id` → `core.parties`,
+  `assigned_to` → `core.employees`, `subject`, `status` enum `open`/`pending`/`closed`).
+- `crm.routing_rules` (`business_id`, `name`, `channel_id`, `assign_to_employee_id`,
+  `priority`, `is_active`).
+- Tenant AND licensed RLS (ADR-4/ADR-8) on all three, same pattern every other module
+  schema uses -- **no fine-grained permission on top yet**, deliberately: F-1 didn't add
+  `opportunities.edit` etc. until F-2 either, so this skeleton follows the same
+  "schema first, permissions with the real feature" split. Any business member can
+  create/update channels/tickets/routing rules once `crm` is licensed.
+- `crm.enforce_channel_business_id()`/`enforce_party_business_id()`/
+  `enforce_employee_business_id()` + per-table trigger functions -- the same cross-tenant
+  reference-smuggling guard every other module-owned table with a bare reference into
+  `core` (or its own schema) already has, mirroring `fsm.enforce_party_business_id()`/
+  `enforce_employee_business_id()` exactly.
+
+`packages/module-crm/src/lib/{channels,tickets,routing-rules}/{types,queries,mutations}.ts`:
+plain create/list/toggle-active (tickets also get `updateTicketStatus`/`assignTicket`) --
+no update-in-place editing, no delete, matching "placeholder screens" rather than full
+StockPilot-style CRUD polish. `lib/tenancy/{types,queries}.ts` mirrors every other
+module's own copy of `getBusiness()` (module boundary rules: each module keeps its own
+tiny copy rather than cross-importing).
+
+**Real nav, not a "coming soon" placeholder**: `module-registry`'s `crm` entry (already
+touched by the earlier sidebar-nav story) now points at three real routes -- Inbox
+(`/crm`), Channels (`/crm/channels`), Routing Rules (`/crm/routing-rules`) -- and
+`packages/module-crm/src/manifest.ts` mirrors it, same hand-kept-in-sync relationship
+every other module's manifest has with the registry. Two new icons (`Radio`, `Route`)
+added to `module-icon.tsx`'s lookup table.
+
+**Placeholder screens, real enough to hold actual data**: Inbox lists tickets (manually
+created, with a channel/status/assignee) rather than the real unified inbox (no message
+thread view, no automatic ticket-from-message ingestion -- that reads `core.messages`/
+`core.threads` and is a later story's own scope, per `00-MASTER-PLAN.md` §5's
+"`message.received` | core | crm (triage)" event row); Channels and Routing Rules are
+simple create + toggle-active lists. None of the three apply any actual routing logic to
+an incoming message -- there is no message ingestion yet for a rule to act on.
+
+Verified: `typecheck`/`lint`/`lint:boundaries`/`lint:migrations` all clean (42
+migrations); full `test`/`test:db` suites green (including the new
+`test-crm-rls.mjs` -- no-license-denies-read-and-write, grace-period-denies-write,
+tenant isolation, and every cross-tenant reference-smuggling trigger); `npm run build
+--workspace=apps/web` succeeds (three new `/crm` routes register, including the exact
+`apps/web/package.json` dependency this platform's own history warns about --
+`@cofounderai/module-crm` was added there from the start, unlike the F-6-era Vercel
+build break where `module-fsm` was forgotten). Migration applied to the dev Supabase
+project and live end-to-end verification (channel/ticket/routing-rule round-trip, the
+cross-tenant `channel_id`-smuggling trigger) in a rolled-back transaction, zero residue.
+Supabase security advisor shows no new findings. Not exercised in an actual browser --
+same documented gap as every other UI addition in this session.
 
 ## S-2 -- GST module, remaining scope
 

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cofounderai/core": "*",
+    "@cofounderai/module-crm": "*",
     "@cofounderai/module-discovery": "*",
     "@cofounderai/module-fsm": "*",
     "@cofounderai/module-gst": "*",

@@ -138,8 +138,16 @@ export const moduleRegistry: ModuleManifest[] = [
     name: "CRM",
     icon: "Inbox",
     routePrefix: "/crm",
-    // No packages/module-crm yet (S-1, Epic 6, not started) -- placeholder until it exists.
-    nav: [{ heading: undefined, items: [{ label: "Overview", slug: "", icon: "Inbox" }] }],
+    nav: [
+      { heading: "Overview", items: [{ label: "Inbox", slug: "", icon: "Inbox" }] },
+      {
+        heading: "Administration",
+        items: [
+          { label: "Channels", slug: "channels", icon: "Radio" },
+          { label: "Routing Rules", slug: "routing-rules", icon: "Route" },
+        ],
+      },
+    ],
     permissions: ["crm.access"],
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],
   },

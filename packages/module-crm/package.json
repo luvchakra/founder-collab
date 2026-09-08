@@ -1,0 +1,29 @@
+{
+  "name": "@cofounderai/module-crm",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./lib/*": "./src/lib/*.ts",
+    "./db/*": "./src/db/*.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./manifest": "./src/manifest.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@cofounderai/core": "*",
+    "@supabase/supabase-js": "^2.115.0",
+    "react": "19.2.8"
+  },
+  "peerDependencies": {
+    "next": "16.3.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.0"
+  }
+}
