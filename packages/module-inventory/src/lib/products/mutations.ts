@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 
 export type ProductInput = {
   sku: string;
@@ -68,7 +69,12 @@ function payloadFrom(input: ProductInput, categoryId: string | null) {
 }
 
 /** Ported from stockpilot-ai-ops's `saveProduct` mutation -- create branch. */
+/** `requireModule()` (defense in depth, CLAUDE.md's licensing architecture section) --
+ * this module's demonstrated call site, the entry point for the module's own core
+ * catalogue entity. RLS still rejects the insert regardless if this somehow passed
+ * incorrectly; this only turns that into a clearer message first. */
 export async function createProduct(businessId: string, input: ProductInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const categoryId = await resolveCategoryId(supabase, businessId, input.categoryName);
   const { error } = await supabase

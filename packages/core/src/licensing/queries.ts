@@ -55,3 +55,37 @@ export async function hasModule(businessId: string, moduleKey: string): Promise<
   if (error) throw error;
   return Boolean(data);
 }
+
+/** Thin wrapper over core.has_module_write() (C-3) -- true only for an `active` license,
+ * false during `grace` (read-only) or `expired`/no license at all. `requireModule()`
+ * below is the write-gating counterpart to this; `hasModule()` above is the read-gating
+ * one. */
+export async function hasModuleWrite(businessId: string, moduleKey: string): Promise<boolean> {
+  const supabase = await coreClient();
+  const { data, error } = await supabase.rpc("has_module_write", { p_business_id: businessId, p_key: moduleKey });
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
+ * Defense-in-depth mirror of core.has_module_write() (C-3/ADR-9) -- CLAUDE.md's
+ * architecture section names this exact function as one of licensing's four required
+ * enforcement layers ("requireModule() in server actions (defense in depth)"), which
+ * previously didn't exist anywhere in the codebase (docs/testing/EXECUTION-2026-09-08.md
+ * finding 4, from TC-CORE-001): every plain in-module write relied on RLS alone, with no
+ * app-layer check of its own. RLS stays the authoritative backstop regardless -- same
+ * relationship requirePermission() has to has_permission() -- but calling this first
+ * turns a cancelled/unlicensed business's write attempt into a clear, catchable message
+ * instead of a raw Postgres policy-violation error surfacing to the UI.
+ *
+ * Not yet threaded through every module's own write path (that's ~38 mutations.ts files
+ * across fsm/inventory/crm/gst) -- available now, and demonstrated in one representative
+ * write path per module, with full platform-wide adoption tracked as its own follow-up
+ * in NEXT-ACTIVITIES.md rather than rushed through every call site at once.
+ */
+export async function requireModule(businessId: string, moduleKey: string): Promise<void> {
+  const licensed = await hasModuleWrite(businessId, moduleKey);
+  if (!licensed) {
+    throw new Error(`The ${moduleKey} module isn't licensed (or is in its read-only grace period) for this business.`);
+  }
+}

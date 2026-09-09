@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import type { CreateOpportunityInput, UpdateOpportunityInput } from "./types";
 
 function coreClient() {
@@ -54,7 +55,13 @@ export async function resolveCustomerPartyId(
   return resolvedPartyId;
 }
 
+/** `requireModule()` (defense in depth, CLAUDE.md's licensing architecture section --
+ * see its own doc comment) called here as this module's demonstrated call site: the
+ * PRD's own pipeline entry point ("the entry point," §1), the first write a founder
+ * makes in fsm. RLS still rejects the insert either way if this somehow passed
+ * incorrectly -- this only turns that into a clearer message first. */
 export async function createOpportunity(businessId: string, input: CreateOpportunityInput): Promise<string> {
+  await requireModule(businessId, "fsm");
   const partyId = await resolveCustomerPartyId(businessId, input);
 
   const supabase = await createClient();

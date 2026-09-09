@@ -1,5 +1,6 @@
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { createAdminClient } from "../../db/admin";
 import { callGsp, decryptGspSecrets } from "../gsp-client";
@@ -27,11 +28,14 @@ export type EwayBillCredentialsInput = {
  * account secrets, not identifiers, and this table already has no SELECT grant to
  * `authenticated` at all (access control alone was the pre-2026-09-09 gap; this adds
  * the second layer). An empty string is treated the same as "not provided" -- never
- * encrypted into a stored empty ciphertext that would read as "configured" later. */
+ * encrypted into a stored empty ciphertext that would read as "configured" later.
+ * `requireModule()` (defense in depth, CLAUDE.md's licensing architecture section) --
+ * this module's demonstrated call site. */
 export async function upsertEwayBillCredentials(
   businessId: string,
   input: EwayBillCredentialsInput,
 ): Promise<void> {
+  await requireModule(businessId, "gst");
   const supabase = await createClient();
   const { error } = await supabase.from("eway_bill_credentials").upsert({
     business_id: businessId,

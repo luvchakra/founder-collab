@@ -122,7 +122,7 @@ migration applied live to the dev project and confirmed via `information_schema.
 
 ### 4. `requireModule()`, named by `CLAUDE.md` as one of licensing's four required
    enforcement layers, does not exist anywhere in the codebase (P1, architecture-doc vs.
-   reality gap) — TC-CORE-001
+   reality gap) — TC-CORE-001 — **Helper built 2026-09-09; platform-wide rollout still open**
 `CLAUDE.md`'s architecture section: "Enforcement is four layers, all four required: RLS
 ..., route guard in `proxy.ts` ..., `requireModule()` in server actions (defense in
 depth), and UI ... ". Confirmed present: RLS (thoroughly, throughout `test:db`), the
@@ -145,6 +145,16 @@ of `module-crm`'s do. Not a live security hole (RLS is authoritative and does re
 write), but a real gap against the architecture doc's own "all four required" framing —
 worth either building the shared helper or correcting the doc to describe what's
 actually enforced.
+
+Fix (partial): `packages/core/src/licensing/queries.ts` now has a real `requireModule()`
+(plus its own `hasModuleWrite()` wrapper over `core.has_module_write()`, mirroring
+`hasModule()`/`has_module`), built the same way `requirePermission()` mirrors
+`has_permission()` -- throws a clear message, RLS stays the authoritative backstop
+either way. Demonstrated in one representative write path per module rather than
+rushed through every call site at once: `createOpportunity` (fsm), `createProduct`
+(inventory), `createTicket` (crm), `upsertEwayBillCredentials` (gst). Full platform-wide
+adoption -- the other ~34 `mutations.ts` files across all four modules -- is tracked as
+its own follow-up in `NEXT-ACTIVITIES.md`, not claimed as done here.
 
 ### 5. Sidebar shows every module regardless of license — corrects this doc's own earlier "Pass" verdict (P0) — TC-SHELL-002, TC-MENU-LIC-001/002 — **Fixed 2026-09-08**
 Fix: `packages/core/src/licensing/queries.ts`'s new `listLicensedModuleKeysByBusiness()`
