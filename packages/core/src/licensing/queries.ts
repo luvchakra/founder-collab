@@ -1,3 +1,4 @@
+import { moduleRegistry } from "@cofounderai/module-registry";
 import { createClient } from "../db/server";
 import type { License } from "./types";
 
@@ -78,14 +79,20 @@ export async function hasModuleWrite(businessId: string, moduleKey: string): Pro
  * turns a cancelled/unlicensed business's write attempt into a clear, catchable message
  * instead of a raw Postgres policy-violation error surfacing to the UI.
  *
- * Not yet threaded through every module's own write path (that's ~38 mutations.ts files
- * across fsm/inventory/crm/gst) -- available now, and demonstrated in one representative
- * write path per module, with full platform-wide adoption tracked as its own follow-up
- * in NEXT-ACTIVITIES.md rather than rushed through every call site at once.
- */
+ * Rolled out across every module's own write paths (fsm/inventory/crm/gst mutations.ts,
+ * ~70 functions) except cron/webhook-reachable paths (no signed-in user to check) and
+ * plain id-only setters (RLS-only, same as this platform's other modules' equivalents).
+ *
+ * The thrown message names the module by its display name (module-registry's own
+ * `name`, e.g. "Compliance," not the internal key "gst" a business owner has never seen
+ * anywhere in the UI) -- the same lookup `not-licensed/page.tsx`'s route guard already
+ * does, so a toast surfacing this message reads consistently with that page rather than
+ * leaking an internal identifier the moment someone's session outlives their license's
+ * grace window mid-page instead of getting caught by the route guard on load. */
 export async function requireModule(businessId: string, moduleKey: string): Promise<void> {
   const licensed = await hasModuleWrite(businessId, moduleKey);
   if (!licensed) {
-    throw new Error(`The ${moduleKey} module isn't licensed (or is in its read-only grace period) for this business.`);
+    const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
+    throw new Error(`${moduleName} isn't licensed (or is in its read-only grace period) for this business.`);
   }
 }

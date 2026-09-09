@@ -19,11 +19,25 @@ user with a business that has the relevant module licensed, and click the item f
 the sidebar (not by typing the URL) so the case also covers the link itself, not just
 the destination.
 
-## Known-failing right now (confirmed by direct inspection, 2026-09-08)
+## Historical: confirmed-failing at the 2026-09-08 execution pass, since fixed
+
+The two items in this section were CONFIRMED FAILING when this file was first written
+(2026-09-08 execution pass) and are kept here, marked FIXED, as a record of what was
+found and how — not because either is still broken. Re-verified this pass (task #74)
+by reading the current code rather than trusting the historical write-up to still hold;
+see each item's own "Re-verified" note for exactly what was checked.
 
 ### TC-MENU-LIC-002: Sidebar shows unlicensed modules as normal, clickable menu items
-**Priority:** P0 · **Status:** CONFIRMED FAILING — this is almost certainly what's
-behind "CRM and GST menus lead to page not found," reported directly by the user.
+**Priority:** P0 · **Status:** FIXED (task #25) — was CONFIRMED FAILING; this is
+almost certainly what was behind "CRM and GST menus lead to page not found," reported
+directly by the user at the time.
+**Re-verified this pass:** `apps/web/app/(dashboard)/layout.tsx` now imports
+`listLicensedModuleKeysByBusiness` and passes the result down to `DashboardChrome`
+alongside the full `moduleRegistry`, which is where the actual per-business filtering
+happens — the unfiltered `modules={moduleRegistry}` pass-through this finding
+originally caught is gone. Separately, the root cause's second half (below) — no
+direct-URL guard for a reached-anyway unlicensed route — is also now handled: see the
+corrected "Note on the other 3 enforcement layers" below.
 **Root cause, confirmed two ways:**
 1. **Code:** `apps/web/app/(dashboard)/layout.tsx` passes the full, unfiltered
    `moduleRegistry` straight to `DashboardChrome` → `DashboardShell` → `AppSidebar`
@@ -67,32 +81,38 @@ behavior is undefined/inconsistent rather than a clean, deliberate block or the
 informative page described above — this is the likely source of the "page not
 found" symptom even though a literal `notFound()` call was not pinned to an exact
 line without a live browser session.
-**Note on the other 3 enforcement layers (`CLAUDE.md`'s 4-layer requirement):**
-confirmed also missing for `crm`/`gst` specifically — `proxy.ts` has no license
-logic at all (still the bare session-refresh passthrough, its own comment says
-gating "lands in Epic 2's C-5," but C-5 per the commit log only did
-active-business resolution, not the route guard half of its own title), and
-`crm/page.tsx`/`gst/*/page.tsx` only call `getBusiness()` (existence check), never
-`requireModule()`. RLS (`has_module()`, confirmed via `pg_get_functiondef` to
-return a clean boolean, never throw) is the *only* one of the 4 layers actually
-enforcing anything for these two modules today.
+**Note on the other 3 enforcement layers (`CLAUDE.md`'s 4-layer requirement) — corrected
+this pass:** the original write-up said `proxy.ts` had no license logic at all and RLS
+was the only one of the 4 layers enforcing anything for `crm`/`gst`. That was true of
+`proxy.ts`'s own body, but missed that the actual route guard lives one level down, in
+`updateSession()` (`packages/core/src/db/middleware.ts`, which `proxy.ts` calls
+directly) — it queries `core.licenses` for the active business, and rewrites any
+request under an unlicensed/grace-expired module's route prefix to
+`/dashboard/businesses/[businessId]/not-licensed` with `module`/`reason`/`graceEndsAt`
+params, which is exactly the informative page TC-CORE-001/003 and TC-MENU-LIC-001 below
+describe — confirmed by reading `middleware.ts` directly (`findUnlicensedModuleForRoute`
+and the `NextResponse.rewrite(url)` call), not inferred from the page component's own
+existence. So the route guard IS live for `crm`/`gst` (and every other module) today;
+`crm/page.tsx`/`gst/*/page.tsx` calling only `getBusiness()` rather than also calling
+`requireModule()` themselves is real (server-action-layer defense-in-depth, CLAUDE.md's
+3rd layer, is still thinner here than the route guard or RLS), but it's no longer true
+that direct URL access to an unlicensed module goes completely unblocked.
 
 ### TC-MENU-FSM-001: `fsm` → "Dashboard" (root nav item)
-**Priority:** P0 · **Status:** CURRENTLY FAILING
+**Priority:** P0 · **Status:** FIXED (task #26) — was CURRENTLY FAILING.
 **Steps:** With `fsm` licensed, click "Service" in the module switcher, then
 "Dashboard" (the module's root/overview item, `slug: ""`).
 **Expected result:** The FSM dashboard renders.
-**Actual result:** 404 -- `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/fsm/page.tsx`
-does not exist on disk. This is the module's own root route (what `/fsm` resolves
-to) and the very first item in its nav -- the highest-visibility gap this audit found.
+**Re-verified this pass:** `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/fsm/page.tsx`
+exists on disk now (confirmed via `ls`) — this file's original write-up recorded it as
+missing; kept here as the historical record of that gap, not a currently-open one.
 
 ### TC-MENU-FSM-002: `fsm` → "Customers"
-**Priority:** P0 · **Status:** CURRENTLY FAILING
+**Priority:** P0 · **Status:** FIXED (task #26) — was CURRENTLY FAILING.
 **Steps:** With `fsm` licensed, click "Customers" in the Service module nav.
 **Expected result:** An FSM-scoped customer list renders.
-**Actual result:** 404 -- no `fsm/customers/` route folder exists at all (confirmed:
-not present anywhere under `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/fsm/`),
-despite the registry declaring this nav item under a "Customers" heading.
+**Re-verified this pass:** `fsm/customers/page.tsx` exists on disk now (confirmed via
+`ls`), under the route folder this write-up originally found completely absent.
 
 ## Inventory (all confirmed present on disk -- verify runtime render only)
 
@@ -173,16 +193,24 @@ linked from a different UI element than the other six, easy to miss in a manual 
 ## Cross-cutting: licensing interaction with menu visibility
 
 ### TC-MENU-LIC-001: Unlicensed module's items don't render as dead links
-**Priority:** P0 · **Status:** CONFIRMED FAILING — see TC-MENU-LIC-002 above for the
-full root-cause writeup; this entry is the general form (any business, any
-under-licensed module), TC-MENU-LIC-002 is the specific reproduction with real data.
+**Priority:** P0 · **Status:** FIXED (same task #25 fix, same underlying mechanism) —
+was CONFIRMED FAILING; see TC-MENU-LIC-002 above for the full root-cause writeup, this
+entry is the general form (any business, any under-licensed module), TC-MENU-LIC-002
+is the specific reproduction with real data.
 **Steps:** With a module NOT licensed for the business, confirm its section doesn't
-appear in the sidebar at all — and if reached directly by URL anyway, is blocked
-cleanly (all 4 of `CLAUDE.md`'s enforcement layers should apply; only RLS currently does).
+appear in the sidebar at all — and if reached directly by URL anyway, is blocked cleanly.
 **Expected result:** No dead/greyed-out nav items for unlicensed modules; direct URL
 access is blocked server-side, not just hidden client-side, and shown the same
 informative not-licensed page described in TC-MENU-LIC-002 — module name, reason,
 and a link to `/dashboard/settings/licenses` — never a bare 404.
+**Re-verified this pass:** both halves hold — sidebar filtering via
+`listLicensedModuleKeysByBusiness` (TC-MENU-LIC-002) and the direct-URL route guard via
+`updateSession()`'s rewrite to `/not-licensed` (this file's corrected "Note on the
+other 3 enforcement layers" above). Not yet re-verified live in a browser this pass
+(no live Supabase session in this sandbox) — confirmed by reading the actual guard
+code and its call sites, which is a real check, but running it end to end in a browser
+against live license data remains the strictly stronger verification the original
+2026-09-08 pass did and this one didn't repeat.
 
 ## Maintenance note
 

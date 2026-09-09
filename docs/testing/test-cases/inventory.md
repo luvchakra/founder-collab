@@ -21,10 +21,22 @@ covers the RLS angle; this covers actual data-consistency).
 **Feature:** SP-3b's procedural layer.
 **Priority:** P0 · **Story:** SP-3b
 **Steps:**
-1. Reserve more stock than is available for an item.
+1. Reserve more stock than is available for an item (e.g. confirm a sales order whose
+   lines exceed available quantity).
 **Expected result:** Rejected with a clear insufficient-stock error — never allowed to
-go negative (`test-inventory-procedural.mjs` likely covers some of this; confirm the
-UI-facing error message is equally clear, not just the DB constraint).
+go negative (`test-inventory-procedural.mjs` covers the DB-constraint angle).
+**Confirmed this pass — the UI-facing message is already clear, no fix needed:** the
+open question this case used to carry ("confirm the UI-facing error message is equally
+clear, not just the DB constraint") is resolved by reading the actual code path.
+`confirm_sales_order()`'s own `raise exception 'Not enough available stock for %: need
+%, have %', _short.sku, _short.quantity, _short.available` (procedural-layer migration)
+names the specific SKU and both quantities. `confirmSalesOrder()`
+(`packages/module-inventory/src/lib/sales-orders/mutations.ts`) does a plain
+`if (error) throw error;`, and `@supabase/postgrest-js`'s `PostgrestError` genuinely
+`extends Error`, so `err instanceof Error ? err.message : ...`-style UI catch blocks
+(the same pattern audited in TC-CRM-005/TC-GST-007) correctly surface that exact
+sentence rather than falling through to a generic "Something went wrong." — unlike the
+callGsp/silent-UPDATE bugs found elsewhere this pass, there was nothing to fix here.
 
 ### TC-INVENTORY-003: Warehouses route scopes stock correctly per warehouse
 **Feature:** SP-7 slice 1.

@@ -30,10 +30,28 @@ succeeds, and `has_module_write()` returns true.
 1. Cancel an active license.
 2. Immediately attempt a read, then a write, in that module.
 **Expected result:** Read succeeds; write is denied. `core.license_events` records the
-cancellation with a timestamp the 30-day window is computed from. The denied write
-shows a clear, specific message — "this module is cancelled and in its read-only
-grace period until [date]; reactivate to resume editing" — not a generic permission
-error, so the person understands this is a countdown, not a dead end.
+cancellation with a timestamp the 30-day window is computed from.
+**Correction — two distinct messages exist, not one, and only one carries a date:**
+this case previously described a single message ("...grace period until [date];
+reactivate to resume editing") without distinguishing where it comes from. In practice:
+- **Loading a route** for a module past its route guard's own check hits
+  `not-licensed/page.tsx`, which *does* format the exact date (`graceEndsAt` passed
+  through as a search param, rendered via `formatDate()`) — this is the message the
+  quoted wording actually describes, and it's accurate for this path.
+- **A write attempted from inside an already-loaded page** (the license lapsed into
+  grace mid-session, after the route guard's own check already passed) instead hits
+  `requireModule()`'s own thrown error, which has no date in it at all — it's a
+  same-request check with no reason to fetch `grace_ends_at`. Before this pass its
+  message also used the internal module *key* ("fsm," "gst") rather than a name a
+  business owner has ever seen in the UI; fixed this session to use the module
+  registry's display name (`packages/core/src/licensing/queries.ts#requireModule`) so
+  a toast surfacing it at least reads consistently with the route-guard page's tone,
+  even without a specific date.
+**Automated coverage:** none yet for the display-name fix specifically — this repo's
+DB-only harness can't reach a TypeScript-level thrown-error string; would need a mocked-
+Supabase-client unit test (no precedent yet in `packages/core`, unlike `module-gst`'s new
+mocked-`fetch` precedent for `callGsp` — worth building next if this message keeps
+changing) or a live-Supabase manual check.
 
 ### TC-CORE-003: Grace period expiry moves to full denial without deleting data
 **Feature:** ADR-9, second half.

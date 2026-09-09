@@ -128,3 +128,15 @@ hardcoded default, when one is set; falls back sensibly when none is set.
 2. Separately, simulate an actual invalid-API-key scenario.
 **Expected result:** The two failure modes are distinguishable in the UI — a
 url_context/tool failure is never shown as "invalid API key" (the bug this fix addressed).
+**Confirmed this pass, with a real regression test added (not just prose):** traced the
+actual message text — `understand-product.ts` throws `` `Gemini could not retrieve
+${url} (status: ${status}). The site may be blocking automated access, redirecting, or
+returning an error -- check it loads without a login and isn't behind a WAF/CDN
+challenge.` `` on a failed `url_context` retrieval, and the UI's classifier
+(`packages/core/src/ai-providers/is-provider-failure.ts#isAiProviderFailure`, a regex
+over the message text) does not match any of its own patterns against that message —
+confirmed by running it, not just reading it. Added that exact message as a permanent
+case in `is-provider-failure.test.ts` (already had passing-case coverage, but nothing
+pinning down this specific historical bug's message before this pass) so a future
+change to the regex that accidentally starts matching url_context failures again gets
+caught immediately, not rediscovered by a user hitting the original bug a second time.

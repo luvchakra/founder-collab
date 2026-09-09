@@ -19,9 +19,15 @@ shows the old value, something reintroduced a hardcoded list.
 ### TC-SHELL-002: Sidebar only shows licensed modules for the current business
 **Feature:** Module-registry filtered by entitlements (CLAUDE.md's 4-layer licensing
 enforcement, UI layer).
-**Priority:** P0 · **Story:** C-5/C-6 + registry · **Status:** CONFIRMED FAILING —
-see `menu-smoke.md` TC-MENU-LIC-002 for the full root-cause writeup (confirmed
-against live `apps/web/app/(dashboard)/layout.tsx` and real dev-DB license data).
+**Priority:** P0 · **Story:** C-5/C-6 + registry · **Status:** FIXED (task #25, this
+platform session) — was CONFIRMED FAILING at the original 2026-09-08 execution pass
+(see `menu-smoke.md` TC-MENU-LIC-002 for that root-cause writeup); re-verified this
+pass by reading the current `apps/web/app/(dashboard)/layout.tsx`, which now imports
+`listLicensedModuleKeysByBusiness` and passes `licensedModuleKeysByBusiness` down to
+`DashboardChrome` alongside the full `moduleRegistry` for it to filter by — the
+unfiltered-pass-through this case originally caught no longer exists. Leaving this
+status update here rather than only in `menu-smoke.md`, since a reader landing on this
+file first would otherwise still see a two-platform-sessions-stale "CONFIRMED FAILING."
 **Steps:**
 1. License only `discovery` and `fsm` for a business.
 **Expected result:** Sidebar shows exactly those two module sections, not all five —

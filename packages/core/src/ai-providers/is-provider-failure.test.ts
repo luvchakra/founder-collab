@@ -16,4 +16,17 @@ describe("isAiProviderFailure", () => {
   it("does not flag an unrelated error", () => {
     expect(isAiProviderFailure("Prospect not found")).toBe(false);
   });
+
+  // Regression guard for TC-DISCOVERY-012 / commit cb4dec4: a Gemini url_context
+  // retrieval failure (the site blocked/redirected the fetch) must never be classified
+  // as a BYOK/provider failure ("invalid API key" et al.) -- they need different UI
+  // treatment (a "check the URL" message vs. a "connect a provider" CTA), and before
+  // that fix the two were indistinguishable to the person hitting them.
+  it("does not flag a Gemini url_context retrieval failure as a provider/API-key failure", () => {
+    const message =
+      "Gemini could not retrieve https://example.com (status: URL_RETRIEVAL_STATUS_UNSPECIFIED). " +
+      "The site may be blocking automated access, redirecting, or returning an error -- check it " +
+      "loads without a login and isn't behind a WAF/CDN challenge.";
+    expect(isAiProviderFailure(message)).toBe(false);
+  });
 });
