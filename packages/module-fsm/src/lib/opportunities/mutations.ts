@@ -1,6 +1,7 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import type { CreateOpportunityInput, UpdateOpportunityInput } from "./types";
 
 function coreClient() {
@@ -59,9 +60,17 @@ export async function resolveCustomerPartyId(
  * see its own doc comment) called here as this module's demonstrated call site: the
  * PRD's own pipeline entry point ("the entry point," §1), the first write a founder
  * makes in fsm. RLS still rejects the insert either way if this somehow passed
- * incorrectly -- this only turns that into a clearer message first. */
+ * incorrectly -- this only turns that into a clearer message first.
+ *
+ * `requirePermission(..., "opportunities.edit")` is the actual authorization gate --
+ * `core.permissions`/`core.role_permissions` (F-2's own migration) already declare
+ * this key owner/admin-only, but nothing previously called `core.has_permission()` for
+ * it: fsm's own RLS is the platform's uniform tenant-AND-licensed policy only (no
+ * per-permission trigger the way e.g. inventory's sales_returns has), so without this
+ * call a plain "viewer" business member could create/edit opportunities freely. */
 export async function createOpportunity(businessId: string, input: CreateOpportunityInput): Promise<string> {
   await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "opportunities.edit");
   const partyId = await resolveCustomerPartyId(businessId, input);
 
   const supabase = await createClient();
@@ -82,6 +91,8 @@ export async function createOpportunity(businessId: string, input: CreateOpportu
 }
 
 export async function updateOpportunity(id: string, businessId: string, patch: UpdateOpportunityInput): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "opportunities.edit");
   const supabase = await createClient();
   const update: Record<string, unknown> = {};
   if ("serviceTypeId" in patch) update.service_type_id = patch.serviceTypeId;
@@ -97,6 +108,8 @@ export async function updateOpportunity(id: string, businessId: string, patch: U
  * table's own check constraint (`status <> 'lost' or lost_reason is not null`) backs it
  * up at the database level regardless of what application code does. */
 export async function markOpportunityLost(id: string, businessId: string, reason: string): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "opportunities.edit");
   const trimmed = reason.trim();
   if (!trimmed) throw new Error("A reason is required to mark an opportunity lost.");
 
@@ -116,6 +129,8 @@ export async function markOpportunityLost(id: string, businessId: string, reason
  * "nothing auto-advances to Lost, human intent required" -- the same intent
  * requirement applies just as well to undoing a mistaken one. */
 export async function reopenLostOpportunity(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "opportunities.edit");
   const supabase = await createClient();
   const { error } = await supabase
     .from("opportunities")

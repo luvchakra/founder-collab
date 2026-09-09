@@ -129,3 +129,104 @@ without renumbering existing ones.
 1. Send a message from a job's Messages tab.
 **Expected result:** Uses `core.threads/messages` (S-3) — confirm it's genuinely
 shared with discovery's conversation system, not a parallel FSM-only messages table.
+
+### TC-FSM-015: A viewer cannot create, edit, lose, or reopen an opportunity
+**Feature:** F-2's `opportunities.edit` permission.
+**Priority:** P0 · **Story:** F-2
+**Background:** `core.permissions`/`core.role_permissions` (F-2's migration) declared
+`opportunities.edit` as owner/admin-only from the start, but nothing ever called
+`core.has_permission()` for it — fsm's own RLS is only the platform's uniform
+"tenant AND licensed" policy, with no per-permission trigger the way e.g. inventory's
+`sales_returns` has. In practice this meant any business member with the `viewer` role
+could freely create, edit, lose, or reopen opportunities. Fixed this session by adding
+`requirePermission(businessId, "opportunities.edit")` to `createOpportunity`,
+`updateOpportunity`, `markOpportunityLost`, and `reopenLostOpportunity` in
+`packages/module-fsm/src/lib/opportunities/mutations.ts`.
+**Steps:**
+1. As a business member with role `viewer`, attempt to create an opportunity.
+2. As the same viewer, attempt to update an existing opportunity's description.
+3. As the same viewer, attempt to mark an opportunity lost.
+4. As the same viewer, attempt to reopen a lost opportunity.
+5. Repeat all four as `owner`/`admin`.
+**Expected result:** All four calls throw a clean, actionable error for the viewer
+("You don't have permission to do this (opportunities.edit).") — never a raw Postgres
+error, never a silent no-op success. Owner/admin succeed on all four.
+**Automated coverage:** `scripts/test-fsm-workflow.mjs` verifies the underlying
+`core.has_permission()` data (owner has the key, viewer doesn't) at the DB level; see
+that script's own header comment for why the actual `requirePermission()` call site in
+TypeScript is not yet exercised by an automated test (this repo's test harness is
+raw-SQL-only — there's no TS-level harness yet that calls `createOpportunity()` etc.
+directly as different roles).
+
+### TC-FSM-016: A viewer cannot edit, send, approve, or decline an estimate (internal side)
+**Feature:** F-3's `estimates.edit` permission.
+**Priority:** P0 · **Story:** F-3
+**Background:** Same gap and same fix pattern as TC-FSM-015, applied to
+`packages/module-fsm/src/lib/estimates/mutations.ts`'s `getOrCreateEstimate`,
+`sendEstimate`, `approveEstimateInternal`, and `declineEstimateInternal`.
+**Steps:**
+1. As a `viewer`, attempt to generate/get an estimate for an opportunity.
+2. As the same viewer, attempt to send an existing draft estimate.
+3. As the same viewer, attempt to internally approve/decline an estimate (the
+   staff-side action, not the customer's public-token one — see TC-FSM-002).
+4. Repeat as `owner`/`admin`.
+**Expected result:** Viewer is denied on all four with the actionable permission
+message; owner/admin succeed. The customer-facing, token-secured
+`markEstimateViewed`/`approveEstimateByToken`/`declineEstimateByToken` functions are
+deliberately NOT permission-gated (they're public/unauthenticated by design, secured by
+an unguessable token instead — see TC-FSM-003) and must keep working for an
+unauthenticated customer regardless of this fix.
+**Known gap, intentionally not fixed here:** `addChargeLine`/`updateChargeLine`/
+`deleteChargeLine`/`reorderChargeLines`/`recomputeAndPersistTotals` in the same file are
+generic over any `core.documents` id and are reused as-is by invoices (no separate
+`invoices.edit` permission key has ever been declared by a migration). Per CLAUDE.md's
+"never implement speculative functionality," this session did not invent one — these
+remain gated on module license only, not on a permission check. Flagging so a future
+story that adds real invoice-side RBAC doesn't miss it.
+
+### TC-FSM-017: A viewer cannot create or transition a job; only owner/admin can reopen a completed one
+**Feature:** F-5's `jobs.edit` and `jobs.reopen` permissions.
+**Priority:** P0 · **Story:** F-5
+**Background:** Same gap as TC-FSM-015/016, applied to
+`packages/module-fsm/src/lib/jobs/mutations.ts`. Every status-transition function
+(`createJob`, `updateJob`, `markJobScheduled`, `startJob`, `holdJob`, `resumeJob`,
+`completeJob`, `cancelJob`, `duplicateJob`, `convertJobToOpportunity`) now calls
+`requirePermission(businessId, "jobs.edit")`. `reopenJob` specifically is gated on the
+distinct `jobs.reopen` key instead (admin-only per the PRD §4) — its doc comment
+previously *claimed* this was enforced when nothing actually checked it, so before this
+fix any business member, including a `viewer`, could reopen a completed job.
+**Steps:**
+1. As a `viewer`, attempt each of: create a job, update a job, mark it scheduled, start
+   it, hold it, resume it, complete it, cancel it, duplicate it, convert it back to an
+   opportunity.
+2. As an `admin` (not owner), complete a job, then attempt to reopen it.
+3. As a `viewer`, attempt to reopen a completed job.
+4. As `owner`, repeat step 3.
+**Expected result:** Step 1's viewer is denied on every listed action with the
+actionable permission message. Step 2's admin succeeds at reopening (`jobs.reopen` is
+granted to owner AND admin, not owner-only — confirm against the actual
+`role_permissions` seed rather than assuming). Step 3's viewer is denied even though a
+`jobs.edit`-only role would not otherwise be blocked from every other job action —
+`jobs.reopen` is checked separately from `jobs.edit`. Step 4 succeeds.
+**Automated coverage:** `scripts/test-fsm-workflow.mjs` (DB-level `core.has_permission()`
+check for all four keys including `jobs.reopen`) plus the full chain-linkage and
+tenant-isolation assertions described in TC-FSM-001's automated equivalent. As with
+TC-FSM-015, the actual application-layer `requirePermission()` call sites in
+`jobs/mutations.ts` are not yet exercised by a TypeScript-level test — see the workflow
+script's header comment for the honest scope statement.
+
+### TC-FSM-018: Cross-tenant reference-smuggling is blocked even with a permission-fixed pipeline
+**Feature:** Combines F-2/F-5's tenant-isolation trigger enforcement with the
+permission fix above — regression coverage to confirm adding `requirePermission()`
+calls didn't accidentally change tenant-isolation behavior.
+**Priority:** P0 · **Story:** F-2, F-5
+**Steps:**
+1. As the owner of Business B (unlicensed relationship to Business A), attempt to
+   insert a job in Business B that references a party or opportunity belonging to
+   Business A.
+**Expected result:** Blocked by the cross-tenant enforcement trigger
+(`fsm.enforce_job_business_id`/`enforce_job_refs` per the schema migration), independent
+of role/permission — this is a lower, DB-enforced layer that a permission grant can
+never bypass.
+**Automated coverage:** `scripts/test-fsm-workflow.mjs`, section 3 ("Bob cannot wire a
+job in his own business to Alice's party").

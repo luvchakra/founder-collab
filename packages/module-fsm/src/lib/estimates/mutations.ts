@@ -6,6 +6,7 @@ import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render
 import { SITE_URL } from "@cofounderai/core/site";
 import { publish } from "@cofounderai/core/events/mutations";
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient as createFsmClient } from "../../db/server";
 import { generatePortalToken, hashPortalToken, resolvePortalToken } from "../portal-tokens/tokens";
 import type { Opportunity } from "../opportunities/types";
@@ -23,6 +24,7 @@ function coreClient() {
  * opportunity is estimated; returns the existing one on every call after. */
 export async function getOrCreateEstimate(businessId: string, opportunity: Opportunity): Promise<string> {
   await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "estimates.edit");
   const core = await coreClient();
   const { data: existing, error: findError } = await core
     .from("documents")
@@ -149,6 +151,16 @@ async function resolveItemId(businessId: string, input: AddChargeLineInput): Pro
   return { itemId: item.id, taxRate: input.adHoc.taxRate, unitPrice: input.adHoc.unitPrice };
 }
 
+/** Not gated by `estimates.edit`, deliberately: this function (and updateChargeLine/
+ * deleteChargeLine/reorderChargeLines/recomputeAndPersistTotals below) is generic over
+ * any `core.documents` id -- invoices/mutations.ts#getOrCreateInvoiceForJob's own
+ * charge-line editing reuses these same functions against an invoice, not just an
+ * estimate, and there's no `invoices.edit` permission key defined to check instead
+ * (CLAUDE.md principle 7: don't invent a permission key no story has actually asked
+ * for). Estimate-specific document lifecycle (create/send/approve/decline) is gated
+ * above; line-level editing on either document type is currently module-license-gated
+ * only, same as before this pass -- a real gap, tracked in docs/testing/test-cases/
+ * fsm.md rather than silently left unexplained. */
 export async function addChargeLine(businessId: string, estimateId: string, input: AddChargeLineInput): Promise<void> {
   await requireModule(businessId, "fsm");
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) throw new Error("Quantity must be positive.");
@@ -238,6 +250,7 @@ async function resolveRecipientEmail(core: QueryClient, opportunity: Opportunity
  * can be superseded without a separate revocation step. */
 export async function sendEstimate(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
   await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "estimates.edit");
   const core = await coreClient();
   const fsm = await createFsmClient();
 
@@ -415,6 +428,7 @@ export async function declineEstimateByToken(rawToken: string): Promise<void> {
  * from the opportunity detail page by someone who took a verbal/phone approval. */
 export async function approveEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<{ jobId: string }> {
   await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "estimates.edit");
   const core = await coreClient();
   const fsm = await createFsmClient();
 
@@ -449,6 +463,7 @@ export async function approveEstimateInternal(businessId: string, opportunityId:
  * customer to click through the public page (e.g. a verbal decline over the phone). */
 export async function declineEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
   await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "estimates.edit");
   const core = await coreClient();
   const { data: doc, error: docError } = await core.from("documents").select("status").eq("id", estimateId).eq("business_id", businessId).single();
   if (docError) throw docError;
