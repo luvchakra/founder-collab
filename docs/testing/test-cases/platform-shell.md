@@ -102,3 +102,34 @@ surfacing anywhere post-port.
 **Expected result:** It fails, correctly — a regression here (the lint stops
 catching violations) would silently reopen the door to cross-module coupling
 everywhere else in this doc assumes is prevented.
+
+### TC-SHELL-010: Every top-level route area has its own error boundary — no bare Next.js default error page
+**Feature:** Error-message audit (task #70, this pass).
+**Priority:** P0 · **Story:** error-message audit
+**Background — a real gap found and fixed this session:** only one `error.tsx` existed
+in the whole app, at `(dashboard)/dashboard/error.tsx` (using `module-discovery`'s
+`AiErrorNotice`). There was no `error.tsx` for `(auth)/**` (login/signup/forgot-password/
+reset-password), `onboarding/**`, or `p/**` — the platform's only unauthenticated,
+customer-facing routes (public estimate/invoice/customer-center links) — and no
+`global-error.tsx` at all (the boundary that catches an error thrown by the root layout
+itself, above every other `error.tsx`). Any error in those areas fell through to
+Next.js's bare default error page instead of the platform's own "Something went wrong"
+treatment. Fixed by adding a new shared `packages/core/src/components/errors/error-notice.tsx`
+(a generic version of `AiErrorNotice` with no AI-specific logic, appropriate for
+non-discovery routes) and wiring up `apps/web/app/(auth)/error.tsx`,
+`apps/web/app/onboarding/error.tsx`, `apps/web/app/p/error.tsx`, and
+`apps/web/app/global-error.tsx` (which, per Next.js's own requirement for this one
+file, renders its own complete `<html>/<body>` with zero external dependencies, since
+triggering it means the real root layout didn't render at all).
+**Steps:**
+1. Force a thrown error inside a page/layout under each of: `(auth)`, `onboarding`,
+   `p/[any token route]`, and the root layout itself (temporarily, in a dev
+   environment).
+**Expected result:** Each shows a styled "Something went wrong" notice with a "Try
+again" button — never Next.js's default unstyled error page — matching the treatment
+the dashboard shell already had.
+**Automated coverage:** none yet (would need an integration test that actually throws
+inside each route — no such harness exists in this repo); verified this pass via a full
+`next build`, which compiles every route including these new boundaries without error,
+plus reading each file to confirm correct props/behavior. Manual verification (visiting
+each route with a forced error) has not been done live in a browser this pass.

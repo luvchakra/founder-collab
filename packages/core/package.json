@@ -38,7 +38,8 @@
     "./shell/types": "./src/components/shell/types.ts",
     "./shell/*": "./src/components/shell/*.tsx",
     "./theme/*": "./src/components/theme/*.tsx",
-    "./navigation/*": "./src/components/navigation/*.tsx"
+    "./navigation/*": "./src/components/navigation/*.tsx",
+    "./errors/*": "./src/components/errors/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
