@@ -1,7 +1,8 @@
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
+import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { createClient } from "../../db/server";
 import { createAdminClient } from "../../db/admin";
-import { callGsp } from "../gsp-client";
+import { callGsp, decryptGspSecrets } from "../gsp-client";
 import type { EwayBill } from "./types";
 
 export type EwayBillCredentialsInput = {
@@ -19,7 +20,14 @@ export type EwayBillCredentialsInput = {
  * create-or-update branching -- `gst.eway_bill_credentials` is keyed by `business_id`
  * alone (one credential set per business), so re-saving always replaces the existing row
  * (RLS's UPDATE policy covers the "already configured" case, INSERT the first-time one,
- * and upsert picks whichever applies without the caller needing to know which). */
+ * and upsert picks whichever applies without the caller needing to know which).
+ *
+ * `gsp_password`/`client_secret` are encrypted here, the same AES-256-GCM helper BYOK
+ * uses for `discovery.ai_provider_credentials.encrypted_api_key` -- these are real GSP
+ * account secrets, not identifiers, and this table already has no SELECT grant to
+ * `authenticated` at all (access control alone was the pre-2026-09-09 gap; this adds
+ * the second layer). An empty string is treated the same as "not provided" -- never
+ * encrypted into a stored empty ciphertext that would read as "configured" later. */
 export async function upsertEwayBillCredentials(
   businessId: string,
   input: EwayBillCredentialsInput,
@@ -32,9 +40,9 @@ export async function upsertEwayBillCredentials(
     generate_url: input.generate_url,
     cancel_url: input.cancel_url,
     gsp_username: input.gsp_username || null,
-    gsp_password: input.gsp_password || null,
+    encrypted_gsp_password: input.gsp_password ? encryptApiKey(input.gsp_password) : null,
     client_id: input.client_id || null,
-    client_secret: input.client_secret || null,
+    encrypted_client_secret: input.client_secret ? encryptApiKey(input.client_secret) : null,
   });
   if (error) throw error;
 }
@@ -68,7 +76,7 @@ export async function generateEwayBill(businessId: string, documentId: string): 
 
   const { data: credentials, error: credentialsError } = await admin
     .from("eway_bill_credentials")
-    .select("generate_url, gsp_username, gsp_password, client_id, client_secret")
+    .select("generate_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
@@ -83,7 +91,7 @@ export async function generateEwayBill(businessId: string, documentId: string): 
     .single();
   if (documentError) throw documentError;
 
-  const response = await callGsp(credentials.generate_url, credentials, {
+  const response = await callGsp(credentials.generate_url, decryptGspSecrets(credentials), {
     docNo: document.number,
     docDate: document.doc_date,
     totalValue: document.total_amount,
@@ -122,13 +130,13 @@ export async function cancelEwayBill(businessId: string, documentId: string, rea
 
   const { data: credentials, error: credentialsError } = await admin
     .from("eway_bill_credentials")
-    .select("cancel_url, gsp_username, gsp_password, client_id, client_secret")
+    .select("cancel_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
   if (!credentials) throw new Error("No e-Way Bill credentials configured for this business.");
 
-  await callGsp(credentials.cancel_url, credentials, {
+  await callGsp(credentials.cancel_url, decryptGspSecrets(credentials), {
     ewbNo: existing.eway_bill_number,
     cancelRsnCode: "1",
     cancelRmrk: reason || "Cancelled",

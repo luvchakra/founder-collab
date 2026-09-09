@@ -1,7 +1,8 @@
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
+import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { createClient } from "../../db/server";
 import { createAdminClient } from "../../db/admin";
-import { callGsp } from "../gsp-client";
+import { callGsp, decryptGspSecrets } from "../gsp-client";
 import type { Einvoice } from "./types";
 
 export type EinvoiceCredentialsInput = {
@@ -16,7 +17,9 @@ export type EinvoiceCredentialsInput = {
 };
 
 /** Ported from stockpilot-ai-ops's `saveEinvoiceCredentials` mutation -- see
- * eway-bill/mutations.ts's own docstring for why this is a plain upsert. */
+ * eway-bill/mutations.ts's own docstring for why this is a plain upsert, and for why
+ * `gsp_password`/`client_secret` are encrypted here the same way BYOK encrypts
+ * `discovery.ai_provider_credentials.encrypted_api_key`. */
 export async function upsertEinvoiceCredentials(
   businessId: string,
   input: EinvoiceCredentialsInput,
@@ -29,9 +32,9 @@ export async function upsertEinvoiceCredentials(
     generate_url: input.generate_url,
     cancel_url: input.cancel_url,
     gsp_username: input.gsp_username || null,
-    gsp_password: input.gsp_password || null,
+    encrypted_gsp_password: input.gsp_password ? encryptApiKey(input.gsp_password) : null,
     client_id: input.client_id || null,
-    client_secret: input.client_secret || null,
+    encrypted_client_secret: input.client_secret ? encryptApiKey(input.client_secret) : null,
   });
   if (error) throw error;
 }
@@ -71,7 +74,7 @@ export async function generateEinvoice(businessId: string, documentId: string): 
 
   const { data: credentials, error: credentialsError } = await admin
     .from("einvoice_credentials")
-    .select("generate_url, gsp_username, gsp_password, client_id, client_secret")
+    .select("generate_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
@@ -86,7 +89,7 @@ export async function generateEinvoice(businessId: string, documentId: string): 
     .single();
   if (documentError) throw documentError;
 
-  const response = await callGsp(credentials.generate_url, credentials, {
+  const response = await callGsp(credentials.generate_url, decryptGspSecrets(credentials), {
     DocDtls: { No: document.number, Dt: document.doc_date },
     ValDtls: {
       AssVal: document.subtotal,
@@ -132,13 +135,13 @@ export async function cancelEinvoice(businessId: string, documentId: string, rea
 
   const { data: credentials, error: credentialsError } = await admin
     .from("einvoice_credentials")
-    .select("cancel_url, gsp_username, gsp_password, client_id, client_secret")
+    .select("cancel_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
   if (!credentials) throw new Error("No e-Invoicing credentials configured for this business.");
 
-  await callGsp(credentials.cancel_url, credentials, {
+  await callGsp(credentials.cancel_url, decryptGspSecrets(credentials), {
     Irn: existing.irn,
     CnlRsn: "1",
     CnlRem: reason || "Cancelled",

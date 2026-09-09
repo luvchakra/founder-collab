@@ -89,7 +89,7 @@ replicating in the SQL harness, or a mocked vitest unit test around the module
 boundary) -- flagged in `NEXT-ACTIVITIES.md` as a good follow-up, not silently claimed
 as fully automated.
 
-### 3. GST GSP credentials are plaintext, not encrypted like BYOK keys (P0, security) — TC-GST-001
+### 3. GST GSP credentials are plaintext, not encrypted like BYOK keys (P0, security) — TC-GST-001 — **Fixed 2026-09-09**
 `supabase/migrations/20260907150000_gst_credentials_schema.sql` stores
 `gst.eway_bill_credentials`/`gst.einvoice_credentials`'s `gsp_password`/`client_secret`
 columns as plain `text`, protected only by access control (no `SELECT` grant to
@@ -104,6 +104,21 @@ GST relies on RLS/grants alone, exactly the weaker guarantee BYOK's own migratio
 says isn't sufficient. Any future migration or admin-client bug that adds a stray
 `SELECT` grant/policy on either GST credentials table would expose real GSP passwords
 and OAuth client secrets in the clear.
+
+Fix: `supabase/migrations/20260909010000_gst_credentials_encrypt_secrets.sql` renames
+`gsp_password`/`client_secret` to `encrypted_gsp_password`/`encrypted_client_secret` on
+both tables (a plain column rename -- ciphertext is base64 `text`, same as the
+plaintext was; both tables had zero rows in every environment, confirmed before
+writing the migration, so no backfill was needed). `upsertEwayBillCredentials()`/
+`upsertEinvoiceCredentials()` now call the same `encryptApiKey()` BYOK uses before
+writing; the two `generateX`/`cancelX` functions decrypt via a new shared
+`decryptGspSecrets()` (`gsp-client.ts`) immediately before the one outbound GSP call
+that needs the plaintext -- the exact "immediately before the one outbound request"
+pattern `decryptApiKey()`'s own doc comment already described for BYOK. Verified: a new
+unit test (`gsp-client.test.ts`, module-gst's first) proves the encrypt→decrypt round
+trip; `test-gst-credentials-rls.mjs` (updated column names) still passes in full;
+migration applied live to the dev project and confirmed via `information_schema.columns`
+-- no new advisor findings introduced (`get_advisors` re-run clean of anything new).
 
 ### 4. `requireModule()`, named by `CLAUDE.md` as one of licensing's four required
    enforcement layers, does not exist anywhere in the codebase (P1, architecture-doc vs.

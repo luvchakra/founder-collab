@@ -62,7 +62,7 @@ async function main() {
       `);
 
       const ewbInsert = (business) => `
-        insert into gst.eway_bill_credentials (business_id, gsp_provider, auth_url, generate_url, cancel_url, gsp_password)
+        insert into gst.eway_bill_credentials (business_id, gsp_provider, auth_url, generate_url, cancel_url, encrypted_gsp_password)
         values ('${business}', 'ClearTax', 'https://gsp.example/auth', 'https://gsp.example/ewayapi', 'https://gsp.example/ewayapi/cancel', 's3cr3t')
       `;
 
@@ -90,7 +90,7 @@ async function main() {
       );
       psqlAsAlice(ewbInsert(aliceBusiness));
       psqlAsAlice(`
-        insert into gst.einvoice_credentials (business_id, gsp_provider, auth_url, generate_url, cancel_url, client_secret)
+        insert into gst.einvoice_credentials (business_id, gsp_provider, auth_url, generate_url, cancel_url, encrypted_client_secret)
         values ('${aliceBusiness}', 'MasterGST', 'https://gsp.example/auth', 'https://gsp.example/einv', 'https://gsp.example/einv/cancel', 'topsecret');
       `);
 
@@ -108,11 +108,11 @@ async function main() {
 
       console.log("Verifying NOBODY can SELECT the underlying secret columns directly, ever...");
       assertThrows(
-        () => psqlAsAlice(`select gsp_password from gst.eway_bill_credentials where business_id = '${aliceBusiness}'`),
+        () => psqlAsAlice(`select encrypted_gsp_password from gst.eway_bill_credentials where business_id = '${aliceBusiness}'`),
         "even the licensed, permitted owner cannot SELECT the raw credentials table -- no grant, no policy",
       );
       assertThrows(
-        () => psqlAsCarol(`select client_secret from gst.einvoice_credentials where business_id = '${aliceBusiness}'`),
+        () => psqlAsCarol(`select encrypted_client_secret from gst.einvoice_credentials where business_id = '${aliceBusiness}'`),
         "the viewer certainly cannot either",
       );
 

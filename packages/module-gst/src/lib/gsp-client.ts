@@ -1,3 +1,5 @@
+import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
+
 /**
  * Shared "call a business's own configured GSP" HTTP helper -- used by both
  * einvoicing/mutations.ts and eway-bill/mutations.ts (S-2). Not exported past this
@@ -16,6 +18,26 @@ export type GspCredentials = {
   client_id: string | null;
   client_secret: string | null;
 };
+
+/** Decrypts a credentials row straight off `gst.eway_bill_credentials`/
+ * `einvoice_credentials` (2026-09-09 -- `encrypted_gsp_password`/`encrypted_client_secret`,
+ * previously plaintext `gsp_password`/`client_secret`, docs/testing/
+ * EXECUTION-2026-09-08.md finding 3) into the plaintext `GspCredentials` shape
+ * `callGsp()` itself still expects -- the one place in this module that ever needs the
+ * plaintext, immediately before the one outbound request that needs it. */
+export function decryptGspSecrets(row: {
+  gsp_username: string | null;
+  encrypted_gsp_password: string | null;
+  client_id: string | null;
+  encrypted_client_secret: string | null;
+}): GspCredentials {
+  return {
+    gsp_username: row.gsp_username,
+    gsp_password: row.encrypted_gsp_password ? decryptApiKey(row.encrypted_gsp_password) : null,
+    client_id: row.client_id,
+    client_secret: row.encrypted_client_secret ? decryptApiKey(row.encrypted_client_secret) : null,
+  };
+}
 
 export async function callGsp(
   url: string,
