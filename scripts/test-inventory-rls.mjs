@@ -137,10 +137,18 @@ async function main() {
         "Bob cannot attach stock-effect fields to Alice's document line",
       );
 
-      console.log("Verifying demo_seed tables have no client access at all...");
-      assertEqual(psqlAsAlice("select count(*) from inventory.demo_seed_batches"), "0", "a member sees zero rows regardless of RLS state -- no select policy exists");
+      console.log("Verifying core.demo_seed_batches (the real admin demo-seed tool's table, generic across modules -- inventory's own schema-local copy was dead scaffolding, dropped 2026-09-09) has no client access at all...");
+      // core.demo_seed_batches's own migration explicitly revokes the blanket schema
+      // grant for authenticated, but this script's own preamble above re-grants
+      // select/insert/update/delete on "all tables in schema core to authenticated"
+      // for its own fixture convenience -- undoing that revoke inside this test's
+      // session, same as it does for every other core table. So the SELECT itself
+      // succeeds (returning zero rows, RLS-blocked) here; the real "no grant at all"
+      // property only holds outside this test harness's own broad re-grant, and would
+      // need a dedicated script that skips the blanket grant to actually exercise it.
+      assertEqual(psqlAsAlice("select count(*) from core.demo_seed_batches"), "0", "a member sees zero rows regardless of RLS state -- no select policy exists");
       assertThrows(
-        () => psqlAsAlice(`insert into inventory.demo_seed_batches (business_id, target_user_id, requested_by) values ('${aliceBusiness}', '${ALICE}', '${ALICE}')`),
+        () => psqlAsAlice(`insert into core.demo_seed_batches (business_id, target_user_id, requested_by) values ('${aliceBusiness}', '${ALICE}', '${ALICE}')`),
         "a member cannot insert a demo_seed_batches row -- service-role only",
       );
 
