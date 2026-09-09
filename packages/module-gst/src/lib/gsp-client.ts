@@ -39,6 +39,15 @@ export function decryptGspSecrets(row: {
   };
 }
 
+/** Error-message audit (2026-09-09): a failure here used to surface as `` `GSP request
+ * to ${url} failed: ${response.status} ${response.statusText}` `` -- thrown straight
+ * through `generateEinvoice`/`cancelEinvoice`/`generateEwayBill`/`cancelEwayBill`,
+ * caught only by `GstDocumentPanel`'s own `err instanceof Error ? err.message : ...`,
+ * and rendered verbatim to whoever clicked "Generate"/"Cancel". That leaked the
+ * business's own configured GSP endpoint URL into the UI and gave a business owner a
+ * raw HTTP status code instead of anything they could act on. The url/status/cause are
+ * still logged server-side (via `console.error`) for whoever debugs this later -- only
+ * the message shown to the *caller* (and from there, the end user) is sanitized. */
 export async function callGsp(
   url: string,
   credentials: GspCredentials,
@@ -51,9 +60,26 @@ export async function callGsp(
     headers.Authorization = `Basic ${Buffer.from(`${credentials.gsp_username}:${credentials.gsp_password}`).toString("base64")}`;
   }
 
-  const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  if (!response.ok) {
-    throw new Error(`GSP request to ${url} failed: ${response.status} ${response.statusText}`);
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  } catch (cause) {
+    console.error(`GSP request to ${url} failed to connect:`, cause);
+    throw new Error("Could not reach the configured GST service provider -- check the configured URL and your network connection, then try again.");
   }
-  return response.json();
+
+  if (!response.ok) {
+    console.error(`GSP request to ${url} failed: ${response.status} ${response.statusText}`);
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("The configured GST service provider rejected these credentials -- check the GSP username/password or client ID/secret and try again.");
+    }
+    throw new Error(`The configured GST service provider could not process this request (HTTP ${response.status}). Try again, or check your GSP credentials and configured URLs.`);
+  }
+
+  try {
+    return await response.json();
+  } catch (cause) {
+    console.error(`GSP request to ${url} returned a response that wasn't valid JSON:`, cause);
+    throw new Error("The configured GST service provider returned an unexpected response. Try again, or contact its support if this keeps happening.");
+  }
 }
