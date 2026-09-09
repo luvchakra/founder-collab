@@ -134,40 +134,55 @@ function ModuleContent({
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
     const products = effectiveBusinessId ? (productsByBusiness?.[effectiveBusinessId] ?? []) : [];
-    const isDashboardActive = pathname === "/dashboard";
+    // Discovery has no route prefix of its own (unlike inventory/fsm/gst/crm) -- its
+    // "home" is the bare business page, which already has discovery-specific content
+    // (product list, per-product prospect counts, business profile) rather than the
+    // platform-wide Control Center this used to link to. Grouped under an "Overview"
+    // heading with "Products" as its own separate heading below, matching every other
+    // module's nav shape (an "Overview" group holding "Dashboard", per e.g. gst's own
+    // manifest) instead of one bare link followed by an unlabeled products list.
+    const dashboardHref = effectiveBusinessId ? businessHref(effectiveBusinessId) : "/dashboard";
+    const isDashboardActive = pathname === dashboardHref;
     return (
-      <div className="flex flex-col gap-0.5 px-2 py-2">
-        <a
-          href="/dashboard"
-          onClick={onNavigate}
-          aria-current={isDashboardActive ? "page" : undefined}
-          className={navItemClassName(isDashboardActive, "mb-1")}
-        >
-          <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
-          Control Center
-        </a>
-        <span className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          Products
-        </span>
-        {products.length === 0 ? (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">No products yet.</p>
-        ) : (
-          products.map((product) => {
-            const href = `${businessHref(effectiveBusinessId!)}/products/${product.id}`;
-            const isActive = pathname === href || pathname?.startsWith(`${href}/`);
-            return (
-              <a
-                key={product.id}
-                href={href}
-                onClick={onNavigate}
-                aria-current={isActive ? "page" : undefined}
-                className={navItemClassName(Boolean(isActive), "text-base")}
-              >
-                <span className="min-w-0 flex-1 truncate">{product.name}</span>
-              </a>
-            );
-          })
-        )}
+      <div className="flex flex-col gap-3 px-2 py-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Overview
+          </span>
+          <a
+            href={dashboardHref}
+            onClick={onNavigate}
+            aria-current={isDashboardActive ? "page" : undefined}
+            className={navItemClassName(isDashboardActive)}
+          >
+            <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
+            Dashboard
+          </a>
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+            Products
+          </span>
+          {products.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">No products yet.</p>
+          ) : (
+            products.map((product) => {
+              const href = `${businessHref(effectiveBusinessId!)}/products/${product.id}`;
+              const isActive = pathname === href || pathname?.startsWith(`${href}/`);
+              return (
+                <a
+                  key={product.id}
+                  href={href}
+                  onClick={onNavigate}
+                  aria-current={isActive ? "page" : undefined}
+                  className={navItemClassName(Boolean(isActive), "text-base")}
+                >
+                  <span className="min-w-0 flex-1 truncate">{product.name}</span>
+                </a>
+              );
+            })
+          )}
+        </div>
       </div>
     );
   }

@@ -6,11 +6,13 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "inventory")?.name ?? "Inventory";
 
-/** Gives every inventory route the same "Dashboard / Business / Inventory" trail the
- * UX audit found missing platform-wide (only discovery had one) -- one layout instead
- * of repeating it in each of inventory's 16 leaf pages. Reuses discovery's own
- * Breadcrumbs component rather than the unused vendored shadcn primitive, matching how
- * businesses/[businessId]/page.tsx and products/[productId]/layout.tsx already do it. */
+/** Generic "Business > Inventory" trail, no "Control Center" crumb and no per-instance
+ * business name -- matches fsm's own layout (fsm/layout.tsx) and discovery's product
+ * layout (products/[productId]/layout.tsx), both of which use the fixed, generic label
+ * "Business" rather than the business's actual name. Previously inconsistent with
+ * fsm's own fix (task #60): this file still had the older "Control Center / [business
+ * name] / Inventory" trail from before that generic-terms pass, drifted rather than
+ * intentionally different. */
 export default async function InventoryLayout({
   children,
   params,
@@ -26,8 +28,7 @@ export default async function InventoryLayout({
     <div className="flex flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Control Center", href: "/dashboard" },
-          { label: business.name, href: `/dashboard/businesses/${businessId}` },
+          { label: "Business", href: `/dashboard/businesses/${businessId}` },
           { label: MODULE_NAME },
         ]}
       />

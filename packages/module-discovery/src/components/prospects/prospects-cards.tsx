@@ -4,25 +4,30 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@cofounderai/core/ui/button";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { ProspectWithPipeline } from "../../lib/prospects/queries";
 import { NEXT_ACTION_ANCHOR, PROSPECT_STAGE_LABEL, PROSPECT_STAGES } from "../../lib/prospects/pipeline";
 
 /**
- * Each card is a "stretched link" (a transparent, absolutely-positioned Link filling
- * the card via the `relative` wrapper it's a descendant of, Bootstrap's
+ * Each card/row is a "stretched link" (a transparent, absolutely-positioned Link
+ * filling the card via the `relative` wrapper it's a descendant of, Bootstrap's
  * stretched-link pattern) rather than a JS onClick+router.push -- a real anchor keeps
- * the card keyboard-focusable and works with screen readers for free. The checkbox and
- * the "next action" link both sit at a higher z-index so they keep intercepting clicks
- * over the card-wide link beneath them.
+ * it keyboard-focusable and works with screen readers for free. The checkbox and the
+ * "next action" link both sit at a higher z-index so they keep intercepting clicks
+ * over the card/row-wide link beneath them.
  *
- * Cards are grouped into one heading per pipeline stage (in PROSPECT_STAGES order,
- * empty stages omitted) rather than a flat grid with a per-card stage badge -- grouping
- * is what the founder actually asked to see, and it stays correct under any of the sort
- * dropdown's orderings since it only partitions `prospects`, never reorders within a
- * stage. "Select all" and the bulk action bar still operate on the full flattened list
- * across every group. Replaced the previous row-table layout with this compact-card
- * grid per explicit request -- same data and actions, no `<table>`.
+ * Two renderings of the same grouped-by-stage data, one shown at a time via Tailwind's
+ * responsive `hidden`/`lg:hidden` rather than two separate components: a compact-card
+ * grid below the `lg` breakpoint (small screens have no room for tabular columns) and a
+ * real `<table>` at `lg` and up (per the platform's own "table on larger screens,
+ * compact cards on smaller ones" design principle -- docs/DESIGN.md). Cards show each
+ * attribute as its own small labeled chip in a `flex-wrap` row -- multiple attributes
+ * share a row when the text width allows, wrapping to the next row otherwise -- instead
+ * of the previous single truncated "industry · size · location" line, which silently
+ * dropped whichever field didn't fit. Both views share the same select-all/bulk-action
+ * state and the same per-stage grouping ("Select all" and the bulk action bar still
+ * operate on the full flattened list across every group, in either view).
  */
 export function ProspectsCards({
   prospects,
@@ -93,70 +98,182 @@ export function ProspectsCards({
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {PROSPECT_STAGE_LABEL[group.stage]} ({group.prospects.length})
           </p>
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+          {/* Compact cards -- below `lg`. */}
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
             {group.prospects.map((p) => (
-              <li
+              <ProspectCard
                 key={p.id}
-                className="relative flex flex-col gap-2 rounded-lg border p-3 text-sm transition-colors hover:border-primary hover:bg-accent/40"
-              >
-                <Link href={`${basePath}/${p.id}`} className="absolute inset-0 z-0" aria-label={p.company_name} />
-
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-start gap-2">
-                    <input
-                      type="checkbox"
-                      name="ids"
-                      value={p.id}
-                      checked={selected.has(p.id)}
-                      onChange={() => toggle(p.id)}
-                      aria-label={`Select ${p.company_name}`}
-                      className="relative z-10 mt-0.5 size-4 shrink-0"
-                    />
-                    <span className="truncate font-medium">{p.company_name}</span>
-                  </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">Fit {p.fit_score ?? "—"}</span>
-                </div>
-
-                <p className="truncate pl-6 text-xs text-muted-foreground">
-                  {[p.industry, p.company_size, p.location].filter(Boolean).join(" · ") || "—"}
-                </p>
-
-                <div className="flex items-center justify-between gap-2 pl-6">
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 text-xs font-medium",
-                      p.status === "qualified"
-                        ? "bg-primary/10 text-primary"
-                        : p.status === "disqualified"
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {p.status}
-                  </span>
-                  {p.isStuck ? (
-                    <span
-                      title={`No activity since ${new Date(p.lastActivityAt).toLocaleDateString()}`}
-                      className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
-                    >
-                      Needs next step
-                    </span>
-                  ) : null}
-                </div>
-
-                {p.nextAction ? (
-                  <Link
-                    href={`${basePath}/${p.id}#${NEXT_ACTION_ANCHOR[p.nextAction] ?? ""}`}
-                    className="relative z-10 mt-1 self-start rounded-md border bg-background px-2 py-1 pl-6 text-xs font-medium hover:bg-accent"
-                  >
-                    {p.nextAction}
-                  </Link>
-                ) : null}
-              </li>
+                prospect={p}
+                basePath={basePath}
+                selected={selected.has(p.id)}
+                onToggle={() => toggle(p.id)}
+              />
             ))}
           </ul>
+
+          {/* Table -- `lg` and up. */}
+          <div className="hidden overflow-hidden rounded-lg border lg:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <span className="sr-only">Select</span>
+                  </TableHead>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Industry</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Fit</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Next action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {group.prospects.map((p) => (
+                  <TableRow key={p.id} className="relative">
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        name="ids"
+                        value={p.id}
+                        checked={selected.has(p.id)}
+                        onChange={() => toggle(p.id)}
+                        aria-label={`Select ${p.company_name}`}
+                        className="relative z-10 size-4"
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <Link href={`${basePath}/${p.id}`} className="absolute inset-0 z-0" aria-label={p.company_name} />
+                      <span className="relative">{p.company_name}</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{p.industry || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.company_size || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.location || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.fit_score ?? "—"}</TableCell>
+                    <TableCell>
+                      <StatusPill status={p.status} />
+                      {p.isStuck ? (
+                        <span
+                          title={`No activity since ${new Date(p.lastActivityAt).toLocaleDateString()}`}
+                          className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+                        >
+                          Needs next step
+                        </span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>
+                      {p.nextAction ? (
+                        <Link
+                          href={`${basePath}/${p.id}#${NEXT_ACTION_ANCHOR[p.nextAction] ?? ""}`}
+                          className="relative z-10 rounded-md border bg-background px-2 py-1 text-xs font-medium hover:bg-accent"
+                        >
+                          {p.nextAction}
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       ))}
     </form>
+  );
+}
+
+function StatusPill({ status }: { status: ProspectWithPipeline["status"] }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-xs font-medium",
+        status === "qualified" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+      )}
+    >
+      {status}
+    </span>
+  );
+}
+
+/** One labeled attribute chip -- `whitespace-nowrap` so a single attribute never
+ * breaks mid-value, while the parent's `flex-wrap` still lets several chips share a
+ * row when the card is wide enough, or drop to their own row otherwise. */
+function AttributeChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="whitespace-nowrap rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground/70">{label}:</span> {value}
+    </span>
+  );
+}
+
+function ProspectCard({
+  prospect: p,
+  basePath,
+  selected,
+  onToggle,
+}: {
+  prospect: ProspectWithPipeline;
+  basePath: string;
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const attributes: [string, string][] = [
+    ["Industry", p.industry],
+    ["Size", p.company_size],
+    ["Location", p.location],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+
+  return (
+    <li className="relative flex flex-col gap-2 rounded-lg border p-3 text-sm transition-colors hover:border-primary hover:bg-accent/40">
+      <Link href={`${basePath}/${p.id}`} className="absolute inset-0 z-0" aria-label={p.company_name} />
+
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <input
+            type="checkbox"
+            name="ids"
+            value={p.id}
+            checked={selected}
+            onChange={onToggle}
+            aria-label={`Select ${p.company_name}`}
+            className="relative z-10 mt-0.5 size-4 shrink-0"
+          />
+          <span className="truncate font-medium">{p.company_name}</span>
+        </div>
+        <AttributeChip label="Fit" value={String(p.fit_score ?? "—")} />
+      </div>
+
+      {attributes.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 pl-6">
+          {attributes.map(([label, value]) => (
+            <AttributeChip key={label} label={label} value={value} />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between gap-2 pl-6">
+        <StatusPill status={p.status} />
+        {p.isStuck ? (
+          <span
+            title={`No activity since ${new Date(p.lastActivityAt).toLocaleDateString()}`}
+            className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400"
+          >
+            Needs next step
+          </span>
+        ) : null}
+      </div>
+
+      {p.nextAction ? (
+        <Link
+          href={`${basePath}/${p.id}#${NEXT_ACTION_ANCHOR[p.nextAction] ?? ""}`}
+          className="relative z-10 mt-1 self-start rounded-md border bg-background px-2 py-1 pl-6 text-xs font-medium hover:bg-accent"
+        >
+          {p.nextAction}
+        </Link>
+      ) : null}
+    </li>
   );
 }

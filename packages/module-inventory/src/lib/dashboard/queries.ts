@@ -85,7 +85,7 @@ export async function getDashboardSummary(
       .gte("created_at", windowStart.toISOString()),
     supabase
       .from("purchase_orders")
-      .select("id, po_number, status, expected_delivery_date, supplier_name")
+      .select("id, po_number, status, expected_delivery_date, supplier_id")
       .eq("org_id", businessId),
     supabase
       .from("purchase_orders")
@@ -104,7 +104,7 @@ export async function getDashboardSummary(
       .gte("invoice_date", monthStart),
     supabase
       .from("stock_transfers")
-      .select("id, transfer_number, source_warehouse_name, destination_warehouse_name")
+      .select("id, transfer_number, source_warehouse_id, destination_warehouse_id")
       .eq("business_id", businessId)
       .eq("status", "in_transit"),
     getBusinessGstProfile(businessId),
@@ -180,21 +180,34 @@ export async function getDashboardSummary(
   }
 
   const openPOs = purchaseOrdersRes.data.filter((po) => OPEN_PO_STATUSES.has(po.status));
-  const overduePOs = openPOs.filter((po) => po.expected_delivery_date && po.expected_delivery_date < today);
 
   const salesTodayTotal = salesTodayRes.data
     .filter((so) => so.status !== "draft" && so.status !== "cancelled")
     .reduce((sum, so) => sum + Number(so.total_amount), 0);
 
-  const supplierIds = [...new Set(gstPurchasesRes.data.map((po) => po.supplier_id))];
-  const suppliersRes = supplierIds.length
-    ? await supabase.from("suppliers").select("id, gst_number").in("id", supplierIds)
-    : { data: [] as { id: string; gst_number: string | null }[], error: null };
+  // Business-wide, not just this month's GST purchases' supplier set -- an overdue PO
+  // can be older than this month, so it needs the same name lookup. `purchase_orders`
+  // (the core.documents-backed compat view) has no `supplier_name` column of its own,
+  // only `supplier_id` -- same two-step JS join every other purchase-order query in
+  // this module already uses (listPurchaseOrders' own precedent), rather than the
+  // nonexistent column this dashboard query used to select directly (the actual bug
+  // behind "Inventory > Dashboard is throwing error": a Postgres "column does not
+  // exist" error on every single load).
+  const suppliersRes = await supabase.from("suppliers").select("id, name, gst_number").eq("org_id", businessId);
   if (suppliersRes.error) throw suppliersRes.error;
+  const supplierNameById = new Map(suppliersRes.data.map((s) => [s.id, s.name]));
   const gstinBySupplierId = new Map(suppliersRes.data.map((s) => [s.id, s.gst_number]));
   const gstRiskCount = gstPurchasesRes.data.filter(
     (po) => !isValidGstin(gstinBySupplierId.get(po.supplier_id)),
   ).length;
+
+  const overduePOs = openPOs
+    .filter((po) => po.expected_delivery_date && po.expected_delivery_date < today)
+    .map((po) => ({
+      id: po.id,
+      po_number: po.po_number,
+      supplier_name: supplierNameById.get(po.supplier_id) ?? "Unknown supplier",
+    }));
 
   const cgstThisMonth = gstPurchasesRes.data.reduce((s, po) => s + Number(po.cgst_amount), 0);
   const sgstThisMonth = gstPurchasesRes.data.reduce((s, po) => s + Number(po.sgst_amount), 0);
@@ -233,7 +246,12 @@ export async function getDashboardSummary(
     lowStock,
     pendingPurchases: openPOs.length,
     overduePOs,
-    inTransitTransfers: inTransitRes.data,
+    inTransitTransfers: inTransitRes.data.map((t) => ({
+      id: t.id,
+      transfer_number: t.transfer_number,
+      source_warehouse_name: warehouseNameById.get(t.source_warehouse_id) ?? "Unknown warehouse",
+      destination_warehouse_name: warehouseNameById.get(t.destination_warehouse_id) ?? "Unknown warehouse",
+    })),
     alerts: alertsRes.data,
     movementTrend,
     gstRiskCount,
