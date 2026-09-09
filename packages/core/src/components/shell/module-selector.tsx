@@ -138,10 +138,16 @@ export function ModuleSelector({
                   )}
                 />
                 <span className="min-w-0 flex-1 truncate">{module.name}</span>
-                {lockedByPin ? (
-                  <Lock className="size-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
-                ) : !module.licensed ? (
-                  <Lock className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+                {/* The lock icon means "not licensed," never "temporarily inert because
+                    another module is pinned" -- a licensed module that's merely locked
+                    by the pin shows no trailing icon at all (its muted row styling
+                    above already conveys "disabled"); only a genuinely unlicensed
+                    module keeps the lock regardless of pin state. */}
+                {!module.licensed ? (
+                  <Lock
+                    className={cn("size-3.5 shrink-0", lockedByPin ? "text-muted-foreground/40" : "text-muted-foreground/60")}
+                    aria-hidden="true"
+                  />
                 ) : isSelected ? (
                   <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 ) : null}

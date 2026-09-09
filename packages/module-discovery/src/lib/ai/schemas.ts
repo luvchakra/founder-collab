@@ -167,6 +167,25 @@ export const DiscoveredProspectsSchema = z.object({
 export type DiscoveredProspect = z.infer<typeof DiscoveredProspectSchema>;
 
 /**
+ * "Let AI Auto-populate Products from website" output (lib/ai/discover-products.ts) --
+ * deliberately just name + website, per the actual ask: "just get the product name and
+ * product specific website link." Nothing else is invented here; a full profile is
+ * still generated per-product afterward via the existing understandProduct() once each
+ * product row exists (same two-step split createProductsBulk's import path already
+ * uses for prospects).
+ */
+export const DiscoveredProductSchema = z.object({
+  name: z.string(),
+  website: z.string().nullable().describe("The product's own page on the business's site, or null if it shares the business's own homepage"),
+});
+
+export const DiscoveredProductsSchema = z.object({
+  products: z.array(DiscoveredProductSchema).max(30),
+});
+
+export type DiscoveredProduct = z.infer<typeof DiscoveredProductSchema>;
+
+/**
  * Import restructuring output (lib/ai/restructure-import.ts) -- an uploaded file (a CSV/
  * Excel export with unrecognized headers, or PDF text with no structure at all) mapped
  * into the same shape the deterministic CSV importer (lib/prospects/csv.ts) already

@@ -124,8 +124,12 @@ with no 404/500: **Dashboard** (`dashboard`), **Alerts** (`alerts`), **Audit Log
 (`transfers`), **Warehouses** (`warehouses`), **Customers** (`customers`), **Sales
 Orders** (`sales-orders`), **Sales Invoices** (`sales-invoices`), **Sales Returns**
 (`sales-returns`), **Suppliers** (`suppliers`), **Purchase Orders** (`purchase-orders`),
-**Team** (`team`), **API Keys** (`api-keys`).
-**Expected result:** All 13 render without error for a business with `inventory` licensed.
+**Team** (`team`).
+**Expected result:** All 12 render without error for a business with `inventory` licensed.
+**API Keys moved out from under this nav this pass** (item #7 of a UX/API pass) to its
+own business-wide `admin/api-keys` route, reachable from the Admin & settings hub
+instead -- `core.api_keys` was never actually inventory-specific (see that page's own
+doc comment); it now covers fsm/crm/gst resources too, not just inventory's.
 
 ## FSM (remaining items -- the two above are the known exceptions)
 

@@ -5,6 +5,7 @@
   "type": "module",
   "sideEffects": ["./src/events/handlers.ts"],
   "exports": {
+    "./api-v1/*": "./src/api-v1/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",

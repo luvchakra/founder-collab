@@ -19,13 +19,13 @@ const ACCOUNT_LINKS: SettingsLink[] = [
  * The module-picker's "Admin" shortcut now lands here instead of going straight to
  * Licenses -- a real hub for every core admin config, not just one of them. Account-
  * level settings (above) apply regardless of business; the per-business section below
- * links out to configs that only make sense scoped to one business, including two
- * (Team & Permissions, API Keys) that currently only exist as routes nested under the
- * inventory module -- surfaced here too since the data they manage (core.business_
- * members/roles, core.api_keys) isn't actually inventory-specific, it's just where
- * those pages were first built. Not duplicated/rebuilt as their own unscoped pages --
- * that's a larger follow-up -- linked from here with the destination named so it's
- * clear which business's inventory route it's going through.
+ * links out to configs that only make sense scoped to one business. API Keys now lives
+ * at its own business-wide `admin/api-keys` route (moved out from under `/inventory/`
+ * this pass -- `core.api_keys` was never actually inventory-specific, see that page's
+ * own doc comment), so it's linked unconditionally rather than behind an inventory-
+ * license check. Team & Permissions is still a real follow-up: it remains nested under
+ * `/inventory/team` for now (out of scope for this pass), so it stays gated on the
+ * inventory license until it gets the same treatment.
  */
 export default async function SettingsHubPage() {
   const account = await getCurrentAccount();
@@ -86,15 +86,13 @@ export default async function SettingsHubPage() {
                         Team &amp; permissions
                       </Link>
                     ) : null}
-                    {modules.has("inventory") ? (
-                      <Link
-                        href={`/dashboard/businesses/${business.id}/inventory/api-keys`}
-                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
-                      >
-                        <KeyRound className="size-3" aria-hidden="true" />
-                        API keys
-                      </Link>
-                    ) : null}
+                    <Link
+                      href={`/dashboard/businesses/${business.id}/admin/api-keys`}
+                      className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                    >
+                      <KeyRound className="size-3" aria-hidden="true" />
+                      API keys
+                    </Link>
                     {modules.has("gst") ? (
                       <Link
                         href={`/dashboard/businesses/${business.id}/gst/profile`}

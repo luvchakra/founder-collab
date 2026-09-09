@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Sparkles } from "lucide-react";
+import { ChevronRight, Globe, Sparkles } from "lucide-react";
 import {
   getBusiness,
   getWorkspaceForProduct,
@@ -12,8 +12,10 @@ import { createProductAction } from "@/app/(dashboard)/dashboard/actions";
 import {
   renameBusinessAction,
   updateBusinessDescriptionAction,
+  updateBusinessWebsiteAction,
   previewProductImportAction,
   importProductsAction,
+  discoverProductsAction,
 } from "./actions";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Input } from "@cofounderai/core/ui/input";
@@ -22,6 +24,7 @@ import { EditableName } from "@cofounderai/module-discovery/components/tenancy/e
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
+import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
@@ -73,33 +76,49 @@ export default async function BusinessPage({
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
-      <div className="flex items-center justify-between gap-2">
-        <Breadcrumbs items={[{ label: "Business" }]} />
-        <Link
-          href={`/dashboard/businesses/${business.id}/usage`}
-          className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-        >
-          <Sparkles className="size-3.5" aria-hidden="true" />
-          AI usage
-        </Link>
-      </div>
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <Breadcrumbs items={[{ label: "Business" }]} />
+          <Link
+            href={`/dashboard/businesses/${business.id}/usage`}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+          >
+            <Sparkles className="size-3.5" aria-hidden="true" />
+            AI usage
+          </Link>
+        </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Business
-        </span>
-        <EditableName
-          name={business.name}
-          action={renameBusinessAction.bind(null, business.id)}
-          headingClassName="text-xl font-semibold"
-        />
-        <EditableText
-          value={business.description}
-          action={updateBusinessDescriptionAction.bind(null, business.id)}
-          placeholder="Add a description for this business"
-          multiline
-          textClassName="text-sm text-muted-foreground"
-        />
+        <div className="flex flex-col gap-2">
+          <EditableName
+            name={business.name}
+            action={renameBusinessAction.bind(null, business.id)}
+            headingClassName="text-xl font-semibold"
+          />
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+            <EditableText
+              value={business.website}
+              action={updateBusinessWebsiteAction.bind(null, business.id)}
+              placeholder="Add this business's website"
+              textClassName="text-sm text-muted-foreground"
+            />
+          </div>
+          <div className="self-start">
+            <AutoPopulateProductsButton
+              disabled={!business.website}
+              disabledReason="Add a website above first."
+              discoverAction={discoverProductsAction.bind(null, business.id)}
+              importAction={importProductsAction.bind(null, business.id)}
+            />
+          </div>
+          <EditableText
+            value={business.description}
+            action={updateBusinessDescriptionAction.bind(null, business.id)}
+            placeholder="Add a description for this business"
+            multiline
+            textClassName="text-sm text-muted-foreground"
+          />
+        </div>
       </div>
 
       <section>

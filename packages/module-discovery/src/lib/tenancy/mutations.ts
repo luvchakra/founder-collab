@@ -57,7 +57,7 @@ export async function createBusiness(
  * time (the inline rename/edit controls each own a single input), never the whole row. */
 export async function updateBusiness(
   businessId: string,
-  input: { name?: string; description?: string },
+  input: { name?: string; description?: string; website?: string },
 ): Promise<Business> {
   const patch: Record<string, string | null> = {};
   if (input.name !== undefined) {
@@ -67,6 +67,9 @@ export async function updateBusiness(
   }
   if (input.description !== undefined) {
     patch.description = input.description.trim() || null;
+  }
+  if (input.website !== undefined) {
+    patch.website = input.website.trim() || null;
   }
 
   const supabase = await coreClient();

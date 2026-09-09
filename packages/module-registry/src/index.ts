@@ -107,10 +107,7 @@ export const moduleRegistry: ModuleManifest[] = [
       },
       {
         heading: "Administration",
-        items: [
-          { label: "Team", slug: "team", icon: "Shield" },
-          { label: "API Keys", slug: "api-keys", icon: "KeyRound" },
-        ],
+        items: [{ label: "Team", slug: "team", icon: "Shield" }],
       },
     ],
     features: [

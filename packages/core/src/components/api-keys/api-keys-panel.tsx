@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { Check, Copy, KeyRound, Plus } from "lucide-react";
-import { Button } from "@cofounderai/core/ui/button";
-import { Input } from "@cofounderai/core/ui/input";
-import { Label } from "@cofounderai/core/ui/label";
-import { Badge } from "@cofounderai/core/ui/badge";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { Badge } from "../ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@cofounderai/core/ui/alert-dialog";
+} from "../ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -24,16 +24,25 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
-} from "@cofounderai/core/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
-import { EmptyState } from "@cofounderai/core/ui/empty-state";
-import { formatDateTime } from "@cofounderai/core/lib/format";
-import type { ApiKeySummary } from "@cofounderai/core/api-v1/keys/types";
+} from "../ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import { EmptyState } from "../ui/empty-state";
+import { formatDateTime } from "../../lib/format";
+import type { ApiKeySummary } from "../../api-v1/keys/types";
 
-/** Ported from stockpilot-ai-ops's src/components/api-keys-panel.tsx -- generate/revoke
- * go through plain Server Actions + useTransition (this codebase's own established
- * pattern, e.g. alerts-list.tsx) instead of a react-query mutation, since Next.js server
- * actions can be called directly and awaited from a Client Component. */
+/**
+ * Ported from stockpilot-ai-ops's src/components/api-keys-panel.tsx, originally
+ * promoted into `module-inventory` (nested under its own "Administration" nav group)
+ * even though the data it manages (`core.api_keys`, RLS-gated on the business-wide
+ * `settings.manage` permission, not any inventory-specific check) was never actually
+ * inventory-scoped. Moved here to `packages/core` this pass so it can be mounted from
+ * a real business-wide admin page instead of implying a module ownership that never
+ * existed -- see `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/admin/
+ * api-keys/page.tsx`. generate/revoke go through plain Server Actions + useTransition
+ * (this codebase's own established pattern, e.g. alerts-list.tsx) instead of a
+ * react-query mutation, since Next.js server actions can be called directly and
+ * awaited from a Client Component.
+ */
 export function ApiKeysPanel({
   keys,
   generateAction,

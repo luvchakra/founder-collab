@@ -5,6 +5,7 @@ import type { AiQualityTier } from "./model-registry";
 // itself -- the router (router.ts) is what turns "operation" into "provider + model".
 export type AiOperation =
   | "understand_product"
+  | "discover_products"
   | "generate_icp"
   | "research_prospect"
   | "discover_prospects"
@@ -27,6 +28,10 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // research_prospect below -- not just "balanced" text extraction from static sources
   // anymore.
   understand_product: { qualityTier: "reasoning", requiresWebSearch: true },
+  // Same shape as understand_product: researches a live website via the provider-
+  // executed search tool before structuring a list, rather than extracting from a
+  // static source already in hand.
+  discover_products: { qualityTier: "reasoning", requiresWebSearch: true },
   generate_icp: { qualityTier: "balanced", requiresWebSearch: false },
   research_prospect: { qualityTier: "reasoning", requiresWebSearch: true },
   discover_prospects: { qualityTier: "reasoning", requiresWebSearch: true },
