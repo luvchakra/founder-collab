@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { formatDate, inr } from "@cofounderai/core/lib/format";
 import type { InvoiceListItem, InvoiceStatus } from "../../lib/invoices/types";
 
@@ -47,9 +48,7 @@ export function InvoicesList({ invoices, businessId }: { invoices: InvoiceListIt
       </div>
 
       {shown.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          {tab === "unpaid" ? "No unpaid invoices." : "No invoices yet."}
-        </p>
+        <EmptyState variant="inline" message={tab === "unpaid" ? "No unpaid invoices." : "No invoices yet."} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

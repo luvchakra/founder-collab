@@ -3,6 +3,7 @@
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { formatDate, inr } from "@cofounderai/core/lib/format";
 import type {
   AgingRow,
@@ -24,7 +25,7 @@ const AGING_VARIANT: Record<AgingRow["aging_bucket"], "secondary" | "outline" | 
 };
 
 function EmptyRow({ label }: { label: string }) {
-  return <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">{label}</p>;
+  return <EmptyState variant="inline" message={label} />;
 }
 
 function RevenueTable({ rows, emptyLabel }: { rows: RevenueByGroupRow[] | MarketingSourceRevenueRow[]; emptyLabel: string }) {

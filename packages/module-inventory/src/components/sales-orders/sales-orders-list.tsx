@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Receipt } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -125,10 +126,7 @@ export function SalesOrdersList({
       ) : null}
 
       {salesOrders.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-          <Receipt className="size-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">No sales orders yet. Create your first one to record a sale.</p>
-        </div>
+        <EmptyState icon={Receipt} message="No sales orders yet. Create your first one to record a sale." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

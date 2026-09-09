@@ -4,6 +4,7 @@ import { useTransition } from "react";
 import { AlertTriangle, Bell, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { formatDate } from "@cofounderai/core/lib/format";
 import type { Alert, AlertStatus } from "../../lib/alerts/types";
 
@@ -32,12 +33,7 @@ export function AlertsList({
   const closedAlerts = alerts.filter((a) => a.status === "resolved" || a.status === "dismissed");
 
   if (alerts.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-        <Bell className="size-8 text-muted-foreground" aria-hidden="true" />
-        <p className="text-sm text-muted-foreground">No alerts. Everything looks healthy.</p>
-      </div>
-    );
+    return <EmptyState icon={Bell} message="No alerts. Everything looks healthy." />;
   }
 
   return (

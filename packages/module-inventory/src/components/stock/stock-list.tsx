@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Pencil, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -55,12 +56,7 @@ export function StockList({
       ) : null}
 
       {levels.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-          <RefreshCw className="size-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">
-            No stock recorded yet. Record your first movement to get started.
-          </p>
-        </div>
+        <EmptyState icon={RefreshCw} message="No stock recorded yet. Record your first movement to get started." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

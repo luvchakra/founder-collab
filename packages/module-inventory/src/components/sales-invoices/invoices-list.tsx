@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { FileText, Plus } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -82,10 +83,7 @@ export function InvoicesList({
       ) : null}
 
       {invoices.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-          <FileText className="size-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">No invoices yet. Generate one from a confirmed sales order.</p>
-        </div>
+        <EmptyState icon={FileText} message="No invoices yet. Generate one from a confirmed sales order." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

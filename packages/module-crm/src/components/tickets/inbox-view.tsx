@@ -6,6 +6,7 @@ import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { Channel } from "../../lib/channels/types";
@@ -89,9 +90,7 @@ export function InboxView({
       </form>
 
       {tickets.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          No tickets yet.
-        </p>
+        <EmptyState variant="inline" message="No tickets yet." />
       ) : (
         <Table>
           <TableHeader>

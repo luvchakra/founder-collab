@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@cofounderai/core/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { ApiKeySummary } from "@cofounderai/core/api-v1/keys/types";
 
@@ -165,9 +166,7 @@ export function ApiKeysPanel({
           </Table>
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          No API keys yet.
-        </p>
+        <EmptyState variant="inline" message="No API keys yet." />
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

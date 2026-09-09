@@ -7,6 +7,7 @@ import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
@@ -421,9 +422,7 @@ export function JobDetail({
 
         <TabsContent value="history">
           {auditLog.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-              No history yet.
-            </p>
+            <EmptyState variant="inline" message="No history yet." />
           ) : (
             <ul className="flex flex-col gap-2">
               {auditLog.map((entry) => (

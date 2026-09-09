@@ -5,6 +5,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { NativeSelect } from "../ui/native-select";
+import { EmptyState } from "../ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
 import { formatDateTime } from "../../lib/format";
 import { ACTION_LABEL, ENTITY_TYPE_LABEL, describeAuditChange } from "../../audit/format";
@@ -98,10 +99,7 @@ export function AuditLogView({
       </form>
 
       {entries.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-          <History className="size-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">No audit entries match these filters.</p>
-        </div>
+        <EmptyState icon={History} message="No audit entries match these filters." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

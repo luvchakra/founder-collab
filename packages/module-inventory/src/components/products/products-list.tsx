@@ -6,6 +6,7 @@ import { Barcode, Package, Pencil, Plus, Upload } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -77,10 +78,7 @@ export function ProductsList({
       ) : null}
 
       {products.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border p-12 text-center">
-          <Package className="size-8 text-muted-foreground" aria-hidden="true" />
-          <p className="text-sm text-muted-foreground">No products yet. Add your first SKU.</p>
-        </div>
+        <EmptyState icon={Package} message="No products yet. Add your first SKU." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

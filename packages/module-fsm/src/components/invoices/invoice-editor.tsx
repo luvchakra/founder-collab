@@ -9,6 +9,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import {
   Dialog,
@@ -193,9 +194,7 @@ export function InvoiceEditor({
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
 
       {lines.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          No charges added yet.
-        </p>
+        <EmptyState variant="inline" message="No charges added yet." />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-border">
           <Table>

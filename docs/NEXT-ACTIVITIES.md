@@ -401,9 +401,24 @@ give subtle colour differences where required"). Status per item:
   own `Intl.NumberFormat`/date-options object.
 - **§1e (stale "co-founder-ai" copy in Appearance settings) — actioned this session**,
   same commit: corrected to the platform's actual name.
-- **§1c (no shared `EmptyState` component)** — not built. Real fix, but a new
-  primitive + incremental migration across ~15 call sites, deferred rather than
-  rushed.
+- **§1c (no shared `EmptyState` component)** — **Fixed 2026-09-09**: re-surveyed live
+  and found more than the audit's "~15" claim, but cleanly split into two
+  byte-for-byte-identical families rather than loosely similar patterns -- 12 sites
+  wrapping an icon in `rounded-2xl border-dashed p-12` (`Family A`), 14 sites using a
+  text-only `rounded-lg border-dashed px-3 py-8` (`Family B`), confirmed via exact
+  string matches before building anything. Added `packages/core/src/components/ui/
+  empty-state.tsx` (`variant="panel"` / `variant="inline"`) and migrated all 26 sites
+  (module-inventory ×15, module-fsm ×10 including a local `EmptyRow` helper in
+  `reports-view.tsx` redefined to delegate rather than edited at each of its 7 call
+  sites, module-crm ×3, plus `core/audit-log-view.tsx`) -- including one drifted
+  outlier (`api-keys-panel.tsx`'s empty state had silently drifted to `py-4`/`text-xs`
+  instead of `py-8`/`text-sm`), now normalized for free by the shared component.
+  Left alone, per its own recommended scope: dashboard-widget empty states
+  (`dispatcher-dashboard-view.tsx`'s own locally-named `EmptyState`,
+  `dashboard-view.tsx`, `customer-center-view.tsx`, `gst-filing-view.tsx` -- a
+  different, already-borderless-by-design convention inside a `Card`, not the
+  table/list pattern this fixes) and `prospects-board.tsx` (its own one-off
+  filter-vs-empty distinction).
 - **§1d (3 hardcoded hex colors bypassing the design-token system)** —
   **investigated 2026-09-09, none are actual violations, no code change**: `chart.tsx`'s
   `#ccc`/`#fff` are Tailwind attribute-selectors matching recharts' own hardcoded SVG

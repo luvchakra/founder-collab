@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Navigation } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import type { OpenTimeEntry } from "../../lib/time-entries/types";
 import type { EventKind, ScheduleEventItem } from "../../lib/events/types";
 
@@ -60,7 +61,7 @@ export function MyDayList({
   };
 
   if (events.length === 0) {
-    return <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">Nothing on your schedule today.</p>;
+    return <EmptyState variant="inline" message="Nothing on your schedule today." />;
   }
 
   return (

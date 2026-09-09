@@ -5,6 +5,7 @@ import { LayoutGrid, List as ListIcon } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { formatDate } from "@cofounderai/core/lib/format";
 import type { OpportunityListItem, OpportunityStatus } from "../../lib/opportunities/types";
 import { CreateOpportunityDialog, type CreateOpportunityActionState } from "./create-opportunity-dialog";
@@ -62,9 +63,7 @@ export function OpportunitiesList({
       </div>
 
       {opportunities.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          No opportunities yet.
-        </p>
+        <EmptyState variant="inline" message="No opportunities yet." />
       ) : view === "board" ? (
         <div className="grid grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-2 lg:grid-cols-5">
           {COLUMNS.map((col) => {
