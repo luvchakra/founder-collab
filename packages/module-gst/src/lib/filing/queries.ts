@@ -38,7 +38,7 @@ export const getPurchaseRegister = cache(
     const supabase = await coreClient();
     const { data: pos, error: posError } = await supabase
       .from("documents")
-      .select("id, number, doc_date, party_id, subtotal, cgst_amount, sgst_amount, igst_amount, tax_amount")
+      .select("id, number, doc_date, party_id, subtotal, cgst_amount, sgst_amount, igst_amount")
       .eq("business_id", businessId)
       .eq("source_module", "inventory")
       .eq("doc_type", "purchase_order")
