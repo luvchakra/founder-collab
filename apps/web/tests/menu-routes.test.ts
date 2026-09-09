@@ -24,16 +24,16 @@ const BUSINESS_ROUTE_ROOT = join(
 );
 
 describe("every module-registry nav item resolves to a real page", () => {
-  for (const module of moduleRegistry) {
+  for (const mod of moduleRegistry) {
     // discovery's real nav is dynamic (product list), not this static registry entry
     // (see the registry's own comment on the discovery entry) -- skip it here.
-    if (module.key === "discovery") continue;
+    if (mod.key === "discovery") continue;
 
-    const prefix = module.routePrefix.replace(/^\//, "");
+    const prefix = mod.routePrefix.replace(/^\//, "");
 
-    for (const group of module.nav) {
+    for (const group of mod.nav) {
       for (const item of group.items) {
-        const testName = `${module.name} \u2192 "${item.label}" (/${prefix}${
+        const testName = `${mod.name} \u2192 "${item.label}" (/${prefix}${
           item.slug ? `/${item.slug}` : ""
         })`;
 

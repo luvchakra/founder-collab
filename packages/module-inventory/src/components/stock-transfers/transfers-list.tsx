@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Pencil, Plus, Truck } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Table,
   TableBody,
@@ -94,9 +95,18 @@ export function TransfersList({
     const action = primaryAction(transfer.status);
     if (!action) return;
     startTransition(async () => {
-      if (action.kind === "ship") await shipAction(transfer.id);
-      else await setStatusAction(transfer.id, action.next);
-      if (detailTarget?.id === transfer.id) await openDetail(transfer);
+      try {
+        if (action.kind === "ship") await shipAction(transfer.id);
+        else await setStatusAction(transfer.id, action.next);
+        if (detailTarget?.id === transfer.id) await openDetail(transfer);
+        toast.success(`${transfer.transfer_number}: ${action.label.toLowerCase()} succeeded.`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : `Could not ${action.label.toLowerCase()} ${transfer.transfer_number}.`,
+        );
+      }
     });
   };
 
@@ -189,14 +199,26 @@ export function TransfersList({
               primaryLabel={action && canRunPrimaryAction(current.status) ? action.label : null}
               onReceive={(itemId, quantity, damaged) =>
                 startTransition(async () => {
-                  await receiveItemAction(itemId, quantity, damaged);
-                  await openDetail(current);
+                  try {
+                    await receiveItemAction(itemId, quantity, damaged);
+                    await openDetail(current);
+                    toast.success("Item received.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Could not receive item.");
+                  }
                 })
               }
               onCancel={() =>
                 startTransition(async () => {
-                  await cancelAction(current.id);
-                  setDetailTarget(null);
+                  try {
+                    await cancelAction(current.id);
+                    setDetailTarget(null);
+                    toast.success(`${current.transfer_number} cancelled.`);
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error ? error.message : `Could not cancel ${current.transfer_number}.`,
+                    );
+                  }
                 })
               }
               onPrimaryAction={() => runPrimaryAction(current)}

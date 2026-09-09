@@ -6,6 +6,7 @@ import { SITE_URL } from "@cofounderai/core/site";
 import { ThemeProvider } from "@cofounderai/core/theme/theme-provider";
 import { ThemeScript } from "@cofounderai/core/theme/theme-script";
 import { TopProgressBar } from "@cofounderai/core/navigation/top-progress-bar";
+import { Toaster } from "@cofounderai/core/ui/sonner";
 import "./globals.css";
 
 // Matches co-founder-ai's own font choice (CLAUDE.md non-negotiable #7 governs colors
@@ -38,7 +39,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Suspense fallback={null}>
           <TopProgressBar />
         </Suspense>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

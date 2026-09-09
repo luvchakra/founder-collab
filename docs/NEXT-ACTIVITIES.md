@@ -170,8 +170,28 @@ decision to build them next. Original recommended order preserved.
 **P0 — trust and safety, platform-wide:**
 1. Destructive actions (void/cancel/delete — 29 files) almost never confirm first; only
    `delete-demo-data-button.tsx` uses the existing `AlertDialog` primitive.
-2. `sonner.tsx` (toast) is vendored in `packages/core/src/components/ui/` but `toast()`
-   is called zero times anywhere and no `<Toaster />` is mounted.
+2. ~~`sonner.tsx` (toast) is vendored in `packages/core/src/components/ui/` but `toast()`
+   is called zero times anywhere and no `<Toaster />` is mounted.~~ — **Fixed
+   2026-09-09**: `<Toaster />` now mounts once in `apps/web/app/layout.tsx` (the true
+   root layout, inside `ThemeProvider` so it covers auth pages too, not just the
+   dashboard shell) and follows this platform's own hand-rolled `useTheme()` (not
+   next-themes) rather than defaulting to sonner's light theme. `sonner.tsx` now also
+   re-exports the underlying `toast` function so every module can import it from the
+   same `@cofounderai/core/ui/sonner` path already used for `Toaster`, without adding
+   `sonner` as a direct dependency to each module's own `package.json`. Demonstrated in
+   one representative spot (mirroring the `requireModule()` precedent): `module-inventory`'s
+   `transfers-list.tsx` -- its ship/receive/cancel/status-transition actions previously
+   `await`ed a server action inside `startTransition` with no try/catch at all, so a
+   thrown error (e.g. an invalid RPC transition) surfaced as a silent unhandled rejection
+   with zero user-facing feedback. Now wrapped in try/catch with `toast.success()`/
+   `toast.error()` on the real result. **Still open:** the other ~35 similar
+   `startTransition`-wrapped call sites across inventory/crm/fsm list components don't
+   have this yet -- full platform-wide rollout is its own follow-up, not attempted in one
+   pass. Also fixed 3 pre-existing lint errors surfaced while re-running the full `npm
+   run lint` (not previously part of this session's own verification pipeline for those
+   commits): an unescaped apostrophe in `fsm/page.tsx`, and two `module`-named variables
+   in `not-licensed/page.tsx`/`menu-routes.test.ts` colliding with Next's reserved
+   `module` identifier lint rule.
 3. Auth flows (`auth-form.tsx`, `reset-password-form.tsx`, `forgot-password-form.tsx`)
    use raw `type="submit"` with no pending/spinner state, despite `submit-button.tsx`
    already existing in `core` for this.

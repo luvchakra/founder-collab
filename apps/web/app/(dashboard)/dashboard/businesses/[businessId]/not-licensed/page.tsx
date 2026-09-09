@@ -22,18 +22,16 @@ import { formatDate } from "@cofounderai/core/lib/format";
  * exist" (an actual 404), not "which modules exist at all."
  */
 export default async function NotLicensedPage({
-  params,
   searchParams,
 }: {
   params: Promise<{ businessId: string }>;
   searchParams: Promise<{ module?: string; reason?: string; graceEndsAt?: string }>;
 }) {
-  const { businessId } = await params;
   const { module: moduleKey, reason, graceEndsAt } = await searchParams;
   const licensesHref = "/dashboard/settings/licenses";
 
-  const module = moduleRegistry.find((m) => m.key === moduleKey);
-  const moduleName = module?.name ?? "This module";
+  const matchedModule = moduleRegistry.find((m) => m.key === moduleKey);
+  const moduleName = matchedModule?.name ?? "This module";
 
   const { title, description } = describeReason(moduleName, reason, graceEndsAt);
 
