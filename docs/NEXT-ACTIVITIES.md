@@ -208,9 +208,17 @@ decision to build them next. Original recommended order preserved.
    commits): an unescaped apostrophe in `fsm/page.tsx`, and two `module`-named variables
    in `not-licensed/page.tsx`/`menu-routes.test.ts` colliding with Next's reserved
    `module` identifier lint rule.
-3. Auth flows (`auth-form.tsx`, `reset-password-form.tsx`, `forgot-password-form.tsx`)
+3. ~~Auth flows (`auth-form.tsx`, `reset-password-form.tsx`, `forgot-password-form.tsx`)
    use raw `type="submit"` with no pending/spinner state, despite `submit-button.tsx`
-   already existing in `core` for this.
+   already existing in `core` for this.~~ — **Fixed 2026-09-09**: all three (plus
+   `auth-form.tsx`'s second "Continue with Google" form, same gap) now use
+   `SubmitButton` instead of a manually-tracked `pending` boolean on a plain `Button`.
+   The manual version only swapped text ("Please wait…"); `SubmitButton` adds a
+   spinning `Loader2` icon and `aria-busy`, so this is a real UX improvement, not just
+   a dedupe. Browser-verified with Playwright (fetched transiently via `npx`, not
+   added as a dependency) against the dev Supabase project with a route-level delay
+   to force a wide pending window: confirmed the spinner + dimmed button actually
+   render on `/login` and `/forgot-password` before the request resolves.
 4. `fsm` is internally inconsistent on the pending-state pattern: 7 of ~14 form
    components (including the money-handling `invoice-editor.tsx`/`estimate-builder.tsx`)
    still use raw `type="submit"`.

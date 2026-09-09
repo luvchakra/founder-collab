@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { requestPasswordReset, type AuthActionState } from "@/app/(auth)/actions";
 
 export function ForgotPasswordForm() {
-  const [state, formAction, pending] = useActionState<AuthActionState, FormData>(
+  const [state, formAction] = useActionState<AuthActionState, FormData>(
     requestPasswordReset,
     null,
   );
@@ -23,9 +23,7 @@ export function ForgotPasswordForm() {
           {state.error}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Sending…" : "Send reset link"}
-      </Button>
+      <SubmitButton pendingText="Sending…">Send reset link</SubmitButton>
     </form>
   );
 }

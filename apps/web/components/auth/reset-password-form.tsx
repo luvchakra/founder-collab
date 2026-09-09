@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { updatePassword, type AuthActionState } from "@/app/(auth)/actions";
 
 export function ResetPasswordForm() {
-  const [state, formAction, pending] = useActionState<AuthActionState, FormData>(
+  const [state, formAction] = useActionState<AuthActionState, FormData>(
     updatePassword,
     null,
   );
@@ -41,9 +41,7 @@ export function ResetPasswordForm() {
           {state.error}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending}>
-        {pending ? "Saving…" : "Save new password"}
-      </Button>
+      <SubmitButton pendingText="Saving…">Save new password</SubmitButton>
     </form>
   );
 }

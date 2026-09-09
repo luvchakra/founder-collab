@@ -2,9 +2,9 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { signInWithGoogle, type AuthActionState } from "@/app/(auth)/actions";
 
 export function AuthForm({
@@ -17,7 +17,7 @@ export function AuthForm({
     formData: FormData,
   ) => Promise<AuthActionState>;
 }) {
-  const [state, formAction, pending] = useActionState<AuthActionState, FormData>(
+  const [state, formAction] = useActionState<AuthActionState, FormData>(
     action,
     null,
   );
@@ -63,9 +63,9 @@ export function AuthForm({
             {state.error}
           </p>
         ) : null}
-        <Button type="submit" disabled={pending}>
-          {pending ? "Please wait…" : isLogin ? "Log In" : "Create Account"}
-        </Button>
+        <SubmitButton pendingText="Please wait…">
+          {isLogin ? "Log In" : "Create Account"}
+        </SubmitButton>
       </form>
 
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -75,9 +75,9 @@ export function AuthForm({
       </div>
 
       <form action={signInWithGoogle.bind(null, isLogin ? "/dashboard" : "/onboarding")}>
-        <Button type="submit" variant="outline" className="w-full">
+        <SubmitButton variant="outline" className="w-full" pendingText="Redirecting…">
           Continue with Google
-        </Button>
+        </SubmitButton>
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
