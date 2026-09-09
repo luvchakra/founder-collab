@@ -2,7 +2,7 @@ import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { resolveCustomerPartyId } from "../opportunities/mutations";
 import { getOrCreateInvoiceForJob } from "../invoices/mutations";
-import { consumeJobParts, reserveJobParts } from "../inventory-integration/mutations";
+import { consumeJobParts, releaseJobParts, reserveJobParts } from "../inventory-integration/mutations";
 import type { CreateJobInput, Job, UpdateJobInput } from "./types";
 
 function coreClient() {
@@ -107,6 +107,7 @@ export async function completeJob(id: string, businessId: string): Promise<void>
 
 export async function cancelJob(id: string, businessId: string): Promise<void> {
   await transition(id, businessId, ["unscheduled", "scheduled", "in_progress", "on_hold"], { status: "cancelled" });
+  await releaseJobParts(businessId, id).catch(() => {});
 }
 
 /** `completed -> in_progress`, admin-only per the PRD (§4) -- enforced by the

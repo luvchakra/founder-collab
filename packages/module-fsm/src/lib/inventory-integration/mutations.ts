@@ -91,3 +91,26 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
     await consumeStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
   }
 }
+
+/** "...release on cancellation" -- the other side of `consumeJobParts()`'s own release
+ * step, for the path that was previously missing entirely (docs/testing/
+ * EXECUTION-2026-09-08.md finding 2, from TC-FSM-011's own explicit callout: "not left
+ * reserved-forever if the job is cancelled instead of completed"). Only releases --
+ * cancelling a job never consumes its parts, unlike completing one. Same best-effort
+ * reasoning as the other two: cancelling a job is never blocked by inventory being
+ * unlicensed or by the release call itself failing (e.g. nothing was actually reserved,
+ * because `inventory` wasn't licensed yet at schedule time). */
+export async function releaseJobParts(businessId: string, jobId: string): Promise<void> {
+  const licensed = await hasModule(businessId, "inventory");
+  if (!licensed) return;
+
+  const lines = await listJobPartLines(businessId, jobId);
+  if (lines.length === 0) return;
+
+  const warehouseId = await firstActiveWarehouseId(businessId);
+  if (!warehouseId) return;
+
+  for (const line of lines) {
+    await releaseStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
+  }
+}

@@ -71,7 +71,23 @@ confirmed in `module-inventory`'s `contract/index.ts`'s `getAvailability()`) sta
 incremented permanently for any job cancelled after being scheduled, understating real
 available stock for that item/warehouse indefinitely. This is the exact scenario
 TC-FSM-011 calls out by name ("not left reserved-forever if the job is cancelled instead
-of completed (check that path too)").
+of completed (check that path too)"). **Fixed 2026-09-09.**
+
+Fix: `inventory-integration/mutations.ts`'s new `releaseJobParts()` mirrors
+`consumeJobParts()`'s own release step exactly (same `hasModule`/no-parts/no-warehouse
+short-circuits, same per-line best-effort `.catch()`), minus the consume half --
+cancelling a job never uses its parts, unlike completing one. `cancelJob()`
+(`lib/jobs/mutations.ts`) now calls it after the status transition. Live-verified the
+exact mechanism against the real dev project, in a rolled-back transaction: reserve(15)
+→ `stock_levels.reserved` = 15 → unreserve(15) (what `releaseJobParts()` now triggers on
+cancel) → `reserved` back to 0, `quantity` unaffected -- via `inventory.
+adjust_stock_for_contract()`, the same RPC `reserveStock()`/`releaseStock()` already call,
+already covered generically by `test-inventory-procedural.mjs`. **Not yet covered by a
+dedicated automated regression test at the fsm-integration level** (the full
+opportunity→estimate→job fixture chain `listJobPartLines()` resolves would need
+replicating in the SQL harness, or a mocked vitest unit test around the module
+boundary) -- flagged in `NEXT-ACTIVITIES.md` as a good follow-up, not silently claimed
+as fully automated.
 
 ### 3. GST GSP credentials are plaintext, not encrypted like BYOK keys (P0, security) — TC-GST-001
 `supabase/migrations/20260907150000_gst_credentials_schema.sql` stores
