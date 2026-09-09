@@ -54,3 +54,17 @@ export async function approveIcpAction(
   await approveIcpProfile(icpId);
   revalidatePath(icpPath(businessId, productId));
 }
+
+/**
+ * The ICP step of the Overview page's "Let AI Auto-Populate Info" flow (called directly
+ * from the client `AutoPopulateRunner` as it walks Overview -> ICP -> Prospects, not
+ * through a `<form>`): generates a fresh ICP and immediately approves it, so
+ * `discoverProspects()` (which requires an approved ICP) can run right after without a
+ * separate manual approval click. Thrown errors propagate to the caller as-is -- the
+ * runner's own try/catch turns them into its step-failed UI.
+ */
+export async function autoPopulateIcpAction(businessId: string, productId: string): Promise<void> {
+  const icp = await generateIcp(productId, { force: true });
+  await approveIcpProfile(icp.id);
+  revalidatePath(icpPath(businessId, productId));
+}

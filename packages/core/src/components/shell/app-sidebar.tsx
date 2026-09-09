@@ -114,8 +114,18 @@ function ModuleContent({
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
     const products = effectiveBusinessId ? (productsByBusiness?.[effectiveBusinessId] ?? []) : [];
+    const isDashboardActive = pathname === "/dashboard";
     return (
       <div className="flex flex-col gap-0.5 px-2 py-2">
+        <a
+          href="/dashboard"
+          onClick={onNavigate}
+          aria-current={isDashboardActive ? "page" : undefined}
+          className={navItemClassName(isDashboardActive, "mb-1")}
+        >
+          <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
+          Dashboard
+        </a>
         <span className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           Products
         </span>

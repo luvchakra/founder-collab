@@ -83,11 +83,16 @@ export async function addFileSourceAction(
   workspaceId: string,
   formData: FormData,
 ) {
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("Choose a file to upload.");
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File && f.size > 0);
+  if (files.length === 0) {
+    throw new Error("Choose at least one file to upload.");
   }
-  await addFileKnowledgeSource(workspaceId, file);
+  // Sequential, not Promise.all -- each upload also mints its own storage path from
+  // Date.now() (addFileKnowledgeSource's own dedup key), and concurrent calls in the
+  // same tick could collide on that timestamp.
+  for (const file of files) {
+    await addFileKnowledgeSource(workspaceId, file);
+  }
   revalidatePath(productPath(businessId, productId));
 }
 

@@ -44,10 +44,17 @@ const OPERATION = "discover_prospects";
  * search run beyond the ICP's own broader criteria -- e.g. the ICP allows "50-500
  * employees" across three industries, but this run should only look at fintech in
  * Bangalore. They're query-time only, never written back to the ICP.
+ *
+ * `maxResults` (default 10, the manual Discover page's own count) narrows how many
+ * distinct companies this run looks for -- the auto-populate flow (product page's "Let
+ * AI Auto-Populate Info") passes 1, so a first-time setup costs one company's worth of
+ * search tokens rather than ten, on the assumption the founder will review Overview/ICP
+ * and run a full Discover pass themselves once satisfied with those.
  */
 export async function discoverProspects(
   workspaceId: string,
   filters?: DiscoveryFilters,
+  maxResults = 10,
 ): Promise<ProspectSuggestion[]> {
   const workspace = await getWorkspace(workspaceId);
   if (!workspace) throw new Error("Workspace not found.");
@@ -76,6 +83,7 @@ export async function discoverProspects(
       icp,
       knownCompanies,
       filters,
+      maxResults,
     });
 
     const { accountId, provider, modelId, model, modelAtTier } = await resolveAiModel(
@@ -102,7 +110,7 @@ export async function discoverProspects(
       const structureResponse = await generateObject({
         model: modelAtTier("fast"),
         schema: DiscoveredProspectsSchema,
-        prompt: structureDiscoveryPrompt(findings),
+        prompt: structureDiscoveryPrompt(findings, maxResults),
       });
 
       // The known-companies list above is a soft signal to the model (prompt-level);
@@ -111,7 +119,7 @@ export async function discoverProspects(
       // first, name second -- rather than the exact-name-only match this used to do.
       const candidates: typeof structureResponse.object.prospects = [];
       for (const candidate of structureResponse.object.prospects) {
-        if (candidates.length >= 10) break;
+        if (candidates.length >= maxResults) break;
         const duplicate = await findDuplicateProspect(workspaceId, {
           companyName: candidate.company_name,
           website: candidate.website,

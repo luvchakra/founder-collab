@@ -2,7 +2,7 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import { createClient } from "../db/server";
-import type { ContractResult, ProspectHandoffStatus } from "./types";
+import type { ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
 
 /**
  * module-fsm's public API surface (00-MASTER-PLAN.md §6 mechanism 2) -- the ONLY thing
@@ -83,4 +83,56 @@ export async function getHandoffStatusForProspect(businessId: string, prospectId
       invoiceBalanceAmount,
     },
   };
+}
+
+/**
+ * The manual half of the discovery->FSM handoff -- `module-fsm/src/events/handlers.ts`'s
+ * own `prospect.won` consumer already creates this same row automatically (async, on the
+ * next drain, and only once `fsm` is licensed), but the Conversions page wants an
+ * explicit "Create opportunity" action too, for a founder who doesn't want to wait for
+ * the next drain or wants the row to exist right now to click into. Runs through the
+ * normal RLS-scoped client (a real signed-in staff member, unlike the event consumer's
+ * admin client with no session) -- `created_by` is left off the insert entirely so
+ * `fsm.opportunities`'s own `default auth.uid()` fills it in, same as the plain manual
+ * `createOpportunity()` in lib/opportunities/mutations.ts does.
+ *
+ * Idempotent by the same `(source='discovery', source_prospect_id)` dedup key the event
+ * consumer uses, so this is always safe to call even if the automatic handoff already
+ * ran (or races with it) -- both return the same opportunity id rather than creating a
+ * second one.
+ */
+export async function createOpportunityFromWonProspect(
+  businessId: string,
+  input: CreateOpportunityFromProspectInput,
+): Promise<ContractResult<{ opportunityId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data: existing, error: existingError } = await fsm
+    .from("opportunities")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("source", "discovery")
+    .eq("source_prospect_id", input.prospectId)
+    .maybeSingle();
+  if (existingError) return { ok: false, error: existingError.message };
+  if (existing) return { ok: true, data: { opportunityId: existing.id } };
+
+  const { data, error } = await fsm
+    .from("opportunities")
+    .insert({
+      business_id: businessId,
+      party_id: input.partyId,
+      description: input.description || `From discovery: ${input.companyName}`,
+      scope_of_work: input.description || null,
+      source: "discovery",
+      source_prospect_id: input.prospectId,
+      source_workspace_id: input.workspaceId ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true, data: { opportunityId: data.id } };
 }

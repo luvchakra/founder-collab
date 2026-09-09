@@ -105,52 +105,49 @@ export default async function DiscoverProspectsPage({
             action={approveSuggestionsAction.bind(null, businessId, productId, workspace.id)}
             className="flex flex-col gap-4"
           >
-            <ul className="flex flex-col gap-3">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {suggestions.map((s) => (
-                <li key={s.id} className="flex gap-3 rounded-md border p-4">
+                <li key={s.id} className="relative flex flex-col gap-1.5 rounded-lg border p-3 text-sm">
                   <input
                     type="checkbox"
                     name="ids"
                     value={s.id}
                     defaultChecked
-                    className="mt-1 size-4"
+                    className="absolute top-3 right-3 size-4"
                   />
-                  <div className="flex flex-col gap-1 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{s.company_name}</span>
-                      {s.website ? (
-                        <a
-                          href={s.website}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs text-muted-foreground underline"
-                        >
-                          {s.website}
-                        </a>
-                      ) : null}
-                    </div>
-                    <p className="text-muted-foreground">
-                      {[s.industry, s.company_size, s.location].filter(Boolean).join(" · ") ||
-                        "—"}
+                  <span className="pr-6 font-medium">{s.company_name}</span>
+                  {s.website ? (
+                    <a
+                      href={s.website}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate text-xs text-muted-foreground underline"
+                    >
+                      {s.website}
+                    </a>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    {[s.industry, s.company_size, s.location].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                  {s.description ? (
+                    <p className="line-clamp-2 text-xs text-muted-foreground">{s.description}</p>
+                  ) : null}
+                  {s.match_reason ? (
+                    <p className="line-clamp-2 rounded-md bg-primary/5 p-1.5 text-xs">
+                      <span className="font-medium">Why this fits: </span>
+                      {s.match_reason}
                     </p>
-                    {s.description ? <p>{s.description}</p> : null}
-                    {s.match_reason ? (
-                      <p className="rounded-md bg-primary/5 p-2 text-xs">
-                        <span className="font-medium">Why this fits: </span>
-                        {s.match_reason}
-                      </p>
-                    ) : null}
-                    {s.source_url ? (
-                      <a
-                        href={s.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-muted-foreground underline"
-                      >
-                        Source
-                      </a>
-                    ) : null}
-                  </div>
+                  ) : null}
+                  {s.source_url ? (
+                    <a
+                      href={s.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-muted-foreground underline"
+                    >
+                      Source
+                    </a>
+                  ) : null}
                 </li>
               ))}
             </ul>

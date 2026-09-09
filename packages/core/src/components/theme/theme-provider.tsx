@@ -20,13 +20,13 @@ function applyTheme(theme: Theme) {
 /**
  * Hand-rolled instead of next-themes (no new dependency for three states + localStorage
  * + a blocking pre-hydration script -- see theme-script.tsx for the other half of this).
- * State starts at "system" on the server and every client's first render (matching what
- * theme-script.tsx already painted), then syncs to the real stored preference in an
- * effect -- same one-frame-late correction next-themes itself makes to avoid a hydration
- * mismatch.
+ * State starts at "light" on the server and every client's first render (matching what
+ * theme-script.tsx already painted, and CLAUDE.md's own "light theme by default" design
+ * rule), then syncs to the real stored preference in an effect -- same one-frame-late
+ * correction next-themes itself makes to avoid a hydration mismatch.
  */
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);

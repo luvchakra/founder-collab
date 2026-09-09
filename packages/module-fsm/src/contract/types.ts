@@ -16,3 +16,13 @@ export type ProspectHandoffStatus = {
   invoiceStatus: string | null;
   invoiceBalanceAmount: number | null;
 };
+
+/** Input for `createOpportunityFromWonProspect()` -- everything about the won prospect
+ * the Conversions page's own list row already has in hand, no extra lookup needed. */
+export type CreateOpportunityFromProspectInput = {
+  prospectId: string;
+  partyId: string;
+  companyName: string;
+  description?: string | null;
+  workspaceId?: string | null;
+};

@@ -19,12 +19,14 @@ export function discoverProspectsPrompt({
   icp,
   knownCompanies,
   filters,
+  maxResults = 10,
 }: {
   productName: string;
   productProfile: ProductProfile;
   icp: IcpProfile;
   knownCompanies: string[];
   filters?: DiscoveryFilters;
+  maxResults?: number;
 }): string {
   const hasFilters =
     filters && (filters.industry || filters.companySize || filters.location || filters.keywords);
@@ -57,7 +59,7 @@ Search the web for real, currently-operating companies that match this ICP${hasF
 Do not suggest any company already in our pipeline:
 ${knownCompanies.length ? knownCompanies.join(", ") : "(none yet)"}
 
-Find up to 10 distinct companies. For each one, note its name, website, industry,
+Find up to ${maxResults} distinct compan${maxResults === 1 ? "y" : "ies"}. For each one, note its name, website, industry,
 approximate size, location, a one-line description, and -- most importantly -- a
 specific match_reason tying it to the ICP criteria above (not generic filler like
 "good fit"). Prefer companies with a visible, recent buying signal (funding, hiring,
@@ -69,10 +71,10 @@ keep searching just because more searches are available. A smaller list where ev
 company has a real match_reason and source beats a longer one padded with weak fits.`;
 }
 
-export function structureDiscoveryPrompt(findings: string): string {
+export function structureDiscoveryPrompt(findings: string, maxResults = 10): string {
   return `Extract the list of candidate companies from these research findings into
 structured form. Only include companies explicitly named in the findings -- do not
-invent any. Cap the list at 10.
+invent any. Cap the list at ${maxResults}.
 
 ${findings}`;
 }

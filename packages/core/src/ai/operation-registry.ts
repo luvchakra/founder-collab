@@ -12,7 +12,8 @@ export type AiOperation =
   | "generate_outreach_message"
   | "generate_reply"
   | "classify_reply"
-  | "chat";
+  | "chat"
+  | "restructure_import";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -42,6 +43,10 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // synthesis task over real pipeline state plus a growing conversation history --
   // worth the strongest available model, same call as generate_outreach_strategy.
   chat: { qualityTier: "reasoning", requiresWebSearch: false },
+  // Fast, not balanced: mapping an uploaded file's own columns/text onto the prospect
+  // schema is extraction, not synthesis -- same tier classify_reply already uses for a
+  // comparably mechanical task.
+  restructure_import: { qualityTier: "fast", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
-import { Sparkles } from "lucide-react";
 import {
   getProduct,
   getWorkspaceForProduct,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listProductKnowledge } from "@cofounderai/module-discovery/lib/knowledge/queries";
 import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
+import { AutoPopulateStartButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-start-button";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { KnowledgeSourceCard } from "@cofounderai/module-discovery/components/knowledge/knowledge-source-card";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
@@ -22,6 +22,10 @@ import {
   updateProductWebsiteAction,
   updateSourceAction,
 } from "./actions";
+
+function icpPath(businessId: string, productId: string) {
+  return `/dashboard/businesses/${businessId}/products/${productId}/icp`;
+}
 
 export default async function ProductPage({
   params,
@@ -47,25 +51,12 @@ export default async function ProductPage({
           placeholder="Add a website"
           textClassName="text-sm"
         />
-        <AiActionForm
+        <AutoPopulateStartButton
           action={generateProductProfileAction.bind(null, businessId, productId)}
-          buttonLabel={
-            <>
-              Let AI Auto-Populate Info
-              <Sparkles className="size-3.5" aria-hidden="true" />
-            </>
-          }
-          pendingText="Populating..."
-          buttonProps={{
-            variant: "link",
-            size: "sm",
-            className: "h-auto gap-1.5 p-0 text-muted-foreground hover:text-primary",
-            disabled: !product.website,
-            title: product.website ? undefined : "Add a website first",
-          }}
-        >
-          <input type="hidden" name="force" value="true" />
-        </AiActionForm>
+          disabled={!product.website}
+          disabledReason="Add a website first"
+          nextHref={`${icpPath(businessId, productId)}?autopopulate=1`}
+        />
       </section>
 
       <section className="flex flex-col gap-2">
@@ -202,13 +193,14 @@ export default async function ProductPage({
                 <input
                   type="file"
                   name="file"
+                  multiple
                   required
                   accept=".pdf,.doc,.docx,.txt,.md,image/*"
                   className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
                 />
                 <p className="text-xs text-muted-foreground">
-                  PDF and Word documents are read for AI context; images and other files are
-                  attached for reference only.
+                  Select multiple files at once. PDF and Word documents are read for AI context;
+                  images and other files are attached for reference only.
                 </p>
                 <SubmitButton size="sm" className="self-start" pendingText="Uploading...">
                   Upload

@@ -8,8 +8,9 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
-import { Textarea } from "@cofounderai/core/ui/textarea";
-import { generateIcpAction, updateIcpAction, approveIcpAction } from "./actions";
+import { IcpField } from "@cofounderai/module-discovery/components/icp/icp-field";
+import { AutoPopulateStepBanner } from "@cofounderai/module-discovery/components/tenancy/auto-populate-step-banner";
+import { generateIcpAction, updateIcpAction, approveIcpAction, autoPopulateIcpAction } from "./actions";
 
 function toLines(items: string[]) {
   return items.join("\n");
@@ -27,11 +28,23 @@ export default async function IcpPage({
   const workspace = await getWorkspaceForProduct(product.id);
   if (!workspace) notFound();
 
+  const prospectsPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
+  const autoPopulateBanner = (
+    <AutoPopulateStepBanner
+      action={autoPopulateIcpAction.bind(null, businessId, productId)}
+      nextHref={() => `${prospectsPath}?autopopulate=1`}
+      runningLabel="Populating your ICP from the product profile..."
+    />
+  );
+
   if (!product.product_profile) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Generate a product profile on the Overview tab before defining an ICP.
-      </p>
+      <div className="flex flex-col gap-3">
+        {autoPopulateBanner}
+        <p className="text-sm text-muted-foreground">
+          Generate a product profile on the Overview tab before defining an ICP.
+        </p>
+      </div>
     );
   }
 
@@ -40,6 +53,7 @@ export default async function IcpPage({
   if (!icp) {
     return (
       <div className="flex flex-col gap-3">
+        {autoPopulateBanner}
         <p className="text-sm text-muted-foreground">
           No ICP yet. Generate one from the approved product profile.
         </p>
@@ -54,6 +68,7 @@ export default async function IcpPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {autoPopulateBanner}
       <div className="flex items-center justify-between">
         <span
           className={
@@ -91,42 +106,34 @@ export default async function IcpPage({
           <Label htmlFor="name">Name</Label>
           <Input id="name" name="name" defaultValue={icp.name} required />
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            name="description"
-            rows={2}
-            defaultValue={icp.description ?? ""}
-          />
-        </div>
+        <IcpField label="Description" name="description" defaultValue={icp.description ?? ""} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <ListField label="Industries" name="industries" defaultValue={icp.industries} />
-          <ListField
+          <IcpField label="Industries" name="industries" defaultValue={toLines(icp.industries)} />
+          <IcpField
             label="Company sizes"
             name="companySizes"
-            defaultValue={icp.company_sizes}
+            defaultValue={toLines(icp.company_sizes)}
           />
-          <ListField
+          <IcpField
             label="Geographies"
             name="geographies"
-            defaultValue={icp.geographies}
+            defaultValue={toLines(icp.geographies)}
           />
-          <ListField label="Roles" name="roles" defaultValue={icp.roles} />
-          <ListField
+          <IcpField label="Roles" name="roles" defaultValue={toLines(icp.roles)} />
+          <IcpField
             label="Pain points"
             name="painPoints"
-            defaultValue={icp.pain_points}
+            defaultValue={toLines(icp.pain_points)}
           />
-          <ListField
+          <IcpField
             label="Buying signals"
             name="buyingSignals"
-            defaultValue={icp.buying_signals}
+            defaultValue={toLines(icp.buying_signals)}
           />
-          <ListField
+          <IcpField
             label="Exclusions"
             name="exclusions"
-            defaultValue={icp.exclusions}
+            defaultValue={toLines(icp.exclusions)}
           />
         </div>
         <p className="text-xs text-muted-foreground">One item per line.</p>
@@ -134,23 +141,6 @@ export default async function IcpPage({
           Save changes
         </SubmitButton>
       </form>
-    </div>
-  );
-}
-
-function ListField({
-  label,
-  name,
-  defaultValue,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string[];
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={name}>{label}</Label>
-      <Textarea id={name} name={name} rows={2} defaultValue={toLines(defaultValue)} />
     </div>
   );
 }

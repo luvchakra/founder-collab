@@ -3,9 +3,12 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { parseProspectsCsv } from "@cofounderai/module-discovery/lib/prospects/csv";
+import { parseImportFile } from "@cofounderai/module-discovery/lib/prospects/parse-import-file";
+import { restructureImportedProspects } from "@cofounderai/module-discovery/lib/ai/restructure-import";
 import {
   createProspectsBulk,
   extractDomain,
+  type ProspectInput,
 } from "@cofounderai/module-discovery/lib/prospects/mutations";
 import { findDuplicateProspect } from "@cofounderai/module-discovery/lib/prospects/duplicates";
 
@@ -15,16 +18,39 @@ export async function importProspectsAction(
   workspaceId: string,
   formData: FormData,
 ) {
+  const file = formData.get("file");
   const csv = String(formData.get("csv") ?? "");
-  const { rows, errors } = parseProspectsCsv(csv);
 
-  if (rows.length === 0) {
-    throw new Error(errors[0] ?? "No valid rows to import.");
+  let rows: ProspectInput[];
+  let parseErrors: string[];
+  let aiRestructured = false;
+
+  if (file instanceof File && file.size > 0) {
+    const parsed = await parseImportFile(file);
+    rows = parsed.rows;
+    parseErrors = parsed.errors;
+    if (rows.length === 0 && parsed.rawTextForAi) {
+      rows = await restructureImportedProspects(workspaceId, parsed.rawTextForAi);
+      aiRestructured = true;
+    }
+  } else {
+    const parsed = parseProspectsCsv(csv);
+    rows = parsed.rows;
+    parseErrors = parsed.errors;
+    if (rows.length === 0 && csv.trim()) {
+      // Pasted text that doesn't match the expected headers -- same AI fallback the
+      // file-upload path gets, so the template isn't a hard requirement either way.
+      rows = await restructureImportedProspects(workspaceId, csv);
+      aiRestructured = true;
+    }
   }
 
-  // Dedup against both the existing pipeline and the rest of this same paste (two rows
-  // in one CSV can share a domain/name) -- docs/prospects-pipeline-redesign-
-  // requirements.md R9.
+  if (rows.length === 0) {
+    throw new Error(parseErrors[0] ?? "No valid rows to import.");
+  }
+
+  // Dedup against both the existing pipeline and the rest of this same file (two rows
+  // can share a domain/name) -- docs/prospects-pipeline-redesign-requirements.md R9.
   const seenDomains = new Set<string>();
   const seenNames = new Set<string>();
   const toInsert: typeof rows = [];
@@ -55,6 +81,6 @@ export async function importProspectsAction(
   const prospectsPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
   revalidatePath(prospectsPath);
   redirect(
-    `${prospectsPath}?imported=${inserted}&skipped=${errors.length}&duplicates=${duplicates}`,
+    `${prospectsPath}?imported=${inserted}&skipped=${parseErrors.length}&duplicates=${duplicates}${aiRestructured ? "&aiRestructured=1" : ""}`,
   );
 }

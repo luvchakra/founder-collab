@@ -167,6 +167,27 @@ export const DiscoveredProspectsSchema = z.object({
 export type DiscoveredProspect = z.infer<typeof DiscoveredProspectSchema>;
 
 /**
+ * Import restructuring output (lib/ai/restructure-import.ts) -- an uploaded file (a CSV/
+ * Excel export with unrecognized headers, or PDF text with no structure at all) mapped
+ * into the same shape the deterministic CSV importer (lib/prospects/csv.ts) already
+ * produces, so both paths feed the same dedup + insert logic. `company_name` is the only
+ * required field; anything the source data doesn't have simply comes back null rather
+ * than invented.
+ */
+export const RestructuredProspectSchema = z.object({
+  company_name: z.string(),
+  website: z.string().nullable(),
+  industry: z.string().nullable(),
+  company_size: z.string().nullable(),
+  location: z.string().nullable(),
+  description: z.string().nullable(),
+});
+
+export const RestructuredProspectsSchema = z.object({
+  prospects: z.array(RestructuredProspectSchema).max(200),
+});
+
+/**
  * Structured header-chat assistant output (see lib/ai/chat.ts). `followUp` is rendered
  * as a clickable suggestion that prefills the input box -- the founder still has to hit
  * Send, so it's just a starting point, not an auto-continued conversation.

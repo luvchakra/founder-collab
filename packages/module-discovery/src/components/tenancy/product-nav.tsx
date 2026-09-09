@@ -49,7 +49,10 @@ export function ProductNav({
   );
 
   return (
-    <nav aria-label="Product sections" className="flex w-full items-start">
+    <nav
+      aria-label="Product sections"
+      className="flex w-full items-start rounded-2xl border border-border bg-card px-4 py-5 sm:px-6"
+    >
       {tabs.map((tab, i) => {
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
@@ -60,37 +63,37 @@ export function ProductNav({
             key={tab.href}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            className="flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-md py-1 transition-opacity hover:opacity-80"
+            className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-md py-1 transition-opacity hover:opacity-80"
           >
             <div className="flex w-full items-center" aria-hidden="true">
               <div
                 className={cn(
-                  "h-0.5 flex-1 rounded-full",
+                  "h-1 flex-1 rounded-full",
                   i === 0 ? "bg-transparent" : isPast || isCompleted ? "bg-primary" : "bg-muted",
                 )}
               />
               <span
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                  "flex size-10 shrink-0 items-center justify-center rounded-full text-base font-semibold transition-colors",
                   isActive
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                     : isCompleted
                       ? "bg-primary/20 text-primary"
                       : "bg-muted text-muted-foreground",
                 )}
               >
-                {isCompleted ? <Check className="size-3.5" /> : i + 1}
+                {isCompleted ? <Check className="size-5" /> : i + 1}
               </span>
               <div
                 className={cn(
-                  "h-0.5 flex-1 rounded-full",
+                  "h-1 flex-1 rounded-full",
                   i === tabs.length - 1 ? "bg-transparent" : isPast ? "bg-primary" : "bg-muted",
                 )}
               />
             </div>
             <span
               className={cn(
-                "max-w-full text-center text-xs leading-tight font-medium break-words",
+                "max-w-full text-center text-sm leading-tight font-medium break-words",
                 isActive ? "text-foreground" : "text-muted-foreground",
               )}
             >

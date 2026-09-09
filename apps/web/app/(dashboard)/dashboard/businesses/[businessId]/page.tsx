@@ -68,7 +68,7 @@ export default async function BusinessPage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
       <div className="flex items-center justify-between gap-2">
-        <Breadcrumbs items={[{ label: "Dashboard", href: "/dashboard" }, { label: business.name }]} />
+        <Breadcrumbs items={[{ label: "Business" }]} />
         <Link
           href={`/dashboard/businesses/${business.id}/usage`}
           className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
