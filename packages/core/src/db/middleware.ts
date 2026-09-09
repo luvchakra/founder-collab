@@ -18,28 +18,38 @@ function escapeForRegex(value: string): string {
 }
 
 /**
- * True if `pathname` belongs to a module the active business hasn't licensed --
- * CLAUDE.md's architecture section lists this route guard as one of licensing's four
- * required enforcement layers (RLS, this, requireModule(), UI filtered by entitlements).
+ * The key of the module `pathname` belongs to, if the active business hasn't licensed
+ * it -- null otherwise. CLAUDE.md's architecture section lists this route guard as one
+ * of licensing's four required enforcement layers (RLS, this, requireModule(), UI
+ * filtered by entitlements).
  *
  * Checked against two shapes: today's /dashboard/businesses/[id]/<prefix>/... (a module's
  * own routes living alongside discovery's /products/...) and a bare /<prefix> prefix (the
  * eventual [businessSlug]/<prefix> shape module-registry's own routePrefix docstring
- * names as the target). Currently a no-op for every real route -- discovery's actual
- * pages live at neither shape, and no other module has shipped any route yet -- this
- * arms the enforcement point ahead of SP-7/F-1 needing it, rather than leaving every
- * future module story to build its own copy of this check.
+ * names as the target).
+ *
+ * Returns the module key (not just a boolean) since 2026-09-09 -- the caller renders an
+ * informative "not licensed" page naming the module and the reason, rather than a bare
+ * 404 (docs/testing/test-cases/menu-smoke.md's TC-MENU-LIC-001/002, refined to spec this
+ * exact page instead of the "undefined behavior" this route guard previously left it at).
  */
-export function isUnlicensedModuleRoute(pathname: string, licensedModules: Set<string>): boolean {
+export function findUnlicensedModuleForRoute(pathname: string, licensedModules: Set<string>): string | null {
   for (const module of moduleRegistry) {
     const prefix = escapeForRegex(module.routePrefix);
     const businessScoped = new RegExp(`^/dashboard/businesses/[^/]+${prefix}(?:/|$)`);
     const topLevel = new RegExp(`^${prefix}(?:/|$)`);
     if ((businessScoped.test(pathname) || topLevel.test(pathname)) && !licensedModules.has(module.key)) {
-      return true;
+      return module.key;
     }
   }
-  return false;
+  return null;
+}
+
+/** Back-compat boolean form of `findUnlicensedModuleForRoute()` -- kept for
+ * `middleware.test.ts`'s existing cases and any other caller that only needs the
+ * yes/no answer, not which module. */
+export function isUnlicensedModuleRoute(pathname: string, licensedModules: Set<string>): boolean {
+  return findUnlicensedModuleForRoute(pathname, licensedModules) !== null;
 }
 
 /**
@@ -114,13 +124,24 @@ export async function updateSession(request: NextRequest) {
       );
       const { data: licenses } = await coreClient
         .from("licenses")
-        .select("module_key")
-        .eq("business_id", businessId)
-        .in("status", ["active", "grace"]);
-      const licensedModules = new Set((licenses ?? []).map((license) => license.module_key as string));
+        .select("module_key, status, grace_ends_at")
+        .eq("business_id", businessId);
+      const licensedModules = new Set(
+        (licenses ?? []).filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key as string),
+      );
 
-      if (isUnlicensedModuleRoute(pathname, licensedModules)) {
-        return new NextResponse(null, { status: 404 });
+      const blockedModuleKey = findUnlicensedModuleForRoute(pathname, licensedModules);
+      if (blockedModuleKey) {
+        const license = (licenses ?? []).find((l) => l.module_key === blockedModuleKey);
+        const url = request.nextUrl.clone();
+        url.pathname = `/dashboard/businesses/${businessId}/not-licensed`;
+        url.search = "";
+        url.searchParams.set("module", blockedModuleKey);
+        url.searchParams.set("reason", license?.status ?? "none");
+        if (license?.status === "grace" && license.grace_ends_at) {
+          url.searchParams.set("graceEndsAt", license.grace_ends_at as string);
+        }
+        return NextResponse.rewrite(url);
       }
     }
   }

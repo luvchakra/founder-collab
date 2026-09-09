@@ -164,10 +164,10 @@ Fix: `packages/core/src/licensing/queries.ts`'s new `listLicensedModuleKeysByBus
 business when none is active yet, matching `AppSidebar`'s own existing
 `effectiveBusinessId` fallback) before passing them to `DashboardShell`/`AppSidebar`/
 `module-selector.tsx`. `scripts/test-core-licensed-modules-by-business.mjs` (new, in
-`test:db`) covers tenant isolation on the batched query itself. This fixes the
-*visibility* half only — `proxy.ts`'s route guard still returns a bare 404 for direct/
-typed access to an unlicensed route, which is the separate "informative not-licensed
-page" requirement below, still open.
+`test:db`) covers tenant isolation on the batched query itself. This fixed the
+*visibility* half only at the time — the separate "informative not-licensed page"
+requirement for direct/typed access (`proxy.ts`'s route guard returning a bare 404) is
+now also fixed, 2026-09-09, see below.
 A second uploaded review (`docs/testing/test-cases/menu-smoke.md`, landed same day as
 this correction) checked what this doc's first pass didn't: not just *how* nav items
 render once a module section is shown, but whether the *set of modules shown at all* is
@@ -214,6 +214,29 @@ exact query shapes against the real dev project (a business with a real `custome
 party plus all five modules licensed) -- no jobs/opportunities exist for that specific
 business yet, so the dashboard's empty-state paths are what's exercised live; the
 customer-list query itself returned the correct single row.
+
+### 7. The informative "not licensed" page — new UX requirement, not built — **Built 2026-09-09**
+A later revision of the uploaded test cases (`TC-CORE-001/002/003`, `TC-MENU-LIC-001/002`,
+`TC-SHELL-002/006`) specced a page that names the module and the reason (not licensed /
+cancelled-and-in-grace / grace-expired) instead of the bare 404 `middleware.ts`'s route
+guard previously returned directly.
+
+Built: `findUnlicensedModuleForRoute()` (renamed from the old boolean-only
+`isUnlicensedModuleRoute()`, kept as a back-compat wrapper for its own existing tests)
+now returns *which* module was blocked. `updateSession()` fetches each license's real
+`status`/`grace_ends_at` (not just the active-or-grace set it already needed for the
+existing check) and, on a block, `NextResponse.rewrite()`s -- not a redirect, so the
+browser's URL bar still shows what was actually asked for -- to a new
+`.../[businessId]/not-licensed` page, carrying the module key/status/grace-end-date as
+query params the middleware already had in hand. The page renders a status-specific
+message (Alert primitive) and a link to `/dashboard/settings/licenses`, which turned
+out to already show exactly what this page's copy promises it does -- checked before
+assuming otherwise: a per-module status badge and a one-click Activate/Reactivate/
+Cancel button already exist there. 2 new `middleware.test.ts` cases (9 total, was 7) +
+live-confirmed against the real dev project (a business licensed for only
+`discovery`/`fsm`, same one from finding 5, has no `licenses` row at all for
+`crm`/`gst`/`inventory` -- exactly the "reason: none" case). Full typecheck/build/
+lint:boundaries/test green.
 
 ## P0 cases executed, no gap found
 

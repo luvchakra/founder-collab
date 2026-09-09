@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeBusinessIdFromPath, isUnlicensedModuleRoute } from "./middleware";
+import { activeBusinessIdFromPath, findUnlicensedModuleForRoute, isUnlicensedModuleRoute } from "./middleware";
 
 describe("activeBusinessIdFromPath", () => {
   it("extracts the business id from a business-scoped dashboard path", () => {
@@ -38,5 +38,17 @@ describe("isUnlicensedModuleRoute", () => {
     // "/fsmxyz" should not match the "/fsm" prefix -- the regex requires a path
     // boundary (end of string or "/") right after the prefix.
     expect(isUnlicensedModuleRoute("/fsmxyz", new Set())).toBe(false);
+  });
+});
+
+describe("findUnlicensedModuleForRoute", () => {
+  it("returns the blocked module's key, not just a boolean -- the not-licensed page needs it to render which module", () => {
+    const pathname = "/dashboard/businesses/abc-123/inventory/products";
+    expect(findUnlicensedModuleForRoute(pathname, new Set())).toBe("inventory");
+  });
+
+  it("returns null when the route is licensed", () => {
+    const pathname = "/dashboard/businesses/abc-123/inventory/products";
+    expect(findUnlicensedModuleForRoute(pathname, new Set(["inventory"]))).toBeNull();
   });
 });
