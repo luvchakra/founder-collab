@@ -14,14 +14,26 @@ export async function createTicket(businessId: string, subject: string, channelI
   if (error) throw error;
 }
 
+/** A plain `.update().eq("id", ...)` with no `.select()` would silently "succeed" with
+ * zero rows changed if RLS's `using` clause filters the row out (e.g. the business's crm
+ * license just lapsed into its read-only grace period) -- Postgres RLS excludes
+ * non-matching rows from an UPDATE rather than raising an error, unlike an INSERT's
+ * `with check`, which does throw. Selecting the row back and checking it's non-empty is
+ * what turns that silent no-op into the actionable error a caller can actually show. */
 export async function updateTicketStatus(ticketId: string, status: TicketStatus): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("tickets").update({ status }).eq("id", ticketId);
+  const { data, error } = await supabase.from("tickets").update({ status }).eq("id", ticketId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This ticket could not be updated -- it may have been removed, or your access to it may have changed.");
+  }
 }
 
 export async function assignTicket(ticketId: string, employeeId: string | null): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("tickets").update({ assigned_to: employeeId }).eq("id", ticketId);
+  const { data, error } = await supabase.from("tickets").update({ assigned_to: employeeId }).eq("id", ticketId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This ticket could not be updated -- it may have been removed, or your access to it may have changed.");
+  }
 }

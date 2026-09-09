@@ -24,8 +24,14 @@ export async function createRoutingRule(businessId: string, input: CreateRouting
   if (error) throw error;
 }
 
+/** See `tickets/mutations.ts#updateTicketStatus`'s own doc comment for why this checks
+ * the row actually came back instead of trusting a plain `.update()` with no `.select()`
+ * -- RLS silently excludes non-matching rows from an UPDATE rather than erroring. */
 export async function setRoutingRuleActive(ruleId: string, isActive: boolean): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("routing_rules").update({ is_active: isActive }).eq("id", ruleId);
+  const { data, error } = await supabase.from("routing_rules").update({ is_active: isActive }).eq("id", ruleId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This routing rule could not be updated -- it may have been removed, or your access to it may have changed.");
+  }
 }

@@ -90,6 +90,33 @@ async function main() {
       `);
       assertEqual(psqlAsAlice(`select is_active from crm.routing_rules where id = '${aliceRule}'`), "t", "a new routing rule defaults to active");
 
+      console.log("Cancelling back into grace (ADR-9: 30-day read-only grace, not a hard cutoff) and verifying reads survive while writes don't...");
+      psql(`update core.licenses set status = 'grace', grace_ends_at = now() + interval '10 days' where business_id = '${aliceBusiness}' and module_key = 'crm';`);
+      assertEqual(psqlAsAlice(`select count(*) from crm.channels where id = '${aliceChannel}'`), "1", "grace-period Alice can still read her channel (ADR-9 -- data retained, not hidden)");
+      assertEqual(psqlAsAlice(`select count(*) from crm.tickets where id = '${aliceTicket}'`), "1", "grace-period Alice can still read her ticket");
+      assertEqual(psqlAsAlice(`select count(*) from crm.routing_rules where id = '${aliceRule}'`), "1", "grace-period Alice can still read her routing rule");
+      assertEqual(
+        psqlAsAlice(`update crm.tickets set status = 'pending' where id = '${aliceTicket}' returning id`),
+        "",
+        "grace-period Alice cannot update her own ticket -- RLS's USING clause filters it out silently (0 rows affected), not an error, since write needs an active license, not just grace",
+      );
+      assertEqual(psqlAsAlice(`select status from crm.tickets where id = '${aliceTicket}'`), "open", "the ticket's status is unchanged after the silently-filtered update attempt");
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.channels (business_id, kind, name) values ('${aliceBusiness}', 'sms', 'SMS Support')`),
+        "grace-period Alice cannot create a new channel either",
+      );
+      console.log("Reactivating Alice's license for the rest of the run...");
+      psql(`update core.licenses set status = 'active', grace_ends_at = null where business_id = '${aliceBusiness}' and module_key = 'crm';`);
+
+      console.log("Verifying deleting a channel cascades correctly (channel -> ticket sets null, channel -> routing_rule cascades)...");
+      const scratchChannel = psqlAsAlice(`insert into crm.channels (business_id, kind, name) values ('${aliceBusiness}', 'social', 'Scratch') returning id;`);
+      const scratchTicket = psqlAsAlice(`insert into crm.tickets (business_id, channel_id, subject) values ('${aliceBusiness}', '${scratchChannel}', 'Scratch ticket') returning id;`);
+      const scratchRule = psqlAsAlice(`insert into crm.routing_rules (business_id, name, channel_id) values ('${aliceBusiness}', 'Scratch rule', '${scratchChannel}') returning id;`);
+      psqlAsAlice(`delete from crm.channels where id = '${scratchChannel}'`);
+      assertEqual(psqlAsAlice(`select channel_id from crm.tickets where id = '${scratchTicket}'`), "", "deleting a channel sets its tickets' channel_id to null rather than deleting the ticket (on delete set null)");
+      assertEqual(psqlAsAlice(`select count(*) from crm.routing_rules where id = '${scratchRule}'`), "0", "deleting a channel cascades to delete any routing rule scoped to it (on delete cascade)");
+      psqlAsAlice(`delete from crm.tickets where id = '${scratchTicket}'`);
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobChannel = psqlAsBob(`insert into crm.channels (business_id, kind, name) values ('${bobBusiness}', 'email', 'Bob Support') returning id;`);
       psqlAsBob(`insert into crm.tickets (business_id, channel_id, subject) values ('${bobBusiness}', '${bobChannel}', 'Bob ticket');`);
