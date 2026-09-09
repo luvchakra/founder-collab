@@ -74,7 +74,7 @@ export function ProductNav({
               />
               <span
                 className={cn(
-                  "flex size-10 shrink-0 items-center justify-center rounded-full text-base font-semibold transition-colors",
+                  "relative flex size-10 shrink-0 items-center justify-center rounded-full text-base font-semibold transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                     : isCompleted
@@ -82,7 +82,12 @@ export function ProductNav({
                       : "bg-muted text-muted-foreground",
                 )}
               >
-                {isCompleted ? <Check className="size-5" /> : i + 1}
+                {i + 1}
+                {isCompleted ? (
+                  <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card">
+                    <Check className="size-2.5" />
+                  </span>
+                ) : null}
               </span>
               <div
                 className={cn(

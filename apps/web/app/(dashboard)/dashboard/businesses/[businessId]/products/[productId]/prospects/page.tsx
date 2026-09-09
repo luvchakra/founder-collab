@@ -100,7 +100,8 @@ export default async function ProspectsPage({
 
       <AutoPopulateStepBanner
         action={autoDiscoverOneProspectAction.bind(null, businessId, productId, workspace.id)}
-        nextHref={(added) => `${basePath}?autopopulated=${added}`}
+        nextPath={basePath}
+        resultQueryParam="autopopulated"
         runningLabel="Searching the web for one matching prospect..."
         replace
       />

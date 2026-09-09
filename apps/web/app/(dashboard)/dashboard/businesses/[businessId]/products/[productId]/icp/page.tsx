@@ -32,7 +32,7 @@ export default async function IcpPage({
   const autoPopulateBanner = (
     <AutoPopulateStepBanner
       action={autoPopulateIcpAction.bind(null, businessId, productId)}
-      nextHref={() => `${prospectsPath}?autopopulate=1`}
+      nextPath={`${prospectsPath}?autopopulate=1`}
       runningLabel="Populating your ICP from the product profile..."
     />
   );

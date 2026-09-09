@@ -11,20 +11,31 @@ import { Loader2 } from "lucide-react";
  * nothing unless the previous step's navigation carried `?autopopulate=1` -- an ordinary
  * visit to this page is completely unaffected. Runs `action` exactly once per mount (a
  * ref guard, not a dependency-array trick, since `action` is a fresh bound-server-action
- * reference on every render) and either advances to `nextHref` on success or shows the
+ * reference on every render) and either advances to `nextPath` on success or shows the
  * failure in place, leaving the founder on this page rather than silently stalling.
+ *
+ * `nextPath` is a plain string, never a function -- a Server Component (this
+ * component's only caller) can only pass a real `"use server"` action across into a
+ * Client Component, not an ordinary closure; a `(result) => string` prop here would
+ * throw at the RSC serialization boundary at runtime (it type-checks fine, since
+ * TypeScript has no way to flag "this function isn't a server action").
  */
 export function AutoPopulateStepBanner<T>({
   action,
-  nextHref,
+  nextPath,
+  resultQueryParam,
   runningLabel,
   replace = false,
 }: {
   action: () => Promise<T>;
-  /** Called with the action's own result to build the next URL -- lets the terminal
-   * step (Prospects) carry how many prospects were actually added into its own query
-   * string. */
-  nextHref: (result: T) => string;
+  /** Plain pathname to navigate to on success (any static query the caller already
+   * knows, e.g. "?autopopulate=1", is baked into this string literal). */
+  nextPath: string;
+  /** When set, the action's own result (a primitive) is appended to `nextPath` as
+   * `<sep>${resultQueryParam}=<result>` -- lets the terminal step (Prospects) carry how
+   * many prospects were actually added, without a function prop crossing the Server/
+   * Client boundary. */
+  resultQueryParam?: string;
   runningLabel: string;
   /** `router.replace` instead of `push` for the terminal step, so the auto-populate
    * flag doesn't linger in browser history once the flow is done. */
@@ -42,14 +53,17 @@ export function AutoPopulateStepBanner<T>({
     (async () => {
       try {
         const result = await action();
-        const href = nextHref(result);
+        const href = resultQueryParam
+          ? `${nextPath}${nextPath.includes("?") ? "&" : "?"}${resultQueryParam}=${result}`
+          : nextPath;
         if (replace) router.replace(href);
         else router.push(href);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
-      // action/nextHref/router are intentionally excluded -- re-running this effect on
-      // every new bound-action reference would defeat the once-per-mount guard above.
+      // action/nextPath/resultQueryParam/router are intentionally excluded -- re-running
+      // this effect on every new bound-action reference would defeat the once-per-mount
+      // guard above.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     })();
   }, [shouldRun]);
