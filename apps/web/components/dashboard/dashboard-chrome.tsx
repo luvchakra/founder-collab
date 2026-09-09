@@ -35,7 +35,10 @@ export function DashboardChrome({
   createBusinessAction,
   children,
 }: {
-  modules: ShellNavModule[];
+  /** Straight from module-registry -- no `licensed` field yet, since that's a
+   * per-business fact this component itself resolves below via
+   * licensedModuleKeysByBusiness before handing modules on to DashboardShell. */
+  modules: Omit<ShellNavModule, "licensed">[];
   /** Active-or-grace module keys per business (core.licenses, C-3), from
    * listLicensedModuleKeysByBusiness() -- CLAUDE.md's 4th licensing-enforcement layer
    * ("UI built from module-registry filtered by entitlements"). A business missing from
@@ -61,15 +64,19 @@ export function DashboardChrome({
   // navigating into one) -- mirrors AppSidebar's own effectiveBusinessId fallback so
   // the module list and the per-business content it renders always agree.
   const effectiveBusinessId = activeBusinessId ?? businesses[0]?.id ?? null;
-  const licensedModules = useMemo(() => {
+  // Every module is always shown -- clicking an unlicensed one routes to the business's
+  // own not-licensed page (see AppSidebar's handleSelectModule) rather than the module
+  // silently not existing at all, so `licensed` is carried per module instead of
+  // filtering the array down like this used to.
+  const annotatedModules = useMemo(() => {
     const licensedKeys = new Set(effectiveBusinessId ? licensedModuleKeysByBusiness[effectiveBusinessId] ?? [] : []);
-    return modules.filter((m) => licensedKeys.has(m.key));
+    return modules.map((m) => ({ ...m, licensed: licensedKeys.has(m.key) }));
   }, [modules, licensedModuleKeysByBusiness, effectiveBusinessId]);
 
   return (
     <>
       <DashboardShell
-        modules={licensedModules}
+        modules={annotatedModules}
         businesses={businesses}
         activeBusinessId={activeBusinessId}
         businessHref={(businessId) => `/dashboard/businesses/${businessId}`}

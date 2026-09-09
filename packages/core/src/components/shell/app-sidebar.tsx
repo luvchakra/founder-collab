@@ -159,7 +159,7 @@ function ModuleContent({
   if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
   return (
-    <div className="flex flex-col gap-3 px-2 pt-0 pb-2">
+    <div className="flex flex-col gap-3 px-2 py-2">
       {navGroups.map((group, groupIndex) => (
         <div key={group.heading ?? groupIndex} className="flex flex-col gap-0.5">
           {group.heading ? (
@@ -226,10 +226,14 @@ export function AppSidebar({
   // doesn't indicate a module (bare /dashboard, settings, etc).
   const [selectedModule, setSelectedModuleState] = useState<string>(() => {
     const fromUrl = inferModuleFromPath(pathname);
-    if (fromUrl && modules.some((m) => m.key === fromUrl)) return fromUrl;
+    if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) return fromUrl;
     const stored = readStoredModule();
-    if (stored && modules.some((m) => m.key === stored)) return stored;
-    return modules[0]?.key ?? "discovery";
+    if (stored && modules.some((m) => m.key === stored && m.licensed)) return stored;
+    // Every module is in this array regardless of entitlement now -- default to the
+    // first *licensed* one so the drawer never opens straight into an unlicensed
+    // module's real content with no redirect (that only happens on an explicit picker
+    // click, via handleSelectModule below).
+    return modules.find((m) => m.licensed)?.key ?? modules[0]?.key ?? "discovery";
   });
 
   function setSelectedModule(key: string) {
@@ -242,7 +246,7 @@ export function AppSidebar({
   // sync without waiting for the next full reload.
   useEffect(() => {
     const fromUrl = inferModuleFromPath(pathname);
-    if (fromUrl && modules.some((m) => m.key === fromUrl)) {
+    if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) {
       setSelectedModuleState(fromUrl);
       writeStoredModule(fromUrl);
     }
@@ -267,6 +271,20 @@ export function AppSidebar({
   const selectedModuleManifest = modules.find((m) => m.key === selectedModule);
 
   function handleSelectModule(key: string) {
+    // Every module is listed in the picker regardless of entitlement (DashboardChrome
+    // no longer filters the array) -- an unlicensed one routes straight to that
+    // business's own not-licensed page (the same one middleware's route guard already
+    // rewrites direct URL access to) instead of switching the drawer to show it, so
+    // clicking a module the business doesn't have surfaces "activate this" rather than
+    // either not existing at all or silently doing nothing.
+    const business = effectiveBusinessId ?? businesses[0]?.id;
+    const licensed = modules.find((m) => m.key === key)?.licensed ?? true;
+    if (!licensed && business) {
+      setOpen(false);
+      router.push(`${businessHref(business)}/not-licensed?module=${key}`);
+      return;
+    }
+
     setSelectedModule(key);
     // No business active yet (e.g. plain /dashboard) -- auto-select the first one by
     // navigating there, so the navbar's own business switcher picks it up too (it derives

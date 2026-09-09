@@ -31,6 +31,12 @@ export interface ShellNavModule {
    * module except discovery (whose real content is a live per-business product list,
    * not a static tree — see app-sidebar.tsx's own discovery special case). */
   nav: ShellNavGroup[];
+  /** Active-or-grace for the effective business (listLicensedModuleKeysByBusiness).
+   * Every module is listed in the picker regardless — an unlicensed one just routes to
+   * the business's not-licensed page instead of switching the drawer to it, so a
+   * founder can see what's available and how to unlock it rather than the module
+   * quietly not existing at all. */
+  licensed: boolean;
 }
 
 export interface ShellUser {
