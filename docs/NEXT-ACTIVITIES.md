@@ -256,8 +256,16 @@ decision to build them next. Original recommended order preserved.
 6. Mobile responsiveness is thin everywhere (14–32% of `.tsx` files per module use any
    `sm:`/`md:`/`lg:` breakpoint) — flagged as worth a dedicated per-module pass, not
    incidental fixes; largest single effort in this list.
-7. Global search (specified in `DESIGN.md`'s topbar spec) was never built; `command.tsx`
-   (cmdk) is vendored and unused. Needs a decision — build it, or update `DESIGN.md`.
+7. ~~Global search (specified in `DESIGN.md`'s topbar spec) was never built;
+   `command.tsx` (cmdk) is vendored and unused. Needs a decision — build it, or update
+   `DESIGN.md`.~~ — **Decided 2026-09-09, deferred, no code change**: real
+   cross-module search would need to query `core.parties`/`core.documents` and every
+   module's own RLS-scoped, license-gated entities in one unified result set -- a
+   genuine new feature spanning every module's schema, not a wiring task, and building
+   it speculatively (no story has actually specced what "search anything" should
+   search or how licensing scopes it) is exactly what CLAUDE.md principle 7 rules out.
+   Decision recorded in `docs/DESIGN.md`: leave `command.tsx` vendored-but-unused
+   until a real story defines the actual scope.
 8. ~~`Breadcrumb` is used in only 4 files despite a commit message suggesting
    platform-wide intent.~~ — **Fixed 2026-09-09**: the "4 files" was module-discovery's
    own hand-rolled `Breadcrumbs` component (`components/tenancy/breadcrumbs.tsx`),
@@ -318,7 +326,12 @@ decision to build them next. Original recommended order preserved.
     expected for a still-skeleton module, flagged so it adopts platform patterns from its
     next story rather than needing a retrofit later.
 13. Sidebar and stage-tab components have been rebuilt repeatedly (6+ commits each) —
-    worth consolidating into one documented canonical component.
+    worth consolidating into one documented canonical component. **Still open** —
+    this is the exact reason item 10's investigation (2026-09-09) declined to do
+    another sidebar rebuild in passing; see `docs/DESIGN.md`'s divergence note. A
+    real consolidation should resolve items 6/10/13 together (mobile layout, the
+    drawer-vs-persistent-rail decision, and the repeated-rebuild history) as one
+    deliberate story, not three separate patches.
 
 **Suggested order (from the audit itself, not re-decided here):** P0 items 1–2 first
 (they're platform-wide primitives everything else benefits from), then 3–5, then P1's

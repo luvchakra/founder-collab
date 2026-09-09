@@ -88,3 +88,15 @@ here as a deliberate, documented gap needing a real decision before another rebu
 rather than silently patched (e.g. moving just the avatar into the topbar while the rest
 of the drawer-vs-rail mismatch remains would not actually bring the shell in line with the
 mockup).
+
+**Global search: decided deferred, not built (recorded 2026-09-09).** The mockup's topbar
+search ("Search anything...") was never implemented; `command.tsx` (cmdk) is vendored in
+`packages/core/src/components/ui/` and unused. `NEXT-ACTIVITIES.md` §6 item 7 asked for an
+explicit decision rather than leaving it ambiguous: real cross-module search would need to
+query `core.parties`, `core.documents`, and each module's own RLS-scoped, license-gated
+entities (jobs, invoices, tickets, products...) in one unified result set — a genuine new
+feature spanning every module's own schema, not a component wiring exercise, and
+speculatively building it now (before any story actually asks for it) is exactly what
+CLAUDE.md principle 7 rules out. Decision: leave `command.tsx` vendored-but-unused until a
+real story specs what "search anything" should actually search and how licensing/RLS
+scope it; don't build a placeholder in the meantime.
