@@ -156,6 +156,34 @@ unlike fsm's equivalent).
 
 ### TC-MENU-CRM-003: `crm` → "Routing Rules"
 **Priority:** P0 · **Status:** route confirmed present.
+**Update (this pass):** the Routing Rules page now also has a per-rule "Conditions"
+column (known-vs-new sender, business hours) and its create form gained matching
+fields — see `crm.md` TC-CRM-001 for the actual matching behavior; this case only
+confirms the page itself still renders.
+
+### TC-MENU-CRM-004: `crm` → Channels page now also shows a "Connected accounts" panel
+**Priority:** P1 · **Status:** built this pass (`docs/design/crm-module-design.md`
+Part A, A1) -- not a new registry nav item (still reached via the existing
+"Channels" item), but a materially new section on that same page worth its own
+render-smoke case.
+**Steps:** With `crm` licensed, click "Channels," and confirm the "Connected
+accounts" section (connect form + accounts table) renders below the existing
+channels table.
+**Expected result:** Renders without error, whether or not any channel exists yet
+to connect an account to (the connect form itself is hidden with an explanatory
+message until at least one channel exists).
+
+### TC-MENU-CRM-005: Customer 360 (`crm/customers/[partyId]`) -- dynamic, reached from a ticket, not a static nav item
+**Priority:** P1 · **Status:** built this pass (`docs/design/crm-module-design.md`
+Part B, B1) -- same "dynamic nav, same intent" framing as `TC-MENU-DISC-001`: this
+route has no entry in `module-registry`'s own nav array at all, it's a link that
+appears on a ticket row once that ticket has resolved a `party_id`.
+**Steps:** With `crm` licensed and an inbound-webhook-created ticket, click "Customer
+360" from that ticket's own row in the Inbox.
+**Expected result:** Renders the Customer 360 panel for that ticket's party, `404`s
+if the URL's `partyId` belongs to a different business than the URL's `businessId`
+(the page's own `party.business_id !== businessId` check) -- see `crm.md`
+TC-CRM-009 for the panel's own content behavior.
 
 ## GST (all confirmed present on disk)
 
@@ -168,15 +196,23 @@ unlike fsm's equivalent).
 
 ## Discovery (dynamic nav -- different shape, same intent)
 
-### TC-MENU-DISC-001: Product list renders for every product in a workspace
+### TC-MENU-DISC-001: Product list renders for every product in a workspace, under a two-group Overview/Products structure
 **Priority:** P0
 **Feature:** Discovery's nav isn't the static registry list (its entry exists only
 "so every module has *a* nav manifest," per the registry's own comment) -- it's
 `app-sidebar.tsx` rendering the business's real product list.
-**Steps:** With `discovery` licensed and 3+ products, expand Discovery in the sidebar.
-**Expected result:** Every product listed navigates to that product's overview
-without a 404 -- functionally the same guarantee as the other modules' static items,
-just data-driven instead of registry-driven.
+**Update (this pass — item #3 of a UX pass):** restructured from one bare
+"Dashboard" link followed by an unlabeled product list into two proper groups: an
+"Overview" heading holding "Dashboard" (the business-level page, discovery-specific
+content), and a separate "Products" heading holding the product list itself —
+matching every other module's own two-heading nav shape (e.g. `gst`'s "Overview" +
+"GST" groups) instead of standing out as the one inconsistent case.
+**Steps:** With `discovery` licensed and 3+ products, expand Discovery in the sidebar
+and confirm both group headings appear.
+**Expected result:** "Overview" contains exactly "Dashboard"; "Products" lists every
+product, each navigating to that product's overview without a 404 -- functionally
+the same guarantee as the other modules' static items, just data-driven instead of
+registry-driven.
 
 ## Account / settings menu (not module-owned, but part of "every menu" in practice)
 
@@ -193,6 +229,22 @@ just data-driven instead of registry-driven.
 **Steps:** Open the module switcher (`module-selector.tsx`), click "Licenses."
 **Expected result:** Renders -- flagged separately since it's the one settings page
 linked from a different UI element than the other six, easy to miss in a manual pass.
+
+### TC-MENU-ACCT-008: The module switcher's own "Admin" shortcut is a *different* page than the account menu's "Admin" item -- don't confuse the two
+**Priority:** P1 · **Status:** route confirmed present (`/dashboard/settings`).
+**Feature:** Two genuinely separate surfaces share the label "Admin" in this app: the
+account menu's item (TC-MENU-ACCT-001..006 above) links to `/dashboard/admin`, the
+platform-admin demo-seed tool gated by `PLATFORM_ADMIN_EMAILS`; the module switcher's
+own bottom shortcut (`module-selector.tsx`) links to `/dashboard/settings`, the
+"Admin & settings" hub every account member can reach (Account links + a Business
+section per business, including the disable/enable and API-keys items this pass
+added -- see `platform-shell.md` TC-SHELL-013). Documenting the distinction
+explicitly since both are labeled "Admin" and it would be easy to write one test case
+believing it covers both.
+**Steps:** Open the module switcher's own dropdown and click its bottom "Admin" row.
+**Expected result:** Renders `/dashboard/settings` (Executive Dashboard's own
+`Settings2` icon page), not `/dashboard/admin` -- reachable by every account member,
+not gated by `PLATFORM_ADMIN_EMAILS`.
 
 ## Cross-cutting: licensing interaction with menu visibility
 

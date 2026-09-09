@@ -41,14 +41,39 @@ the strategy references the actual research findings, the message reflects the
 approved strategy) — a regression check that the port didn't silently drop context
 passed between AI calls.
 
-### TC-DISCOVERY-004: BYOK provider router still enforces "no fallback to a company key"
-**Feature:** Ported BYOK layer (`f55ba0e`), same design as pre-port.
-**Priority:** P0 · **Story:** P-2 (BYOK port)
+### TC-DISCOVERY-004: BYOK always wins when connected; only an unconnected account falls back to the platform's own key
+**Feature:** Ported BYOK layer (`f55ba0e`) — **reversed by item #16 of a later UX
+pass**, `lib/ai/router.ts#resolveAiModel`.
+**Priority:** P0 · **Story:** P-2 (BYOK port), then this pass
+**Correction — this case previously described a permanent, absolute "no fallback"
+policy; that's no longer accurate and the previous wording (and the AI Provider
+settings page's own former copy, "we never use a shared or company-owned AI account
+on your behalf") was a real, deliberate architecture decision this pass explicitly
+reversed, not a bug:** `resolveAiModel()` now checks the account's own BYOK credential
+*first* — an exhausted/invalid BYOK key still fails with the real provider error and
+never falls back, exactly as before. But an account with **no BYOK credential
+connected at all** now falls back to `PLATFORM_AI_API_KEY` (an optional, env-gated
+Anthropic key) instead of being blocked outright — the new `credentialSource: "byok"
+| "platform"` field on `ResolvedAiModel` tells callers which happened. The sidebar's
+own "AI credits used" percentage (`app-sidebar.tsx`) is shown only in `"platform"`
+mode and hidden once BYOK is connected, since a BYOK account bills to the founder's
+own provider account with no platform-side cap to show a percentage of.
 **Steps:**
-1. Exhaust a connected provider's quota.
-2. Trigger any discovery AI operation.
-**Expected result:** Fails with the real provider error, does not silently route to
-a platform-owned key.
+1. Exhaust a *connected* provider's quota (BYOK present).
+2. Trigger any discovery AI operation with **no** BYOK credential connected and
+   `PLATFORM_AI_API_KEY` unset in the environment.
+3. Repeat step 2 with `PLATFORM_AI_API_KEY` set.
+4. Connect a BYOK key, then check the sidebar's own credits-percentage indicator; then
+   disconnect it and check again.
+**Expected result:** Step 1 fails with the real provider error — BYOK still never
+falls back to anything, quota exhaustion included. Step 2 still throws
+`AiProviderError("no_provider_connected")` (nothing configured to fall back to). Step
+3 succeeds on the platform's own Anthropic credential, and `credentialSource` reads
+`"platform"`. Step 4 shows the percentage while BYOK is disconnected and hides it
+immediately once connected.
+**Automated coverage:** none yet — needs either a live `PLATFORM_AI_API_KEY` (not
+present in this sandbox; the code path is otherwise complete and typechecked/built)
+or a mocked provider-factory unit test, neither of which exists yet for this file.
 
 ### TC-DISCOVERY-005: AI cost/usage limits are enforced per workspace, still
 **Feature:** Ported usage/cost ceiling logic (`lib/usage`).
@@ -140,3 +165,94 @@ case in `is-provider-failure.test.ts` (already had passing-case coverage, but no
 pinning down this specific historical bug's message before this pass) so a future
 change to the regex that accidentally starts matching url_context failures again gets
 caught immediately, not rediscovered by a user hitting the original bug a second time.
+
+### TC-DISCOVERY-013: "Let AI Auto-populate Products from website" parses a real catalog, not a stub
+**Feature:** Items #10/#12 of a UX pass — `lib/ai/discover-products.ts`
+(`discoverProductsFromWebsite`), `AutoPopulateProductsButton`.
+**Priority:** P0 · **Story:** this pass
+**Steps:**
+1. Set a business's website (`updateBusinessWebsiteAction`) to a real multi-product
+   storefront.
+2. Click "Let AI Auto-populate Products from website" and review the preview.
+3. Confirm the preview to actually create the products.
+4. Repeat against a site Gemini's `url_context` tool can't retrieve (blocked,
+   redirecting, WAF-gated).
+5. Repeat against a business with zero existing workspaces anywhere on the account.
+**Expected result:** Step 2's preview lists up to 30 `{name, website}` pairs actually
+found on the site (via `generateText` + `createUrlContextTools`, then
+`generateObject` structuring into `DiscoveredProductsSchema`), not a fixed/fake list.
+Step 3 creates real `discovery.products` rows. Step 4 surfaces the same
+`url_context`-failure message class TC-DISCOVERY-012 already pins down — never
+mislabeled as an invalid API key. Step 5 attributes AI usage tracking to
+`getFirstWorkspaceForAccount()`'s own fallback (no workspace exists yet for this
+specific business to charge the run against) rather than throwing on a business with
+a genuinely empty account.
+**Automated coverage:** none yet — needs a live BYOK/platform key and a real website
+to fetch; not reachable by this repo's DB-only harness.
+
+### TC-DISCOVERY-014: Deleting a product cascades correctly; deleting a knowledge source no longer silently no-ops
+**Feature:** Item #12 (`deleteProduct`) and item #14 (`deleteKnowledgeSource` fix).
+**Priority:** P0 · **Story:** this pass
+**Background — the same silent-RLS-no-op bug class found earlier in `crm`'s own
+mutations (see `crm.md` TC-CRM-005):** `deleteKnowledgeSource()` did a plain
+`.delete().eq("id", sourceId)` with no `.select()`, so a delete denied by RLS (the
+row already gone, or access changed) returned successfully having deleted nothing,
+with no error and no way for the UI to tell the founder why their click did nothing.
+Fixed by adding `.select("id")` and throwing an actionable error on an empty result,
+exactly mirroring `crm`'s own fix.
+**Steps:**
+1. Delete a product that has prospects/research/ICP data under it.
+2. Delete a product with zero prospects.
+3. Call `deleteKnowledgeSource` on a source that's already been removed (or whose
+   workspace access just changed).
+4. Call it again on a source that still exists and is still accessible.
+**Expected result:** Steps 1-2 hard-delete the product row; `discovery.workspaces`'
+own `on delete cascade` on `product_id` removes everything beneath it — no orphaned
+prospects/research left behind, and the confirmation dialog's own wording differs
+based on whether prospects exist (per `DeleteProductButton`'s own prospect-count
+branch). Step 3 throws `"This knowledge source could not be deleted -- it may have
+been removed already, or your access to it may have changed."` instead of silently
+succeeding. Step 4 succeeds and the source disappears from the UI.
+**Automated coverage:** none yet — same DB-access gap as most of this pass's fixes;
+the underlying RLS fact (a denied `DELETE` returns zero rows via `returning id`, not
+an error) is the same one `crm`'s own `test-crm-rls.mjs` already proves for its own
+tables, just not yet ported to a `discovery`-side script.
+
+### TC-DISCOVERY-015: Prospect cards show attributes as chips on small screens, a table on large ones
+**Feature:** Item #1 of a UX pass — `components/prospects/prospects-cards.tsx`, and
+CLAUDE.md's new platform-wide compact-cards-below-`md` principle (item #15) this
+component was the first to establish.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. View a product's prospects list at a narrow (sub-`md`) viewport width.
+2. Widen the viewport past `lg`.
+**Expected result:** Step 1 shows one compact card per prospect, each attribute as its
+own labeled chip, more than one per row when text width allows. Step 2 switches to a
+proper table layout, not a horizontally-scrolling or truncated version of the mobile
+card.
+**Automated coverage:** none — a pure layout/CSS behavior, no DB or logic to assert
+against; would need a visual/e2e test this repo doesn't have infrastructure for yet.
+
+### TC-DISCOVERY-016: `module-discovery`'s first `contract/index.ts` — the CRM handoff and the Customer 360 panel's own Discovery section
+**Feature:** `docs/design/crm-module-design.md` Part A/B —
+`createProspectFromExternalLead`, `getProspectSummaryForParty`. See `crm.md`
+TC-CRM-008/009 for the calling side; this case is discovery's own contract behavior.
+**Priority:** P0 · **Story:** this pass
+**Steps:**
+1. Call `createProspectFromExternalLead` for a business with `discovery` unlicensed.
+2. Call it for a business with zero products/workspaces.
+3. Call it with `existingPartyId` set to a party CRM's own webhook ingestion already
+   created (a lead-only party, no role yet).
+4. Call `getProspectSummaryForParty` for a party that has never been a prospect, and
+   for one that has, across two different businesses.
+**Expected result:** Step 1 returns `{ ok: false, error: "MODULE_NOT_LICENSED" }`, not
+an exception (ADR-10). Step 2 returns `{ ok: false, error: "NOT_FOUND" }`. Step 3
+creates the prospect linked to that *same* party (via the direct `.update({party_id})`
++ `addPartyRole` path — not a second, disconnected party from `createProspect()`'s own
+auto-create), and adds the `'prospect'` role to it. Step 4 returns `{ ok: true, data:
+null }` for the never-a-prospect case, and the real `{prospectId, productName, status,
+outcome}` for the other — scoped correctly per business (RLS on `discovery.prospects`
+already enforces this without an extra manual business-id filter in the contract
+function itself).
+**Automated coverage:** none yet — same cross-module-live-data gap as `crm.md`
+TC-CRM-008.

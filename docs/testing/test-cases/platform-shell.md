@@ -51,15 +51,26 @@ onboarding flow promises, user lands on a working dashboard — no dead-end or p
 **Expected result:** Navigates to the equivalent page under the new business's
 context, not a stale view still scoped to the old business.
 
-### TC-SHELL-005: AI chat widget and alert bell are genuinely wired to real data
+### TC-SHELL-005: AI chat widget and alert bell are genuinely wired to real data — and, as of item #13, every licensed module's own data, not just discovery's
 **Feature:** `03a7280` — "Wire real alert bell and AI chat widget into the platform shell."
-**Priority:** P1 · **Story:** post-port polish
+**Priority:** P1 · **Story:** post-port polish, extended by item #13 of a later UX pass
+**Update (this pass):** the bell previously only ever showed `deriveAccountAlerts()`'s
+own discovery-derived alerts. `apps/web/app/(dashboard)/layout.tsx#getOtherModuleAlerts`
+now also calls each of inventory/fsm/crm/gst's own `contract/index.ts#getAlerts` (per
+business, filtered to that business's actually-licensed modules first) and merges the
+results in, re-sorted by severity — see each module's own test-case file
+(`inventory.md` TC-INVENTORY-016, `fsm.md` TC-FSM-019, `gst.md` TC-GST-009) for the
+per-module detail; `crm` has no `getAlerts` of its own yet (not part of this pass's
+scope).
 **Steps:**
 1. Trigger a condition that should produce an alert (e.g. usage threshold, needs-action prospect).
 2. Check the alert bell.
 3. Ask the chat widget about current business/module state.
-**Expected result:** Both reflect real, current data — not the ported placeholder/demo
-content from either source repo.
+4. License a business for inventory/fsm/gst as well as discovery, each with at least
+   one alert-worthy condition, and open the bell.
+**Expected result:** Steps 1-3 reflect real, current data — not the ported
+placeholder/demo content from either source repo. Step 4 shows alerts from every
+licensed module in one merged, severity-sorted list, not only discovery's.
 
 ### TC-SHELL-006: Licenses admin UI accurately reflects and controls entitlements
 **Feature:** C-6.
@@ -133,3 +144,108 @@ inside each route — no such harness exists in this repo); verified this pass v
 `next build`, which compiles every route including these new boundaries without error,
 plus reading each file to confirm correct props/behavior. Manual verification (visiting
 each route with a forced error) has not been done live in a browser this pass.
+
+### TC-SHELL-011: The module picker's lock icon means "not licensed" — never "temporarily inert because another module is pinned"
+**Feature:** Item #8 of a UX pass — `packages/core/src/components/shell/module-selector.tsx`.
+**Priority:** P2 · **Story:** this pass (regression)
+**Correction:** before this fix, pinning one module to the drawer (`onTogglePin`) made
+every *other* module row show a lock icon too, identical to a genuinely unlicensed
+module's own icon — a founder had no way to tell "this is locked because I pinned
+something else" apart from "this is locked because I haven't bought it." Fixed so the
+lock renders only when `!module.licensed`; a licensed-but-pinned-away module instead
+shows no trailing icon at all, relying on its own muted row styling to convey
+"disabled for now."
+**Steps:**
+1. Pin a licensed module in the drawer.
+2. Look at every other *licensed* module's row.
+3. Look at an actually-unlicensed module's row, both pinned and unpinned states.
+**Expected result:** Step 2 shows no lock icon on any of them (muted/disabled styling
+only). Step 3 shows the lock icon in both states — licensing, not the pin, is the only
+thing that ever produces it.
+**Automated coverage:** none — pure rendering logic; would need a component-level test
+this repo has no precedent for yet.
+
+### TC-SHELL-012: Business name header has no redundant "BUSINESS" label or extra vertical space above it
+**Feature:** Item #9 of a UX pass — `apps/web/app/(dashboard)/dashboard/businesses/[businessId]/page.tsx`.
+**Priority:** P3 · **Story:** this pass (cosmetic)
+**Steps:**
+1. Open any business's own detail page and look just above the business name.
+**Expected result:** No "BUSINESS" label, and the breadcrumb/name/description block
+sits in a single tightened `gap-3` group with no extra blank vertical space above the
+name — purely visual, easy to silently regress if this page's layout is touched again
+without checking this case.
+**Automated coverage:** none — a pure layout/CSS check.
+
+### TC-SHELL-013: Admin & settings hub's Business section: disable/enable and business-wide API keys both work from the same row
+**Feature:** Items #7 and #17 of a UX pass —
+`apps/web/app/(dashboard)/dashboard/settings/page.tsx`.
+**Priority:** P1 · **Story:** this pass
+**Steps:**
+1. From `/dashboard/settings`, find a business's own row under "Business."
+2. Click through to "API keys" (business-wide, not inventory-specific — see
+   `core.md` TC-CORE-013).
+3. Click "Disable" on a business, confirm the dialog, then "Re-enable."
+4. Repeat step 3 while looking at the sidebar/topbar business switcher in another tab
+   or after a refresh (see `core.md` TC-CORE-016 for the full backend-level case).
+**Expected result:** Step 2 reaches the API-keys panel regardless of which modules
+the business has licensed (it's core-owned data, not gated on `inventory`). Step 3's
+confirmation dialog names exactly what disabling does (removed from the navbar,
+nothing deleted) before committing. Step 4 confirms the switcher list updates
+immediately after disabling/re-enabling.
+**Automated coverage:** none — same rendered-UI gap as most of this section.
+
+### TC-SHELL-014: Executive Dashboard (renamed from Control Center) reads clearly section by section
+**Feature:** Item #17 (second occurrence) of a UX pass —
+`apps/web/app/(dashboard)/dashboard/page.tsx`, the module picker's own shortcut label,
+and every module's breadcrumb trail that used to say "Control Center."
+**Priority:** P2 · **Story:** this pass
+**Correction:** the page/shortcut/breadcrumbs previously all said "Control Center" —
+renamed to "Executive Dashboard" everywhere at once (the h1, the module-selector's
+top shortcut, `app-sidebar.tsx`'s own doc comment), with each of the "Overview,"
+"Modules," and "Conversions" sections gaining a one-sentence description under its own
+heading, and the "Needs attention" card gaining a `CardDescription`. `crm`/`gst`'s own
+layouts (`crm/layout.tsx`, `gst/layout.tsx`) still literally said "Control Center" in
+their breadcrumb trail before item #19 (second occurrence, see `crm.md`/`gst.md`
+TC-GST-008) removed that crumb entirely — both fixes landed in the same pass.
+**Steps:**
+1. Open the module picker drawer and read its top shortcut.
+2. Navigate to `/dashboard` and read the page heading and each section's own
+   description text.
+**Expected result:** "Executive Dashboard" everywhere a reader would have seen
+"Control Center" before; "Overview"/"Modules"/"Conversions"/"Needs attention" each
+have a short description explaining what that section actually shows, not just a bare
+heading.
+**Automated coverage:** none — pure copy/rendering check.
+
+### TC-SHELL-015: Executive Dashboard's PDF download omits the settings/controls shortcut row
+**Feature:** Item #18 (second occurrence) of a UX pass —
+`apps/web/components/dashboard/download-pdf-button.tsx`, `print:hidden` styling.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. Open `/dashboard` and click "Download PDF."
+2. In the resulting print dialog's preview (or the saved PDF), check for the topbar,
+   sidebar, the "Admin & settings / Licenses / Usage / Billing" shortcut row, and the
+   "Download PDF" button itself.
+3. Check for the "Needs attention"/"Overview"/"Modules"/"Conversions" report content.
+**Expected result:** Step 2's four items are absent from the printed output
+(`print:hidden` on the topbar and this specific shortcut row and button — the browser's
+native Print-to-PDF flow, not a new PDF-rendering dependency). Step 3's actual report
+content prints normally, unclipped.
+**Automated coverage:** none — `window.print()`/browser print-preview behavior has no
+automated harness in this repo.
+
+### TC-SHELL-016: The sidebar's AI-credits percentage shows only while running on the platform's own included credit, never once BYOK is connected
+**Feature:** Item #16 of a UX pass — see `discovery.md` TC-DISCOVERY-004 for the full
+BYOK-vs-platform-key behavior; this case is the shell's own rendering half.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. With no BYOK key connected for the account, open the sidebar drawer and look at the
+   row above the avatar/profile.
+2. Connect a BYOK key and repeat.
+**Expected result:** Step 1 shows the "AI credits used X%" row (linking to
+`/dashboard/settings/usage`). Step 2 shows nothing in that row at all — not a stale
+0%/100%, the row is omitted entirely (`creditsUsedPercent={undefined}` from
+`apps/web/app/(dashboard)/layout.tsx`, which now checks `getAiProviderConnection()`
+before computing the percentage).
+**Automated coverage:** none — pure rendering check, same gap as `discovery.md`
+TC-DISCOVERY-004's own UI half.

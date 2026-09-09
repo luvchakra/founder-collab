@@ -142,3 +142,63 @@ exercised through inventory resources.
 2. Check `core.domain_events` and any consumer (e.g. FSM's low-stock banner, F-14).
 **Expected result:** Event is published in the documented shape; `fsm`'s consumer
 (if licensed) reacts correctly, and does nothing (not an error) if `fsm` isn't licensed.
+
+### TC-INVENTORY-014: Dashboard loads without crashing — every summary query selects columns that actually exist
+**Feature:** Item #2 of a UX pass — `lib/dashboard/queries.ts#getDashboardSummary`.
+**Priority:** P0 · **Story:** this pass (regression)
+**Background — a real bug found and fixed this session:** the dashboard's own summary
+query selected `supplier_name`/`source_warehouse_name`/`destination_warehouse_name`
+directly from views/tables that only ever had `*_id` columns — a straight crash on
+every load, not an edge case. Fixed by joining in JS via `Map`s
+(`supplierNameById`, reusing the already-passed-in `warehouseNameById`) instead of
+selecting nonexistent columns.
+**Steps:**
+1. Load `/dashboard/businesses/{id}/inventory/dashboard` for a business with at least
+   one supplier, one stock transfer between two warehouses, and one purchase order.
+2. Open the AI chat widget on any inventory page and ask a question with "consult
+   inventory" (or "all modules") selected — `getChatContextSummary()` calls this exact
+   same `getDashboardSummary()` function, so it shared the identical crash before this
+   fix (item #4 of the same pass, "AI chat checkbox fails" — same root cause, not a
+   second bug).
+**Expected result:** Step 1 renders every summary tile (supplier names, warehouse
+names on transfers, PO/SO counts) without a 500/crash. Step 2's chat answers
+normally with the checkbox selected, instead of failing where it worked fine
+unchecked.
+**Automated coverage:** none yet — this repo's harness is DB-only and can't render a
+page or drive a chat request; verified during development via a throwaway
+column-existence check against the live dev schema, not by a repeatable test. A real
+gap worth closing with a lightweight "every dashboard/chat-context query's selected
+columns exist" schema-shape check.
+
+### TC-INVENTORY-015: `listRecentOrdersForParty` feeds the Customer 360 panel with real order/invoice history
+**Feature:** `docs/design/crm-module-design.md` Part B, B1 —
+`contract/index.ts#listRecentOrdersForParty`.
+**Priority:** P1 · **Story:** this pass (see `crm.md` TC-CRM-009 for the calling side)
+**Steps:**
+1. Call `listRecentOrdersForParty` for a party with both sales orders and invoices,
+   with `inventory` unlicensed for the business.
+2. Repeat licensed, for a party with orders across both kinds.
+3. Repeat for a party with more than `limit` orders combined across both kinds.
+**Expected result:** Step 1 returns `MODULE_NOT_LICENSED` (ADR-10). Step 2 returns
+both `sales_order`- and `invoice`-kind rows, each `customer_id` matching exactly
+`core.documents.party_id` under `inventory.sales_orders`/`sales_invoices`'s own
+compat-view naming (ADR-11) — no join needed, confirmed against the actual view
+definitions before writing the query. Step 3 returns exactly `limit` rows, merged and
+re-sorted by date across both kinds, not `limit` from each separately.
+**Automated coverage:** none yet — same cross-module-live-data gap as `crm.md`
+TC-CRM-009.
+
+### TC-INVENTORY-016: Notification bell now surfaces inventory alerts platform-wide, not just discovery's own
+**Feature:** Item #13 of a UX pass — `contract/index.ts#getAlerts`.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. With `inventory` licensed and at least one stockout, one low-stock item, and one
+   overdue purchase order, open the topbar notification bell from any module's page.
+2. Repeat with `inventory` unlicensed for the active business.
+**Expected result:** Step 1 shows up to 3 open `inventory.alerts` rows (severity
+translated `"critical"→"warning"`, else `"info"`) alongside whatever discovery/fsm/
+crm/gst alerts also apply — not only visible from inside the Inventory module itself
+anymore. Step 2 contributes nothing (`MODULE_NOT_LICENSED` silently skipped by
+`apps/web/app/(dashboard)/layout.tsx#getOtherModuleAlerts`), not an error banner.
+**Automated coverage:** none yet — same DB-and-rendered-UI gap as most alert-bell/
+dashboard cases in this pass.

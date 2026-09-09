@@ -128,3 +128,36 @@ This is the first genuinely TS-level (not raw-SQL) automated test added across t
 whole test-deepening pass — worth reusing this pattern (mock the one external
 boundary, assert on the thrown message) for other pure-logic error paths, rather than
 assuming this repo's raw-SQL harness is the only testing tool available.
+
+### TC-GST-008: Breadcrumbs now read "Business / Compliance," matching inventory/fsm's generic pattern
+**Feature:** Item #19 of a later UX pass — `apps/web/app/(dashboard)/dashboard/
+businesses/[businessId]/gst/layout.tsx`.
+**Priority:** P2 · **Story:** this pass (regression)
+**Correction:** this file had no case pinning down the breadcrumb trail before now,
+and the trail itself had drifted: `gst/layout.tsx` still showed the older
+"Control Center / [business name] / Compliance" trail (three crumbs, a business-
+specific name in the middle, and a nav item — "Control Center" — that was itself
+renamed to "Executive Dashboard" this same pass) after `inventory`/`fsm` had already
+moved to a fixed, generic two-crumb "Business / [module]" trail. Fixed to match.
+**Steps:**
+1. Navigate to any Compliance/gst page for a business and read the breadcrumb trail.
+**Expected result:** Exactly "Business / Compliance" — a fixed generic first crumb
+linking to the business's own page, the module's display name second, no
+business-specific name and no "Control Center"/"Executive Dashboard" crumb at all
+(matching `inventory/layout.tsx`'s own doc comment on why: "no Control Center crumb
+and no per-instance business name").
+**Automated coverage:** none — a pure rendering check; `apps/web/tests/menu-routes.test.ts`
+confirms the route resolves, not what the breadcrumb text reads.
+
+### TC-GST-009: Notification bell surfaces GSTIN risk platform-wide, not just from inside Compliance
+**Feature:** Item #13 of a UX pass — `contract/index.ts#getAlerts`.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. With `gst` licensed and at least one supplier/customer this month missing or
+   holding an invalid GSTIN, open the topbar notification bell from any module's page.
+2. Repeat with `gst` unlicensed for the active business.
+**Expected result:** Step 1 shows one alert reusing `getComplianceDashboard()`'s own
+`riskCount`, linking to `/gst/filing`. Step 2 contributes nothing
+(`MODULE_NOT_LICENSED` silently skipped), not an error.
+**Automated coverage:** none yet — same rendered-topbar gap as `fsm.md` TC-FSM-019
+and `inventory.md` TC-INVENTORY-016.

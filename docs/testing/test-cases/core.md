@@ -150,23 +150,104 @@ doesn't reprocess an already-drained event.
 **Expected result:** A row exists with the correct actor, action, target, and
 timestamp — queryable from the audit-log UI (`components/audit-log`), not just the DB.
 
-### TC-CORE-013: API keys scope correctly to their business and permissions
+### TC-CORE-013: API keys scope correctly to their business and permissions, and now cover fsm/crm/gst resources too
 **Feature:** `core.api-v1/keys` (ported SP-7, `test-core-api-keys.mjs` covers RLS —
 this covers the actual request-scoping behavior).
 **Priority:** P0 · **Story:** SP-7 (promoted to core)
+**Update (this pass — item #7 of a UX pass):** the API-keys feature moved out of
+`inventory`'s own settings and into a business-wide admin route
+(`/dashboard/businesses/{id}/admin/api-keys`, `packages/core/src/components/api-keys/
+api-keys-panel.tsx`) — it was never actually inventory-specific (`core.api_keys` is a
+core table), and one key now scopes across every licensed module's own read-only API
+v1 resources, not just inventory's. `apps/web/app/api/v1/dispatch.ts`'s composite
+dispatcher resolves which of inventory/fsm/crm/gst owns a requested resource name
+(each module exports its own `RESOURCES` map: `fsm.jobs`, `crm.tickets`, `gst.einvoices`,
+built with `packages/core/src/api-v1/crud.server.ts#createCrudHandler`, all read-only —
+no `writePermission` configured) and merges each module's OpenAPI fragment into one
+spec at `GET /api/v1/openapi.json`.
 **Steps:**
 1. Create an API key scoped to Business A.
 2. Call `/api/v1/[resource]` with that key, requesting a resource under Business B.
-**Expected result:** Rejected — a key never reaches across businesses regardless of
-which resource ID is requested.
+3. With the same key, call `/api/v1/jobs`, `/api/v1/tickets`, and `/api/v1/einvoices`
+   (fsm/crm/gst's own new resources) against a business licensed for all three, then
+   one licensed for none of them.
+4. `GET /api/v1/openapi.json` and confirm every licensed module's own resources appear
+   in one merged spec.
+5. Attempt a `POST`/`PATCH` against `jobs`/`tickets`/`einvoices`.
+**Expected result:** Step 2 is rejected regardless of which resource ID is requested
+(unchanged from before this pass). Step 3 returns each module's own data only when
+that specific module is licensed for the key's business — `MODULE_NOT_LICENSED`-shaped
+behavior at the API layer too, not just the UI (ADR-10). Step 5 is rejected with 405,
+since none of these three resources declared a `writePermission`.
+**Automated coverage:** none yet — this repo's harness is DB/RLS-only and can't drive
+an actual HTTP request through the dispatcher or `createCrudHandler`; a real gap for a
+feature that's otherwise fully built.
 
 ### TC-CORE-014: Messaging threads/templates render correctly across modules
-**Feature:** `core.threads/messages/message_templates` (S-3), used by both discovery
-(email threads) and FSM (job messages, F-11).
+**Feature:** `core.threads/messages/message_templates` (S-3), used by discovery
+(email threads), FSM (job messages, F-11), and — as of this pass — CRM.
 **Priority:** P1 · **Story:** S-3
+**Update (this pass):** `core.messages.channel`'s check constraint only allowed
+`'email'`/`'sms'` until `20260909080000_crm_channel_accounts.sql` extended it to
+`'whatsapp'`/`'instagram'`/`'facebook_messenger'`/`'google_business_messages'` — the
+four channels CRM's own inbound webhooks (`docs/design/crm-module-design.md` Part A)
+normalize into this same shared table via `entity_type: 'crm_ticket'`, the same
+polymorphic-thread pattern FSM's job messages already used with `'fsm_job'`.
 **Steps:**
 1. Send a message using a template with merge fields (e.g. customer name).
 2. View the resulting thread from both a discovery context and an FSM job context (if
    the same underlying `core.messages` row is reachable from both).
+3. Ingest a CRM inbound webhook message and confirm its `channel` value (e.g.
+   `'whatsapp'`) is accepted by the constraint and the thread is reachable via
+   `entity_type='crm_ticket'`, `entity_id=<ticket id>`.
 **Expected result:** Merge fields render correctly; module-specific view of a shared
-thread shows consistent content.
+thread shows consistent content; a CRM channel value that predates this migration
+(anything outside the five now-allowed values) is rejected at the database level, not
+just silently miscategorized.
+
+### TC-CORE-015: `createParty()`'s admin-client override bypasses RLS — only a no-session caller may use it
+**Feature:** `packages/core/src/parties/mutations.ts#createParty` — extended this pass
+(docs/design/crm-module-design.md Part A, A2) to accept an optional service-role
+`client` override, the same shape `resolveAiModel()`/`getAccountIdForWorkspace()`
+already use for their own webhook/no-session callers.
+**Priority:** P0 · **Story:** security (this pass)
+**Steps:**
+1. Call `createParty(input)` with no `client` argument (every pre-existing caller) as
+   a signed-in user who is *not* a member of `input.businessId`.
+2. Call `createParty(input, adminClient)` (the only current caller: CRM's inbound
+   webhook, `lib/tickets/ingest-inbound-message.ts`) for a business the *ingesting
+   webhook request* has no session/membership in at all.
+**Expected result:** Step 1 is rejected by `core.parties`' own `insert` RLS policy
+(`business_id in (select core.user_account_ids())`-shaped) — the default parameter
+never weakens the normal path. Step 2 succeeds precisely because the caller is a
+webhook with no session to check membership for in the first place, same reasoning
+`db/admin.ts`'s own docstring already gives for every other admin-client use in this
+codebase — but this makes `createParty` the first core party-mutation with two
+different security postures depending on which client a caller happens to pass, worth
+watching if a future caller passes the admin client somewhere a real RLS check was
+actually wanted.
+**Automated coverage:** none yet — same DB/RLS-harness-can't-drive-TypeScript gap as
+several other cases in this file.
+
+### TC-CORE-016: Disabling a business hides it from the navbar without touching any of its data
+**Feature:** `core.businesses.disabled_at` (item #17 of a UX pass, module-level Admin
+> Business) — deliberately not a licensing concept (no grace period, no ADR-9
+mechanics): a business is either shown in the switcher or not, and every product,
+prospect, job, ticket, and document under it is completely untouched either way.
+**Priority:** P1 · **Story:** this pass
+**Steps:**
+1. Disable a business from `/dashboard/settings` (`BusinessStatusButton`'s confirmation
+   dialog).
+2. Check the sidebar/topbar business switcher and the account-wide Executive Dashboard.
+3. Navigate directly to `/dashboard/businesses/{disabledId}` by URL.
+4. Query the business's own products/prospects/jobs/tickets/documents directly.
+5. Re-enable the business.
+**Expected result:** Step 2 no longer lists the disabled business anywhere
+(`getAccountWorkspaceEntries()`'s own `.is("disabled_at", null)` filter feeds both the
+nav and the account-wide dashboard). Step 3 still loads normally — disabling only
+removes it from the nav-derived lists, it's not access-denied like a lapsed license.
+Step 4 shows every row exactly as before, no cascade, no soft-delete flag flipped
+anywhere else. Step 5 immediately restores it to the switcher.
+**Automated coverage:** none yet — needs a live Postgres query plus a rendered nav
+list; a real gap for a feature that's otherwise fully built and live-verified via
+Supabase MCP during development.

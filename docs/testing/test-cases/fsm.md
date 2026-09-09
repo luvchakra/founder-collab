@@ -230,3 +230,40 @@ of role/permission — this is a lower, DB-enforced layer that a permission gran
 never bypass.
 **Automated coverage:** `scripts/test-fsm-workflow.mjs`, section 3 ("Bob cannot wire a
 job in his own business to Alice's party").
+
+### TC-FSM-019: Notification bell surfaces overdue invoices, unassigned jobs, and estimates awaiting response platform-wide
+**Feature:** Item #13 of a UX pass — `contract/index.ts#getAlerts`.
+**Priority:** P2 · **Story:** this pass
+**Steps:**
+1. With `fsm` licensed and at least one overdue invoice, one unassigned job, and one
+   estimate awaiting a customer response, open the topbar notification bell from any
+   module's page (not just from inside FSM).
+2. Repeat with `fsm` unlicensed for the active business.
+**Expected result:** Step 1 shows all three alert kinds (reusing
+`getDispatcherDashboard(businessId, "today")`'s own read model — no second
+aggregation), each linking to the right FSM sub-page (`/invoices`, `/jobs`,
+`/opportunities`). Step 2 contributes nothing (`MODULE_NOT_LICENSED` silently
+skipped), not an error.
+**Automated coverage:** none yet — needs a rendered topbar and live dashboard data;
+same gap as `inventory.md` TC-INVENTORY-016.
+
+### TC-FSM-020: `listRecentJobsForParty` feeds the Customer 360 panel with real job history
+**Feature:** `docs/design/crm-module-design.md` Part B, B1 —
+`contract/index.ts#listRecentJobsForParty`.
+**Priority:** P1 · **Story:** this pass (see `crm.md` TC-CRM-009 for the calling side)
+**Steps:**
+1. Call `listRecentJobsForParty` for a party with jobs, with `fsm` unlicensed for the
+   business.
+2. Repeat licensed, for a party with more than one job, at least one of which has more
+   than one `fsm.events` calendar entry.
+3. Repeat for a job with zero calendar events at all.
+**Expected result:** Step 1 returns `MODULE_NOT_LICENSED`. Step 2 returns each job's
+own `id`/`number`/`status`/`description`, with `scheduledAt` set to that job's *most
+recent* `fsm.events.starts_at` (a deliberate simplification — a job can have more than
+one calendar event over its life; this picks one reasonable "when" for a summary
+panel, not every event). Step 3's job returns `scheduledAt: null`, not an error.
+Assigned technician and invoice status are *not* summarized here — the design doc's
+own text asked for them, but no existing query resolves them without a new lookup
+this pass didn't build; flagged rather than approximated.
+**Automated coverage:** none yet — same cross-module-live-data gap as `crm.md`
+TC-CRM-009.
