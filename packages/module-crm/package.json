@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@cofounderai/core": "*",
-    "@supabase/supabase-js": "^2.115.0",
     "react": "19.2.8"
   },
   "peerDependencies": {

@@ -14,7 +14,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export function run(cmd, args, opts = {}) {
+function run(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
 }
 
@@ -68,14 +68,14 @@ function makePsqlAsAsync(psqlAsync) {
   };
 }
 
-export function assertEqual(actual, expected, label) {
+function assertEqual(actual, expected, label) {
   if (String(actual).trim() !== String(expected)) {
     throw new Error(`FAIL: ${label} — expected "${expected}", got "${actual}"`);
   }
   console.log(`  ok: ${label}`);
 }
 
-export function assertThrows(fn, label) {
+function assertThrows(fn, label) {
   try {
     fn();
   } catch {
