@@ -239,8 +239,18 @@ decision to build them next. Original recommended order preserved.
    button alone -- it was never inside a `<form>` at all (a bare `onClick`), so it
    wasn't part of the audit's literal claim and converting it means restructuring the
    whole tab, out of scope here.
-5. No `loading.tsx` exists anywhere under `inventory`, `fsm`, `crm`, or `gst` routes
-   (10 exist, all under `discovery`/account settings).
+5. ~~No `loading.tsx` exists anywhere under `inventory`, `fsm`, `crm`, or `gst` routes
+   (10 exist, all under `discovery`/account settings).~~ — **Fixed 2026-09-09**: added
+   `loading.tsx` to all 35 leaf routes across the four modules (16 inventory, 12 fsm, 4
+   gst, 3 crm), reusing the same `LoadingSkeleton` from `@cofounderai/module-discovery/
+   components/ui/loading-skeleton` the existing 10 already use (apps/web is exempt from
+   the module-boundary contract-only rule, per `lint-import-boundaries.mjs`'s own
+   `owner.kind === "app"` exemption -- confirmed before reusing it rather than
+   duplicating the component into `core`). A per-segment `layout.tsx` matters here: only
+   the leaf page's own `loading.tsx` re-triggers on a sibling-route navigation within
+   the same module (e.g. `/inventory/products` → `/inventory/sales-orders`) -- a single
+   loading.tsx at the module root wouldn't refire for that case, which is why one exists
+   per leaf route rather than one per module.
 
 **P1 — usability at platform scale:**
 6. Mobile responsiveness is thin everywhere (14–32% of `.tsx` files per module use any
