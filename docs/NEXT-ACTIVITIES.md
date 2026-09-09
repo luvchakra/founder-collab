@@ -378,9 +378,18 @@ give subtle colour differences where required"). Status per item:
 - **§1c (no shared `EmptyState` component)** — not built. Real fix, but a new
   primitive + incremental migration across ~15 call sites, deferred rather than
   rushed.
-- **§1d (3 hardcoded hex colors bypassing the design-token system)** — not fixed;
-  `packages/core/src/components/ui/chart.tsx`, `module-fsm`'s `signature-pad.tsx`,
-  `module-discovery`'s `fsm-handoff-panel.tsx`.
+- **§1d (3 hardcoded hex colors bypassing the design-token system)** —
+  **investigated 2026-09-09, none are actual violations, no code change**: `chart.tsx`'s
+  `#ccc`/`#fff` are Tailwind attribute-selectors matching recharts' own hardcoded SVG
+  output, specifically so they can be overridden with `stroke-border`/etc -- removing
+  them would *un-fix* the override, not fix a violation. `fsm-handoff-panel.tsx` has no
+  hex colors at all; the audit's grep matched "#123"/"#456" in a doc comment
+  (placeholder record numbers, not colors). `signature-pad.tsx`'s white
+  fill/black stroke are deliberate and correct, not a bypass: a captured signature is
+  exported as a permanent PNG on invoices/estimates (often signed from an unthemed
+  public token page), and must always render as black ink on white paper regardless
+  of the signer's own light/dark preference -- a themed signature would be wrong, not
+  more consistent.
 - **§2 (a real Display/Settings preferences panel** — density, date/number locale,
   reduce-motion, sidebar default state, default landing module, backed by a new
   `core.user_preferences` table) — not built; a genuine new feature, not a bug fix,
