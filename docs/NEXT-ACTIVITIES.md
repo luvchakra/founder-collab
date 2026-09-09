@@ -121,15 +121,18 @@ than leaving indefinitely implicit:
 
 ## 4. Documentation hygiene (no code, just doc accuracy)
 
-- **`docs/PORT-PROVENANCE.md`'s network note is stale.** It records that this session's
-  environment couldn't reach the `jazdtomcgqjxjueedmck` Supabase project as of
-  2026-09-06 and that the `discovery` schema migration had "never been applied to it."
-  That's no longer true — every FSM story (F-8 through F-15) in this session applied
-  migrations to and live-verified against that exact project successfully. The note
-  should be corrected or removed so a future reader doesn't distrust a project that's
-  actually live and working.
-- `docs/FSM-PROGRESS.md`'s Epic 5 summary (just added) is accurate as of F-15; keep it
-  current as F-11 eventually unblocks.
+- ~~`docs/PORT-PROVENANCE.md`'s network note is stale.~~ — **Fixed** (see its own
+  "Update (2026-09-08)" annotation, added the same day this list was written) —
+  corrected in place rather than removed, so the original 2026-09-06 entry stays a
+  historical record.
+- `docs/FSM-PROGRESS.md`'s Epic 5 summary is accurate as of F-15; F-11 has since
+  unblocked and shipped as part of Epic 6's S-3 (see `docs/EPIC6-PROGRESS.md`).
+- **New (2026-09-09): dead-code sweep.** Ran `knip` across the whole workspace —
+  zero unused files found; removed 4 genuinely-unused dependency declarations
+  (`date-fns` in `core`; `@supabase/supabase-js` declared-but-unused directly in
+  `crm`/`fsm`/`gst`, all three reach Supabase only through `@cofounderai/core/db/*`)
+  and 3 dead `export` keywords in `scripts/lib/rls-test-harness.mjs`. Full
+  typecheck/build/lint/test suite green after.
 
 ---
 
