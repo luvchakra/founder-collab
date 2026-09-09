@@ -93,7 +93,7 @@ export function ModuleSelector({
             className="flex items-center gap-2.5 rounded-sm px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60"
           >
             <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">Control Center</span>
+            <span className="min-w-0 flex-1 truncate">Executive Dashboard</span>
           </Link>
 
           <div className="my-1 border-t border-border" />

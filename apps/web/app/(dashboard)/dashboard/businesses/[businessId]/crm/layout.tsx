@@ -6,8 +6,10 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "crm")?.name ?? "CRM";
 
-/** See inventory/layout.tsx's own doc comment -- same fix, same reasoning, one per
- * module rather than duplicated across crm's 3 leaf pages. */
+/** Item #19 of a UX pass: this had drifted from inventory/layout.tsx's fixed, generic
+ * "Business > [module]" trail (no "Control Center" crumb, no per-instance business
+ * name) -- same fix, same reasoning, one per module rather than duplicated across
+ * crm's 3 leaf pages. */
 export default async function CrmLayout({
   children,
   params,
@@ -23,8 +25,7 @@ export default async function CrmLayout({
     <div className="flex flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Control Center", href: "/dashboard" },
-          { label: business.name, href: `/dashboard/businesses/${businessId}` },
+          { label: "Business", href: `/dashboard/businesses/${businessId}` },
           { label: MODULE_NAME },
         ]}
       />

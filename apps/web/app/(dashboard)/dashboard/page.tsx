@@ -26,10 +26,11 @@ import { moduleRegistry, type ModuleKey } from "@cofounderai/module-registry";
 import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
-import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { formatDate } from "@cofounderai/core/lib/format";
 import { AlertTriangle, ArrowRight, Settings2 } from "lucide-react";
+import { DownloadPdfButton } from "@/components/dashboard/download-pdf-button";
 import { getOpenJobsCount } from "@cofounderai/module-fsm/lib/dashboard/queries";
 import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
 import { getOpenTicketsCount } from "@cofounderai/module-crm/lib/dashboard/queries";
@@ -94,7 +95,7 @@ async function computeModuleWidgets(
 type AttentionItem = { key: string; message: string; href: string; actionLabel: string; severity: "warning" | "info" };
 
 /**
- * The Control Center's own "needs attention" list -- pending license cancellations,
+ * The Executive Dashboard's own "needs attention" list -- pending license cancellations,
  * licenses already in their read-only grace period, and (for any business with GST/
  * Compliance licensed) a GST profile that's never been filled in. Every item links
  * straight to where it's fixed, per the "actionable data... quick links" ask -- this
@@ -273,15 +274,20 @@ export default async function DashboardPage({
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8">
       <section className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Control Center</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Actionable data and key configuration across every module -- quick links to
-            the areas you manage most.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">Executive Dashboard</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Actionable data and key configuration across every module -- quick links
+              to the areas you manage most.
+            </p>
+          </div>
+          <DownloadPdfButton />
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        {/* Settings/admin shortcuts -- left out of the downloaded PDF (item #18): these
+            are navigation, not report content, and a link is meaningless on paper. */}
+        <div className="flex flex-wrap gap-2 print:hidden">
           <Button asChild size="sm" variant="outline">
             <Link href="/dashboard/settings">
               <Settings2 className="size-3.5" aria-hidden="true" />
@@ -306,6 +312,10 @@ export default async function DashboardPage({
                 <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
                 Needs attention
               </CardTitle>
+              <CardDescription>
+                Pending license cancellations, licenses in their read-only grace
+                period, and Compliance-licensed businesses with no GSTIN on file yet.
+              </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col divide-y">
               {attentionItems.map((item) => (
@@ -329,6 +339,10 @@ export default async function DashboardPage({
 
       <section>
         <h2 className="text-xl font-semibold">Overview</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Account-wide totals across every business and product, regardless of which
+          modules they have licensed.
+        </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KpiCard label="Businesses" value={businesses.length} />
           <KpiCard label="Products" value={allProducts.length} />
@@ -352,6 +366,10 @@ export default async function DashboardPage({
       {moduleWidgets.length > 0 ? (
         <section>
           <h2 className="text-xl font-semibold">Modules</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            One glance at what each licensed module needs from you right now -- open
+            jobs, low-stock alerts, open tickets, or e-invoices generated this month.
+          </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {moduleWidgets.map((widget) => (
               <ModuleWidgetCard key={widget.key} label={widget.label} icon={widget.icon} value={widget.value} detail={widget.detail} />
@@ -361,8 +379,15 @@ export default async function DashboardPage({
       ) : null}
 
       <section className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Conversions</h2>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold">Conversions</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Discovery's outreach-to-customer pipeline -- win rate, fit scores, and
+              the funnel from prospect to won customer. Slice by business, product, or
+              industry below.
+            </p>
+          </div>
           <form method="get" className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="business">Business</Label>

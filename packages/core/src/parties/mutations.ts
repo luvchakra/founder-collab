@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../db/server";
 import type { Party, PartyContact, PartyKind, PartyRole } from "./types";
 
@@ -5,14 +6,25 @@ function coreClient() {
   return createClient({ schema: "core" });
 }
 
-export async function createParty(input: {
-  businessId: string;
-  kind?: PartyKind;
-  name: string;
-  email?: string | null;
-  phone?: string | null;
-}): Promise<Party> {
-  const supabase = await coreClient();
+/**
+ * `client`, when passed, is a service-role admin client for a caller with no logged-in
+ * user -- e.g. crm's inbound-webhook message ingestion (docs/design/crm-module-design.md
+ * Part A, A2) creating a lead-only party for a brand-new external sender it has no
+ * session to attribute the write to. Same optional-client-override shape
+ * resolveAiModel()/getAccountIdForWorkspace() already use for their own webhook/no-
+ * session callers -- defaults to the normal RLS-scoped client for every existing caller.
+ */
+export async function createParty(
+  input: {
+    businessId: string;
+    kind?: PartyKind;
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+  },
+  client?: SupabaseClient,
+): Promise<Party> {
+  const supabase = client ?? (await coreClient());
   const { data, error } = await supabase
     .from("parties")
     .insert({

@@ -3,6 +3,13 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
 import type { EmployeeOption, Ticket } from "./types";
 
+export async function getTicket(ticketId: string): Promise<Ticket | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("tickets").select("*").eq("id", ticketId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export const listTickets = cache(async (businessId: string): Promise<Ticket[]> => {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -41,3 +48,31 @@ export const listEmployeeOptions = cache(async (businessId: string): Promise<Emp
     email: r.user_id ? profileById.get(r.user_id)?.email ?? null : null,
   }));
 });
+
+/** The conversation's opening message -- what "Convert to prospect" (docs/design/
+ * crm-module-design.md Part A, A4) carries into the new prospect's own description,
+ * via core.threads/messages (entity_type='crm_ticket'), same shared store
+ * ingest-inbound-message.ts writes into. */
+export async function getFirstInboundMessageForTicket(businessId: string, ticketId: string): Promise<string | null> {
+  const core = await createCoreClient({ schema: "core" });
+  const { data: thread, error: threadError } = await core
+    .from("threads")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("entity_type", "crm_ticket")
+    .eq("entity_id", ticketId)
+    .maybeSingle();
+  if (threadError) throw threadError;
+  if (!thread) return null;
+
+  const { data: message, error: messageError } = await core
+    .from("messages")
+    .select("body")
+    .eq("thread_id", thread.id)
+    .eq("direction", "inbound")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (messageError) throw messageError;
+  return message?.body ?? null;
+}

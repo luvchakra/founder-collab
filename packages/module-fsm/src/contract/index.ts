@@ -4,7 +4,7 @@ import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
-import type { ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
+import type { ContractJobSummary, ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
@@ -138,6 +138,61 @@ export async function createOpportunityFromWonProspect(
   if (error) return { ok: false, error: error.message };
 
   return { ok: true, data: { opportunityId: data.id } };
+}
+
+/**
+ * Recent jobs for one party (docs/design/crm-module-design.md Part B, B1's Customer
+ * 360 panel) -- "upcoming/recent jobs, technician assigned, invoice status." Assigned
+ * technician and invoice status aren't summarized here (they'd need the job's own
+ * assignment/invoice lookups this contract doesn't otherwise expose yet); scheduledAt
+ * is the job's most recent fsm.events row, a reasonable single "when" for a summary
+ * panel even though a job can have more than one calendar event over its life.
+ */
+export async function listRecentJobsForParty(
+  businessId: string,
+  partyId: string,
+  limit = 10,
+): Promise<ContractResult<ContractJobSummary[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data: jobs, error: jobsError } = await fsm
+    .from("jobs")
+    .select("id, number, status, description, created_at")
+    .eq("business_id", businessId)
+    .eq("party_id", partyId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (jobsError) return { ok: false, error: jobsError.message };
+  if (jobs.length === 0) return { ok: true, data: [] };
+
+  const jobIds = jobs.map((j) => j.id);
+  const { data: events, error: eventsError } = await fsm
+    .from("events")
+    .select("job_id, starts_at")
+    .in("job_id", jobIds)
+    .order("starts_at", { ascending: false });
+  if (eventsError) return { ok: false, error: eventsError.message };
+
+  const latestStartsAtByJob = new Map<string, string>();
+  for (const event of events) {
+    if (event.job_id && !latestStartsAtByJob.has(event.job_id)) {
+      latestStartsAtByJob.set(event.job_id, event.starts_at);
+    }
+  }
+
+  return {
+    ok: true,
+    data: jobs.map((j) => ({
+      id: j.id,
+      number: j.number,
+      status: j.status,
+      description: j.description,
+      scheduledAt: latestStartsAtByJob.get(j.id) ?? null,
+      createdAt: j.created_at,
+    })),
+  };
 }
 
 /**

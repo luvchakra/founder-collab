@@ -33,7 +33,7 @@ export function AppTopbar({
   chatSlot?: ReactNode;
 }) {
   return (
-    <header className="relative z-50 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4 sm:gap-4 sm:px-6">
+    <header className="relative z-50 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4 sm:gap-4 sm:px-6 print:hidden">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <SidebarToggle />
         <Link

@@ -1,16 +1,22 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
+import type { KnownSenderCondition } from "./types";
 
 export type CreateRoutingRuleInput = {
   name: string;
   channelId?: string | null;
   assignToEmployeeId?: string | null;
   priority?: number;
+  /** B3's own two real, evaluated conditions (docs/design/crm-module-design.md Part
+   * B) -- see lib/routing-rules/evaluate.ts. Business hours are both-or-neither. */
+  conditionKnownSender?: KnownSenderCondition;
+  businessHoursStart?: string | null;
+  businessHoursEnd?: string | null;
 };
 
-/** S-1's own skeleton scope: structure only, no actual routing engine that applies
- * these rules to an incoming message -- that's the real unified-inbox feature, a later
- * story. */
+/** S-1's own skeleton scope, now extended by B3: still no channel-account-driven
+ * webhook of its own here -- ingest-inbound-message.ts's own matchRoutingRule()
+ * applies these against a real inbound message; this file just persists them. */
 export async function createRoutingRule(businessId: string, input: CreateRoutingRuleInput): Promise<void> {
   await requireModule(businessId, "crm");
   const supabase = await createClient();
@@ -20,6 +26,9 @@ export async function createRoutingRule(businessId: string, input: CreateRouting
     channel_id: input.channelId || null,
     assign_to_employee_id: input.assignToEmployeeId || null,
     priority: input.priority ?? 0,
+    condition_known_sender: input.conditionKnownSender ?? "any",
+    business_hours_start: input.businessHoursStart || null,
+    business_hours_end: input.businessHoursEnd || null,
   });
   if (error) throw error;
 }

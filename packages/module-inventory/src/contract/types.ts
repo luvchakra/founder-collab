@@ -26,6 +26,18 @@ export type ContractLowStockAlert = {
   createdAt: string;
 };
 
+/** One row of a party's recent sales-order/invoice history -- what the Customer 360
+ * panel (docs/design/crm-module-design.md Part B, B1) shows for "recent orders and
+ * their status" without CRM needing to know inventory's own schema. */
+export type ContractOrderSummary = {
+  id: string;
+  kind: "sales_order" | "invoice";
+  number: string;
+  status: string;
+  totalAmount: number;
+  orderDate: string;
+};
+
 export type UpsertItemInput = {
   /** Update this item by id when given; otherwise find-or-create by `sku` (when given),
    * else always insert a new row. */

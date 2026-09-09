@@ -26,3 +26,15 @@ export type CreateOpportunityFromProspectInput = {
   description?: string | null;
   workspaceId?: string | null;
 };
+
+/** One row of a party's recent job history -- what the Customer 360 panel
+ * (docs/design/crm-module-design.md Part B, B1) shows for "upcoming/recent jobs,
+ * technician assigned, invoice status" without CRM needing to know fsm's own schema. */
+export type ContractJobSummary = {
+  id: string;
+  number: string | null;
+  status: string;
+  description: string | null;
+  scheduledAt: string | null;
+  createdAt: string;
+};

@@ -72,3 +72,20 @@ export async function listAgingForBusiness(businessId: string): Promise<Document
   if (error) throw error;
   return data;
 }
+
+/** Same view, scoped to one party -- the Customer 360 panel's own "outstanding
+ * balance/aging" section (docs/design/crm-module-design.md Part B, B1) reads this
+ * directly rather than through any module's contract, since core.payments is
+ * core-owned shared data every module (including apps/web's composition root) can
+ * already read without going through a contract call. */
+export async function listAgingForParty(businessId: string, partyId: string): Promise<DocumentAging[]> {
+  const supabase = await coreClient();
+  const { data, error } = await supabase
+    .from("document_aging")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("party_id", partyId)
+    .order("days_overdue", { ascending: false });
+  if (error) throw error;
+  return data;
+}

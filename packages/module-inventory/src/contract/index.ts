@@ -4,7 +4,14 @@ import { publish } from "@cofounderai/core/events/mutations";
 import { createClient } from "../db/server";
 import { getDashboardSummary } from "../lib/dashboard/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
-import type { ContractAvailability, ContractLowStockAlert, ContractResult, ContractWarehouse, UpsertItemInput } from "./types";
+import type {
+  ContractAvailability,
+  ContractLowStockAlert,
+  ContractOrderSummary,
+  ContractResult,
+  ContractWarehouse,
+  UpsertItemInput,
+} from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
@@ -69,6 +76,64 @@ export async function getAvailability(
       reserved: Number(l.reserved),
       available: Number(l.quantity) - Number(l.reserved) - Number(l.damaged) - Number(l.expired),
     })),
+  };
+}
+
+/**
+ * Recent sales orders + invoices for one party (docs/design/crm-module-design.md
+ * Part B, B1's Customer 360 panel) -- both compat views' own `customer_id` column is
+ * `core.documents.party_id` under an inventory-friendly name (ADR-11), so a plain
+ * `.eq("customer_id", partyId)` on each is exactly "this party's inventory history,"
+ * no join needed. Merged and re-sorted since they're two separate views, not one table.
+ */
+export async function listRecentOrdersForParty(
+  businessId: string,
+  partyId: string,
+  limit = 10,
+): Promise<ContractResult<ContractOrderSummary[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const supabase = await createClient();
+  const [ordersResult, invoicesResult] = await Promise.all([
+    supabase
+      .from("sales_orders")
+      .select("id, so_number, status, total_amount, order_date")
+      .eq("org_id", businessId)
+      .eq("customer_id", partyId)
+      .order("order_date", { ascending: false })
+      .limit(limit),
+    supabase
+      .from("sales_invoices")
+      .select("id, invoice_number, payment_status, total_amount, invoice_date")
+      .eq("org_id", businessId)
+      .eq("customer_id", partyId)
+      .order("invoice_date", { ascending: false })
+      .limit(limit),
+  ]);
+  if (ordersResult.error) return { ok: false, error: ordersResult.error.message };
+  if (invoicesResult.error) return { ok: false, error: invoicesResult.error.message };
+
+  const orders: ContractOrderSummary[] = ordersResult.data.map((o) => ({
+    id: o.id,
+    kind: "sales_order",
+    number: o.so_number,
+    status: o.status,
+    totalAmount: Number(o.total_amount),
+    orderDate: o.order_date,
+  }));
+  const invoices: ContractOrderSummary[] = invoicesResult.data.map((i) => ({
+    id: i.id,
+    kind: "invoice",
+    number: i.invoice_number,
+    status: i.payment_status,
+    totalAmount: Number(i.total_amount),
+    orderDate: i.invoice_date,
+  }));
+
+  return {
+    ok: true,
+    data: [...orders, ...invoices].sort((a, b) => b.orderDate.localeCompare(a.orderDate)).slice(0, limit),
   };
 }
 

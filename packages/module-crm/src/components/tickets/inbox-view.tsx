@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
@@ -23,22 +24,30 @@ const STATUS_VARIANT: Record<TicketStatus, "default" | "secondary" | "outline"> 
  * reads `core.messages`/`core.threads` and is a later story's own scope, per
  * 00-MASTER-PLAN.md §5's "message.received | core | crm (triage)" event row). */
 export function InboxView({
+  businessId,
   tickets,
   channels,
   employees,
   createAction,
   updateStatusAction,
   assignAction,
+  convertToProspectAction,
 }: {
+  businessId: string;
   tickets: Ticket[];
   channels: Channel[];
   employees: EmployeeOption[];
   createAction: (subject: string, channelId?: string) => Promise<void>;
   updateStatusAction: (ticketId: string, status: TicketStatus) => Promise<void>;
   assignAction: (ticketId: string, employeeId: string | null) => Promise<void>;
+  /** docs/design/crm-module-design.md Part A, A4 -- only offered on tickets an
+   * inbound-channel webhook actually created (external_sender_handle set); manually
+   * created tickets have no external lead to convert. */
+  convertToProspectAction: (ticketId: string) => Promise<{ error: string } | { success: true }>;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [converted, setConverted] = useState<Set<string>>(new Set());
   const [subject, setSubject] = useState("");
   const [channelId, setChannelId] = useState("");
 
@@ -50,6 +59,18 @@ export function InboxView({
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
+    });
+  }
+
+  function runConvert(ticketId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await convertToProspectAction(ticketId);
+      if ("error" in result) {
+        setError(result.error);
+        return;
+      }
+      setConverted((prev) => new Set(prev).add(ticketId));
     });
   }
 
@@ -100,6 +121,7 @@ export function InboxView({
               <TableHead>Status</TableHead>
               <TableHead>Assigned to</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -138,6 +160,27 @@ export function InboxView({
                   </NativeSelect>
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{formatDateTime(ticket.created_at)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    {ticket.party_id ? (
+                      <Link
+                        href={`/dashboard/businesses/${businessId}/crm/customers/${ticket.party_id}?ticketId=${ticket.id}`}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Customer 360
+                      </Link>
+                    ) : null}
+                    {ticket.external_sender_handle ? (
+                      converted.has(ticket.id) ? (
+                        <Badge variant="secondary">Converted</Badge>
+                      ) : (
+                        <Button variant="outline" size="sm" disabled={pending} onClick={() => runConvert(ticket.id)}>
+                          Convert to prospect
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

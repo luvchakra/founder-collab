@@ -137,7 +137,7 @@ function ModuleContent({
     // Discovery has no route prefix of its own (unlike inventory/fsm/gst/crm) -- its
     // "home" is the bare business page, which already has discovery-specific content
     // (product list, per-product prospect counts, business profile) rather than the
-    // platform-wide Control Center this used to link to. Grouped under an "Overview"
+    // platform-wide Executive Dashboard this used to link to. Grouped under an "Overview"
     // heading with "Products" as its own separate heading below, matching every other
     // module's nav shape (an "Overview" group holding "Dashboard", per e.g. gst's own
     // manifest) instead of one bare link followed by an unlabeled products list.

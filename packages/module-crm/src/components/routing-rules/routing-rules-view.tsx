@@ -9,11 +9,19 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import type { Channel } from "../../lib/channels/types";
-import type { RoutingRule, EmployeeOption } from "../../lib/routing-rules/types";
+import type { RoutingRule, EmployeeOption, KnownSenderCondition } from "../../lib/routing-rules/types";
 
-/** S-1's own skeleton screen -- structure only, no actual routing engine that applies
- * these rules to an incoming message (that's the real unified-inbox feature, a later
- * story). */
+const KNOWN_SENDER_LABELS: Record<KnownSenderCondition, string> = {
+  any: "Anyone",
+  known: "Known senders only",
+  new: "New senders only",
+};
+
+/**
+ * S-1's own skeleton screen, extended by B3 (docs/design/crm-module-design.md Part
+ * B) with the two conditions ingest-inbound-message.ts's matchRoutingRule() actually
+ * evaluates against a real inbound message: known-vs-new sender and business hours.
+ */
 export function RoutingRulesView({
   rules,
   channels,
@@ -24,7 +32,15 @@ export function RoutingRulesView({
   rules: RoutingRule[];
   channels: Channel[];
   employees: EmployeeOption[];
-  createAction: (name: string, channelId: string, employeeId: string, priority: number) => Promise<void>;
+  createAction: (
+    name: string,
+    channelId: string,
+    employeeId: string,
+    priority: number,
+    conditionKnownSender: KnownSenderCondition,
+    businessHoursStart: string,
+    businessHoursEnd: string,
+  ) => Promise<void>;
   setActiveAction: (id: string, isActive: boolean) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
@@ -33,6 +49,9 @@ export function RoutingRulesView({
   const [channelId, setChannelId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [priority, setPriority] = useState("0");
+  const [conditionKnownSender, setConditionKnownSender] = useState<KnownSenderCondition>("any");
+  const [businessHoursStart, setBusinessHoursStart] = useState("");
+  const [businessHoursEnd, setBusinessHoursEnd] = useState("");
 
   function run(fn: () => Promise<void>) {
     setError(null);
@@ -57,7 +76,7 @@ export function RoutingRulesView({
         onSubmit={(e) => {
           e.preventDefault();
           run(async () => {
-            await createAction(name, channelId, employeeId, Number(priority) || 0);
+            await createAction(name, channelId, employeeId, Number(priority) || 0, conditionKnownSender, businessHoursStart, businessHoursEnd);
             setName("");
           });
         }}
@@ -92,6 +111,39 @@ export function RoutingRulesView({
           <Label htmlFor="rule-priority">Priority</Label>
           <Input id="rule-priority" type="number" className="w-20" value={priority} onChange={(e) => setPriority(e.target.value)} />
         </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="rule-known-sender">Sender</Label>
+          <NativeSelect
+            id="rule-known-sender"
+            value={conditionKnownSender}
+            onChange={(e) => setConditionKnownSender(e.target.value as KnownSenderCondition)}
+          >
+            {Object.entries(KNOWN_SENDER_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="rule-hours-start">Business hours (optional)</Label>
+          <div className="flex items-center gap-1">
+            <Input
+              id="rule-hours-start"
+              type="time"
+              className="w-28"
+              value={businessHoursStart}
+              onChange={(e) => setBusinessHoursStart(e.target.value)}
+            />
+            <span className="text-muted-foreground">to</span>
+            <Input
+              type="time"
+              className="w-28"
+              value={businessHoursEnd}
+              onChange={(e) => setBusinessHoursEnd(e.target.value)}
+            />
+          </div>
+        </div>
         <Button type="submit" size="sm" disabled={pending}>
           Add rule
         </Button>
@@ -107,6 +159,7 @@ export function RoutingRulesView({
               <TableHead>Channel</TableHead>
               <TableHead>Assign to</TableHead>
               <TableHead>Priority</TableHead>
+              <TableHead>Conditions</TableHead>
               <TableHead>Status</TableHead>
               <TableHead />
             </TableRow>
@@ -122,6 +175,19 @@ export function RoutingRulesView({
                     : "Unassigned"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">{rule.priority}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  <div className="flex flex-wrap gap-1">
+                    {rule.condition_known_sender !== "any" ? (
+                      <Badge variant="outline">{KNOWN_SENDER_LABELS[rule.condition_known_sender]}</Badge>
+                    ) : null}
+                    {rule.business_hours_start && rule.business_hours_end ? (
+                      <Badge variant="outline">
+                        {rule.business_hours_start.slice(0, 5)}-{rule.business_hours_end.slice(0, 5)}
+                      </Badge>
+                    ) : null}
+                    {rule.condition_known_sender === "any" && !rule.business_hours_start ? "—" : null}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <Badge variant={rule.is_active ? "secondary" : "outline"}>{rule.is_active ? "Active" : "Inactive"}</Badge>
                 </TableCell>

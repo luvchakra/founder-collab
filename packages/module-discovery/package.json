@@ -9,7 +9,8 @@
     "./prompts/*": "./src/prompts/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./actions/*": "./src/actions/*.ts"
+    "./actions/*": "./src/actions/*.ts",
+    "./contract/*": "./src/contract/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
