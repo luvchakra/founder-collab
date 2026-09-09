@@ -6,6 +6,28 @@ workspace- or business-scoped data, license-gating tests for anything touching a
 licensed module's tables") — that principle already exists in this repo's
 constitution; this doc is the concrete mechanism for following it, not a new rule.
 
+## 0. Running one module's tests on demand
+
+`npm run test:db` runs every module's DB/RLS scripts in one long chain — useful for CI,
+too slow to reach for while working on a single module. `scripts/test-module.mjs`
+scopes that down:
+
+```
+node scripts/test-module.mjs <core|discovery|inventory|fsm|crm|gst|all>
+# or
+npm run test:module -- <module>
+```
+
+Runs, in order: (1) that module's own package vitest suite (`npm run test --workspace
+<pkg>`, no database involved), then (2) its `scripts/test-<module>-*.mjs` DB/RLS and
+workflow scripts against a throwaway Postgres database. Stops at the first failing
+script (same fail-fast behavior as the `test:db` chain) and exits non-zero. A workflow
+script a module doesn't have yet is skipped, not a failure, so this never blocks on
+coverage still being built out.
+
+From inside Claude Code, `/test-module <module>` runs the same thing and reports
+pass/fail with the actual failing script's output, not just a status line.
+
 ## 1. What already exists (don't duplicate it)
 
 This repo already has real, running automated tests for the layer that matters most
