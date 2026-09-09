@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { getOrCreateThread, postMessage } from "@cofounderai/core/messages/mutations";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import type { Message } from "@cofounderai/core/messages/types";
 import { createClient as createFsmClient } from "../../db/server";
@@ -83,6 +84,7 @@ async function sendParticipantNotification(businessId: string, jobId: string, me
 /** Staff composing a new outbound message on a job's Messages tab (F-11). Finds-or-
  * creates the job's own thread, sends the email, and records it. */
 export async function sendJobMessage(businessId: string, jobId: string, body: string, subject?: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = body.trim();
   if (!trimmed) throw new Error("A message body is required.");
 

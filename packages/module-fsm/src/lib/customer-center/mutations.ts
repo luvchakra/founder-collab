@@ -3,6 +3,7 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import { SITE_URL } from "@cofounderai/core/site";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient as createFsmClient } from "../../db/server";
 import { generatePortalToken, hashPortalToken, resolveCenterToken } from "../portal-tokens/tokens";
 import { approveEstimateByToken, declineEstimateByToken } from "../estimates/mutations";
@@ -22,6 +23,7 @@ function coreClient() {
  * 30-day token expiry, generous for a portal link meant to be reused repeatedly rather
  * than a one-time estimate/invoice send. */
 export async function sendCustomerCenterAccess(businessId: string, partyId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const fsm = await createFsmClient();
 

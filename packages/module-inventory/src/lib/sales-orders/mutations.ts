@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { aggregateGst, computeLineGst, resolveStateCode } from "@cofounderai/core/lib/gst";
 
 export type LineItemInput = { product_id: string; quantity: number; unit_price: number; tax_rate: number };
@@ -54,6 +55,7 @@ async function computeTotals(
 
 /** Ported from stockpilot-ai-ops's `saveSo` mutation -- create branch. */
 export async function createSalesOrder(businessId: string, input: SalesOrderInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const discountAmount = input.discount_amount ?? 0;
   const shippingAmount = input.shipping_amount ?? 0;
@@ -105,6 +107,7 @@ export async function createSalesOrder(businessId: string, input: SalesOrderInpu
  * so nothing has been reserved against these items yet -- safe to replace the whole set
  * rather than diff it. */
 export async function updateSalesOrder(businessId: string, salesOrderId: string, input: SalesOrderInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const discountAmount = input.discount_amount ?? 0;
   const shippingAmount = input.shipping_amount ?? 0;

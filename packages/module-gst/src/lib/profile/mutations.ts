@@ -1,4 +1,5 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 
 function coreClient() {
   return createCoreClient({ schema: "core" });
@@ -17,6 +18,7 @@ export type GstProfileInput = {
  * exactly this reason.
  */
 export async function upsertGstProfile(businessId: string, input: GstProfileInput): Promise<void> {
+  await requireModule(businessId, "gst");
   const supabase = await coreClient();
   const { error } = await supabase.from("business_settings").upsert({
     business_id: businessId,

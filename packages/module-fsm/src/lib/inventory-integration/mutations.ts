@@ -1,5 +1,5 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
-import { hasModule } from "@cofounderai/core/licensing/queries";
+import { hasModule, requireModule } from "@cofounderai/core/licensing/queries";
 import { listWarehouses, reserveStock, releaseStock, consumeStock } from "@cofounderai/module-inventory/contract/index";
 import { getEstimateForOpportunity, listEstimateLines } from "../estimates/queries";
 
@@ -57,6 +57,7 @@ async function firstActiveWarehouseId(businessId: string): Promise<string | null
  * retried -- the dispatcher still sees the job scheduled; `stock.low` alerts (surfaced
  * separately) are how they'd notice the shortfall, not a blocked schedule action. */
 export async function reserveJobParts(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 
@@ -77,6 +78,7 @@ export async function reserveJobParts(businessId: string, jobId: string): Promis
  * permanently consumes the same quantity. Same best-effort reasoning as
  * `reserveJobParts` -- a completed job is never rolled back over a stock shortfall. */
 export async function consumeJobParts(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 
@@ -101,6 +103,7 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
  * unlicensed or by the release call itself failing (e.g. nothing was actually reserved,
  * because `inventory` wasn't licensed yet at schedule time). */
 export async function releaseJobParts(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 

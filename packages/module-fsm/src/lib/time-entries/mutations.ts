@@ -1,3 +1,4 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { getCurrentEmployee } from "../employees/queries";
 
@@ -9,6 +10,7 @@ import { getCurrentEmployee } from "../employees/queries";
  * 23505 catch here only turns that into a clear message instead of a raw constraint
  * error surfacing to the UI. */
 export async function clockIn(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const employee = await getCurrentEmployee(businessId);
   if (!employee) throw new Error("You're not set up as a technician for this business.");
 
@@ -24,6 +26,7 @@ export async function clockIn(businessId: string, jobId: string): Promise<void> 
  * wrong job's card -- while genuinely clocked into a different one -- fails loudly
  * instead of silently closing the wrong entry. */
 export async function clockOut(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const employee = await getCurrentEmployee(businessId);
   if (!employee) throw new Error("You're not set up as a technician for this business.");
 

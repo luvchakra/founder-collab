@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { reserveJobParts } from "../inventory-integration/mutations";
 import type { CreateEventInput, RescheduleEventInput } from "./types";
@@ -50,6 +51,7 @@ async function tryAdvanceOpportunityToEstimateScheduled(businessId: string, oppo
 }
 
 export async function createEvent(businessId: string, input: CreateEventInput): Promise<string> {
+  await requireModule(businessId, "fsm");
   if (!input.jobId && !input.opportunityId) {
     throw new Error("An event must be attached to a job or an opportunity.");
   }
@@ -92,6 +94,7 @@ export async function createEvent(businessId: string, input: CreateEventInput): 
  * this, so there's one code path for both "moved to a different day" and "moved to a
  * different hour". */
 export async function rescheduleEvent(id: string, businessId: string, patch: RescheduleEventInput): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase
     .from("events")
@@ -102,6 +105,7 @@ export async function rescheduleEvent(id: string, businessId: string, patch: Res
 }
 
 export async function updateEventDescription(id: string, businessId: string, description: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ description: description.trim() || null }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;
@@ -113,6 +117,7 @@ export async function updateEventDescription(id: string, businessId: string, des
  * `estimates/mutations.ts` already replaces charge-line sets on a full save -- there's
  * no partial-update case here that would need finer granularity. */
 export async function setEventAssignees(id: string, businessId: string, employeeIds: string[]): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error: deleteError } = await supabase.from("event_assignees").delete().eq("event_id", id).eq("business_id", businessId);
   if (deleteError) throw deleteError;
@@ -163,6 +168,7 @@ async function resolveEventCustomerEmail(businessId: string, eventId: string): P
  * as F-4's `sendEstimate`. Advances `scheduled -> en_route`; safe to call again (a
  * second notify just re-sends the email without erroring). */
 export async function notifyOnTheWay(businessId: string, eventId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const toEmail = await resolveEventCustomerEmail(businessId, eventId);
 
   const core = await coreClient();
@@ -191,24 +197,28 @@ export async function notifyOnTheWay(businessId: string, eventId: string): Promi
 }
 
 export async function markEventArrived(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ status: "arrived" }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;
 }
 
 export async function markEventDone(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ status: "done" }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;
 }
 
 export async function cancelEvent(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("events").update({ status: "cancelled" }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;
 }
 
 export async function deleteEvent(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("events").delete().eq("id", id).eq("business_id", businessId);
   if (error) throw error;

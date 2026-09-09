@@ -1,6 +1,8 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 
 export async function createServiceType(businessId: string, name: string, description?: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("A name is required.");
   const supabase = await createClient();
@@ -9,6 +11,7 @@ export async function createServiceType(businessId: string, name: string, descri
 }
 
 export async function updateServiceType(id: string, businessId: string, name: string, description?: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("A name is required.");
   const supabase = await createClient();
@@ -25,6 +28,7 @@ export async function updateServiceType(id: string, businessId: string, name: st
  * active-only picker filters) keeps history intact, same reasoning `setJobCustomFieldAction`-
  * adjacent settings elsewhere in this platform use for "retire, don't destroy". */
 export async function setServiceTypeActive(id: string, businessId: string, isActive: boolean): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("service_types").update({ is_active: isActive }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;

@@ -1,3 +1,4 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 
 export type StockMovementInput = {
@@ -13,6 +14,7 @@ export type StockMovementInput = {
  * (SP-3b, a trigger on this same table) posts the resulting stock_levels update --
  * there's no separate RPC to call, just the insert. */
 export async function recordStockMovement(businessId: string, input: StockMovementInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Not signed in");

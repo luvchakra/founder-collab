@@ -1,4 +1,5 @@
 import { createClient } from "../../db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import type { SalesReturnReason, SalesReturnStatus } from "./types";
 
 export type LineItemInput = {
@@ -21,6 +22,7 @@ export type SalesReturnInput = {
  * migration), never trusted from the client, and the linked sales order's shipped/
  * delivered state is validated there too -- this just submits the header + lines. */
 export async function createSalesReturn(businessId: string, input: SalesReturnInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { data: created, error } = await supabase
     .from("sales_returns")

@@ -1,6 +1,8 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 
 export async function createJobChargeType(businessId: string, name: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("A name is required.");
   const supabase = await createClient();
@@ -9,6 +11,7 @@ export async function createJobChargeType(businessId: string, name: string): Pro
 }
 
 export async function updateJobChargeType(id: string, businessId: string, name: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = name.trim();
   if (!trimmed) throw new Error("A name is required.");
   const supabase = await createClient();
@@ -20,6 +23,7 @@ export async function updateJobChargeType(id: string, businessId: string, name: 
  * references stay intact (a bare/no-FK column, F-3's own design), and the active-only
  * picker already filters on this flag. */
 export async function setJobChargeTypeActive(id: string, businessId: string, isActive: boolean): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { error } = await supabase.from("job_charge_types").update({ is_active: isActive }).eq("id", id).eq("business_id", businessId);
   if (error) throw error;

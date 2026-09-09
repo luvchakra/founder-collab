@@ -5,6 +5,7 @@ import { aggregateGst, computeLineGst, resolveStateCode } from "@cofounderai/cor
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import { SITE_URL } from "@cofounderai/core/site";
 import { publish } from "@cofounderai/core/events/mutations";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient as createFsmClient } from "../../db/server";
 import { generatePortalToken, hashPortalToken, resolvePortalToken } from "../portal-tokens/tokens";
 import type { Opportunity } from "../opportunities/types";
@@ -21,6 +22,7 @@ function coreClient() {
  * explicitly a SHOULD/LATER item in the PRD). Creates a draft the first time this
  * opportunity is estimated; returns the existing one on every call after. */
 export async function getOrCreateEstimate(businessId: string, opportunity: Opportunity): Promise<string> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { data: existing, error: findError } = await core
     .from("documents")
@@ -61,6 +63,7 @@ export async function getOrCreateEstimate(businessId: string, opportunity: Oppor
  * document -- it's already generic over any `core.documents` id, nothing here is
  * actually estimate-specific. */
 export async function recomputeAndPersistTotals(businessId: string, estimateId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
 
   const { data: doc, error: docError } = await core
@@ -147,6 +150,7 @@ async function resolveItemId(businessId: string, input: AddChargeLineInput): Pro
 }
 
 export async function addChargeLine(businessId: string, estimateId: string, input: AddChargeLineInput): Promise<void> {
+  await requireModule(businessId, "fsm");
   if (!Number.isFinite(input.quantity) || input.quantity <= 0) throw new Error("Quantity must be positive.");
 
   const { itemId, taxRate, unitPrice } = await resolveItemId(businessId, input);
@@ -179,6 +183,7 @@ export async function addChargeLine(businessId: string, estimateId: string, inpu
 }
 
 export async function updateChargeLine(businessId: string, estimateId: string, lineId: string, patch: UpdateChargeLineInput): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const update: Record<string, unknown> = {};
   if ("quantity" in patch) update.quantity = patch.quantity;
@@ -193,6 +198,7 @@ export async function updateChargeLine(businessId: string, estimateId: string, l
 }
 
 export async function deleteChargeLine(businessId: string, estimateId: string, lineId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { error } = await core.from("document_lines").delete().eq("id", lineId).eq("document_id", estimateId);
   if (error) throw error;
@@ -231,6 +237,7 @@ async function resolveRecipientEmail(core: QueryClient, opportunity: Opportunity
  * as `core.api_key_secrets`) rather than reusing one across sends, so an old emailed link
  * can be superseded without a separate revocation step. */
 export async function sendEstimate(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const fsm = await createFsmClient();
 
@@ -407,6 +414,7 @@ export async function declineEstimateByToken(rawToken: string): Promise<void> {
  * customer approving on the public page (job created, opportunity won), but triggered
  * from the opportunity detail page by someone who took a verbal/phone approval. */
 export async function approveEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<{ jobId: string }> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const fsm = await createFsmClient();
 
@@ -440,6 +448,7 @@ export async function approveEstimateInternal(businessId: string, opportunityId:
 /** Staff-side "decline internally" -- marks the estimate declined without requiring the
  * customer to click through the public page (e.g. a verbal decline over the phone). */
 export async function declineEstimateInternal(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { data: doc, error: docError } = await core.from("documents").select("status").eq("id", estimateId).eq("business_id", businessId).single();
   if (docError) throw docError;

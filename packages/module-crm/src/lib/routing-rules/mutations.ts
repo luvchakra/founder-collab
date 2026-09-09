@@ -1,3 +1,4 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 
 export type CreateRoutingRuleInput = {
@@ -11,6 +12,7 @@ export type CreateRoutingRuleInput = {
  * these rules to an incoming message -- that's the real unified-inbox feature, a later
  * story. */
 export async function createRoutingRule(businessId: string, input: CreateRoutingRuleInput): Promise<void> {
+  await requireModule(businessId, "crm");
   const supabase = await createClient();
   const { error } = await supabase.from("routing_rules").insert({
     business_id: businessId,

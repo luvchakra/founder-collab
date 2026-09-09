@@ -1,4 +1,5 @@
 import { createClient } from "../../db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import type { Warehouse } from "./types";
 
 export type WarehouseInput = {
@@ -15,6 +16,7 @@ export type WarehouseInput = {
 
 /** Ported from stockpilot-ai-ops's `saveWarehouse` mutation -- create branch. */
 export async function createWarehouse(businessId: string, input: WarehouseInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { error } = await supabase.from("warehouses").insert({
     business_id: businessId,

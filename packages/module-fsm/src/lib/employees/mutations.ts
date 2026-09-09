@@ -1,4 +1,5 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 
 function coreClient() {
   return createCoreClient({ schema: "core" });
@@ -13,6 +14,7 @@ function coreClient() {
  * events intact; `is_active = false` just stops them appearing as an assignable
  * option). */
 export async function setTechnicianStatus(businessId: string, userId: string, isTechnician: boolean): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { data: existing, error: fetchError } = await core
     .from("employees")

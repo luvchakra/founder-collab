@@ -1,5 +1,6 @@
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { createAdminClient } from "../../db/admin";
 import { callGsp, decryptGspSecrets } from "../gsp-client";
@@ -24,6 +25,7 @@ export async function upsertEinvoiceCredentials(
   businessId: string,
   input: EinvoiceCredentialsInput,
 ): Promise<void> {
+  await requireModule(businessId, "gst");
   const supabase = await createClient();
   const { error } = await supabase.from("einvoice_credentials").upsert({
     business_id: businessId,
@@ -59,6 +61,15 @@ export async function upsertEinvoiceCredentials(
  * real GSP credentials to test against). Only the fields this schema actually stores
  * are sent -- not a fully IRP-compliant payload (seller/buyer GSTIN, item lines, etc.),
  * a deliberate simplification documented alongside this story.
+ *
+ * Deliberately does NOT call `requireModule()` (unlike `upsertEinvoiceCredentials` above)
+ * -- it and `cancelEinvoice` below are reachable from the `document.issued` event
+ * consumer, drained by a Vercel Cron hitting `/api/cron/drain-events` with only a bearer
+ * secret, no signed-in user. `requireModule()` goes through the request-scoped,
+ * cookie-based `createClient()`, and `core.has_module_write()` is revoked from `anon` --
+ * calling it here would throw on every cron-driven invocation and silently break
+ * automatic e-invoice generation. The interactive "Generate"/"Cancel" callers already
+ * check `hasModule()` themselves in `contract/index.ts`'s `requireLicensed()`.
  */
 export async function generateEinvoice(businessId: string, documentId: string): Promise<Einvoice> {
   const admin = createAdminClient();

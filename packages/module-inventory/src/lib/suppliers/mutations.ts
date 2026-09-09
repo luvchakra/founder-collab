@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { isValidGstin } from "@cofounderai/core/lib/gst";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 
 export type SupplierInput = {
   name: string;
@@ -48,6 +49,7 @@ function payloadFrom(input: SupplierInput) {
 
 /** Ported from stockpilot-ai-ops's `saveSupplier` mutation -- create branch. */
 export async function createSupplier(businessId: string, input: SupplierInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { error } = await supabase.from("suppliers").insert({ org_id: businessId, ...payloadFrom(input) });
   if (error) throw error;

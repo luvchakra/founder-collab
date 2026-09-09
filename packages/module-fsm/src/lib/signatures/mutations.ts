@@ -1,3 +1,4 @@
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { uploadAttachment } from "@cofounderai/core/attachments/mutations";
 
@@ -5,6 +6,7 @@ import { uploadAttachment } from "@cofounderai/core/attachments/mutations";
  * `job_signature`-scoped attachment (core's generic attachments store, D-8 -- no new
  * storage concept needed) and records the `fsm.signatures` row pointing at it. */
 export async function captureSignature(businessId: string, jobId: string, signerName: string, image: Blob): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmedName = signerName.trim();
   if (!trimmedName) throw new Error("The signer's name is required.");
 

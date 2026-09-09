@@ -1,4 +1,5 @@
 import { createClient } from "../../db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import type { StockTransferStatus } from "./types";
 
 export type LineItemInput = { product_id: string; quantity: number };
@@ -16,6 +17,7 @@ function newTransferNumber() {
 
 /** Ported from stockpilot-ai-ops's `saveTransfer` mutation -- create branch. */
 export async function createStockTransfer(businessId: string, input: StockTransferInput): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { data: transfer, error } = await supabase
     .from("stock_transfers")
@@ -49,6 +51,7 @@ export async function updateStockTransfer(
   transferId: string,
   input: StockTransferInput,
 ): Promise<void> {
+  await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const { error } = await supabase
     .from("stock_transfers")

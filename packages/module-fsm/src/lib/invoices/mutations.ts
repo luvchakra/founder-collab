@@ -4,6 +4,7 @@ import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
 import { SITE_URL } from "@cofounderai/core/site";
 import { publish } from "@cofounderai/core/events/mutations";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { recordPayment, allocatePayment } from "@cofounderai/core/payments/mutations";
 import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import type { PaymentMethod } from "@cofounderai/core/payments/types";
@@ -32,6 +33,7 @@ function coreClient() {
  * job ever gets, closing the gap F-7 deliberately left open ("Charges are deliberately
  * not repeated here" -- true for opportunity-sourced jobs, not for job-only ones). */
 export async function getOrCreateInvoiceForJob(businessId: string, jobId: string): Promise<string> {
+  await requireModule(businessId, "fsm");
   const existing = await getInvoiceForJob(businessId, jobId);
   if (existing) return existing.id;
 
@@ -89,6 +91,7 @@ export async function getOrCreateInvoiceForJob(businessId: string, jobId: string
  * the module later and it still works" guarantee every other cross-module event in
  * this platform already gets. Idempotent past the first call. */
 export async function issueInvoice(businessId: string, invoiceId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { data: doc, error } = await core.from("documents").select("status").eq("id", invoiceId).eq("business_id", businessId).single();
   if (error) throw error;
@@ -128,6 +131,7 @@ async function resolveJobCustomerEmail(businessId: string, jobId: string): Promi
  * expiry (no `estimate_expiry_days`-equivalent setting exists for invoices) -- generous
  * enough that a real customer never hits it, short enough not to be a permanent link. */
 export async function sendInvoice(businessId: string, jobId: string, invoiceId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const lines = await listInvoiceLines(businessId, invoiceId);
   if (lines.length === 0) throw new Error("Add at least one charge before sending the invoice.");
 
@@ -210,6 +214,7 @@ export async function recordManualPayment(
   reference?: string,
   notes?: string,
 ): Promise<void> {
+  await requireModule(businessId, "fsm");
   if (!(amount > 0)) throw new Error("Payment amount must be greater than zero.");
   const invoice = await getInvoice(businessId, invoiceId);
   if (!invoice) throw new Error("Invoice not found.");
@@ -227,12 +232,14 @@ export async function recordManualPayment(
  * (documented, not silently dropped) rather than reconstructing exactly which of
  * `issued`/`sent`/`viewed` it should fall back to. */
 export async function markInvoicePaid(businessId: string, invoiceId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { error } = await core.from("documents").update({ status: "paid" }).eq("id", invoiceId).eq("business_id", businessId);
   if (error) throw error;
 }
 
 export async function markInvoiceUnpaid(businessId: string, invoiceId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const core = await coreClient();
   const { error } = await core.from("documents").update({ status: "issued" }).eq("id", invoiceId).eq("business_id", businessId);
   if (error) throw error;
@@ -244,6 +251,7 @@ export async function markInvoiceUnpaid(businessId: string, invoiceId: string): 
  * `inventory.create_credit_note()`'s own fuller version, which FSM can't call anyway:
  * it lives in the `inventory` schema, a module-boundary violation). Idempotent. */
 export async function voidInvoiceViaCreditNote(businessId: string, invoiceId: string, reason?: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const invoice = await getInvoice(businessId, invoiceId);
   if (!invoice) throw new Error("Invoice not found.");
   if (invoice.status === "voided") return;

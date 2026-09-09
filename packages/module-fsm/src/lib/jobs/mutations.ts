@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 import { resolveCustomerPartyId } from "../opportunities/mutations";
 import { getOrCreateInvoiceForJob } from "../invoices/mutations";
 import { consumeJobParts, releaseJobParts, reserveJobParts } from "../inventory-integration/mutations";
@@ -14,6 +15,7 @@ function coreClient() {
  * `core.next_number(business_id, 'job', 'JOB')` counter F-4 already uses, so numbers
  * never collide regardless of which path created the job. */
 export async function createJob(businessId: string, input: CreateJobInput): Promise<string> {
+  await requireModule(businessId, "fsm");
   const partyId = await resolveCustomerPartyId(businessId, input);
 
   const core = await coreClient();
@@ -42,6 +44,7 @@ export async function createJob(businessId: string, input: CreateJobInput): Prom
 }
 
 export async function updateJob(id: string, businessId: string, patch: UpdateJobInput): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const update: Record<string, unknown> = {};
   if ("serviceTypeId" in patch) update.service_type_id = patch.serviceTypeId;
@@ -68,6 +71,7 @@ async function transition(id: string, businessId: string, fromStatuses: string[]
  * reasoning F-2 already used for `reopenLostOpportunity`); F-6 will additionally drive
  * this transition for real once an event is actually created. */
 export async function markJobScheduled(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["unscheduled"], { status: "scheduled" });
   await reserveJobParts(businessId, id).catch(() => {});
 }
@@ -75,16 +79,19 @@ export async function markJobScheduled(id: string, businessId: string): Promise<
 /** `scheduled -> in_progress` (PRD §4: "start or first clock-in" -- clock-in is F-7's
  * own field-execution feature; this is the "start" half). */
 export async function startJob(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["scheduled"], { status: "in_progress", started_at: new Date().toISOString() });
 }
 
 export async function holdJob(id: string, businessId: string, reason: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const trimmed = reason.trim();
   if (!trimmed) throw new Error("A reason is required to put a job on hold.");
   await transition(id, businessId, ["in_progress"], { status: "on_hold", on_hold_reason: trimmed });
 }
 
 export async function resumeJob(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["on_hold"], { status: "in_progress", on_hold_reason: null });
 }
 
@@ -95,6 +102,7 @@ export async function resumeJob(id: string, businessId: string): Promise<void> {
  * blocked by an invoice-generation failure the user can always retry from the invoice
  * screen. */
 export async function completeJob(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["in_progress", "on_hold"], { status: "completed", completed_at: new Date().toISOString() });
   await consumeJobParts(businessId, id).catch(() => {});
 
@@ -106,6 +114,7 @@ export async function completeJob(id: string, businessId: string): Promise<void>
 }
 
 export async function cancelJob(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["unscheduled", "scheduled", "in_progress", "on_hold"], { status: "cancelled" });
   await releaseJobParts(businessId, id).catch(() => {});
 }
@@ -114,6 +123,7 @@ export async function cancelJob(id: string, businessId: string): Promise<void> {
  * `jobs.reopen` permission at the server-action layer, granted to owner/admin only,
  * distinct from the ordinary `jobs.edit` every other transition here uses. */
 export async function reopenJob(id: string, businessId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   await transition(id, businessId, ["completed"], { status: "in_progress", completed_at: null });
 }
 
@@ -121,6 +131,7 @@ export async function reopenJob(id: string, businessId: string): Promise<void> {
  * customer/service type/description/scope, not linked to the original via
  * `opportunity_id` (it's a new, independent job, not a continuation of the same one). */
 export async function duplicateJob(id: string, businessId: string): Promise<string> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   const { data: job, error: fetchError } = await supabase.from("jobs").select("*").eq("id", id).eq("business_id", businessId).single();
   if (fetchError) throw fetchError;
@@ -157,6 +168,7 @@ export async function duplicateJob(id: string, businessId: string): Promise<stri
  * doesn't, then delete the job -- the record genuinely moves back to being an
  * opportunity, it doesn't exist as both at once. */
 export async function convertJobToOpportunity(job: Job, businessId: string): Promise<string> {
+  await requireModule(businessId, "fsm");
   const supabase = await createClient();
   let opportunityId = job.opportunity_id;
 

@@ -1,4 +1,5 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { requireModule } from "@cofounderai/core/licensing/queries";
 
 function coreClient() {
   return createCoreClient({ schema: "core" });
@@ -13,6 +14,7 @@ export async function addWorkTag(
   taggableId: string,
   tagName: string,
 ): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await coreClient();
   const trimmed = tagName.trim();
   if (!trimmed) throw new Error("Tag name cannot be empty.");
@@ -44,6 +46,7 @@ export async function addWorkTag(
 }
 
 export async function removeWorkTag(businessId: string, tagId: string, taggableId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
   const supabase = await coreClient();
   const { error } = await supabase
     .from("taggings")
