@@ -12,6 +12,7 @@ export type DashboardInTransitTransfer = {
 };
 export type DashboardAlert = { id: string; title: string; severity: string };
 export type DashboardMovementDay = { day: string; label: number; increase: number; decrease: number };
+export type DashboardWarehouseUnits = { id: string; name: string; units: number };
 
 export type DashboardSummary = {
   productCount: number;
@@ -42,4 +43,9 @@ export type DashboardSummary = {
   gstCollectedThisMonth: number;
   salesTodayTotal: number;
   hasGstin: boolean;
+  /** Units on hand per warehouse, across the whole business regardless of the
+   * dashboard's own warehouse filter -- feeds the multi-warehouse comparison chart,
+   * which only makes sense as an all-warehouses view. Empty when the business has
+   * only ever had a single warehouse (a comparison of one bar isn't a comparison). */
+  byWarehouse: DashboardWarehouseUnits[];
 };

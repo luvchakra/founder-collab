@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
-import { activateLicense, deactivateLicense } from "@cofounderai/core/licensing/lifecycle";
+import { activateLicense, cancelLicense } from "@cofounderai/core/licensing/lifecycle";
 import type { ModuleKey } from "@cofounderai/core/licensing/types";
 
 const SETTINGS_PATH = "/dashboard/settings/licenses";
@@ -32,8 +32,11 @@ export async function activateModuleAction(businessId: string, moduleKey: Module
   revalidatePath(SETTINGS_PATH);
 }
 
-export async function deactivateModuleAction(businessId: string, moduleKey: ModuleKey) {
+/** Renamed from the old "deactivate immediately" behavior: cancelling now schedules the
+ * license to enter its grace period at the next billing cycle rather than doing it on
+ * the spot -- see cancelLicense()'s own doc comment. */
+export async function cancelModuleAction(businessId: string, moduleKey: ModuleKey) {
   await assertBusinessAccess(businessId);
-  await deactivateLicense(businessId, moduleKey);
+  await cancelLicense(businessId, moduleKey);
   revalidatePath(SETTINGS_PATH);
 }

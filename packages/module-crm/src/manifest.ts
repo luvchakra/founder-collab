@@ -23,6 +23,7 @@ export const crmManifest: ModuleManifest = {
       ],
     },
   ],
+  features: ["Unified inbox across channels", "Channel connections", "Automated routing rules"],
   permissions: ["crm.access"],
   optionalPeers: ["discovery", "fsm", "inventory", "gst"],
 };

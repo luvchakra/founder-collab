@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronsUpDown, Lock } from "lucide-react";
+import { Check, ChevronsUpDown, Lock, Pin } from "lucide-react";
 import { useDismiss } from "../../hooks/use-dismiss";
 import { cn } from "../../lib/utils";
 import { ModuleIcon } from "./module-icon";
@@ -27,12 +27,19 @@ import type { ShellNavModule } from "./types";
  * trigger's persisted selection. Styled visibly lighter (muted color, no bold-when-
  * selected treatment, separated by a hairline) so they read as a different kind of row
  * from the modules in between.
+ *
+ * Pinning (`pinnedKey`) locks the drawer to one module: every other module row becomes
+ * disabled/inert until `onTogglePin` unpins it. The pin toggle itself lives next to the
+ * trigger's chevron -- a separate button with its own stopPropagation, since clicking
+ * the trigger row otherwise just opens/closes the dropdown.
  */
 export function ModuleSelector({
   modules,
   selectedKey,
   onSelect,
   onNavigate,
+  pinnedKey,
+  onTogglePin,
 }: {
   modules: ShellNavModule[];
   selectedKey: string;
@@ -40,12 +47,18 @@ export function ModuleSelector({
   /** Closes the whole sidebar drawer -- used by the Dashboard/Admin shortcuts, which
    * navigate directly rather than switching the drawer's own selected module. */
   onNavigate?: () => void;
+  /** The module key currently pinned, if any -- every other module row is disabled
+   * while this is set. */
+  pinnedKey?: string | null;
+  /** Pins the currently selected module, or unpins whatever's pinned. */
+  onTogglePin?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   useDismiss(containerRef, open, () => setOpen(false));
 
   const selected = modules.find((m) => m.key === selectedKey) ?? modules[0];
+  const pinned = Boolean(pinnedKey);
 
   return (
     <div ref={containerRef} className="relative border-t border-sidebar-border">
@@ -54,6 +67,22 @@ export function ModuleSelector({
           role="menu"
           className="absolute inset-x-0 bottom-full mb-1 rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
         >
+          {pinned ? (
+            <div className="mb-1 flex items-center justify-between gap-2 rounded-sm bg-accent/60 px-3 py-1.5 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Pin className="size-3 shrink-0 fill-current" aria-hidden="true" />
+                Pinned to {selected?.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => onTogglePin?.()}
+                className="font-medium text-primary hover:underline"
+              >
+                Unpin
+              </button>
+            </div>
+          ) : null}
+
           <Link
             href="/dashboard"
             role="menuitem"
@@ -69,38 +98,56 @@ export function ModuleSelector({
 
           <div className="my-1 border-t border-border" />
 
-          {modules.map((module) => (
-            <button
-              key={module.key}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onSelect(module.key);
-                setOpen(false);
-              }}
-              aria-current={module.key === selectedKey ? "true" : undefined}
-              title={module.licensed ? undefined : `${module.name} isn't licensed for this business`}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-sm border-l-2 px-3 py-2 text-left text-sm",
-                !module.licensed
-                  ? "border-transparent text-muted-foreground hover:bg-accent/60"
-                  : module.key === selectedKey
-                    ? "border-primary bg-accent font-medium text-accent-foreground"
-                    : "border-transparent hover:bg-accent/60",
-              )}
-            >
-              <ModuleIcon
-                name={module.icon}
-                className={cn("size-4 shrink-0", module.licensed ? "text-muted-foreground" : "text-muted-foreground/60")}
-              />
-              <span className="min-w-0 flex-1 truncate">{module.name}</span>
-              {!module.licensed ? (
-                <Lock className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              ) : module.key === selectedKey ? (
-                <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
-              ) : null}
-            </button>
-          ))}
+          {modules.map((module) => {
+            const isSelected = module.key === selectedKey;
+            const lockedByPin = pinned && !isSelected;
+            return (
+              <button
+                key={module.key}
+                type="button"
+                role="menuitem"
+                disabled={lockedByPin}
+                onClick={() => {
+                  onSelect(module.key);
+                  setOpen(false);
+                }}
+                aria-current={isSelected ? "true" : undefined}
+                title={
+                  lockedByPin
+                    ? `Unpin ${selected?.name} to switch modules`
+                    : module.licensed
+                      ? undefined
+                      : `${module.name} isn't licensed for this business`
+                }
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-sm border-l-2 px-3 py-2 text-left text-sm",
+                  lockedByPin
+                    ? "cursor-not-allowed border-transparent text-muted-foreground/50"
+                    : !module.licensed
+                      ? "border-transparent text-muted-foreground hover:bg-accent/60"
+                      : isSelected
+                        ? "border-primary bg-accent font-medium text-accent-foreground"
+                        : "border-transparent hover:bg-accent/60",
+                )}
+              >
+                <ModuleIcon
+                  name={module.icon}
+                  className={cn(
+                    "size-4 shrink-0",
+                    lockedByPin ? "text-muted-foreground/40" : module.licensed ? "text-muted-foreground" : "text-muted-foreground/60",
+                  )}
+                />
+                <span className="min-w-0 flex-1 truncate">{module.name}</span>
+                {lockedByPin ? (
+                  <Lock className="size-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+                ) : !module.licensed ? (
+                  <Lock className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+                ) : isSelected ? (
+                  <Check className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                ) : null}
+              </button>
+            );
+          })}
 
           <div className="my-1 border-t border-border" />
 
@@ -119,21 +166,39 @@ export function ModuleSelector({
         </div>
       ) : null}
 
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex w-full items-center gap-2.5 bg-sidebar-accent/40 px-3 py-2.5 text-left transition-colors hover:bg-sidebar-accent"
-      >
-        {selected ? (
-          <ModuleIcon name={selected.icon} className="size-4 shrink-0 text-muted-foreground" />
+      <div className="flex w-full items-center gap-1 bg-sidebar-accent/40 px-2 py-1.5 transition-colors hover:bg-sidebar-accent">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm px-1 py-1 text-left"
+        >
+          {selected ? (
+            <ModuleIcon name={selected.icon} className="size-4 shrink-0 text-muted-foreground" />
+          ) : null}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">
+            {selected?.name ?? "Select module"}
+          </span>
+          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        </button>
+        {onTogglePin ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePin();
+            }}
+            title={pinned ? `Unpin -- currently pinned to ${selected?.name}` : `Pin ${selected?.name ?? "this module"}`}
+            className={cn(
+              "shrink-0 rounded-sm p-1.5 transition-colors",
+              pinned ? "text-primary hover:bg-accent" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+            )}
+          >
+            <Pin className={cn("size-3.5", pinned && "fill-current")} aria-hidden="true" />
+          </button>
         ) : null}
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {selected?.name ?? "Select module"}
-        </span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      </button>
+      </div>
     </div>
   );
 }

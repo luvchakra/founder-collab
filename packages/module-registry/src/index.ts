@@ -34,6 +34,12 @@ export interface ModuleManifest {
   /** Route segment under apps/web/app/(dashboard)/[businessSlug]/, e.g. "/discovery". */
   routePrefix: string;
   nav: ModuleNavGroup[];
+  /** Short, plain-language bullets of what a license for this module actually includes --
+   * shown on the licenses settings page so a founder can see what they're buying/keeping
+   * without having to click into the module itself. Not exhaustive, not derived from
+   * `nav` (nav is a route tree for the sidebar; this is marketing-level, few enough
+   * items to read at a glance). */
+  features: string[];
   /** Permission keys this module defines, seeded into core.permissions by story C-7. */
   permissions: string[];
   /** Other module keys this module integrates with when both are licensed (soft, per ADR-10). */
@@ -51,6 +57,12 @@ export const moduleRegistry: ModuleManifest[] = [
     // not a static nav tree -- this entry exists only so every module has *a* nav
     // manifest for the shape's other consumers (usage/licenses pages).
     nav: [{ heading: undefined, items: [{ label: "Overview", slug: "", icon: "Target" }] }],
+    features: [
+      "AI-generated ideal customer profiles",
+      "Prospect discovery and research",
+      "CSV/Excel/PDF prospect and catalog import",
+      "Outreach conversion tracking",
+    ],
     permissions: ["discovery.access"],
     optionalPeers: ["fsm"],
   },
@@ -101,6 +113,12 @@ export const moduleRegistry: ModuleManifest[] = [
         ],
       },
     ],
+    features: [
+      "Product catalog and multi-warehouse stock",
+      "Purchase orders and supplier management",
+      "Sales orders, invoices, and returns",
+      "Low-stock alerts and audit log",
+    ],
     permissions: ["inventory.access"],
     optionalPeers: ["fsm", "gst"],
   },
@@ -130,6 +148,12 @@ export const moduleRegistry: ModuleManifest[] = [
       { heading: "Reports", items: [{ label: "Reports", slug: "reports", icon: "BarChart3" }] },
       { heading: "Administration", items: [{ label: "Settings", slug: "settings", icon: "Settings" }] },
     ],
+    features: [
+      "Opportunity-to-job pipeline",
+      "Crew scheduling and dispatch calendar",
+      "Mobile-friendly field work (time, notes, signatures)",
+      "Job invoicing and reporting",
+    ],
     permissions: ["fsm.access"],
     optionalPeers: ["discovery", "inventory", "gst", "crm"],
   },
@@ -148,6 +172,7 @@ export const moduleRegistry: ModuleManifest[] = [
         ],
       },
     ],
+    features: ["Unified inbox across channels", "Channel connections", "Automated routing rules"],
     permissions: ["crm.access"],
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],
   },
@@ -167,6 +192,7 @@ export const moduleRegistry: ModuleManifest[] = [
         ],
       },
     ],
+    features: ["GST profile and GSTIN management", "e-Way bill generation", "e-Invoicing", "GST return filing"],
     permissions: ["gst.access"],
     optionalPeers: ["inventory", "fsm"],
   },

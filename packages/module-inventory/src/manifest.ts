@@ -54,6 +54,12 @@ export const inventoryManifest: ModuleManifest = {
       ],
     },
   ],
+  features: [
+    "Product catalog and multi-warehouse stock",
+    "Purchase orders and supplier management",
+    "Sales orders, invoices, and returns",
+    "Low-stock alerts and audit log",
+  ],
   permissions: ["inventory.access"],
   optionalPeers: ["fsm", "gst"],
 };

@@ -1,5 +1,6 @@
 import type { InvoiceListItem } from "../invoices/types";
 import type { Job } from "../jobs/types";
+import type { JobListItem } from "../jobs/types";
 import type { OpportunityListItem } from "../opportunities/types";
 import type { ScheduleEventItem } from "../events/types";
 
@@ -12,11 +13,18 @@ export type DashboardJobItem = Job & { party_name: string };
 /** `/fsm` dispatcher dashboard's own read (PRD §5: "today's schedule, unassigned queue,
  * jobs in progress, overdue invoices, estimates awaiting response") -- five small,
  * already-bounded lists, not a paginated view; each one links through to the fuller
- * page (Schedule, Jobs, Invoices, Opportunities) that actually manages that data. */
+ * page (Schedule, Jobs, Invoices, Opportunities) that actually manages that data.
+ * `jobs`/`invoices`/`opportunities` are the full lists the metrics/charts layer
+ * (lib/dashboard/aggregate.ts) computes from -- kept alongside the five queue lists
+ * above rather than replacing them, since the queue is still the dispatcher's morning
+ * action list and the aggregates are a separate, additional read of the same data. */
 export interface DispatcherDashboard {
   todaysEvents: ScheduleEventItem[];
   unassignedJobs: DashboardJobItem[];
   jobsInProgress: DashboardJobItem[];
   overdueInvoices: InvoiceListItem[];
   estimatesAwaitingResponse: OpportunityListItem[];
+  jobs: JobListItem[];
+  invoices: InvoiceListItem[];
+  opportunities: OpportunityListItem[];
 }

@@ -33,8 +33,21 @@ function last14DayKeys(): string[] {
  * listProducts already masks cost_price -- there's no `products_safe` column-masking
  * view in this platform's compat layer (SP-4 built row-level compat views, not a
  * column-level one), so the masking has to happen wherever cost_price is read.
+ *
+ * `warehouseId` slices the stock-derived figures (units/reserved/healthy-low-stockout/
+ * lowStock/stockValue/movementTrend) down to one warehouse -- purchase orders, sales,
+ * and GST have no warehouse dimension in this schema, so those stay business-wide
+ * regardless. `warehouseNameById` (every warehouse on the business, not just the
+ * selected one) is what `byWarehouse` below is grouped and labeled against, whether or
+ * not a single warehouse is selected -- the caller (the dashboard page) already has
+ * this list for its own filter dropdown, so it's passed in rather than re-queried here.
  */
-export async function getDashboardSummary(businessId: string, canViewCost: boolean): Promise<DashboardSummary> {
+export async function getDashboardSummary(
+  businessId: string,
+  canViewCost: boolean,
+  warehouseId?: string,
+  warehouseNameById: Map<string, string> = new Map(),
+): Promise<DashboardSummary> {
   const supabase = await createClient();
   const now = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
@@ -57,7 +70,7 @@ export async function getDashboardSummary(businessId: string, canViewCost: boole
     gstProfile,
   ] = await Promise.all([
     supabase.from("products").select("id, name, sku, cost_price, reorder_point").eq("org_id", businessId),
-    supabase.from("stock_levels").select("item_id, quantity, reserved, damaged, expired").eq("business_id", businessId),
+    supabase.from("stock_levels").select("item_id, warehouse_id, quantity, reserved, damaged, expired").eq("business_id", businessId),
     supabase
       .from("alerts")
       .select("id, title, severity, created_at")
@@ -67,7 +80,7 @@ export async function getDashboardSummary(businessId: string, canViewCost: boole
       .limit(5),
     supabase
       .from("stock_movements")
-      .select("type, quantity, created_at")
+      .select("type, quantity, created_at, warehouse_id")
       .eq("business_id", businessId)
       .gte("created_at", windowStart.toISOString()),
     supabase
@@ -107,12 +120,26 @@ export async function getDashboardSummary(businessId: string, canViewCost: boole
   if (gstSalesRes.error) throw gstSalesRes.error;
   if (inTransitRes.error) throw inTransitRes.error;
 
+  // Per-warehouse units, from the full (unfiltered) levels list regardless of whether
+  // a single warehouse is selected below -- this is what feeds the multi-warehouse
+  // comparison chart, which only makes sense as a view across all of them.
+  const unitsByWarehouse = new Map<string, number>();
+  for (const l of levelsRes.data) {
+    unitsByWarehouse.set(l.warehouse_id, (unitsByWarehouse.get(l.warehouse_id) ?? 0) + Number(l.quantity));
+  }
+  const byWarehouse = [...unitsByWarehouse.entries()]
+    .map(([id, units]) => ({ id, name: warehouseNameById.get(id) ?? "Unknown warehouse", units }))
+    .sort((a, b) => b.units - a.units);
+
+  const levels = warehouseId ? levelsRes.data.filter((l) => l.warehouse_id === warehouseId) : levelsRes.data;
+  const movements = warehouseId ? movementsRes.data.filter((m) => m.warehouse_id === warehouseId) : movementsRes.data;
+
   const productList = productsRes.data;
   const qtyByProduct = new Map<string, number>();
   let reservedTotal = 0;
   let damagedTotal = 0;
   let expiredTotal = 0;
-  for (const l of levelsRes.data) {
+  for (const l of levels) {
     qtyByProduct.set(l.item_id, (qtyByProduct.get(l.item_id) ?? 0) + Number(l.quantity));
     reservedTotal += Number(l.reserved);
     damagedTotal += Number(l.damaged);
@@ -180,7 +207,7 @@ export async function getDashboardSummary(businessId: string, canViewCost: boole
   const gstCollectedThisMonth = cgstCollectedThisMonth + sgstCollectedThisMonth + igstCollectedThisMonth;
 
   const byDay = new Map(last14DayKeys().map((day) => [day, { increase: 0, decrease: 0 }]));
-  for (const m of movementsRes.data) {
+  for (const m of movements) {
     const day = m.created_at.slice(0, 10);
     const bucket = byDay.get(day);
     if (!bucket) continue;
@@ -220,5 +247,6 @@ export async function getDashboardSummary(businessId: string, canViewCost: boole
     gstCollectedThisMonth,
     salesTodayTotal,
     hasGstin: Boolean(gstProfile.gstin),
+    byWarehouse,
   };
 }

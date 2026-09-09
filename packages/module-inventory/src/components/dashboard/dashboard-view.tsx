@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   AlertTriangle,
   ArrowRight,
@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { Button } from "@cofounderai/core/ui/button";
+import { Label } from "@cofounderai/core/ui/label";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import {
   ChartContainer,
   ChartTooltip,
@@ -28,10 +31,15 @@ import {
 import { formatDate, inr, num } from "@cofounderai/core/lib/format";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { DashboardSummary } from "../../lib/dashboard/types";
+import type { Warehouse } from "../../lib/warehouses/types";
 
 const movementsChartConfig = {
   increase: { label: "Stock in", color: "var(--primary)" },
   decrease: { label: "Stock out", color: "var(--chart-3)" },
+} satisfies ChartConfig;
+
+const warehouseChartConfig = {
+  units: { label: "Units on hand", color: "var(--primary)" },
 } satisfies ChartConfig;
 
 /**
@@ -46,16 +54,61 @@ export function DashboardView({
   businessId,
   businessName,
   data,
+  warehouses = [],
+  selectedWarehouseId,
 }: {
   businessId: string;
   businessName: string;
   data: DashboardSummary;
+  /** All warehouses on this business -- powers the filter dropdown below. Optional so
+   * existing callers/tests that don't care about the warehouse slice keep working. */
+  warehouses?: Warehouse[];
+  selectedWarehouseId?: string;
 }) {
   const gstPath = `/dashboard/businesses/${businessId}/gst`;
   const inventoryPath = `/dashboard/businesses/${businessId}/inventory`;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        {warehouses.length > 1 ? (
+          <form method="get" className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="warehouse">Warehouse</Label>
+              <NativeSelect id="warehouse" name="warehouse" defaultValue={selectedWarehouseId ?? ""}>
+                <option value="">All warehouses</option>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <Button type="submit" size="sm" variant="outline">
+              Apply
+            </Button>
+            {selectedWarehouseId ? (
+              <Button asChild size="sm" variant="ghost">
+                <Link href={`${inventoryPath}/dashboard`}>Clear</Link>
+              </Button>
+            ) : null}
+          </form>
+        ) : (
+          <span />
+        )}
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${inventoryPath}/purchase-orders`}>New purchase order</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${inventoryPath}/transfers`}>New stock transfer</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${inventoryPath}/stock`}>Adjust stock</Link>
+          </Button>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-6">
         {data.stockValue !== null ? (
           <Kpi label="Inventory value" value={inr.format(data.stockValue)} icon={<IndianRupee className="size-4 text-primary" />} />
@@ -274,6 +327,25 @@ export function DashboardView({
           </CardContent>
         </Card>
       </div>
+
+      {data.byWarehouse.length > 1 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Units on hand by warehouse</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={warehouseChartConfig} className="aspect-auto h-[160px] w-full">
+              <BarChart data={data.byWarehouse} layout="vertical" margin={{ left: 8 }}>
+                <CartesianGrid horizontal={false} strokeDasharray="3 3" />
+                <XAxis type="number" tickLine={false} axisLine={false} />
+                <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} width={110} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="units" fill="var(--color-units)" radius={[0, 2, 2, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

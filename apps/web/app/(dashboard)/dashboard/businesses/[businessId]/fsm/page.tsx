@@ -5,14 +5,18 @@ import { DispatcherDashboardView } from "@cofounderai/module-fsm/components/dash
 
 export default async function FsmDashboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessId: string }>;
+  searchParams: Promise<{ range?: string }>;
 }) {
   const { businessId } = await params;
+  const { range: rangeParam } = await searchParams;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const data = await getDispatcherDashboard(businessId);
+  const range = rangeParam === "week" ? "week" : "today";
+  const data = await getDispatcherDashboard(businessId, range);
 
   return (
     <div className="flex flex-col gap-6">
@@ -21,7 +25,7 @@ export default async function FsmDashboardPage({
         <p className="mt-1 text-sm text-muted-foreground">{business.name} -- today&apos;s queue, at a glance.</p>
       </div>
 
-      <DispatcherDashboardView businessId={businessId} data={data} />
+      <DispatcherDashboardView businessId={businessId} data={data} range={range} />
     </div>
   );
 }

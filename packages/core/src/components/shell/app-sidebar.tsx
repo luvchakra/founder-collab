@@ -11,6 +11,7 @@ import { ModuleIcon } from "./module-icon";
 import type { ShellBusiness, ShellNavGroup, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
 const MODULE_STORAGE_KEY = "cofounderai:selected-module";
+const PINNED_MODULE_STORAGE_KEY = "cofounderai:pinned-module";
 
 /**
  * Infers the active module from the URL for the routes that unambiguously indicate one
@@ -46,6 +47,25 @@ function writeStoredModule(key: string) {
     window.localStorage.setItem(MODULE_STORAGE_KEY, key);
   } catch {
     // Storage unavailable (private browsing, quota) -- selection just won't persist.
+  }
+}
+
+function readPinnedModule(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(PINNED_MODULE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writePinnedModule(key: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (key) window.localStorage.setItem(PINNED_MODULE_STORAGE_KEY, key);
+    else window.localStorage.removeItem(PINNED_MODULE_STORAGE_KEY);
+  } catch {
+    // Storage unavailable -- pin just won't persist across reloads.
   }
 }
 
@@ -225,6 +245,10 @@ export function AppSidebar({
   // explicitly picked from the selector, stashed in localStorage for pages whose URL
   // doesn't indicate a module (bare /dashboard, settings, etc).
   const [selectedModule, setSelectedModuleState] = useState<string>(() => {
+    // A pin outranks even the URL -- the drawer should reopen on the pinned module, not
+    // whatever page happens to be loaded.
+    const pinned = readPinnedModule();
+    if (pinned && modules.some((m) => m.key === pinned && m.licensed)) return pinned;
     const fromUrl = inferModuleFromPath(pathname);
     if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) return fromUrl;
     const stored = readStoredModule();
@@ -241,17 +265,45 @@ export function AppSidebar({
     writeStoredModule(key);
   }
 
+  // Pinning locks the drawer to whichever module is pinned -- handleSelectModule below
+  // refuses to switch away from it until unpinned, same guarantee the picker's own UI
+  // enforces by disabling every other row. Persisted so a pin survives a reload/full
+  // navigation, same reasoning as selectedModule itself.
+  const [pinnedModule, setPinnedModuleState] = useState<string | null>(() => {
+    const pinned = readPinnedModule();
+    // A stale pin (e.g. the module's license was cancelled since) shouldn't lock the
+    // drawer to something it can no longer show as selectable.
+    if (pinned && !modules.some((m) => m.key === pinned && m.licensed)) {
+      writePinnedModule(null);
+      return null;
+    }
+    return pinned;
+  });
+
+  function togglePin() {
+    if (pinnedModule) {
+      setPinnedModuleState(null);
+      writePinnedModule(null);
+      return;
+    }
+    setPinnedModuleState(selectedModule);
+    writePinnedModule(selectedModule);
+  }
+
   // Client-side navigations (e.g. the selector's own "Dashboard" link) don't remount this
   // component, so re-derive from the URL whenever it changes too -- keeps the drawer in
-  // sync without waiting for the next full reload.
+  // sync without waiting for the next full reload. Skipped entirely while pinned: the
+  // whole point of pinning is that the drawer stays on that module regardless of which
+  // page is open, not just that the picker's own rows are disabled.
   useEffect(() => {
+    if (pinnedModule) return;
     const fromUrl = inferModuleFromPath(pathname);
     if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) {
       setSelectedModuleState(fromUrl);
       writeStoredModule(fromUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, pinnedModule]);
 
   useEffect(() => {
     if (!open) return;
@@ -277,6 +329,11 @@ export function AppSidebar({
     // rewrites direct URL access to) instead of switching the drawer to show it, so
     // clicking a module the business doesn't have surfaces "activate this" rather than
     // either not existing at all or silently doing nothing.
+    // Pinned to a different module -- ModuleSelector already disables these rows, this
+    // is the same guarantee enforced defensively at the one place that actually flips
+    // the drawer's content, in case anything else ever calls this directly.
+    if (pinnedModule && pinnedModule !== key) return;
+
     const business = effectiveBusinessId ?? businesses[0]?.id;
     const licensed = modules.find((m) => m.key === key)?.licensed ?? true;
     if (!licensed && business) {
@@ -334,6 +391,8 @@ export function AppSidebar({
           selectedKey={selectedModule}
           onSelect={handleSelectModule}
           onNavigate={() => setOpen(false)}
+          pinnedKey={pinnedModule}
+          onTogglePin={togglePin}
         />
 
         {creditsUsedPercent !== undefined ? (

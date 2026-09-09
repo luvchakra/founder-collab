@@ -2,6 +2,7 @@ import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { listEventsForRange } from "../events/queries";
 import { listInvoices } from "../invoices/queries";
+import { listJobs } from "../jobs/queries";
 import { listOpportunities } from "../opportunities/queries";
 import type { DispatcherDashboard } from "./types";
 
@@ -12,24 +13,36 @@ function coreClient() {
 /** `/fsm`'s own dispatcher dashboard (PRD §5, the module's root route -- previously
  * missing entirely; docs/testing/EXECUTION-2026-09-08.md finding 6): "today's schedule,
  * unassigned queue, jobs in progress, overdue invoices, estimates awaiting response,"
- * verbatim. Reuses each list page's own already-tested query rather than duplicating
+ * verbatim, PLUS the metrics/charts layer added on top of it later -- also returns the
+ * full `jobs`/`invoices`/`opportunities` lists those aggregates (lib/dashboard/
+ * aggregate.ts) are computed from, so the page doesn't issue its own separate queries
+ * for them. Reuses each list page's own already-tested query rather than duplicating
  * their join-in-JS logic -- this just narrows/filters what each already returns, same
- * reasoning `listMyEventsForRange` already applies to `listEventsForRange`. */
-export async function getDispatcherDashboard(businessId: string): Promise<DispatcherDashboard> {
+ * reasoning `listMyEventsForRange` already applies to `listEventsForRange`.
+ *
+ * `range` slices the schedule section only ("today's schedule" vs. the next 7 days) --
+ * every other section (queues, invoices, estimates, the aggregates) stays as-is
+ * regardless, since "schedule window" is the one dimension that actually varies day to
+ * day for a dispatcher. */
+export async function getDispatcherDashboard(
+  businessId: string,
+  range: "today" | "week" = "today",
+): Promise<DispatcherDashboard> {
   const supabase = await createClient();
 
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setUTCHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1);
+  const scheduleEnd = new Date(todayStart);
+  scheduleEnd.setUTCDate(scheduleEnd.getUTCDate() + (range === "week" ? 7 : 1));
 
-  const [todaysEvents, unassignedJobsRes, jobsInProgressRes, invoices, opportunities] = await Promise.all([
-    listEventsForRange(businessId, todayStart.toISOString(), todayEnd.toISOString()),
+  const [todaysEvents, unassignedJobsRes, jobsInProgressRes, invoices, opportunities, jobs] = await Promise.all([
+    listEventsForRange(businessId, todayStart.toISOString(), scheduleEnd.toISOString()),
     supabase.from("jobs").select("*").eq("business_id", businessId).eq("status", "unscheduled").order("created_at", { ascending: false }),
     supabase.from("jobs").select("*").eq("business_id", businessId).eq("status", "in_progress").order("created_at", { ascending: false }),
     listInvoices(businessId),
     listOpportunities(businessId),
+    listJobs(businessId),
   ]);
   if (unassignedJobsRes.error) throw unassignedJobsRes.error;
   if (jobsInProgressRes.error) throw jobsInProgressRes.error;
@@ -45,7 +58,7 @@ export async function getDispatcherDashboard(businessId: string): Promise<Dispat
   );
   const estimatesAwaitingResponse = opportunities.filter((o) => o.status === "estimate_sent");
 
-  return { todaysEvents, unassignedJobs, jobsInProgress, overdueInvoices, estimatesAwaitingResponse };
+  return { todaysEvents, unassignedJobs, jobsInProgress, overdueInvoices, estimatesAwaitingResponse, jobs, invoices, opportunities };
 }
 
 /** Same "no PostgREST embed, join in JS" pattern `jobs/queries.ts#listJobs` already

@@ -12,6 +12,12 @@
  * callout, done literally: Alice's license gets a `grace_ends_at` in the past,
  * Bob's in the future, and the exact same `expireGracePeriods()` query runs once
  * against both.
+ *
+ * Also covers the later "cancel now, deactivate on the next billing cycle" addition:
+ * a pending cancellation (`cancel_at` set, status still 'active') changes nothing about
+ * read/write access, undoing it just clears `cancel_at`, and only once `cancel_at`
+ * actually arrives does the same active -> grace transition happen (what
+ * processDueCancellations() does by calling deactivateLicense()).
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -67,16 +73,43 @@ async function main() {
         select business_id, party_id, 'y', 'manual' from fsm.opportunities limit 1`);
       assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "2", "Alice can write while active");
 
-      console.log("Cancelling Alice's license (deactivateLicense: status -> grace, grace_ends_at = now()+30d)...");
+      console.log("Requesting cancellation (cancelLicense: status stays 'active', cancel_at scheduled for the next billing cycle)...");
       psql(`
-        update core.licenses set status = 'grace', deactivated_at = now(), grace_ends_at = now() + interval '30 days'
+        update core.licenses set cancel_at = now() + interval '10 days' where id = '${aliceLicense}';
+        insert into core.license_events (license_id, business_id, module_key, event_type)
+        values ('${aliceLicense}', '${aliceBusiness}', 'fsm', 'cancellation_scheduled');
+      `);
+
+      console.log("Verifying a pending cancellation changes nothing yet: reads and writes both still work...");
+      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "2", "Alice still reads fine with a cancellation pending");
+      psqlAsAlice(`insert into fsm.opportunities (business_id, party_id, description, source)
+        select business_id, party_id, 'pending-cancel-write', 'manual' from fsm.opportunities limit 1`);
+      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "3", "Alice can still write too -- has_module_write() only looks at status, and it's still 'active'");
+      assertEqual(psql(`select status from core.licenses where id = '${aliceLicense}'`), "active", "status itself hasn't moved yet");
+
+      console.log("Undoing the cancellation (activateLicense on an already-active license just clears cancel_at)...");
+      psql(`
+        update core.licenses set cancel_at = null where id = '${aliceLicense}';
+        insert into core.license_events (license_id, business_id, module_key, event_type)
+        values ('${aliceLicense}', '${aliceBusiness}', 'fsm', 'cancellation_undone');
+      `);
+      assertEqual(psql(`select cancel_at from core.licenses where id = '${aliceLicense}'`), "", "cancel_at is cleared -- nothing pending any more");
+
+      console.log("Re-requesting cancellation, this time letting its billing cycle arrive (processDueCancellations sweeps it into deactivateLicense: status -> grace, grace_ends_at = now()+30d)...");
+      psql(`update core.licenses set cancel_at = now() - interval '1 hour' where id = '${aliceLicense}';`);
+      const due = psql(`
+        select id from core.licenses where status = 'active' and cancel_at is not null and cancel_at <= now();
+      `);
+      assertEqual(due, aliceLicense, "the due-cancellation sweep finds exactly Alice's license");
+      psql(`
+        update core.licenses set status = 'grace', deactivated_at = now(), grace_ends_at = now() + interval '30 days', cancel_at = null
         where id = '${aliceLicense}';
         insert into core.license_events (license_id, business_id, module_key, event_type)
         values ('${aliceLicense}', '${aliceBusiness}', 'fsm', 'deactivated');
       `);
 
       console.log("Verifying TC-CORE-002: grace denies writes, still allows reads...");
-      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "2", "Alice can still read during grace (ADR-9 -- read-only, not denied)");
+      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "3", "Alice can still read during grace (ADR-9 -- read-only, not denied)");
       assertThrows(
         () => psqlAsAlice(`insert into fsm.opportunities (business_id, party_id, description, source)
           select business_id, party_id, 'z', 'manual' from fsm.opportunities limit 1`),
@@ -109,7 +142,7 @@ async function main() {
 
       console.log("Verifying TC-CORE-003: expired denies reads too, but the data is retained, not deleted...");
       assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "0", "Alice can no longer read once expired -- denied by RLS, not just the UI");
-      assertEqual(psql("select count(*) from fsm.opportunities"), "2", "the rows themselves still physically exist -- ADR-9's 'never delete' guarantee, checked as superuser bypassing RLS");
+      assertEqual(psql("select count(*) from fsm.opportunities"), "3", "the rows themselves still physically exist -- ADR-9's 'never delete' guarantee, checked as superuser bypassing RLS");
       assertEqual(
         psql(`select status from core.licenses where id = '${aliceLicense}'`),
         "expired",
@@ -128,10 +161,10 @@ async function main() {
         insert into core.license_events (license_id, business_id, module_key, event_type)
         values ('${aliceLicense}', '${aliceBusiness}', 'fsm', 'reactivated');
       `);
-      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "2", "read access fully restored, same 2 rows as before -- reactivation doesn't recreate data, it was never gone");
+      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "3", "read access fully restored, same 3 rows as before -- reactivation doesn't recreate data, it was never gone");
       psqlAsAlice(`insert into fsm.opportunities (business_id, party_id, description, source)
         select business_id, party_id, 'w', 'manual' from fsm.opportunities limit 1`);
-      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "3", "write access restored too, no separate re-provisioning step needed");
+      assertEqual(psqlAsAlice("select count(*) from fsm.opportunities"), "4", "write access restored too, no separate re-provisioning step needed");
 
       console.log("Verifying Bob was never affected by anything done to Alice's license throughout...");
       assertEqual(psqlAsBob("select count(*) from fsm.opportunities"), "0", "Bob still sees zero -- his own business never had any opportunities, and Alice's license changes never leaked across tenants");

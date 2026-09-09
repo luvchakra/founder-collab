@@ -1,25 +1,116 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { Button } from "@cofounderai/core/ui/button";
+import { BreakdownBars } from "@cofounderai/core/ui/breakdown-bars";
 import { formatDate, formatDateTime, inr } from "@cofounderai/core/lib/format";
+import {
+  buildJobStatusBreakdown,
+  buildRevenueTrend,
+  computeOpportunityWinRate,
+  computeOutstanding,
+  computeRevenueThisMonth,
+} from "../../lib/dashboard/aggregate";
+import { RevenueTrendChart } from "./revenue-trend-chart";
 import type { DispatcherDashboard } from "../../lib/dashboard/types";
 
+function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-md border p-4">
+      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
+      <span className="text-2xl font-semibold">{value}</span>
+      {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
+    </div>
+  );
+}
+
 /**
- * `/fsm`'s own dispatcher dashboard (PRD §5) -- five widget cards, each linking through
- * to the fuller page that actually manages that data (Schedule, Jobs, Invoices,
- * Opportunities). Deliberately no charts/aggregates beyond simple counts -- the PRD
- * describes this as an action queue for a dispatcher's morning, not a KPI page (that's
- * `inventory`'s own dashboard's job, a different design intent).
+ * `/fsm`'s own dispatcher dashboard (PRD §5) -- the five action-queue widget cards
+ * below, unchanged, each linking through to the fuller page that actually manages that
+ * data (Schedule, Jobs, Invoices, Opportunities), PLUS a metrics/visual layer on top
+ * (KPIs, revenue trend, job-status mix) and a schedule-range filter + quick-action
+ * buttons. The queue cards stay the dispatcher's morning action list; the layer added
+ * here is a separate, additional read of the same underlying data, matching what
+ * discovery's and inventory's own dashboards already do.
  */
-export function DispatcherDashboardView({ businessId, data }: { businessId: string; data: DispatcherDashboard }) {
+export function DispatcherDashboardView({
+  businessId,
+  data,
+  range = "today",
+}: {
+  businessId: string;
+  data: DispatcherDashboard;
+  range?: "today" | "week";
+}) {
   const base = `/dashboard/businesses/${businessId}/fsm`;
+  const openJobs = data.jobs.filter((j) => j.status !== "completed" && j.status !== "cancelled").length;
+  const revenueThisMonth = computeRevenueThisMonth(data.invoices);
+  const outstanding = computeOutstanding(data.invoices);
+  const winRate = computeOpportunityWinRate(data.opportunities);
+  const jobStatusBreakdown = buildJobStatusBreakdown(data.jobs);
+  const revenueTrend = buildRevenueTrend(data.invoices);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex gap-1 rounded-md border p-1 text-sm">
+          <Link
+            href={`${base}?range=today`}
+            className={range === "today" ? "rounded-sm bg-accent px-3 py-1 font-medium" : "rounded-sm px-3 py-1 text-muted-foreground hover:bg-accent/60"}
+          >
+            Today
+          </Link>
+          <Link
+            href={`${base}?range=week`}
+            className={range === "week" ? "rounded-sm bg-accent px-3 py-1 font-medium" : "rounded-sm px-3 py-1 text-muted-foreground hover:bg-accent/60"}
+          >
+            This week
+          </Link>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${base}/opportunities`}>New opportunity</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${base}/jobs`}>New job</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${base}/schedule`}>Schedule</Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Open jobs" value={openJobs} detail={`${data.jobsInProgress.length} in progress`} />
+        <KpiCard label="Revenue (month)" value={inr.format(revenueThisMonth)} />
+        <KpiCard label="Outstanding" value={inr.format(outstanding)} detail={`${data.overdueInvoices.length} overdue`} />
+        <KpiCard label="Win rate" value={winRate === null ? "--" : `${winRate}%`} detail="won / (won + lost)" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Invoiced (30 days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RevenueTrendChart data={revenueTrend} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Jobs by status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BreakdownBars items={jobStatusBreakdown} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between text-base">
-            Today&apos;s schedule
+            {range === "week" ? "This week's schedule" : "Today's schedule"}
             <Badge variant="secondary">{data.todaysEvents.length}</Badge>
           </CardTitle>
         </CardHeader>
@@ -143,6 +234,7 @@ export function DispatcherDashboardView({ businessId, data }: { businessId: stri
           <ViewAllLink href={`${base}/opportunities`} />
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

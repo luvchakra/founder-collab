@@ -36,6 +36,12 @@ export const fsmManifest: ModuleManifest = {
     { heading: "Reports", items: [{ label: "Reports", slug: "reports", icon: "BarChart3" }] },
     { heading: "Administration", items: [{ label: "Settings", slug: "settings", icon: "Settings" }] },
   ],
+  features: [
+    "Opportunity-to-job pipeline",
+    "Crew scheduling and dispatch calendar",
+    "Mobile-friendly field work (time, notes, signatures)",
+    "Job invoicing and reporting",
+  ],
   permissions: ["fsm.access"],
   optionalPeers: ["discovery", "inventory", "gst", "crm"],
 };
