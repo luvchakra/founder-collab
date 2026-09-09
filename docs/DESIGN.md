@@ -61,11 +61,30 @@ text) — this is a data-heavy back-office tool, not a marketing page.
 
 - `packages/core/src/ui-theme.css`: full re-theme to the light/blue palette above
   (`P-3` follow-up, see `docs/PORT-PROVENANCE.md`).
-- `apps/web`'s shell (sidebar + topbar) renders from `moduleRegistry`, with placeholder
-  business/user data until Epic 2 wires real tenancy — see the shell components under
+- `apps/web`'s shell (sidebar + topbar) renders from `moduleRegistry`, with real
+  business/user data (Epic 2's tenancy landed) — see the shell components under
   `packages/core/src/components/shell/`.
 
 Everything else in the mockup (KPI cards, the sales-order wizard, the invoice document
 view, GST-specific screens) belongs to the stories that actually build those screens
 (`SP-7`, `F-*`) — this file documents the shell and the design *language*, not a
 commitment to build every panel now.
+
+**Known, deliberate divergence from the mockup's shell layout (recorded 2026-09-09, not
+a bug):** the mockup shows a persistently-visible left sidebar with the avatar/name/email
+stacked in the topbar. What's actually built (`app-sidebar.tsx`) is a hamburger-toggled
+overlay drawer (hidden by default, opened via `SidebarToggle` in the topbar, closes on
+navigation/Escape/outside-click) — ported structurally from `co-founder-ai`'s own layout
+rather than redrawn to the mockup's always-visible rail — and the account menu
+(avatar/name/email + Profile/Usage/Billing/Settings/Log out) lives pinned to the bottom of
+that drawer, not in the topbar, again matching `co-founder-ai`'s own convention (see
+`app-topbar.tsx`'s and `sidebar-account-menu.tsx`'s own doc comments). The topbar also has
+no search input yet (tracked separately, `NEXT-ACTIVITIES.md` §6 item 7). Reconciling
+either of these for real means changing how every page's content area is sized (pages
+currently assume a topbar-height offset only, not a permanent left-rail width too) — a
+layout change, not a component swap, and the sidebar/nav components have already been
+rebuilt repeatedly (`NEXT-ACTIVITIES.md` §6 item 13) without a settled target. Flagged
+here as a deliberate, documented gap needing a real decision before another rebuild,
+rather than silently patched (e.g. moving just the avatar into the topbar while the rest
+of the drawer-vs-rail mismatch remains would not actually bring the shell in line with the
+mockup).

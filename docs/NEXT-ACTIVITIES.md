@@ -275,10 +275,40 @@ decision to build them next. Original recommended order preserved.
    per module rather than 35 separate edits. The vendored-but-unused shadcn
    `Breadcrumb` primitive itself is left alone -- swapping the whole platform onto it
    is a bigger call than this item asked for, noted here rather than done silently.
-9. `skeleton.tsx` is vendored but used in only 9 files platform-wide.
-10. `AppTopbar` deliberately diverges from `DESIGN.md`'s avatar/name/email spec (moved to
-    the sidebar drawer instead, per an inline code comment) — the doc should be updated
-    to match reality, or the shell brought back in line with it.
+9. ~~`skeleton.tsx` is vendored but used in only 9 files platform-wide.~~ —
+   **Investigated 2026-09-09, no code change**: the actual count is zero real usages,
+   not 9 -- `core/ui/skeleton.tsx`'s `Skeleton` is only referenced by the vendored
+   `sidebar.tsx` kit's own `SidebarMenuSkeleton`, which the real `app-sidebar.tsx`
+   never renders (confirmed by grep). The audit's "9" almost certainly matched the
+   unrelated `LoadingSkeleton` component (module-discovery's own hand-rolled route
+   loading placeholder, now used in 44 files after fixing P0 #5) rather than this
+   primitive. The one place a genuine in-page (not full-route) loading skeleton would
+   help -- 5 inventory list components (`sales-orders-list.tsx`,
+   `stock-transfers/transfers-list.tsx`, `sales-returns/returns-list.tsx`,
+   `invoices-list.tsx`, `purchase-orders-list.tsx`) open a detail modal immediately
+   and only populate its line items after an `await fetchItems(...)` resolves, so the
+   table can show stale/empty rows for one round trip -- but building a
+   loading-skeleton feature across 5 list+detail component pairs for a gap this
+   marginal (fast local queries, small item counts, no reported complaint) is exactly
+   what CLAUDE.md principle 7 ("never implement speculative functionality") warns
+   against. Left alone; noted here rather than silently dropped.
+10. ~~`AppTopbar` deliberately diverges from `DESIGN.md`'s avatar/name/email spec (moved
+    to the sidebar drawer instead, per an inline code comment) — the doc should be
+    updated to match reality, or the shell brought back in line with it.~~ —
+    **Investigated 2026-09-09, doc corrected, no code change**: the real gap is much
+    bigger than avatar placement. `app-sidebar.tsx` is a hamburger-toggled overlay
+    drawer (hidden by default), not the mockup's persistently-visible left rail, and
+    the topbar has no search input either -- moving just the avatar into the topbar
+    would not actually bring the shell in line with the mockup, it would just relocate
+    one element while the real mismatch (drawer vs. rail, sized-page-content
+    assumptions built around a topbar-only offset) stays. That's a layout change, not
+    a component swap, and it's exactly the kind of sidebar rebuild §6 item 13 already
+    flags as having happened 6+ times without a settled target -- doing it again
+    without a deliberate decision would repeat the same pattern, not fix it. Recorded
+    the divergence precisely in `docs/DESIGN.md`'s own "What's implemented" section
+    (also fixed a second stale claim there: "placeholder business/user data until
+    Epic 2" -- Epic 2 landed a while ago, the shell uses real data) rather than
+    picking either the doc-only or code-only branch of the original either/or.
 
 **P2 — polish:**
 11. Only 81 `aria-label` occurrences across ~475 `.tsx` files, thin relative to
