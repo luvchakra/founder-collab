@@ -8,6 +8,7 @@ import { Checkbox } from "@cofounderai/core/ui/checkbox";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import {
   Dialog,
   DialogContent,
@@ -285,9 +286,7 @@ export function EstimateBuilder({
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
+            action={async (form: FormData) => {
               const input: AddChargeLineInput = adHoc
                 ? {
                     adHoc: {
@@ -305,10 +304,14 @@ export function EstimateBuilder({
                     taxable: form.get("taxable") === "on",
                     jobChargeTypeId: String(form.get("job_charge_type_id") ?? "") || null,
                   };
-              run(async () => {
+              setError(null);
+              setNotice(null);
+              try {
                 await addLineAction(input);
                 setAddOpen(false);
-              });
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Something went wrong.");
+              }
             }}
           >
             {items.length > 0 ? (
@@ -366,9 +369,7 @@ export function EstimateBuilder({
               <Button type="button" variant="ghost" onClick={() => setAddOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Adding..." : "Add charge"}
-              </Button>
+              <SubmitButton pendingText="Adding...">Add charge</SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>

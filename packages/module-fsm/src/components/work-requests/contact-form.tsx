@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Button } from "@cofounderai/core/ui/button";
+import { useState } from "react";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import type { WorkRequestInput } from "../../lib/work-requests/types";
 
@@ -12,7 +12,6 @@ import type { WorkRequestInput } from "../../lib/work-requests/types";
  * one required field). Spam protection and custom fields are explicit SHOULD/LATER items
  * (PRD §2 Contact form row) -- not built. */
 export function ContactForm({ businessName, submitAction }: { businessName: string; submitAction: (input: WorkRequestInput) => Promise<void> }) {
-  const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -36,9 +35,7 @@ export function ContactForm({ businessName, submitAction }: { businessName: stri
 
       <form
         className="flex flex-col gap-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const form = new FormData(e.currentTarget);
+        action={async (form: FormData) => {
           const input: WorkRequestInput = {
             name: String(form.get("name") ?? ""),
             email: String(form.get("email") ?? "") || undefined,
@@ -47,14 +44,12 @@ export function ContactForm({ businessName, submitAction }: { businessName: stri
             message: String(form.get("message") ?? "") || undefined,
           };
           setError(null);
-          startTransition(async () => {
-            try {
-              await submitAction(input);
-              setSubmitted(true);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Something went wrong.");
-            }
-          });
+          try {
+            await submitAction(input);
+            setSubmitted(true);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Something went wrong.");
+          }
         }}
       >
         <div className="flex flex-col gap-1.5">
@@ -77,9 +72,7 @@ export function ContactForm({ businessName, submitAction }: { businessName: stri
           <Label htmlFor="message">What do you need help with?</Label>
           <Textarea id="message" name="message" rows={4} />
         </div>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Sending..." : "Send request"}
-        </Button>
+        <SubmitButton pendingText="Sending...">Send request</SubmitButton>
       </form>
     </div>
   );

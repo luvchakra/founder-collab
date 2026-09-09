@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Badge } from "@cofounderai/core/ui/badge";
-import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { Message } from "@cofounderai/core/messages/types";
@@ -16,7 +16,6 @@ import type { Message } from "@cofounderai/core/messages/types";
  * on `messages.manage` by the caller (job-detail's own tab list), same as every other
  * per-job action in this component. */
 export function MessagesTab({ messages, canManage, sendAction }: { messages: Message[]; canManage: boolean; sendAction: (body: string, subject?: string) => Promise<void> }) {
-  const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -45,18 +44,15 @@ export function MessagesTab({ messages, canManage, sendAction }: { messages: Mes
       {canManage ? (
         <form
           className="flex flex-col gap-3 rounded-xl border border-border p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          action={async () => {
             setError(null);
-            startTransition(async () => {
-              try {
-                await sendAction(body, subject || undefined);
-                setSubject("");
-                setBody("");
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Something went wrong.");
-              }
-            });
+            try {
+              await sendAction(body, subject || undefined);
+              setSubject("");
+              setBody("");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Something went wrong.");
+            }
           }}
         >
           <div className="flex flex-col gap-1.5">
@@ -67,9 +63,9 @@ export function MessagesTab({ messages, canManage, sendAction }: { messages: Mes
             <Label htmlFor="msg-body">Message</Label>
             <Textarea id="msg-body" rows={3} value={body} onChange={(e) => setBody(e.target.value)} required />
           </div>
-          <Button type="submit" disabled={pending} className="self-end">
-            {pending ? "Sending..." : "Send"}
-          </Button>
+          <SubmitButton pendingText="Sending..." className="self-end">
+            Send
+          </SubmitButton>
         </form>
       ) : null}
     </div>

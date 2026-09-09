@@ -8,6 +8,7 @@ import { Checkbox } from "@cofounderai/core/ui/checkbox";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import {
   Dialog,
@@ -336,9 +337,7 @@ export function InvoiceEditor({
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
+            action={async (form: FormData) => {
               const input: AddChargeLineInput = adHoc
                 ? {
                     adHoc: {
@@ -356,10 +355,14 @@ export function InvoiceEditor({
                     taxable: form.get("taxable") === "on",
                     jobChargeTypeId: String(form.get("job_charge_type_id") ?? "") || null,
                   };
-              run(async () => {
+              setError(null);
+              setNotice(null);
+              try {
                 await addLineAction(input);
                 setAddOpen(false);
-              });
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Something went wrong.");
+              }
             }}
           >
             {items.length > 0 ? (
@@ -417,9 +420,7 @@ export function InvoiceEditor({
               <Button type="button" variant="ghost" onClick={() => setAddOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Adding..." : "Add charge"}
-              </Button>
+              <SubmitButton pendingText="Adding...">Add charge</SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -432,10 +433,10 @@ export function InvoiceEditor({
           </DialogHeader>
           <form
             className="flex flex-col gap-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const form = new FormData(e.currentTarget);
-              run(async () => {
+            action={async (form: FormData) => {
+              setError(null);
+              setNotice(null);
+              try {
                 await recordPaymentAction(
                   form.get("method") as PaymentMethod,
                   Number(form.get("amount") ?? 0),
@@ -443,7 +444,10 @@ export function InvoiceEditor({
                   String(form.get("notes") ?? ""),
                 );
                 setPaymentOpen(false);
-              }, "Payment recorded.");
+                setNotice("Payment recorded.");
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Something went wrong.");
+              }
             }}
           >
             <div className="grid gap-2 sm:grid-cols-2">
@@ -474,9 +478,7 @@ export function InvoiceEditor({
               <Button type="button" variant="ghost" onClick={() => setPaymentOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Recording..." : "Record payment"}
-              </Button>
+              <SubmitButton pendingText="Recording...">Record payment</SubmitButton>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -5,6 +5,7 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Switch } from "@cofounderai/core/ui/switch";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
@@ -49,21 +50,23 @@ function NamedTypeTab<T extends { id: string; name: string; is_active: boolean }
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       <form
         className="flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          run(async () => {
+        action={async () => {
+          setError(null);
+          try {
             await createAction(newName);
             setNewName("");
-          });
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Something went wrong.");
+          }
         }}
       >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-name">New</Label>
           <Input id="new-name" value={newName} onChange={(e) => setNewName(e.target.value)} required />
         </div>
-        <Button type="submit" size="sm" disabled={pending}>
+        <SubmitButton size="sm" pendingText="Adding...">
           Add
-        </Button>
+        </SubmitButton>
       </form>
 
       <Table>

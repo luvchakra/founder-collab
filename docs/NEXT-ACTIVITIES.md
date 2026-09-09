@@ -219,9 +219,26 @@ decision to build them next. Original recommended order preserved.
    added as a dependency) against the dev Supabase project with a route-level delay
    to force a wide pending window: confirmed the spinner + dimmed button actually
    render on `/login` and `/forgot-password` before the request resolves.
-4. `fsm` is internally inconsistent on the pending-state pattern: 7 of ~14 form
+4. ~~`fsm` is internally inconsistent on the pending-state pattern: 7 of ~14 form
    components (including the money-handling `invoice-editor.tsx`/`estimate-builder.tsx`)
-   still use raw `type="submit"`.
+   still use raw `type="submit"`.~~ — **Fixed 2026-09-09**: re-surveyed live and found 9
+   submit controls across 8 files (the audit's "7" undercounted `invoice-editor.tsx`,
+   which has two separate offending dialogs). All 8 used the same anti-pattern:
+   `onSubmit={(e) => { e.preventDefault(); startTransition(...) }}` manually tracking a
+   `pending` boolean to disable/relabel a plain `Button` -- a naive swap to
+   `SubmitButton` would have been a silent regression, since `SubmitButton` reads
+   `useFormStatus()`, which only reports real pending state for a `<form action={fn}>`,
+   not a manually-wired `onSubmit`. Converted every one to a real form `action`
+   (closures reading component state directly, no `FormData`-attribute rewrite needed
+   except in `contact-form.tsx`, which already read via `FormData`) so `SubmitButton`'s
+   spinner works for real: `messages-tab.tsx` (send reply), `settings-view.tsx` (add
+   service/charge type), `work-requests/contact-form.tsx` (public request-service
+   form), `invoice-editor.tsx` (add charge, record payment), `estimate-builder.tsx`
+   (add charge), `opportunity-detail.tsx` and `job-detail.tsx` (add tag),
+   `field-work-tab.tsx` (log expense). Left `settings-view.tsx`'s "Save settings"
+   button alone -- it was never inside a `<form>` at all (a bare `onClick`), so it
+   wasn't part of the audit's literal claim and converting it means restructuring the
+   whole tab, out of scope here.
 5. No `loading.tsx` exists anywhere under `inventory`, `fsm`, `crm`, or `gst` routes
    (10 exist, all under `discovery`/account settings).
 

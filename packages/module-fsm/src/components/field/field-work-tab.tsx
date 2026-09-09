@@ -6,6 +6,7 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import {
@@ -148,22 +149,24 @@ export function FieldWorkTab({
         {canEditExpenses ? (
           <form
             className="mb-3 grid gap-2 sm:grid-cols-[1fr_140px_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
+            action={async () => {
               const amount = Number(expenseAmount);
               if (!expenseDescription.trim() || !Number.isFinite(amount)) return;
-              run(async () => {
+              setError(null);
+              try {
                 await addExpenseAction(expenseDescription, amount);
                 setExpenseDescription("");
                 setExpenseAmount("");
-              });
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Something went wrong.");
+              }
             }}
           >
             <Input value={expenseDescription} onChange={(e) => setExpenseDescription(e.target.value)} placeholder="Description" />
             <Input value={expenseAmount} onChange={(e) => setExpenseAmount(e.target.value)} type="number" step="0.01" placeholder="Amount" />
-            <Button type="submit" size="sm" disabled={pending || !expenseDescription.trim() || !expenseAmount}>
+            <SubmitButton size="sm" disabled={!expenseDescription.trim() || !expenseAmount}>
               Add
-            </Button>
+            </SubmitButton>
           </form>
         ) : null}
         {expenses.length === 0 ? (

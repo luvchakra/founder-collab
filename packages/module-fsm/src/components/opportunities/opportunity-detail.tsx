@@ -6,6 +6,7 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import {
   Dialog,
@@ -162,13 +163,15 @@ export function OpportunityDetail({
           {canEdit ? (
             <form
               className="flex items-center gap-1"
-              onSubmit={(e) => {
-                e.preventDefault();
+              action={async () => {
                 if (!newTag.trim()) return;
-                run(async () => {
+                setError(null);
+                try {
                   await addTagAction(newTag);
                   setNewTag("");
-                });
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Something went wrong.");
+                }
               }}
             >
               <Input
@@ -177,9 +180,9 @@ export function OpportunityDetail({
                 placeholder="Add a tag"
                 className="h-7 w-32 text-xs"
               />
-              <Button type="submit" size="sm" variant="ghost" disabled={pending || !newTag.trim()}>
+              <SubmitButton size="sm" variant="ghost" disabled={!newTag.trim()}>
                 Add
-              </Button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>
