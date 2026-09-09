@@ -38,7 +38,7 @@ correctness, not "is the app-layer guard actually wired up" or "is this secret a
 encrypted") — that's exactly the gap `TESTING_STRATEGY.md` says this layer of testing
 exists to close.
 
-### 1. `core.license_events`/ADR-9 grace period never actually expires (P0) — TC-CORE-003
+### 1. `core.license_events`/ADR-9 grace period never actually expires (P0) — TC-CORE-003 — **Fixed 2026-09-08**
 `packages/core/src/licensing/lifecycle.ts`'s `expireGracePeriods()` correctly flips every
 `grace` license past its `grace_ends_at` to `expired` — but nothing ever calls it.
 `apps/web/app/api/cron/` has exactly two routes (`drain-events`, `send-reminders`), and
@@ -48,6 +48,15 @@ sits in `grace` (read access, no write) forever in production — ADR-9's second
 ("then access denied") never fires on its own. `core.has_module()` would keep returning
 `true` past 30 days since it only checks `status in ('active','grace')`, with nothing
 ever moving the row out of `grace`.
+
+Fix: `apps/web/app/api/cron/expire-licenses/route.ts` (same shared-secret `CRON_SECRET`
+auth as the other two cron routes) calls `expireGracePeriods()` daily; added to
+`vercel.json`'s `crons` array. `scripts/test-core-license-lifecycle.mjs` (new, in
+`test:db`) is this platform's first end-to-end license-lifecycle test — active → grace
+(read ok, write denied) → expired (read denied too, rows retained, never deleted) →
+reactivated (full access restored, same rows) — using exactly the backdated
+`grace_ends_at` fixture TC-CORE-003 itself calls for, with a second business (Bob's)
+seeded throughout to confirm none of it ever crosses tenants.
 
 ### 2. Cancelling a job never releases its reserved inventory (P0) — TC-FSM-011
 `packages/module-fsm/src/lib/inventory-integration/mutations.ts`'s `reserveJobParts()` is
