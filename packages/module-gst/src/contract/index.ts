@@ -1,8 +1,10 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { inr } from "@cofounderai/core/lib/format";
 import { getEinvoiceForDocument } from "../lib/einvoicing/queries";
 import { generateEinvoice, cancelEinvoice } from "../lib/einvoicing/mutations";
 import { getEwayBillForDocument } from "../lib/eway-bill/queries";
 import { generateEwayBill, cancelEwayBill } from "../lib/eway-bill/mutations";
+import { getComplianceDashboard } from "../lib/dashboard/queries";
 import type { ContractEinvoice, ContractEwayBill, ContractGstDocumentStatus, ContractResult } from "./types";
 
 /**
@@ -92,4 +94,25 @@ export async function cancelDocumentEwayBill(businessId: string, documentId: str
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * A short plain-language snapshot of this business's GST/Compliance position -- what
+ * the AI assistant grounds itself in when the founder is looking at Compliance, or has
+ * opted into "consult all modules." Reuses getComplianceDashboard() (the /gst
+ * dashboard's own read model) rather than a second aggregation.
+ */
+export async function getChatContextSummary(businessId: string): Promise<ContractResult<string>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const dashboard = await getComplianceDashboard(businessId);
+  const lines = [
+    dashboard.gstin ? `Compliance: GSTIN ${dashboard.gstin} on file.` : "Compliance: no GST profile set up yet.",
+    `Payable this month: ${inr.format(dashboard.payableThisMonth)}. Collected this month: ${inr.format(dashboard.collectedThisMonth)}.`,
+    dashboard.riskCount > 0
+      ? `${dashboard.riskCount} supplier/customer this month with a missing or invalid GSTIN.`
+      : "No GSTIN risk flagged this month.",
+  ];
+  return { ok: true, data: lines.join(" ") };
 }

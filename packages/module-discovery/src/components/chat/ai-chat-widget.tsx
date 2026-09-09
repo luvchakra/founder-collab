@@ -4,11 +4,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
 import { MessageCircle, Send, X } from "lucide-react";
 import { useDismiss } from "@cofounderai/core/hooks/use-dismiss";
+import { readSelectedModuleKey } from "@cofounderai/core/lib/module-selection";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { getActiveIdsFromPath } from "../../lib/tenancy/active-path";
 import { getChatPanelDataAction, sendChatMessageAction } from "../../actions/chat";
-import type { ChatMessage } from "../../lib/ai/chat";
+import type { ChatMessage, ChatPageContext } from "../../lib/ai/chat";
 import { ChatMarkdown } from "./chat-markdown";
 
 /**
@@ -21,8 +22,13 @@ import { ChatMarkdown } from "./chat-markdown";
  */
 export function AiChatWidget() {
   const pathname = usePathname();
-  const context = getActiveIdsFromPath(pathname ?? "");
-  const threadKey = context.productId ?? context.businessId ?? "__account__";
+  const activeIds = getActiveIdsFromPath(pathname ?? "");
+  const threadKey = activeIds.productId ?? activeIds.businessId ?? "__account__";
+  // Read directly from the shell's own storage (module-selection.ts) -- this widget
+  // and the module-picker live in separate component trees with no shared context, so
+  // the storage key both sides already agree on is the simplest way to know "which
+  // module is currently selected" without prop-drilling it across the whole shell.
+  const moduleKey = readSelectedModuleKey();
 
   const [open, setOpen] = useState(false);
   const [showBackToChat, setShowBackToChat] = useState(false);
@@ -34,8 +40,16 @@ export function AiChatWidget() {
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Consult all modules" -- opts a single reply into pulling every licensed module's
+  // own summary plus the full account overview, instead of just whichever module is
+  // currently selected. Off by default: it's the slower path (module-discovery/lib/
+  // ai/chat.ts's buildExtraContext), meant to be reached for on a question that
+  // actually needs the bigger picture, not paid for on every turn.
+  const [consultAllModules, setConsultAllModules] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   useDismiss(panelRef, open, () => setOpen(false));
+
+  const context: ChatPageContext = { ...activeIds, moduleKey, consultAllModules };
 
   // Clears the previous thread's content the instant the header's business/product
   // selection changes -- during render, not in an effect, so the panel can never paint a
@@ -229,7 +243,18 @@ export function AiChatWidget() {
               ) : null}
             </div>
 
-            <form onSubmit={handleSend} className="flex items-center gap-2 border-t p-3">
+            <div className="border-t px-3 pt-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={consultAllModules}
+                  onChange={(e) => setConsultAllModules(e.target.checked)}
+                  className="size-3.5"
+                />
+                Consult all modules for a more informed answer (slower)
+              </label>
+            </div>
+            <form onSubmit={handleSend} className="flex items-center gap-2 p-3 pt-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}

@@ -1,7 +1,9 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { getDocumentBalance } from "@cofounderai/core/payments/queries";
+import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
+import { getDispatcherDashboard } from "../lib/dashboard/queries";
 import type { ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
 
 /**
@@ -135,4 +137,29 @@ export async function createOpportunityFromWonProspect(
   if (error) return { ok: false, error: error.message };
 
   return { ok: true, data: { opportunityId: data.id } };
+}
+
+/**
+ * A short plain-language snapshot of this business's field-service queue -- what the
+ * AI assistant grounds itself in when the founder is looking at Service, or has opted
+ * into "consult all modules." Reuses getDispatcherDashboard() (the /fsm dashboard's own
+ * read model) rather than a second aggregation.
+ */
+export async function getChatContextSummary(businessId: string): Promise<ContractResult<string>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const dashboard = await getDispatcherDashboard(businessId, "today");
+  const openJobs = dashboard.unassignedJobs.length + dashboard.jobsInProgress.length;
+  const lines = [
+    `Service: ${num.format(dashboard.todaysEvents.length)} event(s) scheduled today, ${num.format(dashboard.unassignedJobs.length)} unassigned job(s), ${num.format(dashboard.jobsInProgress.length)} job(s) in progress.`,
+    dashboard.overdueInvoices.length > 0
+      ? `${num.format(dashboard.overdueInvoices.length)} overdue invoice(s), totaling ${inr.format(dashboard.overdueInvoices.reduce((s, i) => s + i.balance_amount, 0))}.`
+      : "No overdue invoices.",
+    dashboard.estimatesAwaitingResponse.length > 0
+      ? `${num.format(dashboard.estimatesAwaitingResponse.length)} estimate(s) awaiting a customer response.`
+      : "No estimates waiting on a customer.",
+  ];
+  if (openJobs === 0) lines.push("No open jobs right now.");
+  return { ok: true, data: lines.join(" ") };
 }

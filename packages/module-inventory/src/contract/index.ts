@@ -2,6 +2,8 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { publish } from "@cofounderai/core/events/mutations";
 import { createClient } from "../db/server";
+import { getDashboardSummary } from "../lib/dashboard/queries";
+import { inr, num } from "@cofounderai/core/lib/format";
 import type { ContractAvailability, ContractLowStockAlert, ContractResult, ContractWarehouse, UpsertItemInput } from "./types";
 
 /**
@@ -222,6 +224,34 @@ export function releaseStock(
   reference?: string,
 ): Promise<ContractResult<{ movementId: string }>> {
   return adjustStock(businessId, itemId, warehouseId, "unreserve", quantity, reference);
+}
+
+/**
+ * A short plain-language snapshot of this business's inventory position -- what the AI
+ * assistant (module-discovery's chat) grounds itself in when the founder is looking at
+ * Inventory, or has opted into "consult all modules" for a cross-module answer. Reuses
+ * the same getDashboardSummary() the Inventory dashboard page itself renders from,
+ * rather than a second parallel aggregation -- one read model, two presentations (a UI
+ * dashboard here, a paragraph of text there). `canViewCost` is always false here: the
+ * chat prompt is not the place to leak cost/margin data to a model call regardless of
+ * the asking user's own permissions.
+ */
+export async function getChatContextSummary(businessId: string): Promise<ContractResult<string>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const summary = await getDashboardSummary(businessId, false);
+  const lines = [
+    `Inventory: ${num.format(summary.productCount)} products, ${num.format(summary.available)} units available.`,
+    summary.stockout > 0 || summary.low > 0
+      ? `${num.format(summary.stockout)} out of stock, ${num.format(summary.low)} below reorder point.`
+      : "Stock levels are healthy across the board.",
+    summary.pendingPurchases > 0
+      ? `${num.format(summary.pendingPurchases)} pending purchase order(s)${summary.overduePOs.length > 0 ? `, ${num.format(summary.overduePOs.length)} overdue` : ""}.`
+      : "No pending purchase orders.",
+    `Sales today: ${inr.format(summary.salesTodayTotal)}.`,
+  ];
+  return { ok: true, data: lines.join(" ") };
 }
 
 /** Permanently consumes on-hand stock (e.g. parts used on a completed job) -- rejected

@@ -20,6 +20,11 @@ import { hashInput } from "./hash";
 import { recordAiRun } from "./usage";
 import { AiProviderError, resolveAiModel, toAiProviderError } from "./router";
 import { ChatResponseSchema } from "./schemas";
+import type { ModuleKey } from "@cofounderai/module-registry";
+import { getChatContextSummary as getInventoryChatSummary } from "@cofounderai/module-inventory/contract/index";
+import { getChatContextSummary as getFsmChatSummary } from "@cofounderai/module-fsm/contract/index";
+import { getChatContextSummary as getGstChatSummary } from "@cofounderai/module-gst/contract/index";
+import { getChatContextSummary as getCrmChatSummary } from "@cofounderai/module-crm/contract/index";
 
 const OPERATION = "chat";
 /** Caps how much prior turn history rides along on every request -- keeps the prompt
@@ -29,9 +34,48 @@ const MAX_HISTORY_MESSAGES = 20;
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 export type ChatReply = { answer: string; followUp: string | null };
 
-/** businessId/productId parsed from the current page's URL (lib/tenancy/active-path.ts)
- * -- whatever the founder is looking at when they open the chat panel. */
-export type ChatPageContext = { businessId: string | null; productId: string | null };
+/**
+ * businessId/productId parsed from the current page's URL (lib/tenancy/active-path.ts),
+ * `moduleKey` read from the shell's own selected-module storage (module-selection.ts,
+ * whatever module the bottom picker currently has selected -- "discovery" for its own
+ * pages, "inventory"/"fsm"/"crm"/"gst" for the others), and `consultAllModules` the
+ * widget's own checkbox: when set, every licensed module contributes its own summary
+ * instead of just the selected one, for a more informed (slower) answer.
+ */
+export type ChatPageContext = {
+  businessId: string | null;
+  productId: string | null;
+  moduleKey: string | null;
+  consultAllModules: boolean;
+};
+
+const OTHER_MODULE_SUMMARIES: Record<Exclude<ModuleKey, "discovery">, (businessId: string) => Promise<{ ok: boolean; data?: string }>> = {
+  inventory: getInventoryChatSummary,
+  fsm: getFsmChatSummary,
+  gst: getGstChatSummary,
+  crm: getCrmChatSummary,
+};
+
+/**
+ * Every OTHER module's own chat-context summary for one business, mechanism 2 (each
+ * module's own `contract/index.ts`) -- MODULE_NOT_LICENSED results are silently
+ * skipped (ADR-10: a normal result, not an error), so this reads as "whatever's
+ * actually licensed for this business," never a wall of "not available" lines.
+ * `only` narrows to a single module (the "cater to the selected module" path); omitted
+ * entirely, every module runs (the "consult all modules" checkbox path) -- both cases
+ * run in parallel, not sequentially, so opting into "all modules" costs one round of
+ * concurrent reads, not four serial ones.
+ */
+async function buildOtherModuleSummaries(businessId: string, only?: ModuleKey): Promise<string[]> {
+  const keys = (only && only !== "discovery" ? [only] : (Object.keys(OTHER_MODULE_SUMMARIES) as (keyof typeof OTHER_MODULE_SUMMARIES)[]));
+  const results = await Promise.all(
+    keys.map(async (key) => {
+      const result = await OTHER_MODULE_SUMMARIES[key](businessId);
+      return result.ok ? result.data! : null;
+    }),
+  );
+  return results.filter((line): line is string => line !== null);
+}
 
 type ResolvedChatContext = {
   /** Workspace to attribute the ai_runs cost-ledger entry, usage-limit check, and
@@ -41,6 +85,10 @@ type ResolvedChatContext = {
    * at all (e.g. the founder is on /dashboard). Either null case falls back to the
    * account's first workspace overall (see sendChatMessage/getChatPanelData). */
   workspace: Workspace | null;
+  /** The business this conversation is scoped to, if any -- what buildOtherModuleSummaries
+   * needs; distinct from `workspace` (discovery-specific) since a business can have
+   * other modules licensed with no discovery workspace opinion either way. */
+  businessId: string | null;
   contextText: string;
   starterQuestions: string[];
 };
@@ -144,13 +192,23 @@ function productPortalPath(businessId: string, productId: string): string {
  * client, but every lookup runs through the RLS-scoped Supabase client (lib/tenancy
  * queries), so a business/product the account doesn't own resolves to null exactly like
  * everywhere else in the app -- no separate authorization check needed here.
+ *
+ * Deliberately does NOT compute the account-wide overview (buildAccountSummary) when a
+ * specific business/product is already in view -- that used to run unconditionally on
+ * every single call (both the panel-open path and every message send), scanning every
+ * business/product/workspace on the account just to prepend one paragraph that's
+ * usually irrelevant to a question about the product actually on screen. It's this
+ * function's single most expensive step by far, which made both opening the chat panel
+ * and every turn of a conversation slower than the handful of indexed lookups the
+ * specific-context branches below actually need. The account-wide view is now opt-in:
+ * automatic only when there's truly no business/product context (the fallback branch,
+ * unchanged), and otherwise added by buildExtraContext() below only when the founder
+ * has checked "consult all modules" -- i.e. paid for only when actually wanted.
  */
 async function resolveChatContext(
   accountId: string,
   context: ChatPageContext,
 ): Promise<ResolvedChatContext> {
-  const accountSummary = await buildAccountSummary(accountId);
-
   if (context.productId) {
     const product = await getProduct(context.productId);
     if (product) {
@@ -169,8 +227,6 @@ async function resolveChatContext(
         const needsActionCount = prospects.filter((p) => p.nextAction !== null).length;
 
         const contextText = [
-          accountSummary.text,
-          "",
           `Currently viewing:`,
           `Business: "${business.name}"`,
           `Product: "${product.name}"`,
@@ -183,6 +239,7 @@ async function resolveChatContext(
 
         return {
           workspace,
+          businessId: business.id,
           contextText,
           starterQuestions: buildStarterQuestions({
             productName: product.name,
@@ -201,8 +258,6 @@ async function resolveChatContext(
     if (business) {
       const products = await listProducts(business.id);
       const contextText = [
-        accountSummary.text,
-        "",
         "Currently viewing:",
         `Business: "${business.name}"`,
         `Business portal page: /dashboard/businesses/${business.id}`,
@@ -221,6 +276,7 @@ async function resolveChatContext(
         // opened from this business's page must persist under a workspace that actually
         // belongs to it, never a different business's.
         workspace: await getFirstWorkspaceForBusiness(business.id),
+        businessId: business.id,
         contextText,
         starterQuestions:
           products.length === 0
@@ -236,8 +292,10 @@ async function resolveChatContext(
     }
   }
 
+  const accountSummary = await buildAccountSummary(accountId);
   return {
     workspace: null,
+    businessId: null,
     contextText: [
       accountSummary.text,
       "",
@@ -255,6 +313,54 @@ async function resolveChatContext(
       "What should I set up first?",
     ],
   };
+}
+
+/**
+ * The module-aware layer resolveChatContext() deliberately no longer computes inline
+ * (see that function's own doc comment) -- called once, right before the actual model
+ * call in sendChatMessage(), never from the panel-open path, which has no use for it.
+ *
+ * - `moduleKey` set (and not "discovery", which already has its own full context above)
+ *   and `consultAllModules` false: appends just that one module's own summary --
+ *   "cater to the selected module."
+ * - `consultAllModules` true: appends every licensed module's summary for the resolved
+ *   business, PLUS the full account-wide overview (every business, not just this one)
+ *   -- "a much more informed decision," at the cost of being the slowest path, which is
+ *   exactly why it's the one the founder opts into rather than the default.
+ * - Neither: returns "" -- the discovery-specific contextText already built stands on
+ *   its own, no extra round trip.
+ *
+ * `businessId` (from ResolvedChatContext) is null on the "nothing selected" branch;
+ * `consultAllModules` there falls back to the account's first business, same fallback
+ * getFirstWorkspaceForAccount already uses for the workspace itself, so the checkbox
+ * still does something useful even with no business page open.
+ */
+async function buildExtraContext(
+  accountId: string,
+  resolved: Pick<ResolvedChatContext, "businessId">,
+  context: ChatPageContext,
+): Promise<string> {
+  if (!context.consultAllModules && (!context.moduleKey || context.moduleKey === "discovery")) {
+    return "";
+  }
+
+  let businessId = resolved.businessId;
+  if (!businessId && context.consultAllModules) {
+    const businesses = await listBusinesses(accountId);
+    businessId = businesses[0]?.id ?? null;
+  }
+  if (!businessId) return "";
+
+  const moduleKey = context.consultAllModules ? undefined : (context.moduleKey as ModuleKey);
+  const moduleSummaries = await buildOtherModuleSummaries(businessId, moduleKey);
+  if (moduleSummaries.length === 0 && !context.consultAllModules) return "";
+
+  const lines = ["", "Other modules for this business:", ...moduleSummaries];
+  if (context.consultAllModules) {
+    const accountSummary = await buildAccountSummary(accountId);
+    lines.push("", accountSummary.text);
+  }
+  return lines.join("\n");
 }
 
 /**
@@ -329,11 +435,18 @@ export async function sendChatMessage(
     await appendChatMessage(workspace.id, newUserMessage);
   }
 
+  // The one place buildExtraContext() runs -- module/all-modules grounding is worth
+  // however long it takes here (a real model call is about to happen regardless), but
+  // has no business slowing down the panel-open path above, which never reaches this
+  // function at all.
+  const extraContext = await buildExtraContext(account.id, resolved, context);
+  const fullContextText = resolved.contextText + extraContext;
+
   const trimmed = messages.slice(-MAX_HISTORY_MESSAGES);
   const { accountId, provider, modelId, model } = await resolveAiModel(workspace.id, OPERATION);
   const inputHash = hashInput({
     messages: trimmed,
-    contextText: resolved.contextText,
+    contextText: fullContextText,
     version: CHAT_PROMPT_VERSION,
     model: modelId,
   });
@@ -343,7 +456,7 @@ export async function sendChatMessage(
     const response = await generateObject({
       model,
       schema: ChatResponseSchema,
-      system: chatSystemPrompt(resolved.contextText),
+      system: chatSystemPrompt(fullContextText),
       messages: trimmed as ModelMessage[],
     });
 

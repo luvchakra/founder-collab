@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
 import { ModuleSelector } from "./module-selector";
 import { ModuleIcon } from "./module-icon";
 import type { ShellBusiness, ShellNavGroup, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
-const MODULE_STORAGE_KEY = "cofounderai:selected-module";
 const PINNED_MODULE_STORAGE_KEY = "cofounderai:pinned-module";
 
 /**

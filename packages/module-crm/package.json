@@ -8,6 +8,7 @@
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",
+    "./contract/*": "./src/contract/*.ts",
     "./manifest": "./src/manifest.ts"
   },
   "scripts": {
