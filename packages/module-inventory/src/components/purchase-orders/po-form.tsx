@@ -231,6 +231,7 @@ export function PoForm({
                   size="icon"
                   disabled={lines.length === 1}
                   onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
+                  aria-label="Remove line item"
                 >
                   <Trash2 className="size-4" aria-hidden="true" />
                 </Button>

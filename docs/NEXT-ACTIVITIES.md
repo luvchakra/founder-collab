@@ -319,9 +319,18 @@ decision to build them next. Original recommended order preserved.
     picking either the doc-only or code-only branch of the original either/or.
 
 **P2 — polish:**
-11. Only 81 `aria-label` occurrences across ~475 `.tsx` files, thin relative to
+11. ~~Only 81 `aria-label` occurrences across ~475 `.tsx` files, thin relative to
     `DESIGN.md`'s own dense-table/icon-only-action-button spec — worth an audit pass on
-    `inventory`/`fsm` table row actions specifically.
+    `inventory`/`fsm` table row actions specifically.~~ — **Fixed 2026-09-09**:
+    audited every icon-only button in `inventory`/`fsm` table/list-row and line-item
+    contexts. The "thin" framing didn't hold up -- every row-action icon in both
+    modules' list components already pairs its icon with visible text (which doesn't
+    need `aria-label`), and every genuinely icon-only control (reorder arrows,
+    delete-charge buttons, remove-tag chips) already had one, except 3: the
+    "remove line item" `Trash2` button in `po-form.tsx`, `so-form.tsx`, and
+    `transfer-form.tsx` (identical copy-pasted pattern in all three). Added
+    `aria-label="Remove line item"` to each, plus one bonus fix found in the same
+    pass: `api-keys-panel.tsx`'s copy-to-clipboard icon button had none either.
 12. `crm`'s 3 view components use raw `type="submit"` and no `AlertDialog`/toast —
     expected for a still-skeleton module, flagged so it adopts platform patterns from its
     next story rather than needing a retrofit later.

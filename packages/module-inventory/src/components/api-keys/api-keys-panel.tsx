@@ -218,7 +218,13 @@ export function ApiKeysPanel({
           <p className="text-xs text-warning">Copy this now — for your security, it won&apos;t be shown again.</p>
           <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
             <code className="min-w-0 flex-1 truncate text-xs">{revealedKey}</code>
-            <Button type="button" variant="ghost" size="icon" onClick={() => void copyKey()}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => void copyKey()}
+              aria-label={copied ? "Copied" : "Copy API key"}
+            >
               {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             </Button>
           </div>
