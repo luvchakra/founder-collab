@@ -5,6 +5,7 @@ import { ClipboardList, Pencil, Plus } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Table,
   TableBody,
@@ -93,8 +94,15 @@ export function PurchaseOrdersList({
     const action = primaryAction(po.status);
     if (!action) return;
     startTransition(async () => {
-      await setStatusAction(po.id, action.next);
-      if (detailTarget?.id === po.id) await openDetail(po);
+      try {
+        await setStatusAction(po.id, action.next);
+        if (detailTarget?.id === po.id) await openDetail(po);
+        toast.success(`${po.po_number}: ${action.label.toLowerCase()} succeeded.`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : `Could not ${action.label.toLowerCase()} ${po.po_number}.`,
+        );
+      }
     });
   };
 
@@ -185,8 +193,13 @@ export function PurchaseOrdersList({
                 primaryLabel={action && canPrimaryAction(current.status) ? action.label : null}
                 onReceive={(itemId, quantity) =>
                   startTransition(async () => {
-                    await receiveItemAction(itemId, quantity);
-                    await openDetail(current);
+                    try {
+                      await receiveItemAction(itemId, quantity);
+                      await openDetail(current);
+                      toast.success("Item received.");
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Could not receive item.");
+                    }
                   })
                 }
                 onPrimaryAction={() => runPrimaryAction(current)}

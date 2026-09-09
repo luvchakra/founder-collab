@@ -6,6 +6,7 @@ import { Receipt } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Table,
   TableBody,
@@ -108,10 +109,17 @@ export function SalesOrdersList({
     const action = primaryAction(so.status);
     if (!action) return;
     startTransition(async () => {
-      if (action.kind === "confirm") await confirmAction(so.id);
-      else if (action.kind === "ship") await shipAction(so.id);
-      else await setStatusAction(so.id, action.next);
-      if (detailTarget?.id === so.id) await openDetail(so);
+      try {
+        if (action.kind === "confirm") await confirmAction(so.id);
+        else if (action.kind === "ship") await shipAction(so.id);
+        else await setStatusAction(so.id, action.next);
+        if (detailTarget?.id === so.id) await openDetail(so);
+        toast.success(`${so.so_number}: ${action.label.toLowerCase()} succeeded.`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : `Could not ${action.label.toLowerCase()} ${so.so_number}.`,
+        );
+      }
     });
   };
 
@@ -196,8 +204,13 @@ export function SalesOrdersList({
                 primaryLabel={action && canRunPrimaryAction(current.status) ? action.label : null}
                 onCancel={() =>
                   startTransition(async () => {
-                    await cancelAction(current.id);
-                    setDetailTarget(null);
+                    try {
+                      await cancelAction(current.id);
+                      setDetailTarget(null);
+                      toast.success(`${current.so_number} cancelled.`);
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : `Could not cancel ${current.so_number}.`);
+                    }
                   })
                 }
                 onCreateReturn={() =>

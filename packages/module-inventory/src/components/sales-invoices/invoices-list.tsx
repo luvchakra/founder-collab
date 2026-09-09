@@ -5,6 +5,7 @@ import { FileText, Plus } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Table,
   TableBody,
@@ -146,13 +147,23 @@ export function InvoicesList({
                 canCancel={canCancel}
                 onUpdatePaymentStatus={(status) =>
                   startTransition(async () => {
-                    await updatePaymentStatusAction(current.id, status);
+                    try {
+                      await updatePaymentStatusAction(current.id, status);
+                      toast.success("Payment status updated.");
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Could not update payment status.");
+                    }
                   })
                 }
                 onCreateCreditNote={(isFull, subtotal, reason) =>
                   startTransition(async () => {
-                    await createCreditNoteAction(current.id, isFull, subtotal, reason);
-                    await openDetail(current);
+                    try {
+                      await createCreditNoteAction(current.id, isFull, subtotal, reason);
+                      await openDetail(current);
+                      toast.success("Credit note issued.");
+                    } catch (error) {
+                      toast.error(error instanceof Error ? error.message : "Could not create credit note.");
+                    }
                   })
                 }
                 onClose={() => setDetailTarget(null)}

@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { Switch } from "@cofounderai/core/ui/switch";
+import { toast } from "@cofounderai/core/ui/sonner";
 import type { TechnicianRosterRow } from "../../lib/employees/types";
 
 /** No "Manage Users"/employee-CRUD screen exists anywhere in the platform yet -- this is
@@ -34,7 +35,15 @@ export function TechnicianRosterPanel({
             <Switch
               checked={m.is_active}
               disabled={pending}
-              onCheckedChange={(checked) => startTransition(() => toggleAction(m.user_id, checked))}
+              onCheckedChange={(checked) =>
+                startTransition(async () => {
+                  try {
+                    await toggleAction(m.user_id, checked);
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Could not update technician status.");
+                  }
+                })
+              }
             />
           </label>
         ))}

@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@cofounderai/core/ui/dialog";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { toast } from "@cofounderai/core/ui/sonner";
 import { BarcodeImage, BARCODE_FORMATS, type BarcodeFormat } from "./barcode-image";
 
 type LabelProduct = { id: string; sku: string | null; name: string; barcode: string | null };
@@ -63,8 +64,12 @@ export function BarcodeLabelDialog({
 
   const generate = () => {
     startTransition(async () => {
-      await generateAction(selected.map((p) => p.id));
-      setStep("preview");
+      try {
+        await generateAction(selected.map((p) => p.id));
+        setStep("preview");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not generate labels.");
+      }
     });
   };
 

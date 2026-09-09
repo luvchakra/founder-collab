@@ -6,6 +6,7 @@ import { Plus, RotateCcw } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Table,
   TableBody,
@@ -92,9 +93,16 @@ export function ReturnsList({
     const action = primaryAction(r.status);
     if (!action) return;
     startTransition(async () => {
-      if (action.kind === "approve") await approveAction(r.id);
-      else await setStatusAction(r.id, action.next);
-      if (detailTarget?.id === r.id) await openDetail(r);
+      try {
+        if (action.kind === "approve") await approveAction(r.id);
+        else await setStatusAction(r.id, action.next);
+        if (detailTarget?.id === r.id) await openDetail(r);
+        toast.success(`${r.return_number}: ${action.label.toLowerCase()} succeeded.`);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : `Could not ${action.label.toLowerCase()} ${r.return_number}.`,
+        );
+      }
     });
   };
 
@@ -175,8 +183,15 @@ export function ReturnsList({
                 primaryLabel={action && canRunPrimaryAction(current.status) ? action.label : null}
                 onCancel={() =>
                   startTransition(async () => {
-                    await setStatusAction(current.id, "cancelled");
-                    setDetailTarget(null);
+                    try {
+                      await setStatusAction(current.id, "cancelled");
+                      setDetailTarget(null);
+                      toast.success(`${current.return_number} cancelled.`);
+                    } catch (error) {
+                      toast.error(
+                        error instanceof Error ? error.message : `Could not cancel ${current.return_number}.`,
+                      );
+                    }
                   })
                 }
                 onPrimaryAction={() => runPrimaryAction(current)}

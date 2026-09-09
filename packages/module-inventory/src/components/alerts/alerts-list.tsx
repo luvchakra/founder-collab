@@ -5,6 +5,7 @@ import { AlertTriangle, Bell, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { toast } from "@cofounderai/core/ui/sonner";
 import { formatDate } from "@cofounderai/core/lib/format";
 import type { Alert, AlertStatus } from "../../lib/alerts/types";
 
@@ -28,6 +29,16 @@ export function AlertsList({
   updateStatusAction: (alertId: string, status: AlertStatus) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
+
+  const runUpdateStatus = (alertId: string, status: AlertStatus) => {
+    startTransition(async () => {
+      try {
+        await updateStatusAction(alertId, status);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not update the alert.");
+      }
+    });
+  };
 
   const openAlerts = alerts.filter((a) => a.status === "open" || a.status === "acknowledged");
   const closedAlerts = alerts.filter((a) => a.status === "resolved" || a.status === "dismissed");
@@ -70,7 +81,7 @@ export function AlertsList({
                       variant="outline"
                       size="sm"
                       disabled={pending}
-                      onClick={() => startTransition(() => updateStatusAction(alert.id, "acknowledged"))}
+                      onClick={() => runUpdateStatus(alert.id, "acknowledged")}
                     >
                       Acknowledge
                     </Button>
@@ -79,7 +90,7 @@ export function AlertsList({
                     variant="outline"
                     size="sm"
                     disabled={pending}
-                    onClick={() => startTransition(() => updateStatusAction(alert.id, "resolved"))}
+                    onClick={() => runUpdateStatus(alert.id, "resolved")}
                   >
                     <CheckCircle2 className="size-4" aria-hidden="true" />
                     Resolve
@@ -88,7 +99,7 @@ export function AlertsList({
                     variant="ghost"
                     size="sm"
                     disabled={pending}
-                    onClick={() => startTransition(() => updateStatusAction(alert.id, "dismissed"))}
+                    onClick={() => runUpdateStatus(alert.id, "dismissed")}
                   >
                     <XCircle className="size-4" aria-hidden="true" />
                     Dismiss

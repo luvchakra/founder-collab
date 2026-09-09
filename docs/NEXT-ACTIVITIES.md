@@ -217,14 +217,27 @@ decision to build them next. Original recommended order preserved.
    `await`ed a server action inside `startTransition` with no try/catch at all, so a
    thrown error (e.g. an invalid RPC transition) surfaced as a silent unhandled rejection
    with zero user-facing feedback. Now wrapped in try/catch with `toast.success()`/
-   `toast.error()` on the real result. **Still open:** the other ~35 similar
-   `startTransition`-wrapped call sites across inventory/crm/fsm list components don't
-   have this yet -- full platform-wide rollout is its own follow-up, not attempted in one
-   pass. Also fixed 3 pre-existing lint errors surfaced while re-running the full `npm
-   run lint` (not previously part of this session's own verification pipeline for those
-   commits): an unescaped apostrophe in `fsm/page.tsx`, and two `module`-named variables
-   in `not-licensed/page.tsx`/`menu-routes.test.ts` colliding with Next's reserved
-   `module` identifier lint rule.
+   `toast.error()` on the real result. Also fixed 3 pre-existing lint errors surfaced
+   while re-running the full `npm run lint` (not previously part of this session's own
+   verification pipeline for those commits): an unescaped apostrophe in `fsm/page.tsx`,
+   and two `module`-named variables in `not-licensed/page.tsx`/`menu-routes.test.ts`
+   colliding with Next's reserved `module` identifier lint rule. **Rollout completed
+   2026-09-09**: re-surveyed all 23 `startTransition`-using components across
+   inventory/crm/fsm (the doc's own "~35" estimate was another overcount, same pattern as
+   several earlier audit-count corrections this session) and found only 7 with the exact
+   `transfers-list.tsx` pre-fix bug -- a server-action `await` inside `startTransition`
+   with literally zero `catch` anywhere in the component (`technician-roster-panel.tsx`,
+   `alerts-list.tsx`, `barcode-label-dialog.tsx`, `purchase-orders-list.tsx`,
+   `sales-orders-list.tsx`, `invoices-list.tsx`, `returns-list.tsx`) -- wrapped each site
+   in try/catch with `toast.success()`/`toast.error()`, same pattern as the original fix.
+   The other 15 (`channels-view.tsx`, `routing-rules-view.tsx`, `inbox-view.tsx`,
+   `customer-center-view.tsx`, `estimate-builder.tsx`, `public-estimate-view.tsx`,
+   `field-work-tab.tsx`, `my-day-list.tsx`, `invoice-editor.tsx`, `job-detail.tsx`,
+   `opportunity-detail.tsx`, `schedule-calendar.tsx`, `settings-view.tsx`,
+   `api-keys-panel.tsx`, `generate-invoice-modal.tsx`) already catch and surface errors
+   via an inline `setError`/`<p>` banner -- not silent, just not toast-styled -- so
+   converting them too would be stylistic uniformity churn on already-working code, not a
+   bug fix; left alone per CLAUDE.md's "don't refactor unrelated code."
 3. ~~Auth flows (`auth-form.tsx`, `reset-password-form.tsx`, `forgot-password-form.tsx`)
    use raw `type="submit"` with no pending/spinner state, despite `submit-button.tsx`
    already existing in `core` for this.~~ — **Fixed 2026-09-09**: all three (plus
