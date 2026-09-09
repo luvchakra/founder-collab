@@ -16,6 +16,7 @@ import {
   previewProductImportAction,
   importProductsAction,
   discoverProductsAction,
+  deleteProductAction,
 } from "./actions";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Input } from "@cofounderai/core/ui/input";
@@ -25,6 +26,7 @@ import { EditableText } from "@cofounderai/module-discovery/components/tenancy/e
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
 import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
+import { DeleteProductButton } from "@cofounderai/module-discovery/components/tenancy/delete-product-button";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
@@ -143,10 +145,17 @@ export default async function BusinessPage({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="font-medium">{product.name}</h3>
-                    <ChevronRight
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                      aria-hidden="true"
-                    />
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <DeleteProductButton
+                        productName={product.name}
+                        prospectCount={prospectCount}
+                        action={deleteProductAction.bind(null, business.id, product.id)}
+                      />
+                      <ChevronRight
+                        className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                        aria-hidden="true"
+                      />
+                    </div>
                   </div>
                   {product.description ? (
                     <p className="line-clamp-2 text-sm text-muted-foreground">

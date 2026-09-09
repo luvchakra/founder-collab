@@ -30,8 +30,13 @@ export async function addKnowledgeSource(
 
 export async function deleteKnowledgeSource(sourceId: string): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("product_knowledge").delete().eq("id", sourceId);
+  const { data, error } = await supabase.from("product_knowledge").delete().eq("id", sourceId).select("id");
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error(
+      "This knowledge source could not be deleted -- it may have been removed already, or your access to it may have changed.",
+    );
+  }
 }
 
 export async function updateKnowledgeSource(

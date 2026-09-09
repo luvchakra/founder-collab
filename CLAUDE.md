@@ -97,6 +97,10 @@ pattern ADR-5 requires here).
     approval (the ADRs in `docs/plan/01-ADR-DECISIONS.md` are the current approved set).
 11. Development must use Supabase MCP (or the project's own credentials) against the
     **dev** project only — never production.
+12. Any page whose primary content is a table of rows must switch to compact cards (one
+    card per row, key attributes as labeled chips/fields) below the `md` breakpoint —
+    never a horizontally-scrolling or truncated table on a small screen. This applies
+    platform-wide, to every module, not just the ones a given story touches.
 
 ## Repository structure
 

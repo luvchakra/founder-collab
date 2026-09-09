@@ -2,7 +2,7 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { updateBusiness, createProductsBulk } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import { updateBusiness, createProductsBulk, deleteProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import {
   parseProductImportFile,
   type ProductImportRow,
@@ -126,4 +126,18 @@ export async function discoverProductsAction(businessId: string): Promise<
     unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "Something went wrong." };
   }
+}
+
+export async function deleteProductAction(
+  businessId: string,
+  productId: string,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await deleteProduct(productId);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not delete this product." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
 }

@@ -18,6 +18,7 @@ export type Business = {
   industry: string | null;
   created_at: string;
   updated_at: string;
+  disabled_at: string | null;
 };
 
 export type Product = {

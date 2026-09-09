@@ -83,6 +83,37 @@ export async function updateBusiness(
   return data;
 }
 
+/**
+ * Admin-menu "disable business" (item #17 of a UX pass): hides the business from the
+ * navbar/business switcher (see getAccountWorkspaceEntries()'s own disabled_at filter)
+ * without deleting or archiving anything it owns -- every product, prospect, job,
+ * ticket, and document underneath it, plus any place another business's own records
+ * happen to reference it, is untouched and comes right back on re-enable.
+ */
+export async function disableBusiness(businessId: string): Promise<Business> {
+  const supabase = await coreClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .update({ disabled_at: new Date().toISOString() })
+    .eq("id", businessId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function enableBusiness(businessId: string): Promise<Business> {
+  const supabase = await coreClient();
+  const { data, error } = await supabase
+    .from("businesses")
+    .update({ disabled_at: null })
+    .eq("id", businessId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function createProduct(
   businessId: string,
   input: { name: string; description?: string; website?: string },
@@ -151,6 +182,21 @@ export async function createProductsBulk(
   const { data, error } = await supabase.from("products").insert(toInsert).select();
   if (error) throw error;
   return { inserted: data?.length ?? 0, duplicates };
+}
+
+/**
+ * A real delete, not an archive -- `discovery.workspaces.product_id` (and everything
+ * under it: prospects, research, ICP, conversations) is `on delete cascade`, so this
+ * genuinely removes all of it, not just this row. Exists mainly to clean up a
+ * mistakenly AI-auto-populated or manually-created product (item #12 of a UX pass);
+ * the caller is expected to confirm with the person first (an AlertDialog, matching
+ * this platform's own destructive-action pattern) since there's no undo once a
+ * workspace with real prospect data is gone.
+ */
+export async function deleteProduct(productId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("products").delete().eq("id", productId);
+  if (error) throw error;
 }
 
 /** Only the fields actually passed are updated -- see updateBusiness's docstring. */

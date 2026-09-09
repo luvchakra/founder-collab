@@ -6,6 +6,7 @@ import { getEwayBillForDocument } from "../lib/eway-bill/queries";
 import { generateEwayBill, cancelEwayBill } from "../lib/eway-bill/mutations";
 import { getComplianceDashboard } from "../lib/dashboard/queries";
 import type { ContractEinvoice, ContractEwayBill, ContractGstDocumentStatus, ContractResult } from "./types";
+import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
  * module-gst's public API surface (00-MASTER-PLAN.md §6 mechanism 2; the first
@@ -115,4 +116,27 @@ export async function getChatContextSummary(businessId: string): Promise<Contrac
       : "No GSTIN risk flagged this month.",
   ];
   return { ok: true, data: lines.join(" ") };
+}
+
+/** Topbar alert-bell entry for this business's GST/Compliance risk -- see
+ * module-inventory/contract/index.ts#getAlerts's own doc comment for why `ShellAlert`
+ * is core-owned. */
+export async function getAlerts(businessId: string): Promise<ContractResult<ShellAlert[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const dashboard = await getComplianceDashboard(businessId);
+  if (dashboard.riskCount === 0) return { ok: true, data: [] };
+
+  return {
+    ok: true,
+    data: [
+      {
+        id: `gst-risk-${businessId}`,
+        severity: "warning",
+        message: `${dashboard.riskCount} supplier/customer this month with a missing or invalid GSTIN.`,
+        href: `/dashboard/businesses/${businessId}/gst/filing`,
+      },
+    ],
+  };
 }

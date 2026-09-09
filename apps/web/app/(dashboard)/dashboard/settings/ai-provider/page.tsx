@@ -18,9 +18,9 @@ export default async function AiProviderSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold">AI Provider</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every AI feature in co-founder-ai runs on your own provider account and your
-          own API key -- we never use a shared or company-owned AI account on your
-          behalf, and your usage bills directly to your provider.
+          {connection
+            ? "AI features run on your own connected provider account and your own API key -- your usage bills directly to your provider, with no monthly cap from us."
+            : "You're currently using CoFounderAI's included AI credits, capped at a modest free-tier allowance each month. Connect your own provider key any time to bypass that cap and bill usage directly to your own account instead."}
         </p>
       </div>
 
@@ -59,6 +59,7 @@ export default async function AiProviderSettingsPage() {
         </div>
       ) : (
         <div className="rounded-md border p-4">
+          <p className="mb-3 text-sm font-medium">Bring your own key (optional)</p>
           <AiProviderForm action={boundConnectAction} submitLabel="Connect" />
         </div>
       )}

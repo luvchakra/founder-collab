@@ -29,10 +29,14 @@ type ProductRow = Product & { workspaces: Workspace[] };
  */
 export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
   const core = await createCoreClient({ schema: "core" });
+  // Item #17 of a UX pass: a disabled business (core.businesses.disabled_at) drops out
+  // of the navbar/business switcher and this account-wide dashboard entirely -- nothing
+  // underneath it is touched, so re-enabling (Admin > Business) brings it straight back.
   const { data: businesses, error: businessesError } = await core
     .from("businesses")
     .select("*")
     .eq("account_id", accountId)
+    .is("disabled_at", null)
     .order("created_at", { ascending: true });
   if (businessesError) throw businessesError;
 

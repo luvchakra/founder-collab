@@ -5,6 +5,7 @@ import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
 import type { ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
+import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
  * module-fsm's public API surface (00-MASTER-PLAN.md §6 mechanism 2) -- the ONLY thing
@@ -162,4 +163,46 @@ export async function getChatContextSummary(businessId: string): Promise<Contrac
   ];
   if (openJobs === 0) lines.push("No open jobs right now.");
   return { ok: true, data: lines.join(" ") };
+}
+
+/** Topbar alert-bell entries for this business's field-service queue -- see
+ * module-inventory/contract/index.ts#getAlerts's own doc comment for why `ShellAlert`
+ * is core-owned rather than discovery-owned. Reuses the same getDispatcherDashboard()
+ * read model getChatContextSummary() above already does. */
+export async function getAlerts(businessId: string): Promise<ContractResult<ShellAlert[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const dashboard = await getDispatcherDashboard(businessId, "today");
+  const basePath = `/dashboard/businesses/${businessId}/fsm`;
+  const alerts: ShellAlert[] = [];
+
+  if (dashboard.overdueInvoices.length > 0) {
+    alerts.push({
+      id: `fsm-overdue-invoices-${businessId}`,
+      severity: "warning",
+      message: `${num.format(dashboard.overdueInvoices.length)} overdue invoice(s), totaling ${inr.format(dashboard.overdueInvoices.reduce((s, i) => s + i.balance_amount, 0))}.`,
+      href: `${basePath}/invoices`,
+    });
+  }
+
+  if (dashboard.unassignedJobs.length > 0) {
+    alerts.push({
+      id: `fsm-unassigned-jobs-${businessId}`,
+      severity: "info",
+      message: `${num.format(dashboard.unassignedJobs.length)} unassigned job(s).`,
+      href: `${basePath}/jobs`,
+    });
+  }
+
+  if (dashboard.estimatesAwaitingResponse.length > 0) {
+    alerts.push({
+      id: `fsm-estimates-awaiting-${businessId}`,
+      severity: "info",
+      message: `${num.format(dashboard.estimatesAwaitingResponse.length)} estimate(s) awaiting a customer response.`,
+      href: `${basePath}/opportunities`,
+    });
+  }
+
+  return { ok: true, data: alerts };
 }

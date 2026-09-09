@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { ArrowRight, Bot, Building2, CreditCard, KeyRound, Paintbrush, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
+import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
+import { disableBusinessAction, enableBusinessAction } from "./actions";
 
 type SettingsLink = { label: string; href: string; description: string; icon: React.ComponentType<{ className?: string }> };
 
@@ -68,13 +70,27 @@ export default async function SettingsHubPage() {
           <div className="flex flex-col divide-y rounded-md border">
             {businesses.map((business) => {
               const modules = new Set(licensedModulesByBusiness[business.id] ?? []);
+              const isDisabled = business.disabled_at !== null;
               return (
                 <div key={business.id} className="flex flex-col gap-2 p-4">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
-                      {business.name}
-                    </Link>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
+                        {business.name}
+                      </Link>
+                      {isDisabled ? (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                          Disabled
+                        </span>
+                      ) : null}
+                    </div>
+                    <BusinessStatusButton
+                      businessName={business.name}
+                      disabled={isDisabled}
+                      disableAction={disableBusinessAction.bind(null, business.id)}
+                      enableAction={enableBusinessAction.bind(null, business.id)}
+                    />
                   </div>
                   <div className="flex flex-wrap gap-2 pl-6">
                     {modules.has("inventory") ? (

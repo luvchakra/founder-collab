@@ -5,6 +5,7 @@ import { createClient } from "../db/server";
 import { getDashboardSummary } from "../lib/dashboard/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
 import type { ContractAvailability, ContractLowStockAlert, ContractResult, ContractWarehouse, UpsertItemInput } from "./types";
+import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
  * module-inventory's public API surface (00-MASTER-PLAN.md §6 mechanism 2; SP-9) -- the
@@ -252,6 +253,63 @@ export async function getChatContextSummary(businessId: string): Promise<Contrac
     `Sales today: ${inr.format(summary.salesTodayTotal)}.`,
   ];
   return { ok: true, data: lines.join(" ") };
+}
+
+/**
+ * Topbar alert-bell entries for this business's inventory position (item #13 of a UX
+ * pass: "expand the notification feature... to all modules" -- the bell previously only
+ * ever showed discovery-derived alerts). Reuses the same getDashboardSummary() every
+ * other inventory-facing summary here does; `ShellAlert` is core-owned (packages/core/
+ * src/components/shell/types.ts) specifically so a module can produce these without
+ * depending on module-discovery, which owns the bell's caller but not the alert shape
+ * itself.
+ */
+export async function getAlerts(businessId: string): Promise<ContractResult<ShellAlert[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const summary = await getDashboardSummary(businessId, false);
+  const basePath = `/dashboard/businesses/${businessId}/inventory`;
+  const alerts: ShellAlert[] = [];
+
+  if (summary.stockout > 0) {
+    alerts.push({
+      id: `inventory-stockout-${businessId}`,
+      severity: "warning",
+      message: `${num.format(summary.stockout)} product${summary.stockout === 1 ? "" : "s"} out of stock.`,
+      href: `${basePath}/dashboard`,
+    });
+  } else if (summary.low > 0) {
+    alerts.push({
+      id: `inventory-low-${businessId}`,
+      severity: "info",
+      message: `${num.format(summary.low)} product${summary.low === 1 ? "" : "s"} below reorder point.`,
+      href: `${basePath}/dashboard`,
+    });
+  }
+
+  if (summary.overduePOs.length > 0) {
+    alerts.push({
+      id: `inventory-overdue-po-${businessId}`,
+      severity: "warning",
+      message: `${num.format(summary.overduePOs.length)} purchase order${summary.overduePOs.length === 1 ? "" : "s"} overdue.`,
+      href: `${basePath}/purchase-orders`,
+    });
+  }
+
+  // The open-alert rows inventory's own alert engine already maintains (real-time
+  // low-stock/stockout triggers, not just this snapshot's own thresholds) -- capped
+  // so a business with many open alerts doesn't flood the shared bell.
+  for (const a of summary.alerts.slice(0, 3)) {
+    alerts.push({
+      id: `inventory-alert-${a.id}`,
+      severity: a.severity === "critical" ? "warning" : "info",
+      message: a.title,
+      href: `${basePath}/alerts`,
+    });
+  }
+
+  return { ok: true, data: alerts };
 }
 
 /** Permanently consumes on-hand stock (e.g. parts used on a completed job) -- rejected

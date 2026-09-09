@@ -26,15 +26,16 @@ export type AiErrorCode =
   | "unknown";
 
 /**
- * Every user-facing AI failure in BYOK mode normalizes to one of these codes (GTM-031)
- * so callers get a specific, accurate message without parsing provider-specific error
- * shapes, and ai_runs.error_code stays queryable. Only `invalid_key` is actually an API
- * key problem -- the others (rate limit, retrieval, content, structured-response
- * failures) have their own distinct causes and must not be worded as key issues, since
+ * Every user-facing AI failure normalizes to one of these codes (GTM-031) so callers get
+ * a specific, accurate message without parsing provider-specific error shapes, and
+ * ai_runs.error_code stays queryable. Only `invalid_key` is actually an API key problem
+ * -- the others (rate limit, retrieval, content, structured-response failures) have
+ * their own distinct causes and must not be worded as key issues, since
  * `isAiProviderFailure`'s "what you can do" box on the client specifically tells the
  * founder to check/replace their key, which is only correct advice for `invalid_key` and
- * `no_provider_connected`. There is deliberately no code path that falls back to a
- * company-owned AI account on any of these -- docs/byok-ai-requirements.md §6.
+ * (when running on BYOK) `no_provider_connected`. `invalid_key`/`rate_limited` on the
+ * platform's own included-credit fallback are the deployment's problem, not the
+ * founder's -- callers should word those distinctly when `credentialSource === "platform"`.
  */
 export class AiProviderError extends Error {
   readonly code: AiErrorCode;
@@ -53,6 +54,11 @@ export type ResolvedAiModel = {
   provider: AiProvider;
   modelId: string;
   model: LanguageModel;
+  /** "byok" when running on the account's own connected key, "platform" when falling
+   * back to CoFounderAI's own included credit (PLATFORM_AI_API_KEY) because the account
+   * hasn't connected one. Lets callers/UI tell the two apart without re-querying
+   * ai_provider_credentials themselves. */
+  credentialSource: "byok" | "platform";
   /**
    * Builds a model at a different quality tier using the same already-resolved
    * credential, without a second DB fetch/decrypt. For multi-step operations like
@@ -62,6 +68,17 @@ export type ResolvedAiModel = {
    */
   modelAtTier: (tier: AiQualityTier, options?: { webSearch?: boolean }) => LanguageModel;
 };
+
+/** The platform's own Anthropic key (docs/DESIGN.md's included-AI-credits story) --
+ * "anthropic" because that was already this app's sole provider before BYOK existed
+ * (see model-registry.ts's own comment), so its tiers are already tuned. Read lazily
+ * (not at module load) so a deployment with no key set never pays an env lookup cost
+ * anywhere near request start. */
+function getPlatformCredential(): { provider: AiProvider; apiKey: string } | null {
+  const apiKey = process.env.PLATFORM_AI_API_KEY;
+  if (!apiKey) return null;
+  return { provider: "anthropic", apiKey };
+}
 
 type ProviderCredentialRow = {
   provider: AiProvider;
@@ -93,11 +110,14 @@ async function getProviderCredential(
 
 /**
  * Resolves the language model a workspace-scoped AI operation should use: looks up the
- * workspace's account, that account's connected provider credential, decrypts the key,
- * and asks the model registry for the right model at the operation's required quality
- * tier. Throws AiProviderError("no_provider_connected") if the account hasn't connected
- * a provider yet -- callers should catch this and point the founder at AI provider
- * settings rather than surfacing a generic failure.
+ * workspace's account and that account's connected BYOK provider credential first: an
+ * account's own key always wins when one is connected, since that's what bills the
+ * founder's own provider account rather than CoFounderAI's. When no BYOK credential is
+ * connected, falls back to the platform's own included credit (PLATFORM_AI_API_KEY) if
+ * the deployment has one configured -- this is the "no need to bring your own key"
+ * option (see ai-provider/page.tsx). Throws AiProviderError("no_provider_connected")
+ * only when neither is available -- callers should catch this and point the founder at
+ * AI provider settings rather than surfacing a generic failure.
  */
 export async function resolveAiModel(
   workspaceId: string,
@@ -109,7 +129,10 @@ export async function resolveAiModel(
     throw new AiProviderError("no_provider_connected", "Workspace not found.");
   }
 
-  const credential = await getProviderCredential(accountId, client);
+  const byokCredential = await getProviderCredential(accountId, client);
+  const credential: { provider: AiProvider; apiKey: string } | null = byokCredential
+    ? { provider: byokCredential.provider, apiKey: decryptApiKey(byokCredential.encrypted_api_key) }
+    : getPlatformCredential();
   if (!credential) {
     throw new AiProviderError(
       "no_provider_connected",
@@ -117,18 +140,25 @@ export async function resolveAiModel(
     );
   }
 
-  const apiKey = decryptApiKey(credential.encrypted_api_key);
   const spec = getOperationSpec(operation);
   const modelId = resolveModelId(credential.provider, spec.qualityTier);
-  const model = createLanguageModel(credential.provider, apiKey, modelId, {
+  const model = createLanguageModel(credential.provider, credential.apiKey, modelId, {
     webSearch: spec.requiresWebSearch,
   });
 
   const provider = credential.provider;
+  const apiKey = credential.apiKey;
   const modelAtTier = (tier: AiQualityTier, options?: { webSearch?: boolean }) =>
     createLanguageModel(provider, apiKey, resolveModelId(provider, tier), options);
 
-  return { accountId, provider, modelId, model, modelAtTier };
+  return {
+    accountId,
+    provider,
+    modelId,
+    model,
+    credentialSource: byokCredential ? "byok" : "platform",
+    modelAtTier,
+  };
 }
 
 /**
