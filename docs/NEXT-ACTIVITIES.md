@@ -258,8 +258,23 @@ decision to build them next. Original recommended order preserved.
    incidental fixes; largest single effort in this list.
 7. Global search (specified in `DESIGN.md`'s topbar spec) was never built; `command.tsx`
    (cmdk) is vendored and unused. Needs a decision — build it, or update `DESIGN.md`.
-8. `Breadcrumb` is used in only 4 files despite a commit message suggesting platform-wide
-   intent.
+8. ~~`Breadcrumb` is used in only 4 files despite a commit message suggesting
+   platform-wide intent.~~ — **Fixed 2026-09-09**: the "4 files" was module-discovery's
+   own hand-rolled `Breadcrumbs` component (`components/tenancy/breadcrumbs.tsx`),
+   not the vendored shadcn `Breadcrumb` primitive in `core/ui/breadcrumb.tsx` -- that
+   one turned out to have zero usages anywhere, an even bigger gap the audit's own
+   grep didn't catch (case-sensitive match on the wrong component). Rather than
+   migrating to the unused shadcn primitive (a bigger, unrequested redesign) or
+   building a second breadcrumb component, reused the existing, working `Breadcrumbs`
+   the same way `LoadingSkeleton` was just reused for P0 #5: one new `layout.tsx` per
+   module root (`inventory/layout.tsx`, `fsm/layout.tsx`, `crm/layout.tsx`,
+   `gst/layout.tsx`), each resolving the business via that module's own `getBusiness()`
+   and rendering "Dashboard / Business name / Module name" (module name sourced from
+   `module-registry`, e.g. fsm's is "Service" not "FSM" -- confirmed before
+   hardcoding anything) above `{children}`, covering all 35 leaf routes from one file
+   per module rather than 35 separate edits. The vendored-but-unused shadcn
+   `Breadcrumb` primitive itself is left alone -- swapping the whole platform onto it
+   is a bigger call than this item asked for, noted here rather than done silently.
 9. `skeleton.tsx` is vendored but used in only 9 files platform-wide.
 10. `AppTopbar` deliberately diverges from `DESIGN.md`'s avatar/name/email spec (moved to
     the sidebar drawer instead, per an inline code comment) — the doc should be updated
