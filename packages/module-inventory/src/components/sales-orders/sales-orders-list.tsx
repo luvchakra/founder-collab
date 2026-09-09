@@ -15,6 +15,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { SoForm, type SoActionState } from "./so-form";
 import { SoDetail } from "./so-detail";
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 import {
   CANCELLABLE_STATUSES,
   primaryAction,
@@ -35,13 +36,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   cancelled: "destructive",
   returned: "destructive",
 };
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/sales-orders.tsx
  * `SalesOrders` component. draft->confirmed needs sales_orders.confirm; the fulfillment
@@ -156,7 +150,7 @@ export function SalesOrdersList({
                   <TableCell className="font-medium">{so.customer_name}</TableCell>
                   <TableCell>{so.warehouse_name}</TableCell>
                   <TableCell>{formatDate(so.order_date)}</TableCell>
-                  <TableCell className="text-right">{inr(so.total_amount)}</TableCell>
+                  <TableCell className="text-right">{inr.format(so.total_amount)}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[so.status]}>{so.status}</Badge>
                   </TableCell>

@@ -15,13 +15,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import type { PurchaseRegister, SalesRegister } from "../../lib/filing/types";
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 
 function csvCell(value: string | number): string {
   const s = String(value);
@@ -192,10 +186,10 @@ export function GstFilingView({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard label="Taxable value" value={inr(purchaseRegister.taxableValue)} />
-            <SummaryCard label="CGST" value={inr(purchaseRegister.cgst)} />
-            <SummaryCard label="SGST" value={inr(purchaseRegister.sgst)} />
-            <SummaryCard label="IGST" value={inr(purchaseRegister.igst)} />
+            <SummaryCard label="Taxable value" value={inr.format(purchaseRegister.taxableValue)} />
+            <SummaryCard label="CGST" value={inr.format(purchaseRegister.cgst)} />
+            <SummaryCard label="SGST" value={inr.format(purchaseRegister.sgst)} />
+            <SummaryCard label="IGST" value={inr.format(purchaseRegister.igst)} />
           </div>
 
           <Card>
@@ -222,8 +216,8 @@ export function GstFilingView({
                         <TableRow key={`${s.name}${s.gstin}`}>
                           <TableCell className="font-medium">{s.name}</TableCell>
                           <TableCell className="font-mono text-xs">{s.gstin ?? "—"}</TableCell>
-                          <TableCell className="text-right">{inr(s.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr(s.tax)}</TableCell>
+                          <TableCell className="text-right">{inr.format(s.taxableValue)}</TableCell>
+                          <TableCell className="text-right">{inr.format(s.tax)}</TableCell>
                           <TableCell>
                             {s.risk === "missing" ? (
                               <Badge variant="destructive">
@@ -269,8 +263,8 @@ export function GstFilingView({
                       {purchaseRegister.byHsn.map((h) => (
                         <TableRow key={h.hsn}>
                           <TableCell className="font-mono text-xs">{h.hsn}</TableCell>
-                          <TableCell className="text-right">{inr(h.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr(h.tax)}</TableCell>
+                          <TableCell className="text-right">{inr.format(h.taxableValue)}</TableCell>
+                          <TableCell className="text-right">{inr.format(h.tax)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -311,10 +305,10 @@ export function GstFilingView({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard label="Taxable value" value={inr(salesRegister.taxableValue)} />
-            <SummaryCard label="CGST" value={inr(salesRegister.cgst)} />
-            <SummaryCard label="SGST" value={inr(salesRegister.sgst)} />
-            <SummaryCard label="IGST" value={inr(salesRegister.igst)} />
+            <SummaryCard label="Taxable value" value={inr.format(salesRegister.taxableValue)} />
+            <SummaryCard label="CGST" value={inr.format(salesRegister.cgst)} />
+            <SummaryCard label="SGST" value={inr.format(salesRegister.sgst)} />
+            <SummaryCard label="IGST" value={inr.format(salesRegister.igst)} />
           </div>
 
           <Card>
@@ -345,8 +339,8 @@ export function GstFilingView({
                           </TableCell>
                           <TableCell className="font-medium">{r.customerName}</TableCell>
                           <TableCell className="font-mono text-xs">{r.gstin}</TableCell>
-                          <TableCell className="text-right">{inr(r.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr(r.cgst + r.sgst + r.igst)}</TableCell>
+                          <TableCell className="text-right">{inr.format(r.taxableValue)}</TableCell>
+                          <TableCell className="text-right">{inr.format(r.cgst + r.sgst + r.igst)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -377,8 +371,8 @@ export function GstFilingView({
                       {salesRegister.b2c.map((r) => (
                         <TableRow key={r.state}>
                           <TableCell className="font-medium">{r.state}</TableCell>
-                          <TableCell className="text-right">{inr(r.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr(r.tax)}</TableCell>
+                          <TableCell className="text-right">{inr.format(r.taxableValue)}</TableCell>
+                          <TableCell className="text-right">{inr.format(r.tax)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -409,8 +403,8 @@ export function GstFilingView({
                       {salesRegister.byHsn.map((h) => (
                         <TableRow key={h.hsn}>
                           <TableCell className="font-mono text-xs">{h.hsn}</TableCell>
-                          <TableCell className="text-right">{inr(h.taxableValue)}</TableCell>
-                          <TableCell className="text-right">{inr(h.tax)}</TableCell>
+                          <TableCell className="text-right">{inr.format(h.taxableValue)}</TableCell>
+                          <TableCell className="text-right">{inr.format(h.tax)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -444,8 +438,8 @@ export function GstFilingView({
                             <div className="text-muted-foreground">{formatDate(cn.credit_note_date)}</div>
                           </TableCell>
                           <TableCell className="font-mono text-xs">{cn.against_invoice_number}</TableCell>
-                          <TableCell className="text-right">{inr(cn.subtotal)}</TableCell>
-                          <TableCell className="text-right">{inr(cn.cgst + cn.sgst + cn.igst)}</TableCell>
+                          <TableCell className="text-right">{inr.format(cn.subtotal)}</TableCell>
+                          <TableCell className="text-right">{inr.format(cn.cgst + cn.sgst + cn.igst)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -454,7 +448,7 @@ export function GstFilingView({
                 <div className="mt-3 flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm font-medium">
                   <span>Net outward taxable value / tax after credit notes</span>
                   <span>
-                    {inr(salesRegister.netTaxableValue)} / {inr(salesRegister.netTax)}
+                    {inr.format(salesRegister.netTaxableValue)} / {inr.format(salesRegister.netTax)}
                   </span>
                 </div>
               </CardContent>

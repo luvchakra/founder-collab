@@ -14,6 +14,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { PoForm, type PoActionState } from "./po-form";
 import { PoDetail } from "./po-detail";
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 import {
   primaryAction,
   type LookupOption,
@@ -33,13 +34,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   closed: "secondary",
   cancelled: "destructive",
 };
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/purchase-orders.tsx
  * `PurchaseOrders` component. draft->approved and approved->sent are the approval step
@@ -140,7 +134,7 @@ export function PurchaseOrdersList({
                   <TableCell className="font-medium">{po.supplier_name}</TableCell>
                   <TableCell>{po.warehouse_name}</TableCell>
                   <TableCell>{formatDate(po.order_date)}</TableCell>
-                  <TableCell className="text-right">{inr(po.total_amount)}</TableCell>
+                  <TableCell className="text-right">{inr.format(po.total_amount)}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[po.status]}>{po.status.replace("_", " ")}</Badge>
                   </TableCell>

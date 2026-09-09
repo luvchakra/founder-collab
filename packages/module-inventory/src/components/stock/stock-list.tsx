@@ -12,11 +12,8 @@ import {
   TableRow,
 } from "@cofounderai/core/ui/table";
 import { MovementModal, type MovementActionState } from "./movement-modal";
+import { num } from "@cofounderai/core/lib/format";
 import type { LookupOption, StockLevel } from "../../lib/stock/types";
-
-function formatNumber(n: number) {
-  return new Intl.NumberFormat("en-IN").format(n);
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/inventory.tsx `Inventory`
  * component -- a read-mostly stock-levels table plus a "Record movement" form (stock on
@@ -93,14 +90,14 @@ export function StockList({
                     </TableCell>
                     <TableCell>{row.warehouse_name}</TableCell>
                     <TableCell className={`text-right ${low ? "font-semibold text-destructive" : ""}`}>
-                      {formatNumber(row.quantity)}
+                      {num.format(row.quantity)}
                     </TableCell>
-                    <TableCell className="text-right font-medium">{formatNumber(available)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.reserved)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.damaged)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.expired)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.incoming)}</TableCell>
-                    <TableCell className="text-right">{formatNumber(row.in_transit)}</TableCell>
+                    <TableCell className="text-right font-medium">{num.format(available)}</TableCell>
+                    <TableCell className="text-right">{num.format(row.reserved)}</TableCell>
+                    <TableCell className="text-right">{num.format(row.damaged)}</TableCell>
+                    <TableCell className="text-right">{num.format(row.expired)}</TableCell>
+                    <TableCell className="text-right">{num.format(row.incoming)}</TableCell>
+                    <TableCell className="text-right">{num.format(row.in_transit)}</TableCell>
                     {canEdit ? (
                       <TableCell className="text-right">
                         <Button

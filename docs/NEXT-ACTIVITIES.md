@@ -229,3 +229,37 @@ commit, since advanced), each revising/extending the last:
 this session's own first pass, are in `docs/testing/EXECUTION-2026-09-08.md`. What's
 still genuinely pending (not yet built/fixed) from all four revisions is tracked in §3's
 table, not here.
+
+## 8. Pending: UI/UX uniformity, settings panel, beautification, responsive design (uploaded 2026-09-09)
+
+A sixth upload, `docs/UI-UX-UNIFORMITY.md` (landed into the repo same commit as this
+section), is a companion to the §6 audit — four new angles it didn't cover. Directly
+responsive to the user's own explicit ask this session ("make the layout uniform...
+give subtle colour differences where required"). Status per item:
+
+- **§1a/1b (currency/date formatting inconsistency, P0, mechanical) — actioned this
+  session**, see the commit that lands alongside this doc: consolidated onto the
+  shared `inr`/`formatDate` from `core/lib/format.ts` everywhere a component had its
+  own `Intl.NumberFormat`/date-options object.
+- **§1e (stale "co-founder-ai" copy in Appearance settings) — actioned this session**,
+  same commit: corrected to the platform's actual name.
+- **§1c (no shared `EmptyState` component)** — not built. Real fix, but a new
+  primitive + incremental migration across ~15 call sites, deferred rather than
+  rushed.
+- **§1d (3 hardcoded hex colors bypassing the design-token system)** — not fixed;
+  `packages/core/src/components/ui/chart.tsx`, `module-fsm`'s `signature-pad.tsx`,
+  `module-discovery`'s `fsm-handoff-panel.tsx`.
+- **§2 (a real Display/Settings preferences panel** — density, date/number locale,
+  reduce-motion, sidebar default state, default landing module, backed by a new
+  `core.user_preferences` table) — not built; a genuine new feature, not a bug fix,
+  needs its own story-sized effort.
+- **§3 (beautification: icon-button sizing consistency, one status-color mapping
+  platform-wide, header rhythm)** — not actioned; needs a visual audit pass, not just
+  a grep-driven fix.
+- **§4 (responsive: card-view fallback for dense tables, tablet-width sidebar
+  behavior, touch-target sizing, form field stacking, `fsm`'s field/My-Day screens as
+  the priority target)** — not actioned; the audit's own suggested order puts this
+  after §1/§2, and it's the largest remaining effort in either UX document.
+
+Tracking only — items not explicitly called out above as "actioned this session" have
+not been built.

@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@cofounderai/core/ui/table";
 import { STAGES, type PurchaseOrder, type PurchaseOrderItem } from "../../lib/purchase-orders/types";
+import { inr } from "@cofounderai/core/lib/format";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   draft: "secondary",
@@ -31,10 +32,6 @@ function stageIndex(status: string) {
   if (status === "pending_approval") return 0;
   const idx = STAGES.findIndex((s) => s.key === status);
   return idx === -1 ? 0 : idx;
-}
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
 }
 
 /** Ported from stockpilot-ai-ops's purchase-orders.tsx StageStepper + detail-dialog
@@ -156,7 +153,7 @@ export function PoDetail({
                     </TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
                     <TableCell className="text-right">{item.received_quantity}</TableCell>
-                    <TableCell className="text-right">{inr(item.unit_cost)}</TableCell>
+                    <TableCell className="text-right">{inr.format(item.unit_cost)}</TableCell>
                     <TableCell className="text-right text-muted-foreground">{item.tax_rate}%</TableCell>
                     {canReceiveNow ? (
                       <TableCell className="text-right">
@@ -200,41 +197,41 @@ export function PoDetail({
         <div className="mt-5 space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span>{inr(purchaseOrder.subtotal)}</span>
+            <span>{inr.format(purchaseOrder.subtotal)}</span>
           </div>
           {purchaseOrder.igst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>IGST</span>
-              <span>{inr(purchaseOrder.igst_amount)}</span>
+              <span>{inr.format(purchaseOrder.igst_amount)}</span>
             </div>
           ) : null}
           {purchaseOrder.cgst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>CGST</span>
-              <span>{inr(purchaseOrder.cgst_amount)}</span>
+              <span>{inr.format(purchaseOrder.cgst_amount)}</span>
             </div>
           ) : null}
           {purchaseOrder.sgst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>SGST</span>
-              <span>{inr(purchaseOrder.sgst_amount)}</span>
+              <span>{inr.format(purchaseOrder.sgst_amount)}</span>
             </div>
           ) : null}
           {purchaseOrder.shipping_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Shipping</span>
-              <span>{inr(purchaseOrder.shipping_amount)}</span>
+              <span>{inr.format(purchaseOrder.shipping_amount)}</span>
             </div>
           ) : null}
           {purchaseOrder.discount_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Discount</span>
-              <span>-{inr(purchaseOrder.discount_amount)}</span>
+              <span>-{inr.format(purchaseOrder.discount_amount)}</span>
             </div>
           ) : null}
           <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold">
             <span>Total</span>
-            <span>{inr(purchaseOrder.total_amount)}</span>
+            <span>{inr.format(purchaseOrder.total_amount)}</span>
           </div>
         </div>
 

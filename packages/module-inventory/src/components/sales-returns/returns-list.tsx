@@ -15,6 +15,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { ReturnForm, type ReturnActionState } from "./return-form";
 import { ReturnDetail } from "./return-detail";
+import { formatDate } from "@cofounderai/core/lib/format";
 import {
   primaryAction,
   type EligibleSalesOrder,
@@ -29,10 +30,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   completed: "default",
   cancelled: "destructive",
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/sales-returns.tsx
  * `SalesReturns` component. Reads the `so` query param (set by Sales Orders' own

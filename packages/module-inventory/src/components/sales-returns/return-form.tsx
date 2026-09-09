@@ -7,6 +7,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { inr } from "@cofounderai/core/lib/format";
 import { REASON_LABEL, REASONS } from "../../lib/sales-returns/types";
 import type { EligibleSalesOrder, SalesReturnReason, SoItemForReturn } from "../../lib/sales-returns/types";
 
@@ -202,7 +203,7 @@ export function ReturnForm({
             <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-sm">
               <span className="text-muted-foreground">Return value (before GST)</span>
               <span className="text-base font-semibold">
-                {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(returnValue)}
+                {inr.format(returnValue)}
               </span>
             </div>
           ) : null}

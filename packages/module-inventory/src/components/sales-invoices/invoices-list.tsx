@@ -14,6 +14,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { GenerateInvoiceModal } from "./generate-invoice-modal";
 import { InvoiceDetail } from "./invoice-detail";
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 import {
   PAYMENT_STATUS_LABEL,
   type CreditNote,
@@ -28,13 +29,6 @@ const PAYMENT_STATUS_VARIANT: Record<PaymentStatus, "default" | "secondary" | "o
   partial: "secondary",
   paid: "default",
 };
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/sales-invoices.tsx
  * `SalesInvoices` component. Gated on invoices.create for generating a new invoice,
@@ -113,7 +107,7 @@ export function InvoicesList({
                   <TableCell className="font-medium">{inv.customer_name}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{inv.so_number}</TableCell>
                   <TableCell>{formatDate(inv.invoice_date)}</TableCell>
-                  <TableCell className="text-right">{inr(inv.total_amount)}</TableCell>
+                  <TableCell className="text-right">{inr.format(inv.total_amount)}</TableCell>
                   <TableCell>
                     <Badge variant={PAYMENT_STATUS_VARIANT[inv.payment_status]}>{PAYMENT_STATUS_LABEL[inv.payment_status]}</Badge>
                   </TableCell>

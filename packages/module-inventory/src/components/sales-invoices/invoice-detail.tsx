@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cofounderai/core/ui/table";
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 import {
   PAYMENT_STATUS_LABEL,
   type CreditNote,
@@ -28,13 +29,6 @@ const PAYMENT_STATUS_VARIANT: Record<PaymentStatus, "default" | "secondary" | "o
   partial: "secondary",
   paid: "default",
 };
-
-function inr(n: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(n);
-}
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's sales-invoices.tsx detail dialog: line items, totals,
  * existing credit notes, an inline "record credit note" form, and the payment-status
@@ -123,7 +117,7 @@ export function InvoiceDetail({
                   </TableCell>
                   <TableCell className="font-mono text-xs">{item.hsn_code ?? "—"}</TableCell>
                   <TableCell className="text-right">{item.quantity}</TableCell>
-                  <TableCell className="text-right">{inr(item.unit_price)}</TableCell>
+                  <TableCell className="text-right">{inr.format(item.unit_price)}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{item.tax_rate}%</TableCell>
                 </TableRow>
               ))}
@@ -134,41 +128,41 @@ export function InvoiceDetail({
         <div className="mt-5 space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-sm">
           <div className="flex items-center justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span>{inr(invoice.subtotal)}</span>
+            <span>{inr.format(invoice.subtotal)}</span>
           </div>
           {invoice.igst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>IGST</span>
-              <span>{inr(invoice.igst_amount)}</span>
+              <span>{inr.format(invoice.igst_amount)}</span>
             </div>
           ) : null}
           {invoice.cgst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>CGST</span>
-              <span>{inr(invoice.cgst_amount)}</span>
+              <span>{inr.format(invoice.cgst_amount)}</span>
             </div>
           ) : null}
           {invoice.sgst_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>SGST</span>
-              <span>{inr(invoice.sgst_amount)}</span>
+              <span>{inr.format(invoice.sgst_amount)}</span>
             </div>
           ) : null}
           {invoice.shipping_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Shipping</span>
-              <span>{inr(invoice.shipping_amount)}</span>
+              <span>{inr.format(invoice.shipping_amount)}</span>
             </div>
           ) : null}
           {invoice.discount_amount > 0 ? (
             <div className="flex items-center justify-between text-muted-foreground">
               <span>Discount</span>
-              <span>-{inr(invoice.discount_amount)}</span>
+              <span>-{inr.format(invoice.discount_amount)}</span>
             </div>
           ) : null}
           <div className="flex items-center justify-between border-t border-border pt-1.5 text-base font-semibold">
             <span>Total</span>
-            <span>{inr(invoice.total_amount)}</span>
+            <span>{inr.format(invoice.total_amount)}</span>
           </div>
         </div>
 
@@ -185,13 +179,13 @@ export function InvoiceDetail({
                       {cn.reason ? ` · ${cn.reason}` : ""}
                     </p>
                   </div>
-                  <span className="font-medium">-{inr(cn.total_amount)}</span>
+                  <span className="font-medium">-{inr.format(cn.total_amount)}</span>
                 </div>
               ))}
             </div>
             <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3 text-base font-semibold">
               <span>Net payable</span>
-              <span>{inr(netPayable)}</span>
+              <span>{inr.format(netPayable)}</span>
             </div>
           </div>
         ) : null}
@@ -222,7 +216,7 @@ export function InvoiceDetail({
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="cn-kind">Type</Label>
               <NativeSelect id="cn-kind" value={creditKind} onChange={(e) => setCreditKind(e.target.value as "full" | "partial")}>
-                <option value="full">Full — remaining {inr(remainingSubtotal)} + tax</option>
+                <option value="full">Full — remaining {inr.format(remainingSubtotal)} + tax</option>
                 <option value="partial">Partial</option>
               </NativeSelect>
             </div>
@@ -239,7 +233,7 @@ export function InvoiceDetail({
                   onChange={(e) => setCreditSubtotal(e.target.value)}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Up to {inr(remainingSubtotal)} remaining. Tax is credited proportionally to the invoice&apos;s own rate.
+                  Up to {inr.format(remainingSubtotal)} remaining. Tax is credited proportionally to the invoice&apos;s own rate.
                 </p>
               </div>
             ) : null}

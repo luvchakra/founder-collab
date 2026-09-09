@@ -6,7 +6,7 @@ export default function AppearanceSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold">Appearance</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose how co-founder-ai looks on this device. &quot;System&quot; follows your
+          Choose how CoFounderAI looks on this device. &quot;System&quot; follows your
           OS setting and switches automatically.
         </p>
       </div>

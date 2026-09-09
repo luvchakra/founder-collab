@@ -14,6 +14,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { TransferForm, type TransferActionState } from "./transfer-form";
 import { TransferDetail } from "./transfer-detail";
+import { formatDate } from "@cofounderai/core/lib/format";
 import {
   CANCELLABLE_STATUSES,
   primaryAction,
@@ -31,10 +32,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   completed: "secondary",
   cancelled: "destructive",
 };
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** Ported from stockpilot-ai-ops's routes/_authenticated/stock-transfers.tsx
  * `StockTransfers` component. Gated on stock_transfers.edit for create/edit;
