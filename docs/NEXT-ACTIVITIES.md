@@ -168,8 +168,24 @@ tracking entry per the user's explicit "add these as pending activities" request
 decision to build them next. Original recommended order preserved.
 
 **P0 — trust and safety, platform-wide:**
-1. Destructive actions (void/cancel/delete — 29 files) almost never confirm first; only
-   `delete-demo-data-button.tsx` uses the existing `AlertDialog` primitive.
+1. ~~Destructive actions (void/cancel/delete — 29 files) almost never confirm first; only
+   `delete-demo-data-button.tsx` uses the existing `AlertDialog` primitive.~~ — **Fixed
+   2026-09-09**: re-surveyed live (the "29 files" count was stale/overcounted --
+   inflated by matching "cancel" on form-close buttons and reversible
+   Deactivate/Reactivate toggles, neither of which is actually destructive). Found 14
+   genuine irreversible actions with zero confirmation and wrapped every one in the
+   existing `AlertDialog` primitive, matching `delete-demo-data-button.tsx`'s own
+   trigger/content/cancel/destructive-action pattern: `module-inventory` (cancel sales
+   order, cancel stock transfer, cancel sales return, revoke API key), `module-fsm`
+   (cancel job, cancel schedule event, delete schedule event, delete invoice charge
+   line, delete estimate charge line, delete logged expense, delete job
+   attachment/photo), `module-discovery` (delete prospect contact, delete knowledge
+   source), and `apps/web`'s licenses settings page (cancel a business's module
+   license -- names the 30-day grace period in the dialog body). 3 other call sites the
+   audit's keyword search would have caught were confirmed already-safe and left
+   alone: e-invoice/e-way-bill cancellation and invoice voiding already use their own
+   two-step reason-field dialogs, and 7 Deactivate/Reactivate toggles + 1 customer
+   "Decline estimate" are one click to reverse, not meaningfully destructive.
 2. ~~`sonner.tsx` (toast) is vendored in `packages/core/src/components/ui/` but `toast()`
    is called zero times anywhere and no `<Toaster />` is mounted.~~ — **Fixed
    2026-09-09**: `<Toaster />` now mounts once in `apps/web/app/layout.tsx` (the true

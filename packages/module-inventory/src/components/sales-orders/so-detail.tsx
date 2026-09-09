@@ -4,6 +4,17 @@ import { Check, X } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -200,9 +211,30 @@ export function SoDetail({
             </Button>
           ) : null}
           {canCancel ? (
-            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={onCancel}>
-              Cancel order
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive hover:text-destructive">
+                  Cancel order
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel {salesOrder.so_number}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cancels the sales order and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep order</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={onCancel}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Cancel order
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
           {primaryLabel ? (
             <Button size="lg" onClick={onPrimaryAction}>

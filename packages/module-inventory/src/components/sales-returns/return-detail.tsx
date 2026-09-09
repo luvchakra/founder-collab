@@ -4,6 +4,17 @@ import { Check, X } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -152,9 +163,30 @@ export function ReturnDetail({
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           {salesReturn.status === "draft" && canCancel ? (
-            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={onCancel}>
-              Cancel return
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive hover:text-destructive">
+                  Cancel return
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this return?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cancels the sales return and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep return</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={onCancel}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Cancel return
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
           {primaryLabel ? (
             <Button size="lg" onClick={onPrimaryAction}>

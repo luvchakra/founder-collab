@@ -7,6 +7,17 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { Badge } from "@cofounderai/core/ui/badge";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -115,15 +126,37 @@ export function ApiKeysPanel({
                   </TableCell>
                   <TableCell className="text-right">
                     {!k.revoked_at ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        disabled={pending}
-                        onClick={() => submitRevoke(k.id)}
-                      >
-                        Revoke
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={pending}
+                          >
+                            Revoke
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Revoke &quot;{k.name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Any integration still using this key will immediately stop working. This
+                              cannot be undone -- a revoked key can never be reactivated, only replaced
+                              with a new one.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep key</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => submitRevoke(k.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Revoke
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     ) : null}
                   </TableCell>
                 </TableRow>

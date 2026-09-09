@@ -15,6 +15,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@cofounderai/core/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { inr } from "@cofounderai/core/lib/format";
 import type { AddChargeLineInput, ChargeableItemOption, Estimate, EstimateLine, UpdateChargeLineInput } from "../../lib/estimates/types";
@@ -224,15 +235,30 @@ export function EstimateBuilder({
                   </TableCell>
                   {canEdit ? (
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        disabled={pending}
-                        onClick={() => run(() => deleteLineAction(line.id))}
-                        aria-label="Remove charge"
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This removes the charge line from the estimate and cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => run(() => deleteLineAction(line.id))}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   ) : null}
                 </TableRow>

@@ -5,6 +5,17 @@ import { Ban, Trash2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import type { EmployeeOption } from "../../lib/employees/types";
 import type { TechnicianRosterRow } from "../../lib/employees/types";
 import type { EventKind, JobOption, OpportunityOption, ScheduleEventItem } from "../../lib/events/types";
@@ -267,34 +278,66 @@ export function ScheduleCalendar({
               </div>
               {canManage ? (
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending || selected.status === "cancelled"}
-                    onClick={() =>
-                      run(async () => {
-                        await cancelAction(selected.id);
-                        setSelected(null);
-                      })
-                    }
-                  >
-                    <Ban className="size-4" aria-hidden="true" />
-                    Cancel event
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={pending}
-                    onClick={() =>
-                      run(async () => {
-                        await deleteAction(selected.id);
-                        setSelected(null);
-                      })
-                    }
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    Delete
-                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="outline" disabled={pending || selected.status === "cancelled"}>
+                        <Ban className="size-4" aria-hidden="true" />
+                        Cancel event
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel this event?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This marks the event cancelled. It stays on record but no longer counts as
+                          scheduled work.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep event</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() =>
+                            run(async () => {
+                              await cancelAction(selected.id);
+                              setSelected(null);
+                            })
+                          }
+                        >
+                          Cancel event
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="destructive" disabled={pending}>
+                        <Trash2 className="size-4" aria-hidden="true" />
+                        Delete
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This permanently removes the event from the schedule and cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep event</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() =>
+                            run(async () => {
+                              await deleteAction(selected.id);
+                              setSelected(null);
+                            })
+                          }
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </DialogFooter>
               ) : null}
             </>

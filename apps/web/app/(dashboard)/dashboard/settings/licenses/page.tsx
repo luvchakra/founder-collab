@@ -6,6 +6,18 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 import { ModuleIcon } from "@cofounderai/core/shell/module-icon";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
+import { Button } from "@cofounderai/core/ui/button";
 import { activateModuleAction, deactivateModuleAction } from "./actions";
 
 function graceDaysLeft(graceEndsAt: string | null): number {
@@ -75,11 +87,33 @@ export default async function LicensesSettingsPage() {
                       </div>
 
                       {isActiveOrGrace ? (
-                        <form action={deactivateModuleAction.bind(null, business.id, module.key)}>
-                          <SubmitButton variant="outline" size="sm" pendingText="Cancelling...">
-                            Cancel
-                          </SubmitButton>
-                        </form>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button type="button" variant="outline" size="sm">
+                              Cancel
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Cancel {module.name} for {business.name}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This starts a 30-day read-only grace period, then full access is denied.
+                                Your data is retained the whole time -- reactivating any time restores
+                                everything exactly as it was.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep it active</AlertDialogCancel>
+                              <form action={deactivateModuleAction.bind(null, business.id, module.key)}>
+                                <AlertDialogAction asChild>
+                                  <SubmitButton variant="destructive" size="sm" pendingText="Cancelling...">
+                                    Cancel license
+                                  </SubmitButton>
+                                </AlertDialogAction>
+                              </form>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       ) : (
                         <form action={activateModuleAction.bind(null, business.id, module.key)}>
                           <SubmitButton size="sm" pendingText="Activating...">

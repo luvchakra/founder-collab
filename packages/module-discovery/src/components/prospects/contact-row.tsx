@@ -6,6 +6,17 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { Button } from "@cofounderai/core/ui/button";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import type { Contact } from "../../lib/contacts/types";
 
 /** Contact list item with an inline edit toggle -- same collapsed-heading/pencil-reveal
@@ -120,11 +131,35 @@ export function ContactRow({
         >
           <Pencil className="size-4" aria-hidden="true" />
         </Button>
-        <form action={deleteAction}>
-          <SubmitButton variant="ghost" size="sm" pendingText="Deleting...">
-            Delete
-          </SubmitButton>
-        </form>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button type="button" variant="ghost" size="sm">
+              Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this contact?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the contact and cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep contact</AlertDialogCancel>
+              <form action={deleteAction}>
+                <AlertDialogAction asChild>
+                  <SubmitButton
+                    variant="destructive"
+                    pendingText="Deleting..."
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Delete
+                  </SubmitButton>
+                </AlertDialogAction>
+              </form>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </li>
   );

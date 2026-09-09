@@ -5,6 +5,17 @@ import { Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import type { RenameActionState } from "../../lib/tenancy/types";
 
 /**
@@ -58,15 +69,39 @@ export function KnowledgeSourceCard({
           >
             <Pencil className="size-4" aria-hidden="true" />
           </button>
-          <form action={deleteAction}>
-            <button
-              type="submit"
-              aria-label="Delete source"
-              className="text-muted-foreground transition-colors hover:text-destructive"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-            </button>
-          </form>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                aria-label="Delete source"
+                className="text-muted-foreground transition-colors hover:text-destructive"
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete &quot;{sourceName}&quot;?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This removes the knowledge source and cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep source</AlertDialogCancel>
+                <form action={deleteAction}>
+                  <AlertDialogAction asChild>
+                    <SubmitButton
+                      variant="destructive"
+                      pendingText="Deleting..."
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </SubmitButton>
+                  </AlertDialogAction>
+                </form>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 

@@ -9,6 +9,17 @@ import { Label } from "@cofounderai/core/ui/label";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { CustomFieldWithValue } from "../../lib/custom-fields/types";
 import type { Expense } from "../../lib/expenses/types";
@@ -203,9 +214,31 @@ export function JobDetail({
               </Button>
             ) : null}
             {job.status !== "completed" && job.status !== "cancelled" ? (
-              <Button variant="destructive" size="sm" disabled={pending} onClick={() => run(cancelAction)}>
-                Cancel
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={pending}>
+                    Cancel
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel this job?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This cancels the job and releases any parts reserved for it back to stock. It
+                      cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Keep job</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => run(cancelAction)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Cancel job
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             ) : null}
             {job.status === "completed" && canReopen ? (
               <Button variant="outline" size="sm" disabled={pending} onClick={() => run(reopenAction)}>

@@ -8,6 +8,17 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
 import { inr } from "@cofounderai/core/lib/format";
 import { formatDate, formatDateTime } from "@cofounderai/core/lib/format";
 import type { Expense } from "../../lib/expenses/types";
@@ -167,9 +178,30 @@ export function FieldWorkTab({
                 <div className="flex items-center gap-2">
                   <span>{inr.format(expense.amount)}</span>
                   {canEditExpenses ? (
-                    <button type="button" aria-label="Delete expense" onClick={() => run(() => deleteExpenseAction(expense.id))} className="rounded p-1 hover:bg-muted">
-                      <Trash2 className="size-3.5" aria-hidden="true" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button type="button" aria-label="Delete expense" className="rounded p-1 hover:bg-muted">
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This removes the logged expense and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep expense</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => run(() => deleteExpenseAction(expense.id))}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   ) : null}
                 </div>
               </li>
@@ -263,14 +295,30 @@ export function FieldWorkTab({
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {formatDate(attachment.created_at)}
                   {canEditJob ? (
-                    <button
-                      type="button"
-                      aria-label="Delete attachment"
-                      onClick={() => run(() => deleteAttachmentAction(attachment.id))}
-                      className="rounded p-1 hover:bg-muted"
-                    >
-                      <Trash2 className="size-3.5" aria-hidden="true" />
-                    </button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <button type="button" aria-label="Delete attachment" className="rounded p-1 hover:bg-muted">
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                        </button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete &quot;{attachment.file_name}&quot;?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the file and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep file</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => run(() => deleteAttachmentAction(attachment.id))}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   ) : null}
                 </div>
               </li>

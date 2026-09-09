@@ -6,6 +6,17 @@ import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Input } from "@cofounderai/core/ui/input";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@cofounderai/core/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -229,9 +240,30 @@ export function TransferDetail({
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           {canCancel ? (
-            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={onCancel}>
-              Cancel transfer
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive hover:text-destructive">
+                  Cancel transfer
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel {transfer.transfer_number}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This cancels the stock transfer and cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep transfer</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={onCancel}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Cancel transfer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
           {primaryLabel ? (
             <Button size="lg" onClick={onPrimaryAction}>
