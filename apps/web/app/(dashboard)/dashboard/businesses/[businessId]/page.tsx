@@ -9,13 +9,19 @@ import {
 import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { createProductAction } from "@/app/(dashboard)/dashboard/actions";
-import { renameBusinessAction, updateBusinessDescriptionAction } from "./actions";
+import {
+  renameBusinessAction,
+  updateBusinessDescriptionAction,
+  previewProductImportAction,
+  importProductsAction,
+} from "./actions";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
+import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
@@ -97,7 +103,13 @@ export default async function BusinessPage({
       </div>
 
       <section>
-        <h2 className="font-medium">Products</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-medium">Products</h2>
+          <ProductImportWizard
+            previewAction={previewProductImportAction.bind(null, business.id)}
+            importAction={importProductsAction.bind(null, business.id)}
+          />
+        </div>
         {cards.length === 0 ? (
           <p className="mt-2 text-muted-foreground">
             Create a product to get its own GTM workspace.

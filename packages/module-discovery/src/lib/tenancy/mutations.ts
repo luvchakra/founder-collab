@@ -102,6 +102,54 @@ export async function createProduct(
   return data;
 }
 
+/**
+ * Bulk-creates products from a catalog import (business page), skipping anything that's
+ * already a product on this business (by name, case-insensitive) rather than creating a
+ * duplicate -- same "dedup against the existing set, not just within the batch" shape
+ * prospects-import already uses. Returns how many were actually inserted vs. skipped as
+ * duplicates so the caller can report both.
+ */
+export async function createProductsBulk(
+  businessId: string,
+  rows: { name: string; description?: string; website?: string }[],
+): Promise<{ inserted: number; duplicates: number }> {
+  if (rows.length === 0) return { inserted: 0, duplicates: 0 };
+
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("products")
+    .select("name")
+    .eq("business_id", businessId);
+  if (existingError) throw existingError;
+  const existingNames = new Set((existing ?? []).map((p) => p.name.trim().toLowerCase()));
+
+  const seenInBatch = new Set<string>();
+  const toInsert: { business_id: string; name: string; description: string | null; website: string | null }[] = [];
+  let duplicates = 0;
+
+  for (const row of rows) {
+    const name = row.name.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (existingNames.has(key) || seenInBatch.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    seenInBatch.add(key);
+    toInsert.push({
+      business_id: businessId,
+      name,
+      description: row.description?.trim() || null,
+      website: row.website?.trim() || null,
+    });
+  }
+
+  if (toInsert.length === 0) return { inserted: 0, duplicates };
+  const { data, error } = await supabase.from("products").insert(toInsert).select();
+  if (error) throw error;
+  return { inserted: data?.length ?? 0, duplicates };
+}
+
 /** Only the fields actually passed are updated -- see updateBusiness's docstring. */
 export async function updateProduct(
   productId: string,

@@ -12,6 +12,7 @@ import type { ProspectStage } from "@cofounderai/module-discovery/lib/prospects/
 import { ProspectToolbarActions } from "@cofounderai/module-discovery/components/prospects/prospect-toolbar-actions";
 import { ProspectsBoard } from "@cofounderai/module-discovery/components/prospects/prospects-board";
 import { AutoPopulateStepBanner } from "@cofounderai/module-discovery/components/tenancy/auto-populate-step-banner";
+import { AutoPopulateCompleteDialog } from "@cofounderai/module-discovery/components/tenancy/auto-populate-complete-dialog";
 import {
   createProspectAction,
   bulkResearchAction,
@@ -106,20 +107,7 @@ export default async function ProspectsPage({
         replace
       />
 
-      {autopopulated ? (
-        <div className="flex flex-col gap-1 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
-          <p className="font-medium">
-            {autopopulated === "0"
-              ? "Auto-populate finished, but no matching prospect was found."
-              : `Auto-populate found ${autopopulated} prospect.`}
-          </p>
-          <p className="text-muted-foreground">
-            If you are not satisfied with the search results, please review the Overview, ICP,
-            and Prospects pages to update information and perform the Discover action under
-            Prospects again.
-          </p>
-        </div>
-      ) : null}
+      <AutoPopulateCompleteDialog resultCount={autopopulated} basePath={basePath} />
 
       {imported ? (
         <p className="rounded-md border bg-muted p-3 text-sm">

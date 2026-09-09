@@ -2,7 +2,12 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { updateBusiness } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import { updateBusiness, createProductsBulk } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import {
+  parseProductImportFile,
+  type ProductImportRow,
+  type ProductImportPreviewResult,
+} from "@cofounderai/module-discovery/lib/tenancy/parse-products-import";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 export async function renameBusinessAction(
@@ -41,4 +46,45 @@ export async function updateBusinessDescriptionAction(
 
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };
+}
+
+/**
+ * Step 1 of the business page's product-catalog import: parses the uploaded file and
+ * returns every row, not just a preview slice -- the client component holds the full
+ * array and renders only the first few, then hands the same array straight to
+ * `importProductsAction` on confirm (no second upload/parse needed, and nothing is
+ * written to the database yet at this step).
+ */
+export async function previewProductImportAction(
+  _businessId: string,
+  _prevState: ProductImportPreviewResult | null,
+  formData: FormData,
+): Promise<ProductImportPreviewResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choose a file to preview." };
+  }
+
+  try {
+    const { rows, errors, usedFallback } = await parseProductImportFile(file);
+    if (rows.length === 0) {
+      return { error: errors[0] ?? "Could not find any products in that file." };
+    }
+    return { rows, errors, usedFallback };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not read that file." };
+  }
+}
+
+/** Step 2: actually creates the products, from the rows step 1 already parsed and the
+ * founder already reviewed -- called directly (not through a <form>), since the rows
+ * live in the client component's own state by this point, not in a fresh FormData. */
+export async function importProductsAction(
+  businessId: string,
+  rows: ProductImportRow[],
+): Promise<{ inserted: number; duplicates: number }> {
+  const result = await createProductsBulk(businessId, rows);
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return result;
 }

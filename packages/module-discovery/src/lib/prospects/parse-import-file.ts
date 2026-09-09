@@ -1,46 +1,5 @@
-import ExcelJS from "exceljs";
-import pdfParse from "pdf-parse";
+import { readImportFile } from "../shared/read-import-file";
 import { parseProspectsCsv, type CsvParseResult } from "./csv";
-
-function csvEscape(value: string): string {
-  if (/["\n,]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
-  return value;
-}
-
-function cellValueToText(value: ExcelJS.CellValue): string {
-  if (value == null) return "";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (typeof value === "object") {
-    if ("richText" in value) return value.richText.map((t) => t.text).join("");
-    if ("text" in value) return String(value.text);
-    if ("result" in value) return String(value.result ?? "");
-    return "";
-  }
-  return String(value);
-}
-
-/** Converts an Excel workbook's first sheet into the same CSV text
- * `parseProspectsCsv` already understands, so there's exactly one place that maps
- * column headers onto prospect fields regardless of which file format they came from. */
-async function excelToCsvText(buffer: Buffer): Promise<string> {
-  const workbook = new ExcelJS.Workbook();
-  // exceljs's own .d.ts pins a different (older) @types/node's `Buffer` shape than this
-  // monorepo resolves to -- a duplicate-package type-declaration mismatch, not a real
-  // runtime incompatibility, since a Node Buffer is exactly what `load()` needs and gets
-  // here. `any` (not a same-type unknown cast, which TS still structurally rejects) is
-  // the actual escape hatch for that mismatch.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await workbook.xlsx.load(buffer as any);
-  const sheet = workbook.worksheets[0];
-  if (!sheet) return "";
-
-  const lines: string[] = [];
-  sheet.eachRow((row) => {
-    const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-    lines.push(values.map((v) => csvEscape(cellValueToText(v as ExcelJS.CellValue))).join(","));
-  });
-  return lines.join("\n");
-}
 
 export type ImportFileParseResult = {
   rows: CsvParseResult["rows"];
@@ -61,27 +20,10 @@ export type ImportFileParseResult = {
  * through AI restructuring instead of hard-failing the import.
  */
 export async function parseImportFile(file: File): Promise<ImportFileParseResult> {
-  const name = file.name.toLowerCase();
-  const type = file.type;
+  const { text, structured } = await readImportFile(file);
+  if (!structured) return { rows: [], errors: [], rawTextForAi: text || undefined };
 
-  if (type === "application/pdf" || name.endsWith(".pdf")) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { text } = await pdfParse(buffer);
-    return { rows: [], errors: [], rawTextForAi: text.trim() || undefined };
-  }
-
-  let csvText: string;
-  if (
-    type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-    name.endsWith(".xlsx")
-  ) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    csvText = await excelToCsvText(buffer);
-  } else {
-    csvText = await file.text();
-  }
-
-  const result = parseProspectsCsv(csvText);
+  const result = parseProspectsCsv(text);
   if (result.rows.length > 0) return result;
-  return { rows: [], errors: result.errors, rawTextForAi: csvText.trim() || undefined };
+  return { rows: [], errors: result.errors, rawTextForAi: text || undefined };
 }

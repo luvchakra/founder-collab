@@ -1,41 +1,10 @@
+import { parseCsvLine } from "../shared/parse-csv-line";
 import type { ProspectInput } from "./mutations";
 
 export type CsvParseResult = {
   rows: ProspectInput[];
   errors: string[];
 };
-
-/** Minimal CSV line parser: handles quoted fields with embedded commas/quotes. */
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (inQuotes) {
-      if (char === '"') {
-        if (line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        current += char;
-      }
-    } else if (char === '"') {
-      inQuotes = true;
-    } else if (char === ",") {
-      fields.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  fields.push(current);
-  return fields.map((f) => f.trim());
-}
 
 /**
  * Parses a pasted CSV into prospect inputs. Required column: company_name. Optional:
