@@ -144,7 +144,7 @@ function ModuleContent({
           className={navItemClassName(isDashboardActive, "mb-1")}
         >
           <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
-          Dashboard
+          Control Center
         </a>
         <span className="px-2 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
           Products

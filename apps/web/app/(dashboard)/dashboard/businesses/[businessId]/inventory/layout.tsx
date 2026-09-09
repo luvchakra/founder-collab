@@ -26,7 +26,7 @@ export default async function InventoryLayout({
     <div className="flex flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Dashboard", href: "/dashboard" },
+          { label: "Control Center", href: "/dashboard" },
           { label: business.name, href: `/dashboard/businesses/${businessId}` },
           { label: MODULE_NAME },
         ]}

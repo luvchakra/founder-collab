@@ -93,7 +93,7 @@ export function ModuleSelector({
             className="flex items-center gap-2.5 rounded-sm px-3 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent/60"
           >
             <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
-            <span className="min-w-0 flex-1 truncate">Dashboard</span>
+            <span className="min-w-0 flex-1 truncate">Control Center</span>
           </Link>
 
           <div className="my-1 border-t border-border" />
@@ -152,7 +152,7 @@ export function ModuleSelector({
           <div className="my-1 border-t border-border" />
 
           <Link
-            href="/dashboard/settings/licenses"
+            href="/dashboard/settings"
             role="menuitem"
             onClick={() => {
               setOpen(false);

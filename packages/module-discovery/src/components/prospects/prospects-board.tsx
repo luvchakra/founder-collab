@@ -6,7 +6,7 @@ import { cn } from "@cofounderai/core/lib/utils";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
 import { ProspectFilters } from "./prospect-filters";
-import { ProspectsTable } from "./prospects-table";
+import { ProspectsCards } from "./prospects-cards";
 import type { ProspectWithPipeline } from "../../lib/prospects/queries";
 
 /**
@@ -100,7 +100,7 @@ export function ProspectsBoard({
           {query || hasActiveFilters ? "No prospects match these filters." : "No prospects yet."}
         </p>
       ) : (
-        <ProspectsTable
+        <ProspectsCards
           prospects={filtered}
           basePath={basePath}
           bulkResearchAction={bulkResearchAction}

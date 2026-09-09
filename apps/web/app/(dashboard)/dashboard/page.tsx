@@ -20,16 +20,21 @@ import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/
 import { ProspectTrendChart } from "@cofounderai/module-discovery/components/dashboard/prospect-trend-chart";
 import { BreakdownBars } from "@cofounderai/core/ui/breakdown-bars";
 import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
+import type { License } from "@cofounderai/core/licensing/types";
 import { ModuleIcon } from "@cofounderai/core/shell/module-icon";
-import type { ModuleKey } from "@cofounderai/module-registry";
+import { moduleRegistry, type ModuleKey } from "@cofounderai/module-registry";
 import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { Badge } from "@cofounderai/core/ui/badge";
+import { formatDate } from "@cofounderai/core/lib/format";
+import { AlertTriangle, ArrowRight, Settings2 } from "lucide-react";
 import { getOpenJobsCount } from "@cofounderai/module-fsm/lib/dashboard/queries";
 import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
 import { getOpenTicketsCount } from "@cofounderai/module-crm/lib/dashboard/queries";
 import { getEinvoicesThisMonthCount } from "@cofounderai/module-gst/lib/dashboard/queries";
+import { getGstProfile } from "@cofounderai/module-gst/lib/profile/queries";
 
 /** S-5: the platform dashboard's module-contributed widget row -- one card per licensed
  * non-discovery module (discovery gets its own dedicated KPI section above, unchanged;
@@ -40,8 +45,10 @@ import { getEinvoicesThisMonthCount } from "@cofounderai/module-gst/lib/dashboar
  * `components/gst/gst-document-panel.tsx` (S-2) already established. A module with zero
  * licensed businesses on this account contributes nothing at all -- ADR-10's own
  * degraded mode, not an error or a placeholder card. */
-async function computeModuleWidgets(businessIds: string[]): Promise<{ key: ModuleKey; label: string; icon: string; value: number; detail: string }[]> {
-  if (businessIds.length === 0) return [];
+async function computeModuleWidgets(
+  businessIds: string[],
+): Promise<{ widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string }[]; licensesByBusiness: License[][] }> {
+  if (businessIds.length === 0) return { widgets: [], licensesByBusiness: [] };
 
   const licensesByBusiness = await Promise.all(businessIds.map((id) => listLicensesForBusiness(id)));
   const licensedBusinessIdsByModule = new Map<string, string[]>();
@@ -78,10 +85,72 @@ async function computeModuleWidgets(businessIds: string[]): Promise<{ key: Modul
   const gstIds = licensedBusinessIdsByModule.get("gst") ?? [];
   if (gstIds.length > 0) {
     const einvoices = await getEinvoicesThisMonthCount(gstIds);
-    widgets.push({ key: "gst", label: "GST", icon: "Receipt", value: einvoices, detail: "e-invoices this month" });
+    widgets.push({ key: "gst", label: "Compliance", icon: "Receipt", value: einvoices, detail: "e-invoices this month" });
   }
 
-  return widgets;
+  return { widgets, licensesByBusiness };
+}
+
+type AttentionItem = { key: string; message: string; href: string; actionLabel: string; severity: "warning" | "info" };
+
+/**
+ * The Control Center's own "needs attention" list -- pending license cancellations,
+ * licenses already in their read-only grace period, and (for any business with GST/
+ * Compliance licensed) a GST profile that's never been filled in. Every item links
+ * straight to where it's fixed, per the "actionable data... quick links" ask -- this
+ * is meant to be a short, scannable to-do list, not a status report.
+ */
+async function buildAttentionItems(
+  businesses: { id: string; name: string }[],
+  licensesByBusiness: License[][],
+): Promise<AttentionItem[]> {
+  const items: AttentionItem[] = [];
+
+  businesses.forEach((business, i) => {
+    for (const license of licensesByBusiness[i] ?? []) {
+      const moduleLabel = moduleRegistry.find((m) => m.key === license.module_key)?.name ?? license.module_key;
+      if (license.status === "active" && license.cancel_at) {
+        items.push({
+          key: `cancel-${license.id}`,
+          message: `${moduleLabel} for ${business.name} cancels on ${formatDate(license.cancel_at)}.`,
+          href: "/dashboard/settings/licenses",
+          actionLabel: "Undo",
+          severity: "warning",
+        });
+      } else if (license.status === "grace") {
+        items.push({
+          key: `grace-${license.id}`,
+          message: `${moduleLabel} for ${business.name} is in its read-only grace period${
+            license.grace_ends_at ? ` until ${formatDate(license.grace_ends_at)}` : ""
+          }.`,
+          href: "/dashboard/settings/licenses",
+          actionLabel: "Reactivate",
+          severity: "warning",
+        });
+      }
+    }
+  });
+
+  const gstBusinessIds = businesses
+    .filter((_, i) => (licensesByBusiness[i] ?? []).some((l) => l.module_key === "gst" && (l.status === "active" || l.status === "grace")))
+    .map((b) => b.id);
+  if (gstBusinessIds.length > 0) {
+    const profiles = await Promise.all(gstBusinessIds.map((id) => getGstProfile(id)));
+    profiles.forEach((profile, i) => {
+      if (profile?.gstin) return;
+      const business = businesses.find((b) => b.id === gstBusinessIds[i]);
+      if (!business) return;
+      items.push({
+        key: `gst-profile-${business.id}`,
+        message: `${business.name} has Compliance licensed but no GSTIN set.`,
+        href: `/dashboard/businesses/${business.id}/gst/profile`,
+        actionLabel: "Set up",
+        severity: "info",
+      });
+    });
+  }
+
+  return items;
 }
 
 function ModuleWidgetCard({ label, icon, value, detail }: { label: string; icon: string; value: number; detail: string }) {
@@ -136,7 +205,8 @@ export default async function DashboardPage({
   const { usageByWorkspace, countsByWorkspace, prospects } = await getAccountUsageAndProspects(
     account.id,
   );
-  const moduleWidgets = await computeModuleWidgets(businesses.map((b) => b.id));
+  const { widgets: moduleWidgets, licensesByBusiness } = await computeModuleWidgets(businesses.map((b) => b.id));
+  const attentionItems = await buildAttentionItems(businesses, licensesByBusiness);
 
   const prospectCounts = Object.values(countsByWorkspace).reduce(
     (sum, c) => ({
@@ -202,8 +272,63 @@ export default async function DashboardPage({
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8">
+      <section className="flex flex-col gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">Control Center</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Actionable data and key configuration across every module -- quick links to
+            the areas you manage most.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/settings">
+              <Settings2 className="size-3.5" aria-hidden="true" />
+              Admin &amp; settings
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/settings/licenses">Licenses</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/settings/usage">Usage</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/dashboard/settings/billing">Billing</Link>
+          </Button>
+        </div>
+
+        {attentionItems.length > 0 ? (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
+                Needs attention
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col divide-y">
+              {attentionItems.map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Badge variant={item.severity === "warning" ? "destructive" : "outline"} className="shrink-0">
+                      {item.severity === "warning" ? "Action needed" : "Setup"}
+                    </Badge>
+                    <span className="min-w-0 truncate">{item.message}</span>
+                  </div>
+                  <Link href={item.href} className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
+                    {item.actionLabel}
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+      </section>
+
       <section>
-        <h1 className="text-xl font-semibold">Overview</h1>
+        <h2 className="text-xl font-semibold">Overview</h2>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KpiCard label="Businesses" value={businesses.length} />
           <KpiCard label="Products" value={allProducts.length} />

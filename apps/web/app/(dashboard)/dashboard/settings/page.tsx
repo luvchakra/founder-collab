@@ -1,0 +1,123 @@
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowRight, Bot, Building2, CreditCard, KeyRound, Paintbrush, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
+import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
+
+type SettingsLink = { label: string; href: string; description: string; icon: React.ComponentType<{ className?: string }> };
+
+const ACCOUNT_LINKS: SettingsLink[] = [
+  { label: "Licenses", href: "/dashboard/settings/licenses", description: "Activate, cancel, or reactivate a module for any business.", icon: ShieldCheck },
+  { label: "Billing", href: "/dashboard/settings/billing", description: "Plan and payment details.", icon: CreditCard },
+  { label: "AI provider", href: "/dashboard/settings/ai-provider", description: "Bring your own AI provider key.", icon: Bot },
+  { label: "Usage", href: "/dashboard/settings/usage", description: "AI runs and spend across every workspace.", icon: Sparkles },
+  { label: "Profile", href: "/dashboard/settings/profile", description: "Your own account details.", icon: Users },
+  { label: "Appearance", href: "/dashboard/settings/appearance", description: "Light/dark theme.", icon: Paintbrush },
+];
+
+/**
+ * The module-picker's "Admin" shortcut now lands here instead of going straight to
+ * Licenses -- a real hub for every core admin config, not just one of them. Account-
+ * level settings (above) apply regardless of business; the per-business section below
+ * links out to configs that only make sense scoped to one business, including two
+ * (Team & Permissions, API Keys) that currently only exist as routes nested under the
+ * inventory module -- surfaced here too since the data they manage (core.business_
+ * members/roles, core.api_keys) isn't actually inventory-specific, it's just where
+ * those pages were first built. Not duplicated/rebuilt as their own unscoped pages --
+ * that's a larger follow-up -- linked from here with the destination named so it's
+ * clear which business's inventory route it's going through.
+ */
+export default async function SettingsHubPage() {
+  const account = await getCurrentAccount();
+  if (!account) redirect("/login");
+
+  const businesses = await listBusinesses(account.id);
+  const licensedModulesByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
+
+  return (
+    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-8">
+      <div>
+        <h1 className="text-xl font-semibold">Admin &amp; settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every core account and business configuration, in one place.
+        </p>
+      </div>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-medium text-muted-foreground">Account</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {ACCOUNT_LINKS.map(({ label, href, description, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-start gap-3 rounded-md border p-4 transition-colors hover:border-primary hover:bg-accent/40"
+            >
+              <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-medium">{label}</p>
+                <p className="text-sm text-muted-foreground">{description}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {businesses.length > 0 ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Business</h2>
+          <div className="flex flex-col divide-y rounded-md border">
+            {businesses.map((business) => {
+              const modules = new Set(licensedModulesByBusiness[business.id] ?? []);
+              return (
+                <div key={business.id} className="flex flex-col gap-2 p-4">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                    <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
+                      {business.name}
+                    </Link>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pl-6">
+                    {modules.has("inventory") ? (
+                      <Link
+                        href={`/dashboard/businesses/${business.id}/inventory/team`}
+                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                      >
+                        <Users className="size-3" aria-hidden="true" />
+                        Team &amp; permissions
+                      </Link>
+                    ) : null}
+                    {modules.has("inventory") ? (
+                      <Link
+                        href={`/dashboard/businesses/${business.id}/inventory/api-keys`}
+                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                      >
+                        <KeyRound className="size-3" aria-hidden="true" />
+                        API keys
+                      </Link>
+                    ) : null}
+                    {modules.has("gst") ? (
+                      <Link
+                        href={`/dashboard/businesses/${business.id}/gst/profile`}
+                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                      >
+                        <Receipt className="size-3" aria-hidden="true" />
+                        GST profile
+                      </Link>
+                    ) : null}
+                    <Link
+                      href={`/dashboard/businesses/${business.id}`}
+                      className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                    >
+                      Business details
+                      <ArrowRight className="size-3" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+    </main>
+  );
+}

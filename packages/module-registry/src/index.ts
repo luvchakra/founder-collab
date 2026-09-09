@@ -177,13 +177,20 @@ export const moduleRegistry: ModuleManifest[] = [
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],
   },
   {
+    // Key/schema/routePrefix stay "gst" (CLAUDE.md non-negotiable #1: every
+    // module-owned table lives in its own Postgres schema, "gst" among them --
+    // renaming the key would mean renaming the schema, every license row's
+    // module_key, and the route prefix, none of which this rename asked for).
+    // Only the display `name` changes, to "Compliance" -- same precedent as fsm's
+    // key staying "fsm" while its name is "Service".
     key: "gst",
-    name: "GST",
+    name: "Compliance",
     icon: "Receipt",
     routePrefix: "/gst",
     nav: [
+      { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
       {
-        heading: undefined,
+        heading: "GST",
         items: [
           { label: "GST Profile", slug: "profile", icon: "Receipt" },
           { label: "e-Way Bill", slug: "eway-bill", icon: "Truck" },
