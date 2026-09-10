@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import type { AiActionState } from "@cofounderai/core/actions/ai-action-state";
+import { useAutoPopulateProgress } from "./auto-populate-progress";
 
 /**
  * The Overview page's "Let AI Auto-Populate Info" trigger -- step 1 of 3 of the
@@ -38,12 +39,14 @@ export function AutoPopulateStartButton({
   onPendingChange?: (pending: boolean) => void;
 }) {
   const router = useRouter();
+  const { setActiveStage } = useAutoPopulateProgress();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function run() {
     setPending(true);
     onPendingChange?.(true);
+    setActiveStage("overview");
     setError(null);
     const form = new FormData();
     form.set("force", "true");
@@ -52,8 +55,10 @@ export function AutoPopulateStartButton({
       setError(result.error);
       setPending(false);
       onPendingChange?.(false);
+      setActiveStage(null);
       return;
     }
+    setActiveStage(null);
     router.push(nextHref);
   }
 

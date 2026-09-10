@@ -100,6 +100,7 @@ export default async function ProspectsPage({
       </div>
 
       <AutoPopulateStepBanner
+        step="prospects"
         action={autoDiscoverOneProspectAction.bind(null, businessId, productId, workspace.id)}
         nextPath={basePath}
         resultQueryParam="autopopulated"

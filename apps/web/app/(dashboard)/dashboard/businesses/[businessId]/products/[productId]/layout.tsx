@@ -8,6 +8,7 @@ import {
 import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { ProductNav } from "@cofounderai/module-discovery/components/tenancy/product-nav";
+import { AutoPopulateProgressProvider } from "@cofounderai/module-discovery/components/tenancy/auto-populate-progress";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { renameProductAction } from "./actions";
@@ -55,8 +56,10 @@ export default async function ProductLayout({
         action={renameProductAction.bind(null, businessId, productId)}
         headingClassName="text-xl font-semibold"
       />
-      <ProductNav basePath={basePath} completed={completed} />
-      {children}
+      <AutoPopulateProgressProvider>
+        <ProductNav basePath={basePath} completed={completed} />
+        {children}
+      </AutoPopulateProgressProvider>
     </main>
   );
 }

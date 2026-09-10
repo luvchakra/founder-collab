@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
+import { useAutoPopulateProgress } from "./auto-populate-progress";
 
 type StageId = "overview" | "icp" | "prospects" | "conversions";
 
@@ -35,6 +36,7 @@ export function ProductNav({
   completed?: Partial<Record<StageId, boolean>>;
 }) {
   const pathname = usePathname();
+  const { activeStage } = useAutoPopulateProgress();
   const tabs: { id: StageId; href: string; label: string }[] = [
     { id: "overview", href: basePath, label: "Overview" },
     { id: "icp", href: `${basePath}/icp`, label: "ICP" },
@@ -57,6 +59,7 @@ export function ProductNav({
         const isActive = i === activeIndex;
         const isCompleted = !isActive && Boolean(completed?.[tab.id]);
         const isPast = i < activeIndex;
+        const isProcessing = tab.id === activeStage;
 
         return (
           <Link
@@ -82,6 +85,12 @@ export function ProductNav({
                       : "bg-muted text-muted-foreground",
                 )}
               >
+                {isProcessing ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-0 animate-[spin_2.2s_linear_infinite] rounded-full border-2 border-transparent border-t-primary"
+                  />
+                ) : null}
                 {i + 1}
                 {isCompleted ? (
                   <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground ring-2 ring-card">

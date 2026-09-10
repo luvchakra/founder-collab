@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { useAutoPopulateProgress, type AutoPopulateStage } from "./auto-populate-progress";
 
 /**
  * Step 2 (ICP) or the terminal step 3 (Prospects) of the Overview -> ICP -> Prospects
@@ -21,12 +22,17 @@ import { Loader2 } from "lucide-react";
  * TypeScript has no way to flag "this function isn't a server action").
  */
 export function AutoPopulateStepBanner<T>({
+  step,
   action,
   nextPath,
   resultQueryParam,
   runningLabel,
   replace = false,
 }: {
+  /** This step's own id -- reported to the shared auto-populate progress context (see
+   * that file's own doc comment) so ProductNav can spin this stage's circle for exactly
+   * as long as this banner is actually running. */
+  step: AutoPopulateStage;
   action: () => Promise<T>;
   /** Plain pathname to navigate to on success (any static query the caller already
    * knows, e.g. "?autopopulate=1", is baked into this string literal). */
@@ -44,26 +50,30 @@ export function AutoPopulateStepBanner<T>({
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldRun = searchParams.get("autopopulate") === "1";
+  const { setActiveStage } = useAutoPopulateProgress();
   const [error, setError] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   useEffect(() => {
     if (!shouldRun || startedRef.current) return;
     startedRef.current = true;
+    setActiveStage(step);
     (async () => {
       try {
         const result = await action();
+        setActiveStage(null);
         const href = resultQueryParam
           ? `${nextPath}${nextPath.includes("?") ? "&" : "?"}${resultQueryParam}=${result}`
           : nextPath;
         if (replace) router.replace(href);
         else router.push(href);
       } catch (err) {
+        setActiveStage(null);
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
-      // action/nextPath/resultQueryParam/router are intentionally excluded -- re-running
-      // this effect on every new bound-action reference would defeat the once-per-mount
-      // guard above.
+      // action/nextPath/resultQueryParam/router/setActiveStage/step are intentionally
+      // excluded -- re-running this effect on every new bound-action reference would
+      // defeat the once-per-mount guard above.
       // eslint-disable-next-line react-hooks/exhaustive-deps
     })();
   }, [shouldRun]);

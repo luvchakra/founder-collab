@@ -31,6 +31,7 @@ export default async function IcpPage({
   const prospectsPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
   const autoPopulateBanner = (
     <AutoPopulateStepBanner
+      step="icp"
       action={autoPopulateIcpAction.bind(null, businessId, productId)}
       nextPath={`${prospectsPath}?autopopulate=1`}
       runningLabel="Populating your ICP from the product profile..."
