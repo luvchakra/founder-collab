@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Settings, ShieldCheck, SunMoon, User } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
@@ -53,58 +53,10 @@ export function SidebarAccountMenu({
 
           <div className="my-1 border-t" />
 
-          <Link
-            href="/dashboard/settings/profile"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <User className="size-4 text-muted-foreground" aria-hidden="true" />
-            Profile
-          </Link>
-
-          <Link
-            href="/dashboard/settings/usage"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <BarChart3 className="size-4 text-muted-foreground" aria-hidden="true" />
-            Usage
-          </Link>
-
-          <Link
-            href="/dashboard/settings/billing"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <CreditCard className="size-4 text-muted-foreground" aria-hidden="true" />
-            Billing
-          </Link>
-
-          <Link
-            href="/dashboard/settings/appearance"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <SunMoon className="size-4 text-muted-foreground" aria-hidden="true" />
-            Appearance
-          </Link>
-
+          {/* Profile/Usage/Billing/Appearance used to each get their own row here,
+              duplicating the exact same four cards the Settings hub page below already
+              lists (plus Licenses) -- one "Settings" entry point now, not two ways to
+              reach the same destinations. */}
           <Link
             href="/dashboard/settings"
             role="menuitem"
