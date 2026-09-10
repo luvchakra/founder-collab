@@ -5,8 +5,10 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   AlertTriangle,
   ArrowRight,
+  Bell,
   Clock,
   FileWarning,
+  History,
   IndianRupee,
   Package,
   PackageCheck,
@@ -96,15 +98,29 @@ export function DashboardView({
         ) : (
           <span />
         )}
+        {/* Informational quick links, not creation shortcuts -- the dashboard's own job
+            is to summarize state, and "New purchase order"/"New stock transfer"/"Adjust
+            stock" read as actions to take even though they just opened the relevant list
+            page. Alerts/Audit log/Products are genuinely "go look at more" destinations,
+            matching what a dashboard is for. */}
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="outline">
-            <Link href={`${inventoryPath}/purchase-orders`}>New purchase order</Link>
+            <Link href={`${inventoryPath}/alerts`}>
+              <Bell className="size-3.5" aria-hidden="true" />
+              Low stock alerts
+            </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href={`${inventoryPath}/transfers`}>New stock transfer</Link>
+            <Link href={`${inventoryPath}/products`}>
+              <Package className="size-3.5" aria-hidden="true" />
+              Products
+            </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
-            <Link href={`${inventoryPath}/stock`}>Adjust stock</Link>
+            <Link href={`${inventoryPath}/audit-log`}>
+              <History className="size-3.5" aria-hidden="true" />
+              Audit log
+            </Link>
           </Button>
         </div>
       </div>
