@@ -178,6 +178,7 @@ export async function upsertItem(businessId: string, input: UpsertItemInput): Pr
     kind,
     sku: input.sku ?? null,
     name: input.name,
+    description: input.description ?? null,
     unit: input.unit ?? "pcs",
     hsn_code: input.hsnCode ?? null,
     tax_rate: input.taxRate ?? 18,

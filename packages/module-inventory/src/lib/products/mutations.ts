@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "../../db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { createProductFromInventoryItem } from "@cofounderai/module-discovery/contract/index";
 
 export type ProductInput = {
   sku: string;
@@ -68,6 +69,21 @@ function payloadFrom(input: ProductInput, categoryId: string | null) {
   };
 }
 
+/**
+ * The Inventory->Discovery half of item #1's cross-module mirror (module-discovery/lib/
+ * tenancy/mutations.ts's own `mirrorProductToInventoryItem` does the other direction) --
+ * best-effort and silent on any failure, same reasoning as that function's own doc
+ * comment: an item created here must never fail just because its optional Discovery
+ * mirror couldn't (no license, or a genuine error).
+ */
+async function mirrorItemToDiscoveryProduct(businessId: string, itemId: string, name: string, description: string | null): Promise<void> {
+  try {
+    await createProductFromInventoryItem(businessId, { itemId, name, description });
+  } catch {
+    // See doc comment above.
+  }
+}
+
 /** Ported from stockpilot-ai-ops's `saveProduct` mutation -- create branch. */
 /** `requireModule()` (defense in depth, CLAUDE.md's licensing architecture section) --
  * this module's demonstrated call site, the entry point for the module's own core
@@ -77,10 +93,14 @@ export async function createProduct(businessId: string, input: ProductInput): Pr
   await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const categoryId = await resolveCategoryId(supabase, businessId, input.categoryName);
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("products")
-    .insert({ org_id: businessId, ...payloadFrom(input, categoryId) });
+    .insert({ org_id: businessId, ...payloadFrom(input, categoryId) })
+    .select("id")
+    .single();
   if (error) throw error;
+
+  await mirrorItemToDiscoveryProduct(businessId, data.id, input.name, input.description ?? null);
 }
 
 /** Ported from stockpilot-ai-ops's `saveProduct` mutation -- update branch. */
@@ -122,8 +142,10 @@ export async function createProductsBulk(businessId: string, inputs: ProductInpu
     rows.push({ org_id: businessId, ...payloadFrom(input, categoryId) });
   }
 
-  const { data, error } = await supabase.from("products").insert(rows).select("id");
+  const { data, error } = await supabase.from("products").insert(rows).select("id, name, description");
   if (error) throw error;
+
+  await Promise.all((data ?? []).map((row) => mirrorItemToDiscoveryProduct(businessId, row.id, row.name, row.description)));
   return data?.length ?? 0;
 }
 

@@ -3,7 +3,12 @@ import { addPartyContact, addPartyRole } from "@cofounderai/core/parties/mutatio
 import { getFirstWorkspaceForBusiness, getProduct, getWorkspace } from "../lib/tenancy/queries";
 import { createProspect } from "../lib/prospects/mutations";
 import { createClient } from "../db/server";
-import type { ContractProspectSummary, ContractResult, CreateProspectFromExternalLeadInput } from "./types";
+import type {
+  ContractProspectSummary,
+  ContractResult,
+  CreateProductFromInventoryItemInput,
+  CreateProspectFromExternalLeadInput,
+} from "./types";
 
 /**
  * module-discovery's public API surface (00-MASTER-PLAN.md §6 mechanism 2) -- the ONLY
@@ -138,4 +143,46 @@ export async function getProspectSummaryForParty(
       outcome: prospect.outcome,
     },
   };
+}
+
+/**
+ * The Inventory->Discovery half of the mirror module-discovery/lib/tenancy/mutations.ts's
+ * own `mirrorProductToInventoryItem` does the other way (item #1 of a cross-module UX
+ * pass) -- creates a Discovery product for a `core.items` row that didn't come from
+ * Discovery in the first place, auto-creating its workspace via the same DB trigger every
+ * other product creation already relies on (see tenancy/queries.ts#getWorkspaceForProduct's
+ * own comment). Idempotent on `linked_item_id` -- a second call for the same item (a
+ * retried mutation, or this item having already been mirrored) returns the existing
+ * product instead of creating a duplicate.
+ */
+export async function createProductFromInventoryItem(
+  businessId: string,
+  input: CreateProductFromInventoryItemInput,
+): Promise<ContractResult<{ productId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("linked_item_id", input.itemId)
+    .maybeSingle();
+  if (existingError) return { ok: false, error: existingError.message };
+  if (existing) return { ok: true, data: { productId: existing.id } };
+
+  const { data, error } = await supabase
+    .from("products")
+    .insert({
+      business_id: businessId,
+      name: input.name,
+      description: input.description ?? null,
+      linked_item_id: input.itemId,
+    })
+    .select("id")
+    .single();
+  if (error) return { ok: false, error: error.message };
+
+  return { ok: true, data: { productId: data.id } };
 }

@@ -44,6 +44,7 @@ export type UpsertItemInput = {
   id?: string;
   sku?: string | null;
   name: string;
+  description?: string | null;
   kind?: "good" | "service" | "labour" | "part" | "expense";
   unit?: string;
   hsnCode?: string | null;

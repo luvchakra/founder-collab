@@ -34,3 +34,12 @@ export type CreateProspectFromExternalLeadInput = {
    * reuse createProspect()'s normal auto-create path. */
   existingPartyId?: string | null;
 };
+
+/** The Inventory->Discovery mirror (item #1 of a cross-module UX pass): a product
+ * created natively in Inventory (a `core.items` row) should also exist as a Discovery
+ * product to prospect against. */
+export type CreateProductFromInventoryItemInput = {
+  itemId: string;
+  name: string;
+  description?: string | null;
+};

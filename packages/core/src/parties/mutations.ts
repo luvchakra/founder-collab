@@ -84,6 +84,17 @@ export async function addPartyContact(input: {
   return data;
 }
 
+/** Only fills in a party's email when it's currently null -- never overwrites a value
+ * the founder (or an earlier sync) already set. Used to backfill a customer party's
+ * email from its first known contact (module-discovery/lib/prospects/party-sync.ts) when
+ * winning a prospect that has a real contact but whose party itself was created with no
+ * email of its own. */
+export async function backfillPartyEmail(partyId: string, email: string): Promise<void> {
+  const supabase = await coreClient();
+  const { error } = await supabase.from("parties").update({ email }).eq("id", partyId).is("email", null);
+  if (error) throw error;
+}
+
 /** Creates a party with the 'supplier' role and its supplier attrs together, since a
  * core.party_supplier_attrs row without a matching role would be meaningless. */
 export async function createSupplierParty(input: {

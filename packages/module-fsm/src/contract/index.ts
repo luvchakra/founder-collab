@@ -4,7 +4,9 @@ import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
+import { addChargeLine, getOrCreateEstimate } from "../lib/estimates/mutations";
 import type { ContractJobSummary, ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
+import type { Opportunity } from "../lib/opportunities/types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
@@ -133,9 +135,26 @@ export async function createOpportunityFromWonProspect(
       source_prospect_id: input.prospectId,
       source_workspace_id: input.workspaceId ?? null,
     })
-    .select("id")
+    .select("*")
     .single();
   if (error) return { ok: false, error: error.message };
+
+  // Item #3 of a cross-module UX pass: pre-seed the new estimate with one charge line
+  // for the product this prospect was actually won for, when discovery resolved one
+  // (lib/tenancy/mutations.ts#createProduct's own core.items mirror) -- so clicking
+  // through from Discovery's Conversions page lands on a usable draft, not an empty
+  // "No charges added yet" estimate the founder has to build from scratch. Best-effort:
+  // a permission gap on `estimates.edit` (this contract otherwise only required
+  // `fsm`'s license, not that specific permission) must not fail the opportunity
+  // creation that already succeeded above.
+  if (input.itemId) {
+    try {
+      const estimateId = await getOrCreateEstimate(businessId, data as Opportunity);
+      await addChargeLine(businessId, estimateId, { itemId: input.itemId, quantity: 1, taxable: true });
+    } catch (err) {
+      console.error("[fsm/contract] pre-seeding estimate charge line failed:", err);
+    }
+  }
 
   return { ok: true, data: { opportunityId: data.id } };
 }

@@ -25,6 +25,11 @@ export type CreateOpportunityFromProspectInput = {
   companyName: string;
   description?: string | null;
   workspaceId?: string | null;
+  /** The `core.items` row discovery's own product mirror resolved for this prospect's
+   * product (item #3 of a cross-module UX pass), if one exists -- when given, the new
+   * opportunity's estimate is pre-seeded with one charge line for it instead of starting
+   * empty. */
+  itemId?: string | null;
 };
 
 /** One row of a party's recent job history -- what the Customer 360 panel

@@ -1,8 +1,8 @@
 import { createClient } from "../../db/server";
 import { normalizeUrl } from "@cofounderai/core/lib/url";
 import { publish } from "@cofounderai/core/events/mutations";
-import { getBusinessIdForWorkspace } from "../tenancy/queries";
-import { ensureProspectParty, markProspectPartyWon } from "./party-sync";
+import { getBusinessIdForWorkspace, getProduct, getWorkspace } from "../tenancy/queries";
+import { backfillCustomerContactsForWonProspect, ensureProspectParty, markProspectPartyWon } from "./party-sync";
 import type { Prospect, ProspectOutcome, ProspectStatus } from "./types";
 
 export type ProspectInput = {
@@ -122,6 +122,31 @@ export async function setProspectOutcome(
   if (outcome === "won" && data.party_id) {
     await markProspectPartyWon(data.workspace_id, data.party_id);
 
+    const businessId = await getBusinessIdForWorkspace(data.workspace_id);
+    if (businessId) {
+      // Cross-module UX pass, item #2: "the contact a message was sent to should be
+      // created as a customer in both inventory and service" -- both read
+      // core.parties/core.party_contacts directly (00-MASTER-PLAN.md §5), so this is
+      // what actually makes the new customer usable there, not just present. Best-effort:
+      // never let a contact-mirroring hiccup block the outcome change the caller asked for.
+      try {
+        await backfillCustomerContactsForWonProspect(businessId, data.party_id, data.id);
+      } catch (err) {
+        console.error("[prospects/mutations] backfillCustomerContactsForWonProspect failed:", err);
+      }
+    }
+
+    // Item #3 of the same pass: the FSM estimate a won prospect's opportunity leads to
+    // should default to a charge line for the product it was actually prospected for, if
+    // that product's own core.items mirror exists (lib/tenancy/mutations.ts#createProduct
+    // et al). Resolved here (once) and carried on both handoff paths -- the manual
+    // "Create opportunity" button (module-fsm/contract/index.ts) and this same event's
+    // automatic consumer (module-fsm/events/handlers.ts) -- rather than each re-deriving
+    // it from workspaceId.
+    const workspace = await getWorkspace(data.workspace_id);
+    const product = workspace ? await getProduct(workspace.product_id) : null;
+    const itemId = product?.linked_item_id ?? null;
+
     // F-13's own handoff trigger (02-FSM-PRD.md §6): publish once the party's own
     // customer role is guaranteed to exist, so any consumer reacting to this can safely
     // assume it's already there. `requiredModule: 'fsm'` parks the event (not a failure)
@@ -134,7 +159,6 @@ export async function setProspectOutcome(
     // opportunity's own scope of work from", and flagged here per CLAUDE.md's "live
     // source wins, flag the discrepancy" rule rather than silently inventing the missing
     // fields.
-    const businessId = await getBusinessIdForWorkspace(data.workspace_id);
     if (businessId) {
       await publish({
         businessId,
@@ -146,6 +170,7 @@ export async function setProspectOutcome(
           partyId: data.party_id,
           companyName: data.company_name,
           description: data.description,
+          itemId,
         },
       });
     }

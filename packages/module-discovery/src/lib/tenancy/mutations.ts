@@ -1,6 +1,7 @@
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { seedDefaultLicenses } from "@cofounderai/core/licensing/lifecycle";
+import { upsertItem } from "@cofounderai/module-inventory/contract/index";
 import type { Business, Product } from "./types";
 
 /** accounts/businesses live in the `core` schema (Epic 2's C-1). */
@@ -114,6 +115,27 @@ export async function enableBusiness(businessId: string): Promise<Business> {
   return data;
 }
 
+/**
+ * Mirrors one Discovery product into a `core.items` row via module-inventory's own
+ * `upsertItem` contract call (item #1 of a cross-module UX pass: "a product created in
+ * Discovery should also exist in Inventory"), then stamps `linked_item_id` back onto the
+ * product so both directions (this one, and inventory/lib/products/mutations.ts's own
+ * mirror back into Discovery) can tell an already-mirrored row apart from a fresh one.
+ * Best-effort and silent on any failure -- a business with no Inventory license gets
+ * `MODULE_NOT_LICENSED` back as a normal ADR-10 result, and a product must never fail to
+ * create just because its optional mirror couldn't; see this file's own callers.
+ */
+async function mirrorProductToInventoryItem(businessId: string, productId: string, name: string, description: string | null): Promise<void> {
+  try {
+    const result = await upsertItem(businessId, { name, description, kind: "good" });
+    if (!result.ok) return;
+    const supabase = await createClient();
+    await supabase.from("products").update({ linked_item_id: result.data.id }).eq("id", productId);
+  } catch {
+    // Never let a mirroring failure take down the product creation it's attached to.
+  }
+}
+
 export async function createProduct(
   businessId: string,
   input: { name: string; description?: string; website?: string },
@@ -122,17 +144,20 @@ export async function createProduct(
   if (!name) throw new Error("Product name is required.");
 
   const supabase = await createClient();
+  const description = input.description?.trim() || null;
   const { data, error } = await supabase
     .from("products")
     .insert({
       business_id: businessId,
       name,
-      description: input.description?.trim() || null,
+      description,
       website: input.website?.trim() || null,
     })
     .select()
     .single();
   if (error) throw error;
+
+  await mirrorProductToInventoryItem(businessId, data.id, name, description);
   return data;
 }
 
@@ -181,6 +206,8 @@ export async function createProductsBulk(
   if (toInsert.length === 0) return { inserted: 0, duplicates };
   const { data, error } = await supabase.from("products").insert(toInsert).select();
   if (error) throw error;
+
+  await Promise.all((data ?? []).map((p) => mirrorProductToInventoryItem(businessId, p.id, p.name, p.description)));
   return { inserted: data?.length ?? 0, duplicates };
 }
 

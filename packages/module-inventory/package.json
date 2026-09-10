@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@cofounderai/core": "*",
+    "@cofounderai/module-discovery": "*",
     "@supabase/supabase-js": "^2.115.0",
     "jsbarcode": "^3.12.3",
     "qrcode": "^1.5.4",
