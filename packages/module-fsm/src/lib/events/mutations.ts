@@ -167,33 +167,47 @@ async function resolveEventCustomerEmail(businessId: string, eventId: string): P
  * the same provider decision. Reuses module-discovery's own Resend pattern exactly, same
  * as F-4's `sendEstimate`. Advances `scheduled -> en_route`; safe to call again (a
  * second notify just re-sends the email without erroring). */
+/** Best-effort side effect of `notifyOnTheWay()` below -- a failed/unsendable email
+ * (no email on file, Resend not configured, or -- the common case on an unverified
+ * Resend account -- its sandbox mode rejecting anything but the account owner's own
+ * address) should never block the tech from actually being marked en route, which is
+ * the button's own primary, always-expected effect. Same "swallow, don't block the real
+ * action" reasoning as `tryAdvanceJobToScheduled()` above, just for an external side
+ * effect instead of a DB one. */
+async function tryNotifyCustomerOnTheWay(businessId: string, eventId: string): Promise<void> {
+  try {
+    const toEmail = await resolveEventCustomerEmail(businessId, eventId);
+
+    const core = await coreClient();
+    const { data: business } = await core.from("businesses").select("name, website").eq("id", businessId).maybeSingle();
+    const brandName = business?.name ?? "Your service provider";
+
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromAddress = process.env.RESEND_FROM_EMAIL;
+    if (!apiKey || !fromAddress) return;
+
+    const resend = new Resend(apiKey);
+    const result = await resend.emails.send({
+      from: fromAddress,
+      to: toEmail,
+      subject: `${brandName} is on the way`,
+      text: renderEmailText("Your technician is on the way."),
+      html: renderEmailHtml({ brandName, body: "Your technician is **on the way**.", websiteUrl: business?.website ?? null, replyToEmail: fromAddress }),
+    });
+    if (result.error) console.error(`notifyOnTheWay: could not send the notification email: ${result.error.message}`);
+  } catch (err) {
+    console.error("notifyOnTheWay: could not send the notification email", err);
+  }
+}
+
 export async function notifyOnTheWay(businessId: string, eventId: string): Promise<void> {
   await requireModule(businessId, "fsm");
-  const toEmail = await resolveEventCustomerEmail(businessId, eventId);
-
-  const core = await coreClient();
-  const { data: business } = await core.from("businesses").select("name, website").eq("id", businessId).maybeSingle();
-  const brandName = business?.name ?? "Your service provider";
-
-  const apiKey = process.env.RESEND_API_KEY;
-  const fromAddress = process.env.RESEND_FROM_EMAIL;
-  if (!apiKey || !fromAddress) {
-    throw new Error("Email sending isn't configured yet -- set RESEND_API_KEY and RESEND_FROM_EMAIL.");
-  }
-
-  const resend = new Resend(apiKey);
-  const result = await resend.emails.send({
-    from: fromAddress,
-    to: toEmail,
-    subject: `${brandName} is on the way`,
-    text: renderEmailText("Your technician is on the way."),
-    html: renderEmailHtml({ brandName, body: "Your technician is **on the way**.", websiteUrl: business?.website ?? null, replyToEmail: fromAddress }),
-  });
-  if (result.error) throw new Error(`Could not send the notification email: ${result.error.message}`);
 
   const fsm = await createClient();
   const { error } = await fsm.from("events").update({ status: "en_route" }).eq("id", eventId).eq("business_id", businessId);
   if (error) throw error;
+
+  await tryNotifyCustomerOnTheWay(businessId, eventId);
 }
 
 export async function markEventArrived(id: string, businessId: string): Promise<void> {
