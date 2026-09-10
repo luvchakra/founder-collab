@@ -136,6 +136,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
         severity: "warning",
         message: `${dashboard.riskCount} supplier/customer this month with a missing or invalid GSTIN.`,
         href: `/dashboard/businesses/${businessId}/gst/filing`,
+        businessId,
       },
     ],
   };

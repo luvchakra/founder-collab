@@ -6,30 +6,57 @@ verification, instant-reply's `instant_ack_then_human` mode (fixed-template, not
 AI-drafted — see below), `module-discovery`'s new `contract/index.ts` +
 `createProspectFromExternalLead`, the Customer 360 panel, and ticket enrichment
 (`related_module`/`related_document_id`) are all real, working code, not stubs. B3's
-two deterministic routing conditions (known-vs-new sender, business hours) are wired
-into a real evaluator; B4's three emit-side events (`ticket.created`/`resolved`/
-`converted_to_prospect`) fire for real. See `docs/testing/test-cases/crm.md` for the
-exact test coverage (and gaps) against each piece.
+routing conditions (known-vs-new sender, business hours, and now detected-intent —
+see below) are wired into a real evaluator; B4's three emit-side events
+(`ticket.created`/`resolved`/`converted_to_prospect`) fire for real, and B4's
+`prospect.won` consume side is now also real (see below). See
+`docs/testing/test-cases/crm.md` for the exact test coverage (and gaps) against each
+piece.
 
-**Explicitly deferred, not silently skipped:**
+**Built this pass (2026-09-09), with an honesty caveat on the AI pieces:**
+- **`draft_approve` mode + `detected_intent_filter` routing** now have real, working
+  code behind them — `lib/ai/classify-intent.ts` and `lib/ai/draft-reply.ts` — but
+  both are **deterministic keyword/template heuristics, not a real AI call**.
+  `module-discovery`'s BYOK routing (`resolveAiModel`) remains discovery-schema-owned
+  with no contract exposing it across the module boundary (CLAUDE.md rule #3), so
+  module-crm has no sanctioned way to call a real LLM today. The upgrade path is
+  unchanged from what this doc said before: expose a generic "generate/classify text
+  for this workspace's connected provider" call from `module-discovery`'s
+  `contract/index.ts`, then swap `classify-intent.ts`/`draft-reply.ts`'s bodies for
+  that call — `ingest-inbound-message.ts`, the caller, doesn't need to change. Until
+  that contract call exists, treat every classification/draft here as a rough,
+  explainable guess a human should double-check, not a graded model output.
+- **B4's `prospect.won` consume side** (`events/handlers.ts`) is real: when Discovery
+  marks a prospect won, every open CRM ticket for that same party gets an internal
+  (`status: "draft"`, never sent to the customer) note on its thread, idempotent
+  against replay. This is in addition to — not instead of — B1's Customer 360 panel's
+  existing reactive surfacing; the panel is a pull when someone opens it, this note is
+  a push onto the ticket itself so an agent working the ticket sees it without also
+  opening Customer 360.
+- `core/events/registry.ts` was upgraded from one handler per event type to many, so
+  this new `prospect.won` consumer coexists with `module-fsm`'s own unrelated
+  `prospect.won` handler instead of silently overwriting it.
+
+**Still explicitly deferred, not silently skipped:**
 - **Google Business Messages (P1.7):** no webhook route, no send path. Lower volume
   than WhatsApp/Instagram/Facebook per this doc's own sequencing ("sequence after those
-  three are solid") and needs a real GBM API integration this sandbox has no
-  credentials to build against.
-- **AI-drafted instant replies / `draft_approve` mode / AI-detected-intent routing
-  (A3's non-template path, B3's `detected_intent_filter`):** all three need
-  module-crm to call into an AI-generation capability, and the only one that exists
-  (`module-discovery`'s BYOK routing, `resolveAiModel`) is `discovery`-schema-owned
-  with no contract exposing it across the module boundary (CLAUDE.md rule #3). A real
-  follow-up story: expose a generic "generate text for this workspace's connected
-  provider" contract call from `module-discovery`, then wire these three consumers of
-  it. Until then: instant-reply sends a fixed template, `draft_approve` sends nothing,
-  and `detected_intent_filter` is a column no evaluator reads.
-- **B4's consume side** (`prospect.won` reopening a ticket, proactive
-  `document.status_changed` updates): this doc's own prioritization says "don't build
-  the proactive layer before the panel it's meant to enhance exists" — B1's Customer
-  360 panel now exists and already surfaces `prospect.won` reactively (a live query,
-  not a push), which covers the same founder-facing need.
+  three are solid"), needs a real GBM API integration this sandbox has no credentials
+  to build against, **and as of this writing Google has sunset Business Messages
+  (shut down mid-2024)** — the real-world API this section specs against no longer
+  exists to integrate with. Recommend striking P1.7 rather than building toward a
+  discontinued product; a real replacement (Google's Business Communications successor
+  offerings, if any fit) would need its own design pass, not a mechanical port of this
+  section.
+- **Proactive `document.status_changed` updates** (the other half of B4's consume
+  side): still not built, and for a concrete reason found while implementing the
+  `prospect.won` half above — **`document.status_changed` is not a real, published
+  domain event anywhere in this codebase today.** It exists only as an audit-log label
+  (`core/audit/format.ts`); no module publishes a `core.domain_events` row of that
+  type. GST's own filing consumer listens for the differently-scoped `document.issued`
+  event instead. Building this for real needs new publish-side work in whichever
+  modules own the relevant documents (Inventory sales orders shipping, GST filings,
+  FSM invoices) before CRM has anything real to consume — that's a follow-up story of
+  its own, not something fakeable from the CRM side alone.
 
 ---
 

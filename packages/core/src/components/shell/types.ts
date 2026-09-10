@@ -71,4 +71,9 @@ export interface ShellAlert {
   severity: "warning" | "info";
   message: string;
   href: string;
+  /** The business this alert is about — every alert is already scoped to exactly one
+   * business (discovery's own product/workspace belongs to one; inventory/fsm/crm/gst's
+   * getAlerts(businessId) contract calls are already per-business), so the bell can
+   * filter to whichever business is currently selected in the navbar. */
+  businessId: string;
 }

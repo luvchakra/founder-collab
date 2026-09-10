@@ -2,7 +2,13 @@
 
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { updateBusiness, createProductsBulk, deleteProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import {
+  updateBusiness,
+  createProductsBulk,
+  deleteProduct,
+  disableProduct,
+  enableProduct,
+} from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import {
   parseProductImportFile,
   type ProductImportRow,
@@ -137,6 +143,34 @@ export async function deleteProductAction(
   } catch (error) {
     unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "Could not delete this product." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+export async function disableProductAction(
+  businessId: string,
+  productId: string,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await disableProduct(productId);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not disable this product." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+export async function enableProductAction(
+  businessId: string,
+  productId: string,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await enableProduct(productId);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not enable this product." };
   }
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };

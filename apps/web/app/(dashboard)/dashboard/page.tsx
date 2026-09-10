@@ -272,7 +272,13 @@ export default async function DashboardPage({
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8">
+    // "print-area" opts this page into the global @media print rule (packages/core/src/
+    // ui-theme.css) that was originally built for invoice printing -- that rule hides
+    // *everything* (`body * { visibility: hidden }`) except whatever carries this exact
+    // class. Without it, "Download PDF" (window.print()) produced nothing but blank
+    // pages: the sidebar/topbar were correctly excluded via `print:hidden`, but this
+    // page's own report content was never opted in, so the global rule hid that too.
+    <main className="print-area mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8">
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -383,7 +389,7 @@ export default async function DashboardPage({
           <div>
             <h2 className="text-xl font-semibold">Conversions</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Discovery's outreach-to-customer pipeline -- win rate, fit scores, and
+              Discovery&apos;s outreach-to-customer pipeline -- win rate, fit scores, and
               the funnel from prospect to won customer. Slice by business, product, or
               industry below.
             </p>

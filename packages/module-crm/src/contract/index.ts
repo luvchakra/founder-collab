@@ -53,6 +53,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
         severity: "info",
         message: `${num.format(openTickets)} open/pending ticket(s) in the inbox.`,
         href: `/dashboard/businesses/${businessId}/crm`,
+        businessId,
       },
     ],
   };

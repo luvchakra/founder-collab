@@ -199,6 +199,37 @@ export async function deleteProduct(productId: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Item #4 of a UX pass ("give an option to disable, along with delete") -- an
+ * archive, not a delete: nothing under the product's workspace is touched, and the
+ * product simply stops being counted/highlighted as an active one. Reversible via
+ * enableProduct below, same disable/enable shape disableBusiness/enableBusiness
+ * already use for a business.
+ */
+export async function disableProduct(productId: string): Promise<Product> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .update({ status: "archived" })
+    .eq("id", productId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function enableProduct(productId: string): Promise<Product> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .update({ status: "active" })
+    .eq("id", productId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 /** Only the fields actually passed are updated -- see updateBusiness's docstring. */
 export async function updateProduct(
   productId: string,

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
+import { Checkbox } from "@cofounderai/core/ui/checkbox";
 import { toast } from "@cofounderai/core/ui/sonner";
 import {
   Dialog,
@@ -44,6 +45,9 @@ export function AutoPopulateProductsButton({
   const [importing, startImporting] = useTransition();
   const [products, setProducts] = useState<DiscoveredProduct[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Every discovered row starts checked -- founders review and uncheck the ones they
+  // don't want, rather than having to opt every row in individually.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
 
   function launch() {
     setOpen(true);
@@ -56,6 +60,7 @@ export function AutoPopulateProductsButton({
         return;
       }
       setProducts(result.products);
+      setSelected(new Set(result.products.map((_, i) => i)));
     });
   }
 
@@ -63,9 +68,24 @@ export function AutoPopulateProductsButton({
     setOpen(false);
   }
 
+  function toggleRow(i: number, checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(i);
+      else next.delete(i);
+      return next;
+    });
+  }
+
+  function toggleAll(checked: boolean) {
+    setSelected(checked ? new Set(products?.map((_, i) => i) ?? []) : new Set());
+  }
+
   function confirmImport() {
-    if (!products) return;
-    const rows: ProductImportRow[] = products.map((p) => ({ name: p.name, website: p.website ?? undefined }));
+    if (!products || selected.size === 0) return;
+    const rows: ProductImportRow[] = products
+      .filter((_, i) => selected.has(i))
+      .map((p) => ({ name: p.name, website: p.website ?? undefined }));
     startImporting(async () => {
       const result = await importAction(rows);
       close();
@@ -89,7 +109,7 @@ export function AutoPopulateProductsButton({
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !next && close()}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>AI-populated products</DialogTitle>
           </DialogHeader>
@@ -106,15 +126,22 @@ export function AutoPopulateProductsButton({
               </DialogFooter>
             </div>
           ) : products ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
               <p className="text-sm text-muted-foreground">
                 Found <span className="font-medium text-foreground">{products.length}</span> product
-                {products.length === 1 ? "" : "s"} on your website. Review before adding.
+                {products.length === 1 ? "" : "s"} on your website. Review and choose which to add.
               </p>
-              <div className="overflow-x-auto rounded-md border">
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={products.length > 0 && selected.size === products.length}
+                          onCheckedChange={(checked) => toggleAll(checked === true)}
+                          aria-label="Select all products"
+                        />
+                      </TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Website</TableHead>
                     </TableRow>
@@ -122,8 +149,29 @@ export function AutoPopulateProductsButton({
                   <TableBody>
                     {products.map((p, i) => (
                       <TableRow key={i}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selected.has(i)}
+                            onCheckedChange={(checked) => toggleRow(i, checked === true)}
+                            aria-label={`Select ${p.name}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{p.website || "—"}</TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {p.website ? (
+                            <a
+                              href={p.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-primary underline-offset-2 hover:underline"
+                            >
+                              {p.website}
+                            </a>
+                          ) : (
+                            "—"
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -133,8 +181,10 @@ export function AutoPopulateProductsButton({
                 <Button type="button" variant="ghost" onClick={close} disabled={importing}>
                   Cancel
                 </Button>
-                <Button onClick={confirmImport} disabled={importing}>
-                  {importing ? "Adding..." : `Add ${products.length} product${products.length === 1 ? "" : "s"}`}
+                <Button onClick={confirmImport} disabled={importing || selected.size === 0}>
+                  {importing
+                    ? "Adding..."
+                    : `Add ${selected.size} product${selected.size === 1 ? "" : "s"}`}
                 </Button>
               </DialogFooter>
             </div>

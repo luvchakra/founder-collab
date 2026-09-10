@@ -7,6 +7,7 @@ import { drainDomainEvents } from "@cofounderai/core/events/drain";
 import "@cofounderai/module-inventory/events/handlers";
 import "@cofounderai/module-fsm/events/handlers";
 import "@cofounderai/module-gst/events/handlers";
+import "@cofounderai/module-crm/events/handlers";
 
 /**
  * Drains due core.domain_events (D-9) -- point a Vercel Cron job (or any scheduler) at

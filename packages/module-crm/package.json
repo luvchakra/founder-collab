@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": ["./src/events/handlers.ts"],
   "exports": {
     "./api-v1/*": "./src/api-v1/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./contract/*": "./src/contract/*.ts",
+    "./events/*": "./src/events/*.ts",
     "./manifest": "./src/manifest.ts"
   },
   "scripts": {

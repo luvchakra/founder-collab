@@ -6,6 +6,8 @@ import { sendCrmChannelMessage } from "../channel-accounts/send-message";
 import type { ChannelProvider } from "../channel-accounts/types";
 import { findMatchingRule } from "../routing-rules/evaluate";
 import type { RoutingRule } from "../routing-rules/types";
+import { classifyIntent, type DetectedIntent } from "../ai/classify-intent";
+import { draftReply } from "../ai/draft-reply";
 import type { Ticket } from "./types";
 
 export type InboundCrmMessagePayload = {
@@ -49,6 +51,12 @@ export async function ingestInboundCrmMessage(payload: InboundCrmMessagePayload)
   const crm = createAdminClient();
   const core = createCoreAdminClient({ schema: "core" });
 
+  // B3/A3 (docs/design/crm-module-design.md): a heuristic guess at the sender's intent
+  // (lib/ai/classify-intent.ts's own docstring explains why this isn't a real AI call
+  // yet), used below both to pick a routing rule with a matching `detected_intent_filter`
+  // and, for `draft_approve` accounts, to pick which canned draft to show an agent.
+  const detectedIntent: DetectedIntent = classifyIntent(text);
+
   // Same sender writing again on an already-open ticket appends to it rather than
   // opening a duplicate -- matched on the provider-side handle since a party isn't
   // guaranteed to exist yet (see findOrCreateParty below).
@@ -77,7 +85,14 @@ export async function ingestInboundCrmMessage(payload: InboundCrmMessagePayload)
       core,
     );
     const label = payload.senderName || senderHandle;
-    const assignToEmployeeId = await matchRoutingRule(crm, core, account.business_id, account.channel_id, isKnownSender);
+    const assignToEmployeeId = await matchRoutingRule(
+      crm,
+      core,
+      account.business_id,
+      account.channel_id,
+      isKnownSender,
+      detectedIntent,
+    );
 
     const { data: created, error: createError } = await crm
       .from("tickets")
@@ -159,6 +174,16 @@ export async function ingestInboundCrmMessage(payload: InboundCrmMessagePayload)
     await sendInstantAcknowledgment(core, account, payload.provider, senderHandle, threadId!);
   }
 
+  // A3's "AI drafts, human approves" mode -- inserts a draft outbound message (status
+  // 'draft', never sent automatically) picked from lib/ai/draft-reply.ts's own
+  // intent-keyed templates, same "not a real AI call yet" caveat as that file's
+  // docstring. A human reviews it from the ticket's thread and sends it themselves
+  // (there is no separate "approve" mutation today -- an agent replies normally,
+  // editing or discarding the draft first) rather than anything sending on its own.
+  if (isNewTicket && account.instant_reply_mode === "draft_approve") {
+    await draftInstantReply(core, account.business_id, payload.provider, senderHandle, threadId!, detectedIntent);
+  }
+
   return { matched: true, ticket, messageId: message.id, isNewTicket, channelAccountId: account.id };
 }
 
@@ -194,6 +219,34 @@ async function sendInstantAcknowledgment(
     status: result.ok ? "sent" : "failed",
     sent_at: result.ok ? new Date().toISOString() : null,
   });
+}
+
+async function draftInstantReply(
+  core: ReturnType<typeof createCoreAdminClient>,
+  businessId: string,
+  provider: ChannelProvider,
+  recipientHandle: string,
+  threadId: string,
+  detectedIntent: DetectedIntent,
+): Promise<void> {
+  const { data: business, error: businessError } = await core
+    .from("businesses")
+    .select("name")
+    .eq("id", businessId)
+    .maybeSingle();
+  if (businessError) throw businessError;
+
+  const body = draftReply(detectedIntent, business?.name ?? "our team");
+  const { error: insertError } = await core.from("messages").insert({
+    business_id: businessId,
+    thread_id: threadId,
+    direction: "outbound",
+    channel: provider,
+    to_address: recipientHandle,
+    body,
+    status: "draft",
+  });
+  if (insertError) throw insertError;
 }
 
 /**
@@ -269,6 +322,7 @@ async function matchRoutingRule(
   businessId: string,
   channelId: string,
   isKnownSender: boolean,
+  detectedIntent: DetectedIntent,
 ): Promise<string | null> {
   const [{ data: rules, error: rulesError }, { data: settings, error: settingsError }] = await Promise.all([
     crm.from("routing_rules").select("*").eq("business_id", businessId).eq("is_active", true),
@@ -278,6 +332,10 @@ async function matchRoutingRule(
   if (settingsError) throw settingsError;
   if (!rules || rules.length === 0) return null;
 
-  const match = findMatchingRule(rules as RoutingRule[], { channelId, isKnownSender }, settings?.timezone ?? "Asia/Kolkata");
+  const match = findMatchingRule(
+    rules as RoutingRule[],
+    { channelId, isKnownSender, detectedIntent },
+    settings?.timezone ?? "Asia/Kolkata",
+  );
   return match?.assign_to_employee_id ?? null;
 }

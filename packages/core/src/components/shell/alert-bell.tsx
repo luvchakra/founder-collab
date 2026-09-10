@@ -39,10 +39,17 @@ function saveReadIds(ids: Set<string>) {
  * table), so it's tracked here in localStorage keyed by each alert's stable id. Clicking a
  * notification marks it read: its dot switches from filled to an unchecked outline and it
  * stops counting toward the bell's badge.
+ *
+ * Scoped to whichever business is currently selected in the navbar (every alert already
+ * carries its own businessId) -- with no business selected (bare /dashboard) every
+ * business's alerts show, same as the "show all businesses" override below. That override
+ * is plain component state, not persisted anywhere: it resets to scoped-by-business on
+ * every fresh page load/navigation, by design.
  */
-export function AlertBell({ alerts }: { alerts: ShellAlert[] }) {
+export function AlertBell({ alerts, activeBusinessId }: { alerts: ShellAlert[]; activeBusinessId?: string | null }) {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [showAllBusinesses, setShowAllBusinesses] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   useDismiss(containerRef, open, () => setOpen(false));
 
@@ -62,8 +69,11 @@ export function AlertBell({ alerts }: { alerts: ShellAlert[] }) {
     });
   }
 
-  const unreadCount = alerts.filter((a) => !readIds.has(a.id)).length;
-  const hasUnreadWarning = alerts.some((a) => a.severity === "warning" && !readIds.has(a.id));
+  const isScoped = Boolean(activeBusinessId) && !showAllBusinesses;
+  const visibleAlerts = isScoped ? alerts.filter((a) => a.businessId === activeBusinessId) : alerts;
+
+  const unreadCount = visibleAlerts.filter((a) => !readIds.has(a.id)).length;
+  const hasUnreadWarning = visibleAlerts.some((a) => a.severity === "warning" && !readIds.has(a.id));
 
   return (
     <div ref={containerRef} className="relative">
@@ -95,12 +105,22 @@ export function AlertBell({ alerts }: { alerts: ShellAlert[] }) {
           aria-label="Alerts"
           className="absolute top-full right-0 z-50 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
         >
-          {alerts.length === 0 ? (
+          {activeBusinessId ? (
+            <button
+              type="button"
+              onClick={() => setShowAllBusinesses((v) => !v)}
+              className="mb-1 flex w-full items-center justify-between rounded-sm border-b px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <span>{isScoped ? "Showing this business only" : "Showing all businesses"}</span>
+              <span className="text-primary">{isScoped ? "Show all" : "Show only this business"}</span>
+            </button>
+          ) : null}
+          {visibleAlerts.length === 0 ? (
             <p className="px-3 py-4 text-center text-sm text-muted-foreground">
               You&apos;re all caught up.
             </p>
           ) : (
-            alerts.map((alert) => {
+            visibleAlerts.map((alert) => {
               const isRead = readIds.has(alert.id);
               return (
                 <Link

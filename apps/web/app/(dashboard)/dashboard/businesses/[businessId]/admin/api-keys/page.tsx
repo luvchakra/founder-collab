@@ -41,7 +41,7 @@ export default async function ApiKeysPage({
       <div>
         <h1 className="text-xl font-semibold">API Keys</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage keys for the public REST API for {business.name} -- covers every licensed module's
+          Manage keys for the public REST API for {business.name} -- covers every licensed module&apos;s
           resources, not just one.
         </p>
       </div>

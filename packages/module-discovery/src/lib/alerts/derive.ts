@@ -7,6 +7,7 @@ export type Alert = {
   severity: "warning" | "info";
   message: string;
   href: string;
+  businessId: string;
 };
 
 /**
@@ -45,6 +46,7 @@ export function deriveAccountAlerts(input: {
           severity: "warning",
           message: `${product.name} has used its free-tier AI credits this month.`,
           href: `${basePath}/usage`,
+          businessId: business.id,
         });
       } else if (percent >= 80) {
         alerts.push({
@@ -52,6 +54,7 @@ export function deriveAccountAlerts(input: {
           severity: "info",
           message: `${product.name} has used ${percent}% of its AI credits this month.`,
           href: `${basePath}/usage`,
+          businessId: business.id,
         });
       }
     }
@@ -62,6 +65,7 @@ export function deriveAccountAlerts(input: {
         severity: "info",
         message: `${product.name} has no product profile yet.`,
         href: basePath,
+        businessId: business.id,
       });
     }
 
@@ -72,6 +76,7 @@ export function deriveAccountAlerts(input: {
         severity: "info",
         message: `${product.name} has ${needsAction} prospect${needsAction === 1 ? "" : "s"} needing a next action.`,
         href: `${basePath}/prospects`,
+        businessId: business.id,
       });
     }
   }

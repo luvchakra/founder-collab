@@ -112,9 +112,15 @@ export async function deleteSourceAction(
   businessId: string,
   productId: string,
   sourceId: string,
-) {
-  await deleteKnowledgeSource(sourceId);
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await deleteKnowledgeSource(sourceId);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not delete this source." };
+  }
   revalidatePath(productPath(businessId, productId));
+  return { success: true };
 }
 
 export async function updateSourceAction(

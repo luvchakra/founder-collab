@@ -335,7 +335,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
 
   const summary = await getDashboardSummary(businessId, false);
   const basePath = `/dashboard/businesses/${businessId}/inventory`;
-  const alerts: ShellAlert[] = [];
+  const alerts: Omit<ShellAlert, "businessId">[] = [];
 
   if (summary.stockout > 0) {
     alerts.push({
@@ -374,7 +374,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
     });
   }
 
-  return { ok: true, data: alerts };
+  return { ok: true, data: alerts.map((a) => ({ ...a, businessId })) };
 }
 
 /** Permanently consumes on-hand stock (e.g. parts used on a completed job) -- rejected

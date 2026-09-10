@@ -1,10 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { toast } from "@cofounderai/core/ui/sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +24,14 @@ import type { RenameActionState } from "../../lib/tenancy/types";
  * Card for one knowledge source: Edit/Delete icons at top-right of the header row, content
  * spans the full card width (no character-count truncation), clamped to a few lines by
  * default with a click on the body toggling full expand/collapse.
+ *
+ * Delete is a direct call + router.refresh() (matching delete-product-button.tsx's own
+ * pattern), not a raw `<form action={deleteAction}>` -- that combination with Radix's
+ * `AlertDialogAction asChild` (which closes the dialog on click, immediately unmounting
+ * the nested form) was the real bug behind "delete doesn't do anything": the dialog closing
+ * out from under the form could beat the form's own submit handling, and even when it
+ * didn't, a thrown error from the server action had nowhere to surface -- the raw form had
+ * no error UI, so a failed delete looked identical to a silently-ignored click.
  */
 export function KnowledgeSourceCard({
   sourceName,
@@ -34,14 +44,28 @@ export function KnowledgeSourceCard({
   sourceType: string;
   content: string;
   updateAction: (prevState: RenameActionState, formData: FormData) => Promise<RenameActionState>;
-  deleteAction: () => Promise<void>;
+  deleteAction: () => Promise<{ error: string } | { success: true }>;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [deleting, startDeleting] = useTransition();
   const [state, formAction, pending] = useActionState<RenameActionState, FormData>(
     updateAction,
     null,
   );
+
+  function confirmDelete() {
+    startDeleting(async () => {
+      const result = await deleteAction();
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+      toast.success(`Deleted "${sourceName}".`);
+    });
+  }
 
   // Adjust state during render (compare against previous), not a useEffect -- same
   // pattern the rest of this app's inline-edit controls use.
@@ -74,7 +98,8 @@ export function KnowledgeSourceCard({
               <button
                 type="button"
                 aria-label="Delete source"
-                className="text-muted-foreground transition-colors hover:text-destructive"
+                disabled={deleting}
+                className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50"
               >
                 <Trash2 className="size-4" aria-hidden="true" />
               </button>
@@ -88,17 +113,13 @@ export function KnowledgeSourceCard({
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep source</AlertDialogCancel>
-                <form action={deleteAction}>
-                  <AlertDialogAction asChild>
-                    <SubmitButton
-                      variant="destructive"
-                      pendingText="Deleting..."
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete
-                    </SubmitButton>
-                  </AlertDialogAction>
-                </form>
+                <AlertDialogAction
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

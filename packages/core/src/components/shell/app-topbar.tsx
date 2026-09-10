@@ -52,7 +52,7 @@ export function AppTopbar({
           />
         ) : null}
       </div>
-      <AlertBell alerts={alerts ?? []} />
+      <AlertBell alerts={alerts ?? []} activeBusinessId={activeBusinessId} />
       {chatSlot}
     </header>
   );

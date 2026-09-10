@@ -1,5 +1,5 @@
 import { createAdminClient } from "../db/admin";
-import { getEventHandler } from "./registry";
+import { getEventHandlers } from "./registry";
 import type { DomainEvent } from "./types";
 
 function coreAdmin() {
@@ -46,19 +46,33 @@ export async function drainDomainEvents(limit = 20): Promise<{ processed: number
       }
     }
 
-    const handler = getEventHandler(event.type);
-    if (!handler) {
+    const eventHandlers = getEventHandlers(event.type);
+    if (eventHandlers.length === 0) {
       await recordAttempt(supabase, event.id, "failed_permanent", `No handler registered for event type "${event.type}".`);
       failed++;
       continue;
     }
 
-    try {
-      await handler(event);
+    // Every registered handler for this type runs, even if an earlier one throws --
+    // one subscriber's failure (e.g. a transient error in module-crm's consumer)
+    // must never stop module-fsm's own independent subscriber to the same event from
+    // running. Each handler is expected to be idempotent (see module-fsm's own
+    // prospect.won handler for why), so re-running all of them together on a retry is
+    // safe even though only some actually failed last time.
+    const errors: string[] = [];
+    for (const handler of eventHandlers) {
+      try {
+        await handler(event);
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    if (errors.length === 0) {
       await recordAttempt(supabase, event.id, "processed");
       processed++;
-    } catch (err) {
-      await recordAttempt(supabase, event.id, "failed_retry", err instanceof Error ? err.message : String(err));
+    } else {
+      await recordAttempt(supabase, event.id, "failed_retry", errors.join(" | "));
       failed++;
     }
   }
