@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Checkbox } from "@cofounderai/core/ui/checkbox";
@@ -67,6 +67,7 @@ const METHOD_LABEL: Record<PaymentMethod, string> = {
  * and the send/record-payment/mark-paid/void actions PRD §1.4 lists. */
 export function InvoiceEditor({
   invoice,
+  businessName,
   lines,
   items,
   jobChargeTypes,
@@ -87,6 +88,7 @@ export function InvoiceEditor({
   voidAction,
 }: {
   invoice: Invoice;
+  businessName: string;
   lines: InvoiceLine[];
   items: ChargeableItemOption[];
   jobChargeTypes: JobChargeTypeOption[];
@@ -112,6 +114,7 @@ export function InvoiceEditor({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState("");
+  const [editingLine, setEditingLine] = useState<InvoiceLine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -144,13 +147,18 @@ export function InvoiceEditor({
   const canMarkUnpaid = canRecordPayment && isPaid;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Badge variant={STATUS_VARIANT[invoice.status] ?? "secondary"}>{STATUS_LABEL[invoice.status] ?? invoice.status}</Badge>
-          {invoice.number ? <span className="text-sm text-muted-foreground">{invoice.number}</span> : null}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+        <div className="min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Invoice</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold break-words">{businessName}</h1>
+            <Badge variant={STATUS_VARIANT[invoice.status] ?? "secondary"}>{STATUS_LABEL[invoice.status] ?? invoice.status}</Badge>
+          </div>
+          {invoice.number ? <p className="mt-1 text-xs text-muted-foreground">{invoice.number}</p> : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           {canSend ? (
             <Button
               variant="outline"
@@ -176,15 +184,15 @@ export function InvoiceEditor({
               Mark unpaid
             </Button>
           ) : null}
-          {canVoid && !isVoided ? (
-            <Button variant="destructive" size="sm" disabled={pending} onClick={() => setVoidOpen(true)}>
-              Void
-            </Button>
-          ) : null}
           {canEdit && !isVoided ? (
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" aria-hidden="true" />
               Add charge
+            </Button>
+          ) : null}
+          {canVoid && !isVoided ? (
+            <Button variant="destructive" size="sm" disabled={pending} onClick={() => setVoidOpen(true)}>
+              Void
             </Button>
           ) : null}
         </div>
@@ -196,8 +204,105 @@ export function InvoiceEditor({
       {lines.length === 0 ? (
         <EmptyState variant="inline" message="No charges added yet." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen (same fix as
+              EstimateBuilder's own charge-line table). */}
+          <ul className="divide-y md:hidden">
+            {lines.map((line, i) => (
+              <li key={line.id} className="flex min-w-0 flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">{line.item_name}</p>
+                    {line.item_sku ? <p className="text-xs text-muted-foreground">{line.item_sku}</p> : null}
+                    {line.job_charge_type_name ? (
+                      <p className="text-xs text-muted-foreground">{line.job_charge_type_name}</p>
+                    ) : null}
+                  </div>
+                  {canEdit && !isVoided ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={pending}
+                        aria-label="Edit charge"
+                        onClick={() => setEditingLine(line)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This removes the charge line from the invoice and cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => run(() => deleteLineAction(line.id))}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Qty {line.quantity}</span>
+                  <span>{inr.format(line.unit_price)} each</span>
+                  <label className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={line.taxable}
+                      disabled={!canEdit || isVoided || pending}
+                      onCheckedChange={(checked) => run(() => updateLineAction(line.id, { taxable: checked === true }))}
+                    />
+                    Taxable
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-base font-semibold">
+                    {inr.format(line.quantity * line.unit_price + line.cgst_amount + line.sgst_amount + line.igst_amount)}
+                  </p>
+                  {canEdit && !isVoided ? (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={pending || i === 0}
+                        onClick={() => move(i, -1)}
+                        aria-label="Move up"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        <ArrowUp className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending || i === lines.length - 1}
+                        onClick={() => move(i, 1)}
+                        aria-label="Move down"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        <ArrowDown className="size-4" />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead />
@@ -237,8 +342,8 @@ export function InvoiceEditor({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell>
-                    <p className="font-medium">{line.item_name}</p>
+                  <TableCell className="max-w-64">
+                    <p className="font-medium break-words">{line.item_name}</p>
                     {line.item_sku ? <p className="text-xs text-muted-foreground">{line.item_sku}</p> : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{line.job_charge_type_name ?? "-"}</TableCell>
@@ -256,30 +361,41 @@ export function InvoiceEditor({
                   </TableCell>
                   {canEdit && !isVoided ? (
                     <TableCell>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This removes the charge line from the invoice and cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Keep charge</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => run(() => deleteLineAction(line.id))}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={pending}
+                          aria-label="Edit charge"
+                          onClick={() => setEditingLine(line)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This removes the charge line from the invoice and cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => run(() => deleteLineAction(line.id))}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
@@ -290,7 +406,7 @@ export function InvoiceEditor({
       )}
 
       {lines.length > 0 ? (
-        <div className="flex flex-col items-end gap-1 text-sm">
+        <div className="flex flex-col gap-1 rounded-2xl border border-border p-4 text-sm sm:items-end sm:p-6">
           <p>Subtotal: {inr.format(invoice.subtotal)}</p>
           {invoice.cgst_amount > 0 ? <p>CGST: {inr.format(invoice.cgst_amount)}</p> : null}
           {invoice.sgst_amount > 0 ? <p>SGST: {inr.format(invoice.sgst_amount)}</p> : null}
@@ -304,8 +420,22 @@ export function InvoiceEditor({
       {payments.length > 0 ? (
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">Payment history</h3>
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <Table>
+          <div className="rounded-2xl border border-border">
+            <ul className="divide-y md:hidden">
+              {payments.map((p) => (
+                <li key={p.id} className="flex flex-col gap-1 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium">{formatDate(p.payment_date)}</span>
+                    <span className="font-semibold">{inr.format(p.allocated_amount)}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>{METHOD_LABEL[p.method]}</span>
+                    {p.reference ? <span className="break-all">{p.reference}</span> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <Table className="hidden md:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -512,6 +642,82 @@ export function InvoiceEditor({
               {pending ? "Voiding..." : "Void invoice"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editingLine !== null} onOpenChange={(open) => { if (!open) setEditingLine(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit charge</DialogTitle>
+          </DialogHeader>
+          {editingLine ? (
+            <form
+              className="flex flex-col gap-4"
+              action={async (form: FormData) => {
+                const lineId = editingLine.id;
+                const patch: UpdateChargeLineInput = {
+                  quantity: Number(form.get("quantity") ?? 0),
+                  unitPrice: Number(form.get("unit_price") ?? 0),
+                  taxRate: Number(form.get("tax_rate") ?? 0),
+                  taxable: form.get("taxable") === "on",
+                  jobChargeTypeId: String(form.get("job_charge_type_id") ?? "") || null,
+                };
+                setError(null);
+                setNotice(null);
+                try {
+                  await updateLineAction(lineId, patch);
+                  setEditingLine(null);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Something went wrong.");
+                }
+              }}
+            >
+              <div>
+                <p className="text-sm font-medium break-words">{editingLine.item_name}</p>
+                {editingLine.item_sku ? <p className="text-xs text-muted-foreground">{editingLine.item_sku}</p> : null}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-qty">Quantity</Label>
+                  <Input id="edit-qty" name="quantity" type="number" step="0.01" defaultValue={editingLine.quantity} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-price">Unit price</Label>
+                  <Input id="edit-price" name="unit_price" type="number" step="0.01" defaultValue={editingLine.unit_price} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tax-rate">Tax rate %</Label>
+                  <Input id="edit-tax-rate" name="tax_rate" type="number" step="0.01" defaultValue={editingLine.tax_rate} required />
+                </div>
+                {jobChargeTypes.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-charge-type">Charge type</Label>
+                    <NativeSelect id="edit-charge-type" name="job_charge_type_id" defaultValue={editingLine.job_charge_type_id ?? ""}>
+                      <option value="">None</option>
+                      {jobChargeTypes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                ) : null}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox name="taxable" defaultChecked={editingLine.taxable} />
+                Taxable
+              </label>
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setEditingLine(null)}>
+                  Cancel
+                </Button>
+                <SubmitButton pendingText="Saving...">Save changes</SubmitButton>
+              </DialogFooter>
+            </form>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

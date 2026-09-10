@@ -43,13 +43,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold">Invoice</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}</p>
-      </div>
-
       <InvoiceEditor
         invoice={invoice}
+        businessName={business.name}
         lines={lines}
         items={items}
         jobChargeTypes={jobChargeTypes}
