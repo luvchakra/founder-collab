@@ -40,6 +40,23 @@ export async function fetchPageText(url: string): Promise<string> {
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<!--[\s\S]*?-->/g, " ")
+    // Rewrites every anchor to "label [absolute-url]" *before* the generic tag-strip
+    // below discards it -- a plain-text dump with every href thrown away is useless for
+    // discover-products.ts's per-product page URLs (its whole point is finding each
+    // product's own link), which is exactly what stripping tags outright used to do.
+    // Resolved against `url` so a relative href (the overwhelmingly common case for an
+    // internal product link) still becomes a real, usable URL.
+    .replace(/<a\s+(?:[^>]*?\s)?href=["']([^"'#][^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, href: string, inner: string) => {
+      if (/^(javascript|mailto|tel):/i.test(href)) return inner;
+      let absolute: string;
+      try {
+        absolute = new URL(href, url).toString();
+      } catch {
+        return inner;
+      }
+      const label = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      return label ? `${label} [${absolute}]` : ` ${absolute} `;
+    })
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
@@ -54,6 +71,8 @@ export async function fetchPageText(url: string): Promise<string> {
 
   // Bounds the prompt this feeds into -- a structuring call needs the gist of the page,
   // not every byte of it, and an unbounded page could otherwise blow past the model's
-  // context window on a large/JS-bundle-heavy site.
-  return text.slice(0, 20000);
+  // context window on a large/JS-bundle-heavy site. Raised from the original 20000 to
+  // give the now-inline "[url]" annotations room without crowding out the surrounding
+  // product text that makes them identifiable.
+  return text.slice(0, 30000);
 }

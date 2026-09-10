@@ -109,7 +109,7 @@ export function AutoPopulateProductsButton({
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !next && close()}>
-        <DialogContent className="flex max-h-[85vh] max-w-2xl flex-col overflow-hidden">
+        <DialogContent className="flex max-h-[80dvh] max-w-xl flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>AI-populated products</DialogTitle>
           </DialogHeader>
@@ -127,21 +127,56 @@ export function AutoPopulateProductsButton({
             </div>
           ) : products ? (
             <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <p className="text-sm text-muted-foreground">
-                Found <span className="font-medium text-foreground">{products.length}</span> product
-                {products.length === 1 ? "" : "s"} on your website. Review and choose which to add.
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Found <span className="font-medium text-foreground">{products.length}</span> product
+                  {products.length === 1 ? "" : "s"}. Review and choose which to add.
+                </p>
+                <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={products.length > 0 && selected.size === products.length}
+                    onCheckedChange={(checked) => toggleAll(checked === true)}
+                    aria-label="Select all products"
+                  />
+                  Select all
+                </label>
+              </div>
+              {/* Compact cards below md, per this platform's own rule that a table of rows
+                  never scrolls horizontally or gets cramped on a small screen -- three
+                  columns (checkbox/name/website) in a <Table> was unreadable on a phone. */}
               <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
-                <Table>
+                <div className="divide-y md:hidden">
+                  {products.map((p, i) => (
+                    <label key={i} className="flex items-start gap-3 p-3">
+                      <Checkbox
+                        checked={selected.has(i)}
+                        onCheckedChange={(checked) => toggleRow(i, checked === true)}
+                        aria-label={`Select ${p.name}`}
+                        className="mt-0.5"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium leading-snug">{p.name}</p>
+                        {p.website ? (
+                          <a
+                            href={p.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="break-all text-xs text-primary underline-offset-2 hover:underline"
+                          >
+                            {p.website}
+                          </a>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No product page found</p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <Table className="hidden md:table">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10">
-                        <Checkbox
-                          checked={products.length > 0 && selected.size === products.length}
-                          onCheckedChange={(checked) => toggleAll(checked === true)}
-                          aria-label="Select all products"
-                        />
-                      </TableHead>
+                      <TableHead className="w-10" />
                       <TableHead>Name</TableHead>
                       <TableHead>Website</TableHead>
                     </TableRow>

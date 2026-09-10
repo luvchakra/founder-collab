@@ -20,6 +20,11 @@ export function structureProductCatalogPrompt(input: { businessName: string; fin
 distinct products/services -- just the name and, if the research found one, that product's own
 specific page URL (null if it shares the business's main site).
 
+The findings may be raw page text rather than a summary. When they are, a link right after some
+text appears as "label [https://...]" -- that bracketed URL is the href of a link on the page, so
+if it immediately follows (or names) a product, that is very likely that product's own page URL.
+Prefer it over guessing or leaving the URL null when one is right there.
+
 Research findings:
 ${input.findings}
 
