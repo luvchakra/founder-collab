@@ -17,7 +17,14 @@ export function ConversionFunnelPanel({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Customers (won) leads the grid -- it's the metric that actually matters most
+          here (the others are how you got there), so it gets top-left / first-read
+          position rather than being buried third. */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-md border p-4">
+          <p className="text-xs text-muted-foreground">Customers (won)</p>
+          <p className="mt-1 text-2xl font-semibold">{wonCount}</p>
+        </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Total prospects</p>
           <p className="mt-1 text-2xl font-semibold">{total}</p>
@@ -25,10 +32,6 @@ export function ConversionFunnelPanel({
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Reply rate</p>
           <p className="mt-1 text-2xl font-semibold">{replyRate}%</p>
-        </div>
-        <div className="rounded-md border p-4">
-          <p className="text-xs text-muted-foreground">Customers (won)</p>
-          <p className="mt-1 text-2xl font-semibold">{wonCount}</p>
         </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Overall conversion</p>

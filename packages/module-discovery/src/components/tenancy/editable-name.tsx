@@ -5,6 +5,7 @@ import { Pencil, X } from "lucide-react";
 import { Input } from "@cofounderai/core/ui/input";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import type { RenameActionState } from "../../lib/tenancy/types";
+import { useAutoPopulateProgress } from "./auto-populate-progress";
 
 /**
  * Inline rename control for a business or product name. Collapsed to a plain heading +
@@ -28,6 +29,13 @@ export function EditableName({
     null,
   );
   const inputRef = useRef<HTMLInputElement>(null);
+  // No-op outside a product layout's AutoPopulateProgressProvider (e.g. renaming a
+  // business) -- only meaningful here for a product name, which the auto-populate flow
+  // itself doesn't touch, but the flow does touch that product's profile/ICP/prospects,
+  // so renaming mid-run is still a real race worth blocking, same as every other control
+  // product-overview-shell.tsx's fieldset already disables.
+  const { activeStage } = useAutoPopulateProgress();
+  const populating = activeStage !== null;
 
   // Exit edit mode the moment a save succeeds, without a setState-in-effect render
   // cascade: React's documented pattern for adjusting state in response to a change is to
@@ -45,8 +53,10 @@ export function EditableName({
         <button
           type="button"
           onClick={() => setEditing(true)}
+          disabled={populating}
           aria-label={`Rename ${name}`}
-          className="text-muted-foreground transition-[color,transform] duration-100 hover:text-foreground active:scale-90"
+          title={populating ? "Wait for auto-populate to finish" : undefined}
+          className="text-muted-foreground transition-[color,transform] duration-100 hover:text-foreground active:scale-90 disabled:pointer-events-none disabled:opacity-40"
         >
           <Pencil className="size-4" aria-hidden="true" />
         </button>

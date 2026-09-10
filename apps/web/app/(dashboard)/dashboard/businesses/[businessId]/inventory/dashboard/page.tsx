@@ -29,7 +29,7 @@ export default async function InventoryDashboardPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Operations dashboard</h1>
+        <h1 className="text-xl font-semibold">Inventory Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {business.name}
           {selectedWarehouseId ? ` - ${warehouseNameById.get(selectedWarehouseId)}` : " - live across all warehouses"}.

@@ -107,7 +107,13 @@ export function ProductNav({
             </div>
             <span
               className={cn(
-                "max-w-full text-center text-sm leading-tight font-medium break-words",
+                // `text-xs` (not `text-sm`) below `sm`: at the default size "Conversions"
+                // -- the longest label, and a single word with no space to wrap at --
+                // didn't fit this column's width on a phone, so `break-words` split it
+                // mid-word into "Conversion"/"s" on two lines instead of wrapping cleanly.
+                // The smaller size fits the whole word on one line at every width that
+                // matters; `break-words` stays on as a safety net for anything narrower.
+                "max-w-full text-center text-xs leading-tight font-medium break-words sm:text-sm",
                 isActive ? "text-foreground" : "text-muted-foreground",
               )}
             >

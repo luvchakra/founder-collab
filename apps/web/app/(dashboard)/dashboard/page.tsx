@@ -29,7 +29,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { formatDate } from "@cofounderai/core/lib/format";
-import { AlertTriangle, ArrowRight, Settings2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, BadgeCheck, CreditCard, Gauge, Settings2 } from "lucide-react";
 import { DownloadPdfButton } from "@/components/dashboard/download-pdf-button";
 import { getOpenJobsCount } from "@cofounderai/module-fsm/lib/dashboard/queries";
 import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
@@ -292,23 +292,41 @@ export default async function DashboardPage({
         </div>
 
         {/* Settings/admin shortcuts -- left out of the downloaded PDF (item #18): these
-            are navigation, not report content, and a link is meaningless on paper. */}
-        <div className="flex flex-wrap gap-2 print:hidden">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/settings">
-              <Settings2 className="size-3.5" aria-hidden="true" />
-              Admin &amp; settings
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/settings/licenses">Licenses</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/settings/usage">Usage</Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/settings/billing">Billing</Link>
-          </Button>
+            are navigation, not report content, and a link is meaningless on paper. A
+            bordered card (rather than bare flex-wrapped buttons) reads as one grouped
+            "quick links" control instead of a ragged row that wraps 3-then-1 on mobile;
+            the 2-col grid keeps every button full-width and evenly sized at phone
+            widths, matching width once there's room for all four in one row. */}
+        <div className="rounded-xl border border-border bg-card p-3 print:hidden">
+          <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Quick links
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            <Button asChild size="sm" variant="outline" className="w-full justify-start sm:w-auto sm:justify-center">
+              <Link href="/dashboard/settings">
+                <Settings2 className="size-3.5" aria-hidden="true" />
+                Admin &amp; settings
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="w-full justify-start sm:w-auto sm:justify-center">
+              <Link href="/dashboard/settings/licenses">
+                <BadgeCheck className="size-3.5" aria-hidden="true" />
+                Licenses
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="w-full justify-start sm:w-auto sm:justify-center">
+              <Link href="/dashboard/settings/usage">
+                <Gauge className="size-3.5" aria-hidden="true" />
+                Usage
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="w-full justify-start sm:w-auto sm:justify-center">
+              <Link href="/dashboard/settings/billing">
+                <CreditCard className="size-3.5" aria-hidden="true" />
+                Billing
+              </Link>
+            </Button>
+          </div>
         </div>
 
         {attentionItems.length > 0 ? (

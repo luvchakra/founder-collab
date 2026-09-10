@@ -51,12 +51,17 @@ export default async function ProductLayout({
           { label: "Product" },
         ]}
       />
-      <EditableName
-        name={product.name}
-        action={renameProductAction.bind(null, businessId, productId)}
-        headingClassName="text-xl font-semibold"
-      />
+      {/* EditableName lives inside the provider (not above it) so its own rename
+          pencil can read `activeStage` and disable itself while the auto-populate
+          flow is running -- it acts on the same product row that flow is writing to,
+          same race the fieldset in product-overview-shell.tsx already guards against
+          for every other control on the Overview step. */}
       <AutoPopulateProgressProvider>
+        <EditableName
+          name={product.name}
+          action={renameProductAction.bind(null, businessId, productId)}
+          headingClassName="text-xl font-semibold"
+        />
         <ProductNav basePath={basePath} completed={completed} />
         {children}
       </AutoPopulateProgressProvider>

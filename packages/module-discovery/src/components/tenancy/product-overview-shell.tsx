@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, Paperclip } from "lucide-react";
 import { AiActionForm } from "../ai/ai-action-form";
 import { AutoPopulateStartButton } from "./auto-populate-start-button";
 import { EditableText } from "./editable-text";
@@ -87,7 +88,7 @@ export function ProductOverviewShell({
         />
       </section>
 
-      <section className="flex flex-col gap-3 rounded-md border p-4">
+      <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Product profile</h2>
           <AiActionForm
@@ -181,11 +182,19 @@ export function ProductOverviewShell({
         )}
       </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-medium">Knowledge sources</h2>
+      <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+        <div>
+          <h2 className="font-medium">Knowledge sources</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Extra context (files or pasted text) the AI reads alongside the website when
+            researching this product.
+          </p>
+        </div>
 
         {sources.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No sources yet.</p>
+          <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            No sources yet -- add a file or paste some text below.
+          </p>
         ) : (
           <div className="flex flex-col gap-3">
             {sources.map((source) => (
@@ -203,7 +212,14 @@ export function ProductOverviewShell({
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <div className="flex-1">
-            <CollapsibleCard label="Add a file">
+            <CollapsibleCard
+              label={
+                <span className="flex items-center gap-2">
+                  <Paperclip className="size-4 text-muted-foreground" aria-hidden="true" />
+                  Add a file
+                </span>
+              }
+            >
               <form action={addFileAction} className="flex flex-col gap-3">
                 <input
                   type="file"
@@ -225,7 +241,14 @@ export function ProductOverviewShell({
           </div>
 
           <div className="flex-1">
-            <CollapsibleCard label="Add text">
+            <CollapsibleCard
+              label={
+                <span className="flex items-center gap-2">
+                  <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+                  Add text
+                </span>
+              }
+            >
               <form action={addTextAction} className="flex flex-col gap-3">
                 <Input name="sourceName" placeholder="Source name (optional)" />
                 <Textarea
