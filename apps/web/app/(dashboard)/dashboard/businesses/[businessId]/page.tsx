@@ -95,6 +95,9 @@ export default async function BusinessDashboardPage({
   const usageHref = `/dashboard/businesses/${business.id}/usage`;
   const funnel = computeConversionFunnel(prospects);
   const wonCount = prospects.filter((p) => p.outcome === "won").length;
+  const qualifiedCount = prospects.filter((p) => p.status === "qualified").length;
+  const sentCount = funnel.steps.find((s) => s.stage === "sent")?.reached ?? 0;
+  const repliedCount = funnel.steps.find((s) => s.stage === "replied")?.reached ?? 0;
   // Only unambiguous when there's exactly one product -- with more than one, "Prospects"/
   // "Reply rate" aggregate across all of them, so there's no single list to send the click
   // to; the Business page (where every product is listed) is the honest fallback there.
@@ -115,6 +118,7 @@ export default async function BusinessDashboardPage({
       wonCount: workspaceProspects.filter((p) => p.outcome === "won").length,
     };
   });
+  const readyProductCount = productRows.filter((r) => r.hasProfile && r.hasIcp).length;
 
   // "What to do next", one item per product at whatever stage it's stuck on -- ranked
   // by severity (no website/no products first, since nothing else can happen until
@@ -206,14 +210,30 @@ export default async function BusinessDashboardPage({
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Products" value={products.length} href={businessDetailHref} />
+        <KpiCard
+          label="Products"
+          value={products.length}
+          detail={products.length > 0 ? `${readyProductCount} of ${products.length} ready to prospect` : undefined}
+          href={businessDetailHref}
+        />
         <KpiCard
           label="Prospects"
           value={prospects.length}
-          detail={wonCount > 0 ? `${wonCount} won` : undefined}
+          detail={
+            prospects.length > 0
+              ? [qualifiedCount > 0 ? `${qualifiedCount} qualified` : null, wonCount > 0 ? `${wonCount} won` : null]
+                  .filter(Boolean)
+                  .join(" · ") || undefined
+              : undefined
+          }
           href={prospectsHref}
         />
-        <KpiCard label="Reply rate" value={`${funnel.replyRate}%`} href={prospectsHref} />
+        <KpiCard
+          label="Reply rate"
+          value={`${funnel.replyRate}%`}
+          detail={sentCount > 0 ? `${repliedCount} of ${sentCount} sent replied` : undefined}
+          href={prospectsHref}
+        />
         <KpiCard
           label="AI credits (month)"
           value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceIds.length, 1))}%`}
