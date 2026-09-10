@@ -47,8 +47,8 @@ export function AiProviderForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium">AI Provider</legend>
+      <fieldset className="flex flex-col gap-2 rounded-md border p-3">
+        <legend className="px-1 text-sm font-medium">AI Provider</legend>
         {PROVIDERS.map((provider) => (
           <label key={provider} className="flex items-center gap-2 text-sm">
             <input

@@ -6,7 +6,6 @@ import { ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AI_PROVIDER_LABELS, type AiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/types";
-import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
 import { AiProviderForm } from "./ai-provider-form";
 import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/settings/billing/actions";
 
@@ -22,6 +21,8 @@ export function AiSection({
   connection,
   connectAction,
   disconnectAction,
+  freeTierRunLimit,
+  freeTierCostLimitUsd,
 }: {
   connection: AiProviderConnection | null;
   connectAction: (
@@ -29,6 +30,14 @@ export function AiSection({
     formData: FormData,
   ) => Promise<ConnectProviderActionState>;
   disconnectAction: () => Promise<void>;
+  /** Passed in as plain numbers rather than imported from usage/limits.ts directly --
+   * that module also exports assertWithinUsageLimit(), which pulls in server-only code
+   * (packages/core/src/db/server.ts's "next/headers") through tenancy/queries.ts. This
+   * is a Client Component, so importing it here would bundle that whole chain into the
+   * client build and fail it (Turbopack: "next/headers" used outside a Server Component)
+   * -- the numbers themselves are perfectly safe to serialize as props. */
+  freeTierRunLimit: number;
+  freeTierCostLimitUsd: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -108,7 +117,7 @@ export function AiSection({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   No key connected -- AI features run on our free tier, up to{" "}
-                  {FREE_TIER_MONTHLY_RUN_LIMIT} AI runs (${FREE_TIER_MONTHLY_COST_LIMIT_USD} of spend)
+                  {freeTierRunLimit} AI runs (${freeTierCostLimitUsd} of spend)
                   per workspace per month.
                 </p>
                 <Link href="/dashboard/settings/usage" className="self-start text-xs font-medium text-primary hover:underline">

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getAiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/queries";
+import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
 import { AiSection } from "@/components/settings/ai-section";
 import { PricingTiers } from "@/components/settings/pricing-tiers";
 import { connectProviderAction, disconnectProviderAction } from "./actions";
@@ -30,6 +31,8 @@ export default async function BillingSettingsPage() {
         connection={connection}
         connectAction={connectProviderAction.bind(null, account.id)}
         disconnectAction={disconnectProviderAction.bind(null, account.id)}
+        freeTierRunLimit={FREE_TIER_MONTHLY_RUN_LIMIT}
+        freeTierCostLimitUsd={FREE_TIER_MONTHLY_COST_LIMIT_USD}
       />
 
       <PricingTiers />
