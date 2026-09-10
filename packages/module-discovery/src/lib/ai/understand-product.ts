@@ -1,4 +1,4 @@
-import { generateObject, generateText } from "ai";
+import { generateObject } from "ai";
 import { createClient } from "../../db/server";
 import { getProduct, getWorkspaceForProduct } from "../tenancy/queries";
 import { listProductKnowledge } from "../knowledge/queries";
@@ -12,16 +12,16 @@ import { ProductProfileSchema, type ProductProfile } from "./schemas";
 import { recordAiRun } from "./usage";
 import { assertWithinUsageLimit } from "../usage/limits";
 import { hasRecentSuccess } from "./dedup";
-import { resolveAiModel, toAiProviderError, AiProviderError } from "./router";
+import { resolveAiModel, toAiProviderError } from "./router";
 import { createUrlContextTools } from "@cofounderai/core/ai/provider-factory";
+import { researchWebsite } from "./research-website";
 
 const OPERATION = "understand_product";
 
 /**
- * Synthesizes a structured ProductProfile by researching the product's own website via a
- * provider-executed tool that actually retrieves that one URL (createUrlContextTools --
- * Gemini's dedicated url_context tool for Google, the same web_search tool OpenAI/
- * Anthropic already use to fetch specific URLs otherwise), then structuring those
+ * Synthesizes a structured ProductProfile by researching the product's own website via
+ * researchWebsite() (provider-executed URL retrieval, falling back to a direct
+ * server-side fetch if the provider's own crawler is blocked), then structuring those
  * findings (plus the product's description and any product_knowledge sources) into
  * ProductProfileSchema. The website is a hard requirement -- there's nothing to research
  * without one.
@@ -87,52 +87,22 @@ export async function understandProduct(
   let profile: ProductProfile;
   const startedAt = Date.now();
   try {
-    const searchResponse = await generateText({
+    const research = await researchWebsite(
       model,
-      tools: createUrlContextTools(provider),
-      prompt: researchPrompt,
-    });
-
-    // Gemini reports per-URL retrieval status on urlContextMetadata (not available for
-    // OpenAI/Anthropic, whose web_search tool has no equivalent structured status) --
-    // logged unconditionally during development so a retrieval failure is diagnosable
-    // from Vercel function logs instead of only showing up as "no findings" below.
-    const googleMetadata = searchResponse.providerMetadata?.google as unknown as
-      | { urlContextMetadata?: { urlMetadata?: { retrievedUrl: string; urlRetrievalStatus: string }[] } }
-      | undefined;
-    const urlMetadata = googleMetadata?.urlContextMetadata?.urlMetadata;
-    if (urlMetadata) {
-      console.log(
-        `[ai/understand-product] Gemini url_context retrieval for ${product.website}:`,
-        JSON.stringify(urlMetadata),
-      );
-      const failed = urlMetadata.find((entry) => entry.urlRetrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS");
-      if (failed) {
-        throw new AiProviderError(
-          "url_retrieval_failed",
-          `Gemini could not retrieve ${failed.retrievedUrl} (status: ${failed.urlRetrievalStatus}). The site may be blocking automated access, redirecting, or returning an error -- check it loads without a login and isn't behind a WAF/CDN challenge.`,
-          provider,
-        );
-      }
-    }
-    console.log(
-      `[ai/understand-product] raw findings for ${product.website} (${searchResponse.text.length} chars):`,
-      searchResponse.text.slice(0, 2000),
+      createUrlContextTools(provider),
+      researchPrompt,
+      product.website,
+      provider,
     );
-
-    const findings = searchResponse.text.trim();
-    if (!findings) {
-      throw new AiProviderError(
-        "no_content_found",
-        `${provider} retrieved ${product.website} but found no useful product information there. The page's content may only render after client-side JavaScript runs, or it may not describe the product -- add details manually as a knowledge source instead.`,
-        provider,
-      );
-    }
+    console.log(
+      `[ai/understand-product] findings for ${product.website} (${research.findings.length} chars):`,
+      research.findings.slice(0, 2000),
+    );
 
     const structurePrompt = understandProductPrompt({
       productName: product.name,
       sources: [
-        { sourceType: "website", sourceName: product.website, content: findings },
+        { sourceType: "website", sourceName: product.website, content: research.findings },
         ...(product.description
           ? [{ sourceType: "manual", sourceName: "Product info", content: `Description: ${product.description}` }]
           : []),
@@ -157,9 +127,9 @@ export async function understandProduct(
       model: modelId,
       promptVersion: RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
       inputHash,
-      inputTokens: (searchResponse.usage.inputTokens ?? 0) + (structureResponse.usage.inputTokens ?? 0),
-      outputTokens: (searchResponse.usage.outputTokens ?? 0) + (structureResponse.usage.outputTokens ?? 0),
-      searchCount: searchResponse.toolCalls.length,
+      inputTokens: research.inputTokens + (structureResponse.usage.inputTokens ?? 0),
+      outputTokens: research.outputTokens + (structureResponse.usage.outputTokens ?? 0),
+      searchCount: research.searchCount,
       status: "succeeded",
       accountId,
       provider,

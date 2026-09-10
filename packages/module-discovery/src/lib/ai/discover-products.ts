@@ -1,4 +1,4 @@
-import { generateObject, generateText } from "ai";
+import { generateObject } from "ai";
 import { getBusiness, getFirstWorkspaceForAccount, getFirstWorkspaceForBusiness } from "../tenancy/queries";
 import {
   researchProductCatalogPrompt,
@@ -9,8 +9,9 @@ import { hashInput } from "./hash";
 import { DiscoveredProductsSchema, type DiscoveredProduct } from "./schemas";
 import { recordAiRun } from "./usage";
 import { assertWithinUsageLimit } from "../usage/limits";
-import { resolveAiModel, toAiProviderError, AiProviderError } from "./router";
+import { resolveAiModel, toAiProviderError } from "./router";
 import { createUrlContextTools } from "@cofounderai/core/ai/provider-factory";
+import { researchWebsite } from "./research-website";
 
 const OPERATION = "discover_products";
 
@@ -56,43 +57,18 @@ export async function discoverProductsFromWebsite(businessId: string): Promise<D
   let products: DiscoveredProduct[];
   const startedAt = Date.now();
   try {
-    const searchResponse = await generateText({
+    const research = await researchWebsite(
       model,
-      tools: createUrlContextTools(provider),
-      prompt: researchPrompt,
-    });
-
-    // Same Gemini-specific retrieval-status check as understandProduct() -- see that
-    // file's own comment for why this is worth surfacing as a specific, actionable
-    // error rather than letting a blocked/redirected fetch read as "no products found."
-    const googleMetadata = searchResponse.providerMetadata?.google as unknown as
-      | { urlContextMetadata?: { urlMetadata?: { retrievedUrl: string; urlRetrievalStatus: string }[] } }
-      | undefined;
-    const urlMetadata = googleMetadata?.urlContextMetadata?.urlMetadata;
-    if (urlMetadata) {
-      const failed = urlMetadata.find((entry) => entry.urlRetrievalStatus !== "URL_RETRIEVAL_STATUS_SUCCESS");
-      if (failed) {
-        throw new AiProviderError(
-          "url_retrieval_failed",
-          `Gemini could not retrieve ${failed.retrievedUrl} (status: ${failed.urlRetrievalStatus}). The site may be blocking automated access, redirecting, or returning an error -- check it loads without a login and isn't behind a WAF/CDN challenge.`,
-          provider,
-        );
-      }
-    }
-
-    const findings = searchResponse.text.trim();
-    if (!findings) {
-      throw new AiProviderError(
-        "no_content_found",
-        `${provider} retrieved ${business.website} but found no useful product information there. The page's content may only render after client-side JavaScript runs -- add products manually instead.`,
-        provider,
-      );
-    }
+      createUrlContextTools(provider),
+      researchPrompt,
+      business.website,
+      provider,
+    );
 
     const structureResponse = await generateObject({
       model: modelAtTier("fast"),
       schema: DiscoveredProductsSchema,
-      prompt: structureProductCatalogPrompt({ businessName: business.name, findings }),
+      prompt: structureProductCatalogPrompt({ businessName: business.name, findings: research.findings }),
     });
     products = structureResponse.object.products;
 
@@ -102,9 +78,9 @@ export async function discoverProductsFromWebsite(businessId: string): Promise<D
       model: modelId,
       promptVersion: DISCOVER_PRODUCTS_PROMPT_VERSION,
       inputHash,
-      inputTokens: (searchResponse.usage.inputTokens ?? 0) + (structureResponse.usage.inputTokens ?? 0),
-      outputTokens: (searchResponse.usage.outputTokens ?? 0) + (structureResponse.usage.outputTokens ?? 0),
-      searchCount: searchResponse.toolCalls.length,
+      inputTokens: research.inputTokens + (structureResponse.usage.inputTokens ?? 0),
+      outputTokens: research.outputTokens + (structureResponse.usage.outputTokens ?? 0),
+      searchCount: research.searchCount,
       status: "succeeded",
       accountId,
       provider,
