@@ -23,7 +23,8 @@ import type { LookupOption, Product } from "../../lib/products/types";
 /** Ported from stockpilot-ai-ops's routes/_authenticated/products.tsx `Products`
  * component -- list + create/edit dialog + activate/deactivate + barcode/QR label
  * generation + CSV import, rebuilt as Server Actions (see WarehousesList's docstring for
- * why). The mobile-only card layout is dropped the same way it was for warehouses. */
+ * why). Unlike WarehousesList, this one keeps its own compact-card mobile layout below
+ * `md` (CLAUDE.md rule #12) -- nine columns is unreadable on a phone. */
 export function ProductsList({
   products,
   categoryNameById,
@@ -80,8 +81,59 @@ export function ProductsList({
       {products.length === 0 ? (
         <EmptyState icon={Package} message="No products yet. Add your first SKU." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen; nine columns
+              (SKU/Name/Brand/Category/Supplier/Cost/Price/Status/Actions) don't fit a
+              phone width. */}
+          <ul className="divide-y md:hidden">
+            {products.map((p) => (
+              <li key={p.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">{p.name}</p>
+                    <p className="font-mono text-xs text-muted-foreground">{p.sku}</p>
+                  </div>
+                  <Badge variant={p.status === "active" ? "default" : "secondary"} className="shrink-0">
+                    {p.status}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Brand {p.brand ?? "—"}</span>
+                  <span>Category {categoryNameById.get(p.category_id ?? "") ?? "—"}</span>
+                  <span>Supplier {supplierNameById.get(p.supplier_id ?? "") ?? "—"}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    {canViewCost ? (
+                      <span className="text-xs text-muted-foreground">
+                        Cost {p.cost_price == null ? "—" : inr.format(Number(p.cost_price))}
+                      </span>
+                    ) : null}
+                    <span className="text-base font-semibold">{inr.format(Number(p.selling_price))}</span>
+                  </div>
+                  {canEdit ? (
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" aria-label="Edit product" onClick={() => setModalTarget(p)}>
+                        <Pencil className="size-4" />
+                      </Button>
+                      <form
+                        action={toggleStatusAction.bind(null, p.id, p.status === "active" ? "inactive" : "active")}
+                      >
+                        <SubmitButton variant="ghost" size="sm">
+                          {p.status === "active" ? "Deactivate" : "Activate"}
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>SKU</TableHead>
