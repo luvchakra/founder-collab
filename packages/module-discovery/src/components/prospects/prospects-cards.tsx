@@ -198,13 +198,18 @@ function StatusPill({ status }: { status: ProspectWithPipeline["status"] }) {
   );
 }
 
-/** One labeled attribute chip -- `whitespace-nowrap` so a single attribute never
- * breaks mid-value, while the parent's `flex-wrap` still lets several chips share a
- * row when the card is wide enough, or drop to their own row otherwise. */
+/** One labeled attribute chip. The parent's `flex-wrap` lets several chips share a row
+ * when the card is wide enough, or drop to their own row otherwise -- but a chip's own
+ * *value* still needs to wrap onto a second line rather than force the whole chip
+ * (and the card, and the page) wider than the screen, which is exactly what a long
+ * compound value (a multi-clause Industry string is the common case) did when this
+ * was `whitespace-nowrap`. `max-w-full` plus `break-words` lets a long value wrap
+ * inside the chip instead. */
 function AttributeChip({ label, value }: { label: string; value: string }) {
   return (
-    <span className="whitespace-nowrap rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-      <span className="font-medium text-foreground/70">{label}:</span> {value}
+    <span className="inline-flex max-w-full items-baseline gap-1 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+      <span className="shrink-0 font-medium text-foreground/70">{label}:</span>
+      <span className="break-words">{value}</span>
     </span>
   );
 }
@@ -227,10 +232,10 @@ function ProspectCard({
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
   return (
-    <li className="relative flex flex-col gap-2 rounded-lg border p-3 text-sm transition-colors hover:border-primary hover:bg-accent/40">
+    <li className="relative flex min-w-0 flex-col gap-2 rounded-lg border p-3 text-sm transition-colors hover:border-primary hover:bg-accent/40">
       <Link href={`${basePath}/${p.id}`} className="absolute inset-0 z-0" aria-label={p.company_name} />
 
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex min-w-0 items-start justify-between gap-2">
         <div className="flex min-w-0 items-start gap-2">
           <input
             type="checkbox"
