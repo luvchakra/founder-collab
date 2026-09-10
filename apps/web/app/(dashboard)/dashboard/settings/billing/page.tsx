@@ -1,18 +1,19 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
 import { CREDIT_PLANS } from "@cofounderai/core/billing/plans";
 import { getCreditBalance, listCreditPurchases } from "@cofounderai/core/billing/queries";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { BuyCredits } from "@/components/settings/buy-credits";
+import { PricingTiers } from "@/components/settings/pricing-tiers";
 
 /**
  * co-founder-ai is still free-tier-only by default (blueprint §22 -- no subscription,
- * no payment method requirement to use the product); "Buy monthly AI credits" is an
- * optional top-up on top of that free tier for a founder who's hit the free monthly
- * allowance and doesn't want to bring their own provider key. See
- * packages/core/src/billing/ for the purchase/credit machinery this page drives.
+ * no payment method requirement to use the product). Free is the only plan actually live;
+ * PricingTiers shows Pro/Max/Enterprise for comparison, "Notify me"/"Contact us" rather
+ * than a real checkout. "Buy monthly AI credits" is a separate, real purchase flow (see
+ * packages/core/src/billing/) available on any plan, for a founder who's hit the free
+ * monthly allowance and doesn't want to bring their own provider key.
  */
 export default async function BillingSettingsPage() {
   const account = await getCurrentAccount();
@@ -25,32 +26,25 @@ export default async function BillingSettingsPage() {
   const razorpayConfigured = Boolean(process.env.RAZORPAY_KEY_ID);
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 p-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
       <div>
         <h1 className="text-xl font-semibold">Billing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          co-founder-ai is free for every workspace -- there&apos;s no subscription to
-          manage. Buy extra AI credits any time you&apos;d rather not bring your own
-          provider key.
+          co-founder-ai is free today -- Free is the only plan you can actually be on
+          right now. Buy extra AI credits any time you&apos;d rather not bring your own
+          provider key, or see where Pro and Max are headed below.
         </p>
-      </div>
-
-      <div className="flex flex-col gap-3 rounded-md border p-4">
-        <h2 className="font-medium">Free tier</h2>
-        <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-          <li>Up to {FREE_TIER_MONTHLY_RUN_LIMIT} AI runs per workspace per month</li>
-          <li>Up to ${FREE_TIER_MONTHLY_COST_LIMIT_USD} of AI spend per workspace per month</li>
-          <li>Bring your own AI provider key -- you&apos;re billed directly by your provider</li>
-        </ul>
         <Link
           href="/dashboard/settings/usage"
-          className="self-start text-sm font-medium text-primary hover:underline"
+          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
         >
           View your current usage →
         </Link>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-md border p-4">
+      <PricingTiers />
+
+      <div className="flex max-w-lg flex-col gap-4 rounded-md border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">AI credits</h2>
           <Badge variant="secondary">{balance.remaining_runs} run{balance.remaining_runs === 1 ? "" : "s"} remaining</Badge>
@@ -71,7 +65,7 @@ export default async function BillingSettingsPage() {
       </div>
 
       {purchases.length > 0 ? (
-        <div className="flex flex-col gap-3 rounded-md border p-4">
+        <div className="flex max-w-lg flex-col gap-3 rounded-md border p-4">
           <h2 className="font-medium">Purchase history</h2>
           <div className="flex flex-col divide-y">
             {purchases.map((p) => (
