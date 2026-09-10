@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AI_PROVIDER_LABELS, type AiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/types";
@@ -90,8 +90,15 @@ export function AiSection({
                     <span className="text-sm text-destructive">Connection error</span>
                   )}
                   <form action={disconnectAction}>
-                    <SubmitButton variant="outline" size="sm" pendingText="Disconnecting...">
-                      Disconnect
+                    <SubmitButton
+                      variant="outline"
+                      size="icon"
+                      pendingText=""
+                      aria-label="Disconnect"
+                      title="Disconnect"
+                      className="size-7 rounded-full p-0"
+                    >
+                      <X className="size-3.5" aria-hidden="true" />
                     </SubmitButton>
                   </form>
                 </div>
