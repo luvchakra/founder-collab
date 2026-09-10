@@ -1,4 +1,5 @@
 import { ShieldCheck, KeyRound, Lock, Eye, FileCheck2, Database, UserCheck } from "lucide-react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const FOUNDER_CONTROL_FLOW = ["AI Researches", "AI Recommends", "Founder Reviews", "Founder Approves", "AI Learns"];
@@ -42,7 +43,7 @@ export function Trust() {
             </div>
 
             <p className="mx-auto mt-10 max-w-xl text-balance text-center text-landing-muted">
-              CoFounderAI is designed to work with you — not replace your judgment.
+              {BRAND_NAME} is designed to work with you — not replace your judgment.
             </p>
           </div>
         </FadeIn>
@@ -56,10 +57,10 @@ export function Trust() {
               </h2>
               <p className="mt-4 text-landing-muted">
                 Choose your preferred AI provider and securely connect your API key.
-                CoFounderAI selects the appropriate model internally for each task.
+                {BRAND_NAME} selects the appropriate model internally for each task.
               </p>
               <p className="mt-4 font-medium text-landing-fg">
-                You choose the provider. CoFounderAI handles the intelligence layer.
+                You choose the provider. {BRAND_NAME} handles the intelligence layer.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-4">

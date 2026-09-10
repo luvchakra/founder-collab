@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { landingButtonVariants } from "./landing-button";
 import { submitInterestAction, type ShowInterestState } from "@cofounderai/module-discovery/actions/interest";
 import { cn } from "@cofounderai/core/lib/utils";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 /** Low-emphasis trigger so "Show Interest" never competes with the page's one primary
  * action (design principle 4, docs/landing-page-requirements.md) -- it's for a visitor who
@@ -100,7 +101,7 @@ function ShowInterestModal({ onClose }: { onClose: () => void }) {
         ) : (
           <form action={formAction}>
             <h2 id="show-interest-title" className="text-xl font-semibold text-landing-fg">
-              Interested in CoFounderAI?
+              Interested in {BRAND_NAME}?
             </h2>
             <p className="mt-2 text-sm text-landing-muted">
               Leave your email and we&apos;ll let you know when we&apos;re ready for you.

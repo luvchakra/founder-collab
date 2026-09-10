@@ -1,11 +1,12 @@
 import { Check } from "lucide-react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 import { FadeIn } from "./fade-in";
 
 const TIERS = [
   {
     name: "Free",
-    tagline: "Explore CoFounderAI",
+    tagline: `Explore ${BRAND_NAME}`,
     features: ["Product onboarding", "Basic ICP", "Limited prospects", "Limited AI usage"],
     cta: "Start Free",
     href: "/signup",

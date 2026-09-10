@@ -3,10 +3,12 @@
 // api-v1 lib to core"). No secrets here, so this is safe to import from anywhere -- it's
 // served verbatim at GET /api/v1/openapi.json (unauthenticated, like any API's own
 // documentation).
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+
 export const openApiSpec = {
   openapi: "3.0.3",
   info: {
-    title: "CoFounderAI Inventory Public API",
+    title: `${BRAND_NAME} Inventory Public API`,
     version: "1.0.0",
     description:
       "Business-scoped REST API for the inventory module. Authenticate with an API key generated from the Inventory > API Keys settings page, sent as `Authorization: Bearer sk_live_...`. " +

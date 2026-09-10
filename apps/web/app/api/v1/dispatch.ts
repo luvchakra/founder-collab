@@ -22,6 +22,7 @@ import { openApiPaths as fsmOpenApiPaths } from "@cofounderai/module-fsm/api-v1/
 import { openApiPaths as crmOpenApiPaths } from "@cofounderai/module-crm/api-v1/openapi";
 import { openApiPaths as gstOpenApiPaths } from "@cofounderai/module-gst/api-v1/openapi";
 import { jsonResponse, ApiError, errorResponse } from "@cofounderai/core/api-v1/response";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 type Handler = (request: Request, resource: string, id: string | undefined, query: URLSearchParams) => Promise<Response>;
 
@@ -58,7 +59,7 @@ export function serveOpenApiSpec(): Response {
     ...inventoryOpenApiSpec,
     info: {
       ...inventoryOpenApiSpec.info,
-      title: "CoFounderAI Public API",
+      title: `${BRAND_NAME} Public API`,
       description:
         inventoryOpenApiSpec.info.description +
         " Also covers fsm (jobs), crm (tickets), and gst (einvoices) resources -- each still requires that module's own active license.",

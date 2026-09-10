@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const PROBLEMS = [
@@ -19,7 +20,7 @@ const PROBLEMS = [
   },
   {
     question: "What do I do next?",
-    body: "Every reply creates another decision. CoFounderAI helps you decide what comes next.",
+    body: `Every reply creates another decision. ${BRAND_NAME} helps you decide what comes next.`,
   },
 ];
 

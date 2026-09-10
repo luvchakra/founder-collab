@@ -1,4 +1,5 @@
 import { ThemeToggle } from "@cofounderai/core/theme/theme-toggle";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 export default function AppearanceSettingsPage() {
   return (
@@ -6,7 +7,7 @@ export default function AppearanceSettingsPage() {
       <div>
         <h1 className="text-xl font-semibold">Appearance</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Choose how CoFounderAI looks on this device. &quot;System&quot; follows your
+          Choose how {BRAND_NAME} looks on this device. &quot;System&quot; follows your
           OS setting and switches automatically.
         </p>
       </div>

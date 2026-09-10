@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { BRAND_NAME } from "../../lib/brand";
 import { AlertBell } from "./alert-bell";
 import { BusinessSwitcher } from "./business-switcher";
 import { LogoMark } from "./logo-mark";
@@ -38,7 +39,7 @@ export function AppTopbar({
         <SidebarToggle />
         <Link
           href="/dashboard"
-          aria-label="CoFounderAI"
+          aria-label={BRAND_NAME}
           className="flex shrink-0 items-center transition-transform duration-100 active:scale-95"
         >
           <LogoMark className="h-8 w-auto" />

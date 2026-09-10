@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 const NOTIFY_EMAIL = "kunalc.iit@gmail.com";
 
@@ -26,7 +27,7 @@ export async function notifyInterestSignup(email: string): Promise<void> {
   const result = await resend.emails.send({
     from: fromAddress,
     to: NOTIFY_EMAIL,
-    subject: "New CoFounderAI interest signup",
+    subject: `New ${BRAND_NAME} interest signup`,
     text: `${email} just signed up via the landing page's "Show Interest" form.`,
   });
 

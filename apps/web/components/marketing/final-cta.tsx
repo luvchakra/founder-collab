@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 import { ShowInterestCta } from "./show-interest";
 import { FadeIn } from "./fade-in";
@@ -11,7 +12,7 @@ export function FinalCta() {
             Your next customer is out there. Let&apos;s find them.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-balance text-landing-muted">
-            Tell CoFounderAI what you&apos;ve built. We&apos;ll help you figure out who
+            Tell {BRAND_NAME} what you&apos;ve built. We&apos;ll help you figure out who
             needs it, why they might care, and what to do next.
           </p>
           <div className="mt-8">

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AI_PROVIDER_LABELS, type AiProvider } from "@cofounderai/module-discovery/lib/ai-providers/types";
 import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/settings/billing/actions";
@@ -10,7 +11,7 @@ import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/set
 const PROVIDERS: AiProvider[] = ["openai", "anthropic", "google"];
 
 /** Not a real `AiProvider` -- there's no such AI provider in the model registry, this
- * radio choice just means "no BYOK key, run on CoFounderAI's own included credits."
+ * radio choice just means "no BYOK key, run on the platform's own included credits."
  * Folds what used to be a separate "Use included credits instead" box/button into the
  * same provider picker instead of a second control next to it. */
 const INTERNAL = "internal" as const;
@@ -77,7 +78,7 @@ export function AiProviderForm({
 
       {selected === INTERNAL ? (
         <p className="text-xs text-muted-foreground">
-          Runs on CoFounderAI&apos;s included credits -- no API key needed.
+          Runs on {BRAND_NAME}&apos;s included credits -- no API key needed.
         </p>
       ) : (
         <div className="flex flex-col gap-2">

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { chatSystemPrompt, CHAT_PROMPT_VERSION } from "./chat/chat_v1";
 import { generateIcpPrompt, GENERATE_ICP_PROMPT_VERSION } from "./icp/generate_icp_v1";
 import { classifyReplyPrompt, CLASSIFY_REPLY_PROMPT_VERSION } from "./outreach/classify_reply_v1";
@@ -31,7 +32,7 @@ describe("ported prompts (P-5 slice: prompts/ + lib/*/types.ts, verbatim from co
   it("chatSystemPrompt embeds the given context", () => {
     const prompt = chatSystemPrompt("Acme Inc, B2B SaaS");
     expect(prompt).toContain("Acme Inc, B2B SaaS");
-    expect(prompt).toContain("CoFounderAI");
+    expect(prompt).toContain(BRAND_NAME);
   });
 
   it("generateIcpPrompt embeds the product profile as JSON", () => {

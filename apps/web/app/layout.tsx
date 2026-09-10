@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@cofounderai/core/site";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { ThemeProvider } from "@cofounderai/core/theme/theme-provider";
 import { ThemeScript } from "@cofounderai/core/theme/theme-script";
 import { TopProgressBar } from "@cofounderai/core/navigation/top-progress-bar";
@@ -16,12 +17,12 @@ import "./globals.css";
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
-const TITLE = "CoFounderAI Platform";
-const DESCRIPTION = "CoFounderAI — GTM, inventory, field service, CRM and GST in one portal.";
+const TITLE = `${BRAND_NAME} Platform`;
+const DESCRIPTION = `${BRAND_NAME} — GTM, inventory, field service, CRM and GST in one portal.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: { default: TITLE, template: "%s — CoFounderAI" },
+  title: { default: TITLE, template: `%s — ${BRAND_NAME}` },
   description: DESCRIPTION,
 };
 

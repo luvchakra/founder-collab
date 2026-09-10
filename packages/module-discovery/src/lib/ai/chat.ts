@@ -1,4 +1,5 @@
 import { generateObject, type ModelMessage } from "ai";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import {
   getBusiness,
   getCurrentAccount,
@@ -282,7 +283,7 @@ async function resolveChatContext(
           products.length === 0
             ? [
                 `How do I create my first product for ${business.name}?`,
-                "How does CoFounderAI work?",
+                `How does ${BRAND_NAME} work?`,
               ]
             : [
                 "Which of my products needs attention next?",
@@ -309,7 +310,7 @@ async function resolveChatContext(
         : []),
     ].join("\n"),
     starterQuestions: [
-      "How does CoFounderAI help me find customers?",
+      `How does ${BRAND_NAME} help me find customers?`,
       "What should I set up first?",
     ],
   };

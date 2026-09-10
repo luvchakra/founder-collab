@@ -1,21 +1,22 @@
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const FAQS: [string, string][] = [
   [
-    "What exactly does CoFounderAI do?",
-    "CoFounderAI helps founders identify ideal customers, discover prospects, research them, create personalized outreach, analyze conversations, and decide what to do next.",
+    `What exactly does ${BRAND_NAME} do?`,
+    `${BRAND_NAME} helps founders identify ideal customers, discover prospects, research them, create personalized outreach, analyze conversations, and decide what to do next.`,
   ],
   [
     "Is this an email automation tool?",
-    "No. CoFounderAI is designed as a complete customer-acquisition intelligence layer rather than simply an email sender.",
+    `No. ${BRAND_NAME} is designed as a complete customer-acquisition intelligence layer rather than simply an email sender.`,
   ],
   [
-    "Does CoFounderAI send messages automatically?",
+    `Does ${BRAND_NAME} send messages automatically?`,
     "Initially, no. The founder reviews and approves outreach before it is sent.",
   ],
   [
     "Do I need a sales team?",
-    "No. CoFounderAI is designed specifically to help founders perform GTM activities themselves.",
+    `No. ${BRAND_NAME} is designed specifically to help founders perform GTM activities themselves.`,
   ],
   [
     "Can I use my own AI provider?",
@@ -23,7 +24,7 @@ const FAQS: [string, string][] = [
   ],
   [
     "Can I choose the AI model?",
-    "No model selection is required. You choose the provider, while CoFounderAI internally selects the appropriate model for each operation.",
+    `No model selection is required. You choose the provider, while ${BRAND_NAME} internally selects the appropriate model for each operation.`,
   ],
   [
     "Can I manage multiple products?",

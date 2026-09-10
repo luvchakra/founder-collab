@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 /** Real, working destinations only. Product links jump to sections already on this page;
  * Company/Legal pages (About, Contact, Blog, Privacy, Terms, Security) don't exist yet --
@@ -28,10 +29,10 @@ export function Footer() {
     <footer className="border-t border-landing-surface-border px-6 py-16">
       <div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-1">
-          <Link href="/" aria-label="CoFounderAI" className="inline-block">
+          <Link href="/" aria-label={BRAND_NAME} className="inline-block">
             <Image
               src="/logo-lockup.png"
-              alt="CoFounderAI"
+              alt={BRAND_NAME}
               width={1583}
               height={350}
               className="h-7 w-auto"
@@ -71,7 +72,7 @@ export function Footer() {
           </div>
         ))}
       </div>
-      <p className="mx-auto mt-12 max-w-6xl text-xs text-landing-muted">© CoFounderAI</p>
+      <p className="mx-auto mt-12 max-w-6xl text-xs text-landing-muted">© {BRAND_NAME}</p>
     </footer>
   );
 }

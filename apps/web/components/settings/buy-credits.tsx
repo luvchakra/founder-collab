@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 type CreditPlan = { key: string; label: string; credited_runs: number; amount_inr_paise: number };
 
@@ -66,7 +67,7 @@ export function BuyCredits({ plans, accountName }: { plans: CreditPlan[]; accoun
         order_id: order.razorpayOrderId,
         amount: order.amountInrPaise,
         currency: "INR",
-        name: "CoFounderAI",
+        name: BRAND_NAME,
         description: `${plan.label} -- ${plan.credited_runs} AI runs`,
         prefill: { name: accountName },
         handler: async (response: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {

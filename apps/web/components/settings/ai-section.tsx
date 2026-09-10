@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Sparkles, X } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AI_PROVIDER_LABELS, type AiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/types";
 import { AiProviderForm } from "./ai-provider-form";
@@ -73,7 +74,7 @@ export function AiSection({
           <p className="text-sm text-muted-foreground">
             {connection
               ? "AI features run on your own connected provider account and your own API key -- your usage bills directly to your provider, with no monthly cap from us."
-              : "AI features currently run on CoFounderAI's included credits, capped at a modest free-tier allowance each month. Connect your own provider key any time to bypass that cap."}
+              : `AI features currently run on ${BRAND_NAME}'s included credits, capped at a modest free-tier allowance each month. Connect your own provider key any time to bypass that cap.`}
           </p>
 
           {connection ? (
@@ -120,7 +121,7 @@ export function AiSection({
               <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
                 <p className="flex items-center gap-1.5 text-sm font-medium">
                   <Sparkles className="size-3.5 text-primary" aria-hidden="true" />
-                  Using CoFounderAI&apos;s included credits
+                  Using {BRAND_NAME}&apos;s included credits
                 </p>
                 <p className="text-xs text-muted-foreground">
                   No key connected -- AI features run on our free tier, up to{" "}

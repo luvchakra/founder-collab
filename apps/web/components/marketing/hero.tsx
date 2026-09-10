@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 import { ShowInterestCta } from "./show-interest";
 import { FadeIn } from "./fade-in";
@@ -15,7 +16,7 @@ export function Hero() {
         </FadeIn>
         <FadeIn delayMs={100}>
           <p className="mt-6 max-w-2xl text-balance text-lg text-landing-muted">
-            You built the product. CoFounderAI helps you find the right customers,
+            You built the product. {BRAND_NAME} helps you find the right customers,
             understand why they might buy, and turn conversations into opportunities.
           </p>
         </FadeIn>

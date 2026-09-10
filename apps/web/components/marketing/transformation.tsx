@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const BEFORE = [
@@ -73,7 +74,7 @@ export function Transformation() {
             <Path title="Founder, alone" steps={BEFORE} accent={false} />
           </FadeIn>
           <FadeIn delayMs={100}>
-            <Path title="Founder + CoFounderAI" steps={AFTER} accent />
+            <Path title={`Founder + ${BRAND_NAME}`} steps={AFTER} accent />
           </FadeIn>
         </div>
 

@@ -1,4 +1,5 @@
 import { Check, X } from "lucide-react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const ROWS: [string, string][] = [
@@ -21,7 +22,7 @@ export function Differentiation() {
               Not another AI email generator.
             </h2>
             <p className="mt-4 text-lg text-landing-muted">
-              CoFounderAI thinks about the entire customer acquisition journey.
+              {BRAND_NAME} thinks about the entire customer acquisition journey.
             </p>
           </div>
         </FadeIn>
@@ -31,7 +32,7 @@ export function Differentiation() {
             <div className="grid grid-cols-2 bg-landing-bg-elevated text-sm font-medium">
               <div className="px-6 py-4 text-landing-muted">Traditional AI Tool</div>
               <div className="border-l border-landing-surface-border px-6 py-4 text-landing-accent">
-                CoFounderAI
+                {BRAND_NAME}
               </div>
             </div>
             {ROWS.map(([before, after], i) => (

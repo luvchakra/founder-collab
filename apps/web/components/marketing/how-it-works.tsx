@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 function StepShell({
@@ -47,7 +48,7 @@ export function HowItWorks() {
       <div className="mx-auto max-w-5xl">
         <FadeIn>
           <h2 className="text-center text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-            How CoFounderAI Works
+            How {BRAND_NAME} Works
           </h2>
         </FadeIn>
 
@@ -65,7 +66,7 @@ export function HowItWorks() {
           <StepShell
             index={2}
             title="Discover Your Customers"
-            body="CoFounderAI researches the market and finds companies that match your ideal customer profile."
+            body={`${BRAND_NAME} researches the market and finds companies that match your ideal customer profile.`}
           >
             <OutputList
               items={["Target companies", "Relevant contacts", "ICP fit", "Company information", "Buying signals"]}
@@ -91,7 +92,7 @@ export function HowItWorks() {
           <StepShell
             index={4}
             title="Approve & Reach Out"
-            body="CoFounderAI creates personalized outreach. You review it before anything is sent."
+            body={`${BRAND_NAME} creates personalized outreach. You review it before anything is sent.`}
           >
             <div className="rounded-xl border border-landing-surface-border bg-landing-bg-elevated p-5 text-sm">
               <div className="flex justify-between text-landing-muted">
@@ -120,7 +121,7 @@ export function HowItWorks() {
           <StepShell
             index={5}
             title="Let AI Help With the Conversation"
-            body="When the prospect responds, CoFounderAI analyzes sentiment, intent, conversation stage, objections, and buying signals -- then recommends the next best action."
+            body={`When the prospect responds, ${BRAND_NAME} analyzes sentiment, intent, conversation stage, objections, and buying signals -- then recommends the next best action.`}
           >
             <div className="rounded-xl border border-landing-surface-border bg-landing-bg-elevated p-5 text-sm">
               <p className="text-landing-muted">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 
 const NAV_LINKS = [
@@ -20,10 +21,10 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-landing-surface-border bg-landing-bg/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" aria-label="CoFounderAI" className="shrink-0">
+        <Link href="/" aria-label={BRAND_NAME} className="shrink-0">
           <Image
             src="/logo-lockup.png"
-            alt="CoFounderAI"
+            alt={BRAND_NAME}
             width={1583}
             height={350}
             priority
