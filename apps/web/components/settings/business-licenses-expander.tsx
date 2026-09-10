@@ -102,22 +102,23 @@ export function BusinessLicensesExpander({
             const isActiveOrGrace = license?.status === "active" || license?.status === "grace";
 
             return (
-              <div key={module.key} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                  <ModuleIcon name={module.icon} className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{module.name}</span>
-                      <StatusBadge
-                        status={license?.status ?? null}
-                        graceEndsAt={license?.grace_ends_at ?? null}
-                        cancelAt={license?.cancel_at ?? null}
-                      />
-                    </div>
-                  </div>
+              // Name gets a fixed width instead of hugging its own text -- "CRM" and
+              // "Compliance" are very different lengths, and letting the badge sit
+              // right after each name (the previous layout) meant it landed in a
+              // different horizontal spot on every row. A fixed name column puts every
+              // badge at the same start position instead.
+              <div key={module.key} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                <ModuleIcon name={module.icon} className="size-4 shrink-0 text-muted-foreground" />
+                <span className="w-24 shrink-0 text-sm font-medium">{module.name}</span>
+                <div className="min-w-[6.5rem] shrink-0">
+                  <StatusBadge
+                    status={license?.status ?? null}
+                    graceEndsAt={license?.grace_ends_at ?? null}
+                    cancelAt={license?.cancel_at ?? null}
+                  />
                 </div>
 
-                <div className="shrink-0">
+                <div className="ml-auto shrink-0">
                   {pendingCancellation ? (
                     <form action={activateAction.bind(null, businessId, moduleKey)}>
                       <SubmitButton variant="outline" size="sm" pendingText="Undoing...">
