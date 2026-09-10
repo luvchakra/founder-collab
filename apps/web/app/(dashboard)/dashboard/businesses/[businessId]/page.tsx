@@ -1,72 +1,44 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Globe, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, Globe, Sparkles } from "lucide-react";
 import {
   getBusiness,
   getWorkspaceForProduct,
   listProducts,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
-import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
-import { createProductAction } from "@/app/(dashboard)/dashboard/actions";
-import {
-  renameBusinessAction,
-  updateBusinessDescriptionAction,
-  updateBusinessWebsiteAction,
-  previewProductImportAction,
-  importProductsAction,
-  deleteProductAction,
-  disableProductAction,
-  enableProductAction,
-} from "./actions";
-import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Input } from "@cofounderai/core/ui/input";
-import { Label } from "@cofounderai/core/ui/label";
-import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
-import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
+import { listProspectsForWorkspaces } from "@cofounderai/module-discovery/lib/prospects/queries";
+import { getWorkspaceUsageForWorkspaces } from "@cofounderai/module-discovery/lib/usage/queries";
+import { computeConversionFunnel } from "@cofounderai/module-discovery/lib/prospects/pipeline";
+import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
+import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
+import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/prospects/conversion-funnel-panel";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
-import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
-import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
-import { DeleteProductButton } from "@cofounderai/module-discovery/components/tenancy/delete-product-button";
-import { ProductStatusButton } from "@cofounderai/module-discovery/components/tenancy/product-status-button";
-import { cn } from "@cofounderai/core/lib/utils";
+import { Button } from "@cofounderai/core/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@cofounderai/core/ui/card";
+import { Badge } from "@cofounderai/core/ui/badge";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
-type ProductCardData = {
-  product: Product;
-  hasProfile: boolean;
-  hasIcp: boolean;
-  prospectCount: number;
-};
+type ActionItem = { key: string; message: string; href: string; actionLabel: string; severity: "warning" | "info" };
 
-async function loadProductCardData(product: Product): Promise<ProductCardData> {
-  const workspace = await getWorkspaceForProduct(product.id);
-  const [icp, prospectCounts] = workspace
-    ? await Promise.all([getIcpProfile(workspace.id), getProspectCounts(workspace.id)])
-    : [null, null];
-
-  return {
-    product,
-    hasProfile: Boolean(product.product_profile),
-    hasIcp: Boolean(icp),
-    prospectCount: prospectCounts?.total ?? 0,
-  };
-}
-
-function StatusChip({ done, doneLabel, todoLabel }: { done: boolean; doneLabel: string; todoLabel: string }) {
+function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
   return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-xs font-medium",
-        done ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-      )}
-    >
-      {done ? doneLabel : todoLabel}
-    </span>
+    <div className="flex flex-col gap-1 rounded-md border p-4">
+      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
+      <span className="text-2xl font-semibold">{value}</span>
+      {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
+    </div>
   );
 }
 
-export default async function BusinessPage({
+/**
+ * The Discovery sidebar's "Dashboard" link (packages/core/src/components/shell/
+ * app-sidebar.tsx) -- this used to be the business's own editable profile + product
+ * list (now moved to ./business/page.tsx, reachable from the sidebar's new "Business"
+ * link). This is what a founder actually wants when they click "Dashboard": this one
+ * business's key GTM numbers and what to do next, not a form to edit its name.
+ */
+export default async function BusinessDashboardPage({
   params,
 }: {
   params: Promise<{ businessId: string }>;
@@ -76,144 +48,189 @@ export default async function BusinessPage({
   if (!business) notFound();
 
   const products = await listProducts(business.id);
-  const cards = await Promise.all(products.map(loadProductCardData));
+  const workspaces = await Promise.all(products.map((p) => getWorkspaceForProduct(p.id)));
+  const workspaceByProductId = new Map(products.map((p, i) => [p.id, workspaces[i]] as const));
+  const workspaceIds = workspaces.filter((w): w is NonNullable<typeof w> => Boolean(w)).map((w) => w.id);
+
+  const [icpFlags, usageByWorkspace, prospects] = await Promise.all([
+    Promise.all(workspaceIds.map((id) => getIcpProfile(id).then((icp) => [id, Boolean(icp)] as const))),
+    getWorkspaceUsageForWorkspaces(workspaceIds),
+    listProspectsForWorkspaces(workspaceIds),
+  ]);
+  const hasIcpByWorkspace = new Map(icpFlags);
+
+  const usage = Object.values(usageByWorkspace).reduce(
+    (sum, u) => ({ runs: sum.runs + u.totalRuns, cost: sum.cost + u.totalCost }),
+    { runs: 0, cost: 0 },
+  );
+
+  const businessDetailHref = `/dashboard/businesses/${business.id}/business`;
+  const funnel = computeConversionFunnel(prospects);
+  const wonCount = prospects.filter((p) => p.outcome === "won").length;
+
+  type ProductRow = { product: Product; hasProfile: boolean; hasIcp: boolean; prospectCount: number; wonCount: number };
+  const productRows: ProductRow[] = products.map((product) => {
+    const workspace = workspaceByProductId.get(product.id);
+    const workspaceProspects = workspace ? prospects.filter((p) => p.workspace_id === workspace.id) : [];
+    return {
+      product,
+      hasProfile: Boolean(product.product_profile),
+      hasIcp: workspace ? (hasIcpByWorkspace.get(workspace.id) ?? false) : false,
+      prospectCount: workspaceProspects.length,
+      wonCount: workspaceProspects.filter((p) => p.outcome === "won").length,
+    };
+  });
+
+  // "What to do next", one item per product at whatever stage it's stuck on -- ranked
+  // by severity (no website/no products first, since nothing else can happen until
+  // those are fixed) rather than every possible gap at once.
+  const actionItems: ActionItem[] = [];
+  if (!business.website) {
+    actionItems.push({
+      key: "website",
+      message: "This business has no website set -- add one to unlock AI auto-populate.",
+      href: businessDetailHref,
+      actionLabel: "Add website",
+      severity: "warning",
+    });
+  }
+  if (products.length === 0) {
+    actionItems.push({
+      key: "no-products",
+      message: "No products yet -- create one to start a GTM workspace.",
+      href: businessDetailHref,
+      actionLabel: "Create product",
+      severity: "warning",
+    });
+  }
+  for (const row of productRows) {
+    const base = `/dashboard/businesses/${business.id}/products/${row.product.id}`;
+    if (!row.hasProfile) {
+      actionItems.push({
+        key: `profile-${row.product.id}`,
+        message: `${row.product.name} has no product profile yet.`,
+        href: base,
+        actionLabel: "Generate profile",
+        severity: "info",
+      });
+    } else if (!row.hasIcp) {
+      actionItems.push({
+        key: `icp-${row.product.id}`,
+        message: `${row.product.name}'s ideal customer profile isn't defined yet.`,
+        href: `${base}/icp`,
+        actionLabel: "Define ICP",
+        severity: "info",
+      });
+    } else if (row.prospectCount === 0) {
+      actionItems.push({
+        key: `prospects-${row.product.id}`,
+        message: `${row.product.name} has an ICP defined but no prospects yet.`,
+        href: `${base}/prospects/discover`,
+        actionLabel: "Discover prospects",
+        severity: "info",
+      });
+    }
+  }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <Breadcrumbs items={[{ label: "Business" }]} />
-          <Link
-            href={`/dashboard/businesses/${business.id}/usage`}
-            className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-          >
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            AI usage
-          </Link>
+          <Breadcrumbs items={[{ label: "Dashboard" }]} />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href={businessDetailHref}
+              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <Building2 className="size-3.5" aria-hidden="true" />
+              Business
+            </Link>
+            <Link
+              href={`/dashboard/businesses/${business.id}/usage`}
+              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              AI usage
+            </Link>
+          </div>
         </div>
-
-        <div className="flex flex-col gap-2">
-          <EditableName
-            name={business.name}
-            action={renameBusinessAction.bind(null, business.id)}
-            headingClassName="text-xl font-semibold"
-          />
-          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Globe className="size-3.5 shrink-0" aria-hidden="true" />
-            <EditableText
-              value={business.website}
-              action={updateBusinessWebsiteAction.bind(null, business.id)}
-              placeholder="Add this business's website"
-              textClassName="text-sm text-muted-foreground"
-            />
-          </div>
-          <div className="self-start">
-            <AutoPopulateProductsButton
-              businessId={business.id}
-              disabled={!business.website}
-              disabledReason="Add a website above first."
-              importAction={importProductsAction.bind(null, business.id)}
-            />
-          </div>
-          <EditableText
-            value={business.description}
-            action={updateBusinessDescriptionAction.bind(null, business.id)}
-            placeholder="Add a description for this business"
-            multiline
-            textClassName="text-sm text-muted-foreground"
-          />
+        <div>
+          <h1 className="text-xl font-semibold">{business.name}</h1>
+          {business.website ? (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+              {business.website}
+            </p>
+          ) : null}
         </div>
       </div>
 
-      <section>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-medium">Products</h2>
-          <ProductImportWizard
-            previewAction={previewProductImportAction.bind(null, business.id)}
-            importAction={importProductsAction.bind(null, business.id)}
-          />
-        </div>
-        {cards.length === 0 ? (
-          <p className="mt-2 text-muted-foreground">
-            Create a product to get its own GTM workspace.
-          </p>
-        ) : (
-          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {cards.map(({ product, hasProfile, hasIcp, prospectCount }) => {
-              const isDisabled = product.status === "archived";
+      {actionItems.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Needs attention</CardTitle>
+            <CardDescription>What to do next to move this business&apos;s GTM forward.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col divide-y">
+            {actionItems.map((item) => (
+              <div key={item.key} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Badge variant={item.severity === "warning" ? "destructive" : "outline"} className="shrink-0">
+                    {item.severity === "warning" ? "Action needed" : "Suggested"}
+                  </Badge>
+                  <span className="min-w-0 truncate">{item.message}</span>
+                </div>
+                <Link href={item.href} className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
+                  {item.actionLabel}
+                  <ArrowRight className="size-3.5" aria-hidden="true" />
+                </Link>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Products" value={products.length} />
+        <KpiCard label="Prospects" value={prospects.length} detail={wonCount > 0 ? `${wonCount} won` : undefined} />
+        <KpiCard label="Reply rate" value={`${funnel.replyRate}%`} />
+        <KpiCard
+          label="AI credits (month)"
+          value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceIds.length, 1))}%`}
+          detail={`${usage.runs} run${usage.runs === 1 ? "" : "s"} used`}
+        />
+      </div>
+
+      {productRows.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Products</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col divide-y">
+            {productRows.map(({ product, prospectCount, wonCount: productWon }) => {
+              const base = `/dashboard/businesses/${business.id}/products/${product.id}`;
               return (
-                <li key={product.id}>
-                  <Link
-                    href={`/dashboard/businesses/${business.id}/products/${product.id}`}
-                    className={cn(
-                      "group flex h-full flex-col gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent/40",
-                      isDisabled && "opacity-60",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="font-medium">{product.name}</h3>
-                        {isDisabled ? (
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            Disabled
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <ProductStatusButton
-                          productName={product.name}
-                          disabled={isDisabled}
-                          disableAction={disableProductAction.bind(null, business.id, product.id)}
-                          enableAction={enableProductAction.bind(null, business.id, product.id)}
-                        />
-                        <DeleteProductButton
-                          productName={product.name}
-                          prospectCount={prospectCount}
-                          action={deleteProductAction.bind(null, business.id, product.id)}
-                        />
-                        <ChevronRight
-                          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
-                    {product.description ? (
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {product.description}
-                      </p>
-                    ) : null}
-                    <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
-                      <StatusChip done={hasProfile} doneLabel="Profile ready" todoLabel="No profile" />
-                      <StatusChip done={hasIcp} doneLabel="ICP defined" todoLabel="No ICP" />
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                        {prospectCount} prospect{prospectCount === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
+                <div key={product.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
+                  <p className="min-w-0 truncate font-medium">{product.name}</p>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <span className="text-xs text-muted-foreground">
+                      {prospectCount} prospect{prospectCount === 1 ? "" : "s"}
+                      {productWon > 0 ? ` · ${productWon} won` : ""}
+                    </span>
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={prospectCount > 0 ? `${base}/prospects` : `${base}/prospects/discover`}>
+                        {prospectCount > 0 ? "View" : "Discover"}
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
               );
             })}
-          </ul>
-        )}
-      </section>
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <section className="flex flex-col gap-3 rounded-md border p-4">
-        <h2 className="font-medium">Create a product</h2>
-        <form
-          action={createProductAction.bind(null, business.id)}
-          className="flex flex-col gap-3"
-        >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="website">Website</Label>
-            <Input id="website" name="website" type="text" placeholder="https://" />
-          </div>
-          <SubmitButton pendingText="Creating...">Create product</SubmitButton>
-        </form>
-      </section>
+      {prospects.length > 0 ? <ConversionFunnelPanel funnel={funnel} wonCount={wonCount} /> : null}
     </main>
   );
 }

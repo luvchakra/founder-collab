@@ -40,7 +40,7 @@ export default async function BusinessUsagePage({
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6">
       <Breadcrumbs
-        items={[{ label: business.name, href: `/dashboard/businesses/${businessId}` }, { label: "AI usage" }]}
+        items={[{ label: business.name, href: `/dashboard/businesses/${businessId}/business` }, { label: "AI usage" }]}
       />
 
       <div>

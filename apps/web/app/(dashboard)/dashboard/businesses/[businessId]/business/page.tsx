@@ -1,0 +1,230 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ChevronRight, Globe, Sparkles } from "lucide-react";
+import {
+  getBusiness,
+  getWorkspaceForProduct,
+  listProducts,
+} from "@cofounderai/module-discovery/lib/tenancy/queries";
+import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
+import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
+import { createProductAction } from "@/app/(dashboard)/dashboard/actions";
+import {
+  renameBusinessAction,
+  updateBusinessDescriptionAction,
+  updateBusinessWebsiteAction,
+  previewProductImportAction,
+  importProductsAction,
+  deleteProductAction,
+  disableProductAction,
+  enableProductAction,
+} from "../actions";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Input } from "@cofounderai/core/ui/input";
+import { Label } from "@cofounderai/core/ui/label";
+import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
+import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
+import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
+import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
+import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
+import { DeleteProductButton } from "@cofounderai/module-discovery/components/tenancy/delete-product-button";
+import { ProductStatusButton } from "@cofounderai/module-discovery/components/tenancy/product-status-button";
+import { cn } from "@cofounderai/core/lib/utils";
+import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
+
+type ProductCardData = {
+  product: Product;
+  hasProfile: boolean;
+  hasIcp: boolean;
+  prospectCount: number;
+};
+
+async function loadProductCardData(product: Product): Promise<ProductCardData> {
+  const workspace = await getWorkspaceForProduct(product.id);
+  const [icp, prospectCounts] = workspace
+    ? await Promise.all([getIcpProfile(workspace.id), getProspectCounts(workspace.id)])
+    : [null, null];
+
+  return {
+    product,
+    hasProfile: Boolean(product.product_profile),
+    hasIcp: Boolean(icp),
+    prospectCount: prospectCounts?.total ?? 0,
+  };
+}
+
+function StatusChip({ done, doneLabel, todoLabel }: { done: boolean; doneLabel: string; todoLabel: string }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2 py-0.5 text-xs font-medium",
+        done ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+      )}
+    >
+      {done ? doneLabel : todoLabel}
+    </span>
+  );
+}
+
+/**
+ * The business's own editable profile (name/website/description) plus its product
+ * list -- this used to live at the bare business URL, which is now the Discovery
+ * "Dashboard" (a metrics + actionable-items page, see ../page.tsx). This page is what
+ * the sidebar's new "Business" link under Discovery points to.
+ */
+export default async function BusinessDetailPage({
+  params,
+}: {
+  params: Promise<{ businessId: string }>;
+}) {
+  const { businessId } = await params;
+  const business = await getBusiness(businessId);
+  if (!business) notFound();
+
+  const products = await listProducts(business.id);
+  const cards = await Promise.all(products.map(loadProductCardData));
+
+  return (
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <Breadcrumbs
+            items={[
+              { label: "Dashboard", href: `/dashboard/businesses/${business.id}` },
+              { label: "Business" },
+            ]}
+          />
+          <Link
+            href={`/dashboard/businesses/${business.id}/usage`}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+          >
+            <Sparkles className="size-3.5" aria-hidden="true" />
+            AI usage
+          </Link>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <EditableName
+            name={business.name}
+            action={renameBusinessAction.bind(null, business.id)}
+            headingClassName="text-xl font-semibold"
+          />
+          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Globe className="size-3.5 shrink-0" aria-hidden="true" />
+            <EditableText
+              value={business.website}
+              action={updateBusinessWebsiteAction.bind(null, business.id)}
+              placeholder="Add this business's website"
+              textClassName="text-sm text-muted-foreground"
+            />
+          </div>
+          <div className="self-start">
+            <AutoPopulateProductsButton
+              businessId={business.id}
+              disabled={!business.website}
+              disabledReason="Add a website above first."
+              importAction={importProductsAction.bind(null, business.id)}
+            />
+          </div>
+          <EditableText
+            value={business.description}
+            action={updateBusinessDescriptionAction.bind(null, business.id)}
+            placeholder="Add a description for this business"
+            multiline
+            textClassName="text-sm text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <section>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-medium">Products</h2>
+          <ProductImportWizard
+            previewAction={previewProductImportAction.bind(null, business.id)}
+            importAction={importProductsAction.bind(null, business.id)}
+          />
+        </div>
+        {cards.length === 0 ? (
+          <p className="mt-2 text-muted-foreground">
+            Create a product to get its own GTM workspace.
+          </p>
+        ) : (
+          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {cards.map(({ product, hasProfile, hasIcp, prospectCount }) => {
+              const isDisabled = product.status === "archived";
+              return (
+                <li key={product.id}>
+                  <Link
+                    href={`/dashboard/businesses/${business.id}/products/${product.id}`}
+                    className={cn(
+                      "group flex h-full flex-col gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent/40",
+                      isDisabled && "opacity-60",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="font-medium">{product.name}</h3>
+                        {isDisabled ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            Disabled
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <ProductStatusButton
+                          productName={product.name}
+                          disabled={isDisabled}
+                          disableAction={disableProductAction.bind(null, business.id, product.id)}
+                          enableAction={enableProductAction.bind(null, business.id, product.id)}
+                        />
+                        <DeleteProductButton
+                          productName={product.name}
+                          prospectCount={prospectCount}
+                          action={deleteProductAction.bind(null, business.id, product.id)}
+                        />
+                        <ChevronRight
+                          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </div>
+                    {product.description ? (
+                      <p className="line-clamp-2 text-sm text-muted-foreground">
+                        {product.description}
+                      </p>
+                    ) : null}
+                    <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
+                      <StatusChip done={hasProfile} doneLabel="Profile ready" todoLabel="No profile" />
+                      <StatusChip done={hasIcp} doneLabel="ICP defined" todoLabel="No ICP" />
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                        {prospectCount} prospect{prospectCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-md border p-4">
+        <h2 className="font-medium">Create a product</h2>
+        <form
+          action={createProductAction.bind(null, business.id)}
+          className="flex flex-col gap-3"
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" name="name" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="website">Website</Label>
+            <Input id="website" name="website" type="text" placeholder="https://" />
+          </div>
+          <SubmitButton pendingText="Creating...">Create product</SubmitButton>
+        </form>
+      </section>
+    </main>
+  );
+}

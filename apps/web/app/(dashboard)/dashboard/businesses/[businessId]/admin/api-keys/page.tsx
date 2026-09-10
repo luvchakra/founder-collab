@@ -33,7 +33,7 @@ export default async function ApiKeysPage({
     <div className="flex flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Business", href: `/dashboard/businesses/${businessId}` },
+          { label: "Business", href: `/dashboard/businesses/${businessId}/business` },
           { label: "Admin", href: "/dashboard/settings" },
           { label: "API Keys" },
         ]}

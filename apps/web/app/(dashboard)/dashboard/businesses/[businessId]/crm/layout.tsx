@@ -25,7 +25,7 @@ export default async function CrmLayout({
     <div className="flex flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Business", href: `/dashboard/businesses/${businessId}` },
+          { label: "Business", href: `/dashboard/businesses/${businessId}/business` },
           { label: MODULE_NAME },
         ]}
       />

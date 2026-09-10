@@ -47,7 +47,7 @@ export default async function ProductLayout({
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6">
       <Breadcrumbs
         items={[
-          { label: "Business", href: `/dashboard/businesses/${businessId}` },
+          { label: "Business", href: `/dashboard/businesses/${businessId}/business` },
           { label: "Product" },
         ]}
       />

@@ -28,7 +28,7 @@ function inferModuleFromPath(pathname: string | null): string | null {
   const section = match[1];
   if (section === "inventory") return "inventory";
   if (section === "gst") return "gst";
-  if (!section || section === "products") return "discovery";
+  if (!section || section === "products" || section === "business") return "discovery";
   return null;
 }
 
@@ -135,14 +135,15 @@ function ModuleContent({
 
     const products = effectiveBusinessId ? (productsByBusiness?.[effectiveBusinessId] ?? []) : [];
     // Discovery has no route prefix of its own (unlike inventory/fsm/gst/crm) -- its
-    // "home" is the bare business page, which already has discovery-specific content
-    // (product list, per-product prospect counts, business profile) rather than the
-    // platform-wide Executive Dashboard this used to link to. Grouped under an "Overview"
-    // heading with "Products" as its own separate heading below, matching every other
-    // module's nav shape (an "Overview" group holding "Dashboard", per e.g. gst's own
-    // manifest) instead of one bare link followed by an unlabeled products list.
+    // "home" is the bare business page, which is a real metrics + actionable-items
+    // dashboard (key GTM numbers for this one business, what to do next), while the
+    // business's own editable profile (name/website/description) and product list live
+    // one level down at "Business" -- a separate menu item so "Dashboard" reads like
+    // every other module's Dashboard link instead of doubling as an editor form.
     const dashboardHref = effectiveBusinessId ? businessHref(effectiveBusinessId) : "/dashboard";
+    const businessDetailHref = effectiveBusinessId ? `${businessHref(effectiveBusinessId)}/business` : "/dashboard";
     const isDashboardActive = pathname === dashboardHref;
+    const isBusinessDetailActive = pathname === businessDetailHref;
     return (
       <div className="flex flex-col gap-3 px-2 py-2">
         <div className="flex flex-col gap-0.5">
@@ -157,6 +158,15 @@ function ModuleContent({
           >
             <ModuleIcon name="LayoutDashboard" className="size-4 shrink-0" />
             Dashboard
+          </a>
+          <a
+            href={businessDetailHref}
+            onClick={onNavigate}
+            aria-current={isBusinessDetailActive ? "page" : undefined}
+            className={navItemClassName(isBusinessDetailActive)}
+          >
+            <ModuleIcon name="Building2" className="size-4 shrink-0" />
+            Business
           </a>
         </div>
         <div className="flex flex-col gap-0.5">
