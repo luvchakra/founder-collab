@@ -66,14 +66,22 @@ export function DashboardChrome({
   // instead: if one exists, this bounces straight to that business's own Dashboard, same
   // as clicking it in the switcher would. `router.replace` (not `push`) so the Executive
   // Dashboard never lands in browser history as a page the founder has to back out of.
-  // Only fires for that exact bare path -- every other business-agnostic route (settings,
-  // admin, etc.) is a deliberate destination, not a "no business chosen yet" landing.
+  //
+  // Mount-only ([] deps), deliberately not re-running on every `pathname` change: this
+  // component stays mounted across client-side navigations within the dashboard layout
+  // (only `children` swaps), so a `[pathname, ...]` dependency array fired this same
+  // check every time pathname became "/dashboard" again -- including a founder
+  // deliberately clicking back to the Executive Dashboard from inside the app, bouncing
+  // them straight back out and making that page unreachable whenever a pin was set. A
+  // real fresh load (new tab, duplicate tab, refresh) is exactly what remounts this
+  // component, so checking once here already covers every case the pin is meant for.
   useEffect(() => {
     if (pathname !== "/dashboard" || businesses.length === 0) return;
     const pinnedIds = readPinnedBusinessIds();
     const pinnedBusiness = businesses.find((b) => pinnedIds.includes(b.id));
     if (pinnedBusiness) router.replace(`/dashboard/businesses/${pinnedBusiness.id}`);
-  }, [pathname, businesses, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filtered per the *active* business, not the account as a whole -- switching
   // businesses (same URL shape the business switcher already navigates to) recomputes
