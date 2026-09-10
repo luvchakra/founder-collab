@@ -115,23 +115,46 @@ export async function reorderEstimateChargeLinesAction(
   revalidatePath(detailPath(businessId, opportunityId));
 }
 
-export async function sendEstimateAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+/**
+ * These three return `{ error }` instead of throwing on a failed mutation -- Next.js 16's
+ * own guidance (node_modules/next/dist/docs/01-app/01-getting-started/10-error-handling.md
+ * "Handling expected errors": "avoid using try/catch blocks and throw errors. Instead,
+ * model expected errors as return values"). A thrown Error here reaches the browser as a
+ * generic, redacted "Minified React error #441... Server Components render" message with
+ * no useful text -- confirmed live via Vercel runtime error logs: the real thrown error
+ * ("No email on file for this customer...") logs its full message server-side, but the
+ * client only ever saw the digest-redacted placeholder. estimate-builder.tsx's `run()`
+ * checks for a returned `{ error }` now, same as it already checked a thrown one.
+ */
+export async function sendEstimateAction(businessId: string, opportunityId: string, estimateId: string): Promise<{ error: string } | void> {
   await requirePermission(businessId, "estimates.edit");
-  await sendEstimate(businessId, opportunityId, estimateId);
+  try {
+    await sendEstimate(businessId, opportunityId, estimateId);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Something went wrong." };
+  }
   revalidatePath(detailPath(businessId, opportunityId));
 }
 
 /** Staff-side "approve internally" (F-4 -- PRD §2 Estimates row MUST list): same effect
  * as a customer approving on the public page, without requiring the customer to click
  * through it. */
-export async function approveEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+export async function approveEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<{ error: string } | void> {
   await requirePermission(businessId, "estimates.edit");
-  await approveEstimateInternal(businessId, opportunityId, estimateId);
+  try {
+    await approveEstimateInternal(businessId, opportunityId, estimateId);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Something went wrong." };
+  }
   revalidatePath(detailPath(businessId, opportunityId));
 }
 
-export async function declineEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<void> {
+export async function declineEstimateInternalAction(businessId: string, opportunityId: string, estimateId: string): Promise<{ error: string } | void> {
   await requirePermission(businessId, "estimates.edit");
-  await declineEstimateInternal(businessId, opportunityId, estimateId);
+  try {
+    await declineEstimateInternal(businessId, opportunityId, estimateId);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Something went wrong." };
+  }
   revalidatePath(detailPath(businessId, opportunityId));
 }

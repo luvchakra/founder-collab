@@ -76,12 +76,15 @@ export function EstimateBuilder({
   updateLineAction: (lineId: string, patch: UpdateChargeLineInput) => Promise<void>;
   deleteLineAction: (lineId: string) => Promise<void>;
   reorderAction: (orderedLineIds: string[]) => Promise<void>;
-  /** F-4: emails the customer a tokenised public link (PRD §2: "send by email"). */
-  sendAction: () => Promise<void>;
+  /** F-4: emails the customer a tokenised public link (PRD §2: "send by email"). Returns
+   * `{ error }` rather than throwing on a failed send -- see this action's own doc
+   * comment (apps/web's actions.ts) for why a thrown Error here reaches the browser as an
+   * unhelpful, redacted "Minified React error" instead of its real message. */
+  sendAction: () => Promise<{ error: string } | void>;
   /** F-4: "approve internally" / "decline internally" (PRD §2 MUST list) -- staff taking
    * a verbal/phone approval or decline without the customer using the public page. */
-  approveInternalAction: () => Promise<void>;
-  declineInternalAction: () => Promise<void>;
+  approveInternalAction: () => Promise<{ error: string } | void>;
+  declineInternalAction: () => Promise<{ error: string } | void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [view, setView] = useState<"detailed" | "summary">("detailed");
@@ -90,12 +93,16 @@ export function EstimateBuilder({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const run = (fn: () => Promise<void>, onSuccessNotice?: string) => {
+  const run = (fn: () => Promise<void | { error: string }>, onSuccessNotice?: string) => {
     setError(null);
     setNotice(null);
     startTransition(async () => {
       try {
-        await fn();
+        const result = await fn();
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
         if (onSuccessNotice) setNotice(onSuccessNotice);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
