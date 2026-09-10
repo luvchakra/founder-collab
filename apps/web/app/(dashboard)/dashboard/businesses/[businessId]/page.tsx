@@ -14,20 +14,31 @@ import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/form
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
 import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/prospects/conversion-funnel-panel";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
-import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { cn } from "@cofounderai/core/lib/utils";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 type ActionItem = { key: string; message: string; href: string; actionLabel: string; severity: "warning" | "info" };
 
-function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-md border p-4">
+/** `href` makes the whole tile a link (to wherever that number is explained/acted on) --
+ * every KPI here is otherwise a dead end, with the same "Products" list card that used to
+ * sit below them being the only way to actually go anywhere. */
+function KpiCard({ label, value, detail, href }: { label: string; value: string | number; detail?: string; href?: string }) {
+  const content = (
+    <>
       <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
       <span className="text-2xl font-semibold">{value}</span>
       {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
-    </div>
+    </>
+  );
+  const className = "flex flex-col gap-1 rounded-md border p-4";
+  if (!href) return <div className={className}>{content}</div>;
+  return (
+    <Link href={href} className={cn(className, "transition-colors hover:border-primary hover:bg-accent/40")}>
+      {content}
+    </Link>
   );
 }
 
@@ -65,8 +76,16 @@ export default async function BusinessDashboardPage({
   );
 
   const businessDetailHref = `/dashboard/businesses/${business.id}/business`;
+  const usageHref = `/dashboard/businesses/${business.id}/usage`;
   const funnel = computeConversionFunnel(prospects);
   const wonCount = prospects.filter((p) => p.outcome === "won").length;
+  // Only unambiguous when there's exactly one product -- with more than one, "Prospects"/
+  // "Reply rate" aggregate across all of them, so there's no single list to send the click
+  // to; the Business page (where every product is listed) is the honest fallback there.
+  const singleProduct = products.length === 1 ? products[0] : null;
+  const prospectsHref = singleProduct
+    ? `/dashboard/businesses/${business.id}/products/${singleProduct.id}/prospects${prospects.length > 0 ? "" : "/discover"}`
+    : businessDetailHref;
 
   type ProductRow = { product: Product; hasProfile: boolean; hasIcp: boolean; prospectCount: number; wonCount: number };
   const productRows: ProductRow[] = products.map((product) => {
@@ -165,14 +184,35 @@ export default async function BusinessDashboardPage({
         </div>
       </div>
 
-      {actionItems.length > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Needs attention</CardTitle>
-            <CardDescription>What to do next to move this business&apos;s GTM forward.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col divide-y">
-            {actionItems.map((item) => (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard label="Products" value={products.length} href={businessDetailHref} />
+        <KpiCard
+          label="Prospects"
+          value={prospects.length}
+          detail={wonCount > 0 ? `${wonCount} won` : undefined}
+          href={prospectsHref}
+        />
+        <KpiCard label="Reply rate" value={`${funnel.replyRate}%`} href={prospectsHref} />
+        <KpiCard
+          label="AI credits (month)"
+          value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceIds.length, 1))}%`}
+          detail={`${usage.runs} run${usage.runs === 1 ? "" : "s"} used`}
+          href={usageHref}
+        />
+      </div>
+
+      {prospects.length > 0 ? <ConversionFunnelPanel funnel={funnel} wonCount={wonCount} /> : null}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Needs attention</CardTitle>
+          <CardDescription>What to do next to move this business&apos;s GTM forward.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col divide-y">
+          {actionItems.length === 0 ? (
+            <EmptyState variant="inline" message="Nothing needs your attention right now." />
+          ) : (
+            actionItems.map((item) => (
               <div key={item.key} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
                 <div className="flex min-w-0 items-center gap-2">
                   <Badge variant={item.severity === "warning" ? "destructive" : "outline"} className="shrink-0">
@@ -185,52 +225,10 @@ export default async function BusinessDashboardPage({
                   <ArrowRight className="size-3.5" aria-hidden="true" />
                 </Link>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Products" value={products.length} />
-        <KpiCard label="Prospects" value={prospects.length} detail={wonCount > 0 ? `${wonCount} won` : undefined} />
-        <KpiCard label="Reply rate" value={`${funnel.replyRate}%`} />
-        <KpiCard
-          label="AI credits (month)"
-          value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceIds.length, 1))}%`}
-          detail={`${usage.runs} run${usage.runs === 1 ? "" : "s"} used`}
-        />
-      </div>
-
-      {productRows.length > 0 ? (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Products</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col divide-y">
-            {productRows.map(({ product, prospectCount, wonCount: productWon }) => {
-              const base = `/dashboard/businesses/${business.id}/products/${product.id}`;
-              return (
-                <div key={product.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
-                  <p className="min-w-0 truncate font-medium">{product.name}</p>
-                  <div className="flex shrink-0 items-center gap-4">
-                    <span className="text-xs text-muted-foreground">
-                      {prospectCount} prospect{prospectCount === 1 ? "" : "s"}
-                      {productWon > 0 ? ` · ${productWon} won` : ""}
-                    </span>
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={prospectCount > 0 ? `${base}/prospects` : `${base}/prospects/discover`}>
-                        {prospectCount > 0 ? "View" : "Discover"}
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {prospects.length > 0 ? <ConversionFunnelPanel funnel={funnel} wonCount={wonCount} /> : null}
+            ))
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }
