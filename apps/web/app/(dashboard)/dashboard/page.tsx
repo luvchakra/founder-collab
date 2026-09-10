@@ -329,36 +329,6 @@ export default async function DashboardPage({
           </div>
         </div>
 
-        {attentionItems.length > 0 ? (
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
-                Needs attention
-              </CardTitle>
-              <CardDescription>
-                Pending license cancellations, licenses in their read-only grace
-                period, and Compliance-licensed businesses with no GSTIN on file yet.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col divide-y">
-              {attentionItems.map((item) => (
-                <div key={item.key} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Badge variant={item.severity === "warning" ? "destructive" : "outline"} className="shrink-0">
-                      {item.severity === "warning" ? "Action needed" : "Setup"}
-                    </Badge>
-                    <span className="min-w-0 truncate">{item.message}</span>
-                  </div>
-                  <Link href={item.href} className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
-                    {item.actionLabel}
-                    <ArrowRight className="size-3.5" aria-hidden="true" />
-                  </Link>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
       </section>
 
       <section>
@@ -540,6 +510,39 @@ export default async function DashboardPage({
           </>
         )}
       </section>
+
+      {attentionItems.length > 0 ? (
+        <section>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <AlertTriangle className="size-4 text-warning" aria-hidden="true" />
+                Needs attention
+              </CardTitle>
+              <CardDescription>
+                Pending license cancellations, licenses in their read-only grace
+                period, and Compliance-licensed businesses with no GSTIN on file yet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col divide-y">
+              {attentionItems.map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-3 py-2 text-sm first:pt-0 last:pb-0">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Badge variant={item.severity === "warning" ? "destructive" : "outline"} className="shrink-0">
+                      {item.severity === "warning" ? "Action needed" : "Setup"}
+                    </Badge>
+                    <span className="min-w-0 truncate">{item.message}</span>
+                  </div>
+                  <Link href={item.href} className="flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline">
+                    {item.actionLabel}
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+      ) : null}
     </main>
   );
 }
