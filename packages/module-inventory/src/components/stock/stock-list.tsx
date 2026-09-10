@@ -58,8 +58,67 @@ export function StockList({
       {levels.length === 0 ? (
         <EmptyState icon={RefreshCw} message="No stock recorded yet. Record your first movement to get started." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen; nine data columns
+              plus actions is unreadable on a phone. "Adjust" (this row's own edit option)
+              stays available in both layouts -- stock levels are a running total of
+              posted movements, never a directly-edited field, so "edit the row" means
+              open the same pre-filled movement form the desktop table already used. */}
+          <ul className="divide-y md:hidden">
+            {levels.map((row) => {
+              const available = row.quantity - row.reserved - row.damaged - row.expired;
+              const low = row.reorder_point > 0 && row.quantity <= row.reorder_point;
+              return (
+                <li key={row.id} className="flex flex-col gap-2 p-3 text-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium break-words">{row.item_name}</p>
+                      <p className="text-xs text-muted-foreground">{row.item_sku ?? "no SKU"} &middot; {row.warehouse_name}</p>
+                    </div>
+                    {canEdit ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Adjust stock"
+                        className="shrink-0"
+                        onClick={() => {
+                          setAdjusting({
+                            productId: row.item_id,
+                            warehouseId: row.warehouse_id,
+                            productLabel: row.item_name,
+                            warehouseLabel: row.warehouse_name,
+                          });
+                          setModalOpen(true);
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap items-baseline gap-3">
+                    <span className={low ? "font-semibold text-destructive" : ""}>
+                      On hand <span className="text-base">{num.format(row.quantity)}</span>
+                    </span>
+                    <span className="font-medium">
+                      Available <span className="text-base">{num.format(available)}</span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                    <span>Reserved {num.format(row.reserved)}</span>
+                    <span>Damaged {num.format(row.damaged)}</span>
+                    <span>Expired {num.format(row.expired)}</span>
+                    <span>Incoming {num.format(row.incoming)}</span>
+                    <span>In transit {num.format(row.in_transit)}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Product</TableHead>
