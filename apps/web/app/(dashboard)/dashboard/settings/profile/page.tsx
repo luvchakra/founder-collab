@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@cofounderai/core/db/server";
-import { AvatarUploadForm } from "@/components/settings/avatar-upload-form";
-import { ProfileForm } from "@/components/settings/profile-form";
+import { ProfileCard } from "@/components/settings/profile-card";
 import { updateAvatarAction, updateProfileAction } from "./actions";
 
 export default async function ProfilePage() {
@@ -24,19 +23,17 @@ export default async function ProfilePage() {
         </p>
       </div>
 
-      <AvatarUploadForm
+      <ProfileCard
         avatarUrl={avatarUrl}
-        name={fullName || null}
+        fullName={fullName}
         email={user.email ?? ""}
-        action={updateAvatarAction}
-      />
-
-      <ProfileForm
-        defaultFullName={fullName}
-        defaultBio={(metadata.bio ?? "") as string}
-        defaultPhone={(metadata.phone ?? "") as string}
-        email={user.email ?? ""}
-        action={updateProfileAction}
+        bio={(metadata.bio ?? "") as string}
+        phone={(metadata.phone ?? "") as string}
+        jobTitle={(metadata.job_title ?? "") as string}
+        location={(metadata.location ?? "") as string}
+        timezone={(metadata.timezone ?? "") as string}
+        updateProfileAction={updateProfileAction}
+        updateAvatarAction={updateAvatarAction}
       />
     </main>
   );

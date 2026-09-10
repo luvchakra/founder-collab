@@ -12,13 +12,23 @@ export async function updateProfileAction(
   const fullName = String(formData.get("fullName") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
+  const jobTitle = String(formData.get("jobTitle") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  const timezone = String(formData.get("timezone") ?? "").trim();
 
   const supabase = await createClient();
   // updateUser's `data` merges into existing user_metadata -- it doesn't replace it, so
   // this can't clobber avatar_url (set separately by updateAvatarAction) or OAuth-provided
   // fields like `picture`.
   const { error } = await supabase.auth.updateUser({
-    data: { full_name: fullName || null, bio: bio || null, phone: phone || null },
+    data: {
+      full_name: fullName || null,
+      bio: bio || null,
+      phone: phone || null,
+      job_title: jobTitle || null,
+      location: location || null,
+      timezone: timezone || null,
+    },
   });
   if (error) return { error: error.message };
 
