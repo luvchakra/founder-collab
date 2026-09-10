@@ -175,10 +175,10 @@ export function JobDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{partyName}</h1>
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold break-words">{partyName}</h1>
             <Badge variant={job.status === "cancelled" ? "destructive" : job.status === "completed" ? "default" : "secondary"}>
               {STATUS_LABEL[job.status]}
             </Badge>
@@ -189,7 +189,7 @@ export function JobDetail({
         </div>
 
         {canEdit ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             {job.status === "unscheduled" ? (
               <Button variant="outline" size="sm" disabled={pending} onClick={() => run(markScheduledAction)}>
                 Mark scheduled
@@ -213,6 +213,45 @@ export function JobDetail({
             {job.status === "in_progress" || job.status === "on_hold" ? (
               <Button size="sm" disabled={pending} onClick={() => run(completeAction)}>
                 Complete
+              </Button>
+            ) : null}
+            {job.status === "completed" && canReopen ? (
+              <Button variant="outline" size="sm" disabled={pending} onClick={() => run(reopenAction)}>
+                Reopen
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => navigate(duplicateAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/jobs/${id}`)}
+            >
+              Duplicate
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => navigate(invoiceAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/invoices/${id}`)}
+            >
+              Invoice
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(sendCustomerCenterAccessAction, "Customer Center access sent.")}
+            >
+              Send Customer Center access
+            </Button>
+            {canConvertToOpportunity ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => navigate(convertToOpportunityAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/opportunities/${id}`)}
+              >
+                Convert to opportunity
               </Button>
             ) : null}
             {job.status !== "completed" && job.status !== "cancelled" ? (
@@ -241,45 +280,6 @@ export function JobDetail({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            ) : null}
-            {job.status === "completed" && canReopen ? (
-              <Button variant="outline" size="sm" disabled={pending} onClick={() => run(reopenAction)}>
-                Reopen
-              </Button>
-            ) : null}
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => navigate(duplicateAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/jobs/${id}`)}
-            >
-              Duplicate
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => navigate(invoiceAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/invoices/${id}`)}
-            >
-              Invoice
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() => run(sendCustomerCenterAccessAction, "Customer Center access sent.")}
-            >
-              Send Customer Center access
-            </Button>
-            {canConvertToOpportunity ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pending}
-                onClick={() => navigate(convertToOpportunityAction, (id) => `/dashboard/businesses/${job.business_id}/fsm/opportunities/${id}`)}
-              >
-                Convert to opportunity
-              </Button>
             ) : null}
           </div>
         ) : null}
