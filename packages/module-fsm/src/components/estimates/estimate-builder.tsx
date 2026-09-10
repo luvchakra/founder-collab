@@ -182,8 +182,96 @@ export function EstimateBuilder({
       ) : lines.length === 0 ? (
         <EmptyState variant="inline" message="No charges added yet." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. A charge's item
+              name has no length limit (it's core.items.name, and a Discovery-mirrored
+              item's name can run long), so the table below is genuinely unusable on a
+              phone width without this. */}
+          <ul className="divide-y md:hidden">
+            {lines.map((line, i) => (
+              <li key={line.id} className="flex min-w-0 flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">{line.item_name}</p>
+                    {line.item_sku ? <p className="text-xs text-muted-foreground">{line.item_sku}</p> : null}
+                    {line.job_charge_type_name ? (
+                      <p className="text-xs text-muted-foreground">{line.job_charge_type_name}</p>
+                    ) : null}
+                  </div>
+                  {canEdit ? (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge" className="shrink-0">
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This removes the charge line from the estimate and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => run(() => deleteLineAction(line.id))}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Qty {line.quantity}</span>
+                  <span>{inr.format(line.unit_price)} each</span>
+                  <label className="flex items-center gap-1.5">
+                    <Checkbox
+                      checked={line.taxable}
+                      disabled={!canEdit || pending}
+                      onCheckedChange={(checked) => run(() => updateLineAction(line.id, { taxable: checked === true }))}
+                    />
+                    Taxable
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-base font-semibold">
+                    {inr.format(line.quantity * line.unit_price + line.cgst_amount + line.sgst_amount + line.igst_amount)}
+                  </p>
+                  {canEdit ? (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={pending || i === 0}
+                        onClick={() => move(i, -1)}
+                        aria-label="Move up"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        <ArrowUp className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending || i === lines.length - 1}
+                        onClick={() => move(i, 1)}
+                        aria-label="Move down"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                      >
+                        <ArrowDown className="size-4" />
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead />
@@ -223,8 +311,8 @@ export function EstimateBuilder({
                       </div>
                     ) : null}
                   </TableCell>
-                  <TableCell>
-                    <p className="font-medium">{line.item_name}</p>
+                  <TableCell className="max-w-64">
+                    <p className="font-medium break-words">{line.item_name}</p>
                     {line.item_sku ? <p className="text-xs text-muted-foreground">{line.item_sku}</p> : null}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{line.job_charge_type_name ?? "-"}</TableCell>

@@ -76,10 +76,10 @@ export function OpportunityDetail({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">{partyName}</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold break-words">{partyName}</h1>
             <Badge variant={opportunity.status === "lost" ? "destructive" : "secondary"}>
               {STATUS_LABEL[opportunity.status]}
             </Badge>
@@ -96,12 +96,24 @@ export function OpportunityDetail({
           ) : null}
         </div>
         {canEdit && opportunity.status !== "lost" ? (
-          <Button variant="destructive" size="sm" disabled={pending} onClick={() => setLostOpen(true)}>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={pending}
+            onClick={() => setLostOpen(true)}
+            className="shrink-0 self-start"
+          >
             Mark lost
           </Button>
         ) : null}
         {canEdit && opportunity.status === "lost" ? (
-          <Button variant="outline" size="sm" disabled={pending} onClick={() => run(reopenAction)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pending}
+            onClick={() => run(reopenAction)}
+            className="shrink-0 self-start"
+          >
             Reopen
           </Button>
         ) : null}
