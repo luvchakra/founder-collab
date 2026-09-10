@@ -27,6 +27,7 @@
     "./attachments/*": "./src/attachments/*.ts",
     "./messages/*": "./src/messages/*.ts",
     "./ai-usage/*": "./src/ai-usage/*.ts",
+    "./billing/*": "./src/billing/*.ts",
     "./events/*": "./src/events/*.ts",
     "./audit/*": "./src/audit/*.ts",
     "./api-v1/*": "./src/api-v1/*.ts",
