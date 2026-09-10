@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
+import { readPinnedBusinessIds } from "@cofounderai/core/lib/pinned-businesses";
 import type {
   ShellAlert,
   ShellBusiness,
@@ -57,7 +58,22 @@ export function DashboardChrome({
 }) {
   const [creating, setCreating] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const { businessId: activeBusinessId } = getActiveIdsFromPath(pathname ?? "");
+
+  // A fresh or duplicated tab (or a plain refresh) landing on the bare, business-agnostic
+  // /dashboard URL -- the account-wide Executive Dashboard -- honors a pinned business
+  // instead: if one exists, this bounces straight to that business's own Dashboard, same
+  // as clicking it in the switcher would. `router.replace` (not `push`) so the Executive
+  // Dashboard never lands in browser history as a page the founder has to back out of.
+  // Only fires for that exact bare path -- every other business-agnostic route (settings,
+  // admin, etc.) is a deliberate destination, not a "no business chosen yet" landing.
+  useEffect(() => {
+    if (pathname !== "/dashboard" || businesses.length === 0) return;
+    const pinnedIds = readPinnedBusinessIds();
+    const pinnedBusiness = businesses.find((b) => pinnedIds.includes(b.id));
+    if (pinnedBusiness) router.replace(`/dashboard/businesses/${pinnedBusiness.id}`);
+  }, [pathname, businesses, router]);
 
   // Filtered per the *active* business, not the account as a whole -- switching
   // businesses (same URL shape the business switcher already navigates to) recomputes
