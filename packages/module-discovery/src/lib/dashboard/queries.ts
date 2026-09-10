@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import type { Business, Product, Workspace } from "../tenancy/types";
+import { listWorkspacesForProducts } from "../tenancy/queries";
 import {
   getProspectCountsForWorkspaces,
   listProspectsForWorkspaces,
@@ -9,8 +10,6 @@ import {
 import { getWorkspaceUsageForWorkspaces } from "../usage/queries";
 
 export type AccountWorkspaceEntry = { workspace: Workspace; product: Product; business: Business };
-
-type ProductRow = Product & { workspaces: Workspace[] };
 
 /**
  * Every business/product/workspace on an account. Two queries, not one embedded
@@ -53,17 +52,28 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
     const supabase = await createClient();
     const { data: productRows, error } = await supabase
       .from("products")
-      .select("*, workspaces(*)")
+      .select("*")
       .in("business_id", businessIds)
       .order("created_at", { ascending: true });
     if (error) throw error;
+    const products = (productRows ?? []) as Product[];
 
-    for (const { workspaces, ...product } of (productRows ?? []) as ProductRow[]) {
+    // A separate listWorkspacesForProducts() call, not a nested `.select("*,
+    // workspaces(*))")` embed -- the embed was silently resolving to zero workspaces
+    // per product for every account (Conversions on the Executive Dashboard always
+    // showed the "create your first business" empty state, even for accounts with
+    // real products/workspaces), while this same batched lookup already works
+    // correctly for getBusinessUsage() (lib/usage/queries.ts) and buildChatContext()
+    // (lib/ai/chat.ts).
+    const workspaces = await listWorkspacesForProducts(products.map((p) => p.id));
+    const workspaceByProductId = new Map(workspaces.map((w) => [w.product_id, w] as const));
+
+    for (const product of products) {
       const business = businessById.get(product.business_id);
       if (!business) continue;
       productsByBusiness[business.id]!.push(product);
       allProducts.push(product);
-      const workspace = workspaces[0];
+      const workspace = workspaceByProductId.get(product.id);
       if (workspace) entries.push({ workspace, product, business });
     }
   }
