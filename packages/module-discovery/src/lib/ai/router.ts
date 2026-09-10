@@ -109,26 +109,26 @@ async function getProviderCredential(
 }
 
 /**
- * Resolves the language model a workspace-scoped AI operation should use: looks up the
- * workspace's account and that account's connected BYOK provider credential first: an
- * account's own key always wins when one is connected, since that's what bills the
- * founder's own provider account rather than CoFounderAI's. When no BYOK credential is
- * connected, falls back to the platform's own included credit (PLATFORM_AI_API_KEY) if
- * the deployment has one configured -- this is the "no need to bring your own key"
- * option (see ai-provider/page.tsx). Throws AiProviderError("no_provider_connected")
- * only when neither is available -- callers should catch this and point the founder at
- * AI provider settings rather than surfacing a generic failure.
+ * Resolves the language model an already-known account's AI operation should use: that
+ * account's connected BYOK provider credential first (an account's own key always wins
+ * when one is connected, since that's what bills the founder's own provider account
+ * rather than CoFounderAI's), falling back to the platform's own included credit
+ * (PLATFORM_AI_API_KEY) if the deployment has one configured -- the "no need to bring
+ * your own key" option (see ai-provider/page.tsx). Throws
+ * AiProviderError("no_provider_connected") only when neither is available -- callers
+ * should catch this and point the founder at AI provider settings rather than surfacing
+ * a generic failure.
+ *
+ * Split out of resolveAiModel() below so a caller that already has the accountId in hand
+ * -- e.g. researching a business from its website before that business (and so any
+ * workspace) exists -- doesn't need one, rather than inventing a fake workspace lookup
+ * just to get back to the same accountId it started with.
  */
-export async function resolveAiModel(
-  workspaceId: string,
+export async function resolveAiModelForAccount(
+  accountId: string,
   operation: AiOperation,
   client?: SupabaseClient,
 ): Promise<ResolvedAiModel> {
-  const accountId = await getAccountIdForWorkspace(workspaceId, client);
-  if (!accountId) {
-    throw new AiProviderError("no_provider_connected", "Workspace not found.");
-  }
-
   const byokCredential = await getProviderCredential(accountId, client);
   const credential: { provider: AiProvider; apiKey: string } | null = byokCredential
     ? { provider: byokCredential.provider, apiKey: decryptApiKey(byokCredential.encrypted_api_key) }
@@ -159,6 +159,24 @@ export async function resolveAiModel(
     credentialSource: byokCredential ? "byok" : "platform",
     modelAtTier,
   };
+}
+
+/**
+ * Resolves the language model a workspace-scoped AI operation should use -- looks up the
+ * workspace's own account first, then delegates to resolveAiModelForAccount() above for
+ * everything else. Throws AiProviderError("no_provider_connected") when the workspace
+ * itself can't be resolved to an account.
+ */
+export async function resolveAiModel(
+  workspaceId: string,
+  operation: AiOperation,
+  client?: SupabaseClient,
+): Promise<ResolvedAiModel> {
+  const accountId = await getAccountIdForWorkspace(workspaceId, client);
+  if (!accountId) {
+    throw new AiProviderError("no_provider_connected", "Workspace not found.");
+  }
+  return resolveAiModelForAccount(accountId, operation, client);
 }
 
 /**

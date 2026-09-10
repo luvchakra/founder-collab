@@ -33,6 +33,7 @@ export function DashboardChrome({
   user,
   alerts,
   createBusinessAction,
+  createBusinessFromWebsiteAction,
   children,
 }: {
   /** Straight from module-registry -- no `licensed` field yet, since that's a
@@ -51,6 +52,7 @@ export function DashboardChrome({
   user: ShellUser;
   alerts?: ShellAlert[];
   createBusinessAction: (accountId: string, formData: FormData) => Promise<void>;
+  createBusinessFromWebsiteAction: (accountId: string, formData: FormData) => Promise<void>;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
@@ -95,6 +97,7 @@ export function DashboardChrome({
       {creating ? (
         <CreateBusinessModal
           action={createBusinessAction.bind(null, accountId)}
+          fromWebsiteAction={createBusinessFromWebsiteAction.bind(null, accountId)}
           onClose={() => setCreating(false)}
         />
       ) : null}

@@ -38,6 +38,21 @@ export const ProductProfileSchema = z.object({
 export type ProductProfile = z.infer<typeof ProductProfileSchema>;
 
 /**
+ * Structured business understanding output -- the business-level equivalent of
+ * ProductProfileSchema above, just the two fields the "create a business from its
+ * website" flow (create-business-modal.tsx) actually populates. See
+ * prompts/business/understand_business_v1.ts.
+ */
+export const BusinessProfileSchema = z.object({
+  name: z.string().describe("The business's real, official name -- not the domain"),
+  description: z
+    .string()
+    .describe("A plain-language 1-3 sentence summary of what the business does and who it serves"),
+});
+
+export type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
+
+/**
  * Structured ICP draft output (blueprint §13, §19). Generated from a ProductProfile --
  * see prompts/icp/generate_icp_v1.ts.
  */

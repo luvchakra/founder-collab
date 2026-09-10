@@ -4,6 +4,7 @@ import type { AiQualityTier } from "./model-registry";
 // function in lib/ai/ declares its requirements here instead of picking a model tier
 // itself -- the router (router.ts) is what turns "operation" into "provider + model".
 export type AiOperation =
+  | "understand_business"
   | "understand_product"
   | "discover_products"
   | "generate_icp"
@@ -23,6 +24,10 @@ export type AiOperationSpec = {
 };
 
 const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
+  // Same shape as understand_product below, just for a business instead of a single
+  // product -- researches the business's own website via the provider-executed search
+  // tool, then structures a short name/description from those findings.
+  understand_business: { qualityTier: "reasoning", requiresWebSearch: true },
   // Reasoning + web search: understandProduct() researches the product's own website
   // via the provider-executed search tool before structuring a profile, same shape as
   // research_prospect below -- not just "balanced" text extraction from static sources

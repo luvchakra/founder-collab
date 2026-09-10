@@ -19,7 +19,7 @@ import { getAlerts as getFsmAlerts } from "@cofounderai/module-fsm/contract/inde
 import { getAlerts as getCrmAlerts } from "@cofounderai/module-crm/contract/index";
 import { getAlerts as getGstAlerts } from "@cofounderai/module-gst/contract/index";
 import { DashboardChrome } from "@/components/dashboard/dashboard-chrome";
-import { createBusinessAction } from "@/app/(dashboard)/dashboard/actions";
+import { createBusinessAction, createBusinessFromWebsiteAction } from "@/app/(dashboard)/dashboard/actions";
 
 const OTHER_MODULE_ALERTS: Record<"inventory" | "fsm" | "crm" | "gst", (businessId: string) => Promise<{ ok: boolean; data?: ShellAlert[] }>> = {
   inventory: getInventoryAlerts,
@@ -119,6 +119,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       }}
       alerts={alerts}
       createBusinessAction={createBusinessAction}
+      createBusinessFromWebsiteAction={createBusinessFromWebsiteAction}
     >
       {children}
     </DashboardChrome>
