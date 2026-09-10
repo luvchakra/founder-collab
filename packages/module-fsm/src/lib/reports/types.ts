@@ -35,6 +35,18 @@ export interface PaymentRow {
   amount: number;
   payment_date: string;
   reference: string | null;
+  /** The fsm invoice this payment was allocated against, when resolvable -- lets the
+   * report link a row straight to that invoice's own detail page. Null for a payment
+   * spread across documents with no single one to link to. */
+  document_id: string | null;
+}
+
+/** `from`/`to` are inclusive ISO dates (YYYY-MM-DD); either may be omitted for an
+ * unbounded side. Applies only to reports with a natural date dimension -- customer
+ * balances and account aging are current-state snapshots and ignore it. */
+export interface ReportDateRange {
+  from?: string;
+  to?: string;
 }
 
 export interface TimecardRow {

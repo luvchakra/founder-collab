@@ -9,6 +9,7 @@ import type {
   MarketingSourceRevenueRow,
   PaymentRow,
   ProductivityRow,
+  ReportDateRange,
   RevenueByGroupRow,
   TimecardRow,
 } from "./types";
@@ -17,42 +18,80 @@ function coreClient() {
   return createCoreClient({ schema: "core" });
 }
 
+// Untyped like every other `.from(table)` caller against these schemas (Database = any) --
+// lets a partially-built query be filtered further before being awaited.
+type QueryBuilder = any;
+
+/** For `date`-typed columns (`doc_date`, `payment_date`, `due_date`) -- `range.from`/`to`
+ * are already plain calendar dates, so a direct compare is correct. */
+function withDateRange(query: QueryBuilder, column: string, range?: ReportDateRange): QueryBuilder {
+  let q = query;
+  if (range?.from) q = q.gte(column, range.from);
+  if (range?.to) q = q.lte(column, range.to);
+  return q;
+}
+
+/** For `timestamptz`-typed columns (`completed_at`, `started_at`) -- a plain calendar
+ * date on the upper bound would cut off at that day's midnight, excluding the rest of the
+ * day, so `to` is pushed to the end of that day. */
+function withTimestampRange(query: QueryBuilder, column: string, range?: ReportDateRange): QueryBuilder {
+  let q = query;
+  if (range?.from) q = q.gte(column, `${range.from}T00:00:00.000Z`);
+  if (range?.to) q = q.lte(column, `${range.to}T23:59:59.999Z`);
+  return q;
+}
+
+function defaultToCurrentMonth(): ReportDateRange {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  return { from: monthStart.toISOString().slice(0, 10) };
+}
+
 /** Every fsm-issued invoice for this business, its own job (when it has one), and that
  * job's `service_type_id`/`opportunity_id` -- the one join every revenue-by-X report
  * below needs, fetched once rather than five times. Same "no PostgREST embed, join in
  * JS" pattern as every other list query in this module. */
-async function listFsmInvoicesWithJobContext(businessId: string) {
+async function listFsmInvoicesWithJobContext(businessId: string, range?: ReportDateRange) {
   const core = await coreClient();
-  const { data: docs, error } = await core
-    .from("documents")
-    .select("id, total_amount, source_ref")
-    .eq("business_id", businessId)
-    .eq("doc_type", "invoice")
-    .eq("source_module", "fsm");
+  const { data: docs, error } = await withDateRange(
+    core.from("documents").select("id, total_amount, source_ref, doc_date").eq("business_id", businessId).eq("doc_type", "invoice").eq("source_module", "fsm"),
+    "doc_date",
+    range,
+  );
   if (error) throw error;
-  if (docs.length === 0) return { docs: [], jobById: new Map() };
+  if (docs.length === 0) return { docs: [] as typeof docs, jobById: new Map() };
 
-  const jobIds = [...new Set(docs.map((d) => (d.source_ref as { job_id?: string })?.job_id).filter((id): id is string => Boolean(id)))];
+  const jobIds = [
+    ...new Set(docs.map((d: { source_ref: unknown }) => (d.source_ref as { job_id?: string })?.job_id).filter((id: string | undefined): id is string => Boolean(id))),
+  ];
   const fsm = await createFsmClient();
   const { data: jobs, error: jobsError } = jobIds.length
     ? await fsm.from("jobs").select("id, service_type_id, opportunity_id").in("id", jobIds)
-    : { data: [], error: null };
+    : { data: [] as { id: string; service_type_id: string | null; opportunity_id: string | null }[], error: null };
   if (jobsError) throw jobsError;
 
-  return { docs, jobById: new Map(jobs.map((j) => [j.id, j])) };
+  return { docs, jobById: new Map(jobs.map((j: { id: string }) => [j.id, j])) };
 }
 
 /** "Jobs completed" (PRD §2 Reports row MUST) -- every completed job, alongside its own
  * invoiced amount when one exists (0 for a completed job with no invoice yet). */
-export const listJobsCompletedReport = cache(async (businessId: string): Promise<JobsCompletedRow[]> => {
+interface RawCompletedJob {
+  id: string;
+  number: string | null;
+  party_id: string;
+  service_type_id: string | null;
+  completed_at: string | null;
+}
+
+export const listJobsCompletedReport = cache(async (businessId: string, range?: ReportDateRange): Promise<JobsCompletedRow[]> => {
   const fsm = await createFsmClient();
-  const { data: jobs, error } = await fsm
-    .from("jobs")
-    .select("id, number, party_id, service_type_id, completed_at")
-    .eq("business_id", businessId)
-    .eq("status", "completed")
-    .order("completed_at", { ascending: false });
+  const { data, error } = await withTimestampRange(
+    fsm.from("jobs").select("id, number, party_id, service_type_id, completed_at").eq("business_id", businessId).eq("status", "completed"),
+    "completed_at",
+    range,
+  ).order("completed_at", { ascending: false });
   if (error) throw error;
+  const jobs = data as RawCompletedJob[];
   if (jobs.length === 0) return [];
 
   const core = await coreClient();
@@ -87,8 +126,8 @@ export const listJobsCompletedReport = cache(async (businessId: string): Promise
   }));
 });
 
-export const listRevenueByServiceReport = cache(async (businessId: string): Promise<RevenueByGroupRow[]> => {
-  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId);
+export const listRevenueByServiceReport = cache(async (businessId: string, range?: ReportDateRange): Promise<RevenueByGroupRow[]> => {
+  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId, range);
   if (docs.length === 0) return [];
 
   const fsm = await createFsmClient();
@@ -112,8 +151,8 @@ export const listRevenueByServiceReport = cache(async (businessId: string): Prom
 /** Revenue-by-tag counts a multi-tagged job's full invoice amount toward every one of its
  * tags (Kickserv's own "revenue by tag" reporting semantics -- a job tagged both
  * "Emergency" and "Repeat customer" contributes to both totals, not a split). */
-export const listRevenueByTagReport = cache(async (businessId: string): Promise<RevenueByGroupRow[]> => {
-  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId);
+export const listRevenueByTagReport = cache(async (businessId: string, range?: ReportDateRange): Promise<RevenueByGroupRow[]> => {
+  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId, range);
   if (docs.length === 0) return [];
 
   const core = await coreClient();
@@ -145,21 +184,20 @@ export const listRevenueByTagReport = cache(async (businessId: string): Promise<
   return [...revenueByLabel.entries()].map(([label, revenue]) => ({ label, revenue })).sort((a, b) => b.revenue - a.revenue);
 });
 
-export const listRevenueByChargeTypeReport = cache(async (businessId: string): Promise<RevenueByGroupRow[]> => {
+export const listRevenueByChargeTypeReport = cache(async (businessId: string, range?: ReportDateRange): Promise<RevenueByGroupRow[]> => {
   const core = await coreClient();
-  const { data: docs, error: docsError } = await core
-    .from("documents")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("doc_type", "invoice")
-    .eq("source_module", "fsm");
+  const { data: docs, error: docsError } = await withDateRange(
+    core.from("documents").select("id").eq("business_id", businessId).eq("doc_type", "invoice").eq("source_module", "fsm"),
+    "doc_date",
+    range,
+  );
   if (docsError) throw docsError;
   if (docs.length === 0) return [];
 
   const { data: lines, error: linesError } = await core
     .from("document_lines")
     .select("job_charge_type_id, quantity, unit_price, cgst_amount, sgst_amount, igst_amount")
-    .in("document_id", docs.map((d) => d.id));
+    .in("document_id", docs.map((d: { id: string }) => d.id));
   if (linesError) throw linesError;
 
   const fsm = await createFsmClient();
@@ -188,8 +226,8 @@ export const listRevenueByChargeTypeReport = cache(async (businessId: string): P
  * here. No `module-discovery` import either way -- there's no contract function to
  * resolve a marketing source id to a name yet, so a raw id (if one ever appears) shows
  * as-is rather than guessing a display name. */
-export const listRevenueByMarketingSourceReport = cache(async (businessId: string): Promise<MarketingSourceRevenueRow[]> => {
-  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId);
+export const listRevenueByMarketingSourceReport = cache(async (businessId: string, range?: ReportDateRange): Promise<MarketingSourceRevenueRow[]> => {
+  const { docs, jobById } = await listFsmInvoicesWithJobContext(businessId, range);
   if (docs.length === 0) return [];
 
   const fsm = await createFsmClient();
@@ -289,7 +327,7 @@ export const listAccountAgingReport = cache(async (businessId: string): Promise<
 /** "Payments by date" (PRD §2 Reports row MUST) -- `core.payments` is shared across
  * modules (D-7), so this scopes to payments with at least one allocation against an
  * fsm-sourced document, not every payment this business has ever recorded. */
-export const listPaymentsReport = cache(async (businessId: string): Promise<PaymentRow[]> => {
+export const listPaymentsReport = cache(async (businessId: string, range?: ReportDateRange): Promise<PaymentRow[]> => {
   const core = await coreClient();
   const { data: fsmDocs, error: docsError } = await core.from("documents").select("id").eq("business_id", businessId).eq("source_module", "fsm");
   if (docsError) throw docsError;
@@ -297,18 +335,33 @@ export const listPaymentsReport = cache(async (businessId: string): Promise<Paym
 
   const { data: allocations, error: allocError } = await core
     .from("payment_allocations")
-    .select("payment_id")
+    .select("payment_id, document_id")
     .in("document_id", fsmDocs.map((d) => d.id));
   if (allocError) throw allocError;
   const paymentIds = [...new Set(allocations.map((a) => a.payment_id))];
   if (paymentIds.length === 0) return [];
+  // First allocation wins when a payment is split across more than one fsm invoice --
+  // good enough for a "jump to the invoice" link, not meant to represent a split payment.
+  const documentIdByPaymentId = new Map<string, string>();
+  for (const a of allocations) {
+    if (!documentIdByPaymentId.has(a.payment_id)) documentIdByPaymentId.set(a.payment_id, a.document_id);
+  }
 
-  const { data: payments, error: paymentsError } = await core
-    .from("payments")
-    .select("id, party_id, method, amount, payment_date, reference")
-    .in("id", paymentIds)
-    .order("payment_date", { ascending: false });
+  interface RawPayment {
+    id: string;
+    party_id: string;
+    method: string;
+    amount: number;
+    payment_date: string;
+    reference: string | null;
+  }
+  const { data, error: paymentsError } = await withDateRange(
+    core.from("payments").select("id, party_id, method, amount, payment_date, reference").in("id", paymentIds),
+    "payment_date",
+    range,
+  ).order("payment_date", { ascending: false });
   if (paymentsError) throw paymentsError;
+  const payments = data as RawPayment[];
 
   const partyIds = [...new Set(payments.map((p) => p.party_id))];
   const { data: parties, error: partiesError } = await core.from("parties").select("id, name").in("id", partyIds);
@@ -322,26 +375,26 @@ export const listPaymentsReport = cache(async (businessId: string): Promise<Paym
     amount: Number(p.amount),
     payment_date: p.payment_date,
     reference: p.reference,
+    document_id: documentIdByPaymentId.get(p.id) ?? null,
   }));
 });
 
 /** "Timecards by pay period" (PRD §2 Reports row MUST) -- no pay-period configuration
  * exists anywhere in this platform yet (that's a payroll concept F-15/settings never
- * introduced either), so this reports the current calendar month per employee, a
+ * introduced either), so this defaults to the current calendar month per employee when no
+ * range is given, and otherwise honors the report page's own date-range control -- a
  * documented simplification rather than a fabricated pay-period setting. */
-export const listTimecardsReport = cache(async (businessId: string): Promise<TimecardRow[]> => {
+export const listTimecardsReport = cache(async (businessId: string, range?: ReportDateRange): Promise<TimecardRow[]> => {
   const fsm = await createFsmClient();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const effectiveRange = range ?? defaultToCurrentMonth();
 
-  const { data: entries, error } = await fsm
-    .from("time_entries")
-    .select("employee_id, duration_minutes, is_billable")
-    .eq("business_id", businessId)
-    .gte("started_at", monthStart.toISOString())
-    .not("duration_minutes", "is", null);
+  const { data, error } = await withTimestampRange(
+    fsm.from("time_entries").select("employee_id, duration_minutes, is_billable").eq("business_id", businessId).not("duration_minutes", "is", null),
+    "started_at",
+    effectiveRange,
+  );
   if (error) throw error;
+  const entries = data as { employee_id: string; duration_minutes: number | null; is_billable: boolean }[];
   if (entries.length === 0) return [];
 
   const core = await coreClient();
@@ -375,21 +428,20 @@ export const listTimecardsReport = cache(async (businessId: string): Promise<Tim
 });
 
 /** "Productivity per employee" (PRD §2 Reports row MUST) -- jobs completed and hours
- * logged this month, the same period `listTimecardsReport` uses for consistency between
- * the two employee-facing reports. */
-export const listProductivityReport = cache(async (businessId: string): Promise<ProductivityRow[]> => {
+ * logged over the same period `listTimecardsReport` uses (current calendar month by
+ * default, or the report page's own date-range selection), for consistency between the
+ * two employee-facing reports. */
+export const listProductivityReport = cache(async (businessId: string, range?: ReportDateRange): Promise<ProductivityRow[]> => {
   const fsm = await createFsmClient();
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  monthStart.setHours(0, 0, 0, 0);
+  const effectiveRange = range ?? defaultToCurrentMonth();
 
-  const { data: entries, error } = await fsm
-    .from("time_entries")
-    .select("employee_id, job_id, duration_minutes")
-    .eq("business_id", businessId)
-    .gte("started_at", monthStart.toISOString())
-    .not("duration_minutes", "is", null);
+  const { data, error } = await withTimestampRange(
+    fsm.from("time_entries").select("employee_id, job_id, duration_minutes").eq("business_id", businessId).not("duration_minutes", "is", null),
+    "started_at",
+    effectiveRange,
+  );
   if (error) throw error;
+  const entries = data as { employee_id: string; job_id: string; duration_minutes: number | null }[];
   if (entries.length === 0) return [];
 
   const jobIds = [...new Set(entries.map((e) => e.job_id))];

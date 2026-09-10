@@ -60,18 +60,20 @@ export function ProductsList({
   return (
     <div className="flex flex-col gap-4">
       {canEdit ? (
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={() => setBarcodeDialogOpen(true)}>
-            <Barcode className="size-4" aria-hidden="true" />
-            Generate barcode / QR
-          </Button>
-          <Button size="sm" variant="outline" asChild>
-            <Link href={importHref}>
-              <Upload className="size-4" aria-hidden="true" />
-              Import products
-            </Link>
-          </Button>
-          <Button size="sm" onClick={() => setModalTarget("create")}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:w-auto">
+            <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => setBarcodeDialogOpen(true)}>
+              <Barcode className="size-4" aria-hidden="true" />
+              Barcode / QR
+            </Button>
+            <Button size="sm" variant="outline" className="w-full sm:w-auto" asChild>
+              <Link href={importHref}>
+                <Upload className="size-4" aria-hidden="true" />
+                Import
+              </Link>
+            </Button>
+          </div>
+          <Button size="sm" className="w-full sm:w-auto" onClick={() => setModalTarget("create")}>
             <Plus className="size-4" aria-hidden="true" />
             New product
           </Button>

@@ -28,6 +28,35 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "Viewer",
 };
 
+// Fixed display order so every role card groups its permissions the same way --
+// modules not in this list (future ones) just sort alphabetically after these.
+const MODULE_ORDER = ["core", "discovery", "inventory", "fsm", "crm", "gst"];
+const MODULE_LABEL: Record<string, string> = {
+  core: "Platform",
+  discovery: "Discovery",
+  inventory: "Inventory",
+  fsm: "Service",
+  crm: "CRM",
+  gst: "GST",
+};
+
+function groupByModule<T extends { module: string }>(items: T[]): [string, T[]][] {
+  const byModule = new Map<string, T[]>();
+  for (const item of items) {
+    const list = byModule.get(item.module) ?? [];
+    list.push(item);
+    byModule.set(item.module, list);
+  }
+  return [...byModule.entries()].sort(([a], [b]) => {
+    const ai = MODULE_ORDER.indexOf(a);
+    const bi = MODULE_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 /** Ported from stockpilot-ai-ops's routes/_authenticated/team.tsx -- read-only:
  * permissions are set by role, not per person, until custom roles ship (matches the
  * original's own scope exactly). */
@@ -95,17 +124,35 @@ export default async function TeamPage({
           {ACTIVE_ROLES.map((role) => {
             const granted = rolePermissions[role] ?? new Set<string>();
             const grantedPermissions = catalog.filter((p) => granted.has(p.key));
+            const groups = groupByModule(grantedPermissions);
             return (
-              <div key={role} className="rounded-2xl border border-border p-4">
-                <p className="font-medium">{ROLE_LABEL[role]}</p>
+              <div key={role} className="flex flex-col gap-3 rounded-2xl border border-border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium">{ROLE_LABEL[role]}</p>
+                  <Badge variant="outline" className="shrink-0 text-xs font-normal text-muted-foreground">
+                    {grantedPermissions.length} {grantedPermissions.length === 1 ? "permission" : "permissions"}
+                  </Badge>
+                </div>
                 {grantedPermissions.length === 0 ? (
-                  <p className="mt-2 text-sm text-muted-foreground">View-only. No write access.</p>
+                  <p className="text-sm text-muted-foreground">View-only. No write access.</p>
                 ) : (
-                  <ul className="mt-2 flex flex-col gap-1 text-sm text-muted-foreground">
-                    {grantedPermissions.map((p) => (
-                      <li key={p.key}>{p.description}</li>
+                  <div className="flex flex-col gap-3">
+                    {groups.map(([module, permissions]) => (
+                      <div key={module}>
+                        <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                          {MODULE_LABEL[module] ?? module}
+                        </p>
+                        <ul className="mt-1.5 flex flex-col gap-1 text-sm text-muted-foreground">
+                          {permissions.map((p) => (
+                            <li key={p.key} className="flex gap-2">
+                              <span className="mt-2 size-1 shrink-0 rounded-full bg-muted-foreground/50" aria-hidden="true" />
+                              <span>{p.description}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             );
