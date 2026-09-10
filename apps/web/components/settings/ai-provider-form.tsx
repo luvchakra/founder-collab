@@ -5,7 +5,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AI_PROVIDER_LABELS, type AiProvider } from "@cofounderai/module-discovery/lib/ai-providers/types";
-import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/settings/ai-provider/actions";
+import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/settings/billing/actions";
 
 const PROVIDERS: AiProvider[] = ["openai", "anthropic", "google"];
 

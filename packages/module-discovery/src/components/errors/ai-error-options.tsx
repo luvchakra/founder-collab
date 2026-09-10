@@ -9,8 +9,8 @@ export function AiErrorOptions() {
       <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
         <li>
           Check your connection under{" "}
-          <Link href="/dashboard/settings/ai-provider" className="underline">
-            AI Provider settings
+          <Link href="/dashboard/settings/billing" className="underline">
+            Billing
           </Link>{" "}
           -- replace the key if it&apos;s expired or revoked.
         </li>

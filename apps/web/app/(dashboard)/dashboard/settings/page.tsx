@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Bot, Building2, CreditCard, KeyRound, Paintbrush, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Building2, CreditCard, KeyRound, Paintbrush, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
 import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
@@ -10,8 +10,7 @@ type SettingsLink = { label: string; href: string; description: string; icon: Re
 
 const ACCOUNT_LINKS: SettingsLink[] = [
   { label: "Licenses", href: "/dashboard/settings/licenses", description: "Activate, cancel, or reactivate a module for any business.", icon: ShieldCheck },
-  { label: "Billing", href: "/dashboard/settings/billing", description: "Plan and payment details.", icon: CreditCard },
-  { label: "AI provider", href: "/dashboard/settings/ai-provider", description: "Bring your own AI provider key.", icon: Bot },
+  { label: "Billing", href: "/dashboard/settings/billing", description: "Plan, AI provider, and credits.", icon: CreditCard },
   { label: "Usage", href: "/dashboard/settings/usage", description: "AI runs and spend across every workspace.", icon: Sparkles },
   { label: "Profile", href: "/dashboard/settings/profile", description: "Your own account details.", icon: Users },
   { label: "Appearance", href: "/dashboard/settings/appearance", description: "Light/dark theme.", icon: Paintbrush },

@@ -7,7 +7,7 @@ import {
 } from "@cofounderai/module-discovery/lib/ai-providers/mutations";
 import type { AiProvider } from "@cofounderai/module-discovery/lib/ai-providers/types";
 
-const SETTINGS_PATH = "/dashboard/settings/ai-provider";
+const SETTINGS_PATH = "/dashboard/settings/billing";
 
 export type ConnectProviderActionState = { error: string } | null;
 

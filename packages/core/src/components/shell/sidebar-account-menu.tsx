@@ -106,7 +106,7 @@ export function SidebarAccountMenu({
           </Link>
 
           <Link
-            href="/dashboard/settings/ai-provider"
+            href="/dashboard/settings"
             role="menuitem"
             onClick={() => {
               setOpen(false);
