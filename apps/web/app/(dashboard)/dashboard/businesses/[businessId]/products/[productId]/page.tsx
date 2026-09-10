@@ -42,8 +42,8 @@ export default async function ProductPage({
       generateProfileAction={generateProductProfileAction.bind(null, businessId, productId)}
       addFileAction={addFileSourceAction.bind(null, businessId, productId, workspace.id)}
       addTextAction={addTextSourceAction.bind(null, businessId, productId, workspace.id)}
-      updateSourceAction={(sourceId) => updateSourceAction.bind(null, businessId, productId, sourceId)}
-      deleteSourceAction={(sourceId) => deleteSourceAction.bind(null, businessId, productId, sourceId)}
+      updateSourceAction={updateSourceAction.bind(null, businessId, productId)}
+      deleteSourceAction={deleteSourceAction.bind(null, businessId, productId)}
       nextHref={`${icpPath(businessId, productId)}?autopopulate=1`}
     />
   );

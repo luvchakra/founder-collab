@@ -37,8 +37,8 @@ export function ProductOverviewShell({
   generateProfileAction,
   addFileAction,
   addTextAction,
-  updateSourceAction: makeUpdateSourceAction,
-  deleteSourceAction: makeDeleteSourceAction,
+  updateSourceAction,
+  deleteSourceAction,
   nextHref,
 }: {
   product: Product;
@@ -48,8 +48,12 @@ export function ProductOverviewShell({
   generateProfileAction: BoundAction;
   addFileAction: (formData: FormData) => void | Promise<void>;
   addTextAction: (formData: FormData) => void | Promise<void>;
-  updateSourceAction: (sourceId: string) => RenameAction;
-  deleteSourceAction: (sourceId: string) => () => Promise<{ error: string } | { success: true }>;
+  updateSourceAction: (
+    sourceId: string,
+    prevState: RenameActionState,
+    formData: FormData,
+  ) => Promise<RenameActionState>;
+  deleteSourceAction: (sourceId: string) => Promise<{ error: string } | { success: true }>;
   nextHref: string;
 }) {
   const [isPopulating, setIsPopulating] = useState(false);
@@ -190,8 +194,8 @@ export function ProductOverviewShell({
                 sourceName={source.source_name}
                 sourceType={source.source_type}
                 content={source.content}
-                updateAction={makeUpdateSourceAction(source.id)}
-                deleteAction={makeDeleteSourceAction(source.id)}
+                updateAction={updateSourceAction.bind(null, source.id)}
+                deleteAction={deleteSourceAction.bind(null, source.id)}
               />
             ))}
           </div>
