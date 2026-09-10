@@ -84,6 +84,26 @@ export async function addPartyContact(input: {
   return data;
 }
 
+/** Generic party field edit -- name/email/phone are the fields every module-specific
+ * "customer"/"prospect"/"supplier" screen surfaces for the same underlying `core.parties`
+ * row (00-MASTER-PLAN.md §5's "one row, many roles"), so this lives here rather than
+ * duplicated per module. Scoped by `businessId` in addition to RLS's own tenant check,
+ * so a mismatched partyId/businessId pair is a clear no-op rather than a silent write to
+ * the wrong tenant's row. */
+export async function updateParty(
+  businessId: string,
+  partyId: string,
+  patch: { name?: string; email?: string | null; phone?: string | null },
+): Promise<void> {
+  const supabase = await coreClient();
+  const update: Record<string, unknown> = {};
+  if ("name" in patch) update.name = patch.name;
+  if ("email" in patch) update.email = patch.email;
+  if ("phone" in patch) update.phone = patch.phone;
+  const { error } = await supabase.from("parties").update(update).eq("id", partyId).eq("business_id", businessId);
+  if (error) throw error;
+}
+
 /** Only fills in a party's email when it's currently null -- never overwrites a value
  * the founder (or an earlier sync) already set. Used to backfill a customer party's
  * email from its first known contact (module-discovery/lib/prospects/party-sync.ts) when
