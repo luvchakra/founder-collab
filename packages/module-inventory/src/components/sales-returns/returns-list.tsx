@@ -120,8 +120,42 @@ export function ReturnsList({
       {salesReturns.length === 0 ? (
         <EmptyState icon={RotateCcw} message="No sales returns yet. Create one from a shipped or delivered order." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {salesReturns.map((r) => (
+              <li key={r.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground">{r.return_number}</p>
+                    <p className="font-medium break-words">{r.customer_name}</p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[r.status]} className="shrink-0">
+                    {r.status}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Order {r.so_number}</span>
+                  <span>{formatDate(r.created_at)}</span>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openDetail(r)}>
+                    View
+                  </Button>
+                  {primaryAction(r.status) && canRunPrimaryAction(r.status) ? (
+                    <Button size="sm" disabled={pending} onClick={() => runPrimaryAction(r)}>
+                      {primaryAction(r.status)!.label}
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Return #</TableHead>

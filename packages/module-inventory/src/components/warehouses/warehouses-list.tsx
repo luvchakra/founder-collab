@@ -20,9 +20,9 @@ import type { Warehouse } from "../../lib/warehouses/types";
 /** Ported from stockpilot-ai-ops's routes/_authenticated/warehouses.tsx `Warehouses`
  * component -- list + create/edit dialog + activate/deactivate, rebuilt as Server
  * Actions instead of react-query mutations (this platform has no react-query dependency
- * and an established Server Action convention -- see AiActionForm/EditableText). The
- * StockPilot original's separate `sm:hidden` mobile card layout is dropped for this
- * first pass; the table scrolls horizontally on narrow screens instead. */
+ * and an established Server Action convention -- see AiActionForm/EditableText). Keeps
+ * its own compact-card mobile layout below `md` (CLAUDE.md rule #12) -- warehouse names
+ * can be long and six columns doesn't fit a phone width. */
 export function WarehousesList({
   warehouses,
   canEdit,
@@ -56,8 +56,46 @@ export function WarehousesList({
       {warehouses.length === 0 ? (
         <EmptyState icon={WarehouseIcon} message="No warehouses yet. Create your first one." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {warehouses.map((wh) => (
+              <li key={wh.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium break-words">{wh.name}</p>
+                    <p className="text-xs text-muted-foreground">{wh.code}</p>
+                  </div>
+                  <Badge variant={wh.is_active ? "default" : "secondary"} className="shrink-0">
+                    {wh.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>{wh.city ?? "—"}</span>
+                  <span>{wh.state ?? "—"}</span>
+                  <span>{wh.contact_name ?? wh.contact_phone ?? "—"}</span>
+                </div>
+
+                {canEdit ? (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setModalTarget(wh)}>
+                      <Pencil className="size-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                    <form action={toggleActiveAction.bind(null, wh.id, !wh.is_active)}>
+                      <SubmitButton variant="ghost" size="sm">
+                        {wh.is_active ? "Deactivate" : "Activate"}
+                      </SubmitButton>
+                    </form>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

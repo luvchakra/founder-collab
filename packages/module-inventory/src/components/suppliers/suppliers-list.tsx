@@ -56,8 +56,49 @@ export function SuppliersList({
       {suppliers.length === 0 ? (
         <EmptyState icon={Truck} message="No suppliers yet. Add your first one." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {suppliers.map((sup) => (
+              <li key={sup.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-medium">{sup.name}</p>
+                  <Badge variant={sup.is_active ? "default" : "secondary"} className="shrink-0">
+                    {sup.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>{sup.contact_person ?? "—"}</span>
+                  <span>{sup.phone ?? "—"}</span>
+                  <span>Lead time {sup.lead_time_days}d</span>
+                  {Number(sup.rating) > 0 ? (
+                    <span className="flex items-center gap-1">
+                      <Star className="size-3.5 fill-warning text-warning" aria-hidden="true" />
+                      {Number(sup.rating).toFixed(1)}
+                    </span>
+                  ) : null}
+                </div>
+
+                {canEdit ? (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setModalTarget(sup)}>
+                      <Pencil className="size-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                    <form action={toggleActiveAction.bind(null, sup.id, !sup.is_active)}>
+                      <SubmitButton variant="ghost" size="sm">
+                        {sup.is_active ? "Deactivate" : "Activate"}
+                      </SubmitButton>
+                    </form>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

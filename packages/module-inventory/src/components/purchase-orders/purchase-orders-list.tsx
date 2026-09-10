@@ -120,8 +120,51 @@ export function PurchaseOrdersList({
       {purchaseOrders.length === 0 ? (
         <EmptyState icon={ClipboardList} message="No purchase orders yet. Create your first one to start receiving stock." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {purchaseOrders.map((po) => (
+              <li key={po.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground">{po.po_number}</p>
+                    <p className="font-medium break-words">{po.supplier_name}</p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[po.status]} className="shrink-0">
+                    {po.status.replace("_", " ")}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Warehouse {po.warehouse_name}</span>
+                  <span>Ordered {formatDate(po.order_date)}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-semibold">{inr.format(po.total_amount)}</span>
+                  <div className="flex justify-end gap-2">
+                    {po.status === "draft" && canEdit ? (
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(po)}>
+                        <Pencil className="size-4" aria-hidden="true" />
+                        Edit
+                      </Button>
+                    ) : null}
+                    <Button variant="outline" size="sm" onClick={() => openDetail(po)}>
+                      View
+                    </Button>
+                    {primaryAction(po.status) && canPrimaryAction(po.status) ? (
+                      <Button size="sm" disabled={pending} onClick={() => runPrimaryAction(po)}>
+                        {primaryAction(po.status)!.label}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>PO number</TableHead>

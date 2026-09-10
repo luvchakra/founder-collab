@@ -136,8 +136,45 @@ export function SalesOrdersList({
       {salesOrders.length === 0 ? (
         <EmptyState icon={Receipt} message="No sales orders yet. Create your first one to record a sale." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {salesOrders.map((so) => (
+              <li key={so.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground">{so.so_number}</p>
+                    <p className="font-medium break-words">{so.customer_name}</p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[so.status]} className="shrink-0">
+                    {so.status}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>Warehouse {so.warehouse_name}</span>
+                  <span>Ordered {formatDate(so.order_date)}</span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-semibold">{inr.format(so.total_amount)}</span>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openDetail(so)}>
+                      View
+                    </Button>
+                    {primaryAction(so.status) && canRunPrimaryAction(so.status) ? (
+                      <Button size="sm" disabled={pending} onClick={() => runPrimaryAction(so)}>
+                        {primaryAction(so.status)!.label}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>SO number</TableHead>

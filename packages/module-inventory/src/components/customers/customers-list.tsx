@@ -54,8 +54,46 @@ export function CustomersList({
       {customers.length === 0 ? (
         <EmptyState icon={Users} message="No customers yet. Add your first one." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen; customer names
+              here are often long ("Greenfield Residency Owners Association"), so they get
+              their own wrapping row rather than being squeezed into a table cell. */}
+          <ul className="divide-y md:hidden">
+            {customers.map((cust) => (
+              <li key={cust.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <p className="min-w-0 break-words font-medium">{cust.name}</p>
+                  <Badge variant={cust.is_active ? "default" : "secondary"} className="shrink-0">
+                    {cust.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>{cust.phone ?? "—"}</span>
+                  <span className="break-words">{cust.email ?? "—"}</span>
+                  <span>{cust.state ?? "—"}</span>
+                  <span className="font-mono">{cust.gstin ?? "—"}</span>
+                </div>
+
+                {canEdit ? (
+                  <div className="flex justify-end gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => setModalTarget(cust)}>
+                      <Pencil className="size-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                    <form action={toggleActiveAction.bind(null, cust.id, !cust.is_active)}>
+                      <SubmitButton variant="ghost" size="sm">
+                        {cust.is_active ? "Deactivate" : "Activate"}
+                      </SubmitButton>
+                    </form>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>

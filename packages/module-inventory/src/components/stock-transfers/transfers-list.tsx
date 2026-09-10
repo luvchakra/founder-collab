@@ -125,8 +125,50 @@ export function TransfersList({
       {transfers.length === 0 ? (
         <EmptyState icon={Truck} message="No stock transfers yet. Create one to move stock between warehouses." />
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below `md` -- this platform's own rule that a table of rows
+              never gets cropped or scrolled sideways on a small screen. */}
+          <ul className="divide-y md:hidden">
+            {transfers.map((t) => (
+              <li key={t.id} className="flex flex-col gap-2 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs text-muted-foreground">{t.transfer_number}</p>
+                    <p className="break-words font-medium">
+                      {t.source_warehouse_name} <span className="text-muted-foreground">to</span>{" "}
+                      {t.destination_warehouse_name}
+                    </p>
+                  </div>
+                  <Badge variant={STATUS_VARIANT[t.status]} className="shrink-0">
+                    {t.status.replace("_", " ")}
+                  </Badge>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>{formatDate(t.created_at)}</span>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  {t.status === "draft" && canEdit ? (
+                    <Button variant="ghost" size="sm" onClick={() => setFormTarget(t)}>
+                      <Pencil className="size-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                  ) : null}
+                  <Button variant="outline" size="sm" onClick={() => openDetail(t)}>
+                    View
+                  </Button>
+                  {primaryAction(t.status) && canRunPrimaryAction(t.status) ? (
+                    <Button size="sm" disabled={pending} onClick={() => runPrimaryAction(t)}>
+                      {primaryAction(t.status)!.label}
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Transfer #</TableHead>
