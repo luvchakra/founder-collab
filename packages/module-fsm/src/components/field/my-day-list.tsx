@@ -53,15 +53,23 @@ export function MyDayList({
   clockOutAction: (jobId: string) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
+  // Which event's own action is in flight -- `pending` alone (one shared useTransition
+  // for the whole list) doesn't say which button triggered it, so every card's buttons
+  // were disabling together on a single click. Gating each button on both `pending` and
+  // `pendingEventId === event.id` scopes the disabled state to the card it belongs to.
+  const [pendingEventId, setPendingEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const run = (fn: () => Promise<void>) => {
+  const run = (eventId: string, fn: () => Promise<void>) => {
     setError(null);
+    setPendingEventId(eventId);
     startTransition(async () => {
       try {
         await fn();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
+      } finally {
+        setPendingEventId(null);
       }
     });
   };
@@ -76,6 +84,7 @@ export function MyDayList({
       {events.map((event) => {
         const isClockedInHere = event.job_id !== null && openTimeEntry?.job_id === event.job_id;
         const isClockedInElsewhere = openTimeEntry !== null && openTimeEntry.job_id !== event.job_id;
+        const isThisPending = pending && pendingEventId === event.id;
         return (
           <div key={event.id} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2">
@@ -99,28 +108,28 @@ export function MyDayList({
               </Button>
 
               {canManageEvents && event.kind === "work" && event.status === "scheduled" ? (
-                <Button size="sm" disabled={pending} onClick={() => run(() => notifyOnTheWayAction(event.id))}>
+                <Button size="sm" disabled={isThisPending} onClick={() => run(event.id, () => notifyOnTheWayAction(event.id))}>
                   Notify: on the way
                 </Button>
               ) : null}
               {canManageEvents && event.status === "en_route" ? (
-                <Button size="sm" disabled={pending} onClick={() => run(() => markArrivedAction(event.id))}>
+                <Button size="sm" disabled={isThisPending} onClick={() => run(event.id, () => markArrivedAction(event.id))}>
                   Mark arrived
                 </Button>
               ) : null}
               {canManageEvents && event.status === "arrived" ? (
-                <Button size="sm" disabled={pending} onClick={() => run(() => markDoneAction(event.id))}>
+                <Button size="sm" disabled={isThisPending} onClick={() => run(event.id, () => markDoneAction(event.id))}>
                   Mark done
                 </Button>
               ) : null}
 
               {canClockInOut && event.job_id ? (
                 isClockedInHere ? (
-                  <Button size="sm" variant="outline" disabled={pending} onClick={() => run(() => clockOutAction(event.job_id!))}>
+                  <Button size="sm" variant="outline" disabled={isThisPending} onClick={() => run(event.id, () => clockOutAction(event.job_id!))}>
                     Clock out
                   </Button>
                 ) : (
-                  <Button size="sm" variant="outline" disabled={pending || isClockedInElsewhere} onClick={() => run(() => clockInAction(event.job_id!))}>
+                  <Button size="sm" variant="outline" disabled={isThisPending || isClockedInElsewhere} onClick={() => run(event.id, () => clockInAction(event.job_id!))}>
                     Clock in
                   </Button>
                 )

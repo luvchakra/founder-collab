@@ -2,7 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import { createEvent, rescheduleEvent, setEventAssignees, cancelEvent, deleteEvent } from "@cofounderai/module-fsm/lib/events/mutations";
+import {
+  createEvent,
+  rescheduleEvent,
+  setEventAssignees,
+  updateEventDescription,
+  cancelEvent,
+  deleteEvent,
+} from "@cofounderai/module-fsm/lib/events/mutations";
 import { setTechnicianStatus } from "@cofounderai/module-fsm/lib/employees/mutations";
 import type { EventKind } from "@cofounderai/module-fsm/lib/events/types";
 import type { CreateEventActionState } from "@cofounderai/module-fsm/components/schedule/create-event-dialog";
@@ -58,6 +65,12 @@ export async function rescheduleEventAction(businessId: string, eventId: string,
 export async function reassignEventAction(businessId: string, eventId: string, employeeIds: string[]): Promise<void> {
   await requirePermission(businessId, "schedule.manage");
   await setEventAssignees(eventId, businessId, employeeIds);
+  revalidatePath(schedulePath(businessId));
+}
+
+export async function updateEventDescriptionAction(businessId: string, eventId: string, description: string): Promise<void> {
+  await requirePermission(businessId, "schedule.manage");
+  await updateEventDescription(eventId, businessId, description);
   revalidatePath(schedulePath(businessId));
 }
 

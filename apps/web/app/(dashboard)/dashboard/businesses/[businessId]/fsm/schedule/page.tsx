@@ -12,6 +12,7 @@ import {
   reassignEventAction,
   rescheduleEventAction,
   setTechnicianStatusAction,
+  updateEventDescriptionAction,
 } from "./actions";
 
 function isoDate(d: Date): string {
@@ -107,6 +108,7 @@ export default async function SchedulePage({
         createEventAction={createEventAction.bind(null, businessId)}
         rescheduleAction={rescheduleEventAction.bind(null, businessId)}
         reassignAction={reassignEventAction.bind(null, businessId)}
+        updateDescriptionAction={updateEventDescriptionAction.bind(null, businessId)}
         cancelAction={cancelEventAction.bind(null, businessId)}
         deleteAction={deleteEventAction.bind(null, businessId)}
         setTechnicianStatusAction={setTechnicianStatusAction.bind(null, businessId)}

@@ -1,9 +1,13 @@
 "use client";
 
 import { useMemo, useState, useTransition, type DragEvent } from "react";
-import { Ban, Trash2 } from "lucide-react";
+import { Ban, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
+import { Checkbox } from "@cofounderai/core/ui/checkbox";
+import { Input } from "@cofounderai/core/ui/input";
+import { Label } from "@cofounderai/core/ui/label";
+import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
 import {
   AlertDialog,
@@ -37,6 +41,16 @@ function dayLabel(iso: string) {
 
 function timeLabel(iso: string) {
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** ISO timestamp -> the local `YYYY-MM-DDTHH:mm` shape a `datetime-local` input needs
+ * for its `defaultValue`/`value` -- same conversion CreateEventDialog's own caller
+ * (the schedule page) already does for a brand-new event's default start, just
+ * starting from an existing event's stored ISO string instead of a plain day. */
+function toDatetimeLocal(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** Moves `startsAt` to `newDay` (keeping its own time-of-day) and shifts `endsAt` by the
@@ -76,6 +90,7 @@ export function ScheduleCalendar({
   createEventAction,
   rescheduleAction,
   reassignAction,
+  updateDescriptionAction,
   cancelAction,
   deleteAction,
   setTechnicianStatusAction,
@@ -99,6 +114,7 @@ export function ScheduleCalendar({
   createEventAction: (prevState: CreateEventActionState, formData: FormData) => Promise<CreateEventActionState>;
   rescheduleAction: (eventId: string, startsAt: string, endsAt: string | null) => Promise<void>;
   reassignAction: (eventId: string, employeeIds: string[]) => Promise<void>;
+  updateDescriptionAction: (eventId: string, description: string) => Promise<void>;
   cancelAction: (eventId: string) => Promise<void>;
   deleteAction: (eventId: string) => Promise<void>;
   setTechnicianStatusAction: (userId: string, isTechnician: boolean) => Promise<void>;
@@ -106,6 +122,39 @@ export function ScheduleCalendar({
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<ScheduleEventItem | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editStartsAt, setEditStartsAt] = useState("");
+  const [editEndsAt, setEditEndsAt] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editAssigneeIds, setEditAssigneeIds] = useState<Set<string>>(new Set());
+
+  function startEditing(event: ScheduleEventItem) {
+    setEditStartsAt(toDatetimeLocal(event.starts_at));
+    setEditEndsAt(event.ends_at ? toDatetimeLocal(event.ends_at) : "");
+    setEditDescription(event.description ?? "");
+    setEditAssigneeIds(new Set(event.assignee_employee_ids));
+    setEditing(true);
+  }
+
+  function saveEdits(event: ScheduleEventItem) {
+    const startsAt = new Date(editStartsAt).toISOString();
+    const endsAt = editEndsAt ? new Date(editEndsAt).toISOString() : null;
+    const assigneeIds = [...editAssigneeIds];
+    run(async () => {
+      await rescheduleAction(event.id, startsAt, endsAt);
+      if (editDescription !== (event.description ?? "")) {
+        await updateDescriptionAction(event.id, editDescription);
+      }
+      const currentAssignees = new Set(event.assignee_employee_ids);
+      const assigneesChanged =
+        assigneeIds.length !== currentAssignees.size || assigneeIds.some((id) => !currentAssignees.has(id));
+      if (assigneesChanged) {
+        await reassignAction(event.id, assigneeIds);
+      }
+      setEditing(false);
+      setSelected(null);
+    });
+  }
 
   const rows = useMemo(() => [{ key: UNASSIGNED_KEY, label: "Unassigned" }, ...employees.map((e) => ({ key: e.id, label: e.full_name || e.email || "Unnamed" }))], [employees]);
 
@@ -255,92 +304,182 @@ export function ScheduleCalendar({
 
       {canManage ? <TechnicianRosterPanel roster={technicianRoster} toggleAction={setTechnicianStatusAction} /> : null}
 
-      <Dialog open={selected !== null} onOpenChange={(open) => !open && setSelected(null)}>
+      <Dialog
+        open={selected !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelected(null);
+            setEditing(false);
+          }
+        }}
+      >
         <DialogContent>
           {selected ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>
-                  {selected.subject_label} -- {selected.party_name}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="flex flex-col gap-2 text-sm">
-                <p>
-                  <span className="text-muted-foreground">When: </span>
-                  {timeLabel(selected.starts_at)}
-                  {selected.ends_at ? ` -- ${timeLabel(selected.ends_at)}` : ""} on {selected.starts_at.slice(0, 10)}
-                </p>
-                {selected.description ? <p className="text-muted-foreground">{selected.description}</p> : null}
-                <p>
-                  <span className="text-muted-foreground">Status: </span>
-                  {selected.status}
-                </p>
-              </div>
-              {canManage ? (
+            editing ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Edit event</DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="edit-event-starts">Starts</Label>
+                      <Input
+                        id="edit-event-starts"
+                        type="datetime-local"
+                        value={editStartsAt}
+                        onChange={(e) => setEditStartsAt(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="edit-event-ends">Ends (optional)</Label>
+                      <Input
+                        id="edit-event-ends"
+                        type="datetime-local"
+                        value={editEndsAt}
+                        onChange={(e) => setEditEndsAt(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-event-description">Description</Label>
+                    <Textarea
+                      id="edit-event-description"
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Assign technicians</Label>
+                    {employees.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No technicians available.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1.5 rounded-md border p-2">
+                        {employees.map((emp) => (
+                          <label key={emp.id} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={editAssigneeIds.has(emp.id)}
+                              onCheckedChange={(checked) =>
+                                setEditAssigneeIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (checked) next.add(emp.id);
+                                  else next.delete(emp.id);
+                                  return next;
+                                })
+                              }
+                            />
+                            {emp.full_name || emp.email || "Unnamed"}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <DialogFooter>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button type="button" variant="outline" disabled={pending || selected.status === "cancelled"}>
-                        <Ban className="size-4" aria-hidden="true" />
-                        Cancel event
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Cancel this event?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This marks the event cancelled. It stays on record but no longer counts as
-                          scheduled work.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep event</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() =>
-                            run(async () => {
-                              await cancelAction(selected.id);
-                              setSelected(null);
-                            })
-                          }
-                        >
-                          Cancel event
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button type="button" variant="destructive" disabled={pending}>
-                        <Trash2 className="size-4" aria-hidden="true" />
-                        Delete
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this event?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This permanently removes the event from the schedule and cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Keep event</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() =>
-                            run(async () => {
-                              await deleteAction(selected.id);
-                              setSelected(null);
-                            })
-                          }
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button type="button" variant="ghost" onClick={() => setEditing(false)} disabled={pending}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={() => saveEdits(selected)} disabled={pending || !editStartsAt}>
+                    Save changes
+                  </Button>
                 </DialogFooter>
-              ) : null}
-            </>
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle>
+                    {selected.subject_label} -- {selected.party_name}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="flex flex-col gap-2 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">When: </span>
+                    {timeLabel(selected.starts_at)}
+                    {selected.ends_at ? ` -- ${timeLabel(selected.ends_at)}` : ""} on {selected.starts_at.slice(0, 10)}
+                  </p>
+                  {selected.description ? <p className="text-muted-foreground">{selected.description}</p> : null}
+                  <p>
+                    <span className="text-muted-foreground">Status: </span>
+                    {selected.status}
+                  </p>
+                </div>
+                {canManage ? (
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending || selected.status === "cancelled"}
+                      onClick={() => startEditing(selected)}
+                    >
+                      <Pencil className="size-4" aria-hidden="true" />
+                      Edit
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="outline" disabled={pending || selected.status === "cancelled"}>
+                          <Ban className="size-4" aria-hidden="true" />
+                          Cancel event
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Cancel this event?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This marks the event cancelled. It stays on record but no longer counts as
+                            scheduled work.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep event</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              run(async () => {
+                                await cancelAction(selected.id);
+                                setSelected(null);
+                              })
+                            }
+                          >
+                            Cancel event
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button type="button" variant="destructive" disabled={pending}>
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          Delete
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this event?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This permanently removes the event from the schedule and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Keep event</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() =>
+                              run(async () => {
+                                await deleteAction(selected.id);
+                                setSelected(null);
+                              })
+                            }
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </DialogFooter>
+                ) : null}
+              </>
+            )
           ) : null}
         </DialogContent>
       </Dialog>
