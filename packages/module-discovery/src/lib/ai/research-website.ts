@@ -12,15 +12,25 @@ export type WebsiteResearchResult = {
 };
 
 /**
- * Researches one website via the provider's own URL-retrieval tool (createUrlContextTools
- * -- Gemini's dedicated url_context tool for Google, web_search for OpenAI/Anthropic),
- * falling back to a direct server-side fetch (core/ai/fetch-page-text.ts) when that tool
- * reports a retrieval failure or comes back with nothing usable. Shared by
- * discoverProductsFromWebsite() and understandProduct(), which both had this exact
- * research step and, before this file existed, surfaced a raw retrieval failure straight
- * to the founder with no fallback attempted -- a real, reported failure mode
- * (meridianhometech.in: Gemini's own crawler got URL_RETRIEVAL_STATUS_ERROR on a site that
- * loads fine in an ordinary browser).
+ * Researches one website. Tries a direct server-side fetch first (core/ai/fetch-page-
+ * text.ts) -- cheap (no LLM call at all), and it preserves each link on the page as an
+ * inline "label [url]" annotation, which is exactly what discoverProductsFromWebsite()
+ * needs to find each product's own page URL. Only falls back to the provider's own
+ * URL-retrieval tool (createUrlContextTools -- Gemini's url_context for Google, web_search
+ * for OpenAI/Anthropic) when the direct fetch fails outright (network error, non-2xx, or a
+ * JS-rendered page with no extractable text) -- that tool call is strictly more expensive
+ * and, being a paraphrased narrative rather than the literal page, was found to reliably
+ * *drop* the specific product-page links this feature depends on even when it retrieves
+ * the page successfully. Shared by discoverProductsFromWebsite() and understandProduct(),
+ * which both had this exact research step.
+ *
+ * This order was flipped from an earlier version that tried the provider tool first and
+ * fell back to the direct fetch only on a reported retrieval failure -- worth keeping
+ * straight for anyone touching this again: that direction fixed sites that block a
+ * provider's crawler, but did nothing for a site the provider's tool *can* reach, since
+ * the tool's own summarized findings still didn't reliably carry per-product URLs. Trying
+ * the direct, link-preserving fetch first fixes both cases and costs less on the common
+ * path.
  *
  * Still throws AiProviderError when both attempts fail, worded to say so -- callers don't
  * need to change their own error handling, only stop duplicating this retry logic.
@@ -32,6 +42,14 @@ export async function researchWebsite(
   website: string,
   provider: AiProvider,
 ): Promise<WebsiteResearchResult> {
+  let directFetchError: string;
+  try {
+    const fetchedText = await fetchPageText(website);
+    return { findings: fetchedText, inputTokens: 0, outputTokens: 0, searchCount: 0 };
+  } catch (error) {
+    directFetchError = error instanceof Error ? error.message : String(error);
+  }
+
   const searchResponse = await generateText({ model, tools, prompt });
 
   const googleMetadata = searchResponse.providerMetadata?.google as unknown as
@@ -51,22 +69,16 @@ export async function researchWebsite(
     return { findings: toolFindings, ...usage };
   }
 
-  try {
-    const fetchedText = await fetchPageText(website);
-    return { findings: fetchedText, ...usage };
-  } catch (fallbackError) {
-    const fallbackDetail = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-    if (failedRetrieval) {
-      throw new AiProviderError(
-        "url_retrieval_failed",
-        `${provider} could not retrieve ${failedRetrieval.retrievedUrl} (status: ${failedRetrieval.urlRetrievalStatus}), and a direct fetch also failed: ${fallbackDetail} The site may be blocking automated access, redirecting, or returning an error -- check it loads without a login and isn't behind a WAF/CDN challenge.`,
-        provider,
-      );
-    }
+  if (failedRetrieval) {
     throw new AiProviderError(
-      "no_content_found",
-      `${provider} retrieved ${website} but found no useful information there, and a direct fetch also failed: ${fallbackDetail} The page's content may only render after client-side JavaScript runs -- add details manually instead.`,
+      "url_retrieval_failed",
+      `A direct fetch of ${website} failed (${directFetchError}), and ${provider} could not retrieve ${failedRetrieval.retrievedUrl} either (status: ${failedRetrieval.urlRetrievalStatus}). The site may be blocking automated access, redirecting, or returning an error -- check it loads without a login and isn't behind a WAF/CDN challenge.`,
       provider,
     );
   }
+  throw new AiProviderError(
+    "no_content_found",
+    `A direct fetch of ${website} failed (${directFetchError}), and ${provider} retrieved it but found no useful information there. The page's content may only render after client-side JavaScript runs -- add details manually instead.`,
+    provider,
+  );
 }

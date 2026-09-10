@@ -2,6 +2,11 @@
 
 @source "./**/*.{ts,tsx}";
 @source "../../../packages/core/src/**/*.{ts,tsx}";
+@source "../../../packages/module-discovery/src/**/*.{ts,tsx}";
+@source "../../../packages/module-inventory/src/**/*.{ts,tsx}";
+@source "../../../packages/module-fsm/src/**/*.{ts,tsx}";
+@source "../../../packages/module-crm/src/**/*.{ts,tsx}";
+@source "../../../packages/module-gst/src/**/*.{ts,tsx}";
 
 /*
  * co-founder-ai's own dark-violet marketing/auth identity (docs/landing-page-

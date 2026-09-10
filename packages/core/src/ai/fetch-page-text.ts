@@ -1,11 +1,15 @@
 /**
- * Last-resort fallback for when a provider's own URL-retrieval tool
- * (provider-factory.ts#createUrlContextTools) fails or comes back empty. Some sites block
- * a specific AI provider's crawler (its user-agent or IP range, or a WAF/CDN bot challenge
- * that only triggers for non-browser-like requests) while serving an ordinary request
- * fine -- there is no lever this app can pull to change Gemini's/OpenAI's/Anthropic's own
- * crawler behavior, but a plain server-side fetch with a normal browser User-Agent is a
- * different network path and often succeeds where the provider's tool didn't.
+ * A plain server-side fetch of one page, with every link preserved as an inline
+ * "label [absolute-url]" annotation. module-discovery/lib/ai/research-website.ts tries
+ * this first for any website-research step, ahead of a provider's own URL-retrieval tool
+ * (provider-factory.ts#createUrlContextTools) -- see that file's own doc comment for why:
+ * a provider's tool call paraphrases the page instead of returning it, which reliably
+ * drops exactly the kind of per-product link this exists to find, and costs an LLM call
+ * this skips on the common path. It also covers the case that used to be this function's
+ * whole purpose -- some sites block a specific AI provider's crawler (its user-agent or IP
+ * range, or a WAF/CDN challenge that only triggers for non-browser-like requests) while
+ * serving an ordinary request fine, and there is no lever this app can pull to change
+ * Gemini's/OpenAI's/Anthropic's own crawler behavior.
  *
  * Deliberately not a full HTML parser (no new dependency, per this repo's own "don't add
  * a dependency unless necessary") -- this strips markup down to plain text with regexes,
