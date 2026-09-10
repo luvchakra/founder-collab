@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Building2, KeyRound, Receipt, Users } from "lucide-react";
+import { Building2, KeyRound, Receipt, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
+import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
 import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
+import { BusinessLicensesExpander } from "@/components/settings/business-licenses-expander";
+import { activateModuleAction, cancelModuleAction } from "./licenses/actions";
 import { disableBusinessAction, enableBusinessAction } from "./actions";
 
 /**
@@ -25,7 +27,9 @@ export default async function SettingsHubPage() {
   if (!account) redirect("/login");
 
   const businesses = await listBusinesses(account.id);
-  const licensedModulesByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
+  const licensesByBusiness = await Promise.all(
+    businesses.map((business) => listLicensesForBusiness(business.id)),
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-4 sm:p-8">
@@ -39,8 +43,11 @@ export default async function SettingsHubPage() {
       {businesses.length > 0 ? (
         <section className="flex flex-col gap-2">
           <div className="flex flex-col divide-y rounded-md border">
-            {businesses.map((business) => {
-              const modules = new Set(licensedModulesByBusiness[business.id] ?? []);
+            {businesses.map((business, i) => {
+              const licenses = licensesByBusiness[i] ?? [];
+              const modules = new Set(
+                licenses.filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key),
+              );
               const isDisabled = business.disabled_at !== null;
               return (
                 <div key={business.id} className="flex flex-col gap-3 p-4 sm:p-5">
@@ -69,10 +76,11 @@ export default async function SettingsHubPage() {
                     />
                   </div>
                   {/* One row of equally-weighted chips -- the per-module quick links
-                      first, "Business details" last as the always-present catch-all,
-                      styled the same as the others (just in the primary color) instead
-                      of a differently-sized bare text link stuck on its own. */}
-                  <div className="flex flex-wrap gap-2 pl-6">
+                      first, "Licenses" last as the always-present catch-all (was
+                      "Business details", a plain link to the same page the business
+                      name above already links to -- Licenses is the thing this row
+                      didn't already have a way to reach). */}
+                  <div className="flex flex-wrap items-start gap-2 pl-6">
                     {modules.has("inventory") ? (
                       <Link
                         href={`/dashboard/businesses/${business.id}/inventory/team`}
@@ -98,13 +106,13 @@ export default async function SettingsHubPage() {
                         GST profile
                       </Link>
                     ) : null}
-                    <Link
-                      href={`/dashboard/businesses/${business.id}`}
-                      className="flex items-center gap-1 rounded-md border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/5"
-                    >
-                      Business details
-                      <ArrowRight className="size-3" aria-hidden="true" />
-                    </Link>
+                    <BusinessLicensesExpander
+                      businessId={business.id}
+                      businessName={business.name}
+                      licenses={licenses}
+                      activateAction={activateModuleAction}
+                      cancelAction={cancelModuleAction}
+                    />
                   </div>
                 </div>
               );

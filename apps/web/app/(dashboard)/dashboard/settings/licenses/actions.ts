@@ -30,6 +30,9 @@ export async function activateModuleAction(businessId: string, moduleKey: Module
   await assertBusinessAccess(businessId);
   await activateLicense(businessId, moduleKey);
   revalidatePath(SETTINGS_PATH);
+  // Also invoked from the Global Configurations hub's inline "Licenses" expander
+  // (settings/page.tsx via components/settings/business-licenses-expander.tsx).
+  revalidatePath("/dashboard/settings");
 }
 
 /** Renamed from the old "deactivate immediately" behavior: cancelling now schedules the
@@ -39,4 +42,5 @@ export async function cancelModuleAction(businessId: string, moduleKey: ModuleKe
   await assertBusinessAccess(businessId);
   await cancelLicense(businessId, moduleKey);
   revalidatePath(SETTINGS_PATH);
+  revalidatePath("/dashboard/settings");
 }
