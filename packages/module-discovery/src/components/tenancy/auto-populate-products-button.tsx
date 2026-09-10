@@ -142,7 +142,7 @@ export function AutoPopulateProductsButton({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={launch} disabled={disabled} title={disabled ? disabledReason : undefined}>
+      <Button onClick={launch} disabled={disabled} title={disabled ? disabledReason : undefined} className="shadow-sm">
         <Sparkles className="size-4" aria-hidden="true" />
         Let AI Auto-populate Products from website
       </Button>
