@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
@@ -9,8 +9,15 @@ import type { ConnectProviderActionState } from "@/app/(dashboard)/dashboard/set
 
 const PROVIDERS: AiProvider[] = ["openai", "anthropic", "google"];
 
+/** Not a real `AiProvider` -- there's no such AI provider in the model registry, this
+ * radio choice just means "no BYOK key, run on CoFounderAI's own included credits."
+ * Folds what used to be a separate "Use included credits instead" box/button into the
+ * same provider picker instead of a second control next to it. */
+const INTERNAL = "internal" as const;
+
 export function AiProviderForm({
   action,
+  disconnectAction,
   defaultProvider,
   submitLabel,
 }: {
@@ -18,11 +25,23 @@ export function AiProviderForm({
     prevState: ConnectProviderActionState,
     formData: FormData,
   ) => Promise<ConnectProviderActionState>;
+  /** Runs instead of `action` when "App Internal AI" is selected -- the same disconnect
+   * Server Action the Billing page already had wired to its old included-credits button
+   * (settings/billing/actions.ts's disconnectProviderAction). */
+  disconnectAction: () => Promise<void>;
   defaultProvider?: AiProvider;
   submitLabel: string;
 }) {
+  const [selected, setSelected] = useState<AiProvider | typeof INTERNAL>(defaultProvider ?? "anthropic");
+
   const [state, formAction] = useActionState<ConnectProviderActionState, FormData>(
-    action,
+    async (prevState, formData) => {
+      if (String(formData.get("provider")) === INTERNAL) {
+        await disconnectAction();
+        return null;
+      }
+      return action(prevState, formData);
+    },
     null,
   );
 
@@ -36,18 +55,36 @@ export function AiProviderForm({
               type="radio"
               name="provider"
               value={provider}
-              defaultChecked={provider === (defaultProvider ?? "anthropic")}
+              checked={selected === provider}
+              onChange={() => setSelected(provider)}
               className="size-4"
             />
             {AI_PROVIDER_LABELS[provider]}
           </label>
         ))}
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="radio"
+            name="provider"
+            value={INTERNAL}
+            checked={selected === INTERNAL}
+            onChange={() => setSelected(INTERNAL)}
+            className="size-4"
+          />
+          App Internal AI
+        </label>
       </fieldset>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="apiKey">API Key</Label>
-        <Input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
-      </div>
+      {selected === INTERNAL ? (
+        <p className="text-xs text-muted-foreground">
+          Runs on CoFounderAI&apos;s included credits -- no API key needed.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="apiKey">API Key</Label>
+          <Input id="apiKey" name="apiKey" type="password" autoComplete="off" required />
+        </div>
+      )}
 
       {state?.error ? (
         <p role="alert" className="text-sm text-destructive">
@@ -55,7 +92,9 @@ export function AiProviderForm({
         </p>
       ) : null}
 
-      <SubmitButton pendingText="Testing connection...">{submitLabel}</SubmitButton>
+      <SubmitButton pendingText="Testing connection...">
+        {selected === INTERNAL ? "Use App Internal AI" : submitLabel}
+      </SubmitButton>
     </form>
   );
 }
