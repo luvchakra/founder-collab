@@ -28,7 +28,7 @@ export default async function SettingsHubPage() {
   const licensedModulesByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-8">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-4 sm:p-8">
       <div>
         <h1 className="text-xl font-semibold">Admin &amp; settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -38,24 +38,29 @@ export default async function SettingsHubPage() {
 
       {businesses.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Business</h2>
+          <h2 className="text-sm font-medium text-muted-foreground">Global Configurations</h2>
           <div className="flex flex-col divide-y rounded-md border">
             {businesses.map((business) => {
               const modules = new Set(licensedModulesByBusiness[business.id] ?? []);
               const isDisabled = business.disabled_at !== null;
               return (
-                <div key={business.id} className="flex flex-col gap-2 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
-                        {business.name}
-                      </Link>
-                      {isDisabled ? (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                          Disabled
-                        </span>
-                      ) : null}
+                <div key={business.id} className="flex flex-col gap-3 p-4 sm:p-5">
+                  {/* Header: identity (left) vs. the one destructive/state-changing
+                      action (right) -- kept apart from the navigational chips below so
+                      "disable this business" never reads as just another quick link. */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-start gap-2">
+                      <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
+                          {business.name}
+                        </Link>
+                        {isDisabled ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            Disabled
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                     <BusinessStatusButton
                       businessName={business.name}
@@ -64,6 +69,10 @@ export default async function SettingsHubPage() {
                       enableAction={enableBusinessAction.bind(null, business.id)}
                     />
                   </div>
+                  {/* One row of equally-weighted chips -- the per-module quick links
+                      first, "Business details" last as the always-present catch-all,
+                      styled the same as the others (just in the primary color) instead
+                      of a differently-sized bare text link stuck on its own. */}
                   <div className="flex flex-wrap gap-2 pl-6">
                     {modules.has("inventory") ? (
                       <Link
@@ -92,7 +101,7 @@ export default async function SettingsHubPage() {
                     ) : null}
                     <Link
                       href={`/dashboard/businesses/${business.id}`}
-                      className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      className="flex items-center gap-1 rounded-md border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/5"
                     >
                       Business details
                       <ArrowRight className="size-3" aria-hidden="true" />
