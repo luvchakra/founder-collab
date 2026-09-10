@@ -171,7 +171,7 @@ export default async function BusinessDashboardPage({
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6">
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <Breadcrumbs items={[{ label: "Dashboard" }]} />
+          <Breadcrumbs items={[{ label: "Business", href: businessDetailHref }, { label: "Discovery" }]} />
           <div className="flex shrink-0 items-center gap-2">
             <Link
               href={businessDetailHref}
@@ -190,12 +190,21 @@ export default async function BusinessDashboardPage({
           </div>
         </div>
         <div>
-          <h1 className="text-xl font-semibold">{business.name}</h1>
+          <h1 className="text-xl font-semibold">Discovery Dashboard</h1>
+          <p className="mt-1 text-base text-muted-foreground">{business.name}</p>
+          {business.description ? (
+            <p className="mt-1 text-sm text-muted-foreground">{business.description}</p>
+          ) : null}
           {business.website ? (
-            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <a
+              href={business.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
               <Globe className="size-3.5 shrink-0" aria-hidden="true" />
               {business.website}
-            </p>
+            </a>
           ) : null}
         </div>
       </div>
