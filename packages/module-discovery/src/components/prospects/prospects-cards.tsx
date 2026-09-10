@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@cofounderai/core/lib/utils";
 import type { ProspectWithPipeline } from "../../lib/prospects/queries";
 import { NEXT_ACTION_ANCHOR, PROSPECT_STAGE_LABEL, PROSPECT_STAGES } from "../../lib/prospects/pipeline";
+import { ScoreRagDot } from "./rag-badge";
 
 /**
  * Each card/row is a "stretched link" (a transparent, absolutely-positioned Link
@@ -150,7 +151,12 @@ export function ProspectsCards({
                     <TableCell className="text-muted-foreground">{p.industry || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{p.company_size || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{p.location || "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{p.fit_score ?? "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <ScoreRagDot score={p.fit_score} />
+                        {p.fit_score ?? "—"}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <StatusPill status={p.status} />
                       {p.isStuck ? (
@@ -248,7 +254,11 @@ function ProspectCard({
           />
           <span className="truncate font-medium">{p.company_name}</span>
         </div>
-        <AttributeChip label="Fit" value={String(p.fit_score ?? "—")} />
+        <span className="inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground/70">Fit:</span>
+          <ScoreRagDot score={p.fit_score} />
+          {p.fit_score ?? "—"}
+        </span>
       </div>
 
       {attributes.length > 0 ? (

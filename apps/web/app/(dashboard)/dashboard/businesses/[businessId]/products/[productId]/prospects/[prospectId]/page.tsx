@@ -29,6 +29,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { ExpandableBox } from "@cofounderai/module-discovery/components/ui/expandable-box";
 import { ContactRow } from "@cofounderai/module-discovery/components/prospects/contact-row";
+import { ScoreRagBadge } from "@cofounderai/module-discovery/components/prospects/rag-badge";
 import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
@@ -44,6 +45,7 @@ import {
   scoreProspectAction,
   generateStrategyAction,
   approveStrategyAction,
+  updateStrategyAction,
   generateMessageAction,
   updateMessageContentAction,
   approveMessageAction,
@@ -509,6 +511,66 @@ export default async function ProspectDetailPage({
         </form>
       </section>
 
+      <section className="flex flex-col gap-4">
+        <h2 className="font-medium">Contacts</h2>
+        {contacts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No contacts yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {contacts.map((c) => (
+              <ContactRow
+                key={c.id}
+                contact={c}
+                updateAction={updateContactAction.bind(null, businessId, productId, prospect.id, c.id)}
+                deleteAction={deleteContactAction.bind(null, businessId, productId, prospect.id, c.id)}
+              />
+            ))}
+          </ul>
+        )}
+
+        <div className="flex flex-col gap-3 rounded-md border p-4">
+          <h3 className="text-sm font-medium">Add a contact</h3>
+          <form
+            action={addContactAction.bind(
+              null,
+              businessId,
+              productId,
+              workspace.id,
+              prospect.id,
+            )}
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="firstName">First name</Label>
+              <Input id="firstName" name="firstName" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="lastName">Last name</Label>
+              <Input id="lastName" name="lastName" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="jobTitle">Job title</Label>
+              <Input id="jobTitle" name="jobTitle" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" name="email" type="email" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
+              <Input id="linkedinUrl" name="linkedinUrl" type="text" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" name="phone" />
+            </div>
+            <SubmitButton size="sm" className="self-start sm:col-span-2" pendingText="Adding...">
+              Add contact
+            </SubmitButton>
+          </form>
+        </div>
+      </section>
+
       <section id="research" className="flex scroll-mt-4 flex-col gap-3 rounded-md border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Research</h2>
@@ -605,6 +667,7 @@ export default async function ProspectDetailPage({
             <div className="flex flex-col gap-2 text-sm">
               <div className="flex items-baseline gap-2">
                 <p className="text-2xl font-semibold">{score.overall_score}</p>
+                <ScoreRagBadge score={score.overall_score} />
                 {previousScore && previousScore.overall_score !== score.overall_score ? (
                   <span
                     className={
@@ -673,26 +736,34 @@ export default async function ProspectDetailPage({
           <p className="text-sm text-muted-foreground">No strategy yet.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            <ExpandableBox>
-              <div className="flex flex-col gap-3 text-sm">
-                <div>
-                  <p className="font-medium">Why / strategy</p>
-                  <p className="text-muted-foreground">{strategy.strategy}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Channel</p>
-                  <p className="text-muted-foreground">{strategy.channel}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Key message</p>
-                  <p className="text-muted-foreground">{strategy.key_message}</p>
-                </div>
-                <div>
-                  <p className="font-medium">Call to action</p>
-                  <p className="text-muted-foreground">{strategy.cta}</p>
-                </div>
+            <form
+              action={updateStrategyAction.bind(null, businessId, productId, prospect.id, strategy.id)}
+              className="flex flex-col gap-3 text-sm"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="strategy-strategy">Why / strategy</Label>
+                <Textarea id="strategy-strategy" name="strategy" defaultValue={strategy.strategy} rows={2} />
               </div>
-            </ExpandableBox>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="strategy-channel">Channel</Label>
+                <NativeSelect id="strategy-channel" name="channel" defaultValue={strategy.channel} className="w-auto">
+                  <option value="email">Email</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="whatsapp">WhatsApp</option>
+                </NativeSelect>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="strategy-key-message">Key message</Label>
+                <Textarea id="strategy-key-message" name="keyMessage" defaultValue={strategy.key_message} rows={2} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="strategy-cta">Call to action</Label>
+                <Input id="strategy-cta" name="cta" defaultValue={strategy.cta} />
+              </div>
+              <SubmitButton size="sm" variant="outline" className="self-start" pendingText="Saving...">
+                Save changes
+              </SubmitButton>
+            </form>
             {strategy.status === "draft" ? (
               <form
                 action={approveStrategyAction.bind(
@@ -911,65 +982,6 @@ export default async function ProspectDetailPage({
         )}
       </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="font-medium">Contacts</h2>
-        {contacts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No contacts yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {contacts.map((c) => (
-              <ContactRow
-                key={c.id}
-                contact={c}
-                updateAction={updateContactAction.bind(null, businessId, productId, prospect.id, c.id)}
-                deleteAction={deleteContactAction.bind(null, businessId, productId, prospect.id, c.id)}
-              />
-            ))}
-          </ul>
-        )}
-
-        <div className="flex flex-col gap-3 rounded-md border p-4">
-          <h3 className="text-sm font-medium">Add a contact</h3>
-          <form
-            action={addContactAction.bind(
-              null,
-              businessId,
-              productId,
-              workspace.id,
-              prospect.id,
-            )}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-          >
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="firstName">First name</Label>
-              <Input id="firstName" name="firstName" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="lastName">Last name</Label>
-              <Input id="lastName" name="lastName" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="jobTitle">Job title</Label>
-              <Input id="jobTitle" name="jobTitle" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
-              <Input id="linkedinUrl" name="linkedinUrl" type="text" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" name="phone" />
-            </div>
-            <SubmitButton size="sm" className="self-start sm:col-span-2" pendingText="Adding...">
-              Add contact
-            </SubmitButton>
-          </form>
-        </div>
-      </section>
     </div>
   );
 }

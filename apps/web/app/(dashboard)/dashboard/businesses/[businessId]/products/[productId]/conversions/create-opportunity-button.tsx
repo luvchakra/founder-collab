@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@cofounderai/core/ui/button";
 import { toast } from "@cofounderai/core/ui/sonner";
 import {
@@ -49,6 +50,7 @@ export function CreateOpportunityButton({
   createAction: () => Promise<{ ok: true; data: { opportunityId: string } } | { ok: false; error: string }>;
 }) {
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   if (state.kind === "exists") {
     return (
@@ -96,8 +98,15 @@ export function CreateOpportunityButton({
       onClick={() =>
         startTransition(async () => {
           const result = await createAction();
-          if (result.ok) toast.success("Opportunity created.");
-          else toast.error(result.error);
+          if (result.ok) {
+            // Item #8 of a UX pass: go straight to the new opportunity in Service
+            // instead of leaving the founder on Conversions to find and click the link
+            // this same button turns into once an opportunity exists.
+            toast.success("Opportunity created.");
+            router.push(`/dashboard/businesses/${businessId}/fsm/opportunities/${result.data.opportunityId}`);
+          } else {
+            toast.error(result.error);
+          }
         })
       }
     >

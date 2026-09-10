@@ -158,6 +158,25 @@ export async function getProspect(prospectId: string): Promise<Prospect | null> 
   return data;
 }
 
+/** The single most recently created prospect in a workspace -- used right after
+ * approveProspectSuggestions() inserts exactly one (the auto-populate flow's own
+ * `discoverProspects(workspaceId, undefined, 1)` call), to carry that same row through
+ * Research/Score/Strategy/Message without approveProspectSuggestions itself needing to
+ * change its own `number`-count return shape for its other caller (the manual Discover
+ * page's bulk-approve). */
+export async function getMostRecentProspect(workspaceId: string): Promise<Prospect | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("prospects")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 /** Distinct industry values currently in use, for the filter dropdown. */
 export async function listProspectIndustries(workspaceId: string): Promise<string[]> {
   const supabase = await createClient();

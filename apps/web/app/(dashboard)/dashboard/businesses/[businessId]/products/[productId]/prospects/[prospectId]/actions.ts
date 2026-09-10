@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import {
   updateProspect,
   updateProspectStatus,
@@ -15,7 +16,8 @@ import {
 import { researchProspect } from "@cofounderai/module-discovery/lib/ai/research-prospect";
 import { scoreProspect } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { generateOutreachStrategy } from "@cofounderai/module-discovery/lib/ai/generate-strategy";
-import { approveOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/mutations";
+import { approveOutreachStrategy, updateOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/mutations";
+import type { OutreachChannel } from "@cofounderai/module-discovery/lib/outreach/types";
 import { generateOutreachMessage } from "@cofounderai/module-discovery/lib/ai/generate-message";
 import { generateReply } from "@cofounderai/module-discovery/lib/ai/generate-reply";
 import {
@@ -34,6 +36,10 @@ import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-ac
 
 function prospectPath(businessId: string, productId: string, prospectId: string) {
   return `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospectId}`;
+}
+
+function conversionsPath(businessId: string, productId: string) {
+  return `/dashboard/businesses/${businessId}/products/${productId}/conversions`;
 }
 
 export async function updateProspectAction(
@@ -154,6 +160,24 @@ export async function approveStrategyAction(
   strategyId: string,
 ) {
   await approveOutreachStrategy(strategyId);
+  revalidatePath(prospectPath(businessId, productId, prospectId));
+}
+
+/** Item #5 of a UX pass: lets the founder edit an AI-generated strategy directly
+ * (draft or already-approved) instead of only regenerating or approving as-is. */
+export async function updateStrategyAction(
+  businessId: string,
+  productId: string,
+  prospectId: string,
+  strategyId: string,
+  formData: FormData,
+) {
+  await updateOutreachStrategy(strategyId, {
+    strategy: String(formData.get("strategy") ?? ""),
+    channel: String(formData.get("channel") ?? "email") as OutreachChannel,
+    keyMessage: String(formData.get("keyMessage") ?? ""),
+    cta: String(formData.get("cta") ?? ""),
+  });
   revalidatePath(prospectPath(businessId, productId, prospectId));
 }
 
@@ -283,6 +307,15 @@ export async function closeConversationAction(
     await setProspectOutcome(prospectId, outcome);
   }
   revalidatePath(prospectPath(businessId, productId, prospectId));
+
+  // Item #7 of a UX pass: marking a prospect "Won" is the moment it becomes a
+  // conversion, so land the founder on the Conversions page (scrolled to its own
+  // Customers list, via the `#bottom` anchor that page's own JSX carries) instead of
+  // leaving them on the prospect page they were just closing out.
+  if (outcome === "won") {
+    revalidatePath(conversionsPath(businessId, productId));
+    redirect(`${conversionsPath(businessId, productId)}#bottom`);
+  }
 }
 
 /** Logs a prospect's reply typed in by hand (docs section: Conversations redesign) --

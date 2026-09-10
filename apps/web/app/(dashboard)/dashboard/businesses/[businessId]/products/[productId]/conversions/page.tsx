@@ -88,6 +88,10 @@ export default async function ConversionsPage({
           </ul>
         )}
       </div>
+      {/* Item #7 of a UX pass: marking a prospect "Won" redirects here with a `#bottom`
+          fragment so the founder lands scrolled to this list/button, not back at the top
+          of the funnel panel they've already seen. */}
+      <div id="bottom" aria-hidden="true" />
     </div>
   );
 }

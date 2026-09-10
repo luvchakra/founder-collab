@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Sparkles } from "lucide-react";
+import { Button } from "@cofounderai/core/ui/button";
 import type { AiActionState } from "@cofounderai/core/actions/ai-action-state";
 
 /**
@@ -15,17 +16,26 @@ import type { AiActionState } from "@cofounderai/core/actions/ai-action-state";
  * flow can't be one long-lived component spanning three pages; it's three cooperating
  * ones instead, each triggered by the query flag the previous page's navigation carried
  * forward.
+ *
+ * Styled as this page's most prominent action (a filled primary button, not the muted
+ * text-link style every other trigger here uses) -- it's the one-click path that gets a
+ * founder from nothing to a populated product, so it should read as *the* thing to do
+ * first, not a minor option buried among "Regenerate"/"Add a file"/etc. `onPendingChange`
+ * lets the page's own wrapper (product-overview-shell.tsx) disable every other control
+ * while this runs, since it touches product/ICP/prospect data those controls also act on.
  */
 export function AutoPopulateStartButton({
   action,
   disabled,
   disabledReason,
   nextHref,
+  onPendingChange,
 }: {
   action: (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
   disabled?: boolean;
   disabledReason?: string;
   nextHref: string;
+  onPendingChange?: (pending: boolean) => void;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -33,6 +43,7 @@ export function AutoPopulateStartButton({
 
   async function run() {
     setPending(true);
+    onPendingChange?.(true);
     setError(null);
     const form = new FormData();
     form.set("force", "true");
@@ -40,6 +51,7 @@ export function AutoPopulateStartButton({
     if (result?.error) {
       setError(result.error);
       setPending(false);
+      onPendingChange?.(false);
       return;
     }
     router.push(nextHref);
@@ -47,20 +59,20 @@ export function AutoPopulateStartButton({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <button
+      <Button
         type="button"
         onClick={run}
         disabled={disabled || pending}
         title={disabled ? disabledReason : undefined}
-        className="flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground transition-colors hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        className="self-start"
       >
         {pending ? (
-          <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+          <Loader2 className="size-4 animate-spin" aria-hidden="true" />
         ) : (
-          <Sparkles className="size-3.5" aria-hidden="true" />
+          <Sparkles className="size-4" aria-hidden="true" />
         )}
         {pending ? "Populating overview..." : "Let AI Auto-Populate Info"}
-      </button>
+      </Button>
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   );
