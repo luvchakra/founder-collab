@@ -41,6 +41,12 @@ export function OpportunityDetail({
   addTagAction,
   removeTagAction,
   setCustomFieldAction,
+  estimateStatus,
+  canSendEstimate,
+  canRespondToEstimate,
+  sendEstimateAction,
+  approveEstimateInternalAction,
+  declineEstimateInternalAction,
 }: {
   opportunity: Opportunity;
   partyName: string;
@@ -54,6 +60,18 @@ export function OpportunityDetail({
   addTagAction: (name: string) => Promise<void>;
   removeTagAction: (tagId: string) => Promise<void>;
   setCustomFieldAction: (fieldDefId: string, value: unknown) => Promise<void>;
+  /** Estimate document state, read-only here -- EstimateBuilder (rendered separately,
+   * below) owns the estimate's own line-editing UI; these three actions are duplicated up
+   * here too so every opportunity-level action lives in one bar at the top, matching the
+   * FSM job detail page's own convention, instead of leaving "Mark lost" alone up here
+   * while the actions that actually move this opportunity toward won/lost sit a full
+   * scroll away. */
+  estimateStatus: string | null;
+  canSendEstimate: boolean;
+  canRespondToEstimate: boolean;
+  sendEstimateAction: () => Promise<{ error: string } | void>;
+  approveEstimateInternalAction: () => Promise<{ error: string } | void>;
+  declineEstimateInternalAction: () => Promise<{ error: string } | void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(opportunity.description ?? "");
@@ -62,12 +80,19 @@ export function OpportunityDetail({
   const [lostReason, setLostReason] = useState("");
   const [newTag, setNewTag] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const run = (fn: () => Promise<void>) => {
+  const run = (fn: () => Promise<void | { error: string }>, onSuccessNotice?: string) => {
     setError(null);
+    setNotice(null);
     startTransition(async () => {
       try {
-        await fn();
+        const result = await fn();
+        if (result && "error" in result) {
+          setError(result.error);
+          return;
+        }
+        if (onSuccessNotice) setNotice(onSuccessNotice);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");
       }
@@ -78,12 +103,14 @@ export function OpportunityDetail({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Opportunity</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold break-words">{partyName}</h1>
             <Badge variant={opportunity.status === "lost" ? "destructive" : "secondary"}>
               {STATUS_LABEL[opportunity.status]}
             </Badge>
           </div>
+          {opportunity.number ? <p className="mt-1 text-xs text-muted-foreground">{opportunity.number}</p> : null}
           {serviceTypeName ? <p className="mt-1 text-sm text-muted-foreground">{serviceTypeName}</p> : null}
           <p className="mt-1 text-xs text-muted-foreground">Created {formatDateTime(opportunity.created_at)}</p>
           {opportunity.source === "discovery" && opportunity.source_prospect_id && opportunity.source_workspace_id ? (
@@ -95,31 +122,52 @@ export function OpportunityDetail({
             </a>
           ) : null}
         </div>
-        {canEdit && opportunity.status !== "lost" ? (
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={pending}
-            onClick={() => setLostOpen(true)}
-            className="shrink-0 self-start"
-          >
-            Mark lost
-          </Button>
-        ) : null}
-        {canEdit && opportunity.status === "lost" ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={pending}
-            onClick={() => run(reopenAction)}
-            className="shrink-0 self-start"
-          >
-            Reopen
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canRespondToEstimate ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => run(declineEstimateInternalAction, "Estimate marked declined.")}
+              >
+                Decline internally
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={pending}
+                onClick={() => run(approveEstimateInternalAction, "Estimate approved -- a job was created.")}
+              >
+                Approve internally
+              </Button>
+            </>
+          ) : null}
+          {canSendEstimate ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pending}
+              onClick={() => run(sendEstimateAction, estimateStatus === "draft" ? "Estimate sent." : "Estimate resent.")}
+            >
+              {estimateStatus === "draft" ? "Send estimate" : "Resend estimate"}
+            </Button>
+          ) : null}
+          {canEdit && opportunity.status !== "lost" ? (
+            <Button variant="destructive" size="sm" disabled={pending} onClick={() => setLostOpen(true)}>
+              Mark lost
+            </Button>
+          ) : null}
+          {canEdit && opportunity.status === "lost" ? (
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => run(reopenAction)}>
+              Reopen
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
 
       {opportunity.status === "lost" && opportunity.lost_reason ? (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">

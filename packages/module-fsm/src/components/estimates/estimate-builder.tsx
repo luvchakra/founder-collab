@@ -61,9 +61,6 @@ export function EstimateBuilder({
   updateLineAction,
   deleteLineAction,
   reorderAction,
-  sendAction,
-  approveInternalAction,
-  declineInternalAction,
 }: {
   /** Null until the first charge is added -- the estimate document is created lazily
    * (addLineAction's own server action resolves-or-creates it). */
@@ -76,15 +73,6 @@ export function EstimateBuilder({
   updateLineAction: (lineId: string, patch: UpdateChargeLineInput) => Promise<void>;
   deleteLineAction: (lineId: string) => Promise<void>;
   reorderAction: (orderedLineIds: string[]) => Promise<void>;
-  /** F-4: emails the customer a tokenised public link (PRD §2: "send by email"). Returns
-   * `{ error }` rather than throwing on a failed send -- see this action's own doc
-   * comment (apps/web's actions.ts) for why a thrown Error here reaches the browser as an
-   * unhelpful, redacted "Minified React error" instead of its real message. */
-  sendAction: () => Promise<{ error: string } | void>;
-  /** F-4: "approve internally" / "decline internally" (PRD §2 MUST list) -- staff taking
-   * a verbal/phone approval or decline without the customer using the public page. */
-  approveInternalAction: () => Promise<{ error: string } | void>;
-  declineInternalAction: () => Promise<{ error: string } | void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [view, setView] = useState<"detailed" | "summary">("detailed");
@@ -120,9 +108,6 @@ export function EstimateBuilder({
     run(() => reorderAction(ordered.map((l) => l.id)));
   };
 
-  const canSend = canEdit && estimate !== null && lines.length > 0 && estimate.status !== "approved" && estimate.status !== "declined";
-  const canRespond = canEdit && estimate !== null && (estimate.status === "sent" || estimate.status === "viewed");
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -137,39 +122,12 @@ export function EstimateBuilder({
           </div>
           {estimate ? <Badge variant={STATUS_VARIANT[estimate.status] ?? "secondary"}>{STATUS_LABEL[estimate.status] ?? estimate.status}</Badge> : null}
         </div>
-        <div className="flex items-center gap-2">
-          {canRespond ? (
-            <>
-              <Button variant="outline" size="sm" disabled={pending} onClick={() => run(declineInternalAction, "Estimate marked declined.")}>
-                Decline internally
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pending}
-                onClick={() => run(approveInternalAction, "Estimate approved -- a job was created.")}
-              >
-                Approve internally
-              </Button>
-            </>
-          ) : null}
-          {canSend ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={() => run(sendAction, estimate?.status === "draft" ? "Estimate sent." : "Estimate resent.")}
-            >
-              {estimate?.status === "draft" ? "Send estimate" : "Resend estimate"}
-            </Button>
-          ) : null}
-          {canEdit ? (
-            <Button size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="size-4" aria-hidden="true" />
-              Add charge
-            </Button>
-          ) : null}
-        </div>
+        {canEdit ? (
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus className="size-4" aria-hidden="true" />
+            Add charge
+          </Button>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}

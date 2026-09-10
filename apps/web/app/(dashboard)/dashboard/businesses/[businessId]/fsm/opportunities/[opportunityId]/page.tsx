@@ -47,6 +47,10 @@ export default async function OpportunityDetailPage({
 
   const lines = estimate ? await listEstimateLines(businessId, estimate.id) : [];
 
+  const canSendEstimate =
+    canEditEstimates && estimate !== null && lines.length > 0 && estimate.status !== "approved" && estimate.status !== "declined";
+  const canRespondToEstimate = canEditEstimates && estimate !== null && (estimate.status === "sent" || estimate.status === "viewed");
+
   return (
     <div className="flex flex-col gap-8">
       <OpportunityDetail
@@ -62,6 +66,12 @@ export default async function OpportunityDetailPage({
         addTagAction={addOpportunityTagAction.bind(null, businessId, opportunityId)}
         removeTagAction={removeOpportunityTagAction.bind(null, businessId, opportunityId)}
         setCustomFieldAction={setOpportunityCustomFieldAction.bind(null, businessId, opportunityId)}
+        estimateStatus={estimate?.status ?? null}
+        canSendEstimate={canSendEstimate}
+        canRespondToEstimate={canRespondToEstimate}
+        sendEstimateAction={sendEstimateAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
+        approveEstimateInternalAction={approveEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
+        declineEstimateInternalAction={declineEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
       />
 
       <div>
@@ -76,9 +86,6 @@ export default async function OpportunityDetailPage({
           updateLineAction={updateEstimateChargeLineAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
           deleteLineAction={deleteEstimateChargeLineAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
           reorderAction={reorderEstimateChargeLinesAction.bind(null, businessId, estimate?.id ?? "", opportunityId)}
-          sendAction={sendEstimateAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
-          approveInternalAction={approveEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
-          declineInternalAction={declineEstimateInternalAction.bind(null, businessId, opportunityId, estimate?.id ?? "")}
         />
       </div>
     </div>
