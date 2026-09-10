@@ -62,7 +62,13 @@ export function DashboardShell({
           user={user}
           onSignOut={onSignOut}
         />
-        <main className="flex-1 bg-background p-6">{children}</main>
+        {/* `overflow-x-hidden` is the platform-wide backstop for CLAUDE.md rule #12 (no
+            page ever scrolls horizontally) -- any element that misbehaves and paints
+            wider than the viewport (a chart's first frame, an unwrapped long string) gets
+            clipped here instead of pushing the whole page into horizontal scroll. Doesn't
+            affect the legitimate `overflow-x-auto` containers (tables, etc.) nested
+            inside `children` -- those still scroll internally exactly as before. */}
+        <main className="flex-1 overflow-x-hidden bg-background p-4 sm:p-6">{children}</main>
       </div>
     </SidebarProvider>
   );
