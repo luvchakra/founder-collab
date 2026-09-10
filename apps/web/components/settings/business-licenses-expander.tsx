@@ -55,7 +55,7 @@ function StatusBadge({
 }
 
 /**
- * The "Licenses" chip on the Global Configurations hub (settings/page.tsx) expands this
+ * The "Licenses" chip on the Business Configurations hub (settings/page.tsx) expands this
  * inline instead of navigating away -- every module for this one business, with the same
  * activate/cancel controls as the standalone /dashboard/settings/licenses page, so a
  * founder can turn a module on for a business without leaving the list they're already
