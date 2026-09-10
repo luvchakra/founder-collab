@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Checkbox } from "@cofounderai/core/ui/checkbox";
@@ -90,6 +90,7 @@ export function EstimateBuilder({
   const [view, setView] = useState<"detailed" | "summary">("detailed");
   const [addOpen, setAddOpen] = useState(false);
   const [adHoc, setAdHoc] = useState(items.length === 0);
+  const [editingLine, setEditingLine] = useState<EstimateLine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -200,30 +201,41 @@ export function EstimateBuilder({
                     ) : null}
                   </div>
                   {canEdit ? (
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge" className="shrink-0">
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This removes the charge line from the estimate and cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Keep charge</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => run(() => deleteLineAction(line.id))}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            Remove
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={pending}
+                        aria-label="Edit charge"
+                        onClick={() => setEditingLine(line)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This removes the charge line from the estimate and cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => run(() => deleteLineAction(line.id))}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Remove
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   ) : null}
                 </div>
 
@@ -330,30 +342,41 @@ export function EstimateBuilder({
                   </TableCell>
                   {canEdit ? (
                     <TableCell>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This removes the charge line from the estimate and cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Keep charge</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => run(() => deleteLineAction(line.id))}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Remove
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={pending}
+                          aria-label="Edit charge"
+                          onClick={() => setEditingLine(line)}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" disabled={pending} aria-label="Remove charge">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remove &quot;{line.item_name}&quot;?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This removes the charge line from the estimate and cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Keep charge</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => run(() => deleteLineAction(line.id))}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Remove
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </TableCell>
                   ) : null}
                 </TableRow>
@@ -469,6 +492,81 @@ export function EstimateBuilder({
         </DialogContent>
       </Dialog>
 
+      <Dialog open={editingLine !== null} onOpenChange={(open) => { if (!open) setEditingLine(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit charge</DialogTitle>
+          </DialogHeader>
+          {editingLine ? (
+            <form
+              className="flex flex-col gap-4"
+              action={async (form: FormData) => {
+                const lineId = editingLine.id;
+                const patch: UpdateChargeLineInput = {
+                  quantity: Number(form.get("quantity") ?? 0),
+                  unitPrice: Number(form.get("unit_price") ?? 0),
+                  taxRate: Number(form.get("tax_rate") ?? 0),
+                  taxable: form.get("taxable") === "on",
+                  jobChargeTypeId: String(form.get("job_charge_type_id") ?? "") || null,
+                };
+                setError(null);
+                setNotice(null);
+                try {
+                  await updateLineAction(lineId, patch);
+                  setEditingLine(null);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Something went wrong.");
+                }
+              }}
+            >
+              <div>
+                <p className="text-sm font-medium break-words">{editingLine.item_name}</p>
+                {editingLine.item_sku ? <p className="text-xs text-muted-foreground">{editingLine.item_sku}</p> : null}
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-qty">Quantity</Label>
+                  <Input id="edit-qty" name="quantity" type="number" step="0.01" defaultValue={editingLine.quantity} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-price">Unit price</Label>
+                  <Input id="edit-price" name="unit_price" type="number" step="0.01" defaultValue={editingLine.unit_price} required />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="edit-tax-rate">Tax rate %</Label>
+                  <Input id="edit-tax-rate" name="tax_rate" type="number" step="0.01" defaultValue={editingLine.tax_rate} required />
+                </div>
+                {jobChargeTypes.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="edit-charge-type">Charge type</Label>
+                    <NativeSelect id="edit-charge-type" name="job_charge_type_id" defaultValue={editingLine.job_charge_type_id ?? ""}>
+                      <option value="">None</option>
+                      {jobChargeTypes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                ) : null}
+              </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox name="taxable" defaultChecked={editingLine.taxable} />
+                Taxable
+              </label>
+
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setEditingLine(null)}>
+                  Cancel
+                </Button>
+                <SubmitButton pendingText="Saving...">Save changes</SubmitButton>
+              </DialogFooter>
+            </form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

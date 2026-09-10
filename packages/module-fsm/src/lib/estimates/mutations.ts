@@ -200,6 +200,7 @@ export async function updateChargeLine(businessId: string, estimateId: string, l
   const update: Record<string, unknown> = {};
   if ("quantity" in patch) update.quantity = patch.quantity;
   if ("unitPrice" in patch) update.unit_price = patch.unitPrice;
+  if ("taxRate" in patch) update.tax_rate = patch.taxRate;
   if ("taxable" in patch) update.taxable = patch.taxable;
   if ("jobChargeTypeId" in patch) update.job_charge_type_id = patch.jobChargeTypeId;
 

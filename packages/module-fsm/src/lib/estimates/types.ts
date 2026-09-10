@@ -58,6 +58,7 @@ export interface AddChargeLineInput {
 export interface UpdateChargeLineInput {
   quantity?: number;
   unitPrice?: number;
+  taxRate?: number;
   taxable?: boolean;
   jobChargeTypeId?: string | null;
 }
