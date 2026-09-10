@@ -15,6 +15,14 @@ export function ConversionFunnelPanel({
 }) {
   const { total, steps, replyRate, closeRate } = funnel;
 
+  // Derived straight from the funnel's own step counts -- no extra props needed. "closed"
+  // means the conversation ended, win or lose, so it doubles as (won + lost) for a win
+  // rate, and total - closed is whatever's still active in the pipeline.
+  const closedCount = steps.find((s) => s.stage === "closed")?.reached ?? 0;
+  const sentCount = steps.find((s) => s.stage === "sent")?.reached ?? 0;
+  const repliedCount = steps.find((s) => s.stage === "replied")?.reached ?? 0;
+  const winRate = closedCount > 0 ? Math.round((wonCount / closedCount) * 100) : null;
+
   return (
     <div className="flex flex-col gap-4">
       {/* Customers (won) leads the grid -- it's the metric that actually matters most
@@ -24,18 +32,34 @@ export function ConversionFunnelPanel({
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Customers (won)</p>
           <p className="mt-1 text-2xl font-semibold">{wonCount}</p>
+          {winRate !== null ? <p className="mt-1 text-xs text-muted-foreground">{winRate}% win rate</p> : null}
         </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Total prospects</p>
           <p className="mt-1 text-2xl font-semibold">{total}</p>
+          {closedCount > 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {total - closedCount} active · {closedCount} closed
+            </p>
+          ) : null}
         </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Reply rate</p>
           <p className="mt-1 text-2xl font-semibold">{replyRate}%</p>
+          {sentCount > 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {repliedCount} of {sentCount} sent replied
+            </p>
+          ) : null}
         </div>
         <div className="rounded-md border p-4">
           <p className="text-xs text-muted-foreground">Overall conversion</p>
           <p className="mt-1 text-2xl font-semibold">{closeRate}%</p>
+          {total > 0 ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {closedCount} of {total} closed
+            </p>
+          ) : null}
         </div>
       </div>
 
