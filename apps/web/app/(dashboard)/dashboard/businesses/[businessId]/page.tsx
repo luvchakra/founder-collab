@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Building2, ChevronRight, Globe, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronRight, Globe, Sparkles } from "lucide-react";
 import {
   getBusiness,
   getWorkspaceForProduct,
@@ -173,13 +173,9 @@ export default async function BusinessDashboardPage({
         <div className="flex items-center justify-between gap-2">
           <Breadcrumbs items={[{ label: "Business", href: businessDetailHref }, { label: "Discovery" }]} />
           <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href={businessDetailHref}
-              className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-            >
-              <Building2 className="size-3.5" aria-hidden="true" />
-              Business
-            </Link>
+            {/* No separate "Business" button here -- the breadcrumb's own "Business"
+                crumb already links to the same place, so this was a redundant second
+                copy of the same link right next to it. */}
             <Link
               href={`/dashboard/businesses/${business.id}/usage`}
               className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
