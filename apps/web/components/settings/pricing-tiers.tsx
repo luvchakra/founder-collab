@@ -1,5 +1,4 @@
 import { Check, Sparkles } from "lucide-react";
-import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { cn } from "@cofounderai/core/lib/utils";
@@ -24,11 +23,11 @@ const TIERS: Tier[] = [
     priceDetail: "forever",
     tagline: "Everything you need to get a GTM motion running.",
     features: [
-      "Bring your own AI provider key, or use CoFounderAI's included credits",
-      `Up to ${FREE_TIER_MONTHLY_RUN_LIMIT} AI runs ($${FREE_TIER_MONTHLY_COST_LIMIT_USD} of spend) per workspace, per month`,
-      "Unlimited businesses and products",
-      "License any module on its own -- Discovery, Inventory, Service, CRM, Compliance",
-      "Community support",
+      "1 business",
+      "5 products",
+      "5 AI credits per day",
+      "Basic CRM",
+      "No GST",
     ],
     cta: "Current plan",
   },
@@ -38,10 +37,11 @@ const TIERS: Tier[] = [
     price: "Coming soon",
     tagline: "For a founder who's outgrown the free allowance.",
     features: [
-      "Everything in Free",
-      "A larger pooled AI-credit allowance -- no BYOK key required",
-      "Team roles & permissions across every licensed module",
-      "Priority email support",
+      "3 businesses",
+      "50 products",
+      "10 AI credits per day",
+      "Advanced CRM",
+      "Basic GST",
     ],
     cta: "Notify me",
     highlighted: true,
@@ -52,10 +52,11 @@ const TIERS: Tier[] = [
     price: "Coming soon",
     tagline: "For a team running every module at once.",
     features: [
-      "Everything in Pro",
-      "The highest AI-credit allowance",
-      "Dedicated onboarding",
-      "Early access to new modules",
+      "10 businesses",
+      "100 products",
+      "20 AI credits per day",
+      "Advanced CRM",
+      "Advanced GST",
     ],
     cta: "Notify me",
   },
@@ -126,12 +127,13 @@ function TierCard({ tier }: { tier: Tier }) {
  * free-tier only, confirmed by the Billing page's own pre-existing copy). Pro/Max are
  * "Notify me" rather than a live checkout -- same honesty rule this page already applies
  * to AI credits (packages/core/src/billing/) when Razorpay isn't configured: never show a
- * button that looks like it works but doesn't.
- *
- * Deliberately plan-level, not module-level: every module (Discovery, Inventory, Service,
- * CRM, Compliance) stays individually licensed and billed regardless of which plan tier
- * an account is on (CLAUDE.md's own licensing model, core.licenses) -- a tier sets AI
- * credits, seats, and support level, not which modules are usable.
+ * button that looks like it works but doesn't. The business/product caps and AI-credit
+ * allowances and CRM/GST tiers listed per plan are display-only for now, same as Pro/Max
+ * themselves -- none of them are backend-enforced yet (the Free tier's actual current
+ * limits, still in effect regardless of what's shown here, are
+ * packages/module-discovery/src/lib/usage/limits.ts's per-workspace monthly cap; every
+ * module stays individually licensed via core.licenses no matter what plan an account is
+ * on). Wiring real enforcement to these numbers is a separate, larger piece of work.
  */
 export function PricingTiers() {
   return (
@@ -139,9 +141,7 @@ export function PricingTiers() {
       <div>
         <h2 className="text-lg font-semibold">Founder Mode</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every module -- Discovery, Inventory, Service, CRM, Compliance -- is still
-          licensed and billed on its own, on any plan below. These tiers set your AI
-          credits, seats, and support level.
+          Compare what each plan includes below.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
