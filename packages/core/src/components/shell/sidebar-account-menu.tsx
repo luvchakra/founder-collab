@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Settings, ShieldCheck, SunMoon, User } from "lucide-react";
+import { BarChart3, ChevronsUpDown, CreditCard, LogOut, ShieldCheck, SunMoon, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
@@ -105,19 +105,10 @@ export function SidebarAccountMenu({
             Appearance
           </Link>
 
-          <Link
-            href="/dashboard/settings"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <Settings className="size-4 text-muted-foreground" aria-hidden="true" />
-            Settings
-          </Link>
-
+          {/* No catch-all "Settings" row to /dashboard/settings here -- Profile/Usage/
+              Billing/Appearance above already cover every account-level setting that
+              page used to also list, and what's left on it (the cross-business admin
+              list) is module-level Admin's job, not a personal avatar menu's. */}
           {user.isPlatformAdmin ? (
             <Link
               href="/dashboard/admin"

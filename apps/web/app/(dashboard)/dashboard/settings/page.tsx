@@ -1,26 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Building2, CreditCard, KeyRound, Paintbrush, Receipt, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Building2, KeyRound, Receipt, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
 import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
 import { disableBusinessAction, enableBusinessAction } from "./actions";
 
-type SettingsLink = { label: string; href: string; description: string; icon: React.ComponentType<{ className?: string }> };
-
-const ACCOUNT_LINKS: SettingsLink[] = [
-  { label: "Licenses", href: "/dashboard/settings/licenses", description: "Activate, cancel, or reactivate a module for any business.", icon: ShieldCheck },
-  { label: "Billing", href: "/dashboard/settings/billing", description: "Plan, AI provider, and credits.", icon: CreditCard },
-  { label: "Usage", href: "/dashboard/settings/usage", description: "AI runs and spend across every workspace.", icon: Sparkles },
-  { label: "Profile", href: "/dashboard/settings/profile", description: "Your own account details.", icon: Users },
-  { label: "Appearance", href: "/dashboard/settings/appearance", description: "Light/dark theme.", icon: Paintbrush },
-];
-
 /**
- * The module-picker's "Admin" shortcut now lands here instead of going straight to
- * Licenses -- a real hub for every core admin config, not just one of them. Account-
- * level settings (above) apply regardless of business; the per-business section below
- * links out to configs that only make sense scoped to one business. API Keys now lives
+ * The module-picker's "Admin" shortcut lands here -- business/module configuration only.
+ * Account-wide settings (Licenses/Billing/Usage/Profile/Appearance) used to also be
+ * listed here under an "Account" section, but that duplicated the avatar menu's own
+ * direct links to each of those (sidebar-account-menu.tsx) and Licenses's own quick-link
+ * on the Executive Dashboard -- module-level Admin now only surfaces the per-business
+ * configs below, which is the one thing this entry point actually adds. API Keys lives
  * at its own business-wide `admin/api-keys` route (moved out from under `/inventory/`
  * this pass -- `core.api_keys` was never actually inventory-specific, see that page's
  * own doc comment), so it's linked unconditionally rather than behind an inventory-
@@ -40,28 +32,9 @@ export default async function SettingsHubPage() {
       <div>
         <h1 className="text-xl font-semibold">Admin &amp; settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every core account and business configuration, in one place.
+          Every business configuration, in one place.
         </p>
       </div>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Account</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {ACCOUNT_LINKS.map(({ label, href, description, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-start gap-3 rounded-md border p-4 transition-colors hover:border-primary hover:bg-accent/40"
-            >
-              <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="font-medium">{label}</p>
-                <p className="text-sm text-muted-foreground">{description}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
 
       {businesses.length > 0 ? (
         <section className="flex flex-col gap-2">
