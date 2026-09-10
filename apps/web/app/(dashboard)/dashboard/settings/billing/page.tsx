@@ -5,6 +5,8 @@ import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/que
 import { getAiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/queries";
 import { AI_PROVIDER_LABELS } from "@cofounderai/module-discovery/lib/ai-providers/types";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@cofounderai/module-discovery/lib/usage/limits";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { AiProviderExpander } from "@/components/settings/ai-provider-expander";
 import { AiProviderForm } from "@/components/settings/ai-provider-form";
 import { PricingTiers } from "@/components/settings/pricing-tiers";
 import { connectProviderAction, disconnectProviderAction } from "./actions";
@@ -45,22 +47,28 @@ export default async function BillingSettingsPage() {
         <div className="flex max-w-lg flex-col gap-4 rounded-md border p-4">
           {connection ? (
             <>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-medium">{AI_PROVIDER_LABELS[connection.provider]}</p>
                   <p className="text-sm text-muted-foreground">••••••••••••{connection.keyFingerprint}</p>
                 </div>
-                {connection.status === "connected" ? (
-                  <span className="text-sm text-emerald-600">✓ Connected</span>
-                ) : (
-                  <span className="text-sm text-destructive">Connection error</span>
-                )}
+                <div className="flex shrink-0 items-center gap-3">
+                  {connection.status === "connected" ? (
+                    <span className="text-sm text-emerald-600">✓ Connected</span>
+                  ) : (
+                    <span className="text-sm text-destructive">Connection error</span>
+                  )}
+                  <form action={boundDisconnectAction}>
+                    <SubmitButton variant="outline" size="sm" pendingText="Disconnecting...">
+                      Disconnect
+                    </SubmitButton>
+                  </form>
+                </div>
               </div>
               {connection.lastError ? <p className="text-sm text-destructive">{connection.lastError}</p> : null}
 
               <div className="border-t pt-4">
-                <p className="mb-3 text-sm font-medium">Replace key</p>
-                <AiProviderForm
+                <AiProviderExpander
                   action={boundConnectAction}
                   disconnectAction={boundDisconnectAction}
                   defaultProvider={connection.provider}

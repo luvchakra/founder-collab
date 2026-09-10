@@ -131,7 +131,7 @@ function TierCard({ tier }: { tier: Tier }) {
 }
 
 /**
- * "Founder Mode" -- the platform's plan tiers (Free/Pro/Max/Enterprise), shown for
+ * "Module Subscription" -- the platform's plan tiers (Free/Pro/Max/Enterprise), shown for
  * comparison even though only Free is actually purchasable today (blueprint §22: MVP is
  * free-tier only, confirmed by the Billing page's own pre-existing copy). Pro/Max are
  * "Notify me" rather than a live checkout -- same honesty rule this page already applies
@@ -148,7 +148,7 @@ export function PricingTiers() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-lg font-semibold">Founder Mode</h2>
+        <h2 className="text-lg font-semibold">Module Subscription</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Compare what each plan includes below.
         </p>
