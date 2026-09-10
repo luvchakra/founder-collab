@@ -113,11 +113,14 @@ function DocRow({
       </div>
 
       {generated && !cancelled ? (
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        <div className="flex flex-col gap-2 text-xs text-muted-foreground">
           {fields.map(([fieldLabel, value]) => (
-            <div key={fieldLabel} className="flex items-center justify-between gap-2">
-              <span>{fieldLabel}</span>
-              <span className="font-mono">{value ?? "—"}</span>
+            <div key={fieldLabel} className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+              <span className="shrink-0">{fieldLabel}</span>
+              {/* IRNs run ~64 chars with no natural break point -- break-all (not
+                  break-words, which only breaks at whitespace) so a long value wraps
+                  inside the card instead of running past its right edge. */}
+              <span className="min-w-0 font-mono break-all sm:text-right">{value ?? "—"}</span>
             </div>
           ))}
         </div>
