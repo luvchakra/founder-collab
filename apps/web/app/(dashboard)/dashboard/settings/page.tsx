@@ -30,7 +30,7 @@ export default async function SettingsHubPage() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-4 sm:p-8">
       <div>
-        <h1 className="text-xl font-semibold">Admin &amp; settings</h1>
+        <h1 className="text-xl font-semibold">Global Configurations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every business configuration, in one place.
         </p>
@@ -38,7 +38,6 @@ export default async function SettingsHubPage() {
 
       {businesses.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-sm font-medium text-muted-foreground">Global Configurations</h2>
           <div className="flex flex-col divide-y rounded-md border">
             {businesses.map((business) => {
               const modules = new Set(licensedModulesByBusiness[business.id] ?? []);
