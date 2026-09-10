@@ -163,7 +163,14 @@ export function DashboardView({
                   (a reclaimable credit vs. a liability), and merging them would make an
                   ITC-heavy month look artificially "cheap". The net line below is just a quick
                   cash-flow read, not a substitute for filing each side properly. */}
-              <div className="grid gap-4 sm:grid-cols-2">
+              {/* Explicit `grid-cols-1` at the base breakpoint, not just `grid` alone --
+                  without it, Tailwind emits no `grid-template-columns` below `sm`, so the
+                  browser falls back to an implicit single column sized `auto` (not
+                  `minmax(0,1fr)`), which lets a wide child (long labels, nowrap segments)
+                  blow the column past the viewport instead of being clipped to it. That
+                  overflow was invisible as a scrollbar (the shell's own overflow-x-hidden
+                  backstop swallows it) but still cut off content at the viewport edge. */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {data.gstPayableThisMonth > 0 ? (
                   <div>
                     <p className="mb-1.5 text-xs text-muted-foreground">Paid on purchases (ITC)</p>
@@ -202,7 +209,7 @@ export function DashboardView({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Reorder watchlist</CardTitle>
