@@ -14,8 +14,6 @@ import {
   type ProductImportRow,
   type ProductImportPreviewResult,
 } from "@cofounderai/module-discovery/lib/tenancy/parse-products-import";
-import { discoverProductsFromWebsite } from "@cofounderai/module-discovery/lib/ai/discover-products";
-import type { DiscoveredProduct } from "@cofounderai/module-discovery/lib/ai/schemas";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 export async function renameBusinessAction(
@@ -113,25 +111,6 @@ export async function importProductsAction(
   const result = await createProductsBulk(businessId, rows);
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return result;
-}
-
-/**
- * "Let AI Auto-populate Products from website" -- step 1 (research + structure, no
- * write) of the same two-step preview-then-confirm shape as the file-import wizard
- * above; step 2 reuses `importProductsAction` directly (both end up calling
- * `createProductsBulk` with the same `{name, website}` row shape), rather than a
- * separate write path for the AI-sourced case.
- */
-export async function discoverProductsAction(businessId: string): Promise<
-  { products: DiscoveredProduct[] } | { error: string }
-> {
-  try {
-    const products = await discoverProductsFromWebsite(businessId);
-    return { products };
-  } catch (error) {
-    unstable_rethrow(error);
-    return { error: error instanceof Error ? error.message : "Something went wrong." };
-  }
 }
 
 export async function deleteProductAction(

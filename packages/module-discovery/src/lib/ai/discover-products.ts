@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { streamObject } from "ai";
 import { getBusiness, getFirstWorkspaceForAccount, getFirstWorkspaceForBusiness } from "../tenancy/queries";
 import {
   researchProductCatalogPrompt,
@@ -35,7 +35,16 @@ const OPERATION = "discover_products";
  * anywhere yet, there's nothing to attribute usage to and this says so rather than
  * silently picking something arbitrary.
  */
-export async function discoverProductsFromWebsite(businessId: string): Promise<DiscoveredProduct[]> {
+export async function discoverProductsFromWebsite(
+  businessId: string,
+  /** Called with the growing, not-yet-validated product list as the structuring step's
+   * own response streams in -- lets a caller (the streaming route handler behind the
+   * business page's "Let AI Auto-populate Products" button) show live progress ("Found
+   * 3 products... 5... 7...") instead of one opaque wait for the whole call to finish.
+   * Optional and side-effect-free when omitted, so the plain (non-streaming) server
+   * action caller behaves exactly as before. */
+  onProgress?: (products: Partial<DiscoveredProduct>[]) => void,
+): Promise<DiscoveredProduct[]> {
   const business = await getBusiness(businessId);
   if (!business) throw new Error("Business not found.");
   if (!business.website) {
@@ -65,12 +74,21 @@ export async function discoverProductsFromWebsite(businessId: string): Promise<D
       provider,
     );
 
-    const structureResponse = await generateObject({
+    const structureResponse = streamObject({
       model: modelAtTier("fast"),
       schema: DiscoveredProductsSchema,
       prompt: structureProductCatalogPrompt({ businessName: business.name, findings: research.findings }),
     });
-    products = structureResponse.object.products;
+
+    if (onProgress) {
+      for await (const partial of structureResponse.partialObjectStream) {
+        onProgress((partial.products ?? []).filter((p): p is Partial<DiscoveredProduct> => p !== undefined));
+      }
+    }
+
+    const structureObject = await structureResponse.object;
+    const structureUsage = await structureResponse.usage;
+    products = structureObject.products;
 
     await recordAiRun({
       workspaceId: workspace.id,
@@ -78,8 +96,8 @@ export async function discoverProductsFromWebsite(businessId: string): Promise<D
       model: modelId,
       promptVersion: DISCOVER_PRODUCTS_PROMPT_VERSION,
       inputHash,
-      inputTokens: research.inputTokens + (structureResponse.usage.inputTokens ?? 0),
-      outputTokens: research.outputTokens + (structureResponse.usage.outputTokens ?? 0),
+      inputTokens: research.inputTokens + (structureUsage.inputTokens ?? 0),
+      outputTokens: research.outputTokens + (structureUsage.outputTokens ?? 0),
       searchCount: research.searchCount,
       status: "succeeded",
       accountId,

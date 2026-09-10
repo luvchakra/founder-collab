@@ -26,17 +26,25 @@ import type { ProductImportRow } from "../../lib/tenancy/parse-products-import";
  * 2, the same one the file-import wizard already uses) is what actually creates the
  * rows, called directly with the list already in state.
  */
+/** One line of the newline-delimited stream `/dashboard/businesses/[businessId]/discover-
+ * products` sends back -- see that Route Handler's own doc comment for why this needs to
+ * be a plain streamed `Response` rather than a Server Action. */
+type DiscoverProductsEvent =
+  | { type: "progress"; products: Partial<DiscoveredProduct>[] }
+  | { type: "done"; products: DiscoveredProduct[] }
+  | { type: "error"; error: string };
+
 export function AutoPopulateProductsButton({
+  businessId,
   disabled,
   disabledReason,
-  discoverAction,
   importAction,
 }: {
+  businessId: string;
   /** True when the business has no website configured yet -- there's nothing to
    * research against. */
   disabled: boolean;
   disabledReason?: string;
-  discoverAction: () => Promise<{ products: DiscoveredProduct[] } | { error: string }>;
   importAction: (rows: ProductImportRow[]) => Promise<{ inserted: number; duplicates: number }>;
 }) {
   const router = useRouter();
@@ -44,6 +52,9 @@ export function AutoPopulateProductsButton({
   const [discovering, startDiscovering] = useTransition();
   const [importing, startImporting] = useTransition();
   const [products, setProducts] = useState<DiscoveredProduct[] | null>(null);
+  // Grows live while the AI's structuring call streams in, so the founder sees names
+  // appear one at a time instead of one opaque wait for the whole call to finish.
+  const [progressProducts, setProgressProducts] = useState<Partial<DiscoveredProduct>[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Every discovered row starts checked -- founders review and uncheck the ones they
   // don't want, rather than having to opt every row in individually.
@@ -52,15 +63,43 @@ export function AutoPopulateProductsButton({
   function launch() {
     setOpen(true);
     setProducts(null);
+    setProgressProducts([]);
     setError(null);
     startDiscovering(async () => {
-      const result = await discoverAction();
-      if ("error" in result) {
-        setError(result.error);
+      let response: Response;
+      try {
+        response = await fetch(`/dashboard/businesses/${businessId}/discover-products`, { method: "POST" });
+      } catch {
+        setError("Could not reach the server. Check your connection and try again.");
         return;
       }
-      setProducts(result.products);
-      setSelected(new Set(result.products.map((_, i) => i)));
+      if (!response.body) {
+        setError("Something went wrong.");
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as DiscoverProductsEvent;
+          if (event.type === "progress") {
+            setProgressProducts(event.products);
+          } else if (event.type === "done") {
+            setProducts(event.products);
+            setSelected(new Set(event.products.map((_, i) => i)));
+          } else {
+            setError(event.error);
+          }
+        }
+      }
     });
   }
 
@@ -115,7 +154,23 @@ export function AutoPopulateProductsButton({
           </DialogHeader>
 
           {discovering ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">Reading your website...</p>
+            progressProducts.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">Reading your website...</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Found <span className="font-medium text-foreground">{progressProducts.length}</span> product
+                  {progressProducts.length === 1 ? "" : "s"} so far...
+                </p>
+                <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
+                  {progressProducts.map((p, i) => (
+                    <li key={i} className="px-3 py-2 text-sm">
+                      {p.name || <span className="text-muted-foreground">...</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
           ) : error ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-destructive">{error}</p>

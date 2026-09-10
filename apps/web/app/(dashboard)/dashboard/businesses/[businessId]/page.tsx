@@ -15,7 +15,6 @@ import {
   updateBusinessWebsiteAction,
   previewProductImportAction,
   importProductsAction,
-  discoverProductsAction,
   deleteProductAction,
   disableProductAction,
   enableProductAction,
@@ -110,9 +109,9 @@ export default async function BusinessPage({
           </div>
           <div className="self-start">
             <AutoPopulateProductsButton
+              businessId={business.id}
               disabled={!business.website}
               disabledReason="Add a website above first."
-              discoverAction={discoverProductsAction.bind(null, business.id)}
               importAction={importProductsAction.bind(null, business.id)}
             />
           </div>
