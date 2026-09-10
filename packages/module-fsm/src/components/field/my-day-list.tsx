@@ -26,8 +26,8 @@ export function MyDayList({
   openTimeEntry,
   canManageEvents,
   canClockInOut,
-  jobHref,
-  opportunityHref,
+  jobsBasePath,
+  opportunitiesBasePath,
   notifyOnTheWayAction,
   markArrivedAction,
   markDoneAction,
@@ -38,8 +38,14 @@ export function MyDayList({
   openTimeEntry: OpenTimeEntry | null;
   canManageEvents: boolean;
   canClockInOut: boolean;
-  jobHref: (jobId: string) => string;
-  opportunityHref: (opportunityId: string) => string;
+  /** Plain base paths, not `(id) => string` closures -- only a real `"use server"`
+   * action (or a `.bind()` of one) may cross the Server-to-Client Component boundary; an
+   * ordinary function like a URL builder throws at runtime the moment this component
+   * actually renders, even though it type-checks fine (confirmed via Vercel's own runtime
+   * error logs for this exact page: "Functions cannot be passed directly to Client
+   * Components..."). The href is built inline below from plain string data instead. */
+  jobsBasePath: string;
+  opportunitiesBasePath: string;
   notifyOnTheWayAction: (eventId: string) => Promise<void>;
   markArrivedAction: (eventId: string) => Promise<void>;
   markDoneAction: (eventId: string) => Promise<void>;
@@ -83,7 +89,7 @@ export function MyDayList({
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Button asChild size="sm" variant="outline">
-                <a href={event.job_id ? jobHref(event.job_id) : opportunityHref(event.opportunity_id!)}>Open</a>
+                <a href={event.job_id ? `${jobsBasePath}/${event.job_id}` : `${opportunitiesBasePath}/${event.opportunity_id}`}>Open</a>
               </Button>
               <Button asChild size="sm" variant="ghost">
                 <a href={`https://maps.google.com/?q=${encodeURIComponent(event.party_name)}`} target="_blank" rel="noreferrer">
