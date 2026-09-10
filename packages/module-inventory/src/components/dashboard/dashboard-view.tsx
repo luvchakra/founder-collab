@@ -122,7 +122,17 @@ export function DashboardView({
           icon={<TrendingDown className="size-4 text-warning" />}
         />
         <Kpi label="Pending purchases" value={num.format(data.pendingPurchases)} icon={<ShoppingCart className="size-4 text-warning" />} />
-        <Kpi label="Sales today" value={inr.format(data.salesTodayTotal)} icon={<TrendingUp className="size-4 text-primary" />} />
+        {/* 6 KPIs above are always evenly divisible by every column count this grid uses
+            (2/3/6), so they never leave a row half-filled. This 7th one only renders when
+            stockValue is known, making the total odd -- `col-span-full` (rather than a
+            fixed span) fills whichever row it lands in at any of those breakpoints, instead
+            of sitting orphaned at one column's width like the full-width cards below it. */}
+        <Kpi
+          label="Sales today"
+          value={inr.format(data.salesTodayTotal)}
+          icon={<TrendingUp className="size-4 text-primary" />}
+          className={data.stockValue !== null ? "col-span-full" : undefined}
+        />
       </div>
 
       <Card>
@@ -424,9 +434,19 @@ function buildBrief(
   return parts.join(" ");
 }
 
-function Kpi({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
+function Kpi({
+  label,
+  value,
+  icon,
+  className,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <Card>
+    <Card className={className}>
       <CardContent className="p-3.5 sm:p-5">
         <div className="flex items-center justify-between">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground sm:text-xs">{label}</p>
