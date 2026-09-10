@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Building2, Globe, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, ChevronRight, Globe, Sparkles } from "lucide-react";
 import {
   getBusiness,
   getWorkspaceForProduct,
@@ -17,27 +17,43 @@ import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/br
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
-import { cn } from "@cofounderai/core/lib/utils";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 type ActionItem = { key: string; message: string; href: string; actionLabel: string; severity: "warning" | "info" };
 
 /** `href` makes the whole tile a link (to wherever that number is explained/acted on) --
  * every KPI here is otherwise a dead end, with the same "Products" list card that used to
- * sit below them being the only way to actually go anywhere. */
+ * sit below them being the only way to actually go anywhere. The chevron is what actually
+ * signals that at rest, not just on hover -- a bordered box alone doesn't read as tappable,
+ * especially on mobile where hover/cursor cues never show at all. */
 function KpiCard({ label, value, detail, href }: { label: string; value: string | number; detail?: string; href?: string }) {
-  const content = (
+  const label_ = (
+    <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
+  );
+  const rest = (
     <>
-      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
       <span className="text-2xl font-semibold">{value}</span>
       {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
     </>
   );
-  const className = "flex flex-col gap-1 rounded-md border p-4";
-  if (!href) return <div className={className}>{content}</div>;
+  if (!href) {
+    return (
+      <div className="flex flex-col gap-1 rounded-md border p-4">
+        {label_}
+        {rest}
+      </div>
+    );
+  }
   return (
-    <Link href={href} className={cn(className, "transition-colors hover:border-primary hover:bg-accent/40")}>
-      {content}
+    <Link
+      href={href}
+      className="flex flex-col gap-1 rounded-md border p-4 transition-colors hover:border-primary hover:bg-accent/40 active:bg-accent/60"
+    >
+      <div className="flex items-center justify-between gap-2">
+        {label_}
+        <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      </div>
+      {rest}
     </Link>
   );
 }
