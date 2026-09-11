@@ -2,9 +2,10 @@ import { createClient } from "../../db/server";
 import { computeBuyerFitScores } from "../buyer-intelligence/scoring";
 import type { BuyerPersonIntelligence } from "../buyer-intelligence/types";
 import type { SignalCorrelation } from "../signals/types";
+import { computeNextBestAction, type NextBestActionInput } from "./next-best-action";
 import { getOpportunity } from "./queries";
 import { computeOpportunityScore, type ScoreComponents } from "./scoring";
-import type { Opportunity, OpportunityStatus } from "./types";
+import type { NextBestAction, Opportunity, OpportunityStatus } from "./types";
 import { computeWhyNow } from "./why-now";
 
 type CreateOpportunityInput = {
@@ -12,7 +13,7 @@ type CreateOpportunityInput = {
   discoveryDefinitionId: string | null;
   whyThem: string | null;
   whyNow: string | null;
-  recommendedAction: string | null;
+  recommendedAction: NextBestAction | null;
 };
 
 /** No scoring logic here -- 05.2 owns computing `score`/`confidence`. This just records
@@ -193,4 +194,26 @@ export async function setOpportunityBuyerIntelligence(
     contactability: contactabilityScore,
     evidenceConfidence: current.evidence_confidence_score,
   });
+}
+
+/**
+ * DISC-OFFER-P0-07.1: "Next Best Action" -- writes `computeNextBestAction`'s own
+ * recommendation and its explanation together, the same "value and its explanation
+ * travel together, in one call" discipline `setOpportunityScoreComponents` already
+ * established for `score`/`score_reason`. Takes the pre-built `NextBestActionInput`
+ * rather than gathering it itself -- callers already have research/negative-signal/
+ * contact/message state in hand from whatever triggered a recompute (mirroring
+ * `setOpportunityBuyerIntelligence`'s own "caller assembles the narrow input" shape).
+ */
+export async function setOpportunityNextBestAction(opportunityId: string, input: NextBestActionInput): Promise<Opportunity> {
+  const result = computeNextBestAction(input);
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .update({ recommended_action: result.action, recommended_action_reason: result.reason })
+    .eq("id", opportunityId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }

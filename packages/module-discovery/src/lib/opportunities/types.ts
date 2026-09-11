@@ -18,6 +18,31 @@ export const OPPORTUNITY_STATUS_LABEL: Record<OpportunityStatus, string> = {
 export type OpportunityPriority = "high" | "medium" | "low";
 export type OpportunityConfidence = "low" | "medium" | "high";
 
+/** DISC-OFFER-P0-07.1: "Next Best Action" -- the doc's own exact seven-item closed
+ * vocabulary, distinct from `OpportunityStatus` above (the lifecycle state a founder
+ * sets by hand): this is Discovery's own advisory recommendation, recomputed as
+ * evidence changes. "No automatic outbound sending" holds structurally -- this module
+ * only ever *labels* a recommendation; nothing here sends a message or writes to the
+ * CRM on its own. See `next-best-action.ts`'s own `computeNextBestAction`. */
+export type NextBestAction =
+  | "research_more"
+  | "find_better_contact"
+  | "draft_message"
+  | "send_to_crm"
+  | "watch"
+  | "wait"
+  | "dismiss";
+
+export const NEXT_BEST_ACTION_LABEL: Record<NextBestAction, string> = {
+  research_more: "Research More",
+  find_better_contact: "Find Better Contact",
+  draft_message: "Draft Message",
+  send_to_crm: "Send to CRM",
+  watch: "Watch",
+  wait: "Wait",
+  dismiss: "Dismiss",
+};
+
 export type Opportunity = {
   id: string;
   workspace_id: string;
@@ -27,7 +52,11 @@ export type Opportunity = {
   priority: OpportunityPriority;
   why_them: string | null;
   why_now: string | null;
-  recommended_action: string | null;
+  recommended_action: NextBestAction | null;
+  /** "Recommendation must be explainable" (doc's own words) -- the plain factual reason
+   * `computeNextBestAction` produced alongside `recommended_action`, the same
+   * "explanation travels with the value" precedent `score_reason` (05.2) already set. */
+  recommended_action_reason: string | null;
   confidence: OpportunityConfidence;
   status: OpportunityStatus;
   evidence_count: number;

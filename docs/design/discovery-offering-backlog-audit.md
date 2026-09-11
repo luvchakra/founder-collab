@@ -37,7 +37,7 @@ only genuine architectural/key decisions are raised.
 | | 06.1 | Evidence-Backed Research | Done |
 | | 06.2 | Research Brief | Done |
 | | 06.3 | Buyer Intelligence | Done |
-| | 07.1 | Next Best Action | Not started |
+| | 07.1 | Next Best Action | Done |
 | | 07.2 | Today's Opportunities | Not started |
 | | 07.3 | Opportunity Detail | Not started |
 | D | 08.1 | Offering-Aware CRM Handoff | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**19 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**20 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1105,3 +1105,71 @@ would benefit most from an actual browser check, which remains unavailable here.
 
 **Status**: 19 of 68 in-scope stories done -- Phase C continuing. Next: 07.1, Next Best
 Action.
+
+### 07.1 — Next Best Action (2026-09-11)
+
+The doc's own field list here is a genuinely new closed vocabulary, not a rename of
+anything existing: `opportunities.recommended_action` (05.1) was a free-text column
+deliberately left empty for this story ("generating it here would be front-running
+07.1's own closed vocabulary", per 06.2's own log entry above), and it had zero live
+callers writing to it anywhere in the app -- `discovery.opportunities` has had no UI at
+all since 05.1, by design, with 07.1-07.3 explicitly owning that. New
+`lib/opportunities/next-best-action.ts` -- `computeNextBestAction()` -- deterministic, no
+AI call (CLAUDE.md dev principle #4/#5): an ordered set of rules over a narrow, testable
+input shape (mirroring `NegativeSignalDetectionInput`'s/`ScoreComponents`'s own "only the
+fields this needs" precedent), each returning a plain factual reason alongside its
+action -- "recommendation must be explainable" is satisfied by construction, no branch
+synthesizes prose. Rule order: an opportunity already resolved (`sent_to_crm`/
+`dismissed`/`expired`) gets no recommendation at all; a hard disqualifying negative
+signal (05.5's own `wrong_industry`/`wrong_size`/`wrong_geography`/
+`known_incompatible_solution`/`existing_active_relationship`/`recent_rejection` -- the
+two "soft" reasons, `insufficient_evidence`/`no_relevant_problem`, deliberately excluded
+from this list) outranks everything else and forces Dismiss; missing research or an
+unscoreable opportunity (05.2's own null-score case) recommends Research More; no
+contact, or the best real candidate's own contactability (06.3) is low, recommends Find
+Better Contact; a reachable contact with no outreach drafted yet recommends Draft
+Message; a strong (score >= 60), high-confidence opportunity already being worked
+recommends Send to CRM; anything else with low confidence recommends Watch; otherwise
+Wait is the steady-state default. Moved `NextBestAction`/`NEXT_BEST_ACTION_LABEL` into
+`opportunities/types.ts` itself (not `next-best-action.ts`) to avoid a circular import
+with `Opportunity`'s own `recommended_action` field, the same file `OpportunityStatus`/
+`OpportunityConfidence` already live in.
+
+Migration (`20260911005000_discovery_opportunity_next_best_action.sql`) constrains
+`recommended_action` to the doc's own seven values (the same closed-vocabulary discipline
+`status`/`confidence`/`priority` already have on this table) and adds
+`recommended_action_reason` -- "recommendation must be explainable" needs the explanation
+to travel with the value, the same precedent `score_reason` (05.2) already set. Safe as a
+plain `alter table add constraint` with no backfill: confirmed zero existing rows could
+violate it, since nothing has ever written to this column. New
+`setOpportunityNextBestAction()` (`lib/opportunities/mutations.ts`) writes both together
+in one call, mirroring `setOpportunityScoreComponents`'s own "value and explanation, one
+write" shape. Left deliberately unwired from any live call site this story -- same
+precedent 05.3's `correlateSignalsForProspect`/`attachSignalCorrelation` and 05.5's
+`syncNegativeSignalsForProspect` already established (both still have zero callers
+today): this recommendation depends on research, negative signals, buyer intelligence,
+*and* message state all at once, and the actual trigger point for "recompute the next
+best action for every opportunity" belongs to whichever of 07.2 (Today's Opportunities)
+or 07.3 (Opportunity Detail) ends up owning opportunity-list refresh -- inventing a
+premature wiring here risked getting that trigger wrong and having to redo it next story.
+Twelve new vitest cases cover every rule branch, the resolved-status short-circuit, and
+that a soft negative signal does not trigger Dismiss the way a hard one does (module
+suite now 81/81, up from 70).
+
+No UI change this story: unlike 06.2/06.3, the doc's own text for 07.1 has no "show" or
+"display" instruction (07.2's own field list is the one that names "Recommended Action"
+as a dashboard column), so displaying it is left to 07.2, which explicitly owns it,
+rather than adding a UI surface here that 07.2 would then have to rework.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1030 files, no violations), `lint:migrations` (112 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (81/81, +12 new -- one more than "twelve new" above reads,
+since one additional assertion loop covers all three resolved statuses in a single test),
+a live migration apply + `get_advisors` for both `security`/`performance` (no new
+findings -- the two new columns are constraint/data-only, no new index needed), and a
+clean `next build`. Same live-browser-walkthrough constraint noted in every prior story
+this run -- no UI was built this story regardless.
+
+**Status**: 20 of 68 in-scope stories done -- Phase C continuing. Next: 07.2, Today's
+Opportunities.
