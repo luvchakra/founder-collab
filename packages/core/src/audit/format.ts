@@ -13,6 +13,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_lead.assigned": "CRM lead assigned",
   "crm_opportunity.assigned": "CRM opportunity assigned",
   "crm_conversation.assigned": "CRM conversation assigned",
+  "crm_interaction.sent": "CRM message sent",
+  "crm_channel_connection.connected": "CRM channel connected",
+  "crm_channel_connection.disconnected": "CRM channel disconnected",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -22,6 +25,8 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   crm_lead: "CRM Lead",
   crm_opportunity: "CRM Opportunity",
   crm_conversation: "CRM Conversation",
+  crm_interaction: "CRM Interaction",
+  crm_channel_connection: "CRM Channel Connection",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

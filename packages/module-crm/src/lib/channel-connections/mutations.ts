@@ -1,6 +1,7 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
+import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
 import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
 
@@ -23,19 +24,36 @@ export async function connectWhatsApp(businessId: string, input: { phoneNumberId
   if (!check.ok) return { ok: false, error: check.detail ?? "WhatsApp connection could not be verified." };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("channel_connection").upsert(
-    {
-      business_id: businessId,
-      channel: "whatsapp",
-      provider: "whatsapp_cloud_api",
-      external_account_id: input.phoneNumberId,
-      access_token_encrypted: encryptApiKey(input.accessToken),
-      status: "connected",
-      last_synced_at: new Date().toISOString(),
-    },
-    { onConflict: "business_id,channel,provider,external_account_id" },
-  );
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("channel_connection")
+    .upsert(
+      {
+        business_id: businessId,
+        channel: "whatsapp",
+        provider: "whatsapp_cloud_api",
+        external_account_id: input.phoneNumberId,
+        access_token_encrypted: encryptApiKey(input.accessToken),
+        status: "connected",
+        last_synced_at: new Date().toISOString(),
+      },
+      { onConflict: "business_id,channel,provider,external_account_id" },
+    )
+    .select("id")
+    .single();
   if (error) throw error;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_channel_connection.connected",
+    entityType: "crm_channel_connection",
+    entityId: data.id,
+    after: { channel: "whatsapp", external_account_id: input.phoneNumberId, status: "connected" },
+  });
+
   return { ok: true };
 }
 
@@ -46,6 +64,9 @@ export async function disconnectChannelConnection(businessId: string, connection
   await requireModule(businessId, "crm");
   await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("channel_connection")
     .update({ status: "disconnected", access_token_encrypted: null, refresh_token_encrypted: null })
@@ -56,4 +77,13 @@ export async function disconnectChannelConnection(businessId: string, connection
   if (!data || data.length === 0) {
     throw new Error("This connection could not be updated -- it may have been removed, or your access to it may have changed.");
   }
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_channel_connection.disconnected",
+    entityType: "crm_channel_connection",
+    entityId: connectionId,
+    after: { status: "disconnected" },
+  });
 }
