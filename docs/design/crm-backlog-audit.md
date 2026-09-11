@@ -168,6 +168,20 @@ detail page exists to link to (only FSM's `jobs/[jobId]` today). Rendered as a n
 "Timeline" card on the Customer 360 page. Verified with full monorepo typecheck, a clean
 `next build`, `lint:boundaries`, and module-crm's vitest suite.
 
+## CRM-02.4 (2026-09-11)
+
+Mostly already satisfied by CRM-01.2/01.3: `crm.lead.source` and `crm.opportunity.source`
+(CRM-02.4's own exact enum values) were added in the schema baseline, and
+`convertLeadToOpportunity()` already carries the lead's `source` forward onto the new
+opportunity, so "source survives conversion" required no new code. Added
+`countLeadsBySource()` (`lib/leads/queries.ts`) as the minimal concrete proof that
+"analytics can aggregate by source" -- the real reporting UI (CRM-14.4 "Discovery -> CRM
+Funnel", CRM-14.6 "Channel Performance") is a later story, not pre-built here. No
+equivalent for opportunities yet: there's no `lib/opportunities/` domain at all until
+CRM-04.2 builds the pipeline (today opportunities only exist via
+`convertLeadToOpportunity()`), so a dedicated opportunities-aggregation query has nothing
+real to attach to yet.
+
 ## No unrelated module changed
 
 This audit and CRM-01.2's schema migration touch only `docs/design/`, this new audit
