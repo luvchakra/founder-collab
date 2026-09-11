@@ -71,6 +71,12 @@ export const IcpProfileSchema = z.object({
   exclusions: z
     .array(z.string())
     .describe("Company types that look similar but are NOT a good fit, and why"),
+  /** DISC-OFFER-P0-02.2's own field-list additions to the ICP Builder. */
+  revenue: z.array(z.string()).describe("Typical annual revenue ranges of a good-fit company, e.g. '$10M-$50M'"),
+  business_model: z.array(z.string()).describe("e.g. 'B2B SaaS', 'Marketplace', 'Direct-to-consumer'"),
+  technology: z.array(z.string()).describe("Technologies/platforms a good-fit company is likely already using"),
+  growth_stage: z.array(z.string()).describe("e.g. 'Seed', 'Series A-B', 'Growth', 'Enterprise/mature'"),
+  existing_tools: z.array(z.string()).describe("Categories of tool a good-fit company likely already has, that this offering complements or replaces"),
 });
 
 export type IcpProfileDraft = z.infer<typeof IcpProfileSchema>;

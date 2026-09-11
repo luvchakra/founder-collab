@@ -21,7 +21,7 @@ only genuine architectural/key decisions are raised.
 | | 01.2 | Existing Product Compatibility | Done |
 | | 01.3 | Offering CRUD UI | Done |
 | | 02.1 | Offering Setup | Done |
-| | 02.2 | Offering ICP | Not started |
+| | 02.2 | Offering ICP | Done |
 | | 02.3 | Buyer Personas | Not started |
 | B | 03.1 | Offering Context Selector | Not started |
 | | 03.2 | Offering Overview | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**4 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**5 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -311,3 +311,44 @@ disciplined reuse of the already-proven AI scaffolding and 01.3's own dialog, no
 rendered screenshot. No migration this story.
 
 **Status**: 4 of 68 in-scope stories done. Next: 02.2, Offering ICP.
+
+### 02.2 — Offering ICP (2026-09-11)
+
+Checked the existing ICP model before building anything: `discovery.icp_profiles.workspace_id`
+is already `unique`, and every offering already has exactly one workspace -- so "ICP is
+linked to the offering" and "one business can have different ICPs for different
+offerings" were **already true by construction**, before this story touched anything.
+The two real gaps: the field list was missing five of the backlog's own asks (revenue,
+business model, technology, growth stage, existing tools -- had industries/company
+sizes/geographies/roles/pain points/exclusions already, plus one extra, buying_signals,
+left alone since it's used elsewhere in scoring), and "ICP can be cloned" wasn't built at
+all.
+
+Migration (`20260911003800_discovery_offering_icp_fields.sql`) adds the five missing
+columns, same `text[] not null default '{}'` shape as every existing list field, so nothing
+needs backfilling. Extended `IcpProfileSchema` (the AI generator's own output schema) and
+`generate-icp.ts`'s write to cover them too, rather than leaving them AI-blind fields
+manually-entered-only -- an approved ICP is untouched by this (the freshness gate only
+regenerates a draft or an explicit force), so no founder-approved ICP loses data;
+newly-generated/regenerated ones just also fill these five now.
+
+New `cloneIcpProfileToWorkspace()`: since one workspace can have at most one ICP, "clone"
+upserts the target's own row with the source's values (creating it if the target had
+none, overwriting if it did) rather than creating a second row -- reset to `draft`
+either way, needing its own re-approval like any edit. New
+`listCloneableIcpSourcesForBusiness()` finds every *other* offering in the business that
+already has an ICP to clone from (three small queries -- products/workspaces/icp_profiles
+have no PostgREST embed between them, same "join in JS" convention this module already
+uses everywhere). UI: a `CloneIcpButton` (offering picker + `AlertDialog` confirmation,
+since cloning overwrites) in both the "no ICP yet" empty state and the header of an
+existing ICP.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(974 files, no violations), `lint:migrations` (100 migrations, no violations),
+`npm run lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (19/19, unchanged), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings), and a clean `next build`. Same
+live-browser-walkthrough constraint noted in 01.3/02.1 (no seeded demo user in this
+environment).
+
+**Status**: 5 of 68 in-scope stories done. Next: 02.3, Buyer Persona Definition.

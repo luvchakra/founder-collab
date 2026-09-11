@@ -5,8 +5,10 @@ import { generateIcp } from "@cofounderai/module-discovery/lib/ai/generate-icp";
 import {
   updateIcpProfile,
   approveIcpProfile,
+  cloneIcpProfileToWorkspace,
   parseListField,
 } from "@cofounderai/module-discovery/lib/icp/mutations";
+import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 
 function icpPath(businessId: string, productId: string) {
@@ -42,8 +44,28 @@ export async function updateIcpAction(
     painPoints: parseListField(String(formData.get("painPoints") ?? "")),
     buyingSignals: parseListField(String(formData.get("buyingSignals") ?? "")),
     exclusions: parseListField(String(formData.get("exclusions") ?? "")),
+    revenue: parseListField(String(formData.get("revenue") ?? "")),
+    businessModel: parseListField(String(formData.get("businessModel") ?? "")),
+    technology: parseListField(String(formData.get("technology") ?? "")),
+    growthStage: parseListField(String(formData.get("growthStage") ?? "")),
+    existingTools: parseListField(String(formData.get("existingTools") ?? "")),
   });
   revalidatePath(icpPath(businessId, productId));
+}
+
+/** DISC-OFFER-P0-02.2's "ICP can be cloned" -- clones another offering's ICP onto this
+ * one's own workspace (creating it if this offering had none, overwriting if it did). */
+export async function cloneIcpAction(businessId: string, productId: string, sourceIcpId: string): Promise<{ error: string } | { success: true }> {
+  const workspace = await getWorkspaceForProduct(productId);
+  if (!workspace) return { error: "Workspace not found for this offering." };
+
+  try {
+    await cloneIcpProfileToWorkspace(sourceIcpId, workspace.id);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not clone this ICP." };
+  }
+  revalidatePath(icpPath(businessId, productId));
+  return { success: true };
 }
 
 export async function approveIcpAction(
