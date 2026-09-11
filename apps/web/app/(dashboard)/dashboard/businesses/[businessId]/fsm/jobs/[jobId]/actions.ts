@@ -27,7 +27,7 @@ import { captureSignature } from "@cofounderai/module-fsm/lib/signatures/mutatio
 import { sendJobMessage } from "@cofounderai/module-fsm/lib/messages/mutations";
 import { resolveJobPartsShortage, retryJobPartsReservation, recordJobPartsConsumption } from "@cofounderai/module-fsm/lib/inventory-integration/mutations";
 import type { NoteVisibility } from "@cofounderai/module-fsm/lib/notes/types";
-import type { JobPartsShortageResolution } from "@cofounderai/module-fsm/lib/jobs/types";
+import type { JobOutcome, JobPartsShortageResolution } from "@cofounderai/module-fsm/lib/jobs/types";
 
 const TAGGABLE_TYPE = "job";
 
@@ -83,9 +83,9 @@ export async function resumeJobAction(businessId: string, jobId: string): Promis
   revalidatePath(detailPath(businessId, jobId));
 }
 
-export async function completeJobAction(businessId: string, jobId: string): Promise<void> {
+export async function completeJobAction(businessId: string, jobId: string, outcome: JobOutcome, outcomeNotes: string): Promise<void> {
   await requirePermission(businessId, "jobs.edit");
-  await completeJob(jobId, businessId);
+  await completeJob(jobId, businessId, outcome, outcomeNotes);
   revalidatePath(detailPath(businessId, jobId));
 }
 

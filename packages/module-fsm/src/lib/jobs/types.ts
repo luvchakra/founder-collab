@@ -1,5 +1,18 @@
 export type JobStatus = "unscheduled" | "scheduled" | "in_progress" | "on_hold" | "completed" | "cancelled";
 
+/** INT-06.1's "Service Outcome Classification" -- distinct from `status` ('completed'
+ * is the workflow state; this is what actually happened commercially). Fixed vocabulary,
+ * chosen by a person at completion time -- "Do not use AI to invent the operational
+ * state" is this story's own explicit instruction. */
+export type JobOutcome =
+  | "completed_successfully"
+  | "completed_with_recommendation"
+  | "additional_work_required"
+  | "parts_required_later"
+  | "customer_declined_additional_work"
+  | "warranty_revisit_required"
+  | "unresolved";
+
 /** INT-03.2: outcome of the job's own last parts-reservation attempt
  * (`reserveJobParts()`, `lib/inventory-integration/mutations.ts`) -- not a stock ledger,
  * Inventory's `stock_movements`/`stock_levels` remain the only authority on what
@@ -56,6 +69,8 @@ export interface Job {
   started_at: string | null;
   completed_at: string | null;
   on_hold_reason: string | null;
+  outcome: JobOutcome | null;
+  outcome_notes: string | null;
   recurring_template_id: string | null;
   parts_reservation_status: JobPartsReservationStatus | null;
   parts_reservation_detail: JobPartsShortfallLine[] | null;

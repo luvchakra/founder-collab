@@ -37,7 +37,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Done |
 | | 05.2 | Inventory Substitution Recommendation | Done |
 | | 05.3 | Shortage -> Customer Follow-up | Done |
-| INT-06 (P1) | 06.1 | Service Outcome Classification | Not started |
+| INT-06 (P1) | 06.1 | Service Outcome Classification | Done |
 | | 06.2 | Additional Work -> CRM Opportunity | Not started |
 | | 06.3 | Recommended Parts -> Inventory | Not started |
 | | 06.4 | Warranty / Revisit -> FSM | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 3/13 done. Overall: 19/29 (66%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 4/13 done. Overall: 20/29 (69%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -344,3 +344,13 @@ Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:bou
 **Epic INT-05 complete (3/3).**
 
 **Status**: 19 of 29 in-scope stories done. Next: INT-06.1, Service Outcome Classification (starts Epic INT-06).
+
+### INT-06.1 — Service Outcome Classification (2026-09-11)
+
+New `fsm.jobs.outcome` (fixed 7-value vocabulary per the story's own text, `completed_successfully` through `unresolved`) + `outcome_notes`, distinct from `status`: `status = 'completed'` is the workflow state, `outcome` is what actually happened commercially -- the thing INT-06.2/06.3/06.4 all need to react to. "Do not use AI to invent the operational state" is enforced structurally, not by convention: `completeJob()` (`lib/jobs/mutations.ts`) now takes `outcome` as a required parameter, chosen by a person from the fixed `JobOutcome` union, set in the same transition as `status: 'completed'` so a completed job can't exist without one.
+
+UI: the job detail page's "Complete" button now opens a dialog (mirroring the existing "Put on hold" reason dialog) with an outcome select and optional notes, instead of completing on a single click; the outcome renders as a badge next to the status badge once set. No new page, no list/board changes -- this story's own scope is the classification itself, not a new outcomes dashboard.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (92 migrations, no violations), `node scripts/test-module.mjs fsm` (module-fsm has no unit test files, consistent with the rest of this module; the RLS harness failed only on the expected no-local-Postgres `createdb` connection error, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings beyond the same pre-existing INFO noise), and a clean `next build`.
+
+**Status**: 20 of 29 in-scope stories done. Next: INT-06.2, Additional Work -> CRM Opportunity.

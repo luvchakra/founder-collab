@@ -27,7 +27,7 @@ import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { CustomFieldWithValue } from "../../lib/custom-fields/types";
 import type { Expense } from "../../lib/expenses/types";
 import type { JobAttachmentItem } from "../../lib/attachments/types";
-import type { AuditLogEntry, Job, JobPartsShortageResolution, JobStatus } from "../../lib/jobs/types";
+import type { AuditLogEntry, Job, JobOutcome, JobPartsShortageResolution, JobStatus } from "../../lib/jobs/types";
 import type { NoteItem, NoteVisibility } from "../../lib/notes/types";
 import type { SignatureItem } from "../../lib/signatures/types";
 import type { Tag } from "../../lib/tags/types";
@@ -54,6 +54,17 @@ const RESERVATION_STATUS_LABEL: Record<NonNullable<Job["parts_reservation_status
   reserved: "Reserved",
   partially_reserved: "Partially reserved",
   unavailable: "Unavailable",
+};
+
+/** INT-06.1: fixed vocabulary, never AI-invented -- see JobOutcome's own doc comment. */
+const OUTCOME_LABEL: Record<JobOutcome, string> = {
+  completed_successfully: "Completed successfully",
+  completed_with_recommendation: "Completed with recommendation",
+  additional_work_required: "Additional work required",
+  parts_required_later: "Parts required later",
+  customer_declined_additional_work: "Customer declined additional work",
+  warranty_revisit_required: "Warranty/revisit required",
+  unresolved: "Unresolved",
 };
 
 const SHORTAGE_RESOLUTION_LABEL: Record<JobPartsShortageResolution, string> = {
@@ -140,7 +151,7 @@ export function JobDetail({
   startAction: () => Promise<void>;
   holdAction: (reason: string) => Promise<void>;
   resumeAction: () => Promise<void>;
-  completeAction: () => Promise<void>;
+  completeAction: (outcome: JobOutcome, outcomeNotes: string) => Promise<void>;
   cancelAction: () => Promise<void>;
   reopenAction: () => Promise<void>;
   duplicateAction: () => Promise<{ id: string }>;
@@ -170,6 +181,9 @@ export function JobDetail({
   const [newTag, setNewTag] = useState("");
   const [holdOpen, setHoldOpen] = useState(false);
   const [holdReason, setHoldReason] = useState("");
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [outcome, setOutcome] = useState<JobOutcome>(job.outcome ?? "completed_successfully");
+  const [outcomeNotes, setOutcomeNotes] = useState(job.outcome_notes ?? "");
   const [shortageResolution, setShortageResolution] = useState<JobPartsShortageResolution>(job.parts_shortage_resolution ?? "await_replenishment");
   const [shortageNote, setShortageNote] = useState(job.parts_shortage_resolution_note ?? "");
   const [consumption, setConsumption] = useState<Record<string, { actual: string; returned: string; wasted: string }>>(() => {
@@ -222,6 +236,7 @@ export function JobDetail({
             <Badge variant={job.status === "cancelled" ? "destructive" : job.status === "completed" ? "default" : "secondary"}>
               {STATUS_LABEL[job.status]}
             </Badge>
+            {job.status === "completed" && job.outcome ? <Badge variant="outline">{OUTCOME_LABEL[job.outcome]}</Badge> : null}
           </div>
           {job.number ? <p className="mt-1 text-xs text-muted-foreground">{job.number}</p> : null}
           {serviceTypeName ? <p className="mt-1 text-sm text-muted-foreground">{serviceTypeName}</p> : null}
@@ -251,7 +266,7 @@ export function JobDetail({
               </Button>
             ) : null}
             {job.status === "in_progress" || job.status === "on_hold" ? (
-              <Button size="sm" disabled={pending} onClick={() => run(completeAction)}>
+              <Button size="sm" disabled={pending} onClick={() => setCompleteOpen(true)}>
                 Complete
               </Button>
             ) : null}
@@ -687,6 +702,44 @@ export function JobDetail({
               }
             >
               Put on hold
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={completeOpen} onOpenChange={setCompleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete this job</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="job-outcome">Outcome</Label>
+            <NativeSelect id="job-outcome" value={outcome} onChange={(e) => setOutcome(e.target.value as JobOutcome)}>
+              {Object.entries(OUTCOME_LABEL).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="job-outcome-notes">Notes (optional)</Label>
+            <Textarea id="job-outcome-notes" rows={3} value={outcomeNotes} onChange={(e) => setOutcomeNotes(e.target.value)} placeholder="Anything relevant about this outcome" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCompleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  await completeAction(outcome, outcomeNotes);
+                  setCompleteOpen(false);
+                })
+              }
+            >
+              Complete job
             </Button>
           </DialogFooter>
         </DialogContent>
