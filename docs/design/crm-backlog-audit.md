@@ -114,6 +114,15 @@ and rejected).
   channel-specific detail (email subject, Instagram comment id) living in `metadata`,
   not a dedicated column per channel — and that `requires_response` defaults to `false`.
   No new schema or contract change was needed for this story.
+- **CRM-01.6** (interaction dedup & idempotency) — done. Inbound dedup
+  (`external_message_id`) already existed from CRM-01.2/01.3; this story adds the
+  outbound half: `crm.interaction.client_dedupe_key` (new column + partial unique index)
+  plus `recordInteraction()`'s new branch -- an existing non-`failed` row under the same
+  key is returned as-is (already sent, don't resend), an existing `failed` row is updated
+  in place via a new `retryFailedInteraction()` helper. Added `markInteractionFailed()`
+  (internal-only, not part of the CRM-01.3 contract list) so a failure is visible
+  (`status = 'failed'`, reason in `metadata.failureReason`) and retryable. Verified via
+  `scripts/test-crm-backlog-rls.mjs`.
 
 ## No unrelated module changed
 

@@ -29,6 +29,12 @@ export type Interaction = {
   source_module: string | null;
   source_reference: string | null;
   metadata: Record<string, unknown>;
+  /** CRM-01.6: caller-supplied idempotency key for an outbound send attempt -- see
+   * lib/interactions/mutations.ts's own doc comment on `recordInteraction()` for why
+   * `external_message_id` alone can't dedupe a retried send (the provider hasn't
+   * assigned one yet). Null for inbound interactions and any outbound one recorded
+   * without retry protection. */
+  client_dedupe_key: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -53,4 +59,9 @@ export type RecordInteractionInput = {
   sourceModule?: string | null;
   sourceReference?: string | null;
   metadata?: Record<string, unknown>;
+  /** CRM-01.6: pass a stable key (generated once per logical send attempt, reused
+   * across retries of that same attempt) for an outbound interaction so a retried send
+   * updates the same row instead of creating a second one. Not needed for inbound
+   * interactions, which dedupe on `externalMessageId` instead. */
+  clientDedupeKey?: string | null;
 };

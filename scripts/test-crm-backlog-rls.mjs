@@ -129,6 +129,23 @@ async function main() {
         "a duplicate (business_id, provider, external_review_id) review_item is rejected",
       );
 
+      console.log("Verifying CRM-01.6's client_dedupe_key (outbound send-retry) idempotency...");
+      const outboundAttempt = psqlAsAlice(`
+        insert into crm.interaction (business_id, conversation_id, channel, direction, client_dedupe_key, status)
+        values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'outbound', 'send-attempt-1', 'failed')
+        returning id;
+      `);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, client_dedupe_key) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'outbound', 'send-attempt-1')`),
+        "a second insert under the same client_dedupe_key is rejected -- recordInteraction()'s retry path updates the existing row instead of inserting a new one",
+      );
+      psqlAsAlice(`update crm.interaction set status = 'received', content_excerpt = 'retried and sent' where id = '${outboundAttempt}'`);
+      assertEqual(
+        psqlAsAlice(`select status || '|' || content_excerpt from crm.interaction where id = '${outboundAttempt}'`),
+        "received|retried and sent",
+        "the same row can be updated in place once the retry succeeds, per recordInteraction()'s retryFailedInteraction() helper",
+      );
+
       console.log("Verifying CRM-01.5's provider-neutral interaction model...");
       const emailConversation = psqlAsAlice(`insert into crm.conversation (business_id, party_id, primary_channel) values ('${aliceBusiness}', '${aliceParty}', 'email') returning id;`);
       const emailInteraction = psqlAsAlice(`

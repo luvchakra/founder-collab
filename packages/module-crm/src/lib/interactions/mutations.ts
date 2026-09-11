@@ -36,6 +36,58 @@ async function findOrCreateConversation(
   return created.id;
 }
 
+/** CRM-01.6: retries a previously `failed` outbound interaction under the same
+ * `clientDedupeKey` -- updates the row's content in place (the caller is presumably
+ * re-sending with the same or corrected content) and clears the failure rather than
+ * inserting a second row for the same logical send attempt. */
+async function retryFailedInteraction(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  businessId: string,
+  existing: Interaction,
+  input: RecordInteractionInput,
+): Promise<Interaction> {
+  const { data, error } = await supabase
+    .from("interaction")
+    .update({
+      content_reference: input.contentReference ?? existing.content_reference,
+      content_excerpt: input.contentExcerpt ?? existing.content_excerpt,
+      media_reference: input.mediaReference ?? existing.media_reference,
+      metadata: input.metadata ?? existing.metadata,
+      status: "received",
+    })
+    .eq("id", existing.id)
+    .eq("business_id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Interaction;
+}
+
+/** CRM-01.6: "failure states are visible and retryable." Marks an interaction (an
+ * outbound send that failed, most often) `failed` with a human-readable reason recorded
+ * in `metadata.failureReason` -- visible to any UI reading the interaction, and
+ * retryable by calling `recordInteraction()` again with the same `clientDedupeKey`. */
+export async function markInteractionFailed(businessId: string, interactionId: string, reason: string): Promise<Interaction> {
+  const supabase = await createClient();
+  const { data: existing, error: existingError } = await supabase
+    .from("interaction")
+    .select("metadata")
+    .eq("id", interactionId)
+    .eq("business_id", businessId)
+    .single();
+  if (existingError) throw existingError;
+
+  const { data, error } = await supabase
+    .from("interaction")
+    .update({ status: "failed", metadata: { ...existing.metadata, failureReason: reason } })
+    .eq("id", interactionId)
+    .eq("business_id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Interaction;
+}
+
 /**
  * CRM-01.3's `recordInteraction()` contract operation -- the one entry point any module
  * (or a future inbound webhook) uses to log an interaction against the shared
@@ -43,16 +95,38 @@ async function findOrCreateConversation(
  * doesn't already have one (simple party+channel match -- CRM-06.4's own richer matching
  * hierarchy comes later), then inserts the interaction.
  *
- * CRM-01.6 idempotency: `crm.interaction`'s own partial unique index on
- * (business_id, channel, external_message_id) is the source of truth. A duplicate
- * delivery (replayed webhook, retried send) hits that constraint and this function
- * returns the already-recorded row instead of erroring or duplicating the timeline --
- * and, deliberately, without re-publishing `crm.interaction.received`/
- * `crm.conversation.updated` a second time for it (CRM-01.4's events are emitted only on
- * the genuine-insert path below, never on the dedup-return path).
+ * CRM-01.6 idempotency has two mechanisms, for the two cases that need different ones:
+ * - **Inbound / already has a provider id**: `crm.interaction`'s own partial unique
+ *   index on (business_id, channel, external_message_id) is the source of truth. A
+ *   duplicate delivery (replayed webhook) hits that constraint and this function returns
+ *   the already-recorded row instead of erroring or duplicating the timeline.
+ * - **Outbound / not sent yet**: the provider hasn't assigned a message id yet, so
+ *   `external_message_id` can't dedupe a retried send. `clientDedupeKey` (a key the
+ *   caller generates once per logical send attempt and reuses across retries of that
+ *   same attempt) is checked first: an existing row under that key that is NOT `failed`
+ *   is returned as-is (the send already succeeded, don't send again); one that IS
+ *   `failed` is updated in place and effectively retried (CRM-01.6's "failure states are
+ *   visible and retryable" -- see `markInteractionFailed()` below for how a row gets
+ *   into that state).
+ *
+ * Either path is deliberately silent about re-publishing `crm.interaction.received`/
+ * `crm.conversation.updated` (CRM-01.4's events fire only on the genuine-insert path).
  */
 export async function recordInteraction(businessId: string, input: RecordInteractionInput): Promise<Interaction> {
   const supabase = await createClient();
+
+  if (input.clientDedupeKey) {
+    const { data: existing, error: existingError } = await supabase
+      .from("interaction")
+      .select("*")
+      .eq("business_id", businessId)
+      .eq("client_dedupe_key", input.clientDedupeKey)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing && existing.status !== "failed") return existing as Interaction;
+    if (existing) return retryFailedInteraction(supabase, businessId, existing as Interaction, input);
+  }
+
   const conversationId = await findOrCreateConversation(supabase, businessId, input);
 
   const row = {
@@ -62,6 +136,7 @@ export async function recordInteraction(businessId: string, input: RecordInterac
     channel: input.channel,
     external_actor_id: input.externalActorId ?? null,
     external_message_id: input.externalMessageId ?? null,
+    client_dedupe_key: input.clientDedupeKey ?? null,
     direction: input.direction,
     interaction_type: input.interactionType ?? "message",
     occurred_at: input.occurredAt ?? new Date().toISOString(),
