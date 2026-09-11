@@ -40,7 +40,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Done |
 | | 06.2 | Additional Work -> CRM Opportunity | Done |
 | | 06.3 | Recommended Parts -> Inventory | Done |
-| | 06.4 | Warranty / Revisit -> FSM | Not started |
+| | 06.4 | Warranty / Revisit -> FSM | Done |
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Not started |
 | | 07.2 | Exception Resolution Actions | Not started |
 | | 07.3 | Exception Auto-Close | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 6/13 done. Overall: 22/29 (76%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 7/13 done. Overall: 23/29 (79%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -376,3 +376,17 @@ UI: a new section in the job detail page's existing Materials tab (not a new tab
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (95 migrations, no violations), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every fsm-touching story this session), two live migration applies + `get_advisors` for both `security`/`performance` (no new findings), and a clean `next build`.
 
 **Status**: 22 of 29 in-scope stories done. Next: INT-06.4, Warranty / Revisit -> FSM.
+
+### INT-06.4 — Warranty / Revisit -> FSM (2026-09-11)
+
+The one story in this epic whose acceptance criteria explicitly forbid the pattern the other three established: "Do not create a new CRM opportunity unless the FSM outcome represents commercial work" -- a warranty revisit isn't commercial work, so unlike INT-06.2/06.3 this story publishes **no** domain event and touches no `crm.*` table at all. New `fsm.jobs.revisit_of_job_id` (self-referencing FK, `fsm.jobs -> fsm.jobs`) is a same-schema pointer, not a cross-module one -- the "cross-schema FKs point only into core" rule governs pointers that cross a *module* boundary; a table referencing itself within its own module's schema is the ordinary case every other same-module FK in this codebase already is (`opportunity_id`, `service_type_id`, ...), so a real FK + index is correct here, not a bare uuid.
+
+`completeJob()` (`lib/jobs/mutations.ts`), when the founder's own INT-06.1 classification is `warranty_revisit_required`, calls new `createRevisitJob()` (best-effort, same `.catch(() => {})` discipline as every other post-completion side effect in this function) to insert a fresh `unscheduled` job for the same party/contact/address/service type, numbered through the same `core.next_number()` sequence every other job uses, with `description` summarizing which job it followed up ("Warranty revisit for JOB-0004: <notes>") and `revisit_of_job_id` pointing back at the original. "New/reopened FSM service action" reads as *new* here rather than *reopened*: reopening the same job (`reopenJob()`, already existing, admin-only) would erase its own completion history for what is really a distinct future visit at a different time -- a fresh job is the correct FSM-native shape, the same reasoning `duplicateJob()` already established for a different scenario.
+
+"CRM relationship timeline updated" needed **zero** new CRM code: INT-01.1's `listRelationshipTimeline()` already reads every `fsm.jobs` row for a party live (`listRecentJobsForParty()`), so the new revisit job appears there automatically the moment it's inserted, description and all -- exactly the "read live, one pointer" principle this backlog has followed throughout, taken to its logical conclusion of needing no pointer or event at all when the consuming side already has a live read path.
+
+UI: two small banners on the job detail page (mirroring the existing on-hold-reason banner's exact style) -- a job that is itself a revisit shows "Warranty revisit for `<link to original>`"; a job that already spawned one shows "Warranty revisit job created: `<link to the new job>`". New `getRevisitJobLinks()` query resolves both directions (the reverse lookup uses `.limit(1)` ordered by `created_at desc` rather than `.maybeSingle()`, since a job reopened and recompleted with the same outcome more than once could legitimately have more than one child).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces, after a fresh `npm install` on this newly-checked-out worktree), `lint:boundaries` (958 files, no violations), `lint:migrations` (96 migrations, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged -- this story never touches `module-crm`), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every fsm-touching story this session, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings -- the new FK's index means no `unindexed_foreign_keys` finding, and the index itself only shows up under the already-ignored `unused_index` INFO noise, expected for a brand-new column in a dev project with no traffic), and a clean `next build`.
+
+**Status**: 23 of 29 in-scope stories done -- **Epic INT-06 complete** (4/4). Next: INT-07.1, Cross-Module Exception Model (starts Epic INT-07, the last P1 epic before INT-08).

@@ -120,7 +120,16 @@ export async function resumeJob(id: string, businessId: string): Promise<void> {
  * outcome the upstream module reacts to" shape `estimate.approved`/`document.issued`
  * already use elsewhere in this file -- and `module-crm/src/events/handlers.ts`'s own
  * new subscriber is what actually creates the suggested opportunity. Best-effort: a
- * completed job shouldn't be blocked by this any more than invoice generation is. */
+ * completed job shouldn't be blocked by this any more than invoice generation is.
+ *
+ * INT-06.4's "Warranty / Revisit -> FSM": unlike additional-work, a warranty revisit is
+ * not commercial work, so this deliberately does NOT publish a CRM event or create a
+ * CRM opportunity -- it stays entirely inside FSM, creating a fresh unscheduled
+ * follow-up job for the same party (`revisit_of_job_id` pointing back at this one, a
+ * same-schema FK, not a cross-module pointer). "CRM relationship timeline updated"
+ * happens for free: module-crm's `listRelationshipTimeline()` already reads every
+ * fsm.jobs row for the party live, so the new job is visible there the moment it
+ * exists, no new mechanism needed. */
 export async function completeJob(id: string, businessId: string, outcome: JobOutcome, outcomeNotes?: string | null): Promise<void> {
   await requireModule(businessId, "fsm");
   await requirePermission(businessId, "jobs.edit");
@@ -135,22 +144,60 @@ export async function completeJob(id: string, businessId: string, outcome: JobOu
 
   const fsm = await createClient();
 
-  if (outcome === "additional_work_required") {
-    const { data: job } = await fsm.from("jobs").select("party_id, number, description").eq("id", id).eq("business_id", businessId).maybeSingle();
-    if (job) {
-      await publish({
-        businessId,
-        type: "fsm.job.additional_work_identified",
-        payload: { jobId: id, partyId: job.party_id, jobNumber: job.number, description: job.description, outcomeNotes: trimmedNotes },
-        requiredModule: "crm",
-      }).catch(() => {});
-    }
+  const { data: job } = await fsm
+    .from("jobs")
+    .select("party_id, primary_contact_id, service_address_id, service_type_id, number, description")
+    .eq("id", id)
+    .eq("business_id", businessId)
+    .maybeSingle();
+
+  if (outcome === "additional_work_required" && job) {
+    await publish({
+      businessId,
+      type: "fsm.job.additional_work_identified",
+      payload: { jobId: id, partyId: job.party_id, jobNumber: job.number, description: job.description, outcomeNotes: trimmedNotes },
+      requiredModule: "crm",
+    }).catch(() => {});
+  }
+
+  if (outcome === "warranty_revisit_required" && job) {
+    await createRevisitJob(businessId, id, job, trimmedNotes).catch(() => {});
   }
 
   const { data: settings } = await fsm.from("settings").select("auto_invoice_on_complete").eq("business_id", businessId).maybeSingle();
   if (settings?.auto_invoice_on_complete) {
     await getOrCreateInvoiceForJob(businessId, id).catch(() => {});
   }
+}
+
+async function createRevisitJob(
+  businessId: string,
+  originatingJobId: string,
+  originatingJob: { party_id: string; primary_contact_id: string | null; service_address_id: string | null; service_type_id: string | null; number: string | null },
+  outcomeNotes: string | null,
+): Promise<void> {
+  const core = await coreClient();
+  const { data: number, error: numberError } = await core.rpc("next_number", {
+    p_business_id: businessId,
+    p_scope: "job",
+    p_prefix: "JOB",
+  });
+  if (numberError) throw numberError;
+
+  const description = `Warranty revisit for ${originatingJob.number ?? "job"}${outcomeNotes ? `: ${outcomeNotes}` : ""}`;
+
+  const fsm = await createClient();
+  const { error } = await fsm.from("jobs").insert({
+    business_id: businessId,
+    number,
+    party_id: originatingJob.party_id,
+    primary_contact_id: originatingJob.primary_contact_id,
+    service_address_id: originatingJob.service_address_id,
+    service_type_id: originatingJob.service_type_id,
+    description,
+    revisit_of_job_id: originatingJobId,
+  });
+  if (error) throw error;
 }
 
 /**

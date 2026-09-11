@@ -34,7 +34,7 @@ import type { Tag } from "../../lib/tags/types";
 import type { OpenTimeEntry, TimeEntryItem } from "../../lib/time-entries/types";
 import type { Message } from "@cofounderai/core/messages/types";
 import type { JobMaterialRequirementLine } from "../../lib/inventory-integration/queries";
-import type { RecommendedPartWithAvailability } from "../../lib/jobs/queries";
+import type { RecommendedPartWithAvailability, RevisitJobLink } from "../../lib/jobs/queries";
 import { FieldWorkTab } from "../field/field-work-tab";
 import { MessagesTab } from "../messages/messages-tab";
 
@@ -128,6 +128,8 @@ export function JobDetail({
   recommendedPartsItems,
   recommendedParts,
   addRecommendedPartAction,
+  revisitOfJob,
+  createdRevisitJob,
 }: {
   job: Job;
   partyName: string;
@@ -181,6 +183,8 @@ export function JobDetail({
   recommendedPartsItems: { id: string; name: string }[];
   recommendedParts: RecommendedPartWithAvailability[];
   addRecommendedPartAction: (formData: FormData) => Promise<void>;
+  revisitOfJob: RevisitJobLink | null;
+  createdRevisitJob: RevisitJobLink | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -354,6 +358,24 @@ export function JobDetail({
         <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">
           <span className="font-medium">On hold: </span>
           {job.on_hold_reason}
+        </div>
+      ) : null}
+
+      {revisitOfJob ? (
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">
+          <span className="font-medium">Warranty revisit for </span>
+          <a href={`/dashboard/businesses/${job.business_id}/fsm/jobs/${revisitOfJob.id}`} className="underline">
+            {revisitOfJob.number ?? "the original job"}
+          </a>
+        </div>
+      ) : null}
+
+      {createdRevisitJob ? (
+        <div className="rounded-lg border border-border bg-muted px-4 py-3 text-sm">
+          <span className="font-medium">Warranty revisit job created: </span>
+          <a href={`/dashboard/businesses/${job.business_id}/fsm/jobs/${createdRevisitJob.id}`} className="underline">
+            {createdRevisitJob.number ?? "view job"}
+          </a>
         </div>
       ) : null}
 

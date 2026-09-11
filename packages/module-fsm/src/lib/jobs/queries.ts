@@ -115,6 +115,34 @@ export async function listRecommendedPartsWithAvailability(businessId: string, j
   );
 }
 
+export type RevisitJobLink = { id: string; number: string | null };
+
+/** INT-06.4: the two directions of a warranty-revisit link, resolved for the job
+ * detail page -- `revisitOfJob` (this job is itself a revisit of an earlier one) reads
+ * `job.revisit_of_job_id` directly; `createdRevisitJob` (an earlier completion of this
+ * job already spawned a revisit) is the reverse lookup, since the pointer only lives on
+ * the child row -- `.limit(1)` rather than `.maybeSingle()` there, since a job that's
+ * been reopened and recompleted with the same outcome more than once could have more
+ * than one child; most recent wins. Both plain `businessId`-scoped reads, same "no
+ * PostgREST embed, join in JS" convention as this file's other queries. */
+export async function getRevisitJobLinks(
+  businessId: string,
+  job: Job,
+): Promise<{ revisitOfJob: RevisitJobLink | null; createdRevisitJob: RevisitJobLink | null }> {
+  const supabase = await createClient();
+
+  const [revisitOfResult, createdRevisitResult] = await Promise.all([
+    job.revisit_of_job_id
+      ? supabase.from("jobs").select("id, number").eq("business_id", businessId).eq("id", job.revisit_of_job_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    supabase.from("jobs").select("id, number").eq("business_id", businessId).eq("revisit_of_job_id", job.id).order("created_at", { ascending: false }).limit(1),
+  ]);
+  if (revisitOfResult.error) throw revisitOfResult.error;
+  if (createdRevisitResult.error) throw createdRevisitResult.error;
+
+  return { revisitOfJob: revisitOfResult.data, createdRevisitJob: createdRevisitResult.data?.[0] ?? null };
+}
+
 /** Job detail's "History" tab (PRD §5) -- reads `core.audit_log`, written automatically
  * by `fsm.jobs`' own status-change trigger (this story's migration). */
 export const listJobAuditLog = cache(async (businessId: string, jobId: string): Promise<AuditLogEntry[]> => {

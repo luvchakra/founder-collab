@@ -89,6 +89,9 @@ export interface Job {
   parts_consumption_recorded_at: string | null;
   recommended_parts: RecommendedPartLine[] | null;
   recommended_parts_recorded_at: string | null;
+  /** INT-06.4: set on a job auto-created because an earlier job's outcome was
+   * 'warranty_revisit_required' -- points at that earlier job. Null on an ordinary job. */
+  revisit_of_job_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

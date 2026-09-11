@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
-import { getJob, getJobContext, jobHasInvoice, listJobAuditLog, listRecommendedPartsWithAvailability } from "@cofounderai/module-fsm/lib/jobs/queries";
+import { getJob, getJobContext, getRevisitJobLinks, jobHasInvoice, listJobAuditLog, listRecommendedPartsWithAvailability } from "@cofounderai/module-fsm/lib/jobs/queries";
 import { listItemsForBusiness } from "@cofounderai/core/items/queries";
 import { listTagsFor } from "@cofounderai/module-fsm/lib/tags/queries";
 import { listCustomFieldsWithValues } from "@cofounderai/module-fsm/lib/custom-fields/queries";
@@ -70,6 +70,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     messages,
     canManageMessages,
     inventoryLicensed,
+    { revisitOfJob, createdRevisitJob },
   ] = await Promise.all([
     getJobContext(job),
     listTagsFor(businessId, "job", jobId),
@@ -90,6 +91,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     listJobMessages(businessId, jobId),
     hasPermission(businessId, "messages.manage"),
     hasModule(businessId, "inventory"),
+    getRevisitJobLinks(businessId, job),
   ]);
 
   // ADR-10 degraded mode: no Inventory license means no material requirement to
@@ -158,6 +160,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       recommendedPartsItems={recommendedPartsItems}
       recommendedParts={recommendedParts}
       addRecommendedPartAction={addRecommendedPartAction.bind(null, businessId, jobId)}
+      revisitOfJob={revisitOfJob}
+      createdRevisitJob={createdRevisitJob}
     />
   );
 }
