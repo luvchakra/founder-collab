@@ -101,6 +101,19 @@ and rejected).
   domain. `getCustomer360` is deliberately CRM-schema-only for now — the cross-module
   aggregation (Discovery/Inventory/FSM/GST sections) is CRM-02.1's own story, not
   pre-built here.
+- **CRM-01.4** (domain event vocabulary) — done. `events/types.ts` declares all 14
+  required event types with versioned (`v: 1`) payloads; `events/publish.ts`'s
+  `publishCrmEvent()` type-checks every call against it and is the only path CRM writes
+  to `core.domain_events` through. Wired into the mutations that already exist
+  (`createLead`, `convertLeadToOpportunity`, `recordInteraction`); the rest of the
+  vocabulary is declared but not yet emitted, pending the story that builds its producer.
+- **CRM-01.5** (provider-neutral interaction model) — done, largely by CRM-01.2's schema
+  and CRM-01.3's `recordInteraction()` already satisfying it. Added explicit RLS-harness
+  coverage (`scripts/test-crm-backlog-rls.mjs`) proving an email interaction and an
+  Instagram interaction both fit the one `crm.interaction` table with their
+  channel-specific detail (email subject, Instagram comment id) living in `metadata`,
+  not a dedicated column per channel — and that `requires_response` defaults to `false`.
+  No new schema or contract change was needed for this story.
 
 ## No unrelated module changed
 

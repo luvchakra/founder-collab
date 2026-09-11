@@ -129,6 +129,40 @@ async function main() {
         "a duplicate (business_id, provider, external_review_id) review_item is rejected",
       );
 
+      console.log("Verifying CRM-01.5's provider-neutral interaction model...");
+      const emailConversation = psqlAsAlice(`insert into crm.conversation (business_id, party_id, primary_channel) values ('${aliceBusiness}', '${aliceParty}', 'email') returning id;`);
+      const emailInteraction = psqlAsAlice(`
+        insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, interaction_type, metadata)
+        values ('${aliceBusiness}', '${emailConversation}', '${aliceParty}', 'email', 'inbound', 'message', '{"messageId": "<abc@mail>", "subject": "Pricing question"}')
+        returning id;
+      `);
+      const instagramConversation = psqlAsAlice(`insert into crm.conversation (business_id, party_id, primary_channel) values ('${aliceBusiness}', '${aliceParty}', 'instagram') returning id;`);
+      const instagramInteraction = psqlAsAlice(`
+        insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, interaction_type, metadata)
+        values ('${aliceBusiness}', '${instagramConversation}', '${aliceParty}', 'instagram', 'inbound', 'comment', '{"mediaId": "ig-media-1", "commentId": "ig-comment-1"}')
+        returning id;
+      `);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.interaction where id in ('${emailInteraction}', '${instagramInteraction}')`),
+        "2",
+        "email and Instagram interactions both fit the one generic crm.interaction table -- no per-channel table needed",
+      );
+      assertEqual(
+        psqlAsAlice(`select metadata ->> 'subject' from crm.interaction where id = '${emailInteraction}'`),
+        "Pricing question",
+        "channel-specific detail (email subject) lives in metadata, not a dedicated column",
+      );
+      assertEqual(
+        psqlAsAlice(`select metadata ->> 'commentId' from crm.interaction where id = '${instagramInteraction}'`),
+        "ig-comment-1",
+        "a different channel's own specific detail (Instagram comment id) lives in metadata too, same generic column",
+      );
+      assertEqual(
+        psqlAsAlice(`select requires_response from crm.interaction where id = '${emailInteraction}'`),
+        "f",
+        "requires_response defaults to false when not explicitly set",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
