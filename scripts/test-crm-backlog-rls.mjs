@@ -368,11 +368,22 @@ async function main() {
         "a negative variable_count is rejected",
       );
 
+      console.log("Verifying CRM-07.11's WhatsApp lead capture (auto party creation + dedupe)...");
+      const waLeadActorId = "wa-lead-actor-1";
+      const waLeadParty = psqlAsAlice(`insert into core.parties (business_id, kind, name, phone) values ('${aliceBusiness}', 'person', 'WhatsApp +911234599999', '+911234599999') returning id;`);
+      const waLead = psqlAsAlice(`insert into crm.lead (business_id, party_id, source, source_module, source_reference) values ('${aliceBusiness}', '${waLeadParty}', 'whatsapp', 'whatsapp', '${waLeadActorId}') returning id;`);
+      assertEqual(psqlAsAlice(`select source from crm.lead where id = '${waLead}'`), "whatsapp", "captureLeadFromWhatsAppMessage() records source='whatsapp'");
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.lead (business_id, party_id, source, source_module, source_reference) values ('${aliceBusiness}', '${waLeadParty}', 'whatsapp', 'whatsapp', '${waLeadActorId}')`),
+        "a second inbound message from the same WhatsApp sender is rejected by lead_source_reference_uq -- captureLeadFromWhatsAppMessage() relies on this the same way promoteProspectToLead() does",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.lead where id = '${waLead}'`), "0", "Bob cannot see Alice's WhatsApp-captured lead");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
       assertEqual(psqlAsBob("select count(*) from crm.lead"), "1", "Bob sees only his own lead");
-      assertEqual(psqlAsAlice("select count(*) from crm.lead"), "1", "Alice still sees only her own lead");
+      assertEqual(psqlAsAlice("select count(*) from crm.lead"), "2", "Alice still sees only her own leads (the earlier one plus CRM-07.11's WhatsApp-captured one), none of Bob's");
       assertEqual(psqlAsBob("select count(*) from crm.opportunity"), "0", "Bob sees none of Alice's opportunities");
       assertEqual(psqlAsBob("select count(*) from crm.conversation"), "0", "Bob sees none of Alice's conversations");
       assertEqual(psqlAsBob("select count(*) from crm.interaction"), "0", "Bob sees none of Alice's interactions");
