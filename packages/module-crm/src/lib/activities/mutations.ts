@@ -1,3 +1,4 @@
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import type { Activity, CreateActivityInput } from "./types";
 
@@ -8,6 +9,7 @@ export async function createActivity(businessId: string, input: CreateActivityIn
   if (!input.partyId && !input.leadId && !input.opportunityId && !input.conversationId) {
     throw new Error("createActivity: at least one of partyId, leadId, opportunityId, conversationId is required");
   }
+  await requirePermission(businessId, "activities.manage");
 
   const supabase = await createClient();
   const { data, error } = await supabase

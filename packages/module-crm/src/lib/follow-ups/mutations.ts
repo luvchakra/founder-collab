@@ -1,3 +1,4 @@
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import type { CreateFollowUpInput, FollowUp } from "./types";
@@ -6,6 +7,7 @@ import type { CreateFollowUpInput, FollowUp } from "./types";
  * before this mutation did; wiring it up was missed in CRM-05.3's initial pass and is
  * fixed here. */
 export async function createFollowUp(businessId: string, input: CreateFollowUpInput): Promise<FollowUp> {
+  await requirePermission(businessId, "activities.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("follow_up")

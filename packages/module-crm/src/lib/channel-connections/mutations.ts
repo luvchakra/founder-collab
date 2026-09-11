@@ -1,4 +1,5 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { createClient } from "../../db/server";
 import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
@@ -16,6 +17,7 @@ import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
  */
 export async function connectWhatsApp(businessId: string, input: { phoneNumberId: string; accessToken: string }): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
 
   const check = await whatsAppCloudApiAdapter.connect({ phoneNumberId: input.phoneNumberId, accessToken: input.accessToken });
   if (!check.ok) return { ok: false, error: check.detail ?? "WhatsApp connection could not be verified." };
@@ -42,6 +44,7 @@ export async function connectWhatsApp(businessId: string, input: { phoneNumberId
  * fresh token, so there's no reason to keep a revoked one around. */
 export async function disconnectChannelConnection(businessId: string, connectionId: string): Promise<void> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("channel_connection")

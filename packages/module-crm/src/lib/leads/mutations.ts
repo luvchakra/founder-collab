@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import type { CreateLeadInput, Lead, LeadStatus } from "./types";
@@ -10,7 +11,13 @@ const POSTGRES_UNIQUE_VIOLATION = "23505";
  * (CRM-01.4). `client` (CRM-07.11): an optional override, same DI shape
  * `interactions/matching.ts#CrmClientOverrides` established -- a webhook capturing a
  * lead automatically (no logged-in user) passes its own admin client here instead of
- * the default RLS-scoped one. */
+ * the default RLS-scoped one.
+ *
+ * CRM-15.2: deliberately no `requirePermission()` gate here -- `has_permission()` needs
+ * a real `auth.uid()`, which the webhook path above has none of. The gate belongs on
+ * each *session-based* caller instead (`promoteProspectToLead()` below,
+ * `interactions/conversion-actions.ts#convertInteractionToLead()`), not on this shared
+ * primitive both a human action and an unauthenticated webhook call into. */
 export async function createLead(businessId: string, input: CreateLeadInput, client?: SupabaseClient): Promise<Lead> {
   const supabase = client ?? (await createClient());
   const { data, error } = await supabase
@@ -48,6 +55,7 @@ export async function createLead(businessId: string, input: CreateLeadInput, cli
  * Publishes `crm.opportunity.created` and `crm.lead.converted` (CRM-01.4).
  */
 export async function convertLeadToOpportunity(businessId: string, leadId: string): Promise<{ opportunityId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
   const supabase = await createClient();
   const { data: lead, error: leadError } = await supabase.from("lead").select("*").eq("id", leadId).eq("business_id", businessId).single();
   if (leadError) throw leadError;
@@ -107,6 +115,7 @@ export async function promoteProspectToLead(
   businessId: string,
   input: { partyId: string; prospectId: string; ownerId?: string | null },
 ): Promise<{ leadId: string; alreadyPromoted: boolean }> {
+  await requirePermission(businessId, "leads.manage");
   const supabase = await createClient();
   const { data: existing, error: existingError } = await supabase
     .from("lead")
@@ -153,6 +162,7 @@ export async function promoteProspectToLead(
  * `crm.assignment` is a different concept (who owns it, not what state it's in).
  */
 export async function updateLeadStatus(businessId: string, leadId: string, status: LeadStatus): Promise<Lead> {
+  await requirePermission(businessId, "leads.manage");
   const supabase = await createClient();
   const {
     data: { user },
