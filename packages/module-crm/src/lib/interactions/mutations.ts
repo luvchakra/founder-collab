@@ -1,4 +1,5 @@
 import { createClient } from "../../db/server";
+import { publishCrmEvent } from "../../events/publish";
 import type { Interaction, RecordInteractionInput } from "./types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
@@ -45,7 +46,10 @@ async function findOrCreateConversation(
  * CRM-01.6 idempotency: `crm.interaction`'s own partial unique index on
  * (business_id, channel, external_message_id) is the source of truth. A duplicate
  * delivery (replayed webhook, retried send) hits that constraint and this function
- * returns the already-recorded row instead of erroring or duplicating the timeline.
+ * returns the already-recorded row instead of erroring or duplicating the timeline --
+ * and, deliberately, without re-publishing `crm.interaction.received`/
+ * `crm.conversation.updated` a second time for it (CRM-01.4's events are emitted only on
+ * the genuine-insert path below, never on the dedup-return path).
  */
 export async function recordInteraction(businessId: string, input: RecordInteractionInput): Promise<Interaction> {
   const supabase = await createClient();
@@ -86,7 +90,24 @@ export async function recordInteraction(businessId: string, input: RecordInterac
     throw error;
   }
 
-  await supabase.from("conversation").update({ last_interaction_at: row.occurred_at }).eq("id", conversationId);
+  const { data: conversation, error: conversationUpdateError } = await supabase
+    .from("conversation")
+    .update({ last_interaction_at: row.occurred_at })
+    .eq("id", conversationId)
+    .select("status")
+    .single();
+  if (conversationUpdateError) throw conversationUpdateError;
+
+  if (input.direction === "inbound") {
+    await publishCrmEvent(businessId, "crm.interaction.received", {
+      v: 1,
+      interactionId: data.id,
+      conversationId,
+      channel: input.channel,
+      requiresResponse: row.requires_response,
+    });
+  }
+  await publishCrmEvent(businessId, "crm.conversation.updated", { v: 1, conversationId, status: conversation.status });
 
   return data as Interaction;
 }
