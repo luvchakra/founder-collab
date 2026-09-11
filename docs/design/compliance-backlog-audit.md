@@ -40,7 +40,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-03 | 03.1 | Core Transaction Contract | Done |
 | | 03.2 | Inventory Tax Context | Done |
 | | 03.3 | FSM Tax Context | Done (partial scope, see story log) |
-| | 03.4 | Party Tax Context | Not started |
+| | 03.4 | Party Tax Context | Done |
 | | 03.5 | No Duplicate Masters | Not started |
 | P0-04 | 04.1 | GSTIN Management | Not started |
 | | 04.2 | GST Profile | Not started |
@@ -58,13 +58,13 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**11 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**12 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.2 is the last
-completed story; COMPLY-P0-03.3 (FSM Tax Context) is next.
+**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.4 (Party Tax
+Context) is the last completed story; COMPLY-P0-03.5 (No Duplicate Masters) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1001,3 +1001,105 @@ no UI, so `lint:migrations` and `next build` were not re-run for this specific s
 **Status**: COMPLY-P0-03.3 done (partial scope, follow-up flagged above), committed and
 merged to `main` by a different session picking up mid-run after this one ended on an
 account-wide spend-limit error. Next story is COMPLY-P0-03.4 (Party Tax Context).
+
+### 03.4 — Party Tax Context (2026-09-11)
+
+"Use Core party address/tax-registration data" -- unlike COMPLY-P0-03.3's FSM boundary
+hit, this data is genuinely `core`-owned already, so this story ships its full scope with
+no follow-up flag.
+
+**Checked the entity-ownership map and existing schema first** (backlog rule 1 /
+CLAUDE.md non-negotiable #5): `core.tax_identities` (a *party's own* GSTIN/state/
+registration type, keyed by `party_id`) and `core.addresses` (billing/shipping/service,
+also keyed by `party_id`) already exist from Epic 3 story D-2
+(`supabase/migrations/20260906101000_core_addresses_tax_identities.sql`) -- exactly the
+"party address/tax-registration data" this story's own title names. Per CLAUDE.md's
+ranked cross-module mechanisms this is mechanism (1), "read shared data from `core`
+directly -- no coupling" -- the same situation as COMPLY-P0-03.1/03.2, not a
+`contract/index.ts` call (this is `core` data, belonging to no single sibling module) and
+not a new `gst`-schema table. Confirmed the read pattern itself against
+`module-fsm/lib/customers/queries.ts`'s own precedent for joining `core.party_roles` /
+`core.parties` in JS (no PostgREST embed across schemas) -- this story's own two source
+tables don't need a join to each other (both are already keyed directly by `party_id`),
+so it's simpler still: two independent reads, combined in application code.
+
+**Distinguished explicitly from `gst.tax_registrations` (COMPLY-P0-02.1)**, since the two
+are easy to confuse by name: `gst.tax_registrations` is the FILING BUSINESS's own
+registrations (its own GSTINs, plural, versioned, multi-country/regime -- a `gst`-schema
+table this module owns and writes). `core.tax_identities`, read here, is the opposite
+direction -- a *customer or supplier's* own GSTIN, read (never written by this module) to
+determine whether a supply to/from that party is intra-state (CGST+SGST) or inter-state
+(IGST). Neither table duplicates the other; both will be read, for different purposes, by
+the same future GST tax-determination logic (COMPLY-P0-04.4 Place of Supply / COMPLY-P0-04.5
+GST Tax Determination).
+
+**What was built**:
+- `packages/module-gst/src/lib/party-tax-context/{types,queries,queries.test}.ts`:
+  - `getPartyTaxIdentity(businessId, partyId)` -- one `core.tax_identities` row, or
+    `null` if none exists yet. Documented explicitly, in both the type and the query's own
+    docstring, that `null` means "no data on file," NOT "unregistered" -- a distinction
+    this backlog's own rule 11 ("never claim compliant from a calculation alone") extends
+    to: a future tax-determination caller must treat "unknown" and "confirmed
+    unregistered" as different states, never collapse the former into a default
+    treatment.
+  - `listPartyAddresses(businessId, partyId)` -- every `core.addresses` row for the
+    party (billing/shipping/service), primary-first within each kind.
+  - `selectPartyAddress(addresses, kind)` -- a pure helper (no DB call) picking the
+    primary address of a kind if marked, else the first one found, else `null`. Exported
+    and unit-tested on its own, matching this module's established "extract the real
+    branch logic into a pure, DB-free function" convention (`mapItemTaxContext` in
+    COMPLY-P0-03.2, `mapDocument`/`mapDocumentLine` in COMPLY-P0-03.1).
+  - `getPartyTaxContext(businessId, partyId)` -- the combined read this story exists to
+    serve: tax identity plus primary billing and primary shipping address in one call,
+    the exact shape COMPLY-P0-04.4/04.5 will need. Service addresses are reachable via
+    `listPartyAddresses` directly but deliberately not surfaced on this combined type --
+    "service location" in the FSM sense is `fsm`-schema data (module-fsm's own job to
+    read from its own domain per COMPLY-P0-03.3's already-documented boundary, not
+    duplicated here just because `core.addresses` happens to have a `service` kind value
+    too).
+  - `mapPartyTaxIdentity`/`mapPartyAddress` -- pure snake_case-to-camelCase mapping
+    functions, same shape and purpose as every prior `map*` function in this module,
+    unit-tested without a live database connection.
+- Read-only, no migration, no new RLS surface -- `core.tax_identities`/`core.addresses`
+  already enforce tenant isolation via their own existing RLS
+  (`business_id in core.user_business_ids()`) and are not gated by `gst` licensing at all
+  (a party's own address/tax data exists regardless of which modules a business has
+  licensed, same reasoning as `core.items` in COMPLY-P0-03.2) -- so, matching every other
+  read-only query file in this module, no `requireModule`/`requirePermission` call here.
+
+**What was deliberately left out**: any UI (no story in COMPLY-P0-03 ships one; the first
+consumer of this read will be COMPLY-P0-04.4/04.5's own India place-of-supply/tax-
+determination logic); any mutation (this module reads a party's tax identity/addresses,
+it does not create or edit them -- those are written elsewhere in the platform, e.g. the
+customer/party forms already shipped by other modules); and a "service" address field on
+the combined `PartyTaxContext` type, for the reason given above.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1011 files scanned, 0 violations (confirms
+  no `module-fsm`/`module-inventory`/`module-crm` import exists anywhere in this story's
+  new files -- only `@cofounderai/core/db/server`).
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations
+  (unchanged from COMPLY-P0-03.1-03.3, confirming no schema change this story).
+- `npx vitest run --root packages/module-gst` -- 41 tests passed (32 pre-existing + 9 new
+  in `party-tax-context/queries.test.ts`: tax-identity mapping including every
+  `gst_registration_type` and null-GSTIN passthrough, address mapping including every
+  address `kind`, and `selectPartyAddress`'s four branches -- primary-marked pick,
+  fallback-to-first when none marked primary, no-address-of-that-kind returns `null`,
+  empty-list returns `null`).
+- No migration to apply and no `get_advisors` re-check needed -- this story touched no
+  schema, same as COMPLY-P0-03.1/03.2.
+- No `apps/web` change, so `next build` was not re-run this story, per this run's own "lib-
+  only story" convention (matches COMPLY-P0-03.1/03.2/03.3's own verification).
+- No live browser walkthrough -- moot, this story shipped no UI.
+- Lockfile drift: `npm install` (this worktree had no `node_modules` at session start)
+  reproduced the same single pre-existing, unrelated line every prior story in this log
+  has already flagged (`module-crm`'s `package.json` already declares a `zod` dependency
+  the committed lockfile doesn't yet reflect) -- reverted via `git checkout --
+  package-lock.json` before committing, same as every prior story.
+
+**Status**: COMPLY-P0-03.4 done, full scope, no follow-up flag needed. Next story is
+COMPLY-P0-03.5 (No Duplicate Masters).
