@@ -793,3 +793,40 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (5 new window tests), and both CRM RLS test suites (unchanged
 -- no new schema or DB-level decision logic; the window/send logic is exercised by its
 own unit tests instead). No new migration.
+
+## CRM-07.8 (2026-09-11)
+
+"WhatsApp Template Catalog": a new `crm.whatsapp_template` table (migration
+`20260911000800_crm_whatsapp_templates.sql`, applied to the dev project) is a local
+registry of templates already created and approved on Meta's own side -- this story
+deliberately does not build Meta's template-submission/approval workflow itself (a real,
+separate feature), only enough local bookkeeping (`name`, `language_code`,
+`variable_count`, `is_active`) for the send flow to know what a template needs.
+`unique (business_id, name, language_code)` prevents two catalog entries for the same
+real template; `deactivateWhatsAppTemplate()` soft-removes (`is_active = false`) rather
+than deletes, since a template already referenced from past sends'
+`metadata.templateId` shouldn't be orphaned.
+
+`lib/whatsapp/messaging.ts` gained `sendWhatsAppTemplate()` alongside CRM-07.6's
+`sendWhatsAppReply()` -- both now share a new `resolveOutboundContext()` helper (the
+conversation's last-inbound recipient phone + the business's connected channel
+credentials) since that lookup was identical between them; only the window check
+differs, and deliberately: `sendWhatsAppTemplate()` never calls
+`computeWhatsAppWindowStatus()` at all, since a pre-approved template is exactly the one
+outbound path Meta still allows once CRM-07.7's 24-hour window has closed. Variable count
+is validated against the template's own `variable_count` before ever calling the adapter,
+so a mismatch surfaces as this function's own clear error rather than a raw Graph API
+rejection.
+
+UI: the WhatsApp admin page (CRM-07.2) gained a "Template catalog" card (list + add
+form, `useActionState` again) below the connection card. The Conversations detail pane's
+"window closed" notice (CRM-07.7) is now a real send path: `WhatsAppTemplateSendForm`
+(template picker + a single comma-separated variables field -- a deliberate
+simplification over per-template dynamic variable inputs, since the count is still
+validated server-side either way) replaces the old plain text.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (unchanged), and both CRM RLS test suites (5 new
+`whatsapp_template` cases: default-active, name+language dedupe, a different language is
+a distinct allowed row, cross-tenant isolation, and the variable_count >= 0 check).
+Migration applied to the dev Supabase project.

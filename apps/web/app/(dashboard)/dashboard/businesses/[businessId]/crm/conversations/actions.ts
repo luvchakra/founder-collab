@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
-import { sendWhatsAppReply } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -23,6 +23,26 @@ export async function sendWhatsAppReplyAction(businessId: string, conversationId
   if (!text) return { error: "Enter a message to send." };
 
   const result = await sendWhatsAppReply(businessId, conversationId, text);
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+  return null;
+}
+
+export type SendWhatsAppTemplateActionState = { error: string } | null;
+
+/** CRM-07.8: the send path that still works once CRM-07.7's window has closed --
+ * `variables` is one comma-separated field rather than a dynamic per-template input
+ * list, a deliberate simplification (the count is validated against the template's own
+ * `variable_count` server-side either way, so a mismatch surfaces as this action's own
+ * error rather than a raw Graph API one). */
+export async function sendWhatsAppTemplateAction(businessId: string, conversationId: string, _prevState: SendWhatsAppTemplateActionState, formData: FormData): Promise<SendWhatsAppTemplateActionState> {
+  const templateId = String(formData.get("templateId") || "");
+  if (!templateId) return { error: "Choose a template." };
+  const variablesRaw = String(formData.get("variables") || "").trim();
+  const variables = variablesRaw ? variablesRaw.split(",").map((v) => v.trim()) : [];
+
+  const result = await sendWhatsAppTemplate(businessId, conversationId, templateId, variables);
   if (!result.ok) return { error: result.error };
 
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);

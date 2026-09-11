@@ -10,6 +10,7 @@ import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries
 import { getLead } from "@cofounderai/module-crm/lib/leads/queries";
 import { getOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { getConversationWhatsAppWindowStatus } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { getParty } from "@cofounderai/core/parties/queries";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import { Badge } from "@cofounderai/core/ui/badge";
@@ -20,8 +21,9 @@ import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Inbox, MessageCircle } from "lucide-react";
-import { assignConversationAction, sendWhatsAppReplyAction } from "./actions";
+import { assignConversationAction, sendWhatsAppReplyAction, sendWhatsAppTemplateAction } from "./actions";
 import { WhatsAppReplyForm } from "./reply-form";
+import { WhatsAppTemplateSendForm } from "./template-send-form";
 
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "resolved"];
 
@@ -56,9 +58,10 @@ function conversationHref(businessId: string, params: Record<string, string | un
  * supports "conversation" generically since CRM-05.4) -- "unassigned queue" is just the
  * Owner filter's own "Unassigned" option, not a separate screen.
  *
- * CRM-07.6/07.7: a WhatsApp conversation's right pane also shows either a free-form
- * reply composer (within the 24-hour customer service window) or a notice that the
- * window has closed -- other channels have no send path yet, so they show neither.
+ * CRM-07.6/07.7/07.8: a WhatsApp conversation's right pane also shows either a free-form
+ * reply composer (within the 24-hour customer service window) or a template-send form
+ * (once it's closed, the one send path Meta still allows) -- other channels have no send
+ * path yet, so they show neither.
  */
 export default async function CrmConversationsPage({
   params,
@@ -109,6 +112,7 @@ export default async function CrmConversationsPage({
   const selectedLead = selected?.lead_id ? await getLead(businessId, selected.lead_id) : null;
   const selectedOpportunity = selected?.opportunity_id ? await getOpportunity(businessId, selected.opportunity_id) : null;
   const whatsAppWindow = selected && selected.primary_channel === "whatsapp" ? await getConversationWhatsAppWindowStatus(businessId, selected.id) : null;
+  const whatsAppTemplates = selected && selected.primary_channel === "whatsapp" && !whatsAppWindow?.withinWindow ? await listWhatsAppTemplates(businessId, { activeOnly: true }) : [];
 
   const activeFilterParams = { channel: search.channel, status: search.status, ownerId: search.ownerId };
   const isQuickFilterOn = (key: string) => search[key as keyof typeof search] === "1";
@@ -262,12 +266,17 @@ export default async function CrmConversationsPage({
           whatsAppWindow?.withinWindow ? (
             <WhatsAppReplyForm key={selected.interactions.length} action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)} />
           ) : (
-            <div className="flex flex-col gap-1 border-t border-border pt-3 text-sm text-muted-foreground">
-              <p>
+            <div className="flex flex-col gap-3 border-t border-border pt-3">
+              <p className="text-sm text-muted-foreground">
                 This conversation&apos;s 24-hour WhatsApp window has closed
                 {whatsAppWindow?.expiresAt ? ` (closed ${formatDateTime(whatsAppWindow.expiresAt)})` : ""} -- a free-form reply can&apos;t be
-                sent. Sending a pre-approved template message is planned for a future story.
+                sent, but a pre-approved template can.
               </p>
+              <WhatsAppTemplateSendForm
+                key={selected.interactions.length}
+                templates={whatsAppTemplates}
+                action={sendWhatsAppTemplateAction.bind(null, businessId, selected.id)}
+              />
             </div>
           )
         ) : null}
