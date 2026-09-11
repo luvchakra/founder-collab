@@ -26,6 +26,11 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_opportunity.fulfillment_wait_selected": "CRM opportunity chose to wait for full inventory availability",
   "crm_opportunity.assessment_requirement_set": "CRM opportunity assessment requirement set",
   "crm_opportunity.assessment_requested": "CRM opportunity FSM assessment requested",
+  /** INT-07.3's "Exception Auto-Close" -- the durable trace left when the underlying
+   * condition behind a fsm_parts_shortage/assessment_pending exception (INT-07.1)
+   * resolves, written by a DB trigger so no application code path can skip it. */
+  "job.parts_shortage_resolved": "Job parts shortage resolved",
+  "assessment.outcome_recorded": "FSM assessment outcome recorded",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -38,6 +43,8 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   crm_interaction: "CRM Interaction",
   crm_channel_connection: "CRM Channel Connection",
   crm_buying_intent_score: "CRM Buying Intent Score",
+  job: "Job",
+  assessment: "Assessment",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

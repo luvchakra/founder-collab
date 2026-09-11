@@ -49,6 +49,9 @@ const STATUS_LABEL: Record<JobStatus, string> = {
 
 const ACTION_LABEL: Record<string, string> = {
   "job.status_changed": "Status changed",
+  /** INT-07.3: written by the same DB trigger as "Status changed", now also firing
+   * when `resolveJobPartsShortage()` sets a resolution. */
+  "job.parts_shortage_resolved": "Parts shortage resolved",
 };
 
 const RESERVATION_STATUS_LABEL: Record<NonNullable<Job["parts_reservation_status"]>, string> = {

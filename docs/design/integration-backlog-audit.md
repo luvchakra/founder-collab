@@ -43,12 +43,12 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 06.4 | Warranty / Revisit -> FSM | Done |
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Done |
 | | 07.2 | Exception Resolution Actions | Done |
-| | 07.3 | Exception Auto-Close | Not started |
+| | 07.3 | Exception Auto-Close | Done |
 | INT-08 (P1) | 08.1 | Linked Object Graph | Not started |
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 9/13 done. Overall: 25/29 (86%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 10/13 done. Overall: 26/29 (90%). Epic INT-07 complete (3/3) -- only Epic INT-08 (08.1/08.2/08.3) remains.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -422,3 +422,15 @@ Both actions are plain `FormData` server actions (not typed positional args), ma
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (962 files, no violations), `lint:migrations` (96 migrations, unchanged -- no schema touched), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged -- no unit test added for `listCrossModuleExceptions` itself, consistent with every other DB/contract-composing query function in this codebase, e.g. `getFsmQuoteStatusForOpportunity`/`getFulfillmentStatusForOpportunity`, none of which have one either), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build` (confirmed `/dashboard/businesses/[businessId]/crm/exceptions` is actually built, not just present in source).
 
 **Status**: 25 of 29 in-scope stories done. Next: INT-07.3, Exception Auto-Close.
+
+### INT-07.3 — Exception Auto-Close (2026-09-11)
+
+Checked what "auto-close" could mean before writing anything, since `listCrossModuleExceptions()` (INT-07.1) is a pure live derivation with no stored exception row of its own -- in the sense of "does the list stop showing a resolved item," both exception kinds already auto-close by construction: the FSM query filters on `parts_shortage_resolution is null` (set non-null the instant `resolveJobPartsShortage()` runs) and the assessment check filters on "no recorded outcome yet" (set non-null the instant `recordAssessmentOutcome()` runs) -- there's no cache or stored flag anywhere that could go stale. Re-verified this is really true rather than assumed, by tracing both mutation functions' own updates against the exact columns the query filters on.
+
+What was genuinely missing, found by checking what happens in `core.audit_log` when either resolves: nothing. F-5's own job-status-change trigger (D-10's "every state transition gets an audit write" convention) only fires on `status`, not `parts_shortage_resolution` -- and `fsm.assessments` had no audit trigger at all. So the moment an exception closed left zero durable trace anywhere, even though the live list correctly stopped showing it. That's the real gap this story closes: extended `fsm.log_job_status_change()` (not a second trigger -- one more condition in the same "after update" function already firing) to also log `job.parts_shortage_resolved` when the column goes non-null, and added a new `fsm.log_assessment_outcome_recorded()` trigger on `fsm.assessments` for the same "outcome goes non-null" moment. Both are DB triggers, not application-level calls -- the actual reason this counts as "auto"-close: no future write path (an admin tool, a direct SQL fix, a different mutation someone adds later) can silently skip writing the audit trail, the same discipline D-10 established platform-wide.
+
+Added both new actions to `core`'s shared `ACTION_LABEL`/`ENTITY_TYPE_LABEL` maps (`audit/format.ts`, read by the existing cross-module `audit-log-view.tsx` already used on the inventory audit-log page) and to the job detail page's own local History-tab label map -- same "one-line completion of an already-established pattern" INT-05.1 used for a different audit action once before, not new infrastructure.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (962 files, unchanged), `lint:migrations` (97 migrations, no violations -- the new migration only creates/replaces functions and a trigger, no `create`/`alter table` at all, so the schema-per-file checker has nothing to flag either way), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged) and module-fsm's (no test files, `--passWithNoTests`, unchanged), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings), **plus** two live-executed rolled-back transactions directly exercising each new trigger against real dev rows (one existing job, one freshly-inserted-then-rolled-back assessment) -- both produced exactly the expected `core.audit_log` row (`before`/`after` matching) before the transaction rolled back, so this isn't just "the DDL applied cleanly," the trigger logic itself was actually exercised. Clean `next build`.
+
+**Status**: 26 of 29 in-scope stories done -- **Epic INT-07 complete** (3/3). Only Epic INT-08 (Business Timeline & Linked Object Graph: 08.1/08.2/08.3) remains in scope. Next: INT-08.1, Linked Object Graph.
