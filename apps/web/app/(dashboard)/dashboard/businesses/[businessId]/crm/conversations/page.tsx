@@ -10,6 +10,7 @@ import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries
 import { getLead } from "@cofounderai/module-crm/lib/leads/queries";
 import { getOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { getConversationWhatsAppWindowStatus } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { getDraftReplyForInteraction } from "@cofounderai/module-crm/lib/interactions/draft-reply";
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { getParty } from "@cofounderai/core/parties/queries";
 import { formatDateTime } from "@cofounderai/core/lib/format";
@@ -61,7 +62,9 @@ function conversationHref(businessId: string, params: Record<string, string | un
  * CRM-07.6/07.7/07.8: a WhatsApp conversation's right pane also shows either a free-form
  * reply composer (within the 24-hour customer service window) or a template-send form
  * (once it's closed, the one send path Meta still allows) -- other channels have no send
- * path yet, so they show neither.
+ * path yet, so they show neither. CRM-09.6 adds an AI-suggested draft (template-by-
+ * intent, not a real model call -- see draft-reply.ts's own doc comment) above that
+ * composer, computed from the conversation's last inbound message.
  */
 export default async function CrmConversationsPage({
   params,
@@ -113,6 +116,9 @@ export default async function CrmConversationsPage({
   const selectedOpportunity = selected?.opportunity_id ? await getOpportunity(businessId, selected.opportunity_id) : null;
   const whatsAppWindow = selected && selected.primary_channel === "whatsapp" ? await getConversationWhatsAppWindowStatus(businessId, selected.id) : null;
   const whatsAppTemplates = selected && selected.primary_channel === "whatsapp" && !whatsAppWindow?.withinWindow ? await listWhatsAppTemplates(businessId, { activeOnly: true }) : [];
+  const lastInboundInteraction = selected ? [...selected.interactions].reverse().find((i) => i.direction === "inbound") : undefined;
+  const suggestedReply =
+    selected && whatsAppWindow?.withinWindow && lastInboundInteraction ? await getDraftReplyForInteraction(businessId, lastInboundInteraction.id) : null;
 
   const activeFilterParams = { channel: search.channel, status: search.status, ownerId: search.ownerId };
   const isQuickFilterOn = (key: string) => search[key as keyof typeof search] === "1";
@@ -273,7 +279,12 @@ export default async function CrmConversationsPage({
 
         {selected.primary_channel === "whatsapp" ? (
           whatsAppWindow?.withinWindow ? (
-            <WhatsAppReplyForm key={selected.interactions.length} action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)} />
+            <WhatsAppReplyForm
+              key={selected.interactions.length}
+              action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)}
+              suggestedDraft={suggestedReply?.draft || null}
+              suggestedDraftSources={suggestedReply?.sources}
+            />
           ) : (
             <div className="flex flex-col gap-3 border-t border-border pt-3">
               <p className="text-sm text-muted-foreground">
