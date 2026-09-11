@@ -19,7 +19,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { CalendarClock, CheckCircle2, ListTodo, Package, Star, Trash2, Users } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
-import { updateOpportunityValueAction } from "../actions";
+import { assignOpportunityAction, updateOpportunityValueAction } from "../actions";
 import {
   addOpportunityContactAction,
   addOpportunityProductAction,
@@ -108,13 +108,30 @@ export default async function OpportunityDetailPage({
               {opportunity.expected_close_date ? ` -- close ${formatDate(opportunity.expected_close_date)}` : ""}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={opportunity.status === "won" ? "secondary" : opportunity.status === "lost" ? "destructive" : "outline"}>
               {stage?.name ?? opportunity.status}
             </Badge>
             <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
           </div>
         </div>
+
+        {/* CRM-05.4: "unassigned items are visible" -- an explicit "Unassigned" option
+            shows as the current value rather than a blank select. */}
+        <form action={assignOpportunityAction.bind(null, businessId, opportunityId)} className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Owner</span>
+          <NativeSelect name="ownerId" defaultValue={opportunity.owner_id ?? ""} className="w-auto">
+            <option value="">Unassigned</option>
+            {employees.map((employee) => (
+              <option key={employee.id} value={employee.id}>
+                {employee.full_name ?? employee.email ?? "Unnamed"}
+              </option>
+            ))}
+          </NativeSelect>
+          <SubmitButton size="sm" variant="outline" pendingText="Assigning...">
+            Assign
+          </SubmitButton>
+        </form>
       </div>
 
       <Card>

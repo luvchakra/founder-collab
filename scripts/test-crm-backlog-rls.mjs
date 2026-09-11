@@ -256,6 +256,21 @@ async function main() {
         "clearing next_action_id after completing it (completeOpportunityNextActionAction()'s own two-step order) leaves it unset",
       );
 
+      console.log("Verifying CRM-05.4's assignment history (at most one open assignment per entity)...");
+      const aliceEmployee2 = psqlAsAlice(`insert into core.employees (business_id, user_id) values ('${aliceBusiness}', '${ALICE}') returning id;`);
+      const aliceAssignment1 = psqlAsAlice(`insert into crm.assignment (business_id, entity_type, entity_id, owner_id) values ('${aliceBusiness}', 'opportunity', '${aliceOpportunity}', '${aliceEmployee}') returning id;`);
+      // assignEntity()'s own two-step order: close out any open assignment for this
+      // entity, then start a new one -- replicated here exactly as the mutation runs it.
+      psqlAsAlice(`update crm.assignment set unassigned_at = now() where business_id = '${aliceBusiness}' and entity_type = 'opportunity' and entity_id = '${aliceOpportunity}' and unassigned_at is null`);
+      const aliceAssignment2 = psqlAsAlice(`insert into crm.assignment (business_id, entity_type, entity_id, owner_id) values ('${aliceBusiness}', 'opportunity', '${aliceOpportunity}', '${aliceEmployee2}') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.assignment where entity_type = 'opportunity' and entity_id = '${aliceOpportunity}' and unassigned_at is null`),
+        "1",
+        "reassigning closes out the previous open assignment row -- at most one stays open per entity",
+      );
+      assertEqual(psqlAsAlice(`select owner_id from crm.assignment where id = '${aliceAssignment2}'`), aliceEmployee2, "the new assignment row is the one still open");
+      assertEqual(psqlAsAlice(`select unassigned_at is not null from crm.assignment where id = '${aliceAssignment1}'`), "t", "the earlier assignment row is now closed");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

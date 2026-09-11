@@ -4,17 +4,40 @@ import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { ensureDefaultStages } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { listOpportunities } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { calculatePipelineValue } from "@cofounderai/module-crm/lib/opportunities/types";
+import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { listPartiesForBusiness } from "@cofounderai/core/parties/queries";
 import { formatDate, inr } from "@cofounderai/core/lib/format";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { Target } from "lucide-react";
-import { updateOpportunityStageAction, updateOpportunityValueAction } from "./actions";
+import type { EmployeeOption } from "@cofounderai/module-crm/lib/tickets/types";
+import { assignOpportunityAction, updateOpportunityStageAction, updateOpportunityValueAction } from "./actions";
 import { OpportunitiesKanban } from "./opportunities-kanban";
 import { EditValueDialog } from "./edit-value-dialog";
+
+/** CRM-05.4's inline assign form -- mirrors the Leads page's own AssignForm exactly. */
+function AssignForm({ businessId, opportunityId, ownerId, employees }: { businessId: string; opportunityId: string; ownerId: string | null; employees: EmployeeOption[] }) {
+  return (
+    <form action={assignOpportunityAction.bind(null, businessId, opportunityId)} className="flex items-center gap-2">
+      <NativeSelect name="ownerId" defaultValue={ownerId ?? ""} className="w-auto">
+        <option value="">Unassigned</option>
+        {employees.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.full_name ?? e.email ?? "Unnamed"}
+          </option>
+        ))}
+      </NativeSelect>
+      <SubmitButton size="sm" variant="outline" pendingText="Assigning...">
+        Assign
+      </SubmitButton>
+    </form>
+  );
+}
 
 /**
  * CRM-04.2's Opportunity Pipeline -- Kanban (default) and List views of the same data,
@@ -23,6 +46,9 @@ import { EditValueDialog } from "./edit-value-dialog";
  * business-level and lazily provisioned on first visit. List view follows
  * docs/design/claude-ui-design-rules.md the same way the Leads page does: a real table
  * on desktop, cards below `md`.
+ *
+ * CRM-05.4 adds the Owner column/assign form to List view (Kanban stays focused on
+ * stage drag/drop, same reasoning CRM-04.3's value edit stayed List-only).
  */
 export default async function CrmOpportunitiesPage({
   params,
@@ -36,13 +62,15 @@ export default async function CrmOpportunitiesPage({
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [stages, opportunities, parties] = await Promise.all([
+  const [stages, opportunities, parties, employees] = await Promise.all([
     ensureDefaultStages(businessId),
     listOpportunities(businessId),
     listPartiesForBusiness(businessId),
+    listEmployeeOptions(businessId),
   ]);
   const partyNameById = new Map(parties.map((p) => [p.id, p.name]));
   const stageNameById = new Map(stages.map((s) => [s.id, s.name]));
+  const employeeById = new Map(employees.map((e) => [e.id, e]));
 
   const isListView = view === "list";
   const basePath = `/dashboard/businesses/${businessId}/crm/opportunities`;
@@ -104,6 +132,10 @@ export default async function CrmOpportunitiesPage({
                   </span>
                   <span>Created {formatDate(opportunity.created_at)}</span>
                 </div>
+                <Badge variant={opportunity.owner_id ? "secondary" : "outline"} className="w-fit">
+                  {employeeById.get(opportunity.owner_id ?? "")?.full_name ?? "Unassigned"}
+                </Badge>
+                <AssignForm businessId={businessId} opportunityId={opportunity.id} ownerId={opportunity.owner_id} employees={employees} />
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/dashboard/businesses/${businessId}/crm/opportunities/${opportunity.id}`}
@@ -124,6 +156,7 @@ export default async function CrmOpportunitiesPage({
                 <TableHead>Stage</TableHead>
                 <TableHead>Value</TableHead>
                 <TableHead>Close date</TableHead>
+                <TableHead>Owner</TableHead>
                 <TableHead className="text-right">Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -143,6 +176,9 @@ export default async function CrmOpportunitiesPage({
                   </TableCell>
                   <TableCell className="text-muted-foreground">{opportunity.estimated_value ? inr.format(opportunity.estimated_value) : "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{opportunity.expected_close_date ? formatDate(opportunity.expected_close_date) : "—"}</TableCell>
+                  <TableCell>
+                    <AssignForm businessId={businessId} opportunityId={opportunity.id} ownerId={opportunity.owner_id} employees={employees} />
+                  </TableCell>
                   <TableCell className="text-right text-muted-foreground">{formatDate(opportunity.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">

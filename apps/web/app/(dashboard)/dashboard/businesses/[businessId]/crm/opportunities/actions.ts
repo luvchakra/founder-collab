@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { updateOpportunityStage, updateOpportunityValue } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
 
 function opportunitiesPath(businessId: string) {
   return `/dashboard/businesses/${businessId}/crm/opportunities`;
@@ -12,6 +13,13 @@ function opportunitiesPath(businessId: string) {
  * wrapper the Kanban board's client component calls. */
 export async function updateOpportunityStageAction(businessId: string, opportunityId: string, stageId: string): Promise<void> {
   await updateOpportunityStage(businessId, opportunityId, stageId);
+  revalidatePath(opportunitiesPath(businessId));
+}
+
+/** CRM-05.4's inline assign form action. */
+export async function assignOpportunityAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const ownerId = String(formData.get("ownerId") || "") || null;
+  await assignEntity(businessId, "opportunity", opportunityId, ownerId);
   revalidatePath(opportunitiesPath(businessId));
 }
 

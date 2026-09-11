@@ -492,6 +492,46 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 `20260911000700_crm_follow_up_priority.sql` applied to dev Supabase; no new advisor
 findings.
 
+## CRM-05.4 (2026-09-11) -- plus a CRM-05.3 correction
+
+No migration needed: `crm.assignment` (append-only history) and the owner columns on
+`crm.lead`/`crm.opportunity`/`crm.conversation` (`owner_id`/`owner_id`/`assigned_to`)
+were all already built in CRM-01.2, whose own header comment already said "current
+owner is read from the owning table's own owner_id/assigned_to column."
+
+`assignEntity()` (new `lib/assignment/mutations.ts`) is one function for all three
+entity types -- lead/opportunity/conversation -- since the shape (update the owner
+column, audit the change, append to history) is identical; a table/column lookup map is
+the only thing that varies. "Ownership changes are audited" is genuinely two mechanisms:
+`core.audit_log` via `writeAuditLog()` (new `crm_lead.assigned`/`crm_opportunity.assigned`/
+`crm_conversation.assigned` action labels -- already renders on the platform's existing
+Audit Log page, no new UI needed there) and `crm.assignment`'s own history table, written
+to for the first time by this story: the previously-open row is closed (`unassigned_at`)
+before the new one starts, so at most one stays open per entity, RLS-harness-tested with
+a reassignment scratch case. Conversation assignment has no caller yet (CRM-06.1's
+Conversation Object/inbox doesn't exist until the next epic) but the function handles it
+correctly regardless, since the schema was already polymorphic for all three -- no event
+is published for it though, since crm.conversation.updated's existing payload is
+status-specific and adding a producer with no real caller would be exactly the
+declare-don't-wire line CRM-01.4 already draws.
+
+"Unassigned items are visible": the Leads page and Opportunities List view both get an
+Owner column/badge (an explicit "Unassigned" state, never a blank cell) plus an inline
+assign form, mirroring the existing StatusForm pattern; the Opportunity detail page gets
+the same assign control in its header. New `crm.opportunity.updated` event (mirroring
+`crm.lead.updated`'s shape) is opportunity assignment's own domain event, since no
+generic "opportunity updated" event existed before this story's genuine producer.
+
+**Correction to CRM-05.3**: `crm.follow_up.created`/`crm.follow_up.completed` were
+already declared in the event vocabulary (CRM-01.4) before CRM-05.3 built
+`createFollowUp()`/`completeFollowUp()`, but that story's initial pass missed wiring
+them up. Fixed here -- both mutations now publish their already-declared event.
+
+Verified with full monorepo typecheck (including an event-vocabulary exhaustiveness
+test update for the new `crm.opportunity.updated` entry), a clean `next build`,
+`lint:boundaries`, module-crm's vitest suite, and both CRM RLS test suites (including a
+new assignment-history scratch case). No new migration, so no new advisor check either.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

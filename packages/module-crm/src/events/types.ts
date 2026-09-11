@@ -27,6 +27,7 @@ export type CrmEventType =
   | "crm.lead.updated"
   | "crm.lead.converted"
   | "crm.opportunity.created"
+  | "crm.opportunity.updated"
   | "crm.opportunity.stage_changed"
   | "crm.opportunity.won"
   | "crm.opportunity.lost"
@@ -43,6 +44,10 @@ export type CrmLeadUpdatedPayloadV1 = { v: 1; leadId: string; changedFields: str
 export type CrmLeadConvertedPayloadV1 = { v: 1; leadId: string; opportunityId: string };
 
 export type CrmOpportunityCreatedPayloadV1 = { v: 1; opportunityId: string; partyId: string; leadId: string | null };
+/** CRM-05.4's assignment change is this event's first (and so far only) producer, same
+ * `changedFields` shape as crm.lead.updated -- mirrored rather than reused across
+ * entities since the two payload types are otherwise unrelated. */
+export type CrmOpportunityUpdatedPayloadV1 = { v: 1; opportunityId: string; changedFields: string[] };
 export type CrmOpportunityStageChangedPayloadV1 = { v: 1; opportunityId: string; fromStageId: string | null; toStageId: string | null };
 export type CrmOpportunityWonPayloadV1 = { v: 1; opportunityId: string };
 export type CrmOpportunityLostPayloadV1 = { v: 1; opportunityId: string; reason: string | null };
@@ -64,6 +69,7 @@ export type CrmEventPayloads = {
   "crm.lead.updated": CrmLeadUpdatedPayloadV1;
   "crm.lead.converted": CrmLeadConvertedPayloadV1;
   "crm.opportunity.created": CrmOpportunityCreatedPayloadV1;
+  "crm.opportunity.updated": CrmOpportunityUpdatedPayloadV1;
   "crm.opportunity.stage_changed": CrmOpportunityStageChangedPayloadV1;
   "crm.opportunity.won": CrmOpportunityWonPayloadV1;
   "crm.opportunity.lost": CrmOpportunityLostPayloadV1;
