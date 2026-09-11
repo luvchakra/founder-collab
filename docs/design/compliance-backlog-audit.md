@@ -29,7 +29,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 01.3 | Tax Regime Selector | Done |
 | | 01.4 | Context Persistence | Partial (persistence for country/regime shipped as part of 01.2; not a separate story) |
 | | 01.5 | Unsupported-Country UX | Done |
-| P0-02 | 02.1 | Tax Registration | Not started |
+| P0-02 | 02.1 | Tax Registration | Done |
 | | 02.2 | Tax Jurisdiction | Not started |
 | | 02.3 | Versioned Tax Rules | Not started |
 | | 02.4 | Tax Treatments | Not started |
@@ -55,9 +55,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**4 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**5 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
-01.4's own registration-persistence half, which waits on COMPLY-P0-02.1/04.1).
+01.4's own registration-persistence half, which is now unblocked by 02.1's
+`gst.tax_registrations` table but not yet wired into any UI).
+
+**Session paused here at the user's request** (see the note at the end of the 02.1 log
+entry below) -- COMPLY-P0-02.1 is the last completed story; COMPLY-P0-02.2 (Tax
+Jurisdiction) is next when this resumes.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -372,3 +377,93 @@ its own per-page country check.
 **COMPLY-P0-01 (Compliance Shell & Country Switch) is now fully done, except 01.4's own
 registration-persistence half**, which needs `gst.tax_registrations` to exist
 (COMPLY-P0-02.1/04.1) before it means anything.
+
+### 02.1 — Tax Registration (2026-09-11)
+
+The generic, multi-registration `TaxRegistration` entity from the backlog's own §4 data
+model -- the first table in the "Generic Tax Framework" epic (COMPLY-P0-02), and the
+piece 01.4's own `registration_id` column was left unconstrained waiting for.
+
+**Checked against the entity-ownership map first** (backlog rule 1 /
+`docs/plan/00-MASTER-PLAN.md` §5 / CLAUDE.md non-negotiable #5), as flagged in this
+document's own reconnaissance section: `core.business_settings.gstin`/`state`/
+`gst_registration_type` is a single India-only GSTIN value with no history and no support
+for more than one registration; `core.tax_identities` is a *party's* (customer/supplier)
+GSTIN, an unrelated concept (whose registration it is, not the filing business's own).
+Neither is duplicated or superseded by this table yet -- `core.tax_identities` keeps
+being read for CGST/SGST-vs-IGST splitting on documents against a party, and
+`core.business_settings.gstin` stays in place until COMPLY-P0-04.1 (GSTIN Management)
+explicitly builds the real multi-registration UI on top of `gst.tax_registrations` and
+decides what to do with the old single-value form -- that decision belongs to that story,
+not this one.
+
+**What was built**:
+- `gst.tax_registrations` (`20260911004200_gst_tax_registrations.sql`): `business_id`,
+  `country`, `jurisdiction` (nullable text -- COMPLY-P0-02.2 adds the validated catalog
+  this is checked against, in application code, not a schema change now), `regime`,
+  `registration_number`, `registration_status` (`active`/`cancelled`/`suspended`),
+  `registered_from`/`registered_until`, `is_primary`, and a `metadata jsonb` bucket for
+  regime-specific attributes (India's regular/composition/return-frequency/e-invoice-
+  eligibility fields, COMPLY-P0-04.2's own job to populate) rather than bespoke columns --
+  keeps this table genuinely generic across regimes, per the backlog's "one generic
+  Compliance domain plus country/regime packs" decision. A partial unique index enforces
+  at most one `is_primary` registration per business/country/regime. No delete policy --
+  a registration is retired via `registration_status = 'cancelled'`, never removed
+  (ADR-9's "cancel never deletes" applied at the row level, since a cancelled GSTIN stays
+  relevant to every document/return that referenced it while active -- backlog rule 13).
+  Also wires the FK `gst.compliance_profiles.registration_id` -> this table (`on delete
+  set null`), left unconstrained by 01.2/01.4's own migration for exactly this reason.
+- `lib/tax-registrations/{types,queries,mutations}.ts`: `listTaxRegistrations`,
+  `listTaxRegistrationsForRegime`, `getPrimaryTaxRegistration`; `createTaxRegistration`
+  (validates country/regime via the same `isRegimeSupported` catalog check the country
+  selector uses -- no India-specific GSTIN format validation here, that's COMPLY-P0-04.1's
+  job once its UI wraps this generic function), `setPrimaryTaxRegistration` (demotes the
+  old primary, then promotes the new one -- two sequential statements, not one
+  transaction, since no request-scoped multi-statement transaction primitive is available
+  from this RLS-scoped client; a rare concurrent race is left to the unique index to
+  reject), `setTaxRegistrationStatus` (the only way to retire one -- there is
+  deliberately no delete function). No UI page yet -- COMPLY-P0-04.1's own job to build
+  the India GSTIN management screen on top of this generic layer.
+- `scripts/test-gst-tax-registrations-rls.mjs`: tenant isolation, license gating,
+  `settings.manage` permission gating, the one-primary-per-regime unique index, "cancel
+  changes status, never deletes" (and confirms no delete policy exists at all), and the
+  new FK's `on delete set null` behavior on `gst.compliance_profiles.registration_id`.
+
+**What was deliberately left out**: jurisdiction validation (COMPLY-P0-02.2), any UI
+(COMPLY-P0-04.1), India-specific format validation (also COMPLY-P0-04.1), and version/
+source columns -- those belong to `TaxRule` (COMPLY-P0-02.3), not `TaxRegistration`; the
+backlog's own §4 "every rule row needs effective_from/effective_to/version/source" is
+about country *rules* (rates/treatments), not a business's own registration records.
+
+**How verified**:
+- `npm run typecheck` / `npm run lint` (0 errors, same 1 pre-existing unrelated warning) /
+  `npm run lint:boundaries` (990 files, 0 violations) / `npm run lint:migrations` (105
+  files, 0 violations).
+- `npm run test --workspace=@cofounderai/module-gst` -- still 14 tests passing; no new
+  vitest file for the same reasoning as 01.3 (the mutation layer's real branch logic,
+  `isRegimeSupported`, is already covered by `countries.test.ts`; the RLS script above is
+  the real end-to-end coverage for this table's own guarantees).
+- Both migrations applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`)
+  via `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security) showed no
+  new findings. The performance check **did** surface one real, new finding after the
+  first migration: `compliance_profiles_registration_id_fkey` had no covering index --
+  fixed immediately with a second migration
+  (`20260911004300_gst_compliance_profiles_registration_id_index.sql`, kept as its own
+  file rather than silently editing the already-applied first one, so this repo's
+  migration timeline matches exactly what was applied, one file per `apply_migration`
+  call -- the same pattern `20260909010000_gst_credentials_encrypt_secrets.sql` already
+  established for a similarly-discovered fix). Re-ran `get_advisors` afterward: the
+  finding is gone; only pre-existing, unrelated findings remain (a `platform.admins`
+  unindexed-FK pair this backlog's work never touched, the same handful of
+  `rls_enabled_no_policy` infos, and the one `auth_leaked_password_protection` warning).
+  The new tables' own indexes appear in the "unused index" info list, expected for a
+  brand-new table with zero query traffic on a dev project, same as every other table's
+  `business_id` index in that same list.
+- `cd apps/web && npm run build` -- clean production build.
+- No live browser walkthrough (see the limitation note at the top of this document) --
+  moot for this story anyway, since it shipped no UI.
+
+**Session paused here at the user's request, mid-epic (COMPLY-P0-02.1 done, 02.2-02.5 not
+started).** The working tree is clean and `comply-backlog` is merged into `main`; see this
+document's own top-of-file progress table and the final assistant report for exactly
+where to resume.
