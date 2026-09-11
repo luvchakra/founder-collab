@@ -1,4 +1,10 @@
-export type WhatsAppSendResult = { ok: true; providerMessageId: string | null } | { ok: false; error: string };
+/** `statusCode` (the Graph API's own HTTP status, absent on a network-level failure that
+ * never got a response at all) is what CRM-15.5's failure classifier keys off of to
+ * decide whether this send failure also means the whole connection needs a status
+ * transition (`reauthorization_required`/`provider_error`/`degraded`), as opposed to a
+ * message-specific rejection (bad phone number, unknown template) that says nothing
+ * about the connection's own health. */
+export type WhatsAppSendResult = { ok: true; providerMessageId: string | null } | { ok: false; error: string; statusCode?: number };
 
 export type WhatsAppMessageStatus = "sent" | "delivered" | "read" | "failed" | "unknown";
 
@@ -40,7 +46,7 @@ export type WhatsAppWebhookEvent =
 export interface WhatsAppProviderAdapter {
   /** Verifies the credentials work (a Graph API call against the phone number itself)
    * before CRM-07.2's connect flow saves them. */
-  connect(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string }>;
+  connect(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string; statusCode?: number }>;
   /** Cloud API has no session to end from the app's side (revoking happens in Meta's
    * own UI, not via an API call) -- this exists to satisfy the adapter interface
    * uniformly across providers that might have a real session to close, and is a no-op
@@ -50,7 +56,7 @@ export interface WhatsAppProviderAdapter {
   /** Same underlying check as `connect()` -- CRM-15.5's periodic reliability check
    * calls this on an already-connected credential to catch a token that's since expired
    * or been revoked, distinct from the one-time check `connect()` does at setup time. */
-  healthCheck(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string }>;
+  healthCheck(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string; statusCode?: number }>;
   /** Pure -- parses Meta's raw webhook body into normalized events. No credentials
    * needed (a webhook payload isn't authenticated by a bearer token; that's
    * `verify-meta-signature.ts`'s job, run before this ever gets called). */

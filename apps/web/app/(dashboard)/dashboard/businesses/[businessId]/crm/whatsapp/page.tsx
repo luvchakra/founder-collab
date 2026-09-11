@@ -3,12 +3,13 @@ import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { listChannelConnections } from "@cofounderai/module-crm/lib/channel-connections/queries";
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { formatDateTime } from "@cofounderai/core/lib/format";
+import { Alert, AlertDescription } from "@cofounderai/core/ui/alert";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { FileText } from "lucide-react";
-import { connectWhatsAppAction, createWhatsAppTemplateAction, deactivateWhatsAppTemplateAction, disconnectWhatsAppAction } from "./actions";
+import { checkWhatsAppConnectionNowAction, connectWhatsAppAction, createWhatsAppTemplateAction, deactivateWhatsAppTemplateAction, disconnectWhatsAppAction } from "./actions";
 import { ConnectWhatsAppForm } from "./connect-form";
 import { AddWhatsAppTemplateForm } from "./template-form";
 
@@ -18,6 +19,15 @@ const STATUS_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = 
   reauthorization_required: "destructive",
   disconnected: "outline",
   provider_error: "destructive",
+};
+
+/** CRM-15.5's "user must have a visible resolution path" -- one line of plain-language
+ * explanation plus what to actually do about it, per required status. `connected` and
+ * `disconnected` need neither (a disconnected business just sees the connect form). */
+const STATUS_RESOLUTION: Partial<Record<string, string>> = {
+  degraded: "WhatsApp is temporarily rate-limited by Meta -- this usually clears on its own within a few minutes. We recheck automatically, or you can check now below.",
+  provider_error: "Meta's WhatsApp API isn't responding right now. We recheck automatically, or you can check now below.",
+  reauthorization_required: "Your WhatsApp access token is no longer valid -- reconnect below with a fresh token from Meta.",
 };
 
 /**
@@ -61,21 +71,41 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
         <CardContent>
           {whatsapp ? (
             <div className="flex flex-col gap-3 text-sm">
+              {STATUS_RESOLUTION[whatsapp.status] ? (
+                <Alert variant={whatsapp.status === "degraded" ? "default" : "destructive"}>
+                  <AlertDescription>{STATUS_RESOLUTION[whatsapp.status]}</AlertDescription>
+                </Alert>
+              ) : null}
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Phone number ID</span>
                 <span className="font-medium">{whatsapp.external_account_id}</span>
               </div>
               {whatsapp.last_synced_at ? (
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Connected</span>
+                  <span className="text-muted-foreground">Last checked</span>
                   <span>{formatDateTime(whatsapp.last_synced_at)}</span>
                 </div>
               ) : null}
-              <form action={disconnectWhatsAppAction.bind(null, businessId, whatsapp.id)} className="pt-2">
-                <SubmitButton variant="outline" pendingText="Disconnecting...">
-                  Disconnect
-                </SubmitButton>
-              </form>
+              <div className="flex flex-wrap gap-2 pt-2">
+                {whatsapp.status === "degraded" || whatsapp.status === "provider_error" ? (
+                  <form action={checkWhatsAppConnectionNowAction.bind(null, businessId, whatsapp.id)}>
+                    <SubmitButton variant="outline" pendingText="Checking...">
+                      Check now
+                    </SubmitButton>
+                  </form>
+                ) : null}
+                <form action={disconnectWhatsAppAction.bind(null, businessId, whatsapp.id)}>
+                  <SubmitButton variant="outline" pendingText="Disconnecting...">
+                    Disconnect
+                  </SubmitButton>
+                </form>
+              </div>
+              {whatsapp.status === "reauthorization_required" ? (
+                <div className="border-t pt-3">
+                  <p className="pb-2 text-xs text-muted-foreground">Reconnect with a fresh access token:</p>
+                  <ConnectWhatsAppForm action={connectWhatsAppAction.bind(null, businessId)} />
+                </div>
+              ) : null}
             </div>
           ) : (
             <ConnectWhatsAppForm action={connectWhatsAppAction.bind(null, businessId)} />

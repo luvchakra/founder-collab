@@ -16,6 +16,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_interaction.sent": "CRM message sent",
   "crm_channel_connection.connected": "CRM channel connected",
   "crm_channel_connection.disconnected": "CRM channel disconnected",
+  "crm_channel_connection.health_changed": "CRM channel connection health changed",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {

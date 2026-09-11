@@ -3,6 +3,7 @@ import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
 import { attachOutboundMessageId, markInteractionFailed, recordInteraction } from "../interactions/mutations";
+import { applyChannelConnectionHealthResult } from "../channel-connections/mutations";
 import { getDecryptedAccessToken } from "../channel-connections/queries";
 import { getWhatsAppTemplate } from "./templates";
 import { whatsAppCloudApiAdapter } from "./cloud-api-adapter";
@@ -10,7 +11,9 @@ import { computeWhatsAppWindowStatus, type WhatsAppWindowStatus } from "./window
 
 export type SendWhatsAppReplyResult = { ok: true; interactionId: string } | { ok: false; error: string; requiresTemplate?: boolean };
 
-type OutboundContext = { ok: true; recipientPhone: string; lastInboundOccurredAt: string; phoneNumberId: string; accessToken: string } | { ok: false; error: string };
+type OutboundContext =
+  | { ok: true; recipientPhone: string; lastInboundOccurredAt: string; connectionId: string; phoneNumberId: string; accessToken: string }
+  | { ok: false; error: string };
 
 /** Shared by `sendWhatsAppReply()` (CRM-07.6) and `sendWhatsAppTemplate()` (CRM-07.8):
  * both need the same recipient phone (the conversation's last inbound sender) and the
@@ -57,7 +60,14 @@ async function resolveOutboundContext(supabase: Awaited<ReturnType<typeof create
   const accessToken = await getDecryptedAccessToken(businessId, connection.id);
   if (!accessToken) return { ok: false, error: "WhatsApp isn't connected for this business." };
 
-  return { ok: true, recipientPhone: lastInbound.external_actor_id, lastInboundOccurredAt: lastInbound.occurred_at, phoneNumberId: connection.external_account_id, accessToken };
+  return {
+    ok: true,
+    recipientPhone: lastInbound.external_actor_id,
+    lastInboundOccurredAt: lastInbound.occurred_at,
+    connectionId: connection.id,
+    phoneNumberId: connection.external_account_id,
+    accessToken,
+  };
 }
 
 /**
@@ -107,11 +117,13 @@ export async function sendWhatsAppReply(businessId: string, conversationId: stri
   const sendResult = await whatsAppCloudApiAdapter.sendText({ phoneNumberId: context.phoneNumberId, accessToken: context.accessToken }, context.recipientPhone, text);
   if (!sendResult.ok) {
     await markInteractionFailed(businessId, interaction.id, sendResult.error);
+    await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: false, statusCode: sendResult.statusCode });
     return { ok: false, error: sendResult.error };
   }
   if (sendResult.providerMessageId) {
     await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId);
   }
+  await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: true });
 
   await writeAuditLog({
     businessId,
@@ -170,11 +182,13 @@ export async function sendWhatsAppTemplate(businessId: string, conversationId: s
   );
   if (!sendResult.ok) {
     await markInteractionFailed(businessId, interaction.id, sendResult.error);
+    await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: false, statusCode: sendResult.statusCode });
     return { ok: false, error: sendResult.error };
   }
   if (sendResult.providerMessageId) {
     await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId);
   }
+  await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: true });
 
   await writeAuditLog({
     businessId,

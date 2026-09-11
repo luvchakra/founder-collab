@@ -460,6 +460,39 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.lead where id = '${convLead}'`), "0", "Bob cannot see Alice's converted lead");
 
+      console.log("Verifying CRM-15.5's integration failure handling (status transitions, disconnected guard)...");
+      // aliceWhatsAppConnection (CRM-07.2's own section above) starts out 'connected'.
+      // applyChannelConnectionHealthResult()'s own classification: a 500 from Meta means
+      // provider_error.
+      psqlAsAlice(`update crm.channel_connection set status = 'provider_error' where id = '${aliceWhatsAppConnection}' and business_id = '${aliceBusiness}' and status <> 'disconnected';`);
+      assertEqual(
+        psqlAsAlice(`select status from crm.channel_connection where id = '${aliceWhatsAppConnection}'`),
+        "provider_error",
+        "a 5xx send/health-check failure flips a connected connection to provider_error",
+      );
+      // A subsequent successful health check (ok:true) recovers it back to connected.
+      psqlAsAlice(`update crm.channel_connection set status = 'connected', last_synced_at = now() where id = '${aliceWhatsAppConnection}' and business_id = '${aliceBusiness}' and status <> 'disconnected';`);
+      assertEqual(
+        psqlAsAlice(`select status from crm.channel_connection where id = '${aliceWhatsAppConnection}'`),
+        "connected",
+        "a successful recheck recovers a degraded/provider_error connection back to connected",
+      );
+      // Once a business has explicitly disconnected, no send/health-check outcome should
+      // ever resurrect it -- applyChannelConnectionHealthResult()'s own guard.
+      psqlAsAlice(`update crm.channel_connection set status = 'disconnected' where id = '${aliceWhatsAppConnection}' and business_id = '${aliceBusiness}';`);
+      psqlAsAlice(`update crm.channel_connection set status = 'reauthorization_required' where id = '${aliceWhatsAppConnection}' and business_id = '${aliceBusiness}' and status <> 'disconnected';`);
+      assertEqual(
+        psqlAsAlice(`select status from crm.channel_connection where id = '${aliceWhatsAppConnection}'`),
+        "disconnected",
+        "a disconnected connection is never touched by a later send/health-check outcome",
+      );
+      psqlAsBob(`update crm.channel_connection set status = 'provider_error' where id = '${aliceWhatsAppConnection}' and business_id = '${bobBusiness}';`);
+      assertEqual(
+        psqlAsAlice(`select status from crm.channel_connection where id = '${aliceWhatsAppConnection}'`),
+        "disconnected",
+        "Bob cannot change the status of Alice's channel_connection -- his own business_id filter matches no rows",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
