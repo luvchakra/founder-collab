@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSuperadmin } from "@cofounderai/core/rbac/platform-admin";
 import { createClient } from "@cofounderai/core/db/server";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
@@ -26,10 +27,17 @@ export const dynamic = "force-dynamic";
  * narrower env-var-only gate. The header below is PLATFORM-P0-01.3's own requirement:
  * "the UI must clearly indicate Platform Administration / SUPERADMIN."
  *
- * Deliberately minimal beyond that -- no sidebar yet (PLATFORM-P0-19's own "Dedicated
- * Admin Layout" is a later, separate story in Phase 4; there is exactly one page to link
- * to today, so a full nav would be pure decoration).
+ * Deliberately minimal beyond that -- no full sidebar yet (PLATFORM-P0-19's own
+ * "Dedicated Admin Layout" is a later, separate story in Phase 4). PLATFORM-P0-03.1 adds
+ * a second page (`/platform/branding`) alongside the dashboard, so a one-line nav strip
+ * is added below the header -- enough to make both pages reachable without building out
+ * the full left-nav shell §19 describes ahead of its own turn.
  */
+const NAV_LINKS = [
+  { href: "/platform", label: "Dashboard" },
+  { href: "/platform/branding", label: "Branding" },
+];
+
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
   try {
     await requireSuperadmin();
@@ -51,6 +59,13 @@ export default async function PlatformLayout({ children }: { children: ReactNode
         </div>
         {user?.email ? <span className="text-xs text-zinc-400">{user.email}</span> : null}
       </header>
+      <nav className="flex gap-4 border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm sm:px-6">
+        {NAV_LINKS.map((link) => (
+          <Link key={link.href} href={link.href} className="text-zinc-400 hover:text-zinc-100">
+            {link.label}
+          </Link>
+        ))}
+      </nav>
       <main className="flex-1 px-4 py-6 sm:px-6">{children}</main>
     </div>
   );

@@ -2,9 +2,16 @@
 
 Dated record of every story implemented from `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`
 (the "WonderArc Platform Administration Portal — P0/P1" doc). Branch: `feature/platform-admin-portal`,
-per that doc's own §39 workflow -- **one story at a time, tested, committed, then stop and
-wait for the next story** (explicitly not the auto-continue pattern used for other
-backlogs in this repo). Never merged into `main` unless explicitly instructed.
+originally run per that doc's own §39 workflow -- **one story at a time, tested,
+committed, then stop and wait for the next story** (explicitly not the auto-continue
+pattern used for other backlogs in this repo), never merged into `main` unless explicitly
+instructed. **As of 2026-09-11 (starting with PLATFORM-P0-03.1)**, an explicit task
+assignment switched this workstream to the same auto-continuing, verify-then-merge-to-
+`main`-after-each-story pattern the Discovery (`disc-offering-backlog`) and Compliance
+(`comply-backlog`) workstreams already use, superseding §39's "stop and wait"/"never
+merge" instructions for this run -- recorded here rather than silently departing from the
+doc's own stated process. Every story's own log entry below still documents its
+verification in full regardless of which mode was in effect when it landed.
 
 ## Progress
 
@@ -24,14 +31,14 @@ backlogs in this repo). Never merged into `main` unless explicitly instructed.
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
-| P0 Phase 4 | 03 | Branding & Look and Feel | Not started |
+| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2/03.3/03.4/03.5 not started -- see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
 | | 17 | Configuration Versioning | Not started |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 2/19 phases done (01, 02). P1: 0/9 done.**
+**P0: 2 full sections done (01, 02), plus 18.1 and 03.1. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -323,3 +330,179 @@ verification, exactly as every prior story in this log has done when the same ga
 Stopping here per the doc's own §39 workflow -- waiting for the next story (most likely
 PLATFORM-P0-16, Platform Audit, or continuing Phase 1's remaining security scope, per the
 doc's own recommended order -- but nothing auto-continues).
+
+### PLATFORM-P0-03.1 — WonderArc Branding (2026-09-11)
+
+**Sequencing note, addressed up front**: this run's assignment picks up the doc's own
+*section* order (§5 -> §6 -> §7 -> ...) rather than the §37 "Recommended Implementation
+Sequence" phase order this table's own rows are grouped by. Those two orderings genuinely
+disagree at this point: §37's Phase 1 still has PLATFORM-P0-16 (Platform Audit) open, and
+this log's own previous "Status" line named PLATFORM-P0-16 as the most likely next story.
+Section order instead reaches §7 (Branding, PLATFORM-P0-03) next, since §5/§6 are done and
+§32's first sub-story (18.1) was already pulled forward as security hardening. This is a
+sequencing choice, not a security/architecture judgment call the doc leaves ambiguous
+(both orderings are explicitly named in the doc itself, §3/ToC vs §37), so it proceeds
+rather than stopping to ask -- recorded here so the discrepancy this table shows is
+explained rather than silently papered over. PLATFORM-P0-16 (Audit) and the rest of §37's
+Phase 1/2/3 remain open and are simply reached later, in section order, rather than
+skipped.
+
+**What was built**: `platform.branding` (migration
+`20260911010000_platform_branding.sql`) -- a *singleton* row (boolean primary key fixed to
+`true`, not a uuid, so "there is exactly one WonderArc brand" is enforced by the column's
+own type, not just a constraint someone could later drop) holding every field §7's
+PLATFORM-P0-03.1 literally lists:
+
+| Backlog item | Column(s) |
+|---|---|
+| Platform Name | `platform_name` |
+| Logo | `logo_url` |
+| Favicon | `favicon_url` |
+| Primary Brand | `primary_color` |
+| Secondary Brand | `secondary_color` |
+| Accent Color | `accent_color` |
+| Login Branding | `login_headline`, `login_support_text` |
+| Email Branding | `email_from_name` |
+| Footer | `footer_text` |
+| Support Contact | `support_email`, `support_url` |
+
+Hex colors, URLs (`http(s)://` only), and the support email each have a Postgres `check`
+constraint at the column level (defense in depth under the DB itself, not only the app's
+Zod schema). RLS mirrors `platform.admins`' own shape exactly (`platform.is_superadmin()`,
+the same SECURITY DEFINER function) but, unlike `platform.admins` (read-only until a future
+grant/revoke story), this table gets both a `select` **and** an `update` policy -- read/
+write by a superadmin is literally what this story asks for, not deferred scope. No
+`insert`/`delete` policy exists at all (only `service_role` -- via `grant all` -- could add
+or remove the row, and the migration is the only place that ever does), so the row count
+can never drift from exactly 1 through the app.
+
+**Deliberately not built this story** (each is its own later sub-story in this same §7
+section, not guessed at ahead of turn):
+- **Draft/preview/publish (03.5)** -- a save takes effect immediately, same as every other
+  plain settings form in this codebase today (`dashboard/settings/profile`,
+  `dashboard/settings/licenses`). No version history table, no draft state.
+- **Non-color design tokens (03.2)** -- radius, button style, font family, spacing density.
+  Only the three colors 03.1 explicitly names exist as columns.
+- **The fuller login-page treatment (03.3)** -- background treatment and legal links.
+  03.1's own "Login Branding" line is covered by two columns (headline, support text); the
+  richer page-level treatment is 03.3's own scope.
+- **Wiring these values into any live customer-facing surface** -- the actual site favicon/
+  logo, the real login page's look, or an email "From" header. Three independent reasons,
+  stated plainly rather than assumed: (1) the customer app's actual visual theme is locked
+  to the reference mockup in `docs/DESIGN.md` per CLAUDE.md non-negotiable #7 -- dynamically
+  re-theming the live shell from this table without that non-negotiable's own rules being
+  revisited would be an unapproved architecture change, not this story's to make; (2) there
+  is no email-sending system yet (PLATFORM-P0-11) for `email_from_name` to plug into; (3)
+  the doc's own §7 wording throughout is "Configure X", i.e. the admin capability to store
+  these values -- not "make the app render them". This page is the configuration source of
+  truth; each future consuming surface wires itself up to it once it exists.
+- **A dedicated audit-log entry per change (PLATFORM-P0-16)** -- `core.write_audit_log()`
+  hard-requires a `business_id` (see `packages/core/src/audit/mutations.ts`), so it
+  structurally cannot record a platform-wide change with no business behind it; building a
+  parallel platform-audit mechanism ahead of PLATFORM-P0-16's own turn would duplicate
+  effort rather than reuse it. `updated_by`/`updated_at` on the row itself is the same
+  "minimal accountability, not full history" scope `core.permissions`/
+  `core.role_permissions` already accept while awaiting their own future builder --
+  confirmed by reading `write_audit_log`'s actual signature rather than assumed.
+
+**Application layer**: `packages/core/src/admin/platform-branding.ts` --
+`getPlatformBranding()`/`updatePlatformBranding()`, both calling `requireSuperadmin()`
+first (defense in depth on top of RLS, mirroring `requireModule()`'s role for tenant
+mutations) and both using the request-scoped, cookie-authenticated `createClient({schema:
+"platform"})` -- **not** `createAdminClient()` -- so `platform.branding`'s own RLS policy
+is the authoritative enforcement layer for this mutation, same as every other
+licensed/tenant table's "RLS (authoritative)" rule, just without a tenant/license axis.
+This is a deliberate departure from PLATFORM-P0-02's dashboard queries (which correctly use
+the service-role client for cross-tenant aggregation reads with no write path) -- this
+story is a real, superadmin-authored mutation, so RLS must be the thing actually stopping a
+non-superadmin, not merely a page-level redirect.
+
+`platformBrandingInputSchema` (Zod) validates every field -- required non-empty platform
+name; hex-color regex for primary (required) and secondary/accent (optional); `http(s)://`
+regex for logo/favicon/support URLs; email regex for support email; empty string on any
+optional field normalizes to `null` rather than being stored as `""`. Returns per-field
+errors (`Record<string, string>`) rather than one opaque message, so the form can surface
+each error next to its own input. Unit-tested directly in
+`packages/core/src/admin/platform-branding.test.ts` (8 new cases: full valid input, blank
+required name, empty-to-null normalization, malformed primary/optional colors, scheme-less
+URLs, malformed email, whitespace trimming) -- this is real, non-trivial validation logic
+(distinct from the pure data-mapping `toBranding()` helper beside it), so it gets tests per
+the assignment's own bar, not just the authorization-logic cases PLATFORM-P0-01's
+`isProtectedPath()` set as this codebase's minimum.
+
+**UI**: `apps/web/app/platform/(protected)/branding/` (page.tsx, actions.ts,
+branding-form.tsx) -- placed under the existing `(protected)` route group from
+PLATFORM-P0-18.1, so editing platform branding requires the same AAL2 MFA step every other
+`/platform/*` mutation surface will. One form, six grouped `Card` sections (Platform
+identity / Brand assets / Brand colors / Login branding / Email branding / Footer) per
+`docs/design/claude-ui-design-rules.md`'s "group related fields, plan hierarchy before
+markup" rule, a single primary "Save changes" action at the bottom (not one save button per
+section -- this is one entity, one save), and a "Last updated" timestamp caption next to
+it. Color fields get a small swatch preview beside the hex input. Always-editable (no
+separate view/edit toggle like `ProfileCard`'s) -- this is a standalone settings screen
+with one purpose, not a card living among a list of other things to glance at, so the
+simpler always-open form fits CLAUDE.md's "prefer the simplest implementation that works"
+better than porting the toggle pattern.
+
+Every `Input`/`Textarea`/`Label` on this page gets an explicit dark-zinc className override
+(`border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500`). The vendored
+components' default classes (`border-input`, `bg-transparent`, `text-foreground`,
+`placeholder:text-muted-foreground`) resolve against `packages/core/src/ui-theme.css`'s
+light-theme tokens, which this hardcoded dark `/platform` chrome never opts into (no
+`.dark` class anywhere in `platform/layout.tsx`) -- the same class of fix PLATFORM-P0-02
+already applied to one Badge on the dashboard, applied here across every text field on a
+much more form-heavy page. Noted for the record: `platform/mfa/mfa-verify-form.tsx`
+(PLATFORM-P0-18.1) has this same latent contrast issue on its one `Input` and was left
+untouched -- a different, already-shipped file, not this story's to refactor per CLAUDE.md
+development principle #10, even though the fix is directly adjacent.
+
+`apps/web/app/platform/layout.tsx` gains a one-line nav strip (`Dashboard` / `Branding`
+text links) below the existing header -- PLATFORM-P0-01's layout deliberately had no nav at
+all because there was exactly one page to reach; with a second page now, an orphaned,
+unreachable-via-UI route would fail this doc's own "no page should be invisible" spirit
+without yet justifying PLATFORM-P0-19's full "Dedicated Admin Layout" sidebar (a separate,
+later Phase-4 story). This is intentionally the smallest thing that makes both pages
+reachable, not a preview of 19's own design.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace (this
+worktree needed its own `npm install` first -- a fresh git worktree has no local
+`node_modules`, and without one, Node's module resolution walks up past the worktree root
+to the outer checkout's `node_modules/@cofounderai/core` symlink, type-checking this
+worktree's `apps/web` against a *different* copy of `packages/core` that doesn't have this
+story's new file; installing locally fixes the workspace symlinks to point at this
+worktree's own packages, which also happened to make two previously-"pre-existing" errors
+this log's PLATFORM-P0-18.1 entry recorded disappear -- they were an artifact of that same
+cross-checkout mismatch, not real repo state, corrected here rather than re-asserted).
+`npm run lint` -- 0 errors (one unescaped-apostrophe error caught and fixed in
+`branding/page.tsx`'s own copy), 1 pre-existing unrelated warning (`Package` unused import
+in a CRM conversations page, untouched by this story). `node scripts/lint-import-
+boundaries.mjs` -- 1011 files, no violations. `node scripts/lint-migration-schema.mjs` --
+108 migrations (107 -> 108, this story's one new file), no violations. `npx vitest run
+--root packages/core` -- 45 tests (37 -> 45, this story's 8 new schema-validation cases),
+all passing. `apps/web`'s own `vitest run --passWithNoTests` -- 40 tests, unchanged. Live
+migration applied via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; `mcp__Supabase__get_advisors` for both `security` and
+`performance` afterward showed zero *new* findings -- the security findings listed are all
+pre-existing (`core`/`discovery` tables unrelated to this migration, plus the pre-existing
+leaked-password-protection warning), and the one new performance "unused index" entry
+(`branding_updated_by_idx`) is the same expected class as `platform.admins`' own three
+FK indexes in this empty dev database, not a real regression. Confirmed the seeded
+singleton row directly via `execute_sql` (`platform.branding` has exactly one row, id
+`true`, `platform_name = 'WonderArc'`, every optional field `null`, matching the
+migration's own defaults). `cd apps/web && npm run build` -- clean; `/platform/branding`
+lists `ƒ` (dynamic), correctly inheriting the outer layout's existing `force-dynamic`
+(from PLATFORM-P0-02) with no per-route opt-in needed, same as `/platform/mfa` already
+demonstrated.
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no seeded
+demo superadmin user or live Supabase session reachable in this sandboxed environment, so a
+live authenticated browser walkthrough of actually loading `/platform/branding`, editing a
+field, and seeing the save/toast/re-render cycle was **not** performed and is **not**
+claimed here. This entry documents build/typecheck/lint/unit-test correctness and a direct
+read of the applied schema and RLS policies against the live dev database, not an
+end-to-end UI verification.
+
+**Status**: PLATFORM-P0-03.1 done (03.2/03.3/03.4/03.5 remain open, each its own later
+sub-story). Continuing to the next story in section order per this run's auto-continue
+assignment (distinct from this doc's own normal "stop after one story" §39 workflow, which
+governed every prior entry above).
