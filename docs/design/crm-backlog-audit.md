@@ -1904,3 +1904,89 @@ findings, as expected for a story with no schema change.
 **Status**: 58 of 74 in-scope stories done. Next: CRM-09.8 (Escalation Rules, seq #54,
 P1) -- a configurable timed sequence (new inquiry -> 15m reminder -> 1h owner escalation
 -> 4h manager escalation).
+
+## CRM-09.8 (2026-09-11)
+
+"Escalation Rules." Example configurable sequence: new inquiry -> 15m -> reminder ->
+1h -> owner escalation -> 4h -> manager escalation. Do not hard-code times; store
+business configuration.
+
+**Three scoping questions put to the user before implementation** (this story had
+genuine open design space -- no delivery mechanism exists in the codebase yet, no
+"manager" role exists in RBAC, and "store configuration" doesn't by itself say how much
+of it needs a settings UI): (1) each rung's action is a state change only (priority
+bump / assignment via the existing queues), not a new notification channel; (2) the
+escalation manager is a new, explicitly-configurable per-business designation, not a
+reuse of the owner/admin RBAC roles; (3) the three delay times are stored, real,
+per-business configuration from day one, but with seeded defaults and no dedicated
+editing UI built this story (confirmed: "seeded defaults, no settings UI yet").
+
+**`crm.escalation_config`**: one row per business, `reminder_delay_minutes`/
+`owner_escalation_delay_minutes`/`manager_escalation_delay_minutes` (defaults 15/60/240,
+the backlog's own example verbatim) plus `manager_employee_id`. `getEscalationConfig()`
+returns these defaults for any business with no row of its own yet, so "store business
+configuration" holds (a future edit is a real row update) without forcing a row to
+exist before anyone customizes anything. `setEscalationManager()` is the one thing this
+story does let a human configure (gated by `crm_settings.manage`, the same permission
+routing rules already use) -- a small "Escalation" card added to the existing Routing
+Rules page (an employee picker + the three delays shown read-only), not a new settings
+screen, satisfying "manager" being genuinely configurable without building the
+speculative full-ladder editor decision (3) explicitly deferred.
+
+**Escalation state lives on `crm.follow_up`, same as CRM-08.7's review recovery task**
+-- new nullable `interaction_id` + `escalation_stage` (enum: `reminder`/
+`owner_escalation`/`manager_escalation`) columns, a partial unique index on
+`(business_id, interaction_id)` for idempotency, and the same
+`crm.enforce_follow_up_refs()` trigger extended with one more check (`create or
+replace`, not a new trigger -- the fourth story in a row to extend this same function).
+Unlike CRM-08.7's review-triggered follow-up, this one always has a real
+`conversation_id` (every interaction belongs to one), so the existing Follow-ups queue
+resolves party name/source/channel with zero UI change -- no `reviewSummary`-style
+fallback needed here.
+
+**`lib/escalation/mutations.ts#applyEscalationRules()`** is the engine: pure
+`computeTargetEscalationStage(elapsedMinutes, config)` (unit-tested, 6 cases) decides
+the highest stage an unanswered interaction has reached given its own business's
+configured delays -- checked highest-first so a sweep that missed several runs lands an
+interaction on `manager_escalation` immediately rather than needing three separate
+sweeps to climb one rung at a time. `reminder`/`owner_escalation` bump priority
+(`normal`/`high`) without inventing an owner assignment for a conversation that has
+none -- there's no well-defined "default owner" to guess at; `manager_escalation`
+additionally assigns the business's configured `manager_employee_id`, honestly staying
+unassigned if none is set (same "honest gap until its own data/configuration exists"
+discipline CRM-08.7 and CRM-08.5 both already established). Never regresses a stage
+already reached (`STAGE_RANK` comparison). No permission gate on the engine itself --
+same "shared primitive a session-less caller uses, so there is nothing to gate"
+reasoning `createLead()`'s own doc comment established, and there is no human-triggered
+call site for this function at all.
+
+**`runEscalationSweep()`** (new cron route `api/cron/escalate-conversations`, same
+shared-secret auth as every other cron route): cross-tenant, admin-scoped, restricted to
+businesses with an *active* `crm` license (checked directly against `core.licenses`
+with the admin client, not the session-bound `core.write_licensed_business_ids()` RLS
+helper, which has no `auth.uid()` to resolve in a cron context) -- a grace-period
+business gets reads under ADR-9, not this kind of write.
+
+New RLS-harness coverage: `escalation_config`'s own uniqueness (one row per business)
+and cross-tenant smuggling on `manager_employee_id`; the escalation follow-up's
+`interaction_id` idempotency and cross-tenant smuggling. Verified with full monorepo
+typecheck (clean across every workspace), `lint:boundaries` (919 files, no violations),
+`lint:migrations` (75 migrations, no violations), module-crm's vitest suite (111/111 --
+6 new tests for `computeTargetEscalationStage()`), both CRM RLS suites (re-run clean,
+including the new escalation cases), and a clean `next build`. Migration applied live
+to the dev Supabase project; `get_advisors(performance)` caught a real missing index on
+`escalation_config.manager_employee_id` (the FK's own migration originally had no
+covering index, same "29 unindexed FK columns" class of gap this repo already fixed
+once) -- caught and fixed in this same story rather than left for later, confirmed clean
+on re-check. `get_advisors(security)` unchanged (same 6 pre-existing findings).
+
+**Epic CRM-09 status**: all 8 in-scope CRM-09 stories now done (09.1 through 09.6 were
+already complete; 09.7 and 09.8 close it out) -- **epic complete.**
+
+**Status**: 59 of 74 in-scope stories done. Next: CRM-10.2 (Inventory Availability in
+Conversation, seq #55, P1) -- Epic CRM-10's own P0 story (CRM-10.1, Product Interest
+Association) is already built (`crm.product_interest`, CRM-01.2's schema baseline), so
+this is the first of that epic's remaining P1 stories: letting CRM answer commercial
+questions using the authoritative Inventory module -- a genuine cross-module contract
+call (ADR-10 degraded mode required, since `inventory` may not be licensed) into
+territory this backlog run hasn't touched yet.
