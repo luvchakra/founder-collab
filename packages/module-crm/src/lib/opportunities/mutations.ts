@@ -161,20 +161,32 @@ export async function createFsmQuoteForOpportunity(businessId: string, opportuni
   if (opportunity.fsm_opportunity_id) throw new Error("An FSM quote already exists for this opportunity.");
 
   const requirement = opportunity.assessment_requirement as AssessmentRequirement | null;
+  let assessmentOutcome: string | null = null;
   if (requirement && requirement !== "none") {
     if (!opportunity.assessment_request_id) throw new Error("Complete the required assessment before creating an FSM quote.");
     const assessmentStatus = await getAssessmentStatus(businessId, opportunity.assessment_request_id);
     if (!assessmentStatus.ok || !assessmentStatus.data.outcome) {
       throw new Error("The required assessment hasn't been completed yet.");
     }
+    assessmentOutcome = assessmentStatus.data.outcomeNotes || assessmentStatus.data.outcome.replace(/_/g, " ");
   }
 
   const products = await listOpportunityProducts(businessId, opportunityId);
   if (products.length === 0) throw new Error("Add at least one product before creating an FSM quote.");
 
+  // INT-04.4: "No manual re-entry of customer/service-location data" -- the same
+  // contact/address resolution `createAssessmentRequestForOpportunity()` already uses,
+  // reused here so the quote doesn't leave the founder re-picking what's already on
+  // file (whether or not an assessment ever happened for this opportunity).
+  const [contacts, serviceAddress] = await Promise.all([listOpportunityContacts(businessId, opportunityId), getPrimaryAddress(opportunity.party_id, "service")]);
+  const primaryContact = contacts.find((c) => c.isPrimary) ?? contacts[0] ?? null;
+
   const result = await createFsmQuoteFromCrmOpportunity(businessId, {
     crmOpportunityId: opportunityId,
     partyId: opportunity.party_id,
+    contactId: primaryContact?.partyContactId ?? null,
+    serviceAddressId: serviceAddress?.id ?? null,
+    description: assessmentOutcome,
     lineItems: products.map((p) => ({ itemId: p.itemId, quantity: p.quantity ?? 1, taxable: true })),
   });
   if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "FSM isn't licensed for this business." : result.error);

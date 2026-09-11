@@ -329,6 +329,8 @@ export async function createFsmQuoteFromCrmOpportunity(businessId: string, input
       .insert({
         business_id: businessId,
         party_id: input.partyId,
+        primary_contact_id: input.contactId || null,
+        service_address_id: input.serviceAddressId || null,
         description: input.description || null,
         source: "crm",
         source_reference: input.crmOpportunityId,

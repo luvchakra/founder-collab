@@ -53,6 +53,14 @@ export type CreateFsmQuoteInput = {
   crmOpportunityId: string;
   partyId: string;
   description?: string | null;
+  /** INT-04.4: "No manual re-entry of customer/service-location data" -- when CRM
+   * already has a contact/service address on file (its own opportunity contact, or
+   * whatever an assessment resolved), it's carried straight onto the FSM opportunity
+   * instead of leaving the founder to look them up again inside FSM. Both optional --
+   * a product-only opportunity with no assessment has neither to offer, and that's
+   * fine. */
+  contactId?: string | null;
+  serviceAddressId?: string | null;
   lineItems: { itemId: string; quantity: number; taxable: boolean }[];
 };
 

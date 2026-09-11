@@ -33,7 +33,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Done |
 | | 04.2 | Create FSM Assessment Request | Done |
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Done |
-| | 04.4 | Assessment -> Quote Continuation | Not started |
+| | 04.4 | Assessment -> Quote Continuation | Done |
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Not started |
 | | 05.2 | Inventory Substitution Recommendation | Not started |
 | | 05.3 | Shortage -> Customer Follow-up | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 15/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 15/29 (52%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 16/29 (55%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -296,3 +296,15 @@ New minimal FSM page, `/fsm/assessments/[assessmentId]` -- no list page or new s
 Verified with full monorepo typecheck (clean across all 9 workspaces, after fixing one `??`/`||` mixed-operator error TypeScript's own parser rejects), `lint:boundaries` (957 files, no violations), module-crm's vitest suite (152/152, unchanged), and a clean `next build` (confirmed the new `/fsm/assessments/[assessmentId]` route is actually built). No migration -- purely additive TypeScript/UI over columns INT-04.2 already created.
 
 **Status**: 15 of 29 in-scope stories done. Next: INT-04.4, Assessment -> Quote Continuation.
+
+### INT-04.4 — Assessment -> Quote Continuation (2026-09-11)
+
+"No manual re-entry of customer/service-location data": reading `CreateFsmQuoteInput` and `createFsmQuoteFromCrmOpportunity()`'s own insert statement (Rule 1) showed `fsm.opportunities.primary_contact_id`/`service_address_id` have existed since the original F-1 schema, but the CRM-quote-creation path never populated them -- a gap, not a missing mechanism, so the fix is purely additive: no new columns, no new migration. Added `contactId?`/`serviceAddressId?` to `CreateFsmQuoteInput` and wired them into the `fsm.opportunities` insert.
+
+CRM's `createFsmQuoteForOpportunity()` now resolves the same contact/address CRM already has on file -- reusing the exact `listOpportunityContacts()` + `getPrimaryAddress()` pattern `createAssessmentRequestForOpportunity()` (INT-04.2) established -- and passes them through. When an assessment was required, its recorded outcome (`outcomeNotes` or a humanized `outcome`, already fetched by INT-04.3's own gating check) is carried onto the new FSM opportunity's `description` too, so the quote starts with the assessment's findings already in view instead of an empty field.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (957 files, no violations), `lint:migrations` (91 migrations, no violations -- no new migration this story), module-crm's vitest suite (152/152, unchanged), and a clean `next build`.
+
+**Epic INT-04 complete (4/4). All of P0 complete (16/16).**
+
+**Status**: 16 of 29 in-scope stories done. Next: INT-05.1, Partial Availability Decision (starts Epic INT-05, the first P1 epic).
