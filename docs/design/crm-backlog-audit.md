@@ -1765,3 +1765,85 @@ BYOK credential connected, same default-UX discovery already gives founders.
 Task, seq #52, P1) -- rule-based: a 1-3 star review becomes a recovery task, an
 unresolved negative review escalates, a 4-5 star review becomes an advocacy/follow-up
 opportunity where appropriate, with no automatic promise of compensation or resolution.
+
+## CRM-08.7 (2026-09-11)
+
+"Review Recovery Task." Rules: 1-3 star review -> recovery task; unresolved negative
+review -> escalation; 4-5 star review -> advocacy/review-follow-up opportunity where
+appropriate; no automatic promise of compensation or resolution.
+
+**`crm.follow_up`, not `crm.activity`, is what a review attaches to.** A review almost
+never carries a `party_id` (CRM-08.5's own design -- no phone/email to match a reviewer
+on), so `crm.activity`'s "attached to something" check (party/lead/opportunity/
+conversation) can essentially never be satisfied by a review-triggered task. `crm.
+follow_up` has no such constraint, so new migration
+(`20260911001200_crm_follow_up_review_item.sql`) adds a nullable `review_item_id`
+column there instead of forcing a fake attachment just to satisfy a check that was never
+meant to cover this case. New partial unique index `(business_id, review_item_id) where
+review_item_id is not null` makes rule application idempotent (a re-sync of an
+already-handled review is a no-op); a separate plain index on `review_item_id` itself
+covers the FK lookup the unique index's own leading column (`business_id`) doesn't
+(caught by `get_advisors(performance)` immediately after the first version of this
+migration -- fixed in the same story rather than left for a later cleanup pass, same
+"29 unindexed FK columns" precedent this repo already established). Extended the
+existing `crm.enforce_follow_up_refs()` trigger function (`create or replace`, not a
+second trigger) with the new `crm.enforce_review_item_business_id()` check, same
+cross-tenant-smuggling-prevention pattern every other `crm.follow_up` reference already
+has.
+
+**`lib/reviews/recovery-rules.ts#applyReviewRecoveryRules()`**, called from
+`syncGoogleBusinessProfileReviews()` for every review a sync returns (idempotent, so
+running it on already-handled reviews every sync is a correct no-op, not a bug to guard
+against separately): rating 1-2 creates a `follow_up` at `high` priority due in 2 days,
+rating 3 at `normal` priority (escalation, below, is what promotes it from there); rating
+4-5 creates a `follow_up` at `normal` priority due in 7 days -- the literal
+"review-follow-up" half of the rule's own name, always created. The "opportunity" half
+only fires "where appropriate": appropriateness being the one actually-checkable
+condition, whether `review_item.party_id` is set at all (a real party to open a sales
+opportunity *for* -- `crm.opportunity.party_id` is `not null`). When it is, reuses
+`createLead()` (`source: 'google'`, `sourceModule: 'review_item'`) +
+`convertLeadToOpportunity()` verbatim -- the same lead-then-opportunity path
+`conversion-actions.ts#convertInteractionToOpportunity()` already established, not a
+parallel direct-insert. Without a party, the rule correctly stays at "just the
+follow-up task," the same "honest gap until its own data exists" discipline CRM-09.2's
+"related product" column and CRM-08.5's own `party_id` already established -- not a
+shortcut invented for this story. "No automatic promise of compensation or resolution"
+holds by construction: `crm.follow_up` has no note/body column at all, so there is no
+channel for one to leak through even by accident.
+
+**`escalateOverdueNegativeReviewFollowUps()`** is the third rule, "unresolved negative
+review -> escalation": an admin-scoped cross-tenant sweep (same shape
+`whatsapp/health.ts#checkAllWhatsAppConnectionsHealth()` already established) that finds
+`pending`, still-`normal`-priority follow-ups attached to a rating-1-3 review whose
+`due_at` has passed and whose review is still not `responded`/`dismissed`, and bumps
+them to `high` -- this priority scale's own ceiling (`low`/`normal`/`high`, no fourth
+tier invented for this). Never touches a review already at `high` (a 1-2 star review
+starts there already) or one a human has already resolved. New cron route
+`api/cron/escalate-review-recovery-tasks`, same shared-secret auth as every other cron
+route.
+
+**Follow-ups queue UI gap, closed in the same story.** A follow-up attached only via
+`review_item_id` (the common case -- no party) would otherwise render as an unexplained
+"Unknown contact" in the existing Follow-ups queue, since that page's own party/source/
+channel resolution has nothing to fall back to. `listFollowUpQueue()` now also resolves
+a `reviewSummary` string (rating as stars, reviewer, comment excerpt) for any row with a
+`review_item_id`; the Follow-ups page renders `partyName ?? reviewSummary ?? "Unknown
+contact"` instead of just the first two. Judged in-scope rather than a separate story:
+without it, this story's own output would be practically invisible in the one screen
+that's supposed to show it.
+
+Verified with full monorepo typecheck (clean across every workspace, after fixing one
+existing test fixture -- `follow-ups/queue.test.ts` -- to include the two new
+`FollowUpQueueRow` fields), `lint:boundaries` (911 files, no violations), `lint:
+migrations` (74 migrations, no violations), module-crm's vitest suite (101/101,
+unchanged), both CRM RLS suites (re-run clean, including three new CRM-08.7 cases: a
+review-only follow-up attachment, the duplicate-`review_item_id` rejection, and Bob
+cannot create a follow-up against Alice's review_item), and a clean `next build`
+(`/api/cron/escalate-review-recovery-tasks` present). Both migrations applied live to
+the dev Supabase project (`jazdtomcgqjxjueedmck`); `get_advisors(security)` shows the
+same 6 pre-existing findings as before (no new one); `get_advisors(performance)`
+confirmed the missing-index gap was real and is now fixed (only pre-existing
+"unused index" INFO findings remain, expected for a freshly-created index with no
+production query volume yet).
+
+**Epic CRM-08 status**: 6 of 6 in-scope stories done -- **epic complete.**

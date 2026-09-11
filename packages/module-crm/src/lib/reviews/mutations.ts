@@ -15,6 +15,7 @@ import {
   publishGoogleBusinessProfileReviewReply,
   verifyGoogleBusinessProfileLocation,
 } from "./google-business-profile-adapter";
+import { applyReviewRecoveryRules } from "./recovery-rules";
 import type { ReviewItem, ReviewItemStatus } from "./types";
 
 /**
@@ -123,10 +124,17 @@ export async function syncGoogleBusinessProfileReviews(businessId: string, conne
     };
   });
 
-  const { error: upsertError } = await supabase.from("review_item").upsert(rows, { onConflict: "business_id,provider,external_review_id" });
+  const { data: upserted, error: upsertError } = await supabase.from("review_item").upsert(rows, { onConflict: "business_id,provider,external_review_id" }).select("id");
   if (upsertError) throw upsertError;
 
   await supabase.from("channel_connection").update({ last_synced_at: new Date().toISOString() }).eq("id", connectionId).eq("business_id", businessId);
+
+  // CRM-08.7's own rules, applied per review -- idempotent (a review already handled by
+  // an earlier sync is a no-op), so running this on every review every sync rather than
+  // only newly-inserted ones is simplest and costs nothing extra for the common case.
+  for (const row of upserted ?? []) {
+    await applyReviewRecoveryRules(businessId, row.id);
+  }
 
   return { synced: rows.length };
 }

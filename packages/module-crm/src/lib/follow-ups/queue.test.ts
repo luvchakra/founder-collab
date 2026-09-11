@@ -13,6 +13,7 @@ function row(overrides: Partial<FollowUpQueueRow>): FollowUpQueueRow {
     opportunity_id: null,
     conversation_id: null,
     activity_id: null,
+    review_item_id: null,
     owner_id: "emp-1",
     due_at: "2026-06-15T09:00:00.000Z",
     status: "pending",
@@ -24,6 +25,7 @@ function row(overrides: Partial<FollowUpQueueRow>): FollowUpQueueRow {
     partyName: "Acme",
     source: "discovery",
     channel: "whatsapp",
+    reviewSummary: null,
     ...overrides,
   };
 }

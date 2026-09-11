@@ -146,7 +146,11 @@ async function main() {
         values ('${aliceBusiness}', 'whatsapp', 'whatsapp_business', 'wa-acct-1')
         returning id;
       `);
-      psqlAsAlice(`insert into crm.review_item (business_id, channel_connection_id, provider, external_review_id, occurred_at) values ('${aliceBusiness}', '${aliceChannelConnection}', 'google_business_profile', 'review-1', now());`);
+      const aliceReviewItem = psqlAsAlice(`
+        insert into crm.review_item (business_id, channel_connection_id, provider, external_review_id, rating, occurred_at)
+        values ('${aliceBusiness}', '${aliceChannelConnection}', 'google_business_profile', 'review-1', 2, now())
+        returning id;
+      `);
       psqlAsAlice(`insert into crm.assignment (business_id, entity_type, entity_id, owner_id) values ('${aliceBusiness}', 'lead', '${aliceLead}', '${aliceEmployee}');`);
 
       console.log("Verifying CRM-01.6's idempotency unique constraints...");
@@ -535,6 +539,22 @@ async function main() {
       assertThrows(
         () => psqlAsBob(`insert into crm.review_item (business_id, channel_connection_id, provider, external_review_id, occurred_at) values ('${bobBusiness}', '${aliceChannelConnection}', 'google_business_profile', 'review-bob-1', now())`),
         "Bob cannot create a review_item against Alice's channel_connection (CRM-08.5)",
+      );
+
+      console.log("Verifying CRM-08.7's review-recovery follow-up (review_item_id attachment, idempotency, cross-tenant smuggling)...");
+      const aliceRecoveryFollowUp = psqlAsAlice(`
+        insert into crm.follow_up (business_id, review_item_id, due_at, priority)
+        values ('${aliceBusiness}', '${aliceReviewItem}', now() + interval '2 days', 'high')
+        returning id;
+      `);
+      assertEqual(psqlAsAlice(`select party_id, lead_id, opportunity_id, conversation_id from crm.follow_up where id = '${aliceRecoveryFollowUp}'`), "|||", "a review-triggered follow-up has no party/lead/opportunity/conversation attachment at all -- review_item_id is the only link, which crm.follow_up (unlike crm.activity) allows");
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.follow_up (business_id, review_item_id, due_at) values ('${aliceBusiness}', '${aliceReviewItem}', now() + interval '3 days')`),
+        "a duplicate (business_id, review_item_id) follow_up is rejected -- applyReviewRecoveryRules() relies on this for its own idempotency",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.follow_up (business_id, review_item_id, due_at) values ('${bobBusiness}', '${aliceReviewItem}', now() + interval '2 days')`),
+        "Bob cannot create a follow_up against Alice's review_item (CRM-08.7)",
       );
       const bobOpportunity = psqlAsBob(`insert into crm.opportunity (business_id, party_id) values ('${bobBusiness}', '${bobParty}') returning id;`);
       assertThrows(

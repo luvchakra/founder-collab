@@ -9,6 +9,11 @@ export type FollowUp = {
   opportunity_id: string | null;
   conversation_id: string | null;
   activity_id: string | null;
+  /** CRM-08.7: the review this recovery/advocacy task was created for, when it was
+   * created by `applyReviewRecoveryRules()` rather than a person. Often the *only*
+   * attachment a review-triggered follow-up has -- a review carries no party_id in the
+   * common (unmatched) case, unlike every other follow-up source. */
+  review_item_id: string | null;
   owner_id: string | null;
   due_at: string;
   status: FollowUpStatus;
@@ -26,6 +31,7 @@ export type CreateFollowUpInput = {
   opportunityId?: string | null;
   conversationId?: string | null;
   activityId?: string | null;
+  reviewItemId?: string | null;
   ownerId?: string | null;
   dueAt: string;
   priority?: FollowUpPriority;
@@ -44,4 +50,9 @@ export type FollowUpQueueRow = FollowUp & {
   partyName: string | null;
   source: string | null;
   channel: string | null;
+  /** CRM-08.7: a short "★★★☆☆ review from X: ..." label for a follow-up attached only
+   * via `review_item_id` -- otherwise this row would render as an unexplained
+   * "Unknown contact" with no clue what it's actually about. Null for every other
+   * follow-up. */
+  reviewSummary: string | null;
 };
