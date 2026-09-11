@@ -145,3 +145,17 @@ export type CompletedJobForReactivation = {
   jobId: string;
   completedAt: string;
 };
+
+/** INT-07.1's "Cross-Module Exception Model" -- FSM's own contribution: every job
+ * that's short on parts (INT-03.3's `parts_reservation_status` of
+ * `partially_reserved`/`unavailable`) with no recorded `parts_shortage_resolution` yet
+ * -- a genuine "needs a human decision" state, distinct from a job that's short but
+ * already has a recorded resolution (waiting on replenishment is a decision that was
+ * made, not an open exception). Business-wide, not scoped to one opportunity -- this is
+ * what lets CRM's Exception Model surface these without a founder having to open every
+ * job individually to discover one. */
+export type JobPartsShortageException = {
+  jobId: string;
+  jobNumber: string | null;
+  partyId: string;
+};

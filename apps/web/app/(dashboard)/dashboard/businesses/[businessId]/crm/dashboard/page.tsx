@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getPotentialLostBusinessDashboard, getCrmDashboardKpis } from "@cofounderai/module-crm/lib/dashboard/queries";
+import { listCrossModuleExceptions } from "@cofounderai/module-crm/lib/exceptions/queries";
 import { inr } from "@cofounderai/core/lib/format";
 
 function KpiCard({ label, value, detail, href }: { label: string; value: string | number; detail: string; href?: string }) {
@@ -36,13 +37,24 @@ function KpiCard({ label, value, detail, href }: { label: string; value: string 
  * hidden report" already claimed the top-of-nav "Dashboard" slot, and these two KPI sets
  * are complementary reads of the same underlying data (what's at risk vs. what's the
  * current pipeline/operations state), not two different audiences.
+ *
+ * INT-07.1 adds one more card to the first section, "Open exceptions" -- the count from
+ * the new business-wide Cross-Module Exception Model (`listCrossModuleExceptions()`).
+ * No `href` yet, same as "Reviews requiring action"/"Response SLA" below: this story is
+ * deliberately scoped to the model itself, not the resolution actions or a dedicated
+ * list page (INT-07.2/07.3's own job) -- the count is real, not a placeholder, it just
+ * has nowhere to drill into yet.
  */
 export default async function CrmDashboardPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [metrics, kpis] = await Promise.all([getPotentialLostBusinessDashboard(businessId), getCrmDashboardKpis(businessId)]);
+  const [metrics, kpis, exceptions] = await Promise.all([
+    getPotentialLostBusinessDashboard(businessId),
+    getCrmDashboardKpis(businessId),
+    listCrossModuleExceptions(businessId),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -83,6 +95,7 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
           detail="pricing, availability, or purchase intent"
           href={`/dashboard/businesses/${businessId}/crm/conversations`}
         />
+        <KpiCard label="Open exceptions" value={exceptions.length} detail="parts shortages and assessments needing a decision" />
       </div>
 
       <div>

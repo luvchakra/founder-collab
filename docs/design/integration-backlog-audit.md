@@ -41,14 +41,14 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 06.2 | Additional Work -> CRM Opportunity | Done |
 | | 06.3 | Recommended Parts -> Inventory | Done |
 | | 06.4 | Warranty / Revisit -> FSM | Done |
-| INT-07 (P1) | 07.1 | Cross-Module Exception Model | Not started |
+| INT-07 (P1) | 07.1 | Cross-Module Exception Model | Done |
 | | 07.2 | Exception Resolution Actions | Not started |
 | | 07.3 | Exception Auto-Close | Not started |
 | INT-08 (P1) | 08.1 | Linked Object Graph | Not started |
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 7/13 done. Overall: 23/29 (79%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 8/13 done. Overall: 24/29 (83%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -390,3 +390,20 @@ UI: two small banners on the job detail page (mirroring the existing on-hold-rea
 Verified with full monorepo typecheck (clean across all 9 workspaces, after a fresh `npm install` on this newly-checked-out worktree), `lint:boundaries` (958 files, no violations), `lint:migrations` (96 migrations, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged -- this story never touches `module-crm`), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every fsm-touching story this session, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings -- the new FK's index means no `unindexed_foreign_keys` finding, and the index itself only shows up under the already-ignored `unused_index` INFO noise, expected for a brand-new column in a dev project with no traffic), and a clean `next build`.
 
 **Status**: 23 of 29 in-scope stories done -- **Epic INT-06 complete** (4/4). Next: INT-07.1, Cross-Module Exception Model (starts Epic INT-07, the last P1 epic before INT-08).
+
+### INT-07.1 — Cross-Module Exception Model (2026-09-11)
+
+The original backlog text for INT-07/08 isn't in this repo (only the P0-era docs 00-06 are, plus 08's own Discovery-Intelligence doc, a different epic entirely); reconstructed this story's scope from its title and the epic name ("Cross-Module Exception Center: INT-07.1/07.2/07.3") against what already exists. Rule 1 recon first: the opportunity detail page already has two always-visible, per-opportunity cards for exactly the two "undecided" states this backlog has built so far -- Inventory fulfillment shortage (INT-05.1's decision panel, shown whenever a line is short) and Assessment (INT-04's gate/status card, "Open in FSM" link and all). A per-opportunity exception surface would just be a second, redundant read of state already visible the moment you open that opportunity. What's genuinely missing -- and what "Center" in the epic's own name implies -- is a *business-wide* view: today a founder can only discover an unresolved parts shortage or a stuck assessment by opening every job/opportunity one at a time. That's the gap this story's Model closes; scoped deliberately narrow (2 exception kinds, both already-well-defined "needs a decision" states from earlier stories, not a speculative catch-all) since 07.1 is explicitly the *model*, not the resolution UI (07.2) or auto-close semantics (07.3).
+
+New `CrossModuleException`/`ExceptionKind` (`module-crm/src/lib/exceptions/types.ts`) and its resolver `listCrossModuleExceptions(businessId)` (`.../queries.ts`), business-wide rather than opportunity-scoped -- a first for this backlog's composition helpers, all of which (Journey, Timeline) have been per-opportunity/per-party so far. Two sources, both reusing already-established machinery rather than inventing new state:
+
+1. **FSM parts shortage** -- new `listJobsWithUnresolvedPartsShortage(businessId)` added to `module-fsm`'s contract (`parts_reservation_status` partial/unavailable AND `parts_shortage_resolution` still null, INT-03.3's own "undecided" definition) -- a genuinely new *business-wide* read this story adds to FSM's contract, since every existing FSM contract function reads one already-known record (a quote, an assessment), not "all of them."
+2. **Assessment pending** -- a plain direct `crm.opportunity` query (own table, no contract call) for rows with a gate set (`assessment_requirement` not null/`none`), filtered down to the still-open ones via the exact "no recorded outcome yet" test `createFsmQuoteForOpportunity()`'s own gating check (INT-04.3) already uses -- one already resolved (has an outcome) stops being an exception even though its gate value stays set.
+
+Party names resolved in one batched `core.parties` read across both sources (same "no PostgREST embed, join in JS" convention as `jobs/queries.ts#listJobs` and every other list query in this codebase), not two.
+
+**UI**: one new "Open exceptions" KPI card on the CRM dashboard (`crm/dashboard/page.tsx`), no `href` -- same as the existing "Reviews requiring action"/"Response SLA" cards on that same page, which are real counts with nowhere to drill into either. The count is real, not a placeholder; it has nowhere to link to yet because there's no list/detail page until INT-07.2 builds the resolution actions that page would need to be useful for.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (960 files, no violations -- `module-crm` importing `module-fsm`'s `contract/index.ts` is an already-established pattern, not a new boundary crossing), `lint:migrations` (96 migrations, unchanged -- this story adds no schema), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session, not a regression), and a clean `next build`. No live migration/advisor check needed -- no schema touched.
+
+**Status**: 24 of 29 in-scope stories done. Next: INT-07.2, Exception Resolution Actions.

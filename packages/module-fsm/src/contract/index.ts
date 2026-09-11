@@ -15,6 +15,7 @@ import type {
   FsmAssessmentStatus,
   FsmQuoteFunnelCounts,
   FsmQuoteStatus,
+  JobPartsShortageException,
   ProspectHandoffStatus,
 } from "./types";
 import type { Opportunity } from "../lib/opportunities/types";
@@ -574,5 +575,31 @@ export async function listCompletedJobsForReactivation(businessId: string): Prom
   return {
     ok: true,
     data: data.map((j) => ({ partyId: j.party_id, jobId: j.id, completedAt: j.completed_at as string })),
+  };
+}
+
+/**
+ * INT-07.1's "Cross-Module Exception Model" -- business-wide, not opportunity-scoped
+ * (unlike `getFsmQuoteStatus()`/`getAssessmentStatus()` above, which both read one
+ * already-known record): a founder has no existing way to discover *which* jobs are
+ * short on parts without opening each one individually, so this is a genuinely new kind
+ * of read for this contract, not a projection of something CRM already points at.
+ */
+export async function listJobsWithUnresolvedPartsShortage(businessId: string): Promise<ContractResult<JobPartsShortageException[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data, error } = await fsm
+    .from("jobs")
+    .select("id, number, party_id")
+    .eq("business_id", businessId)
+    .in("parts_reservation_status", ["partially_reserved", "unavailable"])
+    .is("parts_shortage_resolution", null);
+  if (error) return { ok: false, error: error.message };
+
+  return {
+    ok: true,
+    data: data.map((j) => ({ jobId: j.id, jobNumber: j.number, partyId: j.party_id })),
   };
 }
