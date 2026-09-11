@@ -1,8 +1,9 @@
 # WonderArc Discovery — Offering-Centric Upgrade — Audit Log
 
 Dated record of every story implemented from the "WonderArc Discovery — P0/P1
-Offering-Centric Upgrade" backlog (uploaded 2026-09-11), scoped to `module-discovery`
-only. Sequence and phase names below are the doc's own §29 "Master Implementation
+Offering-Centric Upgrade" backlog (uploaded 2026-09-11, saved verbatim as
+`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md` as of the 05.3 session below), scoped
+to `module-discovery` only. Sequence and phase names below are the doc's own §29 "Master Implementation
 Sequence" (Phases A–F), which folds the foundational Offering/ICP/Opportunity stories
 and the autonomous website-to-offering pipeline into one coherent P0, per that section's
 own explicit "the website pipeline is P0, not an optional appendix." P1 (§7, §20–24)
@@ -30,7 +31,7 @@ only genuine architectural/key decisions are raised.
 | | 04.2 | Discovery Plays | Done |
 | C | 05.1 | Opportunity Model | Done |
 | | 05.2 | Opportunity Score | Done |
-| | 05.3 | Multi-Signal Correlation | Not started |
+| | 05.3 | Multi-Signal Correlation | Done |
 | | 05.4 | Why Now | Not started |
 | | 05.5 | Negative Signals | Not started |
 | | 06.1 | Evidence-Backed Research | Not started |
@@ -76,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**13 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**14 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -664,6 +665,81 @@ browser-test this story since none was built.
 
 **Status**: 13 of 68 in-scope stories done. Next: 05.3, Multi-Signal Correlation.
 
-**Session paused here at the user's request** (stop after the current running story
-completes). Work is fully committed, pushed, and merged to `main` at this point -- nothing
-left in progress. Resume with 05.3 when asked.
+### 05.3 — Multi-Signal Correlation (2026-09-11)
+
+First action this session: saved the backlog doc itself to
+`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md` (it had only ever existed as a
+pasted prompt, per this file's own header note) -- this repo's own convention of keeping
+every implementation backlog as a permanent numbered plan doc, matching `00` through `09`.
+
+Checked what "signal" meant in the current implementation before building anything: it
+only ever existed as free-text strings inside `prospect_research.buying_signals`/
+`recent_events` (both `text[]`, no id) and as a discovery definition's own free-text
+*matching criteria* (`desired_signals`/`excluded_signals`) -- neither is a thing a
+correlation could reference by "supporting signal IDs" the way this story's own
+acceptance criteria require, since neither has an id at all. Genuinely new entity, not a
+duplicate of either: new `discovery.signals` (one atomic, addressable, time-stamped fact
+about a prospect) and `discovery.signal_correlations` (the grouped read over several of
+a prospect's own signals -- "supporting signal IDs, rationale, confidence, time
+context", the doc's own literal list). Both tables are append-only, no update/delete
+policy, matching `discovery.prospect_scores`' own established precedent for a
+history-preserving row (re-syncing/re-correlating adds, it never rewrites or deletes) --
+`signals` additionally has a `unique (prospect_id, signal_type, description)` constraint
+so a sync is a true upsert-by-natural-key, not a source of duplicates. Both FKs on both
+new tables were indexed from the start (as in 05.1); `get_advisors` confirmed zero new
+findings of any kind, security or performance, after applying.
+
+New `lib/signals/{types,queries,correlation,mutations}.ts`. `syncSignalsFromResearch()`
+is the one place today that turns a prior AI research pass's already-extracted
+`buying_signals`/`recent_events` strings into real rows -- deliberately makes no AI call
+of its own (CLAUDE.md dev principles #4/#5), and deliberately does not touch
+`lib/ai/research-prospect.ts` itself, leaving that file free for 06.1's own
+"Evidence-Backed Research" overhaul rather than reworking it twice. `correlateSignals()`
+(pure, in its own `correlation.ts`, mirroring 05.2's own `scoring.ts` split of pure logic
+from its DB-writing wrapper) is the deterministic rule the story's own "a single weak
+signal should not automatically become a high-value opportunity" acceptance criterion
+asks for directly: confidence is driven purely by how many independent signals
+corroborate each other (1 -> low, explicitly labelled "single signal -- insufficient
+corroboration on its own" in its own rationale so a lone signal is never silently
+amplified; 2 -> medium; 3+ -> high), the same count-based confidence-gating shape
+`computeOpportunityScore` already established. The rationale itself is a plain joined
+list of the signals found ("New CISO + 12 IAM openings + ..."), matching the doc's own
+literal example -- not synthesized prose, so no LLM call is needed to produce it either.
+`correlateSignalsForProspect()` wraps sync -> correlate -> persist into one call. Five
+new vitest cases cover the empty/single/two/three-plus confidence tiers and the
+earliest/latest time-context derivation independent of input order (module suite now
+28/28, up from 23).
+
+Wired the result into 05.2's own scoring model rather than leaving it a disconnected
+table: `attachSignalCorrelation()` (new, `lib/opportunities/mutations.ts`) maps a
+correlation's confidence onto the `signal_strength_score` component 05.2 already named
+but nothing had ever populated (low/medium/high -> 30/60/90), re-reads the opportunity's
+other six components unchanged, and reuses `setOpportunityScoreComponents()` for the
+actual write -- so a caller still can never write a `score` that didn't come from
+`computeOpportunityScore`. New soft-reference column
+`opportunities.signal_correlation_id` (`on delete set null`, same treatment as
+`discovery_definition_id`/`icp_id`) records which correlation last justified the score.
+`lib/opportunities` importing from `lib/signals` (never the reverse) keeps signals a
+self-contained concept that doesn't need to know opportunities exist.
+
+Deliberately no UI change this story, same reasoning as 05.1/05.2: there is still no
+opportunity list or detail page for a correlation to surface in (07.1-07.3 own that),
+and 05.4 (Why Now) and 05.5 (Negative Signals) still have their own data to add to the
+same opportunity row first -- building a page now would mean showing an incomplete
+picture that gets substantially extended twice more in the next two stories.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- caught and fixed
+two `noUncheckedIndexedAccess` errors in `correlation.ts`'s own array access, non-null
+asserted after an explicit length check), `lint:boundaries` (1000 files, no violations),
+`lint:migrations` (108 migrations, no violations), `npm run lint` (0 errors, 1
+pre-existing unrelated warning), `npm run test -w @cofounderai/module-discovery` (28/28,
++5 new), two live migration applies + `get_advisors` for both `security`/`performance`
+(no new findings of any kind), and a clean `next build`. One environment note specific to
+this session: this worktree started with no `node_modules` at all (unlike the main
+checkout, which already had one) -- `npm ci` at the repo root was required before
+typecheck/build would resolve `next`/other packages at all; noted here since it's an
+environment quirk, not a code change. Same live-browser-walkthrough constraint noted in
+every prior story this run (no seeded demo user/`.env.local` in this environment) -- no
+UI was built this story regardless.
+
+**Status**: 14 of 68 in-scope stories done -- Phase C in progress. Next: 05.4, Why Now.
