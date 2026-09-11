@@ -1,9 +1,63 @@
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { isRegimeSupported } from "../compliance/countries";
 import { canonicalJurisdictionName } from "../compliance/jurisdictions";
 import type { TaxRegistrationInput } from "./types";
+
+function coreClient() {
+  return createCoreClient({ schema: "core" });
+}
+
+/**
+ * COMPLY-P0-04.1 (GSTIN Management): the decision this table's own migration comment
+ * flagged as this story's job -- "explicitly migrates that single-value form
+ * [`core.business_settings.gstin`/`state`] over" -- without touching `module-inventory`/
+ * `module-fsm`'s own source (both read `core.business_settings.gstin`/`state` directly
+ * for live CGST/SGST-vs-IGST math, e.g. `module-inventory/lib/sales-orders/mutations.ts`;
+ * re-pointing those reads at `gst.tax_registrations` instead is out of scope for a run
+ * restricted to `module-gst`, and would be a bigger cross-module change than one story
+ * should make anyway).
+ *
+ * Instead of a two-way sync or a cross-module refactor, this is a one-way mirror: whenever
+ * a business's PRIMARY India/GST registration changes (a new one is created as primary, or
+ * an existing one is promoted), the registration's own number/jurisdiction are copied onto
+ * `core.business_settings.gstin`/`state` -- the exact two columns every existing consumer
+ * already reads. From the moment a business starts using this module's own multi-
+ * registration UI, it transparently becomes the effective source of truth for that shared
+ * field, with zero changes needed in any other module. The legacy single-value `GST
+ * Profile` form (`lib/profile/mutations.ts`'s `upsertGstProfile`) is left fully
+ * functional as a manual override/quick-edit path for a business that hasn't adopted
+ * multi-registration management -- editing it after this mirror has run simply overwrites
+ * the mirrored value again, the same one-field-wins-last-write semantics
+ * `core.business_settings` already has for every other setting.
+ *
+ * Deliberately scoped to country `IN` / regime `GST` only -- `gstin`/`state` are
+ * India-GST-specific columns; mirroring, say, an EU VAT number into the `gstin` column
+ * would be a category error, not a generalization of this story's own job.
+ */
+export function shouldMirrorToBusinessSettings(country: string, regime: string): boolean {
+  return country === "IN" && regime === "GST";
+}
+
+async function mirrorPrimaryGstinToBusinessSettings(
+  businessId: string,
+  country: string,
+  regime: string,
+  registrationNumber: string,
+  jurisdiction: string | null,
+): Promise<void> {
+  if (!shouldMirrorToBusinessSettings(country, regime)) return;
+
+  const core = await coreClient();
+  const { error } = await core.from("business_settings").upsert({
+    business_id: businessId,
+    gstin: registrationNumber,
+    state: jurisdiction,
+  });
+  if (error) throw error;
+}
 
 /**
  * COMPLY-P0-02.1 (Tax Registration): adds one registration for a business. Generic
@@ -58,16 +112,21 @@ export async function createTaxRegistration(businessId: string, input: TaxRegist
     await clearPrimaryTaxRegistration(businessId, input.country, input.regime);
   }
 
+  const registrationNumber = input.registrationNumber.trim();
   const { error } = await supabase.from("tax_registrations").insert({
     business_id: businessId,
     country: input.country,
     jurisdiction,
     regime: input.regime,
-    registration_number: input.registrationNumber.trim(),
+    registration_number: registrationNumber,
     is_primary: input.isPrimary,
     metadata: input.metadata ?? {},
   });
   if (error) throw error;
+
+  if (input.isPrimary) {
+    await mirrorPrimaryGstinToBusinessSettings(businessId, input.country, input.regime, registrationNumber, jurisdiction);
+  }
 }
 
 async function clearPrimaryTaxRegistration(businessId: string, country: string, regime: string): Promise<void> {
@@ -91,7 +150,7 @@ export async function setPrimaryTaxRegistration(businessId: string, registration
   const supabase = await createClient();
   const { data: target, error: fetchError } = await supabase
     .from("tax_registrations")
-    .select("country, regime")
+    .select("country, regime, registration_number, jurisdiction")
     .eq("business_id", businessId)
     .eq("id", registrationId)
     .single();
@@ -105,6 +164,14 @@ export async function setPrimaryTaxRegistration(businessId: string, registration
     .eq("business_id", businessId)
     .eq("id", registrationId);
   if (error) throw error;
+
+  await mirrorPrimaryGstinToBusinessSettings(
+    businessId,
+    target.country,
+    target.regime,
+    target.registration_number,
+    target.jurisdiction,
+  );
 }
 
 /**

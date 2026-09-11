@@ -42,7 +42,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 03.3 | FSM Tax Context | Done (partial scope, see story log) |
 | | 03.4 | Party Tax Context | Done |
 | | 03.5 | No Duplicate Masters | Done |
-| P0-04 | 04.1 | GSTIN Management | Not started |
+| P0-04 | 04.1 | GSTIN Management | Done |
 | | 04.2 | GST Profile | Not started |
 | | 04.3 | HSN/SAC | Not started |
 | | 04.4 | Place of Supply | Not started |
@@ -58,14 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**13 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**14 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
-01.4's own registration-persistence half, which is now unblocked by 02.1's
-`gst.tax_registrations` table but not yet wired into any UI).
+01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
+addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
+.registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-03.5 (No Duplicate Masters) is the last completed story;
-COMPLY-P0-04.1 (GSTIN Management) is next.
+both now fully done.** COMPLY-P0-04.1 (GSTIN Management) is the last completed story;
+COMPLY-P0-04.2 (GST Profile) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1229,3 +1230,147 @@ canonical-home column.
 
 **COMPLY-P0-03 (Existing-Data Integration) is now fully done.** Next: COMPLY-P0-04 (India
 GST), starting with COMPLY-P0-04.1 (GSTIN Management).
+
+### 04.1 — GSTIN Management (2026-09-11)
+
+"Multiple GST registrations" -- the first India-specific story (COMPLY-P0-04), and the one
+`gst.tax_registrations`' own migration comment (COMPLY-P0-02.1) explicitly named as the
+story that must decide what happens to the pre-existing single-value GSTIN form
+(`core.business_settings.gstin`/`state`, the "GST Profile" page) now that the real
+multi-registration table exists -- "a decision for that story, not this one."
+
+**The decision, made explicit here**: build the real multi-registration UI on
+`gst.tax_registrations` (this story's actual ask) as a genuinely new "GST Registrations"
+page, and make it the effective source of truth for the shared field every other module
+already reads -- **without touching any other module's own source**. Reconnaissance
+(`grep -rn "\.gstin\b" packages`) confirmed `core.business_settings.gstin`/`state` are
+live, load-bearing inputs to CGST/SGST-vs-IGST math already shipped inside
+`module-inventory` (`lib/sales-orders/mutations.ts`, `lib/purchase-orders/mutations.ts`,
+`lib/customers/mutations.ts`, `lib/dashboard/queries.ts`, `lib/tenancy/queries.ts`,
+`components/customers/*`) and `module-fsm` (`lib/estimates/mutations.ts`) -- e.g.
+`sales-orders/mutations.ts` reads `business_settings.gstin, state` directly to resolve the
+seller's own state code for `resolveStateCode()`. Re-pointing those reads at
+`gst.tax_registrations` instead would mean editing two other modules' own internals, which
+is both out of scope for a run restricted to `module-gst` and a bigger architectural change
+than "one story at a time" should make on its own initiative.
+
+Instead, `lib/tax-registrations/mutations.ts` (already the sole writer of this table) now
+also mirrors: whenever a business's India/GST registration is created as primary
+(`createTaxRegistration` with `isPrimary: true`) or an existing one is promoted
+(`setPrimaryTaxRegistration`), its `registration_number`/`jurisdiction` are copied onto
+`core.business_settings.gstin`/`state` -- a plain `core`-table write via the same
+`coreClient()` pattern `lib/profile/mutations.ts`'s own `upsertGstProfile` already uses (so
+no new cross-module coupling, no new authorization surface: the mirror runs inside a
+mutation that has already passed `requireModule`/`requirePermission("settings.manage")`).
+The mirror is a one-way, `IN`/`GST`-only guard (`shouldMirrorToBusinessSettings`, extracted
+as a pure function and unit-tested) -- mirroring, say, a future EU VAT number into the
+`gstin` column would be a category error, not a generalization of this story's job. From
+the moment a business adopts the new Registrations page, every existing module-inventory/
+module-fsm consumer picks up the right GSTIN automatically, with zero code changes on
+their side.
+
+**What was built**:
+- `packages/module-gst/src/lib/tax-registrations/mutations.ts`: `shouldMirrorToBusinessSettings`
+  (exported, pure) + `mirrorPrimaryGstinToBusinessSettings` (private), wired into both
+  `createTaxRegistration` (when `isPrimary`) and `setPrimaryTaxRegistration` (always, since
+  promoting a registration always makes it primary) -- see the file's own new docstring for
+  the full reasoning above. No schema change; the mirror only ever writes columns that
+  already exist and are already nullable/optional on `core.business_settings`.
+  `mutations.test.ts` -- 4 cases: mirrors India/GST, refuses a non-India country even
+  with regime "GST", refuses a non-GST regime within India, and is case-sensitive (catalog
+  codes are always upper-cased before storage, so a lowercase mismatch would itself be a
+  bug worth surfacing, not silently accepting).
+- `packages/module-gst/src/components/registrations/{registration-modal.tsx,registrations-list.tsx}`:
+  a create-only "Add GSTIN" form (GSTIN + state + "set as primary" checkbox -- no edit,
+  since a registration's own number/jurisdiction never change once added; the table has no
+  update path for those fields either, only `setPrimaryTaxRegistration`/
+  `setTaxRegistrationStatus`) and the list itself, following `docs/design/claude-ui-design-rules.md`'s
+  own required planning pass: desktop table + `md:hidden`/`hidden md:table` compact-card
+  split reused verbatim from `WarehousesList`'s own established pattern (CLAUDE.md rule
+  #12/#13, "every module's screens share this one design system, a module never brings its
+  own look") -- GSTIN, state, a status badge (active/suspended/cancelled, never relying on
+  color alone since each has its own label per backlog rule/COMPLY-P0-11.5), a primary
+  star, and row actions (Set primary / Suspend / Reactivate / Cancel) that show only the
+  transitions the mutation layer actually supports for that row's current status.
+- `apps/web/.../gst/registrations/{page.tsx,actions.ts}`: reads
+  `listTaxRegistrationsForRegime(businessId, "IN", "GST")` (COMPLY-P0-02.1's own query,
+  unchanged) and wires the three actions straight to the mutation layer with no redundant
+  `requirePermission` call, matching `gst/actions.ts`'s own precedent (that mutation layer
+  already self-gates, unlike `upsertGstProfile`, which is why `saveGstProfileAction` checks
+  permission itself). GSTIN format validation (`isValidGstin` from `@cofounderai/core/lib/gst`)
+  lives in the action layer, matching `saveGstProfileAction`'s own precedent -- the generic
+  `createTaxRegistration` deliberately still has no India-specific format check of its own
+  (COMPLY-P0-02.1's own note: "that's COMPLY-P0-04.1's job once its UI wraps this generic
+  function").
+- `packages/module-registry/src/index.ts`: a new "GST Registrations" nav item (icon
+  `Building2`, already in the shell's fixed icon registry -- no new icon import needed)
+  ahead of the existing "GST Profile" item under the same "GST" heading. No `proxy.ts`/
+  route-guard change needed -- the existing module-prefix license gate
+  (`findUnlicensedModuleForRoute` in `packages/core/src/db/middleware.ts`) matches on
+  `routePrefix` ("/gst"), so the new `/gst/registrations` route is covered automatically,
+  confirmed by reading that function rather than assumed.
+- `apps/web/.../gst/profile/page.tsx`: one paragraph added pointing to the new
+  Registrations page and explaining the mirror, so a user who lands on the old single-value
+  form understands the relationship rather than finding two seemingly-unrelated GSTIN
+  fields. No change to the form itself, its action, or its underlying
+  `core.business_settings` columns -- it stays fully functional as a manual override/
+  quick-edit path for a business that hasn't adopted multi-registration management, per the
+  decision above.
+
+**What was deliberately left out**:
+- Any change to `module-inventory`'s or `module-fsm`'s own source -- flagged above as the
+  concrete reason a full "migrate the single-value form over" would need to touch other
+  modules' internals, out of scope for a run restricted to `module-gst`. The mirror
+  achieves the same practical effect without that change; a future story revisiting those
+  modules directly (or COMPLY-P0-04.5 "GST Tax Determination," which is inside
+  `module-gst`'s own remit and could eventually expose the primary registration through a
+  `contract/index.ts` read for those modules to call instead of reading
+  `core.business_settings` directly) is the natural place to finish the cutover, not
+  assumed here.
+- `registered_from`/`registered_until` in the create form -- both columns already exist on
+  `gst.tax_registrations` (COMPLY-P0-02.1) but neither is in `TaxRegistrationInput` or set
+  by `createTaxRegistration`; neither this story's own name nor COMPLY-P0-04.2's ("GST
+  Profile: regular/composition, registration date, ...") explicitly claims them, so adding
+  write support for two more optional fields the mutation layer doesn't yet accept would be
+  scope creep beyond "GSTIN Management," not this story's own job to guess at.
+- Regular/composition scheme, return frequency, e-invoice eligibility -- explicitly
+  COMPLY-P0-04.2's own job, to be stored in `gst.tax_registrations.metadata` per that
+  table's own migration comment, not this story's.
+- A second-direction sync (old Profile page's manual edits do not update
+  `gst.tax_registrations`) -- documented as a deliberate, one-way mirror, not a bug: the
+  new page is the forward-looking canonical source, the old page a legacy override that can
+  still work standalone for a simple single-GSTIN business that never opens the new page at
+  all.
+- Wiring `gst.compliance_profiles.registration_id` to the newly primary registration --
+  that column exists (COMPLY-P0-01.2/01.4) but setting it is a distinct decision (which
+  registration is "active" for country/regime switching purposes vs. which is "primary"
+  for CGST/SGST-vs-IGST math are related but not identical concepts) left for whichever
+  future story actually reads that column for something.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1016 files scanned, 0 violations (confirms
+  the new registrations page/components import only `@cofounderai/core` and
+  `@cofounderai/module-gst`'s own subpaths -- no reach into `module-inventory`/`module-fsm`
+  despite this story's own reasoning being all about their behavior).
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations (no
+  schema change this story -- the mirror only writes existing, already-nullable columns).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` (COMPLY-P0-03.5's own new guard) -- 108
+  migration files scanned, 0 violations -- confirms this story didn't sneak in a duplicate
+  master table while building UI.
+- `npx vitest run --root packages/module-gst` -- 8 files / 45 tests passed (41 pre-existing
+  + 4 new in `mutations.test.ts`).
+- `cd apps/web && npm run build` -- clean production build; `/dashboard/businesses/
+  [businessId]/gst/registrations` appears in the route manifest alongside every other
+  Compliance route; grepped the build output for `error`/`failed`, none found.
+- No migration to apply and no `get_advisors` re-check needed -- this story touched no
+  schema.
+- No live browser walkthrough -- see the limitation note at the top of this document; the
+  desktop-table/mobile-card split and status-badge hierarchy were verified by reading the
+  rendered JSX against `docs/design/claude-ui-design-rules.md` (§5/§6 table design, §4 row
+  actions, §12/§13's mobile-card rule) rather than a live viewport check, the same
+  convention every prior UI-shipping story in this log has used.
+- No lockfile drift this time (`node_modules` was already installed earlier in this
+  session, from COMPLY-P0-03.5's own verification pass).

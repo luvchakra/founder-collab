@@ -24,8 +24,13 @@ export default async function GstProfilePage({
       <div>
         <h1 className="text-xl font-semibold">GST profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {business.name}&apos;s GST registration details, used to split CGST/SGST vs. IGST on
-          sales and purchase documents.
+          {business.name}&apos;s effective GSTIN and state, used to split CGST/SGST vs. IGST on
+          sales and purchase documents. If the business holds GSTINs in more than one state,
+          manage them all from{" "}
+          <a href={`/dashboard/businesses/${businessId}/gst/registrations`} className="underline underline-offset-2">
+            GST Registrations
+          </a>{" "}
+          instead — the one marked primary there keeps this page&apos;s GSTIN/state in sync automatically.
         </p>
       </div>
 

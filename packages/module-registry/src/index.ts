@@ -220,6 +220,7 @@ export const moduleRegistry: ModuleManifest[] = [
       {
         heading: "GST",
         items: [
+          { label: "GST Registrations", slug: "registrations", icon: "Building2" },
           { label: "GST Profile", slug: "profile", icon: "Receipt" },
           { label: "e-Way Bill", slug: "eway-bill", icon: "Truck" },
           { label: "e-Invoicing", slug: "einvoicing", icon: "FileText" },
