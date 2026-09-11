@@ -1,0 +1,14 @@
+-- CRM-08.5 (WonderArc CRM backlog, Epic CRM-08): "Google Business Profile Review Inbox".
+--
+-- crm.channel_type (CRM-01.2) covers messaging surfaces only (whatsapp/instagram/
+-- facebook_messenger/google_business_messages/...) -- Google Business Profile Reviews
+-- is a distinct Google product/API (the legacy Google My Business API v4's
+-- accounts.locations.reviews resource) from Google Business Messages, with its own
+-- OAuth scope and its own connection identity (a location, not a phone number or page),
+-- so it gets its own channel value rather than overloading `google_business_messages`
+-- for a connection that has nothing to do with messaging. This is the same kind of
+-- "add a value when a real new surface needs one" extension
+-- 20260906111000_inventory_procedural_layer.sql already established for
+-- inventory.movement_type -- crm.channel_connection.provider stays free text so most new
+-- providers never need this; a new *channel* (as opposed to provider) genuinely does.
+alter type crm.channel_type add value if not exists 'google_business_profile';
