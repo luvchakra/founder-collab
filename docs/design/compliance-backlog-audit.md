@@ -41,7 +41,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 03.2 | Inventory Tax Context | Done |
 | | 03.3 | FSM Tax Context | Done (partial scope, see story log) |
 | | 03.4 | Party Tax Context | Done |
-| | 03.5 | No Duplicate Masters | Not started |
+| | 03.5 | No Duplicate Masters | Done |
 | P0-04 | 04.1 | GSTIN Management | Not started |
 | | 04.2 | GST Profile | Not started |
 | | 04.3 | HSN/SAC | Not started |
@@ -58,13 +58,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**12 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**13 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.4 (Party Tax
-Context) is the last completed story; COMPLY-P0-03.5 (No Duplicate Masters) is next.
+**COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
+both now fully done.** COMPLY-P0-03.5 (No Duplicate Masters) is the last completed story;
+COMPLY-P0-04.1 (GSTIN Management) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1103,3 +1104,128 @@ the combined `PartyTaxContext` type, for the reason given above.
 
 **Status**: COMPLY-P0-03.4 done, full scope, no follow-up flag needed. Next story is
 COMPLY-P0-03.5 (No Duplicate Masters).
+
+### 03.5 — No Duplicate Masters (2026-09-11)
+
+"Prevent a second customer/product/transaction master inside Compliance." As anticipated
+in this run's own resume instructions, this turned out to be a verification story, not a
+new-feature one: every prior story in this epic (03.1-03.4) already went out of its way to
+read Core/Inventory data directly rather than duplicate it, and 02.1-02.5's own generic
+tax-framework tables were each individually checked against the entity-ownership map
+before creation and documented as genuinely new concepts, not copies. This story's job was
+to confirm that holds true **across the whole module**, in one pass, and to add a guard so
+it keeps holding true for every remaining India-GST/e-invoicing/e-way-bill/returns story
+still ahead (COMPLY-P0-04 through 11) without needing to re-litigate the question from
+scratch each time.
+
+**Verification performed**:
+- Listed every `gst`-schema table that exists today via
+  `grep -n "create table gst\." supabase/migrations/*.sql`: `eway_bill_credentials`,
+  `einvoice_credentials` (encrypted government-portal credentials), `einvoices`,
+  `eway_bills` (append-only generation history, each row keyed by a `document_id` foreign
+  key into `core.documents` -- a government-response *record*, never a copy of the
+  document itself), `compliance_profiles` (which country/regime a business's Compliance
+  module is in -- a Compliance-only setting no other table holds), `tax_registrations`
+  (the filing business's own GSTINs, plural/versioned -- checked against
+  `core.business_settings.gstin` and confirmed as a genuinely new, non-duplicate concept
+  back in 02.1's own log entry), `tax_rules` (versioned government rule content, no
+  `business_id` at all), and `tax_determinations` (an immutable computed-result snapshot,
+  explicitly distinguished from `core.documents`' own live totals in 02.5's own log entry).
+  **None of these re-creates a customer, product/item, party, document/invoice, payment,
+  or address master.** Every one is either credentials, a result/history record keyed back
+  into `core.documents`, or a genuinely Compliance-owned concept (registration/rule/
+  determination/profile) that appears nowhere in `docs/plan/00-MASTER-PLAN.md` §5's
+  entity-ownership map under another module's name.
+- Cross-checked every `lib/*` read module this epic built (`core-transactions`,
+  `inventory-tax-context`, `fsm-tax-context`, `party-tax-context`, plus `tax-registrations`/
+  `tax-rules`/`tax-determinations`' own query files) for any raw cross-schema client usage
+  (`grep -rn "schema: [\"']" packages/module-gst/src`, excluding `"core"`/`"gst"`) and any
+  `@cofounderai/module-*` import (`grep -rn "from \"@cofounderai/module-" packages/module-gst/src`)
+  -- zero hits for either. Every read this epic shipped goes through `core` directly
+  (mechanism 1) exactly as each story's own log entry already claimed; nothing reaches
+  into another module's schema or internals.
+- Re-read `docs/plan/00-MASTER-PLAN.md` §5 in full (not just grepped) to confirm the
+  canonical-home list this story's guard (below) encodes is accurate: Party, Item,
+  Document, Payment, Address and Tax identity are every one of them `core`-owned, with
+  `gst` (alongside `inventory`/`fsm`) listed only as a *consumer*, never an alternate
+  owner.
+
+**What was built (the guard)**: `lint-migration-schema.mjs` already stops one migration
+file from touching two module schemas at once, but says nothing about a module schema
+re-creating a *core-owned concept name* under its own roof -- a hypothetical
+`gst.customers` table would be perfectly schema-isolated and would sail through that
+existing check while still being exactly the duplication CLAUDE.md non-negotiable #5
+forbids. Added `scripts/lint-gst-no-duplicate-masters.mjs` (+ its own fixture-based
+`scripts/lint-gst-no-duplicate-masters.test.mjs`, mirroring `lint-import-boundaries.mjs`'s
+own "deliberately-failing fixture test" convention) to close that specific gap: it scans
+every `supabase/migrations/*.sql` file for `create table gst.<name>` and fails if
+`<name>` is an exact match (case-insensitive) against a fixed set of core-owned master
+table names drawn directly from `00-MASTER-PLAN.md` §5 (`customers`/`parties`/
+`party_roles`/`party_contacts`, `products`/`items`/`item_categories`,
+`documents`/`document_lines`/`invoices`/`sales_orders`/`credit_notes`/`debit_notes`/
+`purchase_orders`, `payments`/`payment_allocations`, `addresses`, `tax_identities`, and a
+few obvious synonyms). Run against the real repo today it reports **zero violations**
+(108 migration files scanned) -- confirming the reconnaissance above rather than fixing
+anything. Wired into `package.json` as `lint:gst-no-duplicate-masters` and into
+`.github/workflows/ci.yml` right after the existing migration-schema lint step, so it runs
+on every push/PR from here on, the same way `lint:boundaries`/`lint:migrations` already do.
+
+**Deliberately scoped to `gst` only, not every module schema** -- this run has no mandate
+to police `discovery`/`inventory`/`fsm`/`crm`'s own migrations, and in fact
+`discovery.products` already legitimately uses one of the reserved-sounding names for an
+unrelated, pre-existing, already-decided concept (a per-workspace GTM offering -- "the
+thing being marketed" -- not `core.items`' sellable-SKU master; confirmed by reading
+`20260906100000_discovery_schema.sql`'s own migration comment). A platform-wide version of
+this rule would need that module's own review, which is out of scope for a run restricted
+to `module-gst`; the guard's own docstring says as much and names the precedent so a later
+backlog for another module can add its own equivalent following this same pattern. The new
+test file has an explicit case (`"does not flag a matching reserved name in a different
+module's own schema"`) proving the guard stays silent on `discovery.products` for exactly
+this reason, so it can never regress into a platform-wide check by accident.
+
+**What was deliberately left out**: any code change to existing tables (none needed --
+the reconnaissance found no actual duplication to fix, matching this run's own resume
+instructions' prediction that this would likely be "a verification/documentation-and-guard
+story"); a matching guard for other modules (flagged above as a future story for whichever
+backlog owns that module, not this one's job); and any change to the exact
+`RESERVED_CORE_MASTER_TABLE_NAMES` set beyond what §5 already names -- adding entries for
+concepts §5 doesn't mention would be speculative, not "versioned/source-referenced"
+per the backlog's own rule 6, so it stays a literal transcription of that document's
+canonical-home column.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean (no source in `module-gst` itself changed;
+  this story's only new files are repo-root `scripts/`).
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1011 files scanned, 0 violations (unchanged
+  from 03.4 -- this story added no `.ts`/`.tsx` source, so the file count the boundary
+  linter scans is identical).
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations
+  (unchanged -- no schema change this story).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` (the new guard itself, run directly) --
+  108 migration files scanned, 0 violations.
+- `node --test scripts/*.test.mjs` -- 11/11 passing (6 pre-existing
+  `lint-import-boundaries.test.mjs` + 5 new in `lint-gst-no-duplicate-masters.test.mjs`:
+  flags a `gst.customers`-shaped violation, flags a quoted-identifier
+  `"gst"."invoices"`-shaped violation, allows every real Compliance table name that exists
+  today with zero false positives, confirms `discovery.products` is deliberately not
+  flagged, and confirms no crash when `supabase/migrations/` doesn't exist in the fixture
+  root).
+- `npx vitest run --root packages/module-gst` -- 7 files / 41 tests passed, unchanged from
+  COMPLY-P0-03.4 (no module-gst source touched by this story, so no regression and no new
+  test expected there).
+- No migration to apply and no `get_advisors` re-check needed -- this story touched no
+  schema (the guard reads the existing migration timeline; it doesn't add to it).
+- No `apps/web` change, so `next build` was not re-run this story, per this run's own
+  "lib-only story" convention.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- Lockfile drift: `npm install` (this worktree had no `node_modules` at session start)
+  reproduced the same single pre-existing, unrelated line every prior story in this log
+  has already flagged (`module-crm`'s `package.json` already declares a `zod` dependency
+  the committed lockfile doesn't yet reflect) -- reverted via `git checkout --
+  package-lock.json` before committing, same as every prior story.
+
+**COMPLY-P0-03 (Existing-Data Integration) is now fully done.** Next: COMPLY-P0-04 (India
+GST), starting with COMPLY-P0-04.1 (GSTIN Management).
