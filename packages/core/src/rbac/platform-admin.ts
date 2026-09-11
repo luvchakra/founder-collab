@@ -38,3 +38,38 @@ export async function requirePlatformAdmin(): Promise<void> {
     throw new Error("Forbidden: this account does not have platform admin access.");
   }
 }
+
+/**
+ * PLATFORM-P0-01's real, DB-backed SUPERADMIN role (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
+ * §5) -- the authorization boundary for every `/platform/*` route and mutation. Checks
+ * the `PLATFORM_ADMIN_EMAILS` bootstrap list first (so the very first SUPERADMIN can
+ * always get in before any `platform.admins` row exists, and an empty/misconfigured
+ * table is never a lockout), then `platform.is_superadmin()` -- a SECURITY DEFINER SQL
+ * function mirroring `core.has_permission()`'s exact shape, RLS-backed rather than just
+ * an application-code check. Deliberately separate from `requirePlatformAdmin()` above
+ * (a different, already-shipped feature -- the `/dashboard/admin` demo-data tool -- not
+ * this story's to refactor), even though they currently share the same bootstrap list.
+ */
+export async function isSuperadmin(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+  if (isPlatformAdminEmail(user.email)) return true;
+
+  const platform = await createClient({ schema: "platform" });
+  const { data, error } = await platform.rpc("is_superadmin");
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/** Non-throwing `isSuperadmin()` isn't enough for a server action or page that must
+ * actually refuse a non-superadmin, not just skip rendering for one -- same
+ * hasPermission()/requirePermission() split `rbac/require-permission.ts` already
+ * establishes for business-scoped permissions. */
+export async function requireSuperadmin(): Promise<void> {
+  if (!(await isSuperadmin())) {
+    throw new Error("Forbidden: this account does not have SUPERADMIN access.");
+  }
+}

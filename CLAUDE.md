@@ -17,6 +17,9 @@ pattern ADR-5 requires here).
 
 1. Every module-owned table lives in its own Postgres schema (`core`, `discovery`,
    `inventory`, `fsm`, `crm`, `gst`). Cross-schema foreign keys point only into `core`.
+   `platform` is the one exception to "module schema": it holds the WonderArc Platform
+   Administration Portal's own control-plane data (`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`)
+   — not a licensable customer module, not tenant data, never gated by `core.licenses`.
 2. Every table's RLS policy is `tenant AND licensed` (ADR-4, ADR-8) — including during
    early development when everything is "obviously" licensed. Write the check now.
 3. No module may import another module's internals. Only `@cofounderai/core` and other

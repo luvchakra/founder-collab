@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { activeBusinessIdFromPath, findUnlicensedModuleForRoute, isUnlicensedModuleRoute } from "./middleware";
+import { activeBusinessIdFromPath, findUnlicensedModuleForRoute, isProtectedPath, isUnlicensedModuleRoute } from "./middleware";
+
+describe("isProtectedPath", () => {
+  it("protects the customer dashboard", () => {
+    expect(isProtectedPath("/dashboard/businesses/abc-123/products/xyz")).toBe(true);
+  });
+
+  it("protects the platform admin control plane (PLATFORM-P0-01.2)", () => {
+    expect(isProtectedPath("/platform")).toBe(true);
+    expect(isProtectedPath("/platform/dashboard")).toBe(true);
+  });
+
+  it("leaves public routes alone", () => {
+    expect(isProtectedPath("/login")).toBe(false);
+    expect(isProtectedPath("/signup")).toBe(false);
+    expect(isProtectedPath("/")).toBe(false);
+  });
+});
 
 describe("activeBusinessIdFromPath", () => {
   it("extracts the business id from a business-scoped dashboard path", () => {

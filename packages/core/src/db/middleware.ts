@@ -2,8 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { moduleRegistry } from "@cofounderai/module-registry";
 
-const PROTECTED_PREFIX = "/dashboard";
+/** `/dashboard` is the customer app; `/platform` (PLATFORM-P0-01.2, "every /platform/*
+ * route... must independently verify authenticated user AND platform-level
+ * authorization") is the WonderArc control plane -- both need the same auth wall
+ * (redirect to /login when signed out), but only `/dashboard` ever resolves a business
+ * id below: PLATFORM-P0-01.4's "No Tenant Context Required" holds for free, since no
+ * `/platform/*` path matches the business-scoped regex that block depends on. */
+const PROTECTED_PREFIXES = ["/dashboard", "/platform"];
 const AUTH_PATHS = new Set(["/login", "/signup"]);
+
+/** Pure prefix check, its own function for the same reason `activeBusinessIdFromPath()`
+ * is -- testable without constructing a real NextRequest. */
+export function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 /** Business id embedded in the URL -- .../dashboard/businesses/[id]/... today, the only
  * route shape that exists. Kept as its own function (rather than inlined into the
@@ -86,7 +98,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = pathname.startsWith(PROTECTED_PREFIX);
+  const isProtected = isProtectedPath(pathname);
   const isAuthPath = AUTH_PATHS.has(pathname);
 
   if (!user && isProtected) {
