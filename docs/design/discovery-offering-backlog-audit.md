@@ -32,7 +32,7 @@ only genuine architectural/key decisions are raised.
 | C | 05.1 | Opportunity Model | Done |
 | | 05.2 | Opportunity Score | Done |
 | | 05.3 | Multi-Signal Correlation | Done |
-| | 05.4 | Why Now | Not started |
+| | 05.4 | Why Now | Done |
 | | 05.5 | Negative Signals | Not started |
 | | 06.1 | Evidence-Backed Research | Not started |
 | | 06.2 | Research Brief | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**14 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**15 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -743,3 +743,65 @@ every prior story this run (no seeded demo user/`.env.local` in this environment
 UI was built this story regardless.
 
 **Status**: 14 of 68 in-scope stories done -- Phase C in progress. Next: 05.4, Why Now.
+
+### 05.4 — Why Now (2026-09-11)
+
+Checked what already existed before adding anything: `opportunities.why_now` (05.1) is
+already a plain text column, and its content maps directly onto the doc's own
+`why_now_summary` field -- reused as-is (same aliasing call as 01.1's `description` =
+`short_description`), not duplicated under a second column. `timing_score` (05.2) is
+already a numeric score-component slot nothing had populated yet, same situation
+`signal_strength_score` was in before 05.3. The two genuinely missing pieces: a
+human-readable timing label, and a why-now-specific confidence distinct from the
+opportunity's own overall `confidence` (05.2's, which reflects how *complete* the
+score's component set is, not how sure Discovery is about the timing claim itself).
+Migration (`20260911004700_discovery_opportunity_why_now.sql`) adds exactly those two:
+`timing_strength`/`why_now_confidence`, both the same closed low/medium/high vocabulary
+every other confidence-shaped field in this module already uses.
+
+New `lib/opportunities/why-now.ts` -- `computeWhyNow()`, pure and deterministic (no AI
+call, CLAUDE.md dev principles #4/#5), mirroring 05.3's own split of pure logic
+(`correlation.ts`) from its DB-writing wrapper. Built directly on 05.3's own signal
+correlation rather than duplicating anything: the doc's "supporting signals" and
+"evidence" outputs are already fully covered by a correlation's own `signal_ids` (via
+the opportunity's `signal_correlation_id`) -- no new storage needed for either, both are
+already one lookup away. `timingStrength` is a genuinely distinct dimension from 05.3's
+own `signalStrength`, deliberately kept that way rather than collapsed into one number:
+`signalStrength` is about *corroboration count*, `timingStrength` is about *freshness*
+(days since the correlation's own `latest_signal_at` -- itself only capturable because
+05.3 already stored "time context" as its own fields). "Never manufacture urgency" is
+satisfied structurally, the same way 05.1-05.3 structurally satisfied their own
+"no false precision"/"never invent evidence" instructions: the summary is a plain
+template of the correlation's own rationale plus a factual "observed N days ago"
+suffix, never synthesized prose, so there is no urgency language to accidentally
+invent. `confidence` takes the *weaker* of timing strength and correlation confidence
+(a why-now claim rests on both freshness and corroboration; either one being weak makes
+the claim weak). Six new vitest cases cover: no correlation (all null/low, no false
+precision), the three timing-strength tiers, the "weaker of the two" confidence rule
+from both directions, and that the summary text is exactly the correlation's rationale
+plus a factual timestamp with no added language.
+
+New `setOpportunityWhyNow()` (`lib/opportunities/mutations.ts`), same shape as 05.3's
+own `attachSignalCorrelation`: writes `why_now`/`timing_strength`/`why_now_confidence`
+directly, then re-reads the opportunity's other six score components unchanged and
+reuses `setOpportunityScoreComponents()` to write `timingScore` into the `timing`
+component -- so `score` still can never be written except through
+`computeOpportunityScore`. While making this change, DRYed `why-now.ts`'s own
+confidence/timing types against the already-existing `OpportunityConfidence` (types.ts)
+rather than declaring two new structurally-identical `"low" | "medium" | "high"` type
+aliases.
+
+Deliberately no UI change this story, same reasoning as 05.1-05.3: 07.1-07.3 still own
+the opportunity UI, and 05.5 (Negative Signals) still has its own data to add to the
+same row before there is a complete picture worth building a page around.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1002 files, no violations), `lint:migrations` (109 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (34/34, +6 new), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings -- pure column additions, no new
+indexes), and a clean `next build`. Same live-browser-walkthrough constraint noted in
+every prior story this run -- no UI was built this story regardless.
+
+**Status**: 15 of 68 in-scope stories done -- Phase C in progress. Next: 05.5, Negative
+Signals.

@@ -48,4 +48,11 @@ export type Opportunity = {
    * `attachSignalCorrelation` in mutations.ts. Soft reference, same "on delete set
    * null" treatment as `discovery_definition_id`. */
   signal_correlation_id: string | null;
+  /** DISC-OFFER-P0-05.4's own "Why Now" outputs -- `why_now` above (05.1) already
+   * carries the summary text, reused as-is; these two are the genuinely new fields.
+   * `why_now_confidence` is distinct from the opportunity's own overall `confidence`
+   * above (05.2's, which reflects score-component completeness, not timing-claim
+   * quality specifically) -- see `computeWhyNow` in why-now.ts. */
+  timing_strength: OpportunityConfidence | null;
+  why_now_confidence: OpportunityConfidence;
 };
