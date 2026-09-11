@@ -7,7 +7,12 @@ import {
   removeOpportunityContact,
   setPrimaryOpportunityContact,
 } from "@cofounderai/module-crm/lib/opportunities/contacts";
-import { setOpportunityNextAction, createFsmQuoteForOpportunity, createJobFromFsmQuote } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import {
+  setOpportunityNextAction,
+  createFsmQuoteForOpportunity,
+  createJobFromFsmQuote,
+  createFulfillmentRequestForOpportunity,
+} from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { setFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
 import type { FulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/types";
 import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
@@ -104,5 +109,11 @@ export async function setFulfillmentRequirementAction(businessId: string, opport
   const value = String(formData.get("fulfillmentRequirement") || "") as FulfillmentRequirement;
   if (!value) return;
   await setFulfillmentRequirement(businessId, opportunityId, value);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-02.2's "Request inventory fulfillment" button. */
+export async function requestFulfillmentAction(businessId: string, opportunityId: string): Promise<void> {
+  await createFulfillmentRequestForOpportunity(businessId, opportunityId);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

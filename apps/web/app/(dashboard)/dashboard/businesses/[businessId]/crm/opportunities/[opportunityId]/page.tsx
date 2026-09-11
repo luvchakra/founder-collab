@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
-import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
+import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity, getFulfillmentStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
 import { listOpportunityJourneyHistory } from "@cofounderai/module-crm/lib/timeline/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
@@ -35,6 +35,7 @@ import {
   createOpportunityNextActionAction,
   removeOpportunityContactAction,
   removeOpportunityProductAction,
+  requestFulfillmentAction,
   setFulfillmentRequirementAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
@@ -82,7 +83,7 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, contacts, employees, followUps, inventoryLicensed, fsmLicensed, fsmQuoteStatus, journey] = await Promise.all([
+  const [party, stages, products, contacts, employees, followUps, inventoryLicensed, fsmLicensed, fsmQuoteStatus, fulfillmentStatus, journey] = await Promise.all([
     getParty(opportunity.party_id),
     listStages(businessId),
     listOpportunityProducts(businessId, opportunityId),
@@ -92,6 +93,7 @@ export default async function OpportunityDetailPage({
     hasModule(businessId, "inventory"),
     hasModule(businessId, "fsm"),
     getFsmQuoteStatusForOpportunity(businessId, opportunity),
+    getFulfillmentStatusForOpportunity(businessId, opportunity),
     resolveCommercialJourney(businessId, opportunityId),
   ]);
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
@@ -392,6 +394,34 @@ export default async function OpportunityDetailPage({
                 <SubmitButton pendingText="Adding...">Add product</SubmitButton>
               </form>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {inventoryLicensed ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Inventory fulfillment</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {!opportunity.fulfillment_request_id ? (
+              <div className="flex flex-col gap-3">
+                <EmptyState icon={Package} message="No fulfillment requested for this opportunity yet." />
+                <form action={requestFulfillmentAction.bind(null, businessId, opportunityId)}>
+                  <SubmitButton pendingText="Requesting..." disabled={products.length === 0}>
+                    Request inventory fulfillment
+                  </SubmitButton>
+                </form>
+                {products.length === 0 ? <p className="text-xs text-muted-foreground">Add at least one product above before requesting fulfillment.</p> : null}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="outline" className="capitalize">
+                  {fulfillmentStatus?.status ?? "pending"}
+                </Badge>
+                {fulfillmentStatus ? <span className="text-muted-foreground">{inr.format(fulfillmentStatus.totalAmount)}</span> : null}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : null}

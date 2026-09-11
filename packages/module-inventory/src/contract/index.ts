@@ -1,8 +1,10 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { publish } from "@cofounderai/core/events/mutations";
+import { addPartyRole } from "@cofounderai/core/parties/mutations";
 import { createClient } from "../db/server";
 import { getDashboardSummary } from "../lib/dashboard/queries";
+import { createSalesOrder } from "../lib/sales-orders/mutations";
 import { inr, num } from "@cofounderai/core/lib/format";
 import type {
   ContractAvailability,
@@ -10,6 +12,8 @@ import type {
   ContractOrderSummary,
   ContractResult,
   ContractWarehouse,
+  CreateFulfillmentRequestInput,
+  FulfillmentStatus,
   UpsertItemInput,
 } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
@@ -388,4 +392,81 @@ export function consumeStock(
   reference?: string,
 ): Promise<ContractResult<{ movementId: string }>> {
   return adjustStock(businessId, itemId, warehouseId, "outbound", quantity, reference);
+}
+
+/**
+ * INT-02.2's "Create Inventory Fulfillment/Reservation Request" -- reuses
+ * `createSalesOrder()` (the same authoritative, GST-computing mutation the Sales Orders
+ * page itself calls) rather than a second, parallel "fulfillment request" concept ("no
+ * duplicate business masters"): a sales order already *is* Inventory's own answer to
+ * "commit to shipping N units of X to a customer." `inventory.customers` (the compat
+ * view `createSalesOrder()` queries for GST state) is an inner join on
+ * `core.party_roles.role = 'customer'` -- `addPartyRole()` is idempotent (upsert,
+ * ignoreDuplicates), so calling it here every time is always safe, never a second row.
+ * The first active warehouse is used when the caller doesn't have a location concept of
+ * its own to offer (CRM doesn't) -- same fallback `module-fsm`'s own
+ * `inventory-integration/mutations.ts#firstActiveWarehouseId()` already established for
+ * an identical reason.
+ */
+export async function createFulfillmentRequest(businessId: string, input: CreateFulfillmentRequestInput): Promise<ContractResult<{ fulfillmentRequestId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+  if (input.lineItems.length === 0) return { ok: false, error: "INVALID_INPUT" };
+
+  const supabase = await createClient();
+  const { data: warehouses, error: warehousesError } = await supabase.from("warehouses").select("id").eq("business_id", businessId).eq("is_active", true).order("name").limit(1);
+  if (warehousesError) return { ok: false, error: warehousesError.message };
+  const warehouse = warehouses[0];
+  if (!warehouse) return { ok: false, error: "NOT_FOUND" };
+
+  const core = await coreClient();
+  const itemIds = input.lineItems.map((l) => l.itemId);
+  const { data: items, error: itemsError } = await core.from("items").select("id, selling_price, tax_rate").in("id", itemIds);
+  if (itemsError) return { ok: false, error: itemsError.message };
+  const itemById = new Map(items.map((i) => [i.id, i]));
+
+  try {
+    await addPartyRole(businessId, input.partyId, "customer");
+    const salesOrder = await createSalesOrder(businessId, {
+      customer_id: input.partyId,
+      warehouse_id: warehouse.id,
+      expected_fulfillment_date: input.requiredDate ?? null,
+      notes: input.notes ?? null,
+      lines: input.lineItems.map((line) => {
+        const item = itemById.get(line.itemId);
+        return { product_id: line.itemId, quantity: line.quantity, unit_price: item?.selling_price ?? 0, tax_rate: item?.tax_rate ?? 0 };
+      }),
+    });
+    return { ok: true, data: { fulfillmentRequestId: salesOrder.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** INT-02.3's "Inventory Commitment State" projection -- read live off the sales order
+ * `createFulfillmentRequest()` created, never cached by the caller ("no duplicated
+ * quote master" discipline, same as `getFsmQuoteStatus()`'s own doc comment). */
+export async function getFulfillmentStatus(businessId: string, fulfillmentRequestId: string): Promise<ContractResult<FulfillmentStatus>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const supabase = await createClient();
+  const { data: salesOrder, error } = await supabase
+    .from("sales_orders")
+    .select("id, status, total_amount, warehouse_id")
+    .eq("org_id", businessId)
+    .eq("id", fulfillmentRequestId)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!salesOrder) return { ok: false, error: "NOT_FOUND" };
+
+  return {
+    ok: true,
+    data: {
+      fulfillmentRequestId: salesOrder.id,
+      status: salesOrder.status,
+      totalAmount: Number(salesOrder.total_amount),
+      warehouseId: salesOrder.warehouse_id,
+    },
+  };
 }

@@ -1,6 +1,7 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createFsmQuoteFromCrmOpportunity, acceptFsmQuoteAndCreateJob, getFsmQuoteStatus } from "@cofounderai/module-fsm/contract/index";
+import { createFulfillmentRequest } from "@cofounderai/module-inventory/contract/index";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import { listOpportunityProducts } from "./products";
@@ -218,4 +219,56 @@ export async function createJobFromFsmQuote(businessId: string, opportunityId: s
   });
 
   return result.data;
+}
+
+/**
+ * INT-02.2's "Create Inventory Fulfillment/Reservation Request" button. Idempotent the
+ * same way `createFsmQuoteForOpportunity()` above is: an opportunity that already has a
+ * `fulfillment_request_id` just returns it rather than creating a second request
+ * ("Duplicate requests are prevented"); a request that fails (inventory unlicensed, a
+ * transient error) leaves the column unset, so this function is safely retryable by
+ * calling it again ("Failed request is retryable").
+ */
+export async function createFulfillmentRequestForOpportunity(businessId: string, opportunityId: string): Promise<{ fulfillmentRequestId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: opportunity, error: opportunityError } = await supabase
+    .from("opportunity")
+    .select("id, party_id, fulfillment_request_id")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (opportunityError) throw opportunityError;
+  if (opportunity.fulfillment_request_id) return { fulfillmentRequestId: opportunity.fulfillment_request_id };
+
+  const products = await listOpportunityProducts(businessId, opportunityId);
+  if (products.length === 0) throw new Error("Add at least one product before requesting fulfillment.");
+
+  const result = await createFulfillmentRequest(businessId, {
+    partyId: opportunity.party_id,
+    lineItems: products.map((p) => ({ itemId: p.itemId, quantity: p.quantity ?? 1 })),
+  });
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "Inventory isn't licensed for this business." : result.error);
+
+  const { error: updateError } = await supabase
+    .from("opportunity")
+    .update({ fulfillment_request_id: result.data.fulfillmentRequestId })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.fulfillment_requested",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { fulfillment_request_id: result.data.fulfillmentRequestId },
+  });
+
+  return { fulfillmentRequestId: result.data.fulfillmentRequestId };
 }

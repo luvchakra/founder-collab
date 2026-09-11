@@ -7,7 +7,7 @@ function journeyState(overrides: Partial<CommercialJourneyState>): CommercialJou
     opportunityId: "opp-1",
     discovery: { status: "not_available", label: "", prospectId: null },
     crm: { status: "ok", label: "Qualification", leadId: null, opportunityStatus: "open", ownerId: null, nextActionId: null },
-    inventory: { status: "not_applicable", label: "", productCount: 0 },
+    inventory: { status: "not_applicable", label: "", productCount: 0, fulfillmentRequestId: null },
     fsm: { status: "not_applicable", label: "", fsmOpportunityId: null, jobStatus: null },
     overallStage: "in_progress",
     blockedReason: null,
@@ -19,8 +19,8 @@ function journeyState(overrides: Partial<CommercialJourneyState>): CommercialJou
 function crm(status: CommercialJourneyState["crm"]["status"], label: string) {
   return { status, label, leadId: null, opportunityStatus: "open", ownerId: null, nextActionId: null };
 }
-function inventory(status: CommercialJourneyState["inventory"]["status"], productCount: number) {
-  return { status, label: "", productCount };
+function inventory(status: CommercialJourneyState["inventory"]["status"], productCount: number, fulfillmentRequestId: string | null = null) {
+  return { status, label: "", productCount, fulfillmentRequestId };
 }
 function fsm(status: CommercialJourneyState["fsm"]["status"]) {
   return { status, label: "", fsmOpportunityId: null, jobStatus: null };
@@ -73,18 +73,26 @@ describe("resolveNextCrossModuleAction", () => {
   });
 
   it("recommends creating an FSM quote for an open opportunity with linked products and no FSM engagement yet", () => {
-    const result = resolveNextCrossModuleAction(journeyState({ inventory: { status: "ok", label: "2 products linked", productCount: 2 } }));
+    const result = resolveNextCrossModuleAction(journeyState({ inventory: { status: "ok", label: "2 products linked", productCount: 2, fulfillmentRequestId: null } }));
     expect(result.primary?.code).toBe("create_fsm_quote");
     expect(result.primary?.enabled).toBe(true);
   });
 
-  it("surfaces a disabled fulfillment-request action for a won opportunity with linked products", () => {
+  it("recommends requesting inventory fulfillment for a won opportunity with linked, unrequested products", () => {
     const result = resolveNextCrossModuleAction(
-      journeyState({ crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null }, inventory: { status: "ok", label: "3 products linked", productCount: 3 } }),
+      journeyState({ crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null }, inventory: { status: "ok", label: "3 products linked", productCount: 3, fulfillmentRequestId: null } }),
     );
-    expect(result.primary?.code).toBe("request_fulfillment");
-    expect(result.primary?.enabled).toBe(false);
-    expect(result.primary?.disabledReason).toBeTruthy();
+    expect(result.primary).toEqual({ code: "request_fulfillment", label: "Request inventory fulfillment", enabled: true, disabledReason: null });
+  });
+
+  it("recommends nothing further once fulfillment has already been requested", () => {
+    const result = resolveNextCrossModuleAction(
+      journeyState({
+        crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null },
+        inventory: { status: "ok", label: "Fulfillment requested", productCount: 3, fulfillmentRequestId: "so-1" },
+      }),
+    );
+    expect(result.primary).toBeNull();
   });
 
   it("recommends a customer follow-up for a won opportunity with nothing else pending", () => {
@@ -103,7 +111,7 @@ describe("resolveNextCrossModuleAction", () => {
     const result = resolveNextCrossModuleAction(
       journeyState({
         crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null },
-        inventory: { status: "ok", label: "1 product linked", productCount: 1 },
+        inventory: { status: "ok", label: "1 product linked", productCount: 1, fulfillmentRequestId: null },
         fsm: { status: "warning", label: "Quote accepted -- job not created yet", fsmOpportunityId: "fsm-opp-1", jobStatus: null },
       }),
     );

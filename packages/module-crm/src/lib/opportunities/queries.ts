@@ -1,5 +1,7 @@
 import { getFsmQuoteStatus } from "@cofounderai/module-fsm/contract/index";
 import type { FsmQuoteStatus } from "@cofounderai/module-fsm/contract/types";
+import { getFulfillmentStatus } from "@cofounderai/module-inventory/contract/index";
+import type { FulfillmentStatus } from "@cofounderai/module-inventory/contract/types";
 import { createClient } from "../../db/server";
 import type { Opportunity, OpportunityStage } from "./types";
 
@@ -41,6 +43,15 @@ export async function getOpportunity(businessId: string, opportunityId: string):
 export async function getFsmQuoteStatusForOpportunity(businessId: string, opportunity: Opportunity): Promise<FsmQuoteStatus | null> {
   if (!opportunity.fsm_opportunity_id) return null;
   const result = await getFsmQuoteStatus(businessId, opportunity.fsm_opportunity_id);
+  return result.ok ? result.data : null;
+}
+
+/** INT-02.3's "Inventory Commitment State" projection for one opportunity -- same
+ * null-collapsing shape as `getFsmQuoteStatusForOpportunity()` right above (no request
+ * yet, or Inventory not licensed/call failed, both just read as "nothing to show"). */
+export async function getFulfillmentStatusForOpportunity(businessId: string, opportunity: Opportunity): Promise<FulfillmentStatus | null> {
+  if (!opportunity.fulfillment_request_id) return null;
+  const result = await getFulfillmentStatus(businessId, opportunity.fulfillment_request_id);
   return result.ok ? result.data : null;
 }
 

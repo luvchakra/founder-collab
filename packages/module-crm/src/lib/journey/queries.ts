@@ -71,13 +71,15 @@ export async function resolveCommercialJourney(businessId: string, opportunityId
   // --- Inventory ---------------------------------------------------------------
   let inventory: CommercialJourneyState["inventory"];
   if (!inventoryLicensed) {
-    inventory = { status: "not_available", label: "Inventory not licensed", productCount: 0 };
+    inventory = { status: "not_available", label: "Inventory not licensed", productCount: 0, fulfillmentRequestId: null };
   } else {
     const products = await listOpportunityProducts(businessId, opportunityId);
     inventory =
       products.length === 0
-        ? { status: "not_applicable", label: "No products linked", productCount: 0 }
-        : { status: "ok", label: `${products.length} product${products.length === 1 ? "" : "s"} linked`, productCount: products.length };
+        ? { status: "not_applicable", label: "No products linked", productCount: 0, fulfillmentRequestId: null }
+        : opportunity.fulfillment_request_id
+          ? { status: "ok", label: "Fulfillment requested", productCount: products.length, fulfillmentRequestId: opportunity.fulfillment_request_id }
+          : { status: "ok", label: `${products.length} product${products.length === 1 ? "" : "s"} linked`, productCount: products.length, fulfillmentRequestId: null };
   }
 
   // --- FSM ---------------------------------------------------------------------
@@ -110,14 +112,14 @@ export async function resolveCommercialJourney(businessId: string, opportunityId
 
 export function deriveOverallState(
   crm: JourneyModuleSection,
-  inventory: JourneyModuleSection & { productCount: number },
+  inventory: CommercialJourneyState["inventory"],
   fsm: JourneyModuleSection,
 ): Pick<CommercialJourneyState, "overallStage" | "blockedReason" | "nextRecommendedAction"> {
   if (crm.status === "blocked") {
     return { overallStage: "closed_lost", blockedReason: "Opportunity marked lost", nextRecommendedAction: null };
   }
 
-  const fulfillmentPending = inventory.status === "ok" && inventory.productCount > 0;
+  const fulfillmentPending = inventory.status === "ok" && inventory.productCount > 0 && !inventory.fulfillmentRequestId;
   const fsmPending = fsm.status === "warning";
 
   if (crm.label === "Won") {
@@ -156,17 +158,12 @@ export function resolveNextCrossModuleAction(state: CommercialJourneyState): Nex
     actions.push({ code: "create_fsm_job", label: "Create FSM job", enabled: true, disabledReason: null });
   }
 
-  // Won, with products linked but no fulfillment handoff to request yet (INT-02 hasn't
-  // shipped the mutation this action needs) -- surfaced disabled, with the reason,
-  // rather than omitted, so the founder sees it's coming rather than never suspecting
-  // it exists. INT-02.2 flips `enabled: true` here once the real mutation exists.
-  if (state.crm.opportunityStatus === "won" && state.inventory.status === "ok" && state.inventory.productCount > 0) {
-    actions.push({
-      code: "request_fulfillment",
-      label: "Request inventory fulfillment",
-      enabled: false,
-      disabledReason: "Inventory fulfillment requests aren't available yet.",
-    });
+  // Won, with products linked and no fulfillment request made yet -- already requested
+  // (`fulfillmentRequestId` set) means there's nothing left for this resolver to
+  // recommend here; INT-02.3/02.4 is where a *follow-up* action on an existing request
+  // (if any) would eventually live, not this one.
+  if (state.crm.opportunityStatus === "won" && state.inventory.status === "ok" && state.inventory.productCount > 0 && !state.inventory.fulfillmentRequestId) {
+    actions.push({ code: "request_fulfillment", label: "Request inventory fulfillment", enabled: true, disabledReason: null });
   }
 
   // Open opportunity, FSM licensed, no quote created yet, but products are already

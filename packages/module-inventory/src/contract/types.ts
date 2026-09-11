@@ -38,6 +38,31 @@ export type ContractOrderSummary = {
   orderDate: string;
 };
 
+/** INT-02.2's "Create Inventory Fulfillment/Reservation Request" -- the minimal
+ * context a fulfillment request needs, matching the epic's own "transfer only necessary
+ * context" list (party, product references, quantities, required date, notes). No
+ * warehouse -- resolved server-side (the caller's own business may have exactly one
+ * active warehouse and shouldn't need to know that), same "no fulfillment location
+ * concept assumed on the caller's side" degradation the epic's own acceptance criteria
+ * ask for ("use only states/fields the existing Inventory domain supports"). */
+export type CreateFulfillmentRequestInput = {
+  partyId: string;
+  lineItems: { itemId: string; quantity: number }[];
+  requiredDate?: string | null;
+  notes?: string | null;
+};
+
+/** INT-02.3's "Inventory Commitment State" projection -- `status` is the sales order's
+ * own real value (`draft`/`confirmed`/`shipped`/`delivered`/`cancelled`, whatever
+ * `inventory.sales_orders` actually supports; this contract never invents a state that
+ * table doesn't have). */
+export type FulfillmentStatus = {
+  fulfillmentRequestId: string;
+  status: string;
+  totalAmount: number;
+  warehouseId: string | null;
+};
+
 export type UpsertItemInput = {
   /** Update this item by id when given; otherwise find-or-create by `sku` (when given),
    * else always insert a new row. */

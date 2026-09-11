@@ -19,6 +19,7 @@ function opp(overrides: Partial<Opportunity>): Opportunity {
     next_action_id: null,
     fsm_opportunity_id: null,
     fulfillment_requirement: null,
+    fulfillment_request_id: null,
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
     ...overrides,

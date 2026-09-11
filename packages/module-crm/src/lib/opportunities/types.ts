@@ -42,6 +42,10 @@ export type Opportunity = {
   fsm_opportunity_id: string | null;
   /** INT-02.1. Null until a human confirms or overrides the suggested default. */
   fulfillment_requirement: FulfillmentRequirement | null;
+  /** INT-02.2. The Inventory sales order `createFulfillmentRequest()` created for this
+   * opportunity, once requested -- same "one pointer, everything else read live" shape
+   * as `fsm_opportunity_id`. Bare id, no FK -- lives in another module's schema. */
+  fulfillment_request_id: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -53,8 +53,11 @@ async function computeTotals(
   return { breakups, subtotal, totals, total };
 }
 
-/** Ported from stockpilot-ai-ops's `saveSo` mutation -- create branch. */
-export async function createSalesOrder(businessId: string, input: SalesOrderInput): Promise<void> {
+/** Ported from stockpilot-ai-ops's `saveSo` mutation -- create branch. Returns the
+ * created order's id (INT-02.2's own need: the contract's `createFulfillmentRequest()`
+ * hands this straight back as the one reference CRM stores) -- the original caller
+ * (the Sales Orders page's own create action) simply doesn't use it. */
+export async function createSalesOrder(businessId: string, input: SalesOrderInput): Promise<{ id: string }> {
   await requireModule(businessId, "inventory");
   const supabase = await createClient();
   const discountAmount = input.discount_amount ?? 0;
@@ -101,6 +104,8 @@ export async function createSalesOrder(businessId: string, input: SalesOrderInpu
     })),
   );
   if (itemsError) throw itemsError;
+
+  return { id: so.id };
 }
 
 /** Ported from stockpilot-ai-ops's `saveSo` mutation -- update branch. Draft-only edit,

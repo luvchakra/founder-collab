@@ -15,7 +15,7 @@ export type CommercialJourneyState = {
   opportunityId: string;
   discovery: JourneyModuleSection & { prospectId: string | null };
   crm: JourneyModuleSection & { leadId: string | null; opportunityStatus: string; ownerId: string | null; nextActionId: string | null };
-  inventory: JourneyModuleSection & { productCount: number };
+  inventory: JourneyModuleSection & { productCount: number; fulfillmentRequestId: string | null };
   fsm: JourneyModuleSection & { fsmOpportunityId: string | null; jobStatus: string | null };
   /** A short machine-readable summary of where this journey stands overall --
    * deliberately coarse (not one code per possible per-module combination); the
