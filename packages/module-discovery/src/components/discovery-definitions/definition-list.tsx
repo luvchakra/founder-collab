@@ -19,6 +19,7 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Switch } from "@cofounderai/core/ui/switch";
 import { toast } from "@cofounderai/core/ui/sonner";
 import { DefinitionFormDialog } from "./definition-form-dialog";
+import { PlayPicker } from "./play-picker";
 import { MONITORING_FREQUENCY_LABEL } from "../../lib/discovery-definitions/types";
 import type { DiscoveryDefinition } from "../../lib/discovery-definitions/types";
 
@@ -78,6 +79,8 @@ export function DefinitionList({
         </div>
         <DefinitionFormDialog mode="create" action={createAction} />
       </div>
+
+      <PlayPicker createAction={createAction} />
 
       {definitions.length === 0 ? (
         <EmptyState

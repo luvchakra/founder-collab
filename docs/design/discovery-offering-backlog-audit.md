@@ -27,7 +27,7 @@ only genuine architectural/key decisions are raised.
 | | 03.2 | Offering Overview | Done |
 | | 03.3 | Offering Navigation | Done |
 | | 04.1 | Discovery Definition | Done |
-| | 04.2 | Discovery Plays | Not started |
+| | 04.2 | Discovery Plays | Done |
 | C | 05.1 | Opportunity Model | Not started |
 | | 05.2 | Opportunity Score | Not started |
 | | 05.3 | Multi-Signal Correlation | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**10 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**11 of 68 in-scope stories done — Phase B complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -552,3 +552,33 @@ caught and fixed this way; no other new findings), and a clean `next build` (the
 constraint noted in every prior story this run.
 
 **Status**: 10 of 68 in-scope stories done. Next: 04.2, Discovery Play.
+
+### 04.2 — Discovery Play (2026-09-11)
+
+New `DISCOVERY_PLAYS` registry (`lib/discovery-definitions/plays.ts`) with the backlog's
+own exact ten presets (Recently Funded, Rapid Growth, Hiring Relevant Roles, New
+Executive, Technology Migration, Competitor Customers, Regulatory Pressure, Negative
+Reviews, Expansion, Multiple Buying Signals) -- fixed, hand-written data, no AI call
+involved, each just a name + a starter `desiredSignals` entry.
+
+`DefinitionFormDialog` gained an `initialValues`/`triggerLabel` pair (create-mode only):
+plain `defaultValue` pre-fill, no controlled-state refactor needed since these are only
+ever read at mount, never updated afterward. New `PlayPicker` renders one button per
+play, each its own `DefinitionFormDialog` instance pre-filled with that play's name and
+signal, wired into `DefinitionList` right below the plain "New definition" button. A play
+never creates a definition on its own -- it opens the exact same create dialog the founder
+would see manually, pre-filled as a starting point they still review and can edit before
+clicking Create, the same "pre-filled but not auto-saved" discipline as the Offering
+Setup Wizard's AI suggestions (02.1). "Each play must inherit the active offering
+context" holds structurally: `PlayPicker` takes the same `createAction` already bound to
+the current business/offering that the plain create button uses, so a play-started
+definition always writes into this offering's own workspace.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(990 files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (19/19, unchanged), and a clean `next
+build`. No schema change this story. Same live-browser-walkthrough constraint noted in
+every prior story this run.
+
+**Status**: 11 of 68 in-scope stories done -- **Phase B complete**. Next: Phase C,
+05.1 Discovery Opportunity Model.
