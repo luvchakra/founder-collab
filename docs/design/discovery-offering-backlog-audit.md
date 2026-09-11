@@ -24,7 +24,7 @@ only genuine architectural/key decisions are raised.
 | | 02.2 | Offering ICP | Done |
 | | 02.3 | Buyer Personas | Done |
 | B | 03.1 | Offering Context Selector | Done |
-| | 03.2 | Offering Overview | Not started |
+| | 03.2 | Offering Overview | Done |
 | | 03.3 | Offering Navigation | Not started |
 | | 04.1 | Discovery Definition | Not started |
 | | 04.2 | Discovery Plays | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**7 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**8 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -435,3 +435,39 @@ UI/layout only), and a clean `next build`. No schema change, so no migration/adv
 this story. Same live-browser-walkthrough constraint noted in every prior story this run.
 
 **Status**: 7 of 68 in-scope stories done. Next: 03.2, Offering Discovery Overview.
+
+### 03.2 — Offering Discovery Overview (2026-09-11)
+
+The backlog's own suggested section list for this page (Offering Overview, ICP Health,
+Active Discovery Plays, Today's Opportunities, Recent Signals, Watchlist, CRM Handoffs)
+includes five sections backed by entities that don't exist yet -- Discovery Plays
+(04.2), Opportunities (05.x-07.x), Signals (part of the opportunity model, 05.x),
+Watchlist (P1-01.3), CRM Handoffs (08.x). Built only the three that have real data
+today -- Offering (type/status/category), ICP Health, and a Prospect funnel -- plus a
+Buyer Personas summary and a single deterministic "What should I do today?" recommendation
+computed from real state (no ICP -> define one; ICP still draft -> approve it; no
+personas -> add them; no prospects -> discover some; otherwise -> review prospects). The
+other five sections are left for their own stories to add, each with real content, rather
+than stubbed now with placeholder/fake numbers -- the same "no false precision" call
+already made in 01.3 for the offerings table's "Active Discovery" column.
+
+New `OfferingOverviewSummary` component, shown on the existing Overview tab (`page.tsx`)
+above the existing `ProductOverviewShell` (knowledge sources / profile generation), gated
+on `product.product_profile` existing: before a profile exists, the setup wizard already
+*is* the "what to do today" answer (generate a profile), so showing a mostly-empty
+ICP/persona/prospect dashboard above it would be noise, not help. Once a profile exists,
+this becomes the workspace's actual home; the setup shell (still useful for revisiting
+sources or regenerating the profile later) stays below it, not replaced.
+
+Deliberately reused this route rather than creating a second "Overview" page: 03.3
+(Offering Navigation, next story) is what formally restructures navigation/labels around
+the doc's own suggested IA, so a route/nav decision was left to that story rather than
+made piecemeal here.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(981 files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (19/19, unchanged -- no lib code changed),
+and a clean `next build`. No schema change this story. Same live-browser-walkthrough
+constraint noted in every prior story this run.
+
+**Status**: 8 of 68 in-scope stories done. Next: 03.3, Offering Navigation.
