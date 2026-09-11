@@ -8,12 +8,14 @@ export const ACTION_LABEL: Record<string, string> = {
   "stock.adjusted": "Stock adjusted",
   "stock.contract_adjusted": "Stock adjusted via module contract",
   "business_settings.updated": "Business settings changed",
+  "crm_lead.status_changed": "CRM lead status changed",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
   document: "Document",
   stock_movement: "Stock Movement",
   business_settings: "Business Settings",
+  crm_lead: "CRM Lead",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

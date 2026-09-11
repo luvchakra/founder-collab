@@ -1,6 +1,7 @@
+import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
-import type { CreateLeadInput, Lead } from "./types";
+import type { CreateLeadInput, Lead, LeadStatus } from "./types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
@@ -136,4 +137,40 @@ export async function promoteProspectToLead(
     }
     throw err;
   }
+}
+
+/**
+ * CRM-04.1's lead lifecycle: `new -> contacted -> engaged -> qualified -> opportunity ->
+ * won/lost`, plus `nurture`/`unresponsive`/`disqualified`. Only a human calls this --
+ * there is no AI-driven caller anywhere in this codebase, so "AI may suggest a state
+ * change but cannot silently change it" holds by construction, not by a guard this
+ * function would otherwise need. "Status transitions are auditable" is `core.audit_log`
+ * (D-10), the platform's existing generic mechanism, not a CRM-specific history table --
+ * `crm.assignment` is a different concept (who owns it, not what state it's in).
+ */
+export async function updateLeadStatus(businessId: string, leadId: string, status: LeadStatus): Promise<Lead> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: before, error: beforeError } = await supabase.from("lead").select("status").eq("id", leadId).eq("business_id", businessId).single();
+  if (beforeError) throw beforeError;
+
+  const { data, error } = await supabase.from("lead").update({ status }).eq("id", leadId).eq("business_id", businessId).select("*").single();
+  if (error) throw error;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_lead.status_changed",
+    entityType: "crm_lead",
+    entityId: leadId,
+    before: { status: before.status },
+    after: { status },
+  });
+
+  await publishCrmEvent(businessId, "crm.lead.updated", { v: 1, leadId, changedFields: ["status"] });
+
+  return data as Lead;
 }

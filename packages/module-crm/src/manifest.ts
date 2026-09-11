@@ -16,6 +16,10 @@ export const crmManifest: ModuleManifest = {
   nav: [
     { heading: "Overview", items: [{ label: "Inbox", slug: "", icon: "Inbox" }] },
     {
+      heading: "Sales",
+      items: [{ label: "Leads", slug: "leads", icon: "Users" }],
+    },
+    {
       heading: "Administration",
       items: [
         { label: "Channels", slug: "channels", icon: "Radio" },
@@ -23,7 +27,7 @@ export const crmManifest: ModuleManifest = {
       ],
     },
   ],
-  features: ["Unified inbox across channels", "Channel connections", "Automated routing rules"],
+  features: ["Unified inbox across channels", "Channel connections", "Automated routing rules", "Lead lifecycle tracking"],
   permissions: ["crm.access"],
   optionalPeers: ["discovery", "fsm", "inventory", "gst"],
 };

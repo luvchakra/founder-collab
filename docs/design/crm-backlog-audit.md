@@ -269,6 +269,28 @@ Verified with a new RLS-harness assertion (scratch activity/product_interest row
 attached only to the lead, confirmed to keep `lead_id` and gain `opportunity_id`), full
 monorepo typecheck, `lint:boundaries`, and module-crm's vitest suite.
 
+## CRM-04.1 (2026-09-11)
+
+Adds `updateLeadStatus()` (lib/leads/mutations.ts) -- the manual state-change mutation
+CRM-04.1 needs on top of CRM-01.2's already-complete `lead_status` enum. "Status
+transitions are auditable" uses `core.audit_log` (D-10), the platform's existing generic
+mechanism (`writeAuditLog()`, new `crm_lead.status_changed` action/`crm_lead` entity-type
+labels in `core/audit/format.ts`), not a CRM-specific history table. "AI may suggest a
+state change but cannot silently change it" holds by construction: no AI caller exists
+anywhere in this codebase for lead status. Publishes `crm.lead.updated` (already declared
+in CRM-01.4's vocabulary, unused until now).
+
+Adds a real "Leads" list page (`apps/web/.../crm/leads/`) and nav entry (Sales > Leads,
+per the backlog's Section 10 suggested nav) -- the first UI CRM-04.x needed to exist at
+all. Built to the newly-added `docs/design/claude-ui-design-rules.md` (added this session
+per explicit user request, now referenced from root `CLAUDE.md` rule 13 for all future
+UI work): a real `<Table>` on desktop, the established `ul.divide-y md:hidden` /
+`Table.hidden md:table` pattern (mirrored from `purchase-orders-list.tsx`) rather than a
+cards-only layout, with the row's own inline status-change form as its edit affordance.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite, and the CRM RLS test suite.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`
