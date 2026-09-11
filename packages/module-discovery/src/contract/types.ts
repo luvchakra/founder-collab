@@ -54,3 +54,15 @@ export type CreateProductFromInventoryItemInput = {
   name: string;
   description?: string | null;
 };
+
+/** CRM-14.4's "Discovery -> CRM Funnel" (`discovered -> contacted -> engaged ->
+ * qualified`, the first four stages -- `opportunity`/`won` are CRM's own leads/
+ * opportunities and computed CRM-side, not part of this contract call). Counts of
+ * distinct prospects at or past each stage, across every workspace under this
+ * business's products. */
+export type DiscoveryFunnelCounts = {
+  discovered: number;
+  contacted: number;
+  engaged: number;
+  qualified: number;
+};

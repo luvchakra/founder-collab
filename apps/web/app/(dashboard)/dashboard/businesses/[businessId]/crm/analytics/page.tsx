@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getResponsePerformance } from "@cofounderai/module-crm/lib/dashboard/response-performance";
+import { getDiscoveryCrmFunnel } from "@cofounderai/module-crm/lib/dashboard/discovery-funnel";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { BarChart3 } from "lucide-react";
@@ -20,13 +21,18 @@ function formatMinutes(minutes: number | null): string {
  * same reasoning FSM's own Reports page exists separately from its Dashboard). CRM-14.4/
  * 14.5/14.6 add further sections here as their own stories build them, same "grow one
  * page over several stories" pattern CRM-14.1 used for the Dashboard page.
+ *
+ * CRM-14.4 adds the "Discovery -> CRM Funnel" section below -- omitted entirely
+ * (`funnel === null`) when Discovery isn't licensed for this business (ADR-10 degraded
+ * mode), rather than showing six zeros that would misrepresent "nothing has happened"
+ * as "Discovery isn't connected."
  */
 export default async function CrmAnalyticsPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const performance = await getResponsePerformance(businessId);
+  const [performance, funnel] = await Promise.all([getResponsePerformance(businessId), getDiscoveryCrmFunnel(businessId)]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,6 +114,33 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
           )}
         </CardContent>
       </Card>
+
+      {funnel ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Discovery &rarr; CRM funnel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col divide-y">
+              {(
+                [
+                  ["Discovered", funnel.discovered],
+                  ["Contacted", funnel.contacted],
+                  ["Engaged", funnel.engaged],
+                  ["Qualified", funnel.qualified],
+                  ["Opportunity", funnel.opportunity],
+                  ["Won", funnel.won],
+                ] as const
+              ).map(([label, count]) => (
+                <div key={label} className="flex items-center justify-between py-1.5 text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -44,3 +44,15 @@ export type ResponsePerformance = {
   ownerPerformance: { ownerId: string | null; ownerName: string; responded: number; medianResponseMinutes: number | null }[];
   channelResponseTime: { channel: string; medianResponseMinutes: number | null }[];
 };
+
+/** CRM-14.4's "Discovery -> CRM Funnel" -- six stages, verbatim from the backlog. See
+ * `discovery-funnel.ts` for which four come from Discovery's own contract and which two
+ * are CRM's own leads/opportunities. */
+export type DiscoveryCrmFunnel = {
+  discovered: number;
+  contacted: number;
+  engaged: number;
+  qualified: number;
+  opportunity: number;
+  won: number;
+};

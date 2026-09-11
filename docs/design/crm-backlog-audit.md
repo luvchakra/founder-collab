@@ -2562,3 +2562,46 @@ violations), module-crm's vitest suite (119/119, +8 new), and a clean `next buil
 
 **Status**: 72 of 74 in-scope stories done. Next: CRM-14.4 "Discovery -> CRM Funnel"
 (seq #69).
+
+---
+
+## CRM-14.4 (2026-09-11)
+
+"Discovery -> CRM Funnel": `discovered -> contacted -> engaged -> qualified ->
+opportunity -> won`. "This directly demonstrates Discovery ROI."
+
+**Design**: the first cross-module contract call this backlog run adds (every prior
+story reused an existing one) -- `getProspectFunnelCounts()`, new in
+`module-discovery/src/contract/index.ts`, the only thing CRM may import from that
+module (CLAUDE.md architecture rule 3). Computes the first four stages across every
+workspace under the business's products (not just the first one --
+`getFirstWorkspaceForBusiness()`'s single-workspace attribution, built for a write that
+needs exactly one target, doesn't fit a business-wide count): `discovered` = every
+`discovery.prospects` row; `contacted`/`engaged` = distinct prospects with a
+`discovery.conversations` row (created once outreach goes out) / one with
+`status='replied'`; `qualified` = `prospects.status='qualified'`.
+
+The last two stages are CRM's own data, computed CRM-side in a new
+`lib/dashboard/discovery-funnel.ts#getDiscoveryCrmFunnel()`: `opportunity`/`won` are
+`crm.opportunity` rows reached through a `crm.lead` with `source_module='discovery'`
+(CRM-03.1's own traceability field, set by `promoteProspectToLead()`) via
+`opportunity.lead_id` (CRM-03.4's lead->opportunity conversion) -- the same "traced back
+to its Discovery origin" chain those two stories already established, read here instead
+of written. Returns `null` (the whole section omitted, not six zeros) when Discovery
+isn't licensed for this business -- ADR-10's degraded mode, same shape every other
+cross-module read in this codebase already uses.
+
+**UI**: new "Discovery -> CRM funnel" card on the Analytics page (CRM-14.3's page,
+grown by one more section) -- six stages as a plain list, `discovered` through `won`.
+
+New `DiscoveryFunnelCounts` type in `module-discovery/src/contract/types.ts`;
+`DiscoveryCrmFunnel` type in `module-crm/src/lib/dashboard/types.ts`.
+
+Verified with full monorepo typecheck, `lint:boundaries` (930 files, no violations --
+confirming the new contract call stays inside the allowed `contract/index.ts` boundary),
+both module-crm's and module-discovery's vitest suites (119/119 and 19/19, unchanged),
+and a clean `next build`. No database change -- reads existing `discovery.prospects`/
+`discovery.conversations`/`crm.lead`/`crm.opportunity` only.
+
+**Status**: 73 of 74 in-scope stories done. Next: CRM-14.5 "CRM -> FSM Funnel" (seq
+#70).

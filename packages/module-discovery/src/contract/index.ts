@@ -1,6 +1,6 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { addPartyContact, addPartyRole } from "@cofounderai/core/parties/mutations";
-import { getFirstWorkspaceForBusiness, getProduct, getWorkspace } from "../lib/tenancy/queries";
+import { getFirstWorkspaceForBusiness, getProduct, getWorkspace, listProducts, listWorkspacesForProducts } from "../lib/tenancy/queries";
 import { createProspect } from "../lib/prospects/mutations";
 import { getProspectResearch } from "../lib/research/queries";
 import { createClient } from "../db/server";
@@ -9,6 +9,7 @@ import type {
   ContractResult,
   CreateProductFromInventoryItemInput,
   CreateProspectFromExternalLeadInput,
+  DiscoveryFunnelCounts,
 } from "./types";
 
 /**
@@ -192,4 +193,48 @@ export async function createProductFromInventoryItem(
   if (error) return { ok: false, error: error.message };
 
   return { ok: true, data: { productId: data.id } };
+}
+
+/**
+ * CRM-14.4's "Discovery -> CRM Funnel" -- the first four stages
+ * (`discovered/contacted/engaged/qualified`), across every workspace under this
+ * business's products (a business can have several products/workspaces, unlike the
+ * single-workspace attribution `createProspectFromExternalLead()`/
+ * `getFirstWorkspaceForBusiness()` use for a write that needs exactly one target).
+ * `contacted`/`engaged` are read off `discovery.conversations` (created once outreach
+ * goes out, `status` flips to `replied` once the prospect responds) rather than
+ * `outreach_messages`, since a conversation is the one row per prospect this needs to
+ * count distinctly, not a count of individual messages.
+ */
+export async function getProspectFunnelCounts(businessId: string): Promise<ContractResult<DiscoveryFunnelCounts>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const products = await listProducts(businessId);
+  const workspaces = await listWorkspacesForProducts(products.map((p) => p.id));
+  const workspaceIds = workspaces.map((w) => w.id);
+  if (workspaceIds.length === 0) {
+    return { ok: true, data: { discovered: 0, contacted: 0, engaged: 0, qualified: 0 } };
+  }
+
+  const supabase = await createClient();
+  const [prospectsRes, conversationsRes] = await Promise.all([
+    supabase.from("prospects").select("id, status").in("workspace_id", workspaceIds),
+    supabase.from("conversations").select("prospect_id, status").in("workspace_id", workspaceIds),
+  ]);
+  if (prospectsRes.error) return { ok: false, error: prospectsRes.error.message };
+  if (conversationsRes.error) return { ok: false, error: conversationsRes.error.message };
+
+  const contactedProspectIds = new Set(conversationsRes.data.map((c) => c.prospect_id));
+  const engagedProspectIds = new Set(conversationsRes.data.filter((c) => c.status === "replied").map((c) => c.prospect_id));
+
+  return {
+    ok: true,
+    data: {
+      discovered: prospectsRes.data.length,
+      contacted: contactedProspectIds.size,
+      engaged: engagedProspectIds.size,
+      qualified: prospectsRes.data.filter((p) => p.status === "qualified").length,
+    },
+  };
 }
