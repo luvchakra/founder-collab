@@ -34,7 +34,7 @@ only genuine architectural/key decisions are raised.
 | | 05.3 | Multi-Signal Correlation | Done |
 | | 05.4 | Why Now | Done |
 | | 05.5 | Negative Signals | Done |
-| | 06.1 | Evidence-Backed Research | Not started |
+| | 06.1 | Evidence-Backed Research | Done |
 | | 06.2 | Research Brief | Not started |
 | | 06.3 | Buyer Intelligence | Not started |
 | | 07.1 | Next Best Action | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**16 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**17 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -875,3 +875,64 @@ build`. Same live-browser-walkthrough constraint noted in every prior story this
 
 **Status**: 16 of 68 in-scope stories done -- **Phase C, Opportunity Model/Score/Signal
 Correlation/Why Now/Negative Signals all done**. Next: 06.1, Evidence-Backed Research.
+
+### 06.1 — Evidence-Backed Research (2026-09-11)
+
+Checked the existing evidence model before adding anything, since blueprint §33
+pre-dates this backlog and already built most of what this story asks for:
+`prospect_research.evidence` (jsonb) already carried a `claim`/`source_url`/`confidence`
+per item, with `confidence` already a fact/inference/assumption/unknown four-way split --
+exactly the doc's own "AI must distinguish: Verified fact / Inference / Hypothesis /
+Insufficient evidence" (same four categories, different display labels). The genuine
+gaps against the doc's own field list (statement/source/source URL/source
+date/supporting signal/confidence/evidence type) were: a *separate* `source`
+description distinct from `source_url`, an `observed_at` date, a `supporting_signal`
+link, and a real `confidence` field distinct from the type classification (the existing
+field was doing double duty as both "what kind of claim" and implicitly "how sure",
+conflated into one). Fixed the naming bug this revealed while extending it: renamed the
+existing field `evidence_type` (what it actually represents) and added a genuinely
+separate `confidence: low|medium|high` -- the same "type of thing vs. how sure" split
+`timing_strength`/`confidence` already established for Why Now (05.4). `claim` ->
+`statement` to match the doc's own vocabulary.
+
+Since `evidence` is a jsonb column (no DB schema change), this needed no migration --
+`EvidenceItemSchema` (`lib/ai/schemas.ts`) and `EvidenceItem`/`EVIDENCE_TYPE_LABEL`
+(`lib/research/types.ts`) were extended directly. Bumped the research prompt to
+`research_prospect_v2.ts` (new file; v1 untouched, per CLAUDE.md's own versioned-prompt
+convention -- `ai_runs`' cache keys off this version string, so a schema-shape change
+gets a real new cache generation rather than silently colliding with old cached runs
+that don't have the new fields). `structureResearchPrompt` now spells out all seven
+evidence fields explicitly, including that `supporting_signal` should repeat a
+`buying_signals`/`recent_events` entry's exact text (free text, not a `discovery.signals`
+row id -- evidence is generated before that table is ever populated, `syncSignalsFromResearch`
+runs afterward off this same research row). `researchProspectPrompt` itself is
+unchanged from v1 (already asked for a URL per claim and "don't invent facts" --
+already what the doc asks for).
+
+Found and fixed a real existing UI consumer while verifying -- typecheck caught it, not
+a grep miss inside `module-discovery` alone (which has no evidence UI of its own): the
+prospect detail page (`apps/web/.../prospects/[prospectId]/page.tsx`) already rendered
+`research.evidence` with a local `CONFIDENCE_LABEL` map duplicating the same four
+labels, and referenced the now-renamed `item.claim`/`item.confidence`. Replaced the
+local map with the module's own exported `EVIDENCE_TYPE_LABEL` (one source of truth,
+now saying "Verified fact"/"Hypothesis" per the doc's own wording instead of the old
+"Fact"/"Assumption"), fixed the field references, and additionally surfaced `source`/
+`observed_at` inline next to each statement (previously invisible information, now
+free to show since the fields exist) -- did not add a `confidence` badge or
+`supporting_signal` display here, leaving the fuller evidence presentation
+(progressive disclosure: decision summary -> brief -> expandable evidence -> raw
+signals) to 06.2's own "Research Brief" story, which explicitly owns that.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces after fixing the
+`apps/web` consumer above -- this is the one story so far this run where typecheck
+caught a real cross-package break, not just a self-check), `lint:boundaries` (1008
+files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning), `npm
+run test -w @cofounderai/module-discovery` (41/41, unchanged -- no new pure function to
+add a test for; the AI-calling wiring itself has no unit test in this codebase,
+consistent with `understand-product.ts`/`generate-icp.ts`'s own precedent), and a clean
+`next build`. No migration this story (jsonb column, no schema change) -- no
+`get_advisors` step needed either. Same live-browser-walkthrough constraint noted in
+every prior story this run.
+
+**Status**: 17 of 68 in-scope stories done -- Phase C continuing. Next: 06.2, Offering
+Research Brief.

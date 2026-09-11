@@ -9,7 +9,7 @@ import {
   researchProspectPrompt,
   structureResearchPrompt,
   RESEARCH_PROSPECT_PROMPT_VERSION,
-} from "../../prompts/research/research_prospect_v1";
+} from "../../prompts/research/research_prospect_v2";
 import { hashInput } from "./hash";
 import { ProspectResearchSchema } from "./schemas";
 import { recordAiRun } from "./usage";
@@ -32,8 +32,9 @@ const RESEARCH_TTL_DAYS = 30;
  *    calls out.
  *
  * The model is instructed not to invent facts; each evidence item carries a
- * fact/inference/assumption/unknown confidence tag (blueprint §33) rather than being
- * asserted flatly.
+ * fact/inference/assumption/unknown `evidence_type` tag (blueprint §33) plus its own
+ * separate `confidence`, source description/URL, observed date, and which signal (if
+ * any) it supports (DISC-OFFER-P0-06.1) rather than being asserted flatly.
  */
 export async function researchProspect(prospectId: string): Promise<ProspectResearch> {
   const prospect = await getProspect(prospectId);

@@ -1,8 +1,38 @@
-export type EvidenceConfidence = "fact" | "inference" | "assumption" | "unknown";
+/** DISC-OFFER-P0-06.1: the doc's own four-way classification, renamed from this field's
+ * pre-existing values (`fact`/`inference`/`assumption`/`unknown`, blueprint §33) with the
+ * doc's own display labels below -- the underlying values are unchanged, this is the
+ * same distinction the module already made, now named for what it actually is (a claim's
+ * *type*, not a confidence level -- see `EvidenceItem.confidence` below for the
+ * genuinely separate confidence dimension). */
+export type EvidenceType = "fact" | "inference" | "assumption" | "unknown";
+
+export const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
+  fact: "Verified fact",
+  inference: "Inference",
+  assumption: "Hypothesis",
+  unknown: "Insufficient evidence",
+};
+
+export type EvidenceConfidence = "low" | "medium" | "high";
 
 export type EvidenceItem = {
-  claim: string;
+  statement: string;
+  /** What kind of source this is (e.g. "company website", "news article"), distinct
+   * from `source_url` -- the doc lists both as separate fields. */
+  source: string | null;
   source_url: string | null;
+  /** Source date/observed date (doc's own field) -- free text, not a strict ISO date:
+   * a model may only be able to say "early 2026" or "last quarter". */
+  observed_at: string | null;
+  /** Which buying signal or recent event (if any) this evidence backs -- the exact text
+   * of one of `ProspectResearch.buying_signals`/`recent_events`, or null. Free text, not
+   * a `discovery.signals` row id: evidence is produced before that table is ever
+   * populated (`syncSignalsFromResearch`, 05.3, runs afterward, off this same research
+   * row). */
+  supporting_signal: string | null;
+  evidence_type: EvidenceType;
+  /** How confident the claim is accurate, independent of `evidence_type` -- see the
+   * type's own doc comment. */
   confidence: EvidenceConfidence;
 };
 
