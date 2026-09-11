@@ -5,7 +5,7 @@ import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
 import { addChargeLine, approveEstimateInternal, getOrCreateEstimate } from "../lib/estimates/mutations";
-import type { ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteFunnelCounts, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
+import type { CompletedJobForReactivation, ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteFunnelCounts, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
 import type { Opportunity } from "../lib/opportunities/types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
@@ -466,4 +466,33 @@ export async function getCrmQuoteFunnelCounts(businessId: string): Promise<Contr
   }
 
   return { ok: true, data: { accepted, job, completed, revenue } };
+}
+
+/**
+ * CRM-12.7's "Reactivation Opportunities" -- the one signal ("completed service +
+ * likely recurring need") that needs FSM's own data; the other three are entirely
+ * CRM's own. Every completed job, most-recent-first, capped at 500 -- the caller keeps
+ * only each party's single most recent one and applies its own staleness threshold, so
+ * this stays a plain data read with no business logic of its own to keep in sync with
+ * CRM's.
+ */
+export async function listCompletedJobsForReactivation(businessId: string): Promise<ContractResult<CompletedJobForReactivation[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data, error } = await fsm
+    .from("jobs")
+    .select("id, party_id, completed_at")
+    .eq("business_id", businessId)
+    .eq("status", "completed")
+    .not("completed_at", "is", null)
+    .order("completed_at", { ascending: false })
+    .limit(500);
+  if (error) return { ok: false, error: error.message };
+
+  return {
+    ok: true,
+    data: data.map((j) => ({ partyId: j.party_id, jobId: j.id, completedAt: j.completed_at as string })),
+  };
 }

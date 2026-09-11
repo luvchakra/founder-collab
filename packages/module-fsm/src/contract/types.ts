@@ -88,3 +88,13 @@ export type FsmQuoteFunnelCounts = {
   completed: number;
   revenue: number;
 };
+
+/** CRM-12.7's "Reactivation Opportunities" -- one signal, "completed service + likely
+ * recurring need," needs FSM's own job-completion dates; the other three signals are
+ * entirely CRM's own data. One row per completed job (not deduplicated to one per
+ * party) -- the caller keeps only the most recent per party. */
+export type CompletedJobForReactivation = {
+  partyId: string;
+  jobId: string;
+  completedAt: string;
+};

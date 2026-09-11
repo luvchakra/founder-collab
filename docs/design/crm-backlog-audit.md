@@ -2656,3 +2656,60 @@ checkpoint, then #77-78) until all 74 are genuinely done.
 
 **Status**: 69 of 74 in-scope stories done (corrected). Next: CRM-12.7 "Reactivation
 Opportunities" (seq #66).
+
+---
+
+## CRM-12.7 (2026-09-11)
+
+"Reactivation Opportunities" -- detect: previously active customer now inactive; old
+lead with renewed signal; previous product interest + new stock; completed service +
+likely recurring need. "Create a suggested action rather than an automatic campaign."
+
+**Design**: deterministic detection (no AI call), same discipline CRM-12.5's Buying
+Intent Score already established -- "detect" means real rule-based conditions over
+existing data, and a real campaign/message send needs a human decision either way.
+`listReactivationOpportunities()` (new `lib/reactivation/queries.ts`) runs four
+independent detectors in parallel, each its own query (the four signals share no
+common table/shape):
+
+- **Inactive**: a party with interaction history, none of it in the last 60 days, and no
+  currently open lead/opportunity (an open one means someone's already on it).
+- **Renewed lead**: a lead open 30+ days that belongs to a party with a fresh
+  interaction (last 3 days) -- dormant, then suddenly active again.
+- **Restocked interest**: a `crm.product_interest` row 7+ days old whose item now has
+  live availability (`getTotalAvailability()`, CRM-10.2's own contract read) -- broader
+  than CRM-10.3/10.4's explicit waitlist mechanism, which only ever fires for an item
+  that was *already* out of stock at interest time; this catches every old interest,
+  waitlisted or not.
+- **Recurring service**: a party whose most recent completed FSM job finished 60+ days
+  ago. Needed a new FSM contract function, `listCompletedJobsForReactivation()` (this
+  session's third new cross-module contract call) -- a plain read (every completed job,
+  most recent first, capped at 500), with the staleness/per-party-dedup logic staying
+  CRM-side so FSM's contract doesn't need to know CRM's own thresholds.
+
+Each match becomes one `ReactivationOpportunity` row (`partyId`, `reason`, `detail`
+evidence text, `suggestedAction`) -- a party can appear once per signal that matched it,
+never merged into one row, since each signal is independently actionable. Party names
+are resolved once at the end for whichever parties actually matched something.
+
+**UI**: new "Reactivation" nav item/page (`crm/reactivation`) -- a plain list, each row
+linking to the customer's own Customer 360 page. No button here sends a message or
+creates a record: "suggested action" is text a founder reads, then acts on manually from
+the customer page (add a note, create a follow-up, message them) -- satisfying "create a
+suggested action rather than an automatic campaign" as literally as possible.
+
+New `packages/module-crm/src/lib/reactivation/{types,queries}.ts`;
+`CompletedJobForReactivation` type + `listCompletedJobsForReactivation()` in
+`module-fsm/src/contract/{types,index}.ts`.
+
+Verified with full monorepo typecheck (clean on the first pass), `lint:boundaries` (934
+files, no violations), module-crm's vitest suite (119/119, unchanged -- no new pure
+logic beyond query composition, same reasoning CRM-14.1's aggregation didn't get a
+dedicated test), and a clean `next build` (confirmed the new `/crm/reactivation` route
+compiles). No database change -- reads existing tables only.
+
+**Epic CRM-12 status, corrected**: 5 of 5 in-scope stories actually done now -- **epic
+genuinely complete** (12.3 and 12.6 remain out of this backlog run's P0/P1 scope).
+
+**Status**: 70 of 74 in-scope stories done. Next: CRM-14.6 "Channel Performance" (seq
+#71).
