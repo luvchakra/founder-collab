@@ -1,10 +1,13 @@
 # WonderArc Compliance — P0/P1 Global Tax & Compliance Backlog — Audit Log
 
 Dated record of every story implemented from "WonderArc Compliance Module — P0/P1 Global
-Tax & Compliance Backlog" (uploaded 2026-09-11), scoped to `module-gst` only (renamed
-user-facing to **Compliance**; technical package/schema name `gst` is preserved per
-CLAUDE.md's locked architecture section, which names the module `gst` — a package/schema
-rename is an architecture change requiring explicit user approval this run does not have).
+Tax & Compliance Backlog" (uploaded 2026-09-11; full text saved verbatim at
+`docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md` as of this session, per this repo's
+convention of keeping every implementation backlog doc as a permanent numbered file),
+scoped to `module-gst` only (renamed user-facing to **Compliance**; technical
+package/schema name `gst` is preserved per CLAUDE.md's locked architecture section, which
+names the module `gst` — a package/schema rename is an architecture change requiring
+explicit user approval this run does not have).
 
 Branch: `comply-backlog`, merged into `main` after each story, same fixed git sequence as
 the prior cross-module integration backlog (`int-backlog`) and Discovery offering backlog
@@ -30,7 +33,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 01.4 | Context Persistence | Partial (persistence for country/regime shipped as part of 01.2; not a separate story) |
 | | 01.5 | Unsupported-Country UX | Done |
 | P0-02 | 02.1 | Tax Registration | Done |
-| | 02.2 | Tax Jurisdiction | Not started |
+| | 02.2 | Tax Jurisdiction | Done |
 | | 02.3 | Versioned Tax Rules | Not started |
 | | 02.4 | Tax Treatments | Not started |
 | | 02.5 | Tax Determination Snapshot | Not started |
@@ -55,14 +58,12 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**5 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**6 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-**Session paused here at the user's request** (see the note at the end of the 02.1 log
-entry below) -- COMPLY-P0-02.1 is the last completed story; COMPLY-P0-02.2 (Tax
-Jurisdiction) is next when this resumes.
+COMPLY-P0-02.2 is the last completed story; COMPLY-P0-02.3 (Versioned Tax Rules) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -463,7 +464,81 @@ about country *rules* (rates/treatments), not a business's own registration reco
 - No live browser walkthrough (see the limitation note at the top of this document) --
   moot for this story anyway, since it shipped no UI.
 
-**Session paused here at the user's request, mid-epic (COMPLY-P0-02.1 done, 02.2-02.5 not
-started).** The working tree is clean and `comply-backlog` is merged into `main`; see this
-document's own top-of-file progress table and the final assistant report for exactly
-where to resume.
+### 02.2 — Tax Jurisdiction (2026-09-11)
+
+The `TaxJurisdiction` concept from the backlog's own §4 data model -- "country/state/
+province/local jurisdiction support" -- validating the `jurisdiction` column
+COMPLY-P0-02.1's own migration added to `gst.tax_registrations` as a plain, unvalidated
+nullable text column on purpose, with that migration's own comment already naming this
+story as the one to add "the validated catalog this column is checked against, in
+application code, not a schema change."
+
+**Checked against the entity-ownership map and existing code first** (backlog rule 1 /
+CLAUDE.md non-negotiable #5): `docs/plan/00-MASTER-PLAN.md` §5 has no jurisdiction/states
+row at all (expected -- that document predates this backlog). More importantly,
+`@cofounderai/core/lib/gst.ts` already has `INDIAN_STATES` (36 states/UTs, `{code, name}`),
+the exact list the existing GST profile form (`gst-profile-form.tsx`) already uses to
+populate its state `<select>`, storing the state *name* (not the GST numeric state code)
+on `core.business_settings.state`. Rather than re-encoding a second India states list
+inside `module-gst`, this story's new catalog wraps that existing list and stores/validates
+the same "name" convention, so a jurisdiction value means the same thing everywhere in the
+platform.
+
+**What was built**:
+- `lib/compliance/jurisdictions.ts` -- a per-country jurisdiction catalog, the same shape
+  and placement as COMPLY-P0-01.2/01.3's own `countries.ts` (a lookup table, not tenant
+  data -- no RLS, no new `gst`-schema table; a generic multi-country jurisdiction *table*
+  today would be exactly the "future stories implicitly" speculation backlog rule 4
+  forbids, since only India has any real jurisdiction data to validate against in P0).
+  `getJurisdictions(country)` returns India's 36 states/UTs (wrapping `INDIAN_STATES`) and
+  an empty list for every other, still-`"planned"` country in `countries.ts` -- consistent
+  with those countries having no working regime logic yet either.
+  `isJurisdictionSupported(country, name)` is a case-insensitive membership check;
+  `canonicalJurisdictionName(country, name)` returns the catalog's own exact spelling
+  (`undefined` if unrecognized), so a caller can normalize whatever casing/whitespace a
+  user typed.
+- `lib/tax-registrations/mutations.ts`'s `createTaxRegistration` now validates a non-empty
+  `jurisdiction` input against `canonicalJurisdictionName(country, ...)` and throws if it
+  isn't one of that country's own known jurisdictions, storing the canonical spelling
+  rather than the caller's raw casing. A `null`/empty jurisdiction is left alone
+  unconditionally -- plenty of regimes (a future VAT country with no sub-national
+  jurisdiction concept, say) have none to validate, and COMPLY-P0-02.1 deliberately left
+  requiring a jurisdiction for regimes that do need one (India's GSTINs are inherently
+  state-specific) as a later, regime-specific business rule (COMPLY-P0-04.1/04.2's own
+  job), not this generic layer's.
+- `lib/compliance/jurisdictions.test.ts` -- catalog shape (36 India entries, all
+  `level: "state"`, no duplicate names), empty results for a planned-but-unimplemented
+  country and an unknown country code, case/whitespace-insensitive matching, rejection of
+  an unrecognized name, and canonical-spelling normalization.
+
+**What was deliberately left out**: any UI (COMPLY-P0-02.1 shipped none either --
+COMPLY-P0-04.1's own job to build the India GSTIN management screen that will actually let
+a user pick a jurisdiction from this catalog); requiring a jurisdiction for any particular
+regime (a regime-specific rule, not this generic validation layer's); non-India
+jurisdiction data (Canada's provinces, US states/local jurisdictions, etc. -- each such
+P1 country pack's own job to add alongside the rest of that regime's working logic); and
+any schema change (the `jurisdiction` column and its check already exist from
+COMPLY-P0-02.1; this story is purely an application-layer catalog + validation, exactly as
+that migration's own comment anticipated).
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `npm run lint:boundaries` -- 992 files scanned, 0 violations.
+- `npm run lint:migrations` -- 105 migration files checked, 0 violations (no schema change
+  this story -- same file count as after COMPLY-P0-02.1, confirming nothing new was added).
+- `npm run test --workspace=@cofounderai/module-gst` -- 21 tests passed (14 pre-existing +
+  7 new in `jurisdictions.test.ts`).
+- No migration to apply and no new `get_advisors` findings possible -- this story touched
+  no schema, so the live Supabase MCP check is skipped, per this run's own "only if you
+  changed schema" instruction.
+- `cd apps/web && npm run build` -- clean production build; grepped the build output for
+  `error`/`failed` to confirm no silent failures.
+- No live browser walkthrough (see the limitation note at the top of this document) --
+  moot for this story anyway, since it shipped no UI, same as 02.1.
+- **Environment note, same as every prior story**: this worktree had no `node_modules`
+  installed at session start; `npm install` was run once against the existing
+  `package-lock.json`, and the resulting lockfile drift (none this time beyond what 01.1
+  already flagged as a pre-existing, unrelated `module-crm`/`zod` line) was reverted via
+  `git checkout -- package-lock.json` before committing.

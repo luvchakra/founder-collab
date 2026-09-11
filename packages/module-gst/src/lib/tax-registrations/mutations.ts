@@ -2,6 +2,7 @@ import { createClient } from "../../db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { isRegimeSupported } from "../compliance/countries";
+import { canonicalJurisdictionName } from "../compliance/jurisdictions";
 import type { TaxRegistrationInput } from "./types";
 
 /**
@@ -11,6 +12,15 @@ import type { TaxRegistrationInput } from "./types";
  * `setComplianceCountry`/`setComplianceRegime` already use), not any India-specific shape
  * (GSTIN format validation is COMPLY-P0-04.1's own job, once the India-specific UI wraps
  * this generic function).
+ *
+ * COMPLY-P0-02.2 (Tax Jurisdiction): a non-empty `jurisdiction` must match one of that
+ * country's own known jurisdictions (`canonicalJurisdictionName`, backed by
+ * `lib/compliance/jurisdictions.ts`) -- an empty/null jurisdiction is left alone, since
+ * plenty of regimes have no sub-national jurisdiction concept to validate against at all.
+ * The stored value is the catalog's own canonical spelling, not whatever casing/whitespace
+ * the caller passed in, so downstream matching (e.g. a future tax-determination engine
+ * comparing registration jurisdiction to a document's place of supply) never has to
+ * re-normalize it.
  *
  * When `isPrimary` is requested, first clears any existing primary for the same
  * business/country/regime -- the unique partial index
@@ -33,6 +43,15 @@ export async function createTaxRegistration(businessId: string, input: TaxRegist
     throw new Error("A registration number is required.");
   }
 
+  let jurisdiction: string | null = null;
+  if (input.jurisdiction && input.jurisdiction.trim()) {
+    const canonical = canonicalJurisdictionName(input.country, input.jurisdiction);
+    if (!canonical) {
+      throw new Error(`"${input.jurisdiction}" isn't a recognized jurisdiction for ${input.country}.`);
+    }
+    jurisdiction = canonical;
+  }
+
   const supabase = await createClient();
 
   if (input.isPrimary) {
@@ -42,7 +61,7 @@ export async function createTaxRegistration(businessId: string, input: TaxRegist
   const { error } = await supabase.from("tax_registrations").insert({
     business_id: businessId,
     country: input.country,
-    jurisdiction: input.jurisdiction,
+    jurisdiction,
     regime: input.regime,
     registration_number: input.registrationNumber.trim(),
     is_primary: input.isPrimary,
