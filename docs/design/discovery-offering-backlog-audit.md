@@ -28,7 +28,7 @@ only genuine architectural/key decisions are raised.
 | | 03.3 | Offering Navigation | Done |
 | | 04.1 | Discovery Definition | Done |
 | | 04.2 | Discovery Plays | Done |
-| C | 05.1 | Opportunity Model | Not started |
+| C | 05.1 | Opportunity Model | Done |
 | | 05.2 | Opportunity Score | Not started |
 | | 05.3 | Multi-Signal Correlation | Not started |
 | | 05.4 | Why Now | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**11 of 68 in-scope stories done — Phase B complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**12 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -582,3 +582,47 @@ every prior story this run.
 
 **Status**: 11 of 68 in-scope stories done -- **Phase B complete**. Next: Phase C,
 05.1 Discovery Opportunity Model.
+
+### 05.1 — Discovery Opportunity Model (2026-09-11)
+
+Checked `discovery.prospects`/`prospect_scores`/`prospect_research` in full before
+creating anything. None fit: `prospects.status` (new/qualified/disqualified) is a
+persistent, one-row-per-company qualification state; `prospect_scores` is append-only
+per prospect (a score *history*, not a distinct trackable thing); `prospect_research` is
+one row per prospect. None can represent the doc's own "a company can have separate
+opportunities for different offerings" in the sense actually meant here: a *single*
+prospect, re-evaluated by different discovery definitions over time, can surface several
+distinct, time-bound buying-signal moments concurrently (e.g. one from a "Recently
+Funded" definition, a separate later one from "Hiring Relevant Roles"), each with its own
+independent 7-state lifecycle (new -> reviewing -> action_required -> watching ->
+sent_to_crm/dismissed/expired). That's genuinely one-to-many against a prospect, which
+none of the existing tables are. New `discovery.opportunities` table with exactly the
+doc's own "minimum fields" (using `workspace_id` for "offering_id", matching this
+module's own established convention everywhere else) -- `discovery_definition_id` is a
+soft reference (nullable, `on delete set null`), same treatment as 04.1's own `icp_id`
+reference, so an opportunity survives its originating definition being deleted.
+
+Deliberately schema + `lib/opportunities/{types,queries,mutations}` only, no UI this
+story: the doc gives 05.1 no acceptance-criteria block (unlike every other story so far),
+just the data model itself, and the actual opportunity UI is explicitly owned by Phase C's
+own 07.1-07.3 ("Next Best Action", "Today's Opportunities", "Opportunity Detail"). Building
+list/detail screens now, ahead of scoring (05.2), correlation (05.3), why-now (05.4), and
+negative signals (05.5) all still to come, would mean either an empty table with nothing
+meaningful to show or speculative UI for fields those later stories haven't populated yet
+-- so the lib layer exists and is ready for 05.2-05.5/07.x to build on, without
+front-running them. `mutations.ts` intentionally has no scoring logic (`createOpportunity`
+just records the moment; `score`/`confidence` stay at their column defaults until 05.2
+computes them for real).
+
+All three foreign keys (`workspace_id`, `prospect_id`, `discovery_definition_id`) were
+indexed from the start this time, avoiding the follow-up-migration pattern 02.3/04.1
+needed.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(993 files, no violations), `lint:migrations` (105 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (19/19, unchanged), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings -- all three FKs already indexed), and
+a clean `next build`. No UI to browser-test this story since none was built.
+
+**Status**: 12 of 68 in-scope stories done. Next: 05.2, Opportunity Score.
