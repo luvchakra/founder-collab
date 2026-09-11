@@ -50,6 +50,37 @@ export function ProductNav({
       : pathname === tab.href || pathname.startsWith(`${tab.href}/`),
   );
 
+  /* DISC-OFFER-P0-03.3's "Offering Navigation" -- the numbered stepper below reads as
+   * "do these once, in this order," which is right for a brand-new offering's initial
+   * setup but wrong once it has a profile: from then on this is an ongoing workspace a
+   * founder revisits constantly and out of order, not a checklist. Switching to a flat,
+   * equal-weight tab bar once setup is complete matches how it's actually used, without
+   * adding any destination that doesn't already exist -- the doc's own suggested
+   * Discovery/Opportunities/Signals/Watchlist/Research entries have no page behind them
+   * yet (04.2/05.x-07.x/P1/08.x), so they're left out rather than becoming dead links. */
+  if (completed?.overview) {
+    return (
+      <nav aria-label="Offering sections" className="flex w-full flex-wrap gap-1 rounded-lg border border-border bg-muted p-1">
+        {tabs.map((tab, i) => {
+          const isActive = i === activeIndex;
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+    );
+  }
+
   return (
     <nav
       aria-label="Product sections"
