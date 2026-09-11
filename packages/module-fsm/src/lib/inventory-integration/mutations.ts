@@ -117,6 +117,29 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
     await releaseStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
     await consumeStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
   }
+
+  // INT-03.5: also snapshot this fallback consumption into `parts_consumption` (as if
+  // the whole planned quantity had been explicitly reported as `actual`) -- otherwise a
+  // *later* explicit report on this same job (e.g. "actually 2 of these were never
+  // used, return them") would compute its delta against an empty baseline and
+  // re-consume the full amount a second time. Recording the assumed baseline here is
+  // what makes `recordJobPartsConsumption()`'s delta math safe regardless of which path
+  // a job's parts went through first.
+  const fallbackRecorded: JobPartsConsumptionLine[] = lines.map((line) => ({
+    itemId: line.itemId,
+    itemName: line.itemName,
+    itemSku: line.itemSku,
+    unit: line.unit,
+    planned: line.quantity,
+    actual: line.quantity,
+    returned: 0,
+    wasted: 0,
+  }));
+  await fsm
+    .from("jobs")
+    .update({ parts_consumption: fallbackRecorded, parts_consumption_recorded_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("business_id", businessId);
 }
 
 /**
@@ -125,9 +148,15 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
  * `actual` (installed/used) and `wasted` (used but not usefully, e.g. cut to waste,
  * damaged) both permanently leave stock (`consumeStock`, "outbound"); `returned`
  * releases its reservation back to available (`releaseStock`) -- covering "never left
- * the warehouse, wasn't needed after all." A genuine issue-then-return round trip (parts
- * that physically left and came back) needs an inbound movement the Inventory contract
- * doesn't expose yet -- that's INT-03.5's own job, not this one's.
+ * the warehouse, wasn't needed after all." This is INT-03.5's own "support return of
+ * unused reserved material" too, not a separate mechanism -- Reserved -> Used / Returned
+ * / Wasted are the complete set of states this codebase's Inventory contract actually
+ * tracks. A textbook "Issued" step (physically picked/handed to a technician, distinct
+ * from merely reserved) has no backing state anywhere in the schema, and a genuine
+ * issue-then-return round trip (parts that physically left the warehouse and came back)
+ * needs an inbound movement type the contract doesn't expose -- INT-03.5's own
+ * acceptance criterion ("only implement states supported by the existing FSM/Inventory
+ * models") licenses leaving both unbuilt rather than inventing either.
  *
  * Idempotent by construction, and corrections stay auditable, via the same mechanism:
  * every call computes the *delta* from the job's last-recorded `parts_consumption`
@@ -137,7 +166,12 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
  * difference, not the full amount again. A delta that would *reduce* a prior
  * consumed/returned amount is skipped (un-consuming/un-releasing isn't a movement this
  * contract supports either) rather than silently ignored -- the new totals are still
- * recorded so the correction itself is visible, just not reflected in stock.
+ * recorded so the correction itself is visible, just not reflected in stock. This is
+ * also why `consumeJobParts()`'s own fallback path now records its assumed
+ * `parts_consumption` baseline (`actual: planned`) instead of leaving the column null --
+ * without it, a job's *first* explicit correction after an unattended (fallback)
+ * completion would compute its delta against zero and double-consume the full quantity
+ * a second time.
  */
 export async function recordJobPartsConsumption(
   businessId: string,

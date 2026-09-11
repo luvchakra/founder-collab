@@ -29,7 +29,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 03.2 | Reserve Parts for FSM Job | Done |
 | | 03.3 | Parts Shortage -> FSM Exception | Done |
 | | 03.4 | Technician Consumption -> Inventory | Done |
-| | 03.5 | Parts Returned / Unused -> Inventory | Not started |
+| | 03.5 | Parts Returned / Unused -> Inventory | Done |
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Not started |
 | | 04.2 | Create FSM Assessment Request | Not started |
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 11/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 11/29 (38%).**
+**P0 (INT-01 through INT-04): 12/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 12/29 (41%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -250,3 +250,13 @@ New `fsm.jobs.parts_consumption` (jsonb array, migration `20260911002400`) + `pa
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (87 migrations, no violations), a live migration application followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
 
 **Status**: 11 of 29 in-scope stories done. Next: INT-03.5, Parts Returned / Unused -> Inventory.
+
+### INT-03.5 — Parts Returned / Unused -> Inventory (2026-09-11)
+
+Rule 1 inspection found "support return of unused reserved material" already substantially built: INT-03.2 (`reserveJobParts()`) is Reserved, INT-03.4 (`recordJobPartsConsumption()`) is Used (`actual`+`wasted`, `consumeStock`) and Returned (`returned`, `releaseStock` -- unused reservations go back to available). Reserved -> Used / Returned / Wasted is the complete set of states this codebase's Inventory contract actually tracks; a textbook "Issued" step (physically picked/handed to a technician, distinct from merely reserved) has no backing state anywhere in the schema, and a genuine issue-then-return round trip (parts that physically left the warehouse and later come back) needs an inbound movement type the contract doesn't expose. This story's own acceptance criterion -- "only implement states supported by the existing FSM/Inventory models" -- licenses leaving both unbuilt rather than inventing either, so no new mechanism, migration, or UI was needed for the story's headline ask.
+
+Inspection did surface one real correctness gap directly under this story's own scope, though: `consumeJobParts()`'s fallback path (jobs that complete without ever getting an explicit technician report, still using F-14's original planned-quantity behavior) never wrote `parts_consumption`, so a job's *first* explicit correction after a fallback completion (e.g. "actually 2 of these were never used, return them") would compute its delta against an empty `{actual: 0, ...}` baseline instead of what was truly already consumed (`{actual: planned, ...}`) -- silently re-consuming the full planned quantity a second time on top of what the fallback already took. Fixed by having the fallback path also snapshot its assumed consumption (`actual: planned, returned: 0, wasted: 0` per line) into `parts_consumption`, exactly like `recordJobPartsConsumption()` already does -- both paths now leave a job in the same bookkeeping state, so `recordJobPartsConsumption()`'s existing delta mechanism is safe regardless of which path ran first, without needing to special-case which one it was.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), and a clean `next build`. No migration -- reuses `parts_consumption` (INT-03.4); no UI change -- the existing Materials tab already reads `parts_consumption` correctly once it's populated by either path.
+
+**Status**: 12 of 29 in-scope stories done -- **Epic INT-03 complete** (5/5). Next: INT-04.1, Opportunity Requires Assessment (starts Epic INT-04, the last P0 epic).
