@@ -40,7 +40,7 @@ only genuine architectural/key decisions are raised.
 | | 07.1 | Next Best Action | Done |
 | | 07.2 | Today's Opportunities | Done |
 | | 07.3 | Opportunity Detail | Done |
-| D | 08.1 | Offering-Aware CRM Handoff | Not started |
+| D | 08.1 | Offering-Aware CRM Handoff | Done |
 | | 08.2 | Existing Relationship Detection | Not started |
 | | 08.3 | Handoff Status | Not started |
 | E | 09.1 | Website URL Business Onboarding | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**22 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**23 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1317,3 +1317,77 @@ real schema, not by an actual click-through with a real row on screen.
 
 **Status**: 22 of 68 in-scope stories done -- **Phase C complete**. Next: Phase D, 08.1
 Offering-Aware CRM Handoff.
+
+### 08.1 — Offering-Aware CRM Handoff (2026-09-11)
+
+Checked the existing Discovery->CRM handoff before building anything new, since CRM-03.1
+("Promote to CRM") already exists: `promoteProspectToCrm` (module-crm's own contract)
+creates a `crm.lead` referencing the prospect *by id* (`source_module='discovery'`,
+`source_reference=prospectId`), and its own confirmation dialog states the design
+philosophy explicitly in its copy -- "Its product interest, ICP fit, buying signals, and
+research stay linked back to this Discovery prospect rather than being copied -- the CRM
+lead always reflects the latest Discovery data." That data flows live today through
+`getProspectSummaryForParty`, a `module-discovery` contract function `module-crm` already
+calls directly from five different files (Customer 360, timeline, journey, opportunity
+mutations) -- mechanism 2 of ADR-5's own ranked list ("call another module's
+`contract/index.ts` function... when you need an answer now"), already in heavy use
+before this story touched anything. Given that established, explicit, in-app-documented
+philosophy, extending *that* live read with the doc's own opportunity-level field list
+(score/why them/why now/research brief/recommended action/discovery definition) is the
+consistent move -- not inventing a second, copy-at-handoff-time mechanism for one new
+field set when an extensible live one already exists and is exactly what the existing
+dialog copy promises callers. (A `crm_note`-snapshot design was drafted first and
+discarded once this precedent surfaced during review -- kept out rather than building two
+competing philosophies side by side.)
+
+New `ContractOpportunitySummary` (module-discovery `contract/types.ts`) and a
+`latestOpportunity: ContractOpportunitySummary | null` field added to the existing
+`ContractProspectSummary` -- purely additive, so none of the five existing call sites
+need to change to keep compiling; only the ones that choose to render it do. Resolved
+inside `getProspectSummaryForParty` via the prospect's own most-recently-created
+opportunity (`listOpportunitiesForProspect`, 05.1 -- "most recent reflects current
+state," the same convention `generateResearchBrief` already established for its own
+opportunity lookup), pulling in a research brief's `offering_fit` as `researchBriefSummary`
+and a new `getDiscoveryDefinition(id)` single-record lookup (`discovery-definitions/queries.ts`,
+mirroring `getOpportunity`'s own by-id shape) for `discoveryDefinitionName`. The doc's own
+"selected contact" and "account" fields needed no new plumbing at all: "account" is
+whichever party this whole summary already hangs off of, and a Discovery contact is
+already mirrored into `core.party_contacts` the moment it's created
+(`addPartyContact`, established well before this backlog) -- a shared `core` table CRM
+already reads directly (ADR-5 mechanism 1), no cross-module call needed either way.
+
+Wired the new field into a real UI consumer rather than leaving it unread: the CRM
+Customer 360 page's existing "Discovery" card now shows an "Opportunity" block (score/
+priority badges, why them/now, Discovery's own recommended action, originating discovery
+definition) directly below the existing buying-signals block, gated on `latestOpportunity`
+being non-null.
+
+The other real gap: `promoteProspectToCrm`'s existing button lives on the *prospect*
+page and has no opportunity awareness at all -- clicking it doesn't know an opportunity
+exists, let alone update one. New `sendOpportunityToCrmAction` + `SendToCrmButton`
+(module-discovery's own `components/opportunities/`, a small deliberate duplicate of the
+prospect page's `PromoteToCrmButton` rather than relocating that already-working,
+unrelated `apps/web`-local file) added to the Opportunity Detail page's (07.3) own
+grouped "Actions" section -- reuses `promoteProspectToCrm` completely unchanged (no new
+payload to carry, since the contract extension above already makes CRM's own read of it
+richer), and on success also transitions *this specific opportunity* to `sent_to_crm`
+via the already-existing `setOpportunityStatus` (05.1) -- closing the loop 07.1's own
+recommended-action vocabulary and 07.3's own status-picker both deliberately left open
+for this exact story.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces on the first pass),
+`lint:boundaries` (1039 files, no violations -- `module-discovery` importing nothing new
+from another module, `apps/web` remaining the only caller of `module-crm`'s contract, as
+before), `lint:migrations` (112 migrations, no violations -- no schema change this story,
+purely additive TypeScript types plus one new query function), `npm run lint` (0 errors,
+1 pre-existing unrelated warning), `npm run test -w @cofounderai/module-discovery`
+(87/87, unchanged -- contract composition and UI only, nothing newly pure to test), and a
+clean `next build` (confirmed both the opportunity detail route and the CRM customer
+detail route -- the two surfaces this story touched -- build and appear in the route
+list). Same live-browser-walkthrough constraint noted in every prior story this run --
+particularly relevant to the new "Send to CRM" button and the Customer 360 "Opportunity"
+block, both of which render against real dev data with zero opportunity rows today (per
+07.2's own note on the signal-matching pipeline still being Phase E).
+
+**Status**: 23 of 68 in-scope stories done -- Phase D continuing. Next: 08.2, Existing
+Relationship Detection.

@@ -3,8 +3,13 @@ import { addPartyContact, addPartyRole } from "@cofounderai/core/parties/mutatio
 import { getFirstWorkspaceForBusiness, getProduct, getWorkspace, listProducts, listWorkspacesForProducts } from "../lib/tenancy/queries";
 import { createProspect } from "../lib/prospects/mutations";
 import { getProspectResearch } from "../lib/research/queries";
+import { listOpportunitiesForProspect } from "../lib/opportunities/queries";
+import { NEXT_BEST_ACTION_LABEL } from "../lib/opportunities/types";
+import { getDiscoveryDefinition } from "../lib/discovery-definitions/queries";
+import { getResearchBrief } from "../lib/research-briefs/queries";
 import { createClient } from "../db/server";
 import type {
+  ContractOpportunitySummary,
   ContractProspectSummary,
   ContractResult,
   CreateProductFromInventoryItemInput,
@@ -137,6 +142,7 @@ export async function getProspectSummaryForParty(
   const workspace = await getWorkspace(prospect.workspace_id);
   const product = workspace ? await getProduct(workspace.product_id) : null;
   const research = await getProspectResearch(prospect.id);
+  const latestOpportunity = await getLatestOpportunitySummary(prospect.id);
 
   return {
     ok: true,
@@ -150,7 +156,38 @@ export async function getProspectSummaryForParty(
       buyingSignals: research?.buying_signals ?? [],
       researchId: research?.id ?? null,
       researchedAt: research?.researched_at ?? null,
+      latestOpportunity,
     },
+  };
+}
+
+/** DISC-OFFER-P0-08.1: the most recently created opportunity for this prospect (05.1
+ * can have several across different discovery definitions/time), resolved to the
+ * doc's own "Send to CRM" field list -- `null` when this prospect has no opportunity
+ * at all yet. Kept as its own function rather than inlined so `getProspectSummaryForParty`
+ * stays readable; not exported, since nothing outside this file needs it directly. */
+async function getLatestOpportunitySummary(prospectId: string): Promise<ContractOpportunitySummary | null> {
+  const opportunities = await listOpportunitiesForProspect(prospectId);
+  const opportunity = opportunities[0];
+  if (!opportunity) return null;
+
+  const [definition, brief] = await Promise.all([
+    opportunity.discovery_definition_id ? getDiscoveryDefinition(opportunity.discovery_definition_id) : null,
+    getResearchBrief(prospectId),
+  ]);
+
+  return {
+    opportunityId: opportunity.id,
+    score: opportunity.score,
+    confidence: opportunity.confidence,
+    priority: opportunity.priority,
+    status: opportunity.status,
+    whyThem: opportunity.why_them,
+    whyNow: opportunity.why_now,
+    recommendedAction: opportunity.recommended_action ? NEXT_BEST_ACTION_LABEL[opportunity.recommended_action] : null,
+    recommendedActionReason: opportunity.recommended_action_reason,
+    researchBriefSummary: brief?.offering_fit ?? null,
+    discoveryDefinitionName: definition?.name ?? null,
   };
 }
 
