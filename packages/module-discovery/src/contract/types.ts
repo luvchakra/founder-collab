@@ -66,3 +66,15 @@ export type DiscoveryFunnelCounts = {
   engaged: number;
   qualified: number;
 };
+
+/** DISC-OFFER-P0-01.1's "Offering is available through a stable Discovery contract" --
+ * no consumer yet (no other module reasons about a business's offerings today), but the
+ * story's own acceptance criteria ask for this explicitly, not speculatively. Summary
+ * shape only, matching every other cross-module read in this contract (id-only pointers
+ * back into Discovery's own detail, never the full row). */
+export type OfferingSummary = {
+  offeringId: string;
+  name: string;
+  offeringType: string | null;
+  status: string;
+};

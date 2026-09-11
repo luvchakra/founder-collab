@@ -21,19 +21,48 @@ export type Business = {
   disabled_at: string | null;
 };
 
+/** DISC-OFFER-P0-01.1: the primary unit of Discovery is moving from Product to Business
+ * Offering -- see `lib/offerings/types.ts` for the "Offering" vocabulary this same row
+ * is exposed under going forward. Kept as a flat union (not an enum table) since it's a
+ * fixed, small, rarely-changing vocabulary -- the same reasoning `AssessmentRequirement`
+ * etc. use elsewhere in this codebase. */
+export type OfferingType =
+  | "product"
+  | "service"
+  | "subscription"
+  | "consulting"
+  | "professional_service"
+  | "maintenance"
+  | "training"
+  | "package"
+  | "solution"
+  | "other";
+
 export type Product = {
   id: string;
   business_id: string;
   name: string;
   description: string | null;
   website: string | null;
-  status: "active" | "archived";
+  /** DISC-OFFER-P0-01.1 widens this from a binary active/archived to a real third
+   * "inactive" state -- `disableProduct()`/`enableProduct()` still only ever write
+   * active/archived (unchanged by this story); DISC-OFFER-P0-01.3's own CRUD UI is what
+   * introduces a real deactivate action that writes 'inactive'. */
+  status: "active" | "inactive" | "archived";
   /** core.items row this product mirrors to/from (supabase/migrations/
    * 20260910090000_discovery_products_inventory_item_link.sql) -- null until Inventory
    * is licensed and the mirror succeeds, or for a product created before this existed. */
   linked_item_id: string | null;
   product_profile: ProductProfile | null;
   product_profile_generated_at: string | null;
+  /** DISC-OFFER-P0-01.1's new Offering fields -- all nullable, all additive. Existing
+   * rows (and every pre-existing caller that doesn't know about them) are unaffected. */
+  category: string | null;
+  offering_type: OfferingType | null;
+  value_proposition: string | null;
+  primary_problem: string | null;
+  target_market: string | null;
+  detailed_description: string | null;
   created_at: string;
   updated_at: string;
 };

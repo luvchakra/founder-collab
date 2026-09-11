@@ -10,6 +10,7 @@ import type {
   CreateProductFromInventoryItemInput,
   CreateProspectFromExternalLeadInput,
   DiscoveryFunnelCounts,
+  OfferingSummary,
 } from "./types";
 
 /**
@@ -236,5 +237,24 @@ export async function getProspectFunnelCounts(businessId: string): Promise<Contr
       engaged: engagedProspectIds.size,
       qualified: prospectsRes.data.filter((p) => p.status === "qualified").length,
     },
+  };
+}
+
+/**
+ * DISC-OFFER-P0-01.1's "Offering is available through a stable Discovery contract" --
+ * no cross-module consumer yet, added because the story's own acceptance criteria ask
+ * for it explicitly. Summary-only (id, name, type, status), matching every other
+ * cross-module read here -- a caller wanting the full Offering record reads Discovery's
+ * own detail page, this is only enough to know a business's offerings exist and what
+ * they're called.
+ */
+export async function listOfferingsForBusiness(businessId: string): Promise<ContractResult<OfferingSummary[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const offerings = await listProducts(businessId);
+  return {
+    ok: true,
+    data: offerings.map((o) => ({ offeringId: o.id, name: o.name, offeringType: o.offering_type, status: o.status })),
   };
 }
