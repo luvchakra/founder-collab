@@ -6,6 +6,7 @@ import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm
 import { checkResponseQuality, type ResponseQualityFlag } from "@cofounderai/module-crm/lib/conversations/response-quality";
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
+import { addConversationProduct, removeConversationProduct } from "@cofounderai/module-crm/lib/conversations/products";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -55,6 +56,21 @@ export async function checkResponseQualityAction(businessId: string, conversatio
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not check this reply." };
   }
+}
+
+/** CRM-10.2's "associate product references to conversation" write side. */
+export async function addConversationProductAction(businessId: string, conversationId: string, formData: FormData): Promise<void> {
+  const itemId = String(formData.get("itemId") || "");
+  if (!itemId) return;
+  const quantityRaw = String(formData.get("quantity") || "").trim();
+  const quantity = quantityRaw ? Number(quantityRaw) : null;
+  await addConversationProduct(businessId, conversationId, itemId, quantity);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+export async function removeConversationProductAction(businessId: string, conversationId: string, productInterestId: string): Promise<void> {
+  await removeConversationProduct(businessId, conversationId, productInterestId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
 }
 
 export type SendWhatsAppReplyActionState = { error: string } | null;

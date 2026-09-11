@@ -9,6 +9,9 @@ import { getCurrentEmployeeId } from "@cofounderai/module-crm/lib/assignment/que
 import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getLead } from "@cofounderai/module-crm/lib/leads/queries";
 import { getOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
+import { getTotalAvailability, listConversationProducts } from "@cofounderai/module-crm/lib/conversations/products";
+import { listItemsForBusiness } from "@cofounderai/core/items/queries";
+import { hasModule } from "@cofounderai/core/licensing/queries";
 import { getConversationWhatsAppWindowStatus } from "@cofounderai/module-crm/lib/whatsapp/messaging";
 import { getDraftReplyForInteraction } from "@cofounderai/module-crm/lib/interactions/draft-reply";
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
@@ -21,17 +24,20 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Inbox, MessageCircle } from "lucide-react";
+import { Inbox, MessageCircle, Package, Trash2 } from "lucide-react";
 import {
+  addConversationProductAction,
   assignConversationAction,
   checkResponseQualityAction,
   createLeadFromInteractionAction,
   createOpportunityFromInteractionAction,
   createTaskFromInteractionAction,
   markInteractionNotActionableAction,
+  removeConversationProductAction,
   sendWhatsAppReplyAction,
   sendWhatsAppTemplateAction,
 } from "./actions";
@@ -131,6 +137,20 @@ export default async function CrmConversationsPage({
   const lastInboundInteraction = selected ? [...selected.interactions].reverse().find((i) => i.direction === "inbound") : undefined;
   const suggestedReply =
     selected && whatsAppWindow?.withinWindow && lastInboundInteraction ? await getDraftReplyForInteraction(businessId, lastInboundInteraction.id) : null;
+
+  // CRM-10.2: products this specific conversation has expressed interest in, each with
+  // a live (never stored) Inventory availability figure -- ADR-10's degraded mode
+  // means the section itself still renders with no Inventory license, only each
+  // product's own availability collapses to "not available" (getTotalAvailability()'s
+  // own doc comment). The add-product picker still needs Inventory's real catalog, so
+  // that form alone is hidden when unlicensed (same precedent the Opportunity detail
+  // page's own Products section already established).
+  const inventoryLicensed = await hasModule(businessId, "inventory");
+  const conversationProducts = selected ? await listConversationProducts(businessId, selected.id) : [];
+  const availabilityByItemId = new Map(
+    await Promise.all(conversationProducts.map(async (p) => [p.itemId, await getTotalAvailability(businessId, p.itemId)] as const)),
+  );
+  const availableItemsForPicker = inventoryLicensed ? (await listItemsForBusiness(businessId)).filter((item) => item.status === "active") : [];
 
   const activeFilterParams = { channel: search.channel, status: search.status, ownerId: search.ownerId };
   const isQuickFilterOn = (key: string) => search[key as keyof typeof search] === "1";
@@ -241,6 +261,62 @@ export default async function CrmConversationsPage({
             <Link href={`/dashboard/businesses/${businessId}/crm/opportunities/${selectedOpportunity.id}`} className="hover:underline">
               <Badge variant="outline">Opportunity: {selectedOpportunity.status}</Badge>
             </Link>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border pt-3">
+          <p className="text-sm font-medium">Products of interest</p>
+          {conversationProducts.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No products linked to this conversation yet.</p>
+          ) : (
+            <div className="flex flex-col divide-y">
+              {conversationProducts.map((product) => {
+                const availability = availabilityByItemId.get(product.itemId) ?? null;
+                return (
+                  <div key={product.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{product.itemName}</p>
+                      <p className="text-xs text-muted-foreground">{product.quantity ? `Qty ${product.quantity}` : "No quantity"}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-xs text-muted-foreground">{availability === null ? "Not available" : `${availability} available`}</span>
+                      <form action={removeConversationProductAction.bind(null, businessId, selected.id, product.id)}>
+                        <SubmitButton variant="ghost" size="sm">
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {availableItemsForPicker.length > 0 ? (
+            <form action={addConversationProductAction.bind(null, businessId, selected.id)} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+              <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+                <label htmlFor="itemId" className="text-xs text-muted-foreground">
+                  Product
+                </label>
+                <NativeSelect id="itemId" name="itemId" defaultValue="">
+                  <option value="" disabled>
+                    Select a product
+                  </option>
+                  {availableItemsForPicker.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className="flex w-24 flex-col gap-1.5">
+                <label htmlFor="quantity" className="text-xs text-muted-foreground">
+                  Quantity
+                </label>
+                <Input id="quantity" name="quantity" type="number" min={0} step="0.01" />
+              </div>
+              <SubmitButton pendingText="Adding...">Add product</SubmitButton>
+            </form>
           ) : null}
         </div>
 
