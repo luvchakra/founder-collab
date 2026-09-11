@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
-import { resolveCommercialJourney } from "@cofounderai/module-crm/lib/journey/queries";
+import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
@@ -90,6 +90,7 @@ export default async function OpportunityDetailPage({
     getFsmQuoteStatusForOpportunity(businessId, opportunity),
     resolveCommercialJourney(businessId, opportunityId),
   ]);
+  const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
   const stage = stages.find((s) => s.id === opportunity.stage_id);
   const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
   const ownerName = (ownerId: string | null) => employees.find((e) => e.id === ownerId)?.full_name ?? null;
@@ -160,7 +161,17 @@ export default async function OpportunityDetailPage({
               <JourneyBadge module="FSM" section={journey.fsm} />
             </div>
             {journey.blockedReason ? <p className="text-sm text-destructive">{journey.blockedReason}</p> : null}
-            {journey.nextRecommendedAction ? <p className="text-sm text-muted-foreground">Next: {journey.nextRecommendedAction}</p> : null}
+            {crossModuleAction?.primary ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Next:</span>
+                <Badge variant={crossModuleAction.primary.enabled ? "default" : "outline"} className="font-normal">
+                  {crossModuleAction.primary.label}
+                </Badge>
+                {!crossModuleAction.primary.enabled && crossModuleAction.primary.disabledReason ? (
+                  <span className="text-xs text-muted-foreground">{crossModuleAction.primary.disabledReason}</span>
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

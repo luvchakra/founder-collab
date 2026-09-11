@@ -28,3 +28,31 @@ export type CommercialJourneyState = {
    * superseded wherever INT-01.2's richer resolver is available. */
   nextRecommendedAction: string | null;
 };
+
+/** INT-01.2's own vocabulary. Deliberately scoped to CROSS-module actions only --
+ * ordinary CRM pipeline progression (advance stage, mark won/lost) is already the
+ * opportunity detail page's own "Next action" card (`crm.activity`/`next_action_id`,
+ * CRM-05.2); this resolver exists for the handoffs a founder would otherwise have to
+ * remember to go trigger by hand in another module. */
+export type JourneyActionCode = "create_fsm_quote" | "create_fsm_job" | "request_fulfillment" | "follow_up_customer";
+
+export type JourneyAction = {
+  code: JourneyActionCode;
+  label: string;
+  enabled: boolean;
+  /** Set whenever `enabled` is false -- INT-01.2's own "disabled actions must explain
+   * missing prerequisites" acceptance criterion. */
+  disabledReason: string | null;
+};
+
+export type NextActionResolution = {
+  /** The single action this story asks for ("one primary next action") -- null when
+   * nothing cross-module is currently applicable (an early-stage opportunity with no
+   * products and no FSM engagement yet has nothing for this resolver to say; the
+   * page's own general "Next action" card already covers that case). */
+  primary: JourneyAction | null;
+  /** Other permitted actions the user may choose instead ("user can manually choose
+   * another permitted action") -- kept short and only populated when a genuine second
+   * option exists, never padded out to look exhaustive. */
+  alternatives: JourneyAction[];
+};

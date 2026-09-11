@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { deriveOverallState } from "./queries";
+import { deriveOverallState, resolveNextCrossModuleAction } from "./queries";
 import type { CommercialJourneyState } from "./types";
+
+function journeyState(overrides: Partial<CommercialJourneyState>): CommercialJourneyState {
+  return {
+    opportunityId: "opp-1",
+    discovery: { status: "not_available", label: "", prospectId: null },
+    crm: { status: "ok", label: "Qualification", leadId: null, opportunityStatus: "open", ownerId: null, nextActionId: null },
+    inventory: { status: "not_applicable", label: "", productCount: 0 },
+    fsm: { status: "not_applicable", label: "", fsmOpportunityId: null, jobStatus: null },
+    overallStage: "in_progress",
+    blockedReason: null,
+    nextRecommendedAction: null,
+    ...overrides,
+  };
+}
 
 function crm(status: CommercialJourneyState["crm"]["status"], label: string) {
   return { status, label, leadId: null, opportunityStatus: "open", ownerId: null, nextActionId: null };
@@ -47,5 +61,53 @@ describe("deriveOverallState", () => {
     const result = deriveOverallState(crm("ok", "Qualification"), inventory("not_applicable", 0), fsm("not_applicable"));
     expect(result.overallStage).toBe("in_progress");
     expect(result.nextRecommendedAction).toBeNull();
+  });
+});
+
+describe("resolveNextCrossModuleAction", () => {
+  it("recommends creating the FSM job once a quote is accepted", () => {
+    const result = resolveNextCrossModuleAction(
+      journeyState({ fsm: { status: "warning", label: "Quote accepted -- job not created yet", fsmOpportunityId: "fsm-opp-1", jobStatus: null } }),
+    );
+    expect(result.primary).toEqual({ code: "create_fsm_job", label: "Create FSM job", enabled: true, disabledReason: null });
+  });
+
+  it("recommends creating an FSM quote for an open opportunity with linked products and no FSM engagement yet", () => {
+    const result = resolveNextCrossModuleAction(journeyState({ inventory: { status: "ok", label: "2 products linked", productCount: 2 } }));
+    expect(result.primary?.code).toBe("create_fsm_quote");
+    expect(result.primary?.enabled).toBe(true);
+  });
+
+  it("surfaces a disabled fulfillment-request action for a won opportunity with linked products", () => {
+    const result = resolveNextCrossModuleAction(
+      journeyState({ crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null }, inventory: { status: "ok", label: "3 products linked", productCount: 3 } }),
+    );
+    expect(result.primary?.code).toBe("request_fulfillment");
+    expect(result.primary?.enabled).toBe(false);
+    expect(result.primary?.disabledReason).toBeTruthy();
+  });
+
+  it("recommends a customer follow-up for a won opportunity with nothing else pending", () => {
+    const result = resolveNextCrossModuleAction(journeyState({ crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null } }));
+    expect(result.primary?.code).toBe("follow_up_customer");
+    expect(result.primary?.enabled).toBe(true);
+  });
+
+  it("returns no primary action for an ordinary open opportunity with no products and no FSM engagement", () => {
+    const result = resolveNextCrossModuleAction(journeyState({}));
+    expect(result.primary).toBeNull();
+    expect(result.alternatives).toEqual([]);
+  });
+
+  it("prioritizes create_fsm_job over every other applicable action", () => {
+    const result = resolveNextCrossModuleAction(
+      journeyState({
+        crm: { status: "ok", label: "Won", leadId: null, opportunityStatus: "won", ownerId: null, nextActionId: null },
+        inventory: { status: "ok", label: "1 product linked", productCount: 1 },
+        fsm: { status: "warning", label: "Quote accepted -- job not created yet", fsmOpportunityId: "fsm-opp-1", jobStatus: null },
+      }),
+    );
+    expect(result.primary?.code).toBe("create_fsm_job");
+    expect(result.alternatives.some((a) => a.code === "request_fulfillment")).toBe(true);
   });
 });

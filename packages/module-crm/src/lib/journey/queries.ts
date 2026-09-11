@@ -3,7 +3,7 @@ import { getProspectSummaryForParty } from "@cofounderai/module-discovery/contra
 import { getLead } from "../leads/queries";
 import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "../opportunities/queries";
 import { listOpportunityProducts } from "../opportunities/products";
-import type { CommercialJourneyState, JourneyModuleSection } from "./types";
+import type { CommercialJourneyState, JourneyAction, JourneyModuleSection, NextActionResolution } from "./types";
 
 /**
  * INT-01.1's "Commercial Journey Resolver" -- read-only, reads exclusively through each
@@ -136,4 +136,65 @@ export function deriveOverallState(
   }
 
   return { overallStage: "in_progress", blockedReason: null, nextRecommendedAction: null };
+}
+
+/**
+ * INT-01.2's "Next Cross-Module Action Resolver" -- a pure function over the state
+ * INT-01.1's resolver already computed (no second round of contract calls; the journey
+ * state already carries everything this needs). Deterministic prerequisites decide
+ * `enabled`/`disabledReason` first; nothing here is AI-driven or can bypass a missing
+ * prerequisite (the epic's own rule: "AI may explain/recommend but cannot bypass
+ * required validation" -- there is no AI in this function at all, deliberately, per
+ * CLAUDE.md principle 4, "do not use an LLM for deterministic operations").
+ */
+export function resolveNextCrossModuleAction(state: CommercialJourneyState): NextActionResolution {
+  const actions: JourneyAction[] = [];
+
+  // A quote was accepted but no job exists yet -- always the most urgent cross-module
+  // action once it applies (nothing else matters more once a customer has said yes).
+  if (state.fsm.status === "warning" && state.fsm.fsmOpportunityId) {
+    actions.push({ code: "create_fsm_job", label: "Create FSM job", enabled: true, disabledReason: null });
+  }
+
+  // Won, with products linked but no fulfillment handoff to request yet (INT-02 hasn't
+  // shipped the mutation this action needs) -- surfaced disabled, with the reason,
+  // rather than omitted, so the founder sees it's coming rather than never suspecting
+  // it exists. INT-02.2 flips `enabled: true` here once the real mutation exists.
+  if (state.crm.opportunityStatus === "won" && state.inventory.status === "ok" && state.inventory.productCount > 0) {
+    actions.push({
+      code: "request_fulfillment",
+      label: "Request inventory fulfillment",
+      enabled: false,
+      disabledReason: "Inventory fulfillment requests aren't available yet.",
+    });
+  }
+
+  // Open opportunity, FSM licensed, no quote created yet, but products are already
+  // linked -- the same prerequisite the page's own "Create FSM quote" button already
+  // enforces (at least one product). Points at that same existing action rather than a
+  // new one this resolver would have to duplicate.
+  if (state.crm.opportunityStatus === "open" && state.fsm.status === "not_applicable" && state.inventory.status === "ok" && state.inventory.productCount > 0) {
+    actions.push({ code: "create_fsm_quote", label: "Create FSM quote", enabled: true, disabledReason: null });
+  }
+
+  // Won, nothing else pending in either module -- the relationship itself is the only
+  // thing left to act on.
+  if (
+    state.crm.opportunityStatus === "won" &&
+    (state.inventory.status === "not_applicable" || state.inventory.status === "not_available") &&
+    (state.fsm.status === "not_applicable" || state.fsm.status === "not_available")
+  ) {
+    actions.push({ code: "follow_up_customer", label: "Follow up with customer", enabled: true, disabledReason: null });
+  }
+
+  const [primary = null, ...alternatives] = actions;
+  return { primary, alternatives };
+}
+
+/** Convenience wrapper for callers (the opportunity detail page) that don't already
+ * have a `CommercialJourneyState` in hand. */
+export async function resolveNextCrossModuleActionForOpportunity(businessId: string, opportunityId: string): Promise<NextActionResolution | null> {
+  const state = await resolveCommercialJourney(businessId, opportunityId);
+  if (!state) return null;
+  return resolveNextCrossModuleAction(state);
 }
