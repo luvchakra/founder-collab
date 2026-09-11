@@ -29,7 +29,21 @@ export function chooseBuyerAddress(context: PartyTaxContext): PartyAddress | nul
   return context.shippingAddress ?? context.billingAddress ?? null;
 }
 
-export async function getPlaceOfSupplyForParty(businessId: string, partyId: string): Promise<PlaceOfSupplyResult> {
+export type SupplyStateCodes = {
+  sellerStateCode: string | null;
+  buyerStateCode: string | null;
+  buyerCountry: string | null;
+};
+
+/**
+ * The raw inputs `determinePlaceOfSupply` needs, resolved once from this epic's own
+ * existing reads. Exported (not just used internally by `getPlaceOfSupplyForParty`) so
+ * COMPLY-P0-04.5 (GST Tax Determination) can reuse the SAME resolved codes it needs for
+ * the actual CGST/SGST-vs-IGST split (`core/lib/gst.ts`'s own `computeLineGst` takes state
+ * codes directly) without re-deriving them or duplicating this resolution logic a second
+ * time.
+ */
+export async function resolveSupplyStateCodes(businessId: string, partyId: string): Promise<SupplyStateCodes> {
   const [registration, partyContext] = await Promise.all([
     getPrimaryTaxRegistration(businessId, "IN", "GST"),
     getPartyTaxContext(businessId, partyId),
@@ -46,5 +60,10 @@ export async function getPlaceOfSupplyForParty(businessId: string, partyId: stri
   );
   const buyerCountry = buyerAddress?.country ?? null;
 
-  return determinePlaceOfSupply({ sellerStateCode, buyerStateCode, buyerCountry });
+  return { sellerStateCode, buyerStateCode, buyerCountry };
+}
+
+export async function getPlaceOfSupplyForParty(businessId: string, partyId: string): Promise<PlaceOfSupplyResult> {
+  const codes = await resolveSupplyStateCodes(businessId, partyId);
+  return determinePlaceOfSupply(codes);
 }

@@ -46,7 +46,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.2 | GST Profile | Done |
 | | 04.3 | HSN/SAC | Done |
 | | 04.4 | Place of Supply | Done |
-| | 04.5 | GST Tax Determination | Not started |
+| | 04.5 | GST Tax Determination | Done |
 | | 04.6 | GST Invoice Validation | Not started |
 | | 04.7 | GST Rule Versioning | Not started |
 | P0-05 | 05.1–05.6 | India E-Invoice | Not started |
@@ -58,15 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**17 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**18 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.4 (Place of Supply) is the last completed story;
-COMPLY-P0-04.5 (GST Tax Determination) is next.
+both now fully done.** COMPLY-P0-04.5 (GST Tax Determination) is the last completed story;
+COMPLY-P0-04.6 (GST Invoice Validation) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1655,6 +1655,112 @@ IGST split once a treatment is already known).
   pre-existing + 13 new: 10 in `determine.test.ts`, 3 in `queries.test.ts`).
 - No migration to apply, no `get_advisors` re-check, no `apps/web` change -- a pure-library
   story, matching every prior COMPLY-P0-02.x/03.x/04.3 "lib-only story" verification
+  convention.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 04.5 — GST Tax Determination (2026-09-11)
+
+"CGST/SGST/UTGST/IGST/cess where applicable, reverse charge, exempt/zero-rated/export/SEZ
+treatment." The story that ties together everything this epic has built so far --
+COMPLY-P0-04.4's place of supply, COMPLY-P0-03.2's item tax context, COMPLY-P0-02.4's
+treatment catalog, and `core/lib/gst.ts`'s own existing, already-live `computeLineGst` --
+into one line-level determination, plus the actual "compute and persist" wiring
+COMPLY-P0-02.5's own migration comment was written anticipating.
+
+**Refactor first**: COMPLY-P0-04.4's `getPlaceOfSupplyForParty` resolved seller/buyer state
+codes internally and discarded them after computing a treatment -- but this story needs
+those SAME codes again, to hand to `computeLineGst` for the actual CGST/SGST-vs-IGST split
+(reusing that function rather than re-deriving its math, per this platform's own "don't
+duplicate deterministic logic" principle). Rather than re-resolving them a second time or
+duplicating the resolution logic, `place-of-supply/queries.ts` now exports
+`resolveSupplyStateCodes` as its own function (extracted from `getPlaceOfSupplyForParty`,
+which now just calls it and feeds the result to `determinePlaceOfSupply`) -- a
+backward-compatible refactor with no behavior change to 04.4's own already-shipped
+function or its own test coverage.
+
+**Two named, pre-existing gaps flagged rather than fixed or silently ignored** (both were
+already true of every live invoice in this platform before this story, not introduced by
+it):
+- **UTGST and cess** -- the backlog's own story title names them, but `core/lib/gst.ts`'s
+  `GstBreakup` (already used by every live `module-inventory`/`module-fsm` invoice today)
+  has no UTGST/cess fields at all; it treats every Union Territory the same as a state
+  (SGST-shaped), and no cess rate exists anywhere in this platform's data model
+  (`core.items.tax_rate`/`core.tax_rates` hold only the base GST slab). Fixing either is a
+  `core`-schema/type change touching a shape several other modules already depend on --
+  bigger than this story's own "reuse what exists" scope, and out of place for a run
+  restricted to `module-gst`.
+- **Exempt vs. zero-rated** -- `core.items` has only a flat numeric `tax_rate`, no separate
+  exemption flag, so a 0%-rated item is classified `zero_rated` here (ITC on related
+  purchases typically still recoverable) rather than `exempt` (typically not) -- a
+  deliberate, named simplification until a real per-item exemption flag exists to tell the
+  two apart, again a `core`-schema decision beyond this story's scope.
+- **SEZ** -- already flagged in COMPLY-P0-04.4's own log entry (no SEZ field anywhere in
+  `core`); this story inherits that same gap rather than re-solving it, since the
+  underlying data still doesn't exist.
+
+**What was built**:
+- `packages/module-gst/src/lib/gst-tax-determination/{types.ts,determine.ts,determine.test.ts}`:
+  `GstLineTaxResult` and the pure `determineGstLineTax` -- precedence order export ->
+  reverse charge -> zero-rated (0% item rate) -> standard (delegates the actual split to
+  `computeLineGst`), with `treatment: null`/`incomplete: true` (never a guessed default)
+  when place of supply itself is `"unknown"`. `reverseCharge` is a caller-DECLARED boolean
+  input, not inferred -- this module has no notified-goods/services list or
+  unregistered-supplier tracking to derive it from, the same "self-declared, not computed"
+  posture COMPLY-P0-04.2's `eInvoiceEligible` flag already takes.
+  `determine.test.ts` -- 8 cases: a real intra-state CGST+SGST split and inter-state IGST
+  split (both against known-correct numbers, e.g. 18% of ₹1000 intra-state = ₹90 CGST + ₹90
+  SGST), export zero-rating regardless of the item's own rate, reverse charge zeroing the
+  invoice's own tax, reverse charge taking priority over an otherwise-resolvable domestic
+  split, a 0% item rate reading as `zero_rated` not `standard`, the `unknown`
+  place-of-supply case never guessing a treatment, and export taking priority over
+  reverse-charge/unresolved-buyer-state (place of supply is decided before either of those
+  is even checked).
+- `packages/module-gst/src/lib/gst-tax-determination/queries.ts`:
+  `getGstLineTaxDetermination(businessId, { partyId, itemId, taxableValue, reverseCharge?
+  })` -- the read-only orchestrator, resolving state codes and the item's current tax rate
+  in parallel, then calling the pure function above. Returns `null` (not an incomplete
+  result) when the item itself doesn't exist for this business -- a different kind of
+  "nothing to determine" than an incomplete-but-real determination.
+- `packages/module-gst/src/lib/gst-tax-determination/mutations.ts`:
+  `recordGstLineTaxDetermination(businessId, { sourceModule, sourceReference }, input)` --
+  wraps the read above with COMPLY-P0-02.5's own `recordTaxDetermination`, the actual
+  "compute AND persist an immutable snapshot" action that migration's own comment named
+  this story as the one to build. Persists even an incomplete (`treatment: null`) result --
+  "we didn't know the place of supply at this moment" is itself worth keeping on record per
+  backlog rule 13, not suppressed for not being a clean answer. `jurisdiction` on the
+  persisted snapshot is left `null`, documented as a small, deliberately-deferred gap (the
+  resolved seller/buyer values are numeric GST STATE CODES, not the state NAMES
+  `recordTaxDetermination`'s own validation expects -- reverse-mapping one to the other is
+  a future story's job once an actual caller needs it on this specific snapshot).
+- No new test file for `queries.ts`/`mutations.ts` -- both are thin orchestrators over
+  already-tested pieces (`resolveSupplyStateCodes`, `determinePlaceOfSupply`,
+  `getItemTaxContext`, `determineGstLineTax`, `recordTaxDetermination`), matching this
+  module's own established "thin orchestrator, no test file needed" convention.
+
+**What was deliberately left out**: UTGST/cess modeling, an exempt-vs-zero-rated
+distinction, and SEZ treatment (all three flagged above as named `core`-schema gaps, not
+silently absorbed into an existing category); reverse-charge inference; any real live
+caller wiring this into an actual document-creation flow (no document/invoice action in
+`module-inventory`/`module-fsm` calls into `module-gst` for tax computation today --
+those modules compute their own GST via `core/lib/gst.ts` directly, independently of this
+module; exposing this determination through `contract/index.ts` for another module to
+call INSTEAD of its own local `computeLineGst` call is a cross-module wiring decision for
+a future story, not implied here); and any UI.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1031 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations (no
+  schema change).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 108 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 13 files / 91 tests passed (83
+  pre-existing + 8 new in `determine.test.ts`).
+- No migration to apply, no `get_advisors` re-check, no `apps/web` change -- a pure-library
+  story, matching every prior COMPLY-P0-02.x/03.x/04.x "lib-only story" verification
   convention.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
