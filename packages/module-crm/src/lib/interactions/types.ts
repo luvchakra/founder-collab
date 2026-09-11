@@ -48,6 +48,11 @@ export type RecordInteractionInput = {
   partyId?: string | null;
   channel: ChannelType;
   externalActorId?: string | null;
+  /** CRM-06.4: tried only when `partyId` isn't already known -- see
+   * `matching.ts#matchPartyForActor()`'s own doc comment for the match hierarchy. Not
+   * persisted on the interaction row; these are lookup inputs, not stored contact data. */
+  senderPhone?: string | null;
+  senderEmail?: string | null;
   externalMessageId?: string | null;
   direction: InteractionDirection;
   interactionType?: string;
