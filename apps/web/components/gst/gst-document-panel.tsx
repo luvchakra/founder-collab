@@ -39,7 +39,7 @@ export function GstDocumentPanel({
 }) {
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border p-4">
-      <h2 className="text-sm font-semibold">GST compliance</h2>
+      <h2 className="text-sm font-semibold">Compliance</h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <DocRow
           label="e-Invoice (IRN)"

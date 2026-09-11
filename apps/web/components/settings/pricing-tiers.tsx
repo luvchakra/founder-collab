@@ -29,7 +29,7 @@ const TIERS: Tier[] = [
       "Full Product Management -- build out every product profile",
       "Full Field Service Management -- schedule and run your crew",
       "Basic CRM to keep every lead in view",
-      "GST module not included",
+      "Compliance module not included",
       "5 AI credits every day",
     ],
     cta: "Current plan",
@@ -46,7 +46,7 @@ const TIERS: Tier[] = [
       "Full Product Management",
       "Full Field Service Management",
       "Full CRM -- pipelines, automation, and more",
-      "Basic GST to get compliant",
+      "Basic Compliance to get GST-ready",
       "10 AI credits every day",
     ],
     cta: "Notify me",
@@ -64,7 +64,7 @@ const TIERS: Tier[] = [
       "Full Product Management",
       "Full Field Service Management",
       "Full CRM -- pipelines, automation, and more",
-      "Full GST -- complete compliance suite",
+      "Full Compliance -- complete GST suite",
       "20 AI credits every day",
     ],
     cta: "Notify me",
@@ -137,7 +137,7 @@ function TierCard({ tier }: { tier: Tier }) {
  * "Notify me" rather than a live checkout -- same honesty rule this page already applies
  * to AI credits (packages/core/src/billing/) when Razorpay isn't configured: never show a
  * button that looks like it works but doesn't. The business/product caps and AI-credit
- * allowances and CRM/GST tiers listed per plan are display-only for now, same as Pro/Max
+ * allowances and CRM/Compliance tiers listed per plan are display-only for now, same as Pro/Max
  * themselves -- none of them are backend-enforced yet (the Free tier's actual current
  * limits, still in effect regardless of what's shown here, are
  * packages/module-discovery/src/lib/usage/limits.ts's per-workspace monthly cap; every
