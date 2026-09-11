@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { setTicketRelatedDocument } from "@cofounderai/module-crm/lib/tickets/mutations";
+import { generateCustomerSummary } from "@cofounderai/module-crm/lib/ai/customer-summary";
 
 /**
  * B2 (docs/design/crm-module-design.md Part B) -- called from the Customer 360 panel
@@ -17,4 +18,18 @@ export async function linkTicketToDocumentAction(
 ): Promise<void> {
   await setTicketRelatedDocument(ticketId, related);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/customers/${partyId}`);
+}
+
+/** CRM-12.1's "Generate summary" button -- caches on `crm.customer_summary`
+ * (generateCustomerSummary()'s own input-hash check), so `revalidatePath` here just
+ * keeps the server-rendered `generatedAt` timestamp in sync with what the client just
+ * received. */
+export async function generateCustomerSummaryAction(businessId: string, partyId: string): Promise<{ summary: string } | { error: string }> {
+  try {
+    const result = await generateCustomerSummary(businessId, partyId);
+    revalidatePath(`/dashboard/businesses/${businessId}/crm/customers/${partyId}`);
+    return result;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not generate a summary." };
+  }
 }

@@ -559,6 +559,24 @@ async function main() {
         "Bob cannot see Alice's opportunity or its fsm_opportunity_id at all",
       );
 
+      console.log("Verifying CRM-12.1's crm.customer_summary cache (idempotency, cross-tenant)...");
+      const aliceSummary = psqlAsAlice(`insert into crm.customer_summary (business_id, party_id, summary, input_hash) values ('${aliceBusiness}', '${aliceParty}', 'Alice Customer is an active lead.', 'hash-v1') returning id;`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.customer_summary (business_id, party_id, summary, input_hash) values ('${aliceBusiness}', '${aliceParty}', 'duplicate', 'hash-v2')`),
+        "a duplicate (business_id, party_id) customer_summary is rejected -- generateCustomerSummary()'s own one-row-per-customer cache relies on this for its upsert",
+      );
+      psqlAsAlice(`update crm.customer_summary set summary = 'Alice Customer is now a won opportunity.', input_hash = 'hash-v2', generated_at = now() where business_id = '${aliceBusiness}' and party_id = '${aliceParty}';`);
+      assertEqual(
+        psqlAsAlice(`select summary from crm.customer_summary where id = '${aliceSummary}'`),
+        "Alice Customer is now a won opportunity.",
+        "regenerating (changed input_hash) updates the same cached row in place rather than inserting a second one",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.customer_summary (business_id, party_id, summary, input_hash) values ('${bobBusiness}', '${aliceParty}', 'smuggled', 'hash')`),
+        "Bob cannot create a customer_summary against Alice's party -- enforce_customer_summary_refs()",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.customer_summary where id = '${aliceSummary}'`), "0", "Bob cannot see Alice's cached customer summary");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

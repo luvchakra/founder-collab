@@ -2231,3 +2231,70 @@ unrelated to this change, same fresh-demo-data-project noise as every prior stor
 Intelligence) -- CRM-12.1 "Customer AI summary" (seq #62), then 12.2 "Conversation
 summary", 12.4 "Next best action", 12.5 "Buying intent", 12.7 "Reactivation
 opportunities" (12.3 and 12.6 are out of this backlog run's P0/P1 scope).
+
+---
+
+## CRM-12.1 (2026-09-11)
+
+Epic CRM-12 "AI Relationship Intelligence" begins: "Customer Summary" -- who they are,
+what they want, what has happened, open issue/opportunity, next action.
+
+**Design**: reuses `getCustomer360()` (CRM-02.1) as the single source for every fact the
+prompt needs -- the same cross-module data (leads, open opportunities, follow-ups,
+conversations, products of interest, notes, Discovery prospect, Inventory orders, FSM
+jobs) the Customer 360 page already renders as cards, rendered instead as compact prompt
+lines (`packages/module-crm/src/lib/ai/customer-summary.ts#customerSummaryPrompt()`).
+No second data-gathering path, per CLAUDE.md principle 9 ("never send unnecessary
+context") and principle 13 (don't duplicate what already exists) -- notes/orders/jobs
+lists are capped (5-10 items) so a customer with a long history still produces a bounded
+prompt.
+
+Follows CRM-08.6's exact real-LLM-call precedent end to end: `resolveBusinessAiModel()`
++ `generateObject()` (Zod-validated `{ summary: string }`) + `recordAiRun()` for
+usage/cost logging + `toAiProviderError()` for a friendly failure message. New
+`AiOperation` value `summarize_customer` registered in
+`packages/core/src/ai/operation-registry.ts` at the `balanced` quality tier -- composing
+a short summary from already-structured CRM facts is a bounded writing task, the same
+tier `draft_review_response` uses, not the multi-source strategic synthesis `chat`/
+`generate_outreach_strategy` reserve `reasoning` for.
+
+**Caching**: same "cache on the entity" discipline as `crm.review_item.draft_reply`
+(CRM-08.6), but the entity being summarized (`core.parties`) isn't CRM's own table to add
+a column to -- `core` is shared across every module, and a CRM-specific AI artifact
+doesn't belong there. New table `crm.customer_summary` (one row per `(business_id,
+party_id)`, `input_hash`-keyed) is CRM's own small cache instead. Generation is an
+explicit "Generate summary" button click, never triggered by opening the Customer 360
+page, so viewing a customer never costs an AI call by itself; clicking again with nothing
+changed since the last generation returns the cached row with no second model call.
+
+**Migration** (`20260911001600_crm_customer_summary.sql`, crm schema only):
+`crm.customer_summary` (`business_id`, `party_id` -- a real FK into `core.parties`, not a
+bare pointer, since CLAUDE.md's cross-schema-FK restriction only bans FKs into *another
+module's* schema -- `core` is always a legal target; `summary`, `input_hash`,
+`generated_at`; unique on `(business_id, party_id)`), `crm.enforce_customer_summary_refs()`
+trigger reusing the existing `crm.enforce_party_business_id()` helper, and the same
+`tenant AND licensed` four-policy RLS shape every other `crm.*` table already has.
+
+**UI**: new "AI summary" card near the top of the Customer 360 page
+(`customer-summary-card.tsx`, a small client component holding the button's pending/error
+state) -- empty state before a summary exists, the text plus a "Generated <date>"
+timestamp after, "Regenerate" once one exists. New server action
+`generateCustomerSummaryAction` (`[partyId]/actions.ts`) wraps `generateCustomerSummary()`
+in a try/catch returning `{ error }` on failure (e.g. no AI provider connected) rather
+than crashing to the page's error boundary -- same shape CRM-08.6's own
+`generateReviewDraftAction` already established. Gated on `crm.view` (the page's own
+implicit read permission), not a new one -- generating this is a read-oriented "help me
+see this customer" affordance, not a mutation with external side effects like publishing
+a review reply.
+
+Verified with full monorepo typecheck, `lint:boundaries` (922 files, no violations),
+`lint:migrations` (79 migrations, no violations), both module-crm's and core's vitest
+suites (111/111 and 34/34, unchanged), both CRM RLS suites (re-run clean, +4 new
+assertions for `crm.customer_summary`'s idempotency/regeneration-in-place/cross-tenant
+smuggling), and a clean `next build`. Migration applied live to the dev Supabase project;
+`get_advisors` re-checked clean on both performance (the two new indexes show as "unused"
+only because the project has no real traffic yet, same as every other index here) and
+security (no new findings).
+
+**Status**: 67 of 74 in-scope stories done. Next: CRM-12.2 "Conversation summary" (seq
+#63).

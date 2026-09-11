@@ -17,7 +17,8 @@ export type AiOperation =
   | "chat"
   | "restructure_import"
   | "draft_review_response"
-  | "check_response_quality";
+  | "check_response_quality"
+  | "summarize_customer";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -73,6 +74,11 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // classify_reply uses for a much narrower single-label task. The sixth check (overly
   // long) is deterministic (a plain length threshold), never routed through here.
   check_response_quality: { qualityTier: "balanced", requiresWebSearch: false },
+  // Balanced, same tier as draft_review_response: composing a short summary from
+  // already-structured CRM facts (Customer 360's own data) is a bounded writing task,
+  // not the multi-source strategic synthesis chat/generate_outreach_strategy use
+  // "reasoning" for.
+  summarize_customer: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

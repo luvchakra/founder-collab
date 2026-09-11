@@ -10,8 +10,10 @@ import { RelatedDocumentButton } from "@cofounderai/module-crm/components/ticket
 import { getTicket } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getCustomer360 } from "@cofounderai/module-crm/lib/customer-360/queries";
 import { listRelationshipTimeline } from "@cofounderai/module-crm/lib/timeline/queries";
+import { getCustomerSummary } from "@cofounderai/module-crm/lib/ai/customer-summary";
 import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
-import { linkTicketToDocumentAction } from "./actions";
+import { generateCustomerSummaryAction, linkTicketToDocumentAction } from "./actions";
+import { CustomerSummaryCard } from "./customer-summary-card";
 
 /**
  * Customer 360 (docs/design/crm-module-design.md Part B, B1 + CRM-02.1). One panel
@@ -38,6 +40,10 @@ import { linkTicketToDocumentAction } from "./actions";
  * both the same one panel, not two. The one thing a company party needs that a person
  * one doesn't is its list of contacts (`core.party_contacts`, D-1) -- added below,
  * reusing `listContactsForParty()` directly rather than adding a CRM-side copy.
+ *
+ * CRM-12.1 adds the AI summary card: generated on an explicit click (never on page
+ * load), from the exact same `getCustomer360()` data this page already renders as
+ * cards -- see `lib/ai/customer-summary.ts` for the prompt and its own cache.
  */
 export default async function CustomerPanelPage({
   params,
@@ -51,12 +57,13 @@ export default async function CustomerPanelPage({
   const party = await getParty(partyId);
   if (!party || party.business_id !== businessId) notFound();
 
-  const [customer360, aging, ticket, contacts, timeline] = await Promise.all([
+  const [customer360, aging, ticket, contacts, timeline, customerSummary] = await Promise.all([
     getCustomer360(businessId, partyId),
     listAgingForParty(businessId, partyId),
     ticketId ? getTicket(ticketId) : Promise.resolve(null),
     party.kind === "company" ? listContactsForParty(partyId) : Promise.resolve([]),
     listRelationshipTimeline(businessId, partyId),
+    getCustomerSummary(businessId, partyId),
   ]);
 
   const totalOutstanding = aging.reduce((sum, row) => sum + Number(row.balance_amount), 0);
@@ -96,6 +103,8 @@ export default async function CustomerPanelPage({
           {customer360.source ? <Badge variant="outline">Source: {customer360.source}</Badge> : null}
         </div>
       </div>
+
+      <CustomerSummaryCard initialSummary={customerSummary} generateAction={generateCustomerSummaryAction.bind(null, businessId, partyId)} />
 
       {contacts.length > 0 ? (
         <Card>
