@@ -1,5 +1,9 @@
 export type OpportunityStatus = "new" | "estimate_scheduled" | "estimate_sent" | "won" | "lost";
-export type OpportunitySource = "manual" | "contact_form" | "discovery" | "import" | "api";
+/** `'crm'` was added to the underlying Postgres enum by CRM-11.1's own bridge migration
+ * (`20260911001501_fsm_crm_quote_source.sql`) -- this union was never updated to match
+ * until INT-08.3 caught it while wiring up the "back to CRM opportunity" link this
+ * value's own `source_reference` column exists for. */
+export type OpportunitySource = "manual" | "contact_form" | "discovery" | "import" | "api" | "crm";
 
 export interface Opportunity {
   id: string;
@@ -14,6 +18,11 @@ export interface Opportunity {
   source: OpportunitySource;
   source_prospect_id: string | null;
   source_workspace_id: string | null;
+  /** INT-08.3: the `crm.opportunity` id that created this row via
+   * `createFsmQuoteFromCrmOpportunity()`, when `source === 'crm'` -- added to the table
+   * by the same bridge migration as the `'crm'` source value above, but never added to
+   * this type until now. */
+  source_reference: string | null;
   status: OpportunityStatus;
   lost_reason: string | null;
   marketing_source_id: string | null;

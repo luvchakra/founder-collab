@@ -121,6 +121,17 @@ export function OpportunityDetail({
               From discovery prospect →
             </a>
           ) : null}
+          {/* INT-08.3's "Context-Preserving Navigation" -- same precedent as the
+              discovery back-link right above, for the CRM->FSM quote handoff (CRM-11.1),
+              which never got the equivalent link when it was built. */}
+          {opportunity.source === "crm" && opportunity.source_reference ? (
+            <a
+              href={`/dashboard/businesses/${opportunity.business_id}/crm/opportunities/${opportunity.source_reference}`}
+              className="mt-1 inline-block text-xs text-primary hover:underline"
+            >
+              From CRM opportunity →
+            </a>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {canRespondToEstimate ? (

@@ -50,6 +50,16 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
           <Badge variant="outline">{KIND_LABEL[assessment.kind] ?? assessment.kind}</Badge>
         </div>
         <p className="text-xs text-muted-foreground">Requested {formatDateTime(assessment.created_at)}</p>
+        {/* INT-08.3's "Context-Preserving Navigation" -- this assessment is only ever
+            reachable via the CRM opportunity page's own "Open in FSM" link (INT-04.2's
+            doc comment already flagged this as a down payment on this exact story), but
+            nothing here led back until now, even though source_reference has carried
+            the CRM opportunity id since this table's own first migration. */}
+        {assessment.source === "crm" && assessment.source_reference ? (
+          <a href={`/dashboard/businesses/${businessId}/crm/opportunities/${assessment.source_reference}`} className="mt-1 inline-block text-xs text-primary hover:underline">
+            From CRM opportunity →
+          </a>
+        ) : null}
       </div>
 
       <Card>

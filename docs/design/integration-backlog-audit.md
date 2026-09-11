@@ -46,9 +46,9 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 07.3 | Exception Auto-Close | Done |
 | INT-08 (P1) | 08.1 | Linked Object Graph | Done |
 | | 08.2 | Unified Journey Timeline | Done |
-| | 08.3 | Context-Preserving Navigation | Not started |
+| | 08.3 | Context-Preserving Navigation | Done |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 12/13 done. Overall: 28/29 (97%). Only INT-08.3 remains.**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 13/13 done. Overall: 29/29 (100%) -- all in-scope stories complete.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -464,3 +464,19 @@ Extended `FsmQuoteStatus` (module-fsm's contract) additively -- same shape as IN
 Verified with full monorepo typecheck (clean across all 9 workspaces -- confirmed the additive `FsmQuoteStatus` fields don't break any existing object-literal construction of that type; only `object-graph/queries.test.ts`'s mocks exist and those are `as never`-cast), `lint:boundaries` (965 files, unchanged), `lint:migrations` (97 migrations, unchanged -- no schema touched, this story is pure TypeScript), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (157/157, unchanged -- no unit test added for `listOpportunityJourneyHistory()` itself, same DB-composing-function precedent as every other query file in this backlog), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build`. No live migration/advisor check needed.
 
 **Status**: 28 of 29 in-scope stories done. Only INT-08.3 (Context-Preserving Navigation) remains in scope. Next: INT-08.3.
+
+### INT-08.3 — Context-Preserving Navigation (2026-09-11)
+
+No original text; reconstructed from the title, and this time with an unusually direct anchor: INT-04.2's own story log entry above (2026-09-11) already named this exact story by number -- the "Open in FSM" link it added was described as "itself a small down payment on INT-08.3's future cross-module navigation, not a redesign of it." Took that as the starting brief: the CRM->FSM direction has several one-way doors (opportunity page -> FSM quote/job/assessment) with no way back.
+
+Found the concrete gap by checking every FSM page reachable from a CRM opportunity link, and found this codebase already has the exact pattern needed, just not applied to the CRM handoff: `module-fsm/components/opportunities/opportunity-detail.tsx` already renders a "From discovery prospect →" back-link (F-13's own discovery handoff) using `opportunity.source`/`source_prospect_id`. The CRM handoff (CRM-11.1's `createFsmQuoteFromCrmOpportunity()`) has the exact same shape -- `source: 'crm'`, `source_reference: <crmOpportunityId>` -- added to `fsm.opportunities` by its own migration (`20260911001501_fsm_crm_quote_source.sql`), but the equivalent link was never built, and worse: the TypeScript `Opportunity` type in `module-fsm` was never updated for either the new `'crm'` enum value or the new `source_reference` column, so the data existed in the database the whole time but wasn't even type-safely reachable from application code. Fixed the type (additive, no runtime change) and added the second "From CRM opportunity →" link right below the existing discovery one, same component, same style.
+
+Same fix, two more places, both confirmed to have zero back-navigation before this story (checked by reading each page, not assumed):
+- **FSM assessment page** (`/fsm/assessments/[id]`) -- `fsm.assessments.source`/`source_reference` have carried the CRM opportunity id correctly typed since INT-04.2's own first migration; the column was simply never rendered. One link added next to the existing "Requested {date}" line.
+- **FSM job page** -- a job has no `source`/`source_reference` of its own, but its `opportunity_id` still points at the `fsm.opportunities` row that created it even after conversion (confirmed by reading `approveEstimateInternal()`'s own insert -- `converted_job_id` is set on the opportunity, but the job's own `opportunity_id` back-reference is never cleared). New `getJobOriginatingCrmOpportunityId()` does one extra read within FSM's own schema (no cross-module contract call needed -- this never leaves `fsm.opportunities`) to resolve the same CRM opportunity id from a job, and the job detail page gets the same "From CRM opportunity →" link.
+
+Together with INT-08.1's own new "Linked records" card (which already links CRM -> FSM), these three links close the loop in the other direction: opportunity -> FSM quote/job/assessment -> back to the same opportunity, on every hop this backlog built a bridge for.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- confirmed widening `OpportunitySource` and adding `source_reference` to the FSM `Opportunity` type breaks nothing, since every existing read is `select("*")` and no code constructed an object literal of that type), `lint:boundaries` (965 files, unchanged -- no new cross-module import, the job-to-CRM-opportunity link is a plain URL string, not a contract call), `lint:migrations` (97 migrations, unchanged -- no schema touched, this story is pure TypeScript), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (157/157, unchanged) and module-fsm's (no test files, `--passWithNoTests`, unchanged), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build`. No live migration/advisor check needed.
+
+**Status**: 29 of 29 in-scope stories done -- **all P0 and P1 stories from the Cross-Module Integration Backlog are complete.** P2 (INT-09/INT-10) remains explicitly out of scope per the governing instruction.

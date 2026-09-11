@@ -66,6 +66,23 @@ export const getJobContext = cache(async (job: Job): Promise<{ partyName: string
   return { partyName: party?.name ?? "Unknown customer", serviceTypeName };
 });
 
+/**
+ * INT-08.3's "Context-Preserving Navigation" -- a job reached via an accepted CRM quote
+ * (CRM-11.3's `acceptFsmQuoteAndCreateJob()`) has no `source`/`source_reference` of its
+ * own; that pointer lives one row up, on the `fsm.opportunities` row this job's own
+ * `opportunity_id` still points at even after conversion (`converted_job_id` is set on
+ * the opportunity, but the job's own `opportunity_id` back-reference is never cleared).
+ * One extra query within FSM's own schema -- no cross-module contract call needed,
+ * this never leaves `fsm.opportunities`.
+ */
+export const getJobOriginatingCrmOpportunityId = cache(async (job: Job): Promise<string | null> => {
+  if (!job.opportunity_id) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("opportunities").select("source, source_reference").eq("id", job.opportunity_id).maybeSingle();
+  if (error) throw error;
+  return data?.source === "crm" ? (data.source_reference ?? null) : null;
+});
+
 /** Whether this job already has an invoice -- gates "convert back to opportunity" (PRD
  * §4: "job -> opportunity ... only if no invoice exists"). Always false today since F-8
  * (Invoicing) hasn't landed yet; becomes a real check once `core.documents` rows with

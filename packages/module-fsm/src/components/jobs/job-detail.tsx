@@ -133,6 +133,7 @@ export function JobDetail({
   addRecommendedPartAction,
   revisitOfJob,
   createdRevisitJob,
+  originatingCrmOpportunityId,
 }: {
   job: Job;
   partyName: string;
@@ -188,6 +189,7 @@ export function JobDetail({
   addRecommendedPartAction: (formData: FormData) => Promise<void>;
   revisitOfJob: RevisitJobLink | null;
   createdRevisitJob: RevisitJobLink | null;
+  originatingCrmOpportunityId: string | null;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -255,6 +257,14 @@ export function JobDetail({
           {job.number ? <p className="mt-1 text-xs text-muted-foreground">{job.number}</p> : null}
           {serviceTypeName ? <p className="mt-1 text-sm text-muted-foreground">{serviceTypeName}</p> : null}
           <p className="mt-1 text-xs text-muted-foreground">Created {formatDateTime(job.created_at)}</p>
+          {/* INT-08.3's "Context-Preserving Navigation" -- same "From X →" precedent
+              the FSM opportunity/assessment pages now also use. A job created via an
+              accepted CRM quote had no way back to the CRM opportunity that started it. */}
+          {originatingCrmOpportunityId ? (
+            <a href={`/dashboard/businesses/${job.business_id}/crm/opportunities/${originatingCrmOpportunityId}`} className="mt-1 inline-block text-xs text-primary hover:underline">
+              From CRM opportunity →
+            </a>
+          ) : null}
         </div>
 
         {canEdit ? (
