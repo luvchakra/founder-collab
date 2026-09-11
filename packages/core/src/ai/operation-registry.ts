@@ -16,7 +16,8 @@ export type AiOperation =
   | "classify_reply"
   | "chat"
   | "restructure_import"
-  | "draft_review_response";
+  | "draft_review_response"
+  | "check_response_quality";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -65,6 +66,13 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // (rather than workspace_id-scoped) credential resolution any other non-discovery
   // module can now reuse the same way.
   draft_review_response: { qualityTier: "balanced", requiresWebSearch: false },
+  // Balanced, not fast: CRM-09.7's pre-send quality check is a judgment call across five
+  // separate semantic dimensions (unanswered question, unsupported claim, missing price/
+  // availability fact, risky/uncertain statement, wrong customer/context) on a message
+  // that's about to go out to a real customer -- worth more than the "fast" tier
+  // classify_reply uses for a much narrower single-label task. The sixth check (overly
+  // long) is deterministic (a plain length threshold), never routed through here.
+  check_response_quality: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
 import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { checkResponseQuality, type ResponseQualityFlag } from "@cofounderai/module-crm/lib/conversations/response-quality";
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
 
@@ -41,6 +42,19 @@ export async function createOpportunityFromInteractionAction(businessId: string,
 export async function createTaskFromInteractionAction(businessId: string, interactionId: string): Promise<void> {
   await convertInteractionToTask(businessId, interactionId);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+/**
+ * CRM-09.7: "optionally flag" -- returns whatever issues the check found (possibly
+ * none) for the composer's own UI to show; never blocks or alters the send action
+ * itself, so "no autonomous send" holds regardless of the result.
+ */
+export async function checkResponseQualityAction(businessId: string, conversationId: string, draftText: string): Promise<{ flags: ResponseQualityFlag[] } | { error: string }> {
+  try {
+    return await checkResponseQuality(businessId, conversationId, draftText);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not check this reply." };
+  }
 }
 
 export type SendWhatsAppReplyActionState = { error: string } | null;
