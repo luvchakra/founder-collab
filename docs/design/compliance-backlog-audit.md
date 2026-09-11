@@ -37,7 +37,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.3 | Versioned Tax Rules | Done |
 | | 02.4 | Tax Treatments | Done |
 | | 02.5 | Tax Determination Snapshot | Done |
-| P0-03 | 03.1 | Core Transaction Contract | Not started |
+| P0-03 | 03.1 | Core Transaction Contract | Done |
 | | 03.2 | Inventory Tax Context | Not started |
 | | 03.3 | FSM Tax Context | Not started |
 | | 03.4 | Party Tax Context | Not started |
@@ -58,14 +58,13 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**9 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**10 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-02.5 is the last
-completed story; COMPLY-P0-03.1 (Core Transaction Contract) is next, starting epic
-COMPLY-P0-03 (Existing-Data Integration).
+**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.1 is the last
+completed story; COMPLY-P0-03.2 (Inventory Tax Context) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -826,3 +825,71 @@ UI, exactly matching the backlog's own "one generic Compliance domain plus count
 packs" design decision and its own P0 Release 1 delivery order (epics 01 -> 02 -> 03 ->
 04). Next: COMPLY-P0-03 (Existing-Data Integration), starting with COMPLY-P0-03.1 (Core
 Transaction Contract).
+
+### 03.1 — Core Transaction Contract (2026-09-11)
+
+"Read invoice/payment/document context from Core" -- the first story of COMPLY-P0-03
+(Existing-Data Integration), and the one COMPLY-P0-02.5's own migration comment named as
+the future home of a typed reference for `gst.tax_determinations.source_module`/
+`source_reference` (not built yet -- that typed reference stays a future story's job; this
+one only builds the read contract itself).
+
+**Design decision**: `core.documents`/`core.document_lines`/`core.document_balances`
+already exist (Epic 3, stories D-6/D-7) and already carry their own RLS
+(`business_id in core.user_business_ids()`), so per CLAUDE.md's own cross-module
+communication ranking, mechanism (1) -- "read shared data from `core` directly -- no
+coupling" -- is the right and cheapest one here, not a `contract/index.ts` call (that's
+for another *business module's* internals) and not a domain event (nothing async is
+happening). Checked `module-fsm`'s own `lib/jobs/queries.ts` first for precedent on the
+exact mechanics: a `coreClient()` helper (`createCoreClient({ schema: "core" })` from
+`@cofounderai/core/db/server`) plus its own documented "no PostgREST embed across
+schemas, join in JS" pattern -- reused verbatim rather than inventing a second way to read
+cross-schema data.
+
+**What was built**:
+- `lib/core-transactions/{types,queries}.ts`: `getDocumentContext(businessId, documentId)`
+  reads one `core.documents` row plus its `core.document_lines` (joined in JS, per the
+  precedent above) into a typed `DocumentContext`/`DocumentLineContext[]` -- camelCase
+  field names, but otherwise a pure passthrough of the existing snapshot columns
+  (`hsn_code`/`tax_rate`/`taxable`/`cgst_amount`/... on each line), never re-derived or
+  recomputed, preserving `core.document_lines`' own "a snapshot, not a live join to
+  `core.items`" invariant. `getDocumentPaymentContext(businessId, documentId)` reads
+  `core.document_balances` (the existing view, always correct against the live
+  allocation ledger) for paid/balance amounts -- the "payment context" half of this
+  story's own title. Both return `null` for a document that doesn't exist or doesn't
+  belong to the given business, rather than throwing.
+- Read-only, no mutations, no migration, no new RLS surface -- `core.documents`/
+  `document_lines`/`document_balances` are not gated by `gst` licensing at all (a
+  business's documents exist regardless of which modules it has licensed), so unlike
+  every mutation in this module, these query functions deliberately have no
+  `requireModule`/`requirePermission` call, matching the same no-gate-on-reads
+  convention `lib/compliance/queries.ts`/`lib/tax-registrations/queries.ts` already use.
+- `mapDocumentLine`/`mapDocument` are exported as plain, pure mapping functions
+  specifically so they're unit-testable without a live database connection (matching the
+  "test pure logic, not DB I/O" style already used for the catalog files in this module) --
+  `queries.test.ts` covers a full line/document mapping, null `hsn_code`/`description`
+  passthrough, and a zero-line document (an estimate not yet lined out).
+
+**What was deliberately left out**: a typed FK from `gst.tax_determinations` back to a
+real `core.documents` row (still deliberately opaque `source_module`/`source_reference`
+text -- giving that a real type is a decision for whichever later story actually wires a
+determination to a document, not this one, which only builds the read *contract*, not any
+particular caller of it); party context (COMPLY-P0-03.4's own job); and any UI.
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces (needed one fix mid-story: the
+  first draft called `coreClient()` without `await`-ing it at the two read-function call
+  sites, caught immediately by `tsc` -- `@cofounderai/core/db/server`'s `createClient` is
+  async, same as `module-fsm`'s own precedent already awaits it).
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `npm run lint:boundaries` -- 1003 files scanned, 0 violations (confirms
+  `@cofounderai/core/db/server` is an allowed import for a module, unlike another
+  module's own internals).
+- `npm run lint:migrations` -- 108 migration files checked, 0 violations -- unchanged
+  from COMPLY-P0-02.5, confirming this story added no schema change at all.
+- `npm run test --workspace=@cofounderai/module-gst` -- 29 tests passed (25 pre-existing +
+  4 new in `queries.test.ts`).
+- No migration to apply and no `get_advisors` re-check -- this story touched no schema.
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
