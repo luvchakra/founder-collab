@@ -303,6 +303,53 @@ async function main() {
       assertEqual(psqlAsAlice(`select owner_id from crm.assignment where id = '${aliceAssignment2}'`), aliceEmployee2, "the new assignment row is the one still open");
       assertEqual(psqlAsAlice(`select unassigned_at is not null from crm.assignment where id = '${aliceAssignment1}'`), "t", "the earlier assignment row is now closed");
 
+      console.log("Verifying CRM-07.3/07.4's party-less conversation dedup (unresolved WhatsApp sender)...");
+      const unmatchedActorId = "wa-actor-unmatched-1";
+      // findOrCreateConversation()'s own new branch, replicated at the SQL level: no
+      // existing conversation_participant row for this external_actor_id yet, so a
+      // party-less conversation is created and a participant row links the actor to it.
+      const unresolvedConversation = psqlAsAlice(`insert into crm.conversation (business_id, party_id, primary_channel) values ('${aliceBusiness}', null, 'whatsapp') returning id;`);
+      psqlAsAlice(`insert into crm.conversation_participant (business_id, conversation_id, party_id, external_actor_id) values ('${aliceBusiness}', '${unresolvedConversation}', null, '${unmatchedActorId}');`);
+      assertEqual(
+        psqlAsAlice(`select conversation_id from crm.conversation_participant where business_id = '${aliceBusiness}' and external_actor_id = '${unmatchedActorId}'`),
+        unresolvedConversation,
+        "an unmatched sender's first message creates a real, party-less conversation",
+      );
+      psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, external_actor_id, external_message_id) values ('${aliceBusiness}', '${unresolvedConversation}', null, 'whatsapp', 'inbound', '${unmatchedActorId}', 'wamid.first');`);
+      // A second message from the same still-unmatched sender: findOrCreateConversation()
+      // looks up conversation_participant by external_actor_id (not party_id, which is
+      // null) and appends to the same conversation rather than creating a second one.
+      psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, external_actor_id, external_message_id) values ('${aliceBusiness}', (select conversation_id from crm.conversation_participant where business_id = '${aliceBusiness}' and external_actor_id = '${unmatchedActorId}'), null, 'whatsapp', 'inbound', '${unmatchedActorId}', 'wamid.second');`);
+      assertEqual(
+        psqlAsAlice(`select count(distinct conversation_id) from crm.interaction where business_id = '${aliceBusiness}' and external_actor_id = '${unmatchedActorId}'`),
+        "1",
+        "a second message from the same still-unmatched sender appends to the same party-less conversation, not a new one",
+      );
+      assertEqual(
+        psqlAsAlice(`select party_id from crm.conversation where id = '${unresolvedConversation}'`),
+        "",
+        "the conversation stays party-less until a human resolves the match (CRM-06.4 tier 4) -- selecting a null party_id",
+      );
+      psqlAsAlice(`update crm.conversation set party_id = '${aliceParty}' where id = '${unresolvedConversation}'`);
+      assertEqual(
+        psqlAsAlice(`select party_id from crm.conversation where id = '${unresolvedConversation}'`),
+        aliceParty,
+        "resolving the match later is a single update to conversation.party_id -- no interaction or participant rows need to move",
+      );
+
+      console.log("Verifying CRM-07.2's channel_connection lookup by (channel, provider, external_account_id) -- the webhook's own business resolution step...");
+      const aliceWhatsAppConnection = psqlAsAlice(`insert into crm.channel_connection (business_id, channel, provider, external_account_id, status) values ('${aliceBusiness}', 'whatsapp', 'whatsapp_cloud_api', 'pn-alice-1', 'connected') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select business_id from crm.channel_connection where channel = 'whatsapp' and provider = 'whatsapp_cloud_api' and external_account_id = 'pn-alice-1'`),
+        aliceBusiness,
+        "ingestInboundWhatsAppMessage() resolves the owning business from the connection row by phone_number_id alone",
+      );
+      assertEqual(
+        psqlAsBob(`select count(*) from crm.channel_connection where id = '${aliceWhatsAppConnection}'`),
+        "0",
+        "Bob cannot see Alice's WhatsApp connection -- confirms the webhook's lookup must run on an admin/service-role client, not an RLS-scoped one",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

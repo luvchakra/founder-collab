@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
 import type { ChannelType } from "../conversations/types";
@@ -12,6 +13,13 @@ export type PartyMatchInput = {
   phone?: string | null;
   email?: string | null;
 };
+
+/** CRM-07.3: lets a session-less caller (a webhook handler, which has no logged-in user
+ * to back the RLS-scoped `createClient()`) inject its own already-scoped clients -- an
+ * admin/service-role client in that case -- instead of this function creating the
+ * cookie-based ones itself. Omitted by every existing (RLS-scoped) caller, which keeps
+ * today's behavior exactly as it was. */
+export type CrmClientOverrides = { crm?: SupabaseClient; core?: SupabaseClient };
 
 /**
  * CRM-06.4's match hierarchy, collapsed from the backlog's five tiers to three this
@@ -39,8 +47,12 @@ export type PartyMatchInput = {
  * criterion once a live inbound channel exists to drive it, not this story's schema-only
  * matching logic.
  */
-export async function matchPartyForActor(businessId: string, input: PartyMatchInput): Promise<PartyMatchResult> {
-  const supabase = await createClient();
+export async function matchPartyForActor(
+  businessId: string,
+  input: PartyMatchInput,
+  clients?: CrmClientOverrides,
+): Promise<PartyMatchResult> {
+  const supabase = clients?.crm ?? (await createClient());
 
   if (input.externalActorId) {
     const { data: participant, error: participantError } = await supabase
@@ -69,7 +81,7 @@ export async function matchPartyForActor(businessId: string, input: PartyMatchIn
   }
 
   if (input.phone || input.email) {
-    const core = await createCoreClient({ schema: "core" });
+    const core = clients?.core ?? (await createCoreClient({ schema: "core" }));
     if (input.phone) {
       const { data: byPhone, error: phoneError } = await core.from("parties").select("id").eq("business_id", businessId).eq("phone", input.phone).limit(1).maybeSingle();
       if (phoneError) throw phoneError;

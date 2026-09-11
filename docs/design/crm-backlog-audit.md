@@ -684,3 +684,72 @@ rendered to ordinary users."
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (10 new adapter/parser tests), and both CRM RLS test suites.
 No new migration -- `crm.channel_connection` already existed from CRM-01.2.
+
+## CRM-07.3 + CRM-07.4 (2026-09-11)
+
+Built together: CRM-07.3's webhook endpoint has nothing to demonstrate without
+CRM-07.4's own text-message handling (matching, conversation attachment,
+`requires_response`), and CRM-07.4's acceptance criteria are entirely about what happens
+when a real inbound message hits the webhook -- same reasoning CRM-06.2/06.3 and
+CRM-07.1/07.2 were each combined for.
+
+**The architectural gap found and fixed first**: `recordInteraction()`,
+`matchPartyForActor()`, `markInteractionFailed()`, and their internal
+`findOrCreateConversation()` all used the RLS-scoped `createClient()` (cookie/session
+based) with no way to override it. A webhook request has no logged-in user at all, so
+none of that logic could run from one as written. Fixed by dependency injection: each of
+the three exported functions now takes an optional trailing `clients?: CrmClientOverrides`
+(`{ crm?: SupabaseClient; core?: SupabaseClient }`, `lib/interactions/matching.ts`) --
+every existing caller omits it and gets exactly today's behavior; a webhook handler
+passes its own admin/service-role clients instead. `createAdminClient()`
+(`core/db/admin.ts`) and the RLS-scoped `createClient()` both return the identical
+`SupabaseClient` type, so this required no new casts or wrapper types.
+
+New `lib/whatsapp/ingest-inbound-message.ts` (`ingestInboundWhatsAppMessage()`) is
+CRM-07.3's webhook ingest function for the new provider-neutral model, replacing
+`tickets/ingest-inbound-message.ts#ingestInboundCrmMessage()` for this one channel per
+the retirement table. It's the one place in CRM that reaches for `createAdminClient()`
+directly -- the same trust boundary the old ticket-based function already used, for the
+same reason (no session to authorize against). It walks the raw payload's
+`entry[].changes[]` itself (rather than trusting `parseWhatsAppWebhookPayload()`'s own
+flattened list) because that pure parser deliberately drops
+`value.metadata.phone_number_id` -- the one thing needed here to resolve which business
+a change belongs to -- so each change is re-wrapped into a single-change payload and
+handed to the same parser, keeping the parsing logic itself in one place rather than
+duplicated. For each resolved business: a `"message"` event calls `recordInteraction()`
+with the admin-client override, `channel: "whatsapp"`, the sender's phone as both
+`externalActorId`/`senderPhone`, `requiresResponse: true`, and the media id (if any) in
+`metadata` -- CRM-07.4's "receive WhatsApp text messages" is satisfied entirely by
+`recordInteraction()`'s own existing matching/dedup/conversation logic, nothing new was
+needed there. A `"status"` event looks up the matching outbound interaction by
+`external_message_id` and either calls `markInteractionFailed()` (status `"failed"`) or
+records `metadata.providerStatus` (`sent`/`delivered`/`read`) -- a dedicated
+status-tracking UI is CRM-07.9's own future job, this just makes sure the data isn't
+dropped. An unrecognized `phone_number_id` (no matching `channel_connection` row) is
+skipped, not errored, same "don't make Meta retry forever over an account we don't
+recognize" reasoning the route already used for the old model.
+
+`apps/web/app/api/webhooks/crm-whatsapp/route.ts`'s POST handler now calls
+`ingestInboundWhatsAppMessage()` instead of `ingestInboundCrmMessage()` -- `verify-meta-
+signature.ts` (both the GET subscription handshake and the POST signature check) is
+unaffected, reused as-is per the retirement table. Unlike a UI route, a webhook is a
+single external integration point (Meta can only be configured to POST to one URL), so
+there's no safe "run the old and new logic in parallel" option here the way the
+Conversations UI could coexist with the old ticket-based Inbox -- this is the point
+where this specific route's internals switch models. `crm-meta`'s own webhook route
+(Instagram/Messenger) is untouched; only WhatsApp's model changes in this story.
+
+Tested via the RLS harness, same discipline as every other DB-touching mutation in this
+module: new scratch-row cases verify the party-less conversation dedup (`findOrCreate-
+Conversation()`'s new branch -- a second message from a still-unmatched sender appends
+to the same conversation via its `conversation_participant.external_actor_id` row, and
+resolving the match later is a single `conversation.party_id` update, no rows to
+migrate) and the webhook's own `channel_connection` business-resolution lookup
+(including that an RLS-scoped query, unlike the admin client the webhook actually uses,
+cannot see it cross-tenant -- confirming why the admin-client override is load-bearing,
+not just convenient).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (unchanged -- no new pure logic needing its own unit tests),
+and both CRM RLS test suites (5 new cases). No new migration -- `crm.channel_connection`,
+`crm.conversation_participant`, and `crm.interaction` already existed.
