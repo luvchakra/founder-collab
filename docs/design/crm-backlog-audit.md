@@ -1120,3 +1120,33 @@ new migration.
 **Epic CRM-09 (The Lost Opportunity Engine) is now complete: 8 of 8 P0 stories done**
 (09.1 through 09.6, plus 09.2 and 09.5 covering the queue and its actions). P1 stories
 09.7 (Response Quality Check) and 09.8 (Escalation Rules) remain for the P1 pass.
+
+## CRM-15.1 (2026-09-11) -- already satisfied, no code change
+
+Epic CRM-15 ("Permissions, Governance & Reliability") begins: "Tenant RLS." Acceptance
+criteria are "every tenant-owned CRM row is constrained by `business_id`" and
+"cross-business access tests fail safely." Verified both directly against the live dev
+Supabase project rather than assuming prior work covers it:
+
+- `select relname, relrowsecurity, (select count(*) from pg_policies ...) from pg_class
+  where relnamespace = 'crm'::regnamespace` -- all 19 `crm.*` tables (every one built
+  across CRM-01.2 through CRM-07.8, the old ticket-model tables included) have RLS
+  enabled with exactly 4 policies each.
+- Read every one of those 76 policies' `qual`/`with_check` expressions directly: all of
+  them are the identical `business_id IN user_business_ids() AND business_id IN
+  (write_)licensed_business_ids('crm')` shape ADR-4/ADR-8 require -- no table has a
+  looser or table-specific policy that could leak across businesses.
+- `get_advisors(type: "security")`: zero `rls_disabled_in_public` or
+  `policy_exists_rls_disabled` findings for any `crm.*` table. The five
+  `rls_enabled_no_policy` findings are all `core`/`discovery` tables unrelated to this
+  story (pre-existing, e.g. `core.number_sequences`); the one `WARN` (leaked password
+  protection) is an Auth-level setting, not a CRM tenant-isolation concern.
+- "Cross-business access tests fail safely" is already covered exhaustively: both
+  `scripts/test-crm-rls.mjs` and `scripts/test-crm-backlog-rls.mjs` assert "Bob cannot
+  see/create/update Alice's ..." for essentially every table and cross-tenant reference-
+  smuggling path, and both have been re-run clean after every single story this session.
+
+No gap found, so no migration or code change -- documented per this audit's own "already
+satisfied" pattern (CRM-05.1, CRM-06.1) rather than silently skipping the story. Verified
+with both CRM RLS test suites (unchanged, re-run clean) and the live project's own
+advisors.
