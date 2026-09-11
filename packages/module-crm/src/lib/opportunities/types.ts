@@ -6,6 +6,11 @@ export type OpportunityStatus = "open" | "won" | "lost";
  * overrides). Null means "not yet gated." */
 export type FulfillmentRequirement = "inventory_required" | "service_only" | "product_and_service" | "fulfilled_externally" | "not_required";
 
+/** INT-04.1's "Opportunity Requires Assessment" gate -- see `assessment.ts`'s own
+ * `setAssessmentRequirement()`. Null means "not yet gated," same convention as
+ * `fulfillment_requirement`. */
+export type AssessmentRequirement = "none" | "remote" | "on_site" | "technical";
+
 export type OpportunityStage = {
   id: string;
   business_id: string;
@@ -46,6 +51,9 @@ export type Opportunity = {
    * opportunity, once requested -- same "one pointer, everything else read live" shape
    * as `fsm_opportunity_id`. Bare id, no FK -- lives in another module's schema. */
   fulfillment_request_id: string | null;
+  /** INT-04.1. Null until a human confirms or overrides it -- no smart default exists
+   * for this one (see `assessment.ts`'s own docstring). */
+  assessment_requirement: AssessmentRequirement | null;
   created_at: string;
   updated_at: string;
 };

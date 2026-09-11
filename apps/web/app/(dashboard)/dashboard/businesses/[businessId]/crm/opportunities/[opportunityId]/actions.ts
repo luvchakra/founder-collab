@@ -14,7 +14,8 @@ import {
   createFulfillmentRequestForOpportunity,
 } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { setFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
-import type { FulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/types";
+import { setAssessmentRequirement } from "@cofounderai/module-crm/lib/opportunities/assessment";
+import type { AssessmentRequirement, FulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/types";
 import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
 import type { ActivityType } from "@cofounderai/module-crm/lib/activities/types";
 import { completeFollowUp, createFollowUp } from "@cofounderai/module-crm/lib/follow-ups/mutations";
@@ -115,5 +116,13 @@ export async function setFulfillmentRequirementAction(businessId: string, opport
 /** INT-02.2's "Request inventory fulfillment" button. */
 export async function requestFulfillmentAction(businessId: string, opportunityId: string): Promise<void> {
   await createFulfillmentRequestForOpportunity(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-04.1's assessment-gate form action. */
+export async function setAssessmentRequirementAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const value = String(formData.get("assessmentRequirement") || "") as AssessmentRequirement;
+  if (!value) return;
+  await setAssessmentRequirement(businessId, opportunityId, value);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

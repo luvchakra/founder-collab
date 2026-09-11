@@ -21,6 +21,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_opportunity.fsm_job_created": "FSM job created from CRM opportunity",
   "crm_buying_intent.recalculated": "Buying intent score recalculated",
   "crm_opportunity.fulfillment_requirement_set": "CRM opportunity fulfillment requirement set",
+  "crm_opportunity.assessment_requirement_set": "CRM opportunity assessment requirement set",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {

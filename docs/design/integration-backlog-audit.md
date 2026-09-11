@@ -30,7 +30,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 03.3 | Parts Shortage -> FSM Exception | Done |
 | | 03.4 | Technician Consumption -> Inventory | Done |
 | | 03.5 | Parts Returned / Unused -> Inventory | Done |
-| INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Not started |
+| INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Done |
 | | 04.2 | Create FSM Assessment Request | Not started |
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Not started |
 | | 04.4 | Assessment -> Quote Continuation | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 12/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 12/29 (41%).**
+**P0 (INT-01 through INT-04): 13/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 13/29 (45%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -260,3 +260,13 @@ Inspection did surface one real correctness gap directly under this story's own 
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), and a clean `next build`. No migration -- reuses `parts_consumption` (INT-03.4); no UI change -- the existing Materials tab already reads `parts_consumption` correctly once it's populated by either path.
 
 **Status**: 12 of 29 in-scope stories done -- **Epic INT-03 complete** (5/5). Next: INT-04.1, Opportunity Requires Assessment (starts Epic INT-04, the last P0 epic).
+
+### INT-04.1 — Opportunity Requires Assessment (2026-09-11)
+
+New nullable `crm.opportunity.assessment_requirement` (migration `20260911002500`, check-constrained to `none`/`remote`/`on_site`/`technical`) -- the exact same shape as INT-02.1's `fulfillment_requirement`: never auto-computed, only ever written by an explicit human choice (`setAssessmentRequirement()`, new `lib/opportunities/assessment.ts`). Unlike fulfillment, there's genuinely no existing signal on an opportunity this story could derive a smart default from -- no product/FSM-engagement combination implies "needs an on-site visit," that's exactly the pre-quote information gap this epic exists to close -- so the gate simply defaults to `none` until a human says otherwise rather than inventing a heuristic with nothing real behind it. "This is a CRM commercial requirement; FSM owns the actual service appointment/work" holds trivially at this story's scope: nothing here touches FSM at all, that's INT-04.2's job.
+
+**UI**: a new `AssessmentGate` component (`crm/opportunities/assessment-gate.tsx`), the same plain server-action form shape as `FulfillmentGate`, placed right below it on the opportunity detail page's Journey card.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (952 files, no violations), `lint:migrations` (88 migrations, no violations), module-crm's vitest suite (152/152, unchanged -- no pure logic of its own to add a test for, matching `setFulfillmentRequirement()`'s own precedent of no dedicated mutation test), a live migration application followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
+
+**Status**: 13 of 29 in-scope stories done. Next: INT-04.2, Create FSM Assessment Request.
