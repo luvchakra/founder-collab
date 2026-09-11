@@ -90,6 +90,18 @@ and rejected).
   `optionalPeers`) — nav items change as routes change, but the module's registration
   itself doesn't need rework.
 
+## Progress
+
+- **CRM-01.1** (this audit) and **CRM-01.2** (schema baseline migration) — done.
+- **CRM-01.3** (public contract) — done. `contract/index.ts` gained `getCustomer360`,
+  `listLeads`, `createLead`, `convertLeadToOpportunity`, `createActivity`,
+  `listOpenFollowUps`, `getConversation`, `recordInteraction`,
+  `getOpenCommercialInteractions`, each a license-checked wrapper over a new
+  `lib/{leads,opportunities,conversations,interactions,activities,follow-ups,customer-360}`
+  domain. `getCustomer360` is deliberately CRM-schema-only for now — the cross-module
+  aggregation (Discovery/Inventory/FSM/GST sections) is CRM-02.1's own story, not
+  pre-built here.
+
 ## No unrelated module changed
 
 This audit and CRM-01.2's schema migration touch only `docs/design/`, this new audit
