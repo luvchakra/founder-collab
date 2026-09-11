@@ -34,4 +34,13 @@ export type Opportunity = {
   created_at: string;
   updated_at: string;
   last_evaluated_at: string | null;
+  /** DISC-OFFER-P0-05.2's own score-component breakdown -- see scoring.ts. */
+  icp_fit_score: number | null;
+  buyer_fit_score: number | null;
+  need_fit_score: number | null;
+  timing_score: number | null;
+  signal_strength_score: number | null;
+  contactability_score: number | null;
+  evidence_confidence_score: number | null;
+  score_reason: string | null;
 };
