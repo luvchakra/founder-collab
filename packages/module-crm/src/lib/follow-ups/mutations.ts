@@ -18,6 +18,7 @@ export async function createFollowUp(businessId: string, input: CreateFollowUpIn
       opportunity_id: input.opportunityId ?? null,
       conversation_id: input.conversationId ?? null,
       activity_id: input.activityId ?? null,
+      review_item_id: input.reviewItemId ?? null,
       owner_id: input.ownerId ?? null,
       due_at: input.dueAt,
       priority: input.priority ?? "normal",

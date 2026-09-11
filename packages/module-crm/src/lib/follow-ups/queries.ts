@@ -54,26 +54,36 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
   const leadIds = [...new Set(followUps.map((f) => f.lead_id).filter((id): id is string => Boolean(id)))];
   const opportunityIds = [...new Set(followUps.map((f) => f.opportunity_id).filter((id): id is string => Boolean(id)))];
   const conversationIds = [...new Set(followUps.map((f) => f.conversation_id).filter((id): id is string => Boolean(id)))];
+  const reviewItemIds = [...new Set(followUps.map((f) => f.review_item_id).filter((id): id is string => Boolean(id)))];
 
-  const [{ data: leads, error: leadsError }, { data: opportunities, error: opportunitiesError }, { data: conversations, error: conversationsError }] =
-    await Promise.all([
-      leadIds.length
-        ? supabase.from("lead").select("id, party_id, source").in("id", leadIds)
-        : Promise.resolve({ data: [] as { id: string; party_id: string; source: string }[], error: null }),
-      opportunityIds.length
-        ? supabase.from("opportunity").select("id, party_id, source").in("id", opportunityIds)
-        : Promise.resolve({ data: [] as { id: string; party_id: string; source: string }[], error: null }),
-      conversationIds.length
-        ? supabase.from("conversation").select("id, party_id, primary_channel").in("id", conversationIds)
-        : Promise.resolve({ data: [] as { id: string; party_id: string | null; primary_channel: string }[], error: null }),
-    ]);
+  const [
+    { data: leads, error: leadsError },
+    { data: opportunities, error: opportunitiesError },
+    { data: conversations, error: conversationsError },
+    { data: reviewItems, error: reviewItemsError },
+  ] = await Promise.all([
+    leadIds.length
+      ? supabase.from("lead").select("id, party_id, source").in("id", leadIds)
+      : Promise.resolve({ data: [] as { id: string; party_id: string; source: string }[], error: null }),
+    opportunityIds.length
+      ? supabase.from("opportunity").select("id, party_id, source").in("id", opportunityIds)
+      : Promise.resolve({ data: [] as { id: string; party_id: string; source: string }[], error: null }),
+    conversationIds.length
+      ? supabase.from("conversation").select("id, party_id, primary_channel").in("id", conversationIds)
+      : Promise.resolve({ data: [] as { id: string; party_id: string | null; primary_channel: string }[], error: null }),
+    reviewItemIds.length
+      ? supabase.from("review_item").select("id, rating, reviewer_name, comment_excerpt").in("id", reviewItemIds)
+      : Promise.resolve({ data: [] as { id: string; rating: number | null; reviewer_name: string | null; comment_excerpt: string | null }[], error: null }),
+  ]);
   if (leadsError) throw leadsError;
   if (opportunitiesError) throw opportunitiesError;
   if (conversationsError) throw conversationsError;
+  if (reviewItemsError) throw reviewItemsError;
 
   const leadById = new Map(leads.map((l) => [l.id, l]));
   const opportunityById = new Map(opportunities.map((o) => [o.id, o]));
   const conversationById = new Map(conversations.map((c) => [c.id, c]));
+  const reviewItemById = new Map(reviewItems.map((r) => [r.id, r]));
 
   const partyIds = new Set<string>();
   for (const f of followUps) {
@@ -91,12 +101,16 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
     const lead = f.lead_id ? leadById.get(f.lead_id) : undefined;
     const opportunity = f.opportunity_id ? opportunityById.get(f.opportunity_id) : undefined;
     const conversation = f.conversation_id ? conversationById.get(f.conversation_id) : undefined;
+    const reviewItem = f.review_item_id ? reviewItemById.get(f.review_item_id) : undefined;
     const resolvedPartyId = f.party_id ?? lead?.party_id ?? opportunity?.party_id ?? conversation?.party_id ?? null;
     return {
       ...(f as FollowUp),
       partyName: resolvedPartyId ? (partyNameById.get(resolvedPartyId) ?? null) : null,
       source: lead?.source ?? opportunity?.source ?? null,
       channel: conversation?.primary_channel ?? null,
+      reviewSummary: reviewItem
+        ? `${reviewItem.rating != null ? "★".repeat(reviewItem.rating) + "☆".repeat(5 - reviewItem.rating) : "Unrated"} review from ${reviewItem.reviewer_name ?? "Anonymous"}${reviewItem.comment_excerpt ? `: "${reviewItem.comment_excerpt}"` : ""}`
+        : null,
     };
   });
 }
