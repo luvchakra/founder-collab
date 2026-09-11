@@ -2350,3 +2350,51 @@ findings).
 
 **Status**: 68 of 74 in-scope stories done. Next: CRM-12.4 "Next best action" (seq #64;
 CRM-12.3 is out of this backlog run's scope per Section 7's own sequence table).
+
+---
+
+## CRM-12.4 (2026-09-11)
+
+"Next Best Action": answer now / send price / check inventory / call contact / send
+quote / follow up in 2 days / escalate complaint / request missing information -- "the
+model may prioritize; it must not silently execute external actions."
+
+**Design**: folded into CRM-12.2's existing `generateConversationSummary()` call/cache
+rather than a second AI request -- both stories analyze the exact same input (one
+conversation's message history), so one call serves both (CLAUDE.md principle 5,
+"minimize LLM calls"). `ConversationSummarySchema` gains two fields: `nextBestAction`
+(a Zod `z.enum(NEXT_BEST_ACTIONS)` over the backlog's own eight-item closed vocabulary --
+never free text, so it's always a concrete label, not a sentence to interpret) and
+`nextBestActionRationale` (one sentence). Replaces the old free-text `nextAction` field
+CRM-12.2 shipped with, since the two were the same concept at two different levels of
+structure -- prompt version bumped to `v2` (`SUMMARIZE_CONVERSATION_PROMPT_VERSION`) so
+the cache-by-input-hash check naturally treats any old-shape cached row as stale and
+regenerates it, no migration needed.
+
+**Refactor forced by a real build failure**: the vocabulary/label map/schema originally
+lived in `conversation-summary.ts` itself, which imports server-only code
+(`db/server`, `requireModule`, ...). The "Generate summary" client component only needed
+the label map and the result type, but importing anything at all from that file pulled
+its server-only imports into the browser bundle -- `next build` failed with a clear
+"Server Component imported into Client Component" error naming `db/server.ts`. Fixed by
+splitting the vocabulary/label map/Zod schema/type into a new file with zero server
+imports, `packages/module-crm/src/lib/ai/conversation-summary-types.ts`;
+`conversation-summary.ts` imports and re-exports from it (so every existing server-side
+caller keeps working unchanged), and the client card imports directly from the new
+file instead. Caught by `next build`, not typecheck -- worth remembering for any future
+story that hands a server-file-derived constant/type to a client component.
+
+**UI**: the same conversation-summary card (CRM-12.2) gets a new highlighted block --
+badge with the human-readable action label (`NEXT_BEST_ACTION_LABEL`) plus the
+rationale sentence, replacing the old plain-text "Next action" line. Purely advisory,
+same as the rest of the card: no button executes it, no send/task/record change happens
+on its own.
+
+Verified with full monorepo typecheck, `lint:boundaries` (925 files, no violations),
+module-crm's vitest suite (111/111, unchanged), both CRM RLS suites (re-run clean, no
+new assertions needed -- `crm.conversation_summary.data` is jsonb, so the richer result
+shape needs no schema change), and a clean `next build` (after the client/server
+boundary fix above). No new migration, no live-database change needed.
+
+**Status**: 69 of 74 in-scope stories done. Next: CRM-12.5 "Buying Intent Score" (seq
+#65).

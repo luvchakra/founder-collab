@@ -5,7 +5,7 @@ import { Sparkles } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { formatDateTime } from "@cofounderai/core/lib/format";
-import type { ConversationSummaryResult } from "@cofounderai/module-crm/lib/ai/conversation-summary";
+import { NEXT_BEST_ACTION_LABEL, type ConversationSummaryResult } from "@cofounderai/module-crm/lib/ai/conversation-summary-types";
 
 const SENTIMENT_VARIANT: Record<ConversationSummaryResult["sentiment"], "default" | "secondary" | "destructive"> = {
   positive: "secondary",
@@ -17,6 +17,11 @@ const SENTIMENT_VARIANT: Record<ConversationSummaryResult["sentiment"], "default
  * CRM-12.2's own card in the Conversations right pane. Keyed by `conversationId` from
  * the parent so switching conversations resets the shown summary rather than carrying
  * over the previous one's stale state.
+ *
+ * CRM-12.4's "Next Best Action" is the highlighted badge+rationale block below --
+ * advisory only ("the model may prioritize; it must not silently execute external
+ * actions"): clicking nothing here sends a message, creates a task, or changes any
+ * record: it is text a founder reads and decides on, same as the rest of this card.
  */
 export function ConversationSummaryCard({
   initialSummary,
@@ -81,9 +86,12 @@ export function ConversationSummaryCard({
               </ul>
             </div>
           ) : null}
-          <div>
-            <p className="text-xs font-medium">Next action</p>
-            <p className="text-xs text-muted-foreground">{result.nextAction}</p>
+          <div className="flex flex-col gap-1 rounded-md border border-border bg-muted/30 p-2">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-medium">Recommended next action</p>
+              <Badge variant="outline">{NEXT_BEST_ACTION_LABEL[result.nextBestAction]}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">{result.nextBestActionRationale}</p>
           </div>
         </div>
       ) : (

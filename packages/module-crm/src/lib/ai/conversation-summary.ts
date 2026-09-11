@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { generateObject } from "ai";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
@@ -9,20 +8,14 @@ import { createClient } from "../../db/server";
 import { getBusiness } from "../tenancy/queries";
 import { getConversationById } from "../interactions/queries";
 import type { ConversationDetail } from "../conversations/types";
+import { ConversationSummarySchema, NEXT_BEST_ACTIONS } from "./conversation-summary-types";
+import type { ConversationSummaryResult } from "./conversation-summary-types";
 
-const SUMMARIZE_CONVERSATION_PROMPT_VERSION = "v1";
+export { NEXT_BEST_ACTIONS, NEXT_BEST_ACTION_LABEL, type ConversationSummaryResult } from "./conversation-summary-types";
+
+const SUMMARIZE_CONVERSATION_PROMPT_VERSION = "v2";
 const OPERATION = "summarize_conversation";
 const RECENT_INTERACTIONS_LIMIT = 30;
-
-const ConversationSummarySchema = z.object({
-  summary: z.string().min(1),
-  unresolvedQuestions: z.array(z.string()),
-  promisedActions: z.array(z.string()),
-  sentiment: z.enum(["positive", "neutral", "negative"]),
-  nextAction: z.string().min(1),
-});
-
-export type ConversationSummaryResult = z.infer<typeof ConversationSummarySchema>;
 
 /** Capped to the most recent `RECENT_INTERACTIONS_LIMIT` messages -- a bounded prompt
  * even for a conversation with a long back-and-forth history, same reasoning
@@ -39,8 +32,9 @@ function conversationSummaryPrompt(businessName: string, conversation: Conversat
     "- unresolvedQuestions: questions the customer asked that haven't been answered yet (empty array if none).",
     "- promisedActions: anything the business said it would do (empty array if none).",
     "- sentiment: the customer's overall tone -- positive, neutral, or negative.",
-    "- nextAction: the single most useful next step for the business to take.",
-    "Only use what's in the messages above -- do not invent facts.",
+    `- nextBestAction: exactly one of ${NEXT_BEST_ACTIONS.join(", ")} -- the single most useful next step for the business to take.`,
+    "- nextBestActionRationale: one sentence explaining why that action, referencing what's actually in the conversation.",
+    "Only use what's in the messages above -- do not invent facts. You are recommending an action, not performing one.",
   ];
   return lines.join("\n");
 }
@@ -62,6 +56,11 @@ export async function getConversationSummary(businessId: string, conversationId:
  * CRM-12.2's "Conversation Summary" -- same on-demand, cache-by-input-hash discipline as
  * CRM-12.1's `generateCustomerSummary()`, just scoped to one conversation's own message
  * history instead of the customer's full cross-module footprint.
+ *
+ * CRM-12.4's "Next Best Action" is folded into this same call/result (`nextBestAction`/
+ * `nextBestActionRationale` above) rather than a second AI request over the same
+ * conversation -- the two stories analyze the identical context (one conversation's
+ * message history) for closely related purposes, so one call serves both.
  */
 export async function generateConversationSummary(businessId: string, conversationId: string): Promise<ConversationSummaryResult> {
   await requireModule(businessId, "crm");
