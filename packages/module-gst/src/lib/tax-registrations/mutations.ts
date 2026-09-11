@@ -4,6 +4,7 @@ import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { isRegimeSupported } from "../compliance/countries";
 import { canonicalJurisdictionName } from "../compliance/jurisdictions";
+import { buildGstRegistrationMetadata, type GstRegistrationProfile } from "./gst-registration-profile";
 import type { TaxRegistrationInput } from "./types";
 
 function coreClient() {
@@ -37,7 +38,7 @@ function coreClient() {
  * India-GST-specific columns; mirroring, say, an EU VAT number into the `gstin` column
  * would be a category error, not a generalization of this story's own job.
  */
-export function shouldMirrorToBusinessSettings(country: string, regime: string): boolean {
+export function isIndiaGstRegistration(country: string, regime: string): boolean {
   return country === "IN" && regime === "GST";
 }
 
@@ -48,7 +49,7 @@ async function mirrorPrimaryGstinToBusinessSettings(
   registrationNumber: string,
   jurisdiction: string | null,
 ): Promise<void> {
-  if (!shouldMirrorToBusinessSettings(country, regime)) return;
+  if (!isIndiaGstRegistration(country, regime)) return;
 
   const core = await coreClient();
   const { error } = await core.from("business_settings").upsert({
@@ -193,6 +194,53 @@ export async function setTaxRegistrationStatus(
   const { error } = await supabase
     .from("tax_registrations")
     .update({ registration_status: status })
+    .eq("business_id", businessId)
+    .eq("id", registrationId);
+  if (error) throw error;
+}
+
+/**
+ * COMPLY-P0-04.2 (GST Profile): sets the India-GST-specific attributes a registration's
+ * own `metadata` jsonb holds (`gst-registration-profile.ts`'s own `GstRegistrationProfile`)
+ * plus `registered_from`, the one field this story adds that already had its own column
+ * (COMPLY-P0-02.1) rather than living in `metadata` -- both are "editing this
+ * registration's profile" from a user's point of view even though they land in two
+ * different columns underneath.
+ *
+ * India-GST-only by construction: fetches the row first and refuses (rather than silently
+ * writing India-shaped keys into some other regime's metadata) unless
+ * `isIndiaGstRegistration` says it's actually a country=IN/regime=GST registration -- the
+ * same guard the business-settings mirror above already uses.
+ * Merges onto the row's existing metadata (`buildGstRegistrationMetadata`) rather than
+ * replacing it outright, so a future regime-agnostic caller that ever stores its own keys
+ * in this same jsonb bucket doesn't get silently clobbered by an India-only edit.
+ */
+export async function setGstRegistrationProfile(
+  businessId: string,
+  registrationId: string,
+  input: { registeredFrom: string | null; profile: GstRegistrationProfile },
+): Promise<void> {
+  await requireModule(businessId, "gst");
+  await requirePermission(businessId, "settings.manage");
+
+  const supabase = await createClient();
+  const { data: target, error: fetchError } = await supabase
+    .from("tax_registrations")
+    .select("country, regime, metadata")
+    .eq("business_id", businessId)
+    .eq("id", registrationId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  if (!isIndiaGstRegistration(target.country, target.regime)) {
+    throw new Error("The GST profile (registration type, return frequency, e-invoice eligibility) only applies to India GST registrations.");
+  }
+
+  const metadata = buildGstRegistrationMetadata((target.metadata as Record<string, unknown>) ?? {}, input.profile);
+
+  const { error } = await supabase
+    .from("tax_registrations")
+    .update({ registered_from: input.registeredFrom, metadata })
     .eq("business_id", businessId)
     .eq("id", registrationId);
   if (error) throw error;
