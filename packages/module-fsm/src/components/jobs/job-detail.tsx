@@ -34,6 +34,7 @@ import type { Tag } from "../../lib/tags/types";
 import type { OpenTimeEntry, TimeEntryItem } from "../../lib/time-entries/types";
 import type { Message } from "@cofounderai/core/messages/types";
 import type { JobMaterialRequirementLine } from "../../lib/inventory-integration/queries";
+import type { RecommendedPartWithAvailability } from "../../lib/jobs/queries";
 import { FieldWorkTab } from "../field/field-work-tab";
 import { MessagesTab } from "../messages/messages-tab";
 
@@ -124,6 +125,9 @@ export function JobDetail({
   resolveShortageAction,
   retryReservationAction,
   recordConsumptionAction,
+  recommendedPartsItems,
+  recommendedParts,
+  addRecommendedPartAction,
 }: {
   job: Job;
   partyName: string;
@@ -174,6 +178,9 @@ export function JobDetail({
   resolveShortageAction: (resolution: JobPartsShortageResolution, note: string) => Promise<void>;
   retryReservationAction: () => Promise<void>;
   recordConsumptionAction: (lines: { itemId: string; actual: number; returned: number; wasted: number }[]) => Promise<void>;
+  recommendedPartsItems: { id: string; name: string }[];
+  recommendedParts: RecommendedPartWithAvailability[];
+  addRecommendedPartAction: (formData: FormData) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -650,6 +657,60 @@ export function JobDetail({
                 ) : null}
               </>
             )}
+
+            {job.status === "completed" && job.outcome === "parts_required_later" ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                <p className="text-sm font-medium">
+                  Recommended parts for next visit
+                  {job.recommended_parts_recorded_at ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">last updated {formatDateTime(job.recommended_parts_recorded_at)}</span>
+                  ) : null}
+                </p>
+                {recommendedParts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No parts recommended yet.</p>
+                ) : (
+                  <ul className="flex flex-col gap-2">
+                    {recommendedParts.map((line) => (
+                      <li key={line.itemId} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                        <span>{line.itemName}</span>
+                        <span className="flex items-center gap-2 text-muted-foreground">
+                          Qty {line.quantity}
+                          <Badge variant={line.availableQuantity >= line.quantity ? "secondary" : line.availableQuantity > 0 ? "outline" : "destructive"}>
+                            {line.availableQuantity} available
+                          </Badge>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {canEdit && recommendedPartsItems.length > 0 ? (
+                  <form action={addRecommendedPartAction} className="flex flex-wrap items-end gap-2">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="recommended-part-item" className="text-xs text-muted-foreground">
+                        Item
+                      </Label>
+                      <NativeSelect id="recommended-part-item" name="itemId" defaultValue="">
+                        <option value="" disabled>
+                          Select an item
+                        </option>
+                        {recommendedPartsItems.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    </div>
+                    <div className="flex w-24 flex-col gap-1.5">
+                      <Label htmlFor="recommended-part-quantity" className="text-xs text-muted-foreground">
+                        Quantity
+                      </Label>
+                      <Input id="recommended-part-quantity" name="quantity" type="number" min={1} step="1" defaultValue={1} />
+                    </div>
+                    <SubmitButton pendingText="Adding...">Add recommended part</SubmitButton>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
           </TabsContent>
         ) : null}
 

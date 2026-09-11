@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
+import { getAvailability } from "@cofounderai/module-inventory/contract/index";
 import type { AuditLogEntry, Job, JobListItem } from "./types";
 
 function coreClient() {
@@ -81,6 +82,37 @@ export async function jobHasInvoice(businessId: string, jobId: string): Promise<
     .maybeSingle();
   if (error) throw error;
   return Boolean(data);
+}
+
+export type RecommendedPartWithAvailability = {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  availableQuantity: number;
+};
+
+/** INT-06.3's "Inventory product reference -> availability" -- resolves `job.
+ * recommended_parts`' bare `{itemId, quantity}` lines against `core.items` (name) and
+ * Inventory's own contract (`getAvailability()`, summed across every warehouse, same
+ * formula `module-crm`'s own availability check already uses) at read time, never
+ * stored ("no duplicate product records"). */
+export async function listRecommendedPartsWithAvailability(businessId: string, job: Job): Promise<RecommendedPartWithAvailability[]> {
+  const lines = job.recommended_parts ?? [];
+  if (lines.length === 0) return [];
+
+  const core = await coreClient();
+  const itemIds = [...new Set(lines.map((l) => l.itemId))];
+  const { data: items, error } = await core.from("items").select("id, name").in("id", itemIds);
+  if (error) throw error;
+  const itemById = new Map(items.map((i) => [i.id, i.name]));
+
+  return Promise.all(
+    lines.map(async (line) => {
+      const result = await getAvailability(businessId, line.itemId);
+      const availableQuantity = result.ok ? result.data.reduce((sum, level) => sum + Math.max(level.available, 0), 0) : 0;
+      return { itemId: line.itemId, itemName: itemById.get(line.itemId) ?? "Unknown item", quantity: line.quantity, availableQuantity };
+    }),
+  );
 }
 
 /** Job detail's "History" tab (PRD §5) -- reads `core.audit_log`, written automatically

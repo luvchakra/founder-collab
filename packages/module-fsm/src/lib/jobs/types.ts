@@ -54,6 +54,13 @@ export type JobPartsConsumptionLine = {
   wasted: number;
 };
 
+/** INT-06.3's "Recommended Parts -> Inventory" -- one `core.items` reference + quantity
+ * a technician flagged as future demand for this party, not this job's own current
+ * material requirement (that's `listJobMaterialRequirement()`, a different, already-
+ * solved concept derived from the job's estimate). Name/SKU/price/availability are
+ * never stored here ("no duplicate product records") -- always resolved live. */
+export type RecommendedPartLine = { itemId: string; quantity: number };
+
 export interface Job {
   id: string;
   business_id: string;
@@ -80,6 +87,8 @@ export interface Job {
   parts_shortage_resolved_at: string | null;
   parts_consumption: JobPartsConsumptionLine[] | null;
   parts_consumption_recorded_at: string | null;
+  recommended_parts: RecommendedPartLine[] | null;
+  recommended_parts_recorded_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

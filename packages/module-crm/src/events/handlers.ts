@@ -183,3 +183,43 @@ registerEventHandler("fsm.job.additional_work_identified", async (event: DomainE
   });
   if (noteError) throw noteError;
 });
+
+/**
+ * INT-06.3's "Recommended Parts -> Inventory": "...CRM/customer follow-up if
+ * commercially relevant." Published from `addRecommendedPart()`
+ * (module-fsm/src/lib/jobs/mutations.ts) only once a job's recommended-parts list goes
+ * from empty to non-empty -- FSM's own gate for "commercially relevant" (an empty list
+ * never publishes). This creates a plain `crm.follow_up` for the party, same idempotent
+ * shape as INT-06.2's opportunity dedup: `source_module`/`source_reference` (this
+ * story's own migration, mirroring `crm.lead`/`crm.opportunity`'s existing pair) keyed
+ * on `(business_id, 'fsm_job_parts', jobId)` so a retried drain attempt never creates a
+ * second follow-up for the same job. No stock ledger, no product-interest row --
+ * "no duplicate product records" means this never touches `crm.product_interest`
+ * either; the follow-up itself is the only new row, and the technician's own item
+ * references stay exactly where they were recorded, in `fsm.jobs.recommended_parts`.
+ */
+registerEventHandler("fsm.job.parts_recommended", async (event: DomainEvent) => {
+  const payload = event.payload as { jobId?: string; partyId?: string };
+  if (!payload.jobId || !payload.partyId) return;
+
+  const crm = createCrmAdminClient();
+
+  const { data: existing, error: existingError } = await crm
+    .from("follow_up")
+    .select("id")
+    .eq("business_id", event.business_id)
+    .eq("source_module", "fsm_job_parts")
+    .eq("source_reference", payload.jobId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return;
+
+  const { error: insertError } = await crm.from("follow_up").insert({
+    business_id: event.business_id,
+    party_id: payload.partyId,
+    source_module: "fsm_job_parts",
+    source_reference: payload.jobId,
+    due_at: new Date().toISOString(),
+  });
+  if (insertError) throw insertError;
+});

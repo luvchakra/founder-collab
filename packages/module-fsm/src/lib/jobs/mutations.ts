@@ -153,6 +153,45 @@ export async function completeJob(id: string, businessId: string, outcome: JobOu
   }
 }
 
+/**
+ * INT-06.3's "Recommended Parts -> Inventory": a technician flags a `core.items`
+ * reference as future demand for this job's party -- appended to the job's own
+ * `recommended_parts` list (bare `{itemId, quantity}`, "no duplicate product records").
+ * Publishes `fsm.job.parts_recommended` only on the first line added (empty ->
+ * non-empty) -- "CRM/customer follow-up if commercially relevant" means one follow-up
+ * per job's worth of recommendations, not one per line; a job whose list never leaves
+ * empty is never "commercially relevant" in this sense, so nothing is ever published for
+ * it. Same one-way, FSM-never-imports-CRM's-contract shape as INT-06.2's own event.
+ */
+export async function addRecommendedPart(id: string, businessId: string, itemId: string, quantity: number): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "jobs.edit");
+  const fsm = await createClient();
+
+  const { data: job, error: jobError } = await fsm.from("jobs").select("party_id, recommended_parts").eq("id", id).eq("business_id", businessId).single();
+  if (jobError) throw jobError;
+
+  const existingLines = job.recommended_parts ?? [];
+  const wasEmpty = existingLines.length === 0;
+  const nextLines = [...existingLines, { itemId, quantity }];
+
+  const { error: updateError } = await fsm
+    .from("jobs")
+    .update({ recommended_parts: nextLines, recommended_parts_recorded_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  if (wasEmpty) {
+    await publish({
+      businessId,
+      type: "fsm.job.parts_recommended",
+      payload: { jobId: id, partyId: job.party_id },
+      requiredModule: "crm",
+    }).catch(() => {});
+  }
+}
+
 export async function cancelJob(id: string, businessId: string): Promise<void> {
   await requireModule(businessId, "fsm");
   await requirePermission(businessId, "jobs.edit");

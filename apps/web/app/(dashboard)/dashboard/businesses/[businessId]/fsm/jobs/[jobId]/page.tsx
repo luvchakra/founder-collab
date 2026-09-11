@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
-import { getJob, getJobContext, jobHasInvoice, listJobAuditLog } from "@cofounderai/module-fsm/lib/jobs/queries";
+import { getJob, getJobContext, jobHasInvoice, listJobAuditLog, listRecommendedPartsWithAvailability } from "@cofounderai/module-fsm/lib/jobs/queries";
+import { listItemsForBusiness } from "@cofounderai/core/items/queries";
 import { listTagsFor } from "@cofounderai/module-fsm/lib/tags/queries";
 import { listCustomFieldsWithValues } from "@cofounderai/module-fsm/lib/custom-fields/queries";
 import { listTimeEntriesForJob, getOpenTimeEntry } from "@cofounderai/module-fsm/lib/time-entries/queries";
@@ -41,6 +42,7 @@ import {
   resolveJobPartsShortageAction,
   retryJobPartsReservationAction,
   recordJobPartsConsumptionAction,
+  addRecommendedPartAction,
 } from "./actions";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ businessId: string; jobId: string }> }) {
@@ -95,6 +97,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
   // entirely rather than fetching and then hiding a populated list).
   const materialRequirement = inventoryLicensed ? await listJobMaterialRequirement(businessId, jobId) : [];
 
+  // INT-06.3: same degradation for the "recommended parts" catalog picker + live
+  // availability read -- both need Inventory licensed to mean anything.
+  const [recommendedPartsCatalog, recommendedParts] = inventoryLicensed
+    ? await Promise.all([listItemsForBusiness(businessId), listRecommendedPartsWithAvailability(businessId, job)])
+    : [[], []];
+  const recommendedPartsItems = recommendedPartsCatalog.filter((item) => item.kind === "good" && item.status === "active");
+
   return (
     <JobDetail
       job={job}
@@ -146,6 +155,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       resolveShortageAction={resolveJobPartsShortageAction.bind(null, businessId, jobId)}
       retryReservationAction={retryJobPartsReservationAction.bind(null, businessId, jobId)}
       recordConsumptionAction={recordJobPartsConsumptionAction.bind(null, businessId, jobId)}
+      recommendedPartsItems={recommendedPartsItems}
+      recommendedParts={recommendedParts}
+      addRecommendedPartAction={addRecommendedPartAction.bind(null, businessId, jobId)}
     />
   );
 }

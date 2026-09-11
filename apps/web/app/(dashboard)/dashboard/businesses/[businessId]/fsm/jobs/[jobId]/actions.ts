@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import {
+  addRecommendedPart,
   cancelJob,
   completeJob,
   convertJobToOpportunity,
@@ -86,6 +87,16 @@ export async function resumeJobAction(businessId: string, jobId: string): Promis
 export async function completeJobAction(businessId: string, jobId: string, outcome: JobOutcome, outcomeNotes: string): Promise<void> {
   await requirePermission(businessId, "jobs.edit");
   await completeJob(jobId, businessId, outcome, outcomeNotes);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+/** INT-06.3's "add a recommended part for a future visit" form action. */
+export async function addRecommendedPartAction(businessId: string, jobId: string, formData: FormData): Promise<void> {
+  const itemId = String(formData.get("itemId") || "");
+  const quantity = Number(formData.get("quantity") || 1);
+  if (!itemId || !Number.isFinite(quantity) || quantity <= 0) return;
+  await requirePermission(businessId, "jobs.edit");
+  await addRecommendedPart(jobId, businessId, itemId, quantity);
   revalidatePath(detailPath(businessId, jobId));
 }
 

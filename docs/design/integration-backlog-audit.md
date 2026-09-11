@@ -39,7 +39,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 05.3 | Shortage -> Customer Follow-up | Done |
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Done |
 | | 06.2 | Additional Work -> CRM Opportunity | Done |
-| | 06.3 | Recommended Parts -> Inventory | Not started |
+| | 06.3 | Recommended Parts -> Inventory | Done |
 | | 06.4 | Warranty / Revisit -> FSM | Not started |
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Not started |
 | | 07.2 | Exception Resolution Actions | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 5/13 done. Overall: 21/29 (72%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 6/13 done. Overall: 22/29 (76%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -364,3 +364,15 @@ New `module-crm/src/events/handlers.ts` subscriber creates the suggested opportu
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (93 migrations, no violations), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every other fsm-touching story this session, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings), and a clean `next build`.
 
 **Status**: 21 of 29 in-scope stories done. Next: INT-06.3, Recommended Parts -> Inventory.
+
+### INT-06.3 — Recommended Parts -> Inventory (2026-09-11)
+
+`fsm.jobs.recommended_parts` (jsonb array of bare `{itemId, quantity}`, "no duplicate product records" -- name/SKU/price/availability always resolved live) is a genuinely different concept from INT-03.1's `listJobMaterialRequirement()`: that's the *current* job's own material need, derived from its estimate; this is future demand a technician flags for the party's *next* visit. New `addRecommendedPart()` appends one line at a time (mirroring the "one form submit per add" idiom `addOpportunityProduct()` already established), and a new `listRecommendedPartsWithAvailability()` read resolves each line's live availability via Inventory's existing `getAvailability()` contract call, same summed-across-warehouses formula module-crm's own availability check uses -- "FSM recommendation -> Inventory product reference -> availability."
+
+"CRM/customer follow-up if commercially relevant": publishes `fsm.job.parts_recommended` only on the transition from an empty list to a non-empty one (one follow-up per job's worth of recommendations, not one per line) -- same one-way FSM-never-imports-CRM's-contract shape as INT-06.2's own event. New CRM handler creates a plain `crm.follow_up`, deduped idempotently via `source_module`/`source_reference` (new migration, `crm.follow_up` now carries the same generic pair `crm.lead` and `crm.opportunity` already have) keyed on `(business_id, 'fsm_job_parts', jobId)`.
+
+UI: a new section in the job detail page's existing Materials tab (not a new tab -- this is still about parts), shown once the job is completed with outcome `parts_required_later`; an item picker (Inventory's own `kind='good'`/active catalog) plus a live list of recorded lines with availability badges.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (95 migrations, no violations), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every fsm-touching story this session), two live migration applies + `get_advisors` for both `security`/`performance` (no new findings), and a clean `next build`.
+
+**Status**: 22 of 29 in-scope stories done. Next: INT-06.4, Warranty / Revisit -> FSM.
