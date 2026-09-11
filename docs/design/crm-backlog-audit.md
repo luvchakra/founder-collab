@@ -970,3 +970,41 @@ Verified with full monorepo typecheck, a clean `next build` (route confirmed pre
 `conversation`, `opportunity`, `core.parties`), already covered by their own tenant-
 isolation tests; both CRM RLS suites re-run clean as regression checks. No new
 migration.
+
+## CRM-09.3 (2026-09-11)
+
+"Message Intent Classification": the backlog's exact 11-value taxonomy (`pricing`,
+`product_question`, `availability`, `purchase_intent`, `appointment`, `support`,
+`complaint`, `feedback`, `review`, `general_enquiry`, `spam`) as a new, separate
+deterministic keyword classifier, `lib/interactions/intent-classification.ts
+#classifyMessageIntent()` -- unit tested (8 cases). Not a real LLM call: this codebase's
+only sanctioned AI-calling path today is Discovery's own BYOK/provider routing
+(`module-discovery/src/lib/ai/router.ts`), discovery-schema-owned account/workspace
+machinery with no contract exposing it across the module boundary (CLAUDE.md rule #3).
+This is the exact same gap the *old* ticket model's own `lib/ai/classify-intent.ts`
+already documented and worked around -- but this story adds a **new** file rather than
+literally repurposing that one, since `classify-intent.ts` still actively serves the
+still-live `crm-meta` (Instagram/Messenger) ticket pipeline with its own different
+taxonomy; changing its behavior there would be an unrelated regression outside this
+story's scope. The retirement table's "re-pointed... once those exist" is satisfied in
+spirit (the new-model equivalent now exists, built the same documented way), not by
+literally moving code that's still load-bearing for the old model.
+
+Wired into `recordInteraction()`: every **inbound** interaction gets classified and its
+`intent`/`intent_confidence` columns populated (both already existed, unused, since
+CRM-01.2); outbound interactions get neither -- "what did the business intend" isn't a
+concept this story defines. No caller-override input was added (unlike CRM-09.1's
+`requiresResponse`): no existing caller has an intent opinion of its own to override
+with, so adding that surface now would be speculative.
+
+"AI is not the sole source of whether an item is visible in the queue" and "low-
+confidence results remain available" both hold by construction rather than needing new
+code: CRM-09.1's `requires_response` rules engine (deterministic, unrelated to intent)
+is what the Potential Lost Business queue (CRM-09.2) filters by -- intent is display-only
+enrichment on those same rows, already rendered there since CRM-09.2 (`row.intent ?? "—"`)
+without any confidence-based filtering to hide a low-confidence result.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (8 new tests), and both CRM RLS test suites (1 new case
+confirming `intent`/`intent_confidence` persist and stay tenant-isolated). No new
+migration -- both columns already existed on `crm.interaction` from CRM-01.2.

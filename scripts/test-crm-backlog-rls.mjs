@@ -406,6 +406,11 @@ async function main() {
       assertEqual(psqlAsAlice(`select responded_at is null from crm.interaction where id = '${notActionable}'`), "t", "a not-actionable interaction stays unresponded, distinct from an actually-answered one");
       assertEqual(psqlAsBob(`select count(*) from crm.interaction where id in ('${rulesInbound1}', '${rulesInbound2}', '${notActionable}')`), "0", "Bob cannot see or affect Alice's interactions");
 
+      console.log("Verifying CRM-09.3's intent + confidence storage on crm.interaction...");
+      const classifiedInteraction = psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, content_excerpt, intent, intent_confidence) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'inbound', 'How much does this cost?', 'pricing', 0.6) returning id;`);
+      assertEqual(psqlAsAlice(`select intent, intent_confidence from crm.interaction where id = '${classifiedInteraction}'`), "pricing|0.600", "classifyMessageIntent()'s result is stored on the interaction's own intent/intent_confidence columns (CRM-01.2, unused until this story)");
+      assertEqual(psqlAsBob(`select count(*) from crm.interaction where id = '${classifiedInteraction}'`), "0", "Bob cannot see Alice's classified interaction");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
