@@ -1,4 +1,6 @@
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
+import { toPotentialLostBusinessQueueRow, type PotentialLostBusinessQueueRow } from "./lost-business";
 import type { Interaction } from "./types";
 import type { Conversation, ConversationDetail, ConversationParticipant } from "../conversations/types";
 
@@ -20,6 +22,74 @@ export async function getOpenCommercialInteractions(businessId: string, limit = 
     .limit(limit);
   if (error) throw error;
   return data as Interaction[];
+}
+
+export type PotentialLostBusinessQueueEntry = PotentialLostBusinessQueueRow & {
+  partyName: string | null;
+  opportunityValue: number | null;
+  opportunityCurrency: string | null;
+  ownerId: string | null;
+};
+
+/**
+ * CRM-09.2's "Potential Lost Business" queue: `getOpenCommercialInteractions()` above is
+ * already exactly the right base set (its own doc comment anticipated this story), joined
+ * here -- via separate batched lookups, not a cross-schema embed, same established
+ * pattern as `conversations/queries.ts#listConversationQueue()` -- with each interaction's
+ * conversation (for `opportunity_id`/`assigned_to`), that opportunity's estimated value,
+ * and the sender's party name.
+ */
+export async function listPotentialLostBusinessQueue(businessId: string): Promise<PotentialLostBusinessQueueEntry[]> {
+  const interactions = await getOpenCommercialInteractions(businessId, 200);
+  if (interactions.length === 0) return [];
+
+  const supabase = await createClient();
+  const conversationIds = [...new Set(interactions.map((i) => i.conversation_id))];
+  const { data: conversations, error: conversationsError } = await supabase.from("conversation").select("id, opportunity_id, assigned_to").in("id", conversationIds);
+  if (conversationsError) throw conversationsError;
+  const conversationById = new Map(conversations.map((c) => [c.id, c]));
+
+  const opportunityIds = [...new Set(conversations.map((c) => c.opportunity_id).filter((id): id is string => Boolean(id)))];
+  const { data: opportunities, error: opportunitiesError } = opportunityIds.length
+    ? await supabase.from("opportunity").select("id, estimated_value, currency").in("id", opportunityIds)
+    : { data: [] as { id: string; estimated_value: number | null; currency: string }[], error: null };
+  if (opportunitiesError) throw opportunitiesError;
+  const opportunityById = new Map(opportunities.map((o) => [o.id, o]));
+
+  const partyIds = [...new Set(interactions.map((i) => i.party_id).filter((id): id is string => Boolean(id)))];
+  const core = await createCoreClient({ schema: "core" });
+  const { data: parties, error: partiesError } = partyIds.length
+    ? await core.from("parties").select("id, name").in("id", partyIds)
+    : { data: [] as { id: string; name: string }[], error: null };
+  if (partiesError) throw partiesError;
+  const partyNameById = new Map(parties.map((p) => [p.id, p.name]));
+
+  const now = new Date();
+  return interactions.map((interaction) => {
+    const conversation = conversationById.get(interaction.conversation_id);
+    const opportunity = conversation?.opportunity_id ? opportunityById.get(conversation.opportunity_id) : undefined;
+    const queueRow = toPotentialLostBusinessQueueRow(
+      {
+        interactionId: interaction.id,
+        conversationId: interaction.conversation_id,
+        partyId: interaction.party_id,
+        channel: interaction.channel,
+        contentExcerpt: interaction.content_excerpt,
+        occurredAt: interaction.occurred_at,
+        intent: interaction.intent,
+        opportunityId: conversation?.opportunity_id ?? null,
+        responseDueAt: interaction.response_due_at,
+      },
+      now,
+    );
+    return {
+      ...queueRow,
+      partyName: interaction.party_id ? (partyNameById.get(interaction.party_id) ?? null) : null,
+      opportunityValue: opportunity?.estimated_value ?? null,
+      opportunityCurrency: opportunity?.currency ?? null,
+      ownerId: conversation?.assigned_to ?? null,
+    };
+  });
 }
 
 /** CRM-02.3's relationship timeline needs a party's full interaction history, most

@@ -930,3 +930,43 @@ rows, the cleared row's status, not-actionable's status/requires_response/respon
 distinction, cross-tenant isolation). No new migration -- `requires_response`,
 `responded_at`, and the `ignored` status value all already existed on `crm.interaction`
 from CRM-01.2/01.5.
+
+## CRM-09.2 (2026-09-11)
+
+"Potential Lost Business Queue" -- the backlog's own framing: "a primary dashboard, not
+a hidden report," meant to read as "here is the business I might lose today," not a
+contact database (Section 10's explicit UX principle). New route `crm/lost-business`,
+added to the nav under Overview (both `module-registry` and `module-crm/manifest.ts`,
+hand-synced as always) right after Conversations, per Section 10's own suggested nav
+order.
+
+`lib/interactions/queries.ts#listPotentialLostBusinessQueue()` builds on
+`getOpenCommercialInteractions()` -- already exactly the right base set; that function's
+own doc comment (written back in CRM-01.3) already anticipated this exact story. Enriches
+each interaction via the same separate-batched-lookups pattern this module uses
+everywhere (never a cross-schema embed): its conversation (for `opportunity_id`/
+`assigned_to`), that opportunity's `estimated_value`, and the sender's `core.parties`
+name.
+
+The backlog's exact show-list is age, person/company, channel, message excerpt, intent,
+related product, opportunity value if known, owner, SLA status. Two of those render an
+honest em dash for now: `intent` (a real `crm.interaction` column, but nothing writes to
+it until CRM-09.3's classifier exists) and "related product" (would come from
+`crm.product_interest`, but associating it to a conversation/interaction is CRM-10.1's
+own not-yet-built story) -- same "real column, empty until its own story lands"
+discipline `conversations/queue.ts` already established for `highIntent`/`overdue`.
+"SLA status" reuses `response_due_at`/`overdue` the same way -- always "On track" until
+CRM-05.5 (SLA Timer, P1) starts writing business-configured due dates.
+
+New pure `lib/interactions/lost-business.ts`: `toPotentialLostBusinessQueueRow()`
+(age-in-ms + overdue, unit tested against a fixed clock) and `formatAge()` (compact
+"45m"/"5h"/"3d" display, also unit tested). No actions on this page -- "Respond / Create
+Lead / Create Opportunity / Create Task / Not Relevant" is CRM-09.5's own acceptance
+criteria, not this story's ("Show" only).
+
+Verified with full monorepo typecheck, a clean `next build` (route confirmed present),
+`lint:boundaries`, and module-crm's vitest suite (8 new tests). No new RLS-harness cases
+-- this story only reads through existing RLS-protected tables (`interaction`,
+`conversation`, `opportunity`, `core.parties`), already covered by their own tenant-
+isolation tests; both CRM RLS suites re-run clean as regression checks. No new
+migration.
