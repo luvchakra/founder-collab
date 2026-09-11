@@ -7,12 +7,61 @@ import { isHighCommercialIntent } from "@cofounderai/module-crm/lib/interactions
 import type { MessageIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
 import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { Button } from "@cofounderai/core/ui/button";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { AlertTriangle } from "lucide-react";
-import { overrideInteractionIntentAction } from "./actions";
+import {
+  createLeadFromInteractionAction,
+  createOpportunityFromInteractionAction,
+  createTaskFromInteractionAction,
+  markNotRelevantAction,
+  overrideInteractionIntentAction,
+} from "./actions";
+
+/**
+ * CRM-09.5's exact action set from an unanswered message: `Respond | Create Lead |
+ * Create Opportunity | Create Task | Not Relevant`. `Respond` links straight to the
+ * conversation (CRM-07.6's reply composer already lives there); `Create Lead`/`Create
+ * Opportunity` only show when the sender is a known party (`conversion-actions.ts`'s own
+ * "existing party is reused" -- an unmatched sender's tier-5 party creation is CRM-06.4's
+ * own territory, not this one's); `Create Task` and `Not Relevant` are always available.
+ */
+function ActionsRow({ businessId, interactionId, conversationId, partyId }: { businessId: string; interactionId: string; conversationId: string; partyId: string | null }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <Button asChild size="sm" variant="outline">
+        <Link href={`/dashboard/businesses/${businessId}/crm/conversations?conversationId=${conversationId}`}>Respond</Link>
+      </Button>
+      {partyId ? (
+        <>
+          <form action={createLeadFromInteractionAction.bind(null, businessId, interactionId)}>
+            <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+              Create Lead
+            </SubmitButton>
+          </form>
+          <form action={createOpportunityFromInteractionAction.bind(null, businessId, interactionId)}>
+            <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+              Create Opportunity
+            </SubmitButton>
+          </form>
+        </>
+      ) : null}
+      <form action={createTaskFromInteractionAction.bind(null, businessId, interactionId)}>
+        <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+          Create Task
+        </SubmitButton>
+      </form>
+      <form action={markNotRelevantAction.bind(null, businessId, interactionId)}>
+        <SubmitButton size="sm" variant="ghost" pendingText="Marking...">
+          Not Relevant
+        </SubmitButton>
+      </form>
+    </div>
+  );
+}
 
 const MESSAGE_INTENTS: MessageIntent[] = [
   "pricing",
@@ -58,9 +107,9 @@ function IntentForm({ businessId, interactionId, intent }: { businessId: string;
  * empty rather than fabricated). `intent` is now real (CRM-09.3) and CRM-09.4 makes high
  * commercial intent (`pricing`/`availability`/`purchase_intent`/`appointment`) visually
  * obvious with a destructive-variant badge, plus an inline correction form since the
- * classifier is a rough guess a human can override. No other actions here --
- * "Respond / Create Lead / Create Opportunity / Create Task / Not Relevant" is CRM-09.5's
- * own story.
+ * classifier is a rough guess a human can override. CRM-09.5's action row
+ * (`ActionsRow`, above) adds the backlog's exact `Respond | Create Lead | Create
+ * Opportunity | Create Task | Not Relevant` set per row.
  *
  * Oldest first (desktop table, cards below `md` per docs/design/claude-ui-design-rules.md
  * rule 5) -- the longest-unanswered message is the most urgent one to see first.
@@ -105,6 +154,7 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
                   <Badge variant={row.ownerId ? "secondary" : "outline"}>{employeeById.get(row.ownerId ?? "")?.full_name ?? "Unassigned"}</Badge>
                 </div>
                 <IntentForm businessId={businessId} interactionId={row.interactionId} intent={row.intent} />
+                <ActionsRow businessId={businessId} interactionId={row.interactionId} conversationId={row.conversationId} partyId={row.partyId} />
               </li>
             ))}
           </ul>
@@ -119,7 +169,8 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
                 <TableHead>Intent</TableHead>
                 <TableHead>Opportunity value</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead className="text-right">SLA</TableHead>
+                <TableHead>SLA</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -150,8 +201,11 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
                   <TableCell>
                     <Badge variant={row.ownerId ? "secondary" : "outline"}>{employeeById.get(row.ownerId ?? "")?.full_name ?? "Unassigned"}</Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell>
                     <Badge variant={row.overdue ? "destructive" : "outline"}>{row.overdue ? "Overdue" : "On track"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <ActionsRow businessId={businessId} interactionId={row.interactionId} conversationId={row.conversationId} partyId={row.partyId} />
                   </TableCell>
                 </TableRow>
               ))}
