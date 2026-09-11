@@ -354,7 +354,7 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
   const fsm = await createClient();
   const { data: opportunity, error: oppError } = await fsm
     .from("opportunities")
-    .select("id, status, converted_job_id")
+    .select("id, status, converted_job_id, created_at")
     .eq("business_id", businessId)
     .eq("id", fsmOpportunityId)
     .maybeSingle();
@@ -373,10 +373,18 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
   if (estimateError) return { ok: false, error: estimateError.message };
 
   let jobStatus: string | null = null;
+  let jobCreatedAt: string | null = null;
+  let jobCompletedAt: string | null = null;
   if (opportunity.converted_job_id) {
-    const { data: job, error: jobError } = await fsm.from("jobs").select("status").eq("id", opportunity.converted_job_id).maybeSingle();
+    const { data: job, error: jobError } = await fsm
+      .from("jobs")
+      .select("status, created_at, completed_at")
+      .eq("id", opportunity.converted_job_id)
+      .maybeSingle();
     if (jobError) return { ok: false, error: jobError.message };
     jobStatus = job?.status ?? null;
+    jobCreatedAt = job?.created_at ?? null;
+    jobCompletedAt = job?.completed_at ?? null;
   }
 
   return {
@@ -388,6 +396,9 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
       estimateStatus: estimate?.status ?? null,
       jobId: opportunity.converted_job_id ?? null,
       jobStatus,
+      fsmOpportunityCreatedAt: opportunity.created_at,
+      jobCreatedAt,
+      jobCompletedAt,
     },
   };
 }

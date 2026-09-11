@@ -91,3 +91,17 @@ Priority order (first match wins, "one primary next action"): accepted-quote-no-
 Verified with full monorepo typecheck (clean), `lint:boundaries` (946 files, no violations), module-crm's vitest suite (138/138 -- 6 new cases covering every priority branch plus the "nothing applicable" empty case), and a clean `next build`. No migration.
 
 **Status**: 2 of 29 in-scope stories done. Next: INT-01.3, Journey State History.
+
+### INT-01.3 — Journey State History (2026-09-11)
+
+New `listOpportunityJourneyHistory(businessId, opportunityId)` in `module-crm/src/lib/timeline/queries.ts` -- the same "merge each module's own rows, sort by time" shape `listRelationshipTimeline()` (CRM-02.3) already established right above it in this file, scoped to one opportunity instead of a party's whole history, and extended with the state transitions this backlog's own journey introduces (a product linked, an FSM quote/job created/completed). Reuses that function's own query patterns directly rather than a second timeline mechanism.
+
+Two small, additive extensions this story needed and made: (1) `TimelineSource` gained `crm.opportunity` and `inventory.product_interest` values (2 new module-attribution tags, the type's own existing job); (2) `module-fsm/src/contract/index.ts`'s `getFsmQuoteStatus()` now also returns `fsmOpportunityCreatedAt`/`jobCreatedAt`/`jobCompletedAt` -- already-available columns (`fsm.opportunities.created_at`, `fsm.jobs.created_at`/`completed_at`) it simply wasn't selecting before, so "FSM job created" and "FSM job completed" can be two real, separately-timestamped history entries instead of one entry that always sorts to "now" (the compromise `listRelationshipTimeline()`'s own fsm.quote entry still makes, unchanged, since that entry represents live status for a party's timeline, not this story's own opportunity-scoped history). Purely additive to `FsmQuoteStatus` -- every existing caller (CRM-11.2/11.4, INT-01.1) is unaffected.
+
+"Duplicate events do not duplicate visible business outcomes" and "out-of-order events do not corrupt state" both hold structurally: this reads directly from each module's own source-of-truth rows (no new event log of its own to replay or de-duplicate), so a real-world fact appears here exactly once because it exists exactly once in its owning table, in whatever order the underlying timestamps actually fall.
+
+**UI**: a new "History" card at the bottom of the opportunity detail page, the identical row-rendering block (label/detail/timestamp, clickable when `detailHref` is set) Customer 360's own Timeline card already uses -- copy-pasted rather than extracted into a shared component, matching this codebase's existing preference for two small duplicated blocks over a premature shared one (CLAUDE.md principle 1).
+
+Verified with full monorepo typecheck (clean), `lint:boundaries` (946 files, no violations), module-crm's vitest suite (138/138, unchanged -- this story's own logic is a direct extension of the already-untested `listRelationshipTimeline()` precedent, not new pure logic of its own), and a clean `next build`. No migration.
+
+**Status**: 3 of 29 in-scope stories done -- **Epic INT-01 complete** (3/3). Next: INT-02.1, the Fulfillment Requirement Gate (starts Epic INT-02).

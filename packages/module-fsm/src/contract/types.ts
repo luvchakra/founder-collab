@@ -68,6 +68,13 @@ export type FsmQuoteStatus = {
   estimateStatus: string | null;
   jobId: string | null;
   jobStatus: string | null;
+  /** INT-01.3's "Journey State History" -- already-available timestamp columns, added
+   * so a cross-module history view can place these state changes on a real timeline
+   * instead of always sorting to "now" (the pattern `timeline/queries.ts`'s own
+   * fsm.quote entry used before this field existed). */
+  fsmOpportunityCreatedAt: string;
+  jobCreatedAt: string | null;
+  jobCompletedAt: string | null;
 };
 
 /** CRM-14.5's "CRM -> FSM Funnel": `opportunity -> quote -> accepted -> job ->

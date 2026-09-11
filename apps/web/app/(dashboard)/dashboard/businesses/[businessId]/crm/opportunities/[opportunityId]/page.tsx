@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
+import { listOpportunityJourneyHistory } from "@cofounderai/module-crm/lib/timeline/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
@@ -90,6 +91,7 @@ export default async function OpportunityDetailPage({
     getFsmQuoteStatusForOpportunity(businessId, opportunity),
     resolveCommercialJourney(businessId, opportunityId),
   ]);
+  const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
   const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
   const stage = stages.find((s) => s.id === opportunity.stage_id);
   const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
@@ -490,6 +492,34 @@ export default async function OpportunityDetailPage({
                 <SubmitButton pendingText="Adding...">Add contact</SubmitButton>
               </form>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {journeyHistory.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">History</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col divide-y">
+            {journeyHistory.map((entry) => {
+              const row = (
+                <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+                  <div>
+                    <p>{entry.label}</p>
+                    {entry.detail ? <p className="text-muted-foreground">{entry.detail}</p> : null}
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatDate(entry.occurredAt)}</span>
+                </div>
+              );
+              return entry.detailHref ? (
+                <Link key={entry.id} href={entry.detailHref} className="hover:bg-muted/50">
+                  {row}
+                </Link>
+              ) : (
+                <div key={entry.id}>{row}</div>
+              );
+            })}
           </CardContent>
         </Card>
       ) : null}
