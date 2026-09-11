@@ -3,6 +3,7 @@ import type { SignalCorrelation } from "../signals/types";
 import { getOpportunity } from "./queries";
 import { computeOpportunityScore, type ScoreComponents } from "./scoring";
 import type { Opportunity, OpportunityStatus } from "./types";
+import { computeWhyNow } from "./why-now";
 
 type CreateOpportunityInput = {
   prospectId: string;
@@ -94,6 +95,45 @@ export async function attachSignalCorrelation(opportunityId: string, correlation
     needFit: current.need_fit_score,
     timing: current.timing_score,
     signalStrength: CORRELATION_CONFIDENCE_TO_SIGNAL_STRENGTH[correlation.confidence],
+    contactability: current.contactability_score,
+    evidenceConfidence: current.evidence_confidence_score,
+  });
+}
+
+/**
+ * DISC-OFFER-P0-05.4: "Why Now" -- writes the doc's own why_now_summary/timing_strength/
+ * confidence outputs (why_now's "supporting signals"/"evidence" are already covered by
+ * `correlation.signal_ids` itself, retrievable via the opportunity's own
+ * `signal_correlation_id` -- no separate storage needed for those two) and wires
+ * `timingScore` into the `timing` score component the same way `attachSignalCorrelation`
+ * wires `signalStrength` -- reusing `setOpportunityScoreComponents` so `score` can never
+ * be written except through `computeOpportunityScore`. Pass `null` for `correlation`
+ * when there is nothing to base a why-now claim on (no false precision: this clears any
+ * previous claim rather than leaving a stale one standing).
+ */
+export async function setOpportunityWhyNow(opportunityId: string, correlation: SignalCorrelation | null): Promise<Opportunity> {
+  const current = await getOpportunity(opportunityId);
+  if (!current) throw new Error("Opportunity not found.");
+
+  const result = computeWhyNow(correlation);
+
+  const supabase = await createClient();
+  const { error: whyNowError } = await supabase
+    .from("opportunities")
+    .update({
+      why_now: result.summary,
+      timing_strength: result.timingStrength,
+      why_now_confidence: result.confidence,
+    })
+    .eq("id", opportunityId);
+  if (whyNowError) throw whyNowError;
+
+  return setOpportunityScoreComponents(opportunityId, {
+    icpFit: current.icp_fit_score,
+    buyerFit: current.buyer_fit_score,
+    needFit: current.need_fit_score,
+    timing: result.timingScore,
+    signalStrength: current.signal_strength_score,
     contactability: current.contactability_score,
     evidenceConfidence: current.evidence_confidence_score,
   });
