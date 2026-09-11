@@ -22,6 +22,7 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { CalendarClock, CheckCircle2, ListTodo, Package, Star, Trash2, Users, Wrench } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
 import { JourneyBadge } from "../journey-badge";
+import { FulfillmentGate } from "../fulfillment-gate";
 import { assignOpportunityAction, updateOpportunityValueAction } from "../actions";
 import {
   addOpportunityContactAction,
@@ -34,8 +35,10 @@ import {
   createOpportunityNextActionAction,
   removeOpportunityContactAction,
   removeOpportunityProductAction,
+  setFulfillmentRequirementAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
+import { suggestFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
 
 const FOLLOW_UP_PRIORITIES = ["low", "normal", "high"] as const;
 
@@ -163,6 +166,11 @@ export default async function OpportunityDetailPage({
               <JourneyBadge module="FSM" section={journey.fsm} />
             </div>
             {journey.blockedReason ? <p className="text-sm text-destructive">{journey.blockedReason}</p> : null}
+            <FulfillmentGate
+              value={opportunity.fulfillment_requirement}
+              suggested={suggestFulfillmentRequirement(products.length > 0, Boolean(opportunity.fsm_opportunity_id))}
+              action={setFulfillmentRequirementAction.bind(null, businessId, opportunityId)}
+            />
             {crossModuleAction?.primary ? (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Next:</span>

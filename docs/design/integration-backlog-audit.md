@@ -105,3 +105,15 @@ Two small, additive extensions this story needed and made: (1) `TimelineSource` 
 Verified with full monorepo typecheck (clean), `lint:boundaries` (946 files, no violations), module-crm's vitest suite (138/138, unchanged -- this story's own logic is a direct extension of the already-untested `listRelationshipTimeline()` precedent, not new pure logic of its own), and a clean `next build`. No migration.
 
 **Status**: 3 of 29 in-scope stories done -- **Epic INT-01 complete** (3/3). Next: INT-02.1, the Fulfillment Requirement Gate (starts Epic INT-02).
+
+### INT-02.1 — Fulfillment Requirement Gate (2026-09-11)
+
+New nullable `crm.opportunity.fulfillment_requirement` column (migration `20260911002000`, check-constrained to `inventory_required`/`service_only`/`product_and_service`/`fulfilled_externally`/`not_required`). Deliberately never auto-written: `suggestFulfillmentRequirement(hasProducts, hasFsmEngagement)` in the new `lib/opportunities/fulfillment.ts` is a pure, unit-tested deterministic default (4 cases) that only ever pre-selects a dropdown -- `setFulfillmentRequirement()` is the one and only place the column is ever written, always by an explicit human submit, so a founder's own override (e.g. "fulfilled externally" for something shipped outside the system before this story existed) can never be silently recomputed out from under them by a later story reading the same signals.
+
+**UI**: a new `FulfillmentGate` component (`crm/opportunities/fulfillment-gate.tsx`) on the opportunity detail page's Journey card -- a plain server-action form (no client component needed, same shape as the existing Owner-assign form on this page), showing the confirmed value or the suggested default pre-selected, "Confirm"/"Update" depending on which. Scope decision: this gate is exposed prominently on the detail page rather than hard-blocking the Kanban drag-to-won action -- intercepting that client-side drag-and-drop flow with a synchronous confirmation step would be a materially bigger UX change than this story's own acceptance criteria ask for ("explicit before opportunity closure **where applicable**"); the gate is visible and unmissable on the page a founder actually works an opportunity from, satisfying the intent without redesigning the Kanban interaction.
+
+Also fixed an existing `types.test.ts` fixture (the `Opportunity` object builder) to include the new field, required for the new column to typecheck against every existing caller.
+
+Verified with full monorepo typecheck (clean), `lint:boundaries` (949 files, no violations), `lint:migrations` (83 migrations, no violations), module-crm's vitest suite (142/142 -- 4 new), a live migration application to the dev Supabase project followed by `get_advisors` (identical pre-existing findings only, no new one from this column), and a clean `next build`.
+
+**Status**: 4 of 29 in-scope stories done. Next: INT-02.2, Create Inventory Fulfillment/Reservation Request.

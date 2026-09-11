@@ -8,6 +8,8 @@ import {
   setPrimaryOpportunityContact,
 } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { setOpportunityNextAction, createFsmQuoteForOpportunity, createJobFromFsmQuote } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import { setFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
+import type { FulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/types";
 import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
 import type { ActivityType } from "@cofounderai/module-crm/lib/activities/types";
 import { completeFollowUp, createFollowUp } from "@cofounderai/module-crm/lib/follow-ups/mutations";
@@ -93,5 +95,14 @@ export async function createFsmQuoteAction(businessId: string, opportunityId: st
 /** CRM-11.3's "Accepted Quote -> Job" button ("User action: Create Job in FSM"). */
 export async function createFsmJobAction(businessId: string, opportunityId: string): Promise<void> {
   await createJobFromFsmQuote(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-02.1's fulfillment-gate form action -- the human's explicit confirm/override of
+ * the suggested default. */
+export async function setFulfillmentRequirementAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const value = String(formData.get("fulfillmentRequirement") || "") as FulfillmentRequirement;
+  if (!value) return;
+  await setFulfillmentRequirement(businessId, opportunityId, value);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

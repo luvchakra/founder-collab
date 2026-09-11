@@ -1,5 +1,11 @@
 export type OpportunityStatus = "open" | "won" | "lost";
 
+/** INT-02.1's "Fulfillment Requirement Gate" -- an explicit CRM-owned classification,
+ * not auto-derived and overwritten on every read (see `fulfillment.ts`'s own
+ * `suggestFulfillmentRequirement()` for the deterministic *default* a user confirms or
+ * overrides). Null means "not yet gated." */
+export type FulfillmentRequirement = "inventory_required" | "service_only" | "product_and_service" | "fulfilled_externally" | "not_required";
+
 export type OpportunityStage = {
   id: string;
   business_id: string;
@@ -34,6 +40,8 @@ export type Opportunity = {
    * here ("no duplicated quote master in CRM"). Bare id, no FK -- fsm.opportunities lives
    * in another module's schema. */
   fsm_opportunity_id: string | null;
+  /** INT-02.1. Null until a human confirms or overrides the suggested default. */
+  fulfillment_requirement: FulfillmentRequirement | null;
   created_at: string;
   updated_at: string;
 };
