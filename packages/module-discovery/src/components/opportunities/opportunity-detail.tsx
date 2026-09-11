@@ -24,6 +24,9 @@ import {
   type Opportunity,
   type OpportunityStatus,
 } from "../../lib/opportunities/types";
+import { SendToCrmButton } from "./send-to-crm-button";
+
+type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolean } } | { ok: false; error: string };
 
 const STATUS_OPTIONS: OpportunityStatus[] = ["new", "reviewing", "action_required", "watching", "dismissed", "expired"];
 
@@ -61,7 +64,9 @@ export function OpportunityDetail({
   researchBrief,
   primaryContact,
   scoreHistory,
+  hasParty,
   updateStatusAction,
+  sendToCrmAction,
 }: {
   businessId: string;
   productId: string;
@@ -72,7 +77,12 @@ export function OpportunityDetail({
   researchBrief: ResearchBrief | null;
   primaryContact: BuyerPersonIntelligence | null;
   scoreHistory: ProspectScore[];
+  /** Whether this prospect has a linked `core.parties` row yet -- same gate
+   * `PromoteToCrmButton` (CRM-03.1) already uses; a prospect with no contact recorded
+   * has nothing for a CRM lead to attach to. */
+  hasParty: boolean;
   updateStatusAction: (formData: FormData) => Promise<void>;
+  sendToCrmAction: () => Promise<PromoteResult>;
 }) {
   const prospectPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospect.id}`;
 
@@ -95,11 +105,15 @@ export function OpportunityDetail({
         </div>
       </div>
 
-      {/* "Actions must be clearly grouped" (doc's own words) -- the one action this view
-          owns directly: a manual status override, kept apart from every read-only
-          section below it. */}
-      <section className="flex flex-col gap-2 rounded-md border p-4">
+      {/* "Actions must be clearly grouped" (doc's own words) -- two distinct groups:
+          the offering-aware CRM handoff (DISC-OFFER-P0-08.1) this opportunity's own
+          data supports, and a plain manual status override for everything else. */}
+      <section className="flex flex-col gap-3 rounded-md border p-4">
         <h2 className="font-medium">Actions</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <SendToCrmButton hasParty={hasParty} sendAction={sendToCrmAction} />
+          <span className="text-xs text-muted-foreground">Score, why-them/now, research brief, and recommended action travel with it.</span>
+        </div>
         <form action={updateStatusAction} className="flex flex-wrap items-center gap-2">
           <NativeSelect name="status" defaultValue={opportunity.status} className="w-auto">
             {STATUS_OPTIONS.map((s) => (
@@ -112,9 +126,6 @@ export function OpportunityDetail({
             Update status
           </SubmitButton>
         </form>
-        <p className="text-xs text-muted-foreground">
-          Sending to CRM is a dedicated handoff, not a plain status change -- see the prospect page's own "Send to CRM" action.
-        </p>
       </section>
 
       <section className="flex flex-col gap-3 rounded-md border p-4">

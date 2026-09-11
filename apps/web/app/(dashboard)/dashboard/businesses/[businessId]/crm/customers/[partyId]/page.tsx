@@ -343,6 +343,49 @@ export default async function CustomerPanelPage({
                 </Link>
               </div>
             ) : null}
+
+            {/* DISC-OFFER-P0-08.1: "Offering-Aware CRM Handoff" -- read live from
+                Discovery's own contract (`ContractOpportunitySummary`), not copied at
+                promotion time, so this always reflects the opportunity's current state
+                even after the lead exists. */}
+            {customer360.prospect.latestOpportunity ? (
+              <div className="flex flex-col gap-1 border-t pt-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">Opportunity</p>
+                  <div className="flex gap-2">
+                    {customer360.prospect.latestOpportunity.score !== null ? (
+                      <Badge variant="secondary">Score {customer360.prospect.latestOpportunity.score}</Badge>
+                    ) : (
+                      <Badge variant="outline">Insufficient evidence</Badge>
+                    )}
+                    <Badge variant="outline">{customer360.prospect.latestOpportunity.priority} priority</Badge>
+                  </div>
+                </div>
+                {customer360.prospect.latestOpportunity.whyThem ? (
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">Why them: </span>
+                    {customer360.prospect.latestOpportunity.whyThem}
+                  </p>
+                ) : null}
+                {customer360.prospect.latestOpportunity.whyNow ? (
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">Why now: </span>
+                    {customer360.prospect.latestOpportunity.whyNow}
+                  </p>
+                ) : null}
+                {customer360.prospect.latestOpportunity.recommendedAction ? (
+                  <p className="text-muted-foreground">
+                    <span className="font-medium text-foreground">Discovery recommends: </span>
+                    {customer360.prospect.latestOpportunity.recommendedAction}
+                  </p>
+                ) : null}
+                {customer360.prospect.latestOpportunity.discoveryDefinitionName ? (
+                  <p className="text-xs text-muted-foreground">
+                    Surfaced by discovery definition &quot;{customer360.prospect.latestOpportunity.discoveryDefinitionName}&quot;
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

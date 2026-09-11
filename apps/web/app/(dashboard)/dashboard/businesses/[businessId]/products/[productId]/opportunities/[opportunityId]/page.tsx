@@ -9,7 +9,7 @@ import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/l
 import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { OpportunityDetail } from "@cofounderai/module-discovery/components/opportunities/opportunity-detail";
-import { updateOpportunityStatusAction } from "./actions";
+import { sendOpportunityToCrmAction, updateOpportunityStatusAction } from "./actions";
 
 export default async function OpportunityDetailPage({
   params,
@@ -51,7 +51,9 @@ export default async function OpportunityDetailPage({
       researchBrief={researchBrief}
       primaryContact={primaryContact}
       scoreHistory={scoreHistory}
+      hasParty={Boolean(prospect.party_id)}
       updateStatusAction={updateOpportunityStatusAction.bind(null, businessId, productId, opportunity.id)}
+      sendToCrmAction={sendOpportunityToCrmAction.bind(null, businessId, productId, opportunity.id, prospect.id, prospect.party_id ?? "")}
     />
   );
 }

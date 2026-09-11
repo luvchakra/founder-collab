@@ -10,6 +10,34 @@ export type ContractResult<T> = { ok: true; data: T } | { ok: false; error: "MOD
  * `contactHandle` describe where the lead actually came from (a WhatsApp number, an
  * Instagram handle, etc.) so the created prospect's own context carries that forward
  * rather than looking identical to one Discovery found on its own. */
+/** DISC-OFFER-P0-08.1: "Offering-Aware CRM Handoff" -- the doc's own literal "Send to
+ * CRM" field list (score/why them/why now/research brief/recommended action/discovery
+ * definition), surfaced the same *by-reference, always-current* way `buyingSignals`/
+ * `researchId` already are below, not copied into `crm.lead` at promotion time: CRM
+ * already reads this whole summary live through `getProspectSummaryForParty` (Customer
+ * 360, timeline, journey all call it today), so extending it once here means every one
+ * of those existing surfaces can show the richer opportunity context without each
+ * needing its own new cross-module call. Null when the prospect has no opportunity yet
+ * (05.1 -- most prospects still won't, since the signal-matching pipeline that creates
+ * one is Phase E). "Selected contact" and "account" from the doc's own list aren't
+ * separate fields here: the account is the party this whole summary already hangs off
+ * of, and a Discovery contact is mirrored into `core.party_contacts` the moment it's
+ * created (`lib/contacts/mutations.ts`'s own `addPartyContact` call) -- CRM already
+ * sees it there, a shared `core` table, with no cross-module call needed at all. */
+export type ContractOpportunitySummary = {
+  opportunityId: string;
+  score: number | null;
+  confidence: "low" | "medium" | "high";
+  priority: "high" | "medium" | "low";
+  status: string;
+  whyThem: string | null;
+  whyNow: string | null;
+  recommendedAction: string | null;
+  recommendedActionReason: string | null;
+  researchBriefSummary: string | null;
+  discoveryDefinitionName: string | null;
+};
+
 /** One party's prospect/deal status, if it has one (docs/design/crm-module-design.md
  * Part B, B1's Customer 360 panel: "prospect/deal stage, if this party is or was a
  * prospect"). */
@@ -29,6 +57,11 @@ export type ContractProspectSummary = {
   buyingSignals: string[];
   researchId: string | null;
   researchedAt: string | null;
+  /** DISC-OFFER-P0-08.1's own addition -- see `ContractOpportunitySummary`'s doc
+   * comment above. The most recently created opportunity when more than one exists for
+   * this prospect, same "newest reflects current state" convention
+   * `generateResearchBrief` already established for its own opportunity lookup. */
+  latestOpportunity: ContractOpportunitySummary | null;
 };
 
 export type CreateProspectFromExternalLeadInput = {
