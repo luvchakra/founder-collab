@@ -35,6 +35,9 @@ export type Lead = {
   source_module: string | null;
   source_reference: string | null;
   owner_id: string | null;
+  /** CRM-05.2. The one activity currently designated this lead's next action --
+   * owner/due date are read from that crm.activity row, not duplicated here. */
+  next_action_id: string | null;
   created_at: string;
   updated_at: string;
 };

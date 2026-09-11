@@ -25,6 +25,9 @@ export type Opportunity = {
   currency: string;
   probability: number | null;
   expected_close_date: string | null;
+  /** CRM-05.2. The one activity currently designated this opportunity's next action --
+   * owner/due date are read from that crm.activity row, not duplicated here. */
+  next_action_id: string | null;
   created_at: string;
   updated_at: string;
 };

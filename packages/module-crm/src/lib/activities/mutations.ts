@@ -29,3 +29,19 @@ export async function createActivity(businessId: string, input: CreateActivityIn
   if (error) throw error;
   return data as Activity;
 }
+
+/** CRM-05.2's "completing an action" -- just stamps completed_at. Clearing the
+ * completed activity off its lead/opportunity's own next_action_id (so the UI's "no
+ * next action set" empty state -- and its add-next-action form -- appears in its place)
+ * is the caller's job (leads/mutations.ts#clearLeadNextAction,
+ * opportunities/mutations.ts#clearOpportunityNextAction), not this function's: an
+ * activity can be completed without ever having been anyone's "next action" at all. */
+export async function completeActivity(businessId: string, activityId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("activity")
+    .update({ completed_at: new Date().toISOString() })
+    .eq("id", activityId)
+    .eq("business_id", businessId);
+  if (error) throw error;
+}

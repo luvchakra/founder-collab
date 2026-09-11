@@ -4,8 +4,9 @@
  * (20260911000000_crm_backlog_schema_baseline.sql) -- lead, opportunity,
  * opportunity_stage, channel_connection, conversation, conversation_participant,
  * interaction, activity, follow_up, crm_note, product_interest, review_item,
- * assignment -- plus CRM-04.5's later addition, opportunity_contact
- * (20260911000500_crm_opportunity_contacts.sql). Mirrors test-crm-rls.mjs's own
+ * assignment -- plus CRM-04.5's opportunity_contact
+ * (20260911000500_crm_opportunity_contacts.sql) and CRM-05.2's lead/opportunity
+ * next_action_id (20260911000600_crm_next_action.sql). Mirrors test-crm-rls.mjs's own
  * structure (same harness, same "tenant AND licensed" pattern) but as its own file
  * rather than folding into that one, since the two schemas' tables are unrelated to each
  * other (docs/design/crm-backlog-audit.md) and a single many-table test would be
@@ -239,6 +240,22 @@ async function main() {
         "unsetting the old primary first (setPrimaryOpportunityContact()'s own two-step order) allows a new one to be set",
       );
 
+      console.log("Verifying CRM-05.2's next_action_id (one prominent next action per lead/opportunity)...");
+      const aliceNextActionActivity = psqlAsAlice(`insert into crm.activity (business_id, type, opportunity_id, owner_id, due_at) values ('${aliceBusiness}', 'call', '${aliceOpportunity}', '${aliceEmployee}', now() + interval '2 days') returning id;`);
+      psqlAsAlice(`update crm.opportunity set next_action_id = '${aliceNextActionActivity}' where id = '${aliceOpportunity}'`);
+      assertEqual(
+        psqlAsAlice(`select next_action_id from crm.opportunity where id = '${aliceOpportunity}'`),
+        aliceNextActionActivity,
+        "an opportunity can be given a next_action_id pointing at one of its own activities",
+      );
+      psqlAsAlice(`update crm.activity set completed_at = now() where id = '${aliceNextActionActivity}'`);
+      psqlAsAlice(`update crm.opportunity set next_action_id = null where id = '${aliceOpportunity}'`);
+      assertEqual(
+        psqlAsAlice(`select next_action_id from crm.opportunity where id = '${aliceOpportunity}'`),
+        "",
+        "clearing next_action_id after completing it (completeOpportunityNextActionAction()'s own two-step order) leaves it unset",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
@@ -285,6 +302,10 @@ async function main() {
       assertThrows(
         () => psqlAsBob(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id) values ('${bobBusiness}', '${aliceOpportunity}', '${aliceContact1}')`),
         "Bob cannot create an opportunity_contact against Alice's opportunity",
+      );
+      assertThrows(
+        () => psqlAsBob(`update crm.opportunity set next_action_id = '${aliceNextActionActivity}' where id = '${bobOpportunity}'`),
+        "Bob cannot point his own opportunity's next_action_id at Alice's activity",
       );
 
       console.log("\nAll crm backlog-schema RLS checks passed.");

@@ -4,6 +4,8 @@ import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getOpportunity, listStages } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
+import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
+import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getParty, listContactsForParty } from "@cofounderai/core/parties/queries";
 import { listItemsForBusiness } from "@cofounderai/core/items/queries";
 import { hasModule } from "@cofounderai/core/licensing/queries";
@@ -14,16 +16,22 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Package, Star, Trash2, Users } from "lucide-react";
+import { CheckCircle2, ListTodo, Package, Star, Trash2, Users } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
 import { updateOpportunityValueAction } from "../actions";
 import {
   addOpportunityContactAction,
   addOpportunityProductAction,
+  completeOpportunityNextActionAction,
+  createOpportunityNextActionAction,
   removeOpportunityContactAction,
   removeOpportunityProductAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
+
+const ACTIVITY_TYPES = [
+  "call", "meeting", "note", "email", "whatsapp", "social", "task", "follow_up", "quote_follow_up", "service_follow_up",
+] as const;
 
 /**
  * CRM-04.4's Opportunity detail page -- the first per-opportunity page (List/Kanban
@@ -36,6 +44,12 @@ import {
  * CRM-04.5 adds the Contacts section below: only shown for a `kind='company'` opportunity
  * party, since a `kind='person'` party has no `core.party_contacts` of its own to pick
  * from (same rule the Customer 360 page's own Contacts section already follows).
+ *
+ * CRM-05.2 adds the Next Action card right after the header, the most prominent spot on
+ * the page per that story's own "prominent next_action" wording. Completing it clears
+ * `opportunity.next_action_id` so the add-next-action form reappears in its place --
+ * that immediate reappearance is this codebase's answer to "completing an action can
+ * prompt creation of the next action," without a separate modal flow.
  */
 export default async function OpportunityDetailPage({
   params,
@@ -49,14 +63,17 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, contacts, inventoryLicensed] = await Promise.all([
+  const [party, stages, products, contacts, employees, inventoryLicensed] = await Promise.all([
     getParty(opportunity.party_id),
     listStages(businessId),
     listOpportunityProducts(businessId, opportunityId),
     listOpportunityContacts(businessId, opportunityId),
+    listEmployeeOptions(businessId),
     hasModule(businessId, "inventory"),
   ]);
   const stage = stages.find((s) => s.id === opportunity.stage_id);
+  const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
+  const ownerName = (ownerId: string | null) => employees.find((e) => e.id === ownerId)?.full_name ?? null;
 
   // ADR-10 degraded mode: no Inventory license means no product catalog to pick from,
   // so items simply isn't fetched rather than fetching and then hiding a populated list.
@@ -93,6 +110,81 @@ export default async function OpportunityDetailPage({
           </div>
         </div>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Next action</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {nextAction ? (
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="capitalize">
+                    {nextAction.type.replaceAll("_", " ")}
+                  </Badge>
+                  {nextAction.subject ? <p className="truncate font-medium">{nextAction.subject}</p> : null}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {nextAction.due_at ? `Due ${formatDate(nextAction.due_at)}` : "No due date"}
+                  {" -- "}
+                  {ownerName(nextAction.owner_id) ?? "Unassigned"}
+                </p>
+              </div>
+              <form action={completeOpportunityNextActionAction.bind(null, businessId, opportunityId, nextAction.id)}>
+                <SubmitButton variant="outline" size="sm" pendingText="Completing...">
+                  <CheckCircle2 className="size-4" aria-hidden="true" />
+                  Complete
+                </SubmitButton>
+              </form>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <EmptyState icon={ListTodo} message="No next action set." />
+              <form action={createOpportunityNextActionAction.bind(null, businessId, opportunityId)} className="flex flex-wrap items-end gap-2">
+                <div className="flex min-w-32 flex-col gap-1.5">
+                  <label htmlFor="type" className="text-xs text-muted-foreground">
+                    Type
+                  </label>
+                  <NativeSelect id="type" name="type" defaultValue="task">
+                    {ACTIVITY_TYPES.map((type) => (
+                      <option key={type} value={type} className="capitalize">
+                        {type.replaceAll("_", " ")}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+                  <label htmlFor="subject" className="text-xs text-muted-foreground">
+                    Subject
+                  </label>
+                  <Input id="subject" name="subject" placeholder="e.g. Send pricing" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="dueAt" className="text-xs text-muted-foreground">
+                    Due
+                  </label>
+                  <Input id="dueAt" name="dueAt" type="date" />
+                </div>
+                <div className="flex min-w-36 flex-col gap-1.5">
+                  <label htmlFor="ownerId" className="text-xs text-muted-foreground">
+                    Owner
+                  </label>
+                  <NativeSelect id="ownerId" name="ownerId" defaultValue="">
+                    <option value="">Unassigned</option>
+                    {employees.map((employee) => (
+                      <option key={employee.id} value={employee.id}>
+                        {employee.full_name ?? employee.email ?? "Unnamed"}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <SubmitButton pendingText="Adding...">Add next action</SubmitButton>
+              </form>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {inventoryLicensed ? (
         <Card>

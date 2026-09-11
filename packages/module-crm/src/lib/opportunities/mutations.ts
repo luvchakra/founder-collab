@@ -108,3 +108,15 @@ export async function updateOpportunityValue(
     .eq("business_id", businessId);
   if (error) throw error;
 }
+
+/** CRM-05.2: designates one activity (already attached to this opportunity) as its
+ * next action, or clears it (`activityId: null`). */
+export async function setOpportunityNextAction(businessId: string, opportunityId: string, activityId: string | null): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("opportunity")
+    .update({ next_action_id: activityId })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (error) throw error;
+}

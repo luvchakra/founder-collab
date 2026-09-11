@@ -7,6 +7,9 @@ import {
   removeOpportunityContact,
   setPrimaryOpportunityContact,
 } from "@cofounderai/module-crm/lib/opportunities/contacts";
+import { setOpportunityNextAction } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
+import type { ActivityType } from "@cofounderai/module-crm/lib/activities/types";
 
 function opportunityPath(businessId: string, opportunityId: string) {
   return `/dashboard/businesses/${businessId}/crm/opportunities/${opportunityId}`;
@@ -41,5 +44,25 @@ export async function removeOpportunityContactAction(businessId: string, opportu
 
 export async function setPrimaryOpportunityContactAction(businessId: string, opportunityId: string, opportunityContactId: string): Promise<void> {
   await setPrimaryOpportunityContact(businessId, opportunityId, opportunityContactId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** CRM-05.2's add-next-action form action: creates the activity, then designates it. */
+export async function createOpportunityNextActionAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const type = String(formData.get("type") || "task") as ActivityType;
+  const subject = String(formData.get("subject") || "") || null;
+  const dueAt = String(formData.get("dueAt") || "") || null;
+  const ownerId = String(formData.get("ownerId") || "") || null;
+  const activity = await createActivity(businessId, { type, subject, opportunityId, dueAt, ownerId });
+  await setOpportunityNextAction(businessId, opportunityId, activity.id);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** CRM-05.2's "completing an action can prompt creation of the next action" -- clearing
+ * next_action_id here is what makes the add-next-action form reappear right where the
+ * completed one was, once the page revalidates. */
+export async function completeOpportunityNextActionAction(businessId: string, opportunityId: string, activityId: string): Promise<void> {
+  await completeActivity(businessId, activityId);
+  await setOpportunityNextAction(businessId, opportunityId, null);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

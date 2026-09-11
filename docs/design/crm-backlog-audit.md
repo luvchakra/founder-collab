@@ -423,6 +423,39 @@ supported by `CreateActivityInput`. Recorded here rather than silently skipped s
 story count and the "what's done and why" trail both stay accurate. No files changed for
 this story.
 
+## CRM-05.2 (2026-09-11)
+
+Adds "Next Action": `next_action_id` on both `crm.lead` and `crm.opportunity`, a plain
+nullable FK into `crm.activity`. A straight FK column already guarantees "at most one"
+for free -- no partial unique index needed here, unlike CRM-04.5's opportunity_contact
+primary-contact case where many rows could otherwise all claim to be primary. Owner and
+due date are read live from the linked activity's own `owner_id`/`due_at`, never
+duplicated onto lead/opportunity.
+
+UI lives on the Opportunity detail page only, in the most prominent spot (right after
+the header) per the story's own "prominent next_action" wording: a card showing type,
+subject, due date, owner, with a "Complete" action, or -- when unset -- an inline
+add-next-action form (type/subject/due date/owner). "Completing an action can prompt
+creation of the next action" is implemented as: completing clears `next_action_id`
+(`completeOpportunityNextActionAction`), so the add-next-action form reappears in the
+same spot on the next render -- no separate modal flow needed for that prompt.
+
+Schema and mutations (`setLeadNextAction`/`setOpportunityNextAction` in each domain's own
+`mutations.ts`) cover leads too, since the story says "every active lead/opportunity" --
+but no Lead detail page exists yet for a next-action UI to live on (the Leads page is
+still list-only, CRM-04.1), so the Lead-side UI is deliberately deferred to whichever
+future story adds one, rather than building a UI with no natural home. This mirrors
+CRM-04.5's `role` column: schema ready now, UI wired up as it becomes needed.
+
+New RLS cases: an opportunity can be given a next_action_id pointing at its own
+activity; clearing it after completion leaves it unset; Bob cannot point his own
+opportunity's next_action_id at Alice's activity.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+`lint:migrations`, module-crm's vitest suite, and both CRM RLS test suites (against a
+harness DB with this migration applied). Migration `20260911000600_crm_next_action.sql`
+applied to dev Supabase; no new advisor findings.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

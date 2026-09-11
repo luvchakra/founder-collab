@@ -174,3 +174,13 @@ export async function updateLeadStatus(businessId: string, leadId: string, statu
 
   return data as Lead;
 }
+
+/** CRM-05.2: designates one activity (already attached to this lead) as its next
+ * action, or clears it (`activityId: null`) -- e.g. right after that activity is
+ * completed, so the UI's "no next action set" empty state (and its add-next-action
+ * form) takes its place. */
+export async function setLeadNextAction(businessId: string, leadId: string, activityId: string | null): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("lead").update({ next_action_id: activityId }).eq("id", leadId).eq("business_id", businessId);
+  if (error) throw error;
+}

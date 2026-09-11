@@ -16,6 +16,7 @@ function opp(overrides: Partial<Opportunity>): Opportunity {
     currency: "INR",
     probability: null,
     expected_close_date: null,
+    next_action_id: null,
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
     ...overrides,
