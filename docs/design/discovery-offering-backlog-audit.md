@@ -41,7 +41,7 @@ only genuine architectural/key decisions are raised.
 | | 07.2 | Today's Opportunities | Done |
 | | 07.3 | Opportunity Detail | Done |
 | D | 08.1 | Offering-Aware CRM Handoff | Done |
-| | 08.2 | Existing Relationship Detection | Not started |
+| | 08.2 | Existing Relationship Detection | Done |
 | | 08.3 | Handoff Status | Not started |
 | E | 09.1 | Website URL Business Onboarding | Not started |
 | | 09.2 | Website Crawl & Content Discovery | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**23 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**24 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1391,3 +1391,62 @@ block, both of which render against real dev data with zero opportunity rows tod
 
 **Status**: 23 of 68 in-scope stories done -- Phase D continuing. Next: 08.2, Existing
 Relationship Detection.
+
+### 08.2 — Existing Relationship Detection (2026-09-11)
+
+Checked for existing dedupe logic before building anything: `ensureProspectParty`
+(`lib/prospects/party-sync.ts`) already prevents a *second* CRM lead for the *same*
+Discovery prospect (idempotent on `source_reference=prospectId`, established well before
+this backlog), but it always creates a brand-new `core.parties` row for a genuinely new
+prospect with no fuzzy check against parties this business already has under a different
+id -- the real gap the doc's own "prevent duplicate party/relationship creation" targets.
+Fixing that gap by silently merging or blocking would itself be a destructive,
+speculative action this platform's own discipline (recommended actions, negative
+signals -- surface, never silently decide) argues against; the honest fix is "before
+handoff classify" (the doc's own words) and let a human decide, exactly what this story
+builds.
+
+New `module-crm/src/lib/relationships/` -- `classifyExistingRelationship()` (`detect.ts`)
+is pure and deterministic (CLAUDE.md dev principle #4/#5), given a narrow, testable input
+shape (`RelationshipCandidateParty[]` + an optional contact-email match), mirroring the
+same "only what this rule needs" precedent `NegativeSignalDetectionInput`/`ScoreComponents`
+(module-discovery) already set. Priority order matches how far along a relationship
+already is: an exact company-name match that's already a `customer` (via
+`core.party_roles`) outranks one with an open `crm.opportunity`, which outranks one with
+only an open `crm.lead`, which outranks a bare exact-name match with no established
+relationship at all (`potential_duplicate`); a contact-email match under a *different*
+party (same person, possibly a different company now) outranks a merely-fuzzy name
+match; no match at all is `new_prospect`. Seven new vitest cases cover the full priority
+ladder plus the email-match-beats-fuzzy-match rule. `queries.ts` gathers the real
+`core.parties`/`core.party_roles`/`crm.lead`/`crm.opportunity` data (case-insensitive
+exact/substring name matching, same spirit as `fuzzyIncludes` already established on the
+Discovery side, reimplemented here rather than imported since it's module-crm's own
+concern and importing across modules for one string-matching helper would be exactly the
+tight coupling ADR-10 argues against) and calls the pure function -- read-only throughout,
+never a write, matching "prevent... creation" via information, not automatic action.
+
+New `classifyExistingRelationship` contract function (module-crm) -- `MODULE_NOT_LICENSED`
+degrades to `null` at the call site (ADR-10's normal-result pattern), same as every other
+contract call this backlog has wired. Wired into the Opportunity Detail page's own "Send
+to CRM" flow (08.1): the page now classifies before rendering, passing the result into
+`SendToCrmButton`'s confirmation dialog as an amber notice (shown for every status except
+`new_prospect`, which needs no warning) -- the founder sees "Existing Customer"/"Existing
+Lead"/etc. and its plain-English reason *before* confirming, then still decides for
+themselves whether to proceed; nothing here blocks the send. `RelationshipMatch`'s shape
+is declared locally in `SendToCrmButton` (structurally, not imported from `module-crm`)
+-- the same "no cross-module internals import" discipline `PromoteResult` already follows
+there, with `apps/web` (exempt from that rule) the one place bridging the two independent
+declarations together.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces on the first pass),
+`lint:boundaries` (1043 files, no violations -- `module-crm` gained no new cross-module
+import, `apps/web` remains the sole caller of both `module-crm`'s and
+`module-discovery`'s contracts), `lint:migrations` (112 migrations, no violations -- no
+schema change this story), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (87/87, unchanged) and `npm run test -w
+@cofounderai/module-crm` (164/164, +7 new), and a clean `next build` (confirmed the
+opportunity detail route -- the one surface this story's UI touches -- builds with no
+errors). Same live-browser-walkthrough constraint noted in every prior story this run.
+
+**Status**: 24 of 68 in-scope stories done -- Phase D continuing. Next: 08.3, Handoff
+Status.

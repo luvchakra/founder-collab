@@ -12,6 +12,7 @@ import {
   promoteProspectToLead,
 } from "../lib/leads/mutations";
 import { listLeads as listLeadsQuery } from "../lib/leads/queries";
+import { detectExistingRelationship } from "../lib/relationships/queries";
 import type { ContractResult } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 import type { Activity, CreateActivityInput } from "../lib/activities/types";
@@ -20,6 +21,7 @@ import type { ConversationDetail } from "../lib/conversations/types";
 import type { FollowUp } from "../lib/follow-ups/types";
 import type { Interaction, RecordInteractionInput } from "../lib/interactions/types";
 import type { CreateLeadInput, Lead, LeadStatus } from "../lib/leads/types";
+import type { RelationshipMatch } from "../lib/relationships/types";
 
 /**
  * module-crm's public API surface (00-MASTER-PLAN.md §6 mechanism 2) -- the first
@@ -190,5 +192,25 @@ export async function promoteProspectToCrm(
   if (licenseError) return { ok: false, error: licenseError };
 
   const data = await promoteProspectToLead(businessId, input);
+  return { ok: true, data };
+}
+
+/**
+ * DISC-OFFER-P0-08.2: "Existing Relationship Detection" -- "Before handoff classify"
+ * (doc's own words), so Discovery's own "Send to CRM" confirmation can show a founder
+ * this classification *before* they confirm, rather than finding out about a duplicate
+ * afterward. Read-only: never merges, blocks, or auto-resolves anything -- "prevent
+ * duplicate party/relationship creation" is satisfied by informing the human making the
+ * call, the same "AI/automation surfaces, never silently decides" discipline this
+ * platform already holds to everywhere else (recommended actions, negative signals).
+ */
+export async function classifyExistingRelationship(
+  businessId: string,
+  input: { companyName: string; excludePartyId?: string | null; contactEmail?: string | null },
+): Promise<ContractResult<RelationshipMatch>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const data = await detectExistingRelationship(businessId, input);
   return { ok: true, data };
 }

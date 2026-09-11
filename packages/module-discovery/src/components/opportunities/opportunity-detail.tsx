@@ -24,7 +24,7 @@ import {
   type Opportunity,
   type OpportunityStatus,
 } from "../../lib/opportunities/types";
-import { SendToCrmButton } from "./send-to-crm-button";
+import { SendToCrmButton, type RelationshipMatch } from "./send-to-crm-button";
 
 type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolean } } | { ok: false; error: string };
 
@@ -65,6 +65,7 @@ export function OpportunityDetail({
   primaryContact,
   scoreHistory,
   hasParty,
+  relationship,
   updateStatusAction,
   sendToCrmAction,
 }: {
@@ -81,6 +82,9 @@ export function OpportunityDetail({
    * `PromoteToCrmButton` (CRM-03.1) already uses; a prospect with no contact recorded
    * has nothing for a CRM lead to attach to. */
   hasParty: boolean;
+  /** DISC-OFFER-P0-08.2's "before handoff classify" check, or `null` when it couldn't
+   * run (CRM not licensed, or no party to check against yet). */
+  relationship: RelationshipMatch | null;
   updateStatusAction: (formData: FormData) => Promise<void>;
   sendToCrmAction: () => Promise<PromoteResult>;
 }) {
@@ -111,7 +115,7 @@ export function OpportunityDetail({
       <section className="flex flex-col gap-3 rounded-md border p-4">
         <h2 className="font-medium">Actions</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <SendToCrmButton hasParty={hasParty} sendAction={sendToCrmAction} />
+          <SendToCrmButton hasParty={hasParty} relationship={relationship} sendAction={sendToCrmAction} />
           <span className="text-xs text-muted-foreground">Score, why-them/now, research brief, and recommended action travel with it.</span>
         </div>
         <form action={updateStatusAction} className="flex flex-wrap items-center gap-2">
