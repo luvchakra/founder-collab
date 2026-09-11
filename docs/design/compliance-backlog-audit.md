@@ -28,7 +28,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 01.2 | Country Selector | Done |
 | | 01.3 | Tax Regime Selector | Done |
 | | 01.4 | Context Persistence | Partial (persistence for country/regime shipped as part of 01.2; not a separate story) |
-| | 01.5 | Unsupported-Country UX | Not started |
+| | 01.5 | Unsupported-Country UX | Done |
 | P0-02 | 02.1 | Tax Registration | Not started |
 | | 02.2 | Tax Jurisdiction | Not started |
 | | 02.3 | Versioned Tax Rules | Not started |
@@ -55,8 +55,9 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**3 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
-that story's log entry for why).
+**4 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
+01.4's own registration-persistence half, which waits on COMPLY-P0-02.1/04.1).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -331,3 +332,43 @@ needs two regimes.
 - No live browser walkthrough (see the limitation note at the top of this document) --
   and, as noted above, there is no country in today's catalog that would even show the
   regime selector in a real browser session yet regardless.
+
+### 01.5 — Unsupported-Country UX (2026-09-11)
+
+Like 01.3, this is a safety-net story: COMPLY-P0-01.2's own country selector already
+refuses a "planned" country both client-side (disabled `<option>`) and server-side
+(`setComplianceCountry` throws), so nothing in P0 can actually put a business into an
+unsupported country through the UI. Built anyway, completing the shell epic, because it
+is the right single place to put this check before any P1 country pack makes a "planned"
+country selectable -- every existing and future Compliance page benefits without adding
+its own per-page country check.
+
+**What was built**:
+- `components/compliance/unsupported-country-notice.tsx` -- an `Alert` naming the
+  unsupported country, explaining plainly that its Compliance features aren't implemented
+  yet (not vague "coming soon" copy), and listing which countries currently *are*
+  supported (reads live from the same `COUNTRY_CATALOG` the selector uses, so it can never
+  drift out of sync with what the dropdown actually offers).
+- `gst/layout.tsx` now gates `{children}` behind `isCountrySupported(profile.country)`:
+  supported renders every leaf page exactly as before, unsupported renders the notice
+  *instead of* the page (never alongside it, so a stale India-specific page never renders
+  half-correctly for a country it wasn't built for). The country/regime bar above still
+  renders either way, so switching back to a supported country is always one action away.
+
+**How verified**:
+- `npm run typecheck` / `npm run lint` (0 errors, same 1 pre-existing unrelated warning) /
+  `npm run lint:boundaries` (987 files, 0 violations) / `npm run lint:migrations` (103
+  files, 0 violations -- no schema change).
+- `npm run test --workspace=@cofounderai/module-gst` -- still 14 tests passing; no new
+  test file, since the only new logic (`isCountrySupported(profile.country)`) is a single
+  call into the already-tested `countries.ts` catalog function, not a new branch of its
+  own worth a dedicated test.
+- No schema change.
+- `cd apps/web && npm run build` -- clean production build.
+- No live browser walkthrough (see the limitation note at the top of this document) --
+  and, per the note above, this notice cannot currently be reached from a real session
+  either, since no unsupported country can be selected in the first place.
+
+**COMPLY-P0-01 (Compliance Shell & Country Switch) is now fully done, except 01.4's own
+registration-persistence half**, which needs `gst.tax_registrations` to exist
+(COMPLY-P0-02.1/04.1) before it means anything.

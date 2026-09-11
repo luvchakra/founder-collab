@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getBusiness } from "@cofounderai/module-gst/lib/tenancy/queries";
 import { getEffectiveComplianceProfile } from "@cofounderai/module-gst/lib/compliance/queries";
+import { isCountrySupported } from "@cofounderai/module-gst/lib/compliance/countries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { CountryBar } from "@cofounderai/module-gst/components/compliance/country-bar";
+import { UnsupportedCountryNotice } from "@cofounderai/module-gst/components/compliance/unsupported-country-notice";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { setComplianceCountryAction, setComplianceRegimeAction } from "./actions";
 
@@ -43,7 +45,7 @@ export default async function GstLayout({
         countryAction={setComplianceCountryAction.bind(null, businessId)}
         regimeAction={setComplianceRegimeAction.bind(null, businessId)}
       />
-      {children}
+      {isCountrySupported(profile.country) ? children : <UnsupportedCountryNotice countryCode={profile.country} />}
     </div>
   );
 }
