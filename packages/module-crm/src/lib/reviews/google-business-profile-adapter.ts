@@ -52,6 +52,36 @@ export async function verifyGoogleBusinessProfileLocation(credentials: GoogleBus
   return { ok: true };
 }
 
+/**
+ * CRM-08.6's own publish step: `PUT .../reviews/{reviewId}/reply` is the My Business API
+ * v4's real reply-to-review call (the same resource family CRM-08.5's `reviews.list`
+ * already uses) -- it both creates a new reply and overwrites an existing one, so this
+ * one method covers both "first response" and "edit an already-published response"
+ * without a separate code path. Never called until a human has approved the text
+ * (`syncGoogleBusinessProfileReviews`'s own draft never reaches Google on its own) --
+ * see `mutations.ts#publishReviewResponse`'s own doc comment for that gate.
+ */
+export async function publishGoogleBusinessProfileReviewReply(
+  credentials: GoogleBusinessProfileCredentials,
+  externalReviewId: string,
+  comment: string,
+): Promise<{ ok: true } | { ok: false; detail: string; statusCode?: number }> {
+  try {
+    const response = await fetch(`${MY_BUSINESS_API_BASE}/${credentials.locationName}/reviews/${externalReviewId}/reply`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${credentials.accessToken}` },
+      body: JSON.stringify({ comment }),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      return { ok: false, detail: `Google Business Profile API returned ${response.status} publishing this reply.${detail ? ` ${detail}` : ""}`, statusCode: response.status };
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /** Fetches every review for one connected location, following pagination up to a fixed
  * cap (5 pages / 250 reviews) -- generous for a single location's review inbox, and a
  * hard stop rather than an unbounded loop if the API ever returns a `nextPageToken` that

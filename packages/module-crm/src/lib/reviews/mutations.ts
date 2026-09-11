@@ -1,11 +1,21 @@
+import { z } from "zod";
+import { generateObject } from "ai";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
+import { hashInput } from "@cofounderai/core/ai/hash";
+import { recordAiRun } from "@cofounderai/core/ai-usage/mutations";
+import { resolveBusinessAiModel, toAiProviderError } from "@cofounderai/core/ai/business-router";
 import { createClient } from "../../db/server";
+import { getBusiness } from "../tenancy/queries";
 import { getChannelConnection, getDecryptedAccessToken } from "../channel-connections/queries";
-import { listAllGoogleBusinessProfileReviews, verifyGoogleBusinessProfileLocation } from "./google-business-profile-adapter";
-import type { ReviewItemStatus } from "./types";
+import {
+  listAllGoogleBusinessProfileReviews,
+  publishGoogleBusinessProfileReviewReply,
+  verifyGoogleBusinessProfileLocation,
+} from "./google-business-profile-adapter";
+import type { ReviewItem, ReviewItemStatus } from "./types";
 
 /**
  * CRM-08.5's connect flow, same shape as `channel-connections/mutations.ts#connectWhatsApp`:
@@ -119,4 +129,165 @@ export async function syncGoogleBusinessProfileReviews(businessId: string, conne
   await supabase.from("channel_connection").update({ last_synced_at: new Date().toISOString() }).eq("id", connectionId).eq("business_id", businessId);
 
   return { synced: rows.length };
+}
+
+const DRAFT_REVIEW_RESPONSE_PROMPT_VERSION = "v1";
+const OPERATION = "draft_review_response";
+const DraftReplySchema = z.object({ draftReply: z.string().min(1) });
+
+function draftReviewResponsePrompt(input: { businessName: string; rating: number | null; comment: string | null; reviewerName: string | null }): string {
+  return [
+    `You are drafting a short, professional reply from "${input.businessName}" to a public Google Business Profile review.`,
+    `Reviewer: ${input.reviewerName ?? "Anonymous"}`,
+    `Rating: ${input.rating != null ? `${input.rating} out of 5 stars` : "not given"}`,
+    `Review text: ${input.comment ?? "(no written comment)"}`,
+    "",
+    "Write a warm, specific, on-brand reply of 2-4 sentences. Thank the reviewer by name only if a real name was given.",
+    "For a low rating (1-3 stars) or a complaint, acknowledge the issue genuinely and invite them to reach out directly to make it right -- do not promise a specific compensation, refund, or resolution.",
+    "For a high rating (4-5 stars), thank them warmly and invite them back, without sounding generic or robotic.",
+    "Do not invent facts about the business, the reviewer, or what happened. Return only the reply text.",
+  ].join("\n");
+}
+
+/**
+ * CRM-08.6's "AI drafts response" -- the first call from module-crm (or any non-
+ * discovery module) through `@cofounderai/core/ai/business-router`'s `business_id`-
+ * scoped credential resolution, per the root CLAUDE.md's AI rule ("called only through
+ * a lib/ai-equivalent inside packages/core or module-discovery"). Only ever writes
+ * `draft_reply` -- never calls Google, never changes anything a person hasn't approved
+ * (see `publishReviewResponse()` below for the actual publish step, gated separately).
+ *
+ * Caches on the entity itself rather than re-deriving from `core.ai_runs` (CLAUDE.md
+ * principle 5, "cache all repeatable AI operations"): if the review's own rating/
+ * comment/reviewer haven't changed since the last draft, `draft_input_hash` already
+ * matches and this returns the stored draft without a second AI call -- the same "don't
+ * re-run the most expensive operation for the same input" reasoning
+ * `research-prospect.ts#hasRecentSuccess` already established, simplified since the
+ * hash lives on the row itself rather than needing a separate ai_runs lookup.
+ */
+export async function draftReviewResponse(businessId: string, reviewId: string): Promise<{ draftReply: string }> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "reviews.publish");
+
+  const supabase = await createClient();
+  const { data: review, error: reviewError } = await supabase.from("review_item").select("*").eq("id", reviewId).eq("business_id", businessId).maybeSingle();
+  if (reviewError) throw reviewError;
+  if (!review) throw new Error("This review could not be found.");
+  const reviewRow = review as ReviewItem;
+
+  const business = await getBusiness(businessId);
+  if (!business) throw new Error("Business not found.");
+
+  const prompt = draftReviewResponsePrompt({
+    businessName: business.name,
+    rating: reviewRow.rating,
+    comment: reviewRow.comment_excerpt,
+    reviewerName: reviewRow.reviewer_name,
+  });
+  const inputHash = hashInput({ prompt, version: DRAFT_REVIEW_RESPONSE_PROMPT_VERSION });
+
+  if (reviewRow.draft_reply && reviewRow.draft_input_hash === inputHash) {
+    return { draftReply: reviewRow.draft_reply };
+  }
+
+  const { businessId: resolvedBusinessId, provider, modelId, model } = await resolveBusinessAiModel(businessId, OPERATION);
+  const startedAt = Date.now();
+  try {
+    const response = await generateObject({ model, schema: DraftReplySchema, prompt });
+
+    await recordAiRun({
+      businessId: resolvedBusinessId,
+      operation: OPERATION,
+      model: modelId,
+      provider,
+      promptVersion: DRAFT_REVIEW_RESPONSE_PROMPT_VERSION,
+      inputHash,
+      inputTokens: response.usage.inputTokens,
+      outputTokens: response.usage.outputTokens,
+      status: "succeeded",
+      durationMs: Date.now() - startedAt,
+    });
+
+    const draftReply = response.object.draftReply;
+    const { error: updateError } = await supabase
+      .from("review_item")
+      .update({
+        draft_reply: draftReply,
+        draft_input_hash: inputHash,
+        draft_generated_at: new Date().toISOString(),
+        status: reviewRow.status === "new" ? "in_progress" : reviewRow.status,
+      })
+      .eq("id", reviewId)
+      .eq("business_id", businessId);
+    if (updateError) throw updateError;
+
+    return { draftReply };
+  } catch (error) {
+    const aiError = toAiProviderError(error, provider);
+    await recordAiRun({
+      businessId: resolvedBusinessId,
+      operation: OPERATION,
+      model: modelId,
+      provider,
+      promptVersion: DRAFT_REVIEW_RESPONSE_PROMPT_VERSION,
+      inputHash,
+      status: "failed",
+      durationMs: Date.now() - startedAt,
+      errorCode: aiError.code,
+    });
+    throw aiError;
+  }
+}
+
+/**
+ * CRM-08.6's own publish step -- the point the story's acceptance criteria actually
+ * gate on human approval: the text published is whatever the caller passes (the human
+ * may have edited the AI draft before approving), never the stored `draft_reply`
+ * silently re-read, so an edit made in the UI is what actually reaches Google. Requires
+ * the review's connection to still be `google_business_profile` and connected; requires
+ * `reviews.publish` (the permission CRM-01.2's own role-seeding migration already
+ * reserved for exactly this). This is the one action in this module that posts content
+ * to a real external service on the business's behalf -- the UI's own "this publishes
+ * externally and uses this business's Google authorization" notice is what CRM-08.6's
+ * third acceptance criterion asks for; this function is the actual authorized call that
+ * notice describes.
+ */
+export async function publishReviewResponse(businessId: string, reviewId: string, replyText: string): Promise<void> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "reviews.publish");
+
+  const trimmed = replyText.trim();
+  if (!trimmed) throw new Error("A reply can't be empty.");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: review, error: reviewError } = await supabase.from("review_item").select("*").eq("id", reviewId).eq("business_id", businessId).maybeSingle();
+  if (reviewError) throw reviewError;
+  if (!review) throw new Error("This review could not be found.");
+  const reviewRow = review as ReviewItem;
+  if (!reviewRow.channel_connection_id) throw new Error("This review has no connected Google Business Profile location to publish to.");
+
+  const connection = await getChannelConnection(businessId, reviewRow.channel_connection_id);
+  if (!connection || connection.channel !== "google_business_profile" || connection.status === "disconnected") {
+    throw new Error("This review's Google Business Profile connection is no longer available -- reconnect the location first.");
+  }
+  const accessToken = await getDecryptedAccessToken(businessId, connection.id);
+  if (!accessToken) throw new Error("This connection has no access token on file -- reconnect it first.");
+
+  const result = await publishGoogleBusinessProfileReviewReply({ locationName: connection.external_account_id, accessToken }, reviewRow.external_review_id, trimmed);
+  if (!result.ok) throw new Error(result.detail);
+
+  const { error: updateError } = await supabase.from("review_item").update({ status: "responded" }).eq("id", reviewId).eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_review_item.response_published",
+    entityType: "crm_review_item",
+    entityId: reviewId,
+    after: { status: "responded", replyLength: trimmed.length },
+  });
 }

@@ -1670,3 +1670,98 @@ existing "AI" features (intent classification, etc.) are deterministic keyword/t
 heuristics, not real LLM calls -- so CRM-08.6 needs an explicit decision on what "AI
 drafts response" means here before implementation, not an assumption that a real model
 call is already wired up.
+
+## CRM-08.6 (2026-09-11)
+
+"Review Response Drafting." Acceptance criteria: AI drafts a response; human approval
+required before publishing; the user sees that the action is external and requires
+authorization. Scoping decision (put to the user given the prior entry's own flagged
+gap): a real LLM call, not a deterministic template -- confirmed by the user rather than
+assumed.
+
+**A new, reusable `business_id`-scoped AI path in `core`, not a one-off in module-crm.**
+`core.ai_runs`/`core.ai_provider_credentials` (S-4, `20260908140000_core_ai_usage.sql`)
+already existed as forward-only infrastructure "any future non-discovery module that
+calls an LLM" could use -- confirmed unused by any real caller before this story (grep
+across every module; the two `module-gst` doc-comment hits that reference
+"ai_provider_credentials" are citations of the encryption pattern for unrelated GSP
+credentials, not actual callers). What was missing was the router: discovery's own
+`resolveAiModelForAccount()` (`module-discovery/lib/ai/router.ts`) is workspace/account-
+scoped and, per CLAUDE.md's architecture rule 3, unreachable from any other module
+anyway. New `packages/core/src/ai/business-router.ts` is the `business_id`-scoped
+counterpart -- `resolveBusinessAiModel(businessId, operation, client?)`, same BYOK-then-
+platform-fallback shape (`core.ai_provider_credentials` first, `PLATFORM_AI_API_KEY`
+env var second, confirmed already configured in this deployment), same
+`AiProviderError`/`toAiProviderError` classification. Deliberately a near-duplicate of
+discovery's router rather than a forced shared refactor -- discovery's own router is
+working, tested code this story has no reason to touch (CLAUDE.md principle 10). New
+`draft_review_response` operation added to the *already-shared* `packages/core/src/ai/
+operation-registry.ts` (that registry, unlike the router, was core-owned from the
+start) at the `balanced` tier, same tier `generate_outreach_message` uses for a
+comparably bounded writing task. `core/ai/model-registry.ts`, `provider-factory.ts`,
+`client.ts` (cost estimation), and `hash.ts` needed no change at all -- already fully
+provider/module-agnostic.
+
+**Caching without a second `ai_runs` lookup.** New migration
+(`20260911001100_crm_review_item_draft_reply.sql`) adds `draft_reply`/
+`draft_input_hash`/`draft_generated_at` directly to `crm.review_item` -- a re-open of a
+review with nothing changed reuses the stored draft instead of re-billing the provider
+(CLAUDE.md principle 5), the same "don't re-run the most expensive operation for
+unchanged input" reasoning `research-prospect.ts#hasRecentSuccess` established, just
+simpler here since the hash lives on the entity itself rather than needing a separate
+`ai_runs` cache-index query. `core.ai_runs` itself still gets a row per real call either
+way (usage/cost ledger, not the cache).
+
+**`lib/reviews/mutations.ts#draftReviewResponse()`**: builds a plain templated prompt
+(rating/comment/reviewer/business name; explicitly instructed not to promise
+compensation/resolution for a low rating, not to invent facts), calls
+`resolveBusinessAiModel(businessId, "draft_review_response")`, `generateObject` against
+a one-field Zod schema, writes only `draft_reply`/`draft_input_hash`/
+`draft_generated_at` -- never calls Google, never touches anything a human hasn't
+approved. Bumps `status` from `new` to `in_progress` on first draft (never overwrites an
+already `in_progress`/`dismissed`/`responded` row's status), same "system-detected
+signal never overrides a human's own explicit state" rule CRM-08.5's sync already
+established for this table. Gated by `reviews.publish` (drafting is preparatory to
+publishing, so one permission covers the whole flow rather than adding a second key for
+"can draft but not send").
+
+**`publishReviewResponse()`** is the actual authorized, external, human-approved step:
+takes the reply text as a parameter rather than silently re-reading `draft_reply`, so an
+edit made in the UI is what actually reaches Google -- "human approval" means the human
+can rewrite, not just click a button next to text they didn't write. Calls the new
+`google-business-profile-adapter.ts#publishGoogleBusinessProfileReviewReply()` (`PUT
+.../reviews/{reviewId}/reply`, the My Business API v4's real reply endpoint, which both
+creates and overwrites a reply with the same call). On success, sets `status:
+'responded'` and writes an audit-log entry (`crm_review_item.response_published`) --
+the one action in this module that posts content to a real external service on the
+business's behalf, so unlike the passive review sync it's worth an explicit audit trail.
+
+**UI**: `reviews-list.tsx` (new client component, replacing the plain read-only rows
+CRM-08.5 built) adds a "Respond" button per review (hidden once `responded`), opening a
+dialog with an editable `Textarea` pre-filled from any existing draft, a "Generate AI
+draft" / "Regenerate" button (calls `draftReviewResponse` outside the form-submission
+cycle, since it never publishes anything), a plain-language `Alert` stating that
+publishing posts directly to Google using the business's own connected authorization
+(this story's third acceptance criterion, made literal rather than left as a tooltip),
+and an "Approve & publish" submit button. Gated behind `hasPermission(businessId,
+"reviews.publish")`, computed once in the server component and passed down as
+`canRespond` rather than re-checked per row.
+
+Verified with full monorepo typecheck (clean across every workspace), `lint:boundaries`
+(909 files, no violations), `lint:migrations` (73 migrations, no violations), core's own
+vitest suite (34/34 -- covers the extended operation registry) and module-crm's (101/101,
+unchanged -- no new unit tests added for the plain prompt-string builder itself, judged
+proportionate given its low complexity), both CRM RLS suites (re-run clean; no new RLS
+case needed since the new columns carry no new access path beyond `review_item`'s
+existing policy), and a clean `next build` (`/crm/reviews` present, unchanged route
+count). Both migrations applied live to the dev Supabase project (`jazdtomcgqjxjueedmck`)
+via `apply_migration`; `get_advisors(security)` re-run afterward shows the same 6
+pre-existing findings as before this change -- no new finding introduced. Confirmed
+`PLATFORM_AI_API_KEY` is a documented, already-used env var in this deployment
+(`apps/web/.env.example`), so the platform-fallback path works for a business with no
+BYOK credential connected, same default-UX discovery already gives founders.
+
+**Epic CRM-08 status**: 5 of 6 in-scope stories done. Next: CRM-08.7 (Review Recovery
+Task, seq #52, P1) -- rule-based: a 1-3 star review becomes a recovery task, an
+unresolved negative review escalates, a 4-5 star review becomes an advocacy/follow-up
+opportunity where appropriate, with no automatic promise of compensation or resolution.

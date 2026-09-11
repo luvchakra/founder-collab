@@ -11,6 +11,7 @@ const OPERATIONS: AiOperation[] = [
   "generate_reply",
   "classify_reply",
   "chat",
+  "draft_review_response",
 ];
 
 describe("getOperationSpec", () => {
