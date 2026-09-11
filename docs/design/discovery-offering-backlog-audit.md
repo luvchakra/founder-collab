@@ -26,7 +26,7 @@ only genuine architectural/key decisions are raised.
 | B | 03.1 | Offering Context Selector | Done |
 | | 03.2 | Offering Overview | Done |
 | | 03.3 | Offering Navigation | Done |
-| | 04.1 | Discovery Definition | Not started |
+| | 04.1 | Discovery Definition | Done |
 | | 04.2 | Discovery Plays | Not started |
 | C | 05.1 | Opportunity Model | Not started |
 | | 05.2 | Opportunity Score | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**9 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**10 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -504,3 +504,51 @@ change) would benefit most from an actual browser check, which remains unavailab
 **Status**: 9 of 68 in-scope stories done. Next: 04.1, Discovery Definition (still
 Phase B -- EPIC DISC-OFFER-P0-04 is grouped into Phase B alongside 03.1-03.3 per the
 progress table above).
+
+### 04.1 — Discovery Definition (2026-09-11)
+
+New `discovery.discovery_definitions` table -- one-to-many against the offering's
+workspace like `buyer_personas` ("multiple definitions per offering" is an explicit
+acceptance criterion), distinct from `icp_profiles` (who to target) and `buyer_personas`
+(who's on the buying committee): a definition is the monitoring strategy itself --
+target geographies/industries, buyer roles, desired/excluded signals, disqualifiers, a
+minimum score, and a monitoring frequency (daily/weekly/monthly/manual), plus
+`is_enabled` for the "enable/disable" acceptance criterion. `icp_id` is a soft reference
+(nullable, `on delete set null`) snapshotting the workspace's current ICP at creation
+time -- per ADR-10's no-hard-coupling rule, a definition keeps working even if that ICP
+is later replaced or deleted, rather than breaking or cascading. "Every result can be
+traced to its definition" is satisfied structurally for now by the definition itself
+being a real, queryable row with a stable id that later stories (the actual monitoring/
+signal-matching pipeline, Phase C/E) can foreign-key results to -- this story's own scope
+is definition management, not signal-matching execution, which doesn't exist yet.
+
+Added a real "Discovery" tab to `ProductNav`'s ongoing (post-setup) flat tab bar, between
+ICP and Prospects, matching the doc's own suggested order -- this is the first Phase B/C
+destination that now has a genuine page behind it, unlike Discovery/Opportunities/
+Signals/Watchlist in 03.3, which were correctly left out as dead links at that point.
+Not added to the setup-wizard stepper: a Discovery Definition is optional ongoing
+configuration, not a required step in a fixed setup order.
+
+UI: `DefinitionList` (compact cards, same pattern as `PersonaSection`) with a `Switch`
+for enable/disable (first use of the vendored `Switch` primitive in this module),
+`DefinitionFormDialog` (create/edit, plain per-line Textareas for the six list fields --
+IcpField's collapse/expand treatment is built for a whole page sharing one form; a
+dialog is already compact enough not to need it), and delete behind the same
+`AlertDialog` confirmation as every other destructive action in this module.
+
+Caught and fixed one gap myself via `get_advisors` after the first migration apply: the
+new `icp_id` soft-reference FK had no covering index either (same class of miss as
+02.3's `workspace_id` catch) -- fixed with a same-day follow-up migration
+(`20260911004200_discovery_definitions_icp_index.sql`) since the first was already
+applied live. The `workspace_id` FK itself was indexed from the start this time.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(988 files, no violations), `lint:migrations` (104 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (19/19, unchanged), two live migration applies +
+`get_advisors` for both `security`/`performance` (the missing-index finding above was
+caught and fixed this way; no other new findings), and a clean `next build` (the new
+`/discovery` route builds and appears in the route list). Same live-browser-walkthrough
+constraint noted in every prior story this run.
+
+**Status**: 10 of 68 in-scope stories done. Next: 04.2, Discovery Play.
