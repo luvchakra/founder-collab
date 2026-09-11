@@ -35,7 +35,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Done |
 | | 04.4 | Assessment -> Quote Continuation | Done |
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Done |
-| | 05.2 | Inventory Substitution Recommendation | Not started |
+| | 05.2 | Inventory Substitution Recommendation | Done |
 | | 05.3 | Shortage -> Customer Follow-up | Not started |
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Not started |
 | | 06.2 | Additional Work -> CRM Opportunity | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 1/13 done. Overall: 17/29 (59%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 2/13 done. Overall: 18/29 (62%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -320,3 +320,13 @@ Also fixed a pre-existing gap while touching this file: `"crm_opportunity.fulfil
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (91 migrations, no violations -- no schema change this story, `crm.product_interest.quantity` already existed), module-crm's vitest suite (152/152, unchanged), and a clean `next build`.
 
 **Status**: 17 of 29 in-scope stories done. Next: INT-05.2, Inventory Substitution Recommendation.
+
+### INT-05.2 — Inventory Substitution Recommendation (2026-09-11)
+
+New `listSubstitutes()` (module-inventory's contract) -- deterministic, not AI-guessed (CLAUDE.md principle 4): a candidate is "valid" when it shares the requested item's `category_id` (the only equivalence concept the existing catalog has -- no new `substitutable_for` table invented for this story) and has positive available quantity somewhere (summed across warehouses, same formula `getAvailability()` already uses). "Inventory remains source of truth": this is a plain read, CRM never guesses at alternatives on its own.
+
+`checkOpportunityFulfillmentAvailability()` (INT-05.1) now calls it for every non-`available` line and attaches the results as `LineAvailability.substitutes` -- only for short lines, since a fully-stocked line has nothing to substitute. The opportunity page's INT-05.1 decision panel gets a new "Possible alternatives" row per short line, one button per candidate (name, available quantity, price) that calls new `substituteOpportunityProduct()` (`lib/opportunities/products.ts`, mirroring `updateOpportunityProductQuantity()`'s no-audit-log convention already established by its sibling functions in that file) -- swaps `crm.product_interest.item_id` to the chosen substitute, leaving the requested quantity untouched so it carries over to the new item.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (91 migrations, no violations -- `core.items.category_id`/`status` already existed, no schema change needed), module-crm's vitest suite (152/152, unchanged) and module-inventory's (6/6, unchanged), and a clean `next build`.
+
+**Status**: 18 of 29 in-scope stories done. Next: INT-05.3, Shortage -> Customer Follow-up.

@@ -11,6 +11,7 @@ import type {
   ContractLowStockAlert,
   ContractOrderSummary,
   ContractResult,
+  ContractSubstitute,
   ContractWarehouse,
   CreateFulfillmentRequestInput,
   FulfillmentStatus,
@@ -81,6 +82,57 @@ export async function getAvailability(
       available: Number(l.quantity) - Number(l.reserved) - Number(l.damaged) - Number(l.expired),
     })),
   };
+}
+
+/**
+ * INT-05.2's "Inventory Substitution Recommendation" -- deterministic, not AI-guessed
+ * (CLAUDE.md principle 4): a candidate is "valid" when it's in the same category as the
+ * requested item (the only equivalence concept the existing catalog actually has -- no
+ * new "substitutable_for" table invented for this) and has stock to offer. Excludes the
+ * requested item itself and anything with zero available quantity -- a substitute with
+ * nothing to give isn't a substitute. Inventory remains the source of truth: CRM only
+ * ever renders what this returns, it never guesses at alternatives on its own.
+ */
+export async function listSubstitutes(businessId: string, itemId: string): Promise<ContractResult<ContractSubstitute[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const core = await coreClient();
+  const { data: item, error: itemError } = await core.from("items").select("id, category_id").eq("business_id", businessId).eq("id", itemId).maybeSingle();
+  if (itemError) return { ok: false, error: itemError.message };
+  if (!item?.category_id) return { ok: true, data: [] };
+
+  const { data: candidates, error: candidatesError } = await core
+    .from("items")
+    .select("id, name, selling_price")
+    .eq("business_id", businessId)
+    .eq("category_id", item.category_id)
+    .eq("status", "active")
+    .neq("id", itemId);
+  if (candidatesError) return { ok: false, error: candidatesError.message };
+  if (candidates.length === 0) return { ok: true, data: [] };
+
+  const supabase = await createClient();
+  const candidateIds = candidates.map((c) => c.id);
+  const { data: stockLevels, error: stockError } = await supabase
+    .from("stock_levels")
+    .select("item_id, quantity, reserved, damaged, expired")
+    .eq("business_id", businessId)
+    .in("item_id", candidateIds);
+  if (stockError) return { ok: false, error: stockError.message };
+
+  const availableByItem = new Map<string, number>();
+  for (const level of stockLevels) {
+    const available = Number(level.quantity) - Number(level.reserved) - Number(level.damaged) - Number(level.expired);
+    availableByItem.set(level.item_id, (availableByItem.get(level.item_id) ?? 0) + available);
+  }
+
+  const substitutes = candidates
+    .map((c) => ({ itemId: c.id, name: c.name, sellingPrice: Number(c.selling_price), availableQuantity: Math.max(availableByItem.get(c.id) ?? 0, 0) }))
+    .filter((c) => c.availableQuantity > 0)
+    .sort((a, b) => b.availableQuantity - a.availableQuantity);
+
+  return { ok: true, data: substitutes };
 }
 
 /**

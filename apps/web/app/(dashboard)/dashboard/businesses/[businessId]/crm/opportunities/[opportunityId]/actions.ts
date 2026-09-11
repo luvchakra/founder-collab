@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addOpportunityProduct, removeOpportunityProduct, updateOpportunityProductQuantity } from "@cofounderai/module-crm/lib/opportunities/products";
+import { addOpportunityProduct, removeOpportunityProduct, updateOpportunityProductQuantity, substituteOpportunityProduct } from "@cofounderai/module-crm/lib/opportunities/products";
 import {
   addOpportunityContact,
   removeOpportunityContact,
@@ -141,6 +141,12 @@ export async function updateOpportunityProductQuantityAction(businessId: string,
   const quantity = Number(rawQuantity);
   if (!Number.isFinite(quantity) || quantity < 0) return;
   await updateOpportunityProductQuantity(businessId, opportunityId, productInterestId, quantity);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-05.2's "substitute" choice. */
+export async function substituteOpportunityProductAction(businessId: string, opportunityId: string, productInterestId: string, substituteItemId: string): Promise<void> {
+  await substituteOpportunityProduct(businessId, opportunityId, productInterestId, substituteItemId);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }
 

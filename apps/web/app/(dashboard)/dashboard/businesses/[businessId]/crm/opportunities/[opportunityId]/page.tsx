@@ -48,6 +48,7 @@ import {
   fulfillAvailableQuantityAction,
   recordFulfillmentWaitAction,
   updateOpportunityProductQuantityAction,
+  substituteOpportunityProductAction,
   setFulfillmentRequirementAction,
   setAssessmentRequirementAction,
   requestAssessmentAction,
@@ -444,22 +445,38 @@ export default async function OpportunityDetailPage({
                   </p>
                   <div className="flex flex-col gap-2">
                     {availabilityCheck.lines.map((line) => (
-                      <div key={line.productInterestId} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
-                        <span className="font-medium">{line.itemName}</span>
-                        <Badge variant={line.status === "backordered" ? "outline" : "destructive"}>{FULFILLMENT_AVAILABILITY_LABEL[line.status]}</Badge>
-                        <span className="text-xs text-muted-foreground">
-                          Requested {line.requestedQuantity} / Available {line.availableQuantity}
-                        </span>
-                        {line.status !== "available" ? (
-                          <form
-                            action={updateOpportunityProductQuantityAction.bind(null, businessId, opportunityId, line.productInterestId)}
-                            className="ml-auto flex items-center gap-1.5"
-                          >
-                            <Input name="quantity" type="number" min={0} step="0.01" defaultValue={line.availableQuantity} className="h-8 w-20" />
-                            <SubmitButton pendingText="Updating..." className="h-8 px-2 text-xs">
-                              Change quantity
-                            </SubmitButton>
-                          </form>
+                      <div key={line.productInterestId} className="flex flex-col gap-2 rounded-md border p-2 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{line.itemName}</span>
+                          <Badge variant={line.status === "backordered" ? "outline" : "destructive"}>{FULFILLMENT_AVAILABILITY_LABEL[line.status]}</Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Requested {line.requestedQuantity} / Available {line.availableQuantity}
+                          </span>
+                          {line.status !== "available" ? (
+                            <form
+                              action={updateOpportunityProductQuantityAction.bind(null, businessId, opportunityId, line.productInterestId)}
+                              className="ml-auto flex items-center gap-1.5"
+                            >
+                              <Input name="quantity" type="number" min={0} step="0.01" defaultValue={line.availableQuantity} className="h-8 w-20" />
+                              <SubmitButton pendingText="Updating..." className="h-8 px-2 text-xs">
+                                Change quantity
+                              </SubmitButton>
+                            </form>
+                          ) : null}
+                        </div>
+                        {line.substitutes.length > 0 ? (
+                          <div className="flex flex-col gap-1.5 border-t pt-2">
+                            <span className="text-xs text-muted-foreground">Possible alternatives:</span>
+                            <div className="flex flex-wrap gap-2">
+                              {line.substitutes.map((substitute) => (
+                                <form key={substitute.itemId} action={substituteOpportunityProductAction.bind(null, businessId, opportunityId, line.productInterestId, substitute.itemId)}>
+                                  <SubmitButton variant="outline" pendingText="Substituting..." className="h-8 px-2 text-xs">
+                                    {substitute.name} &middot; {substitute.availableQuantity} available &middot; {inr.format(substitute.sellingPrice)}
+                                  </SubmitButton>
+                                </form>
+                              ))}
+                            </div>
+                          </div>
                         ) : null}
                       </div>
                     ))}

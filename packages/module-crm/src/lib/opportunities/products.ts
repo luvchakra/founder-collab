@@ -97,6 +97,22 @@ export async function updateOpportunityProductQuantity(businessId: string, oppor
   if (error) throw error;
 }
 
+/** INT-05.2's "User chooses the substitute" -- swaps the line's item to whichever
+ * candidate `listSubstitutes()` (Inventory's contract, "Inventory remains source of
+ * truth") offered; quantity is left as-is so the founder's existing requested amount
+ * carries over to the new item unchanged. */
+export async function substituteOpportunityProduct(businessId: string, opportunityId: string, productInterestId: string, substituteItemId: string): Promise<void> {
+  await requireModule(businessId, "inventory");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("product_interest")
+    .update({ item_id: substituteItemId })
+    .eq("id", productInterestId)
+    .eq("business_id", businessId)
+    .eq("opportunity_id", opportunityId);
+  if (error) throw error;
+}
+
 export async function removeOpportunityProduct(businessId: string, opportunityId: string, productInterestId: string): Promise<void> {
   await requireModule(businessId, "inventory");
   const supabase = await createClient();

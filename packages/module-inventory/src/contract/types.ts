@@ -64,6 +64,16 @@ export type FulfillmentStatus = {
   updatedAt: string;
 };
 
+/** INT-05.2's "Inventory Substitution Recommendation" -- one candidate item Inventory
+ * itself considers equivalent (same category), with the same availability shape CRM
+ * already knows how to render from `ContractAvailability`. */
+export type ContractSubstitute = {
+  itemId: string;
+  name: string;
+  sellingPrice: number;
+  availableQuantity: number;
+};
+
 export type UpsertItemInput = {
   /** Update this item by id when given; otherwise find-or-create by `sku` (when given),
    * else always insert a new row. */

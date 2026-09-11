@@ -1,4 +1,5 @@
-import { getAvailability } from "@cofounderai/module-inventory/contract/index";
+import { getAvailability, listSubstitutes } from "@cofounderai/module-inventory/contract/index";
+import type { ContractSubstitute } from "@cofounderai/module-inventory/contract/types";
 import type { OpportunityProduct } from "./products";
 
 export type FulfillmentAvailabilityStatus = "available" | "backordered" | "unavailable";
@@ -10,13 +11,18 @@ export const FULFILLMENT_AVAILABILITY_LABEL: Record<FulfillmentAvailabilityStatu
 };
 
 export type LineAvailability = {
-  /** `crm.product_interest.id` -- the row `updateOpportunityProductQuantity()` edits. */
+  /** `crm.product_interest.id` -- the row `updateOpportunityProductQuantity()` and
+   * `substituteOpportunityProduct()` edit. */
   productInterestId: string;
   itemId: string;
   itemName: string;
   requestedQuantity: number;
   availableQuantity: number;
   status: FulfillmentAvailabilityStatus;
+  /** INT-05.2's "possible alternatives" -- only populated for a short line (fetching it
+   * for a fully-available one would be wasted work); empty when Inventory has nothing
+   * in the same category to offer. */
+  substitutes: ContractSubstitute[];
 };
 
 export type OpportunityAvailabilityCheck = {
@@ -40,7 +46,9 @@ export async function checkOpportunityFulfillmentAvailability(businessId: string
       const result = await getAvailability(businessId, product.itemId);
       const availableQuantity = result.ok ? result.data.reduce((sum, level) => sum + Math.max(level.available, 0), 0) : 0;
       const status: FulfillmentAvailabilityStatus = availableQuantity >= requestedQuantity ? "available" : availableQuantity > 0 ? "backordered" : "unavailable";
-      return { productInterestId: product.id, itemId: product.itemId, itemName: product.itemName, requestedQuantity, availableQuantity, status };
+      const substitutesResult = status !== "available" ? await listSubstitutes(businessId, product.itemId) : null;
+      const substitutes = substitutesResult?.ok ? substitutesResult.data : [];
+      return { productInterestId: product.id, itemId: product.itemId, itemName: product.itemName, requestedQuantity, availableQuantity, status, substitutes };
     }),
   );
   return { allAvailable: lines.every((line) => line.status === "available"), lines };
