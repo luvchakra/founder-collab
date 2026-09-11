@@ -113,6 +113,15 @@ export async function getTotalAvailability(businessId: string, itemId: string): 
  * creating a duplicate task, checked upfront (the common case, no wasted round trip on
  * a race) with a unique-violation catch as the safety net for a genuine race, same shape
  * `leads/mutations.ts#promoteProspectToLead()` already established.
+ *
+ * INT-05.3 reuses this verbatim for an opportunity's own partial-availability shortage
+ * rather than building a second waitlist mechanism: a shortage on an opportunity line
+ * *is* an out-of-stock product interest, just one that happens to carry `opportunity_id`
+ * too. Carrying it through onto the follow-up (when the product interest has one) is
+ * what makes the created row show up on the opportunity's own Follow-ups card for free,
+ * and "the existing replenishment workflow can resume" is exactly CRM-10.4's own
+ * `inventory.stock.replenished` handler below -- unchanged, it already pulls any pending
+ * `product_interest_id`-linked follow-up forward regardless of what else is set on it.
  */
 export async function createOutOfStockWaitlist(businessId: string, productInterestId: string): Promise<{ followUpId: string; alreadyWaitlisted: boolean }> {
   await requireModule(businessId, "inventory");
@@ -120,7 +129,7 @@ export async function createOutOfStockWaitlist(businessId: string, productIntere
 
   const { data: interest, error: interestError } = await supabase
     .from("product_interest")
-    .select("id, party_id, conversation_id, item_id, quantity")
+    .select("id, party_id, conversation_id, opportunity_id, item_id, quantity")
     .eq("id", productInterestId)
     .eq("business_id", businessId)
     .single();
@@ -144,6 +153,7 @@ export async function createOutOfStockWaitlist(businessId: string, productIntere
         business_id: businessId,
         party_id: interest.party_id,
         conversation_id: interest.conversation_id,
+        opportunity_id: interest.opportunity_id,
         product_interest_id: productInterestId,
         due_at: dueAt,
       })

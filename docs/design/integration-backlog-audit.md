@@ -36,7 +36,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 04.4 | Assessment -> Quote Continuation | Done |
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Done |
 | | 05.2 | Inventory Substitution Recommendation | Done |
-| | 05.3 | Shortage -> Customer Follow-up | Not started |
+| | 05.3 | Shortage -> Customer Follow-up | Done |
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Not started |
 | | 06.2 | Additional Work -> CRM Opportunity | Not started |
 | | 06.3 | Recommended Parts -> Inventory | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 2/13 done. Overall: 18/29 (62%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 3/13 done. Overall: 19/29 (66%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -330,3 +330,17 @@ New `listSubstitutes()` (module-inventory's contract) -- deterministic, not AI-g
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (91 migrations, no violations -- `core.items.category_id`/`status` already existed, no schema change needed), module-crm's vitest suite (152/152, unchanged) and module-inventory's (6/6, unchanged), and a clean `next build`.
 
 **Status**: 18 of 29 in-scope stories done. Next: INT-05.3, Shortage -> Customer Follow-up.
+
+### INT-05.3 — Shortage -> Customer Follow-up (2026-09-11)
+
+The epic's own "When the shortage clears, existing replenishment workflow can resume rather than creating a second duplicate opportunity" is a near-verbatim description of CRM-10.3/10.4's already-built out-of-stock waitlist: `createOutOfStockWaitlist()` (idempotent per `product_interest_id`, `follow_up_product_interest_id_uq`) creates one follow-up per shortage, and the existing `inventory.stock.replenished` event handler already pulls any pending `product_interest_id`-linked follow-up forward once real stock returns -- exactly "resume, don't duplicate." So this story is a new caller, not a new mechanism: no second waitlist concept, no new table.
+
+The one real gap: that function only ever set `conversation_id`, since its only caller until now was conversation-linked product interests -- an opportunity-linked shortage's own `product_interest.opportunity_id` was being silently dropped. Fixed by widening its own select/insert to carry `opportunity_id` through when the product interest has one; this is also what makes the created follow-up show up on the opportunity's own existing Follow-ups card for free, no new UI needed.
+
+New `createShortageFollowUpsForOpportunity()` (module-crm's `opportunities/mutations.ts`) calls it once per non-`available` line. Wired into both of INT-05.1's shortfall-leaving actions: "fulfill available quantity" (whatever the partial request couldn't cover gets tracked) and "wait for complete quantity" (every line is still short, since nothing was fulfilled). The two lines INT-05.1 already resolves synchronously -- "cancel unavailable quantity" and "change requested quantity" -- don't get a follow-up, correctly: the founder already dealt with the shortage themselves in those cases, there's nothing left pending to track.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (91 migrations, no violations -- `crm.follow_up.opportunity_id` already existed), module-crm's vitest suite (152/152, unchanged), and a clean `next build`.
+
+**Epic INT-05 complete (3/3).**
+
+**Status**: 19 of 29 in-scope stories done. Next: INT-06.1, Service Outcome Classification (starts Epic INT-06).

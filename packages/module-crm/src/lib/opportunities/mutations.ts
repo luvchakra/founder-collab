@@ -14,7 +14,8 @@ import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import { listOpportunityContacts } from "./contacts";
 import { listOpportunityProducts } from "./products";
-import { checkOpportunityFulfillmentAvailability } from "./availability";
+import { checkOpportunityFulfillmentAvailability, type LineAvailability } from "./availability";
+import { createOutOfStockWaitlist } from "../conversations/products";
 import { DEFAULT_OPPORTUNITY_STAGES } from "./types";
 import type { AssessmentRequirement, OpportunityStage } from "./types";
 
@@ -305,6 +306,20 @@ export async function createFulfillmentRequestForOpportunity(businessId: string,
 }
 
 /**
+ * INT-05.3's "Shortage -> Customer Follow-up": "Create a CRM follow-up tied to the
+ * exact inventory shortage... When the shortage clears, existing replenishment workflow
+ * can resume rather than creating a second duplicate opportunity." Reuses CRM-10.3's own
+ * `createOutOfStockWaitlist()` verbatim per short line -- an opportunity's short product
+ * line *is* an out-of-stock product interest, and that function is already idempotent
+ * per `product_interest_id` and already wired to CRM-10.4's replenishment handler, so
+ * there's no second mechanism to build here, just this new caller.
+ */
+async function createShortageFollowUpsForOpportunity(businessId: string, lines: LineAvailability[]): Promise<void> {
+  const shortLines = lines.filter((line) => line.status !== "available");
+  await Promise.all(shortLines.map((line) => createOutOfStockWaitlist(businessId, line.productInterestId)));
+}
+
+/**
  * INT-05.1's "fulfill available quantity" decision -- creates a fulfillment request
  * scoped to only what Inventory can supply right now (each line capped at its own
  * available quantity; a line with none is dropped entirely), rather than the full
@@ -348,6 +363,11 @@ export async function fulfillAvailableQuantityForOpportunity(businessId: string,
     .eq("business_id", businessId);
   if (updateError) throw updateError;
 
+  // INT-05.3: whatever this request couldn't cover (a backordered line's remainder, an
+  // unavailable line dropped entirely) gets its own tracked follow-up rather than
+  // silently disappearing once the partial request is in.
+  await createShortageFollowUpsForOpportunity(businessId, availability.lines);
+
   await writeAuditLog({
     businessId,
     actorId: user?.id ?? null,
@@ -361,10 +381,14 @@ export async function fulfillAvailableQuantityForOpportunity(businessId: string,
 }
 
 /**
- * INT-05.1's "wait for complete quantity" decision -- deliberately makes no change to
- * the opportunity itself (no request created, no quantity touched); the audit entry is
- * what keeps this "not silent" per the story's own "Do not silently alter the
- * opportunity" wording. Choosing to wait is a recorded decision, not the absence of one.
+ * INT-05.1's "wait for complete quantity" decision -- makes no change to the
+ * opportunity's own commercial data (no request created, no quantity touched); the
+ * audit entry is what keeps this "not silent" per the story's own "Do not silently
+ * alter the opportunity" wording. Choosing to wait is a recorded decision, not the
+ * absence of one. INT-05.3 adds the one real side effect this decision should have: a
+ * tracked follow-up per short line (`createShortageFollowUpsForOpportunity()`), same as
+ * the "fulfill available quantity" path -- here *every* line is still short, since
+ * nothing was fulfilled.
  */
 export async function recordFulfillmentWaitDecision(businessId: string, opportunityId: string): Promise<void> {
   await requirePermission(businessId, "crm_opportunities.manage");
@@ -372,6 +396,10 @@ export async function recordFulfillmentWaitDecision(businessId: string, opportun
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const products = await listOpportunityProducts(businessId, opportunityId);
+  const availability = await checkOpportunityFulfillmentAvailability(businessId, products);
+  await createShortageFollowUpsForOpportunity(businessId, availability.lines);
 
   await writeAuditLog({
     businessId,
