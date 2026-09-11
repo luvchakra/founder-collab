@@ -1,6 +1,7 @@
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import { matchPartyForActor, type CrmClientOverrides } from "./matching";
+import { evaluateRequiresResponse } from "./response-rules";
 import type { Interaction, RecordInteractionInput } from "./types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
@@ -209,6 +210,12 @@ export async function recordInteraction(
 
   const conversationId = await findOrCreateConversation(supabase, businessId, resolvedInput);
 
+  // CRM-09.1: a caller that already knows better (e.g. CRM-03.2's classification-based
+  // decision) passes an explicit true/false and that wins outright; only when the caller
+  // has no opinion does the deterministic rules engine decide, rather than silently
+  // defaulting to `false` the way this used to.
+  const requiresResponse = input.requiresResponse ?? evaluateRequiresResponse({ direction: input.direction, channel: input.channel, contentExcerpt: input.contentExcerpt });
+
   const row = {
     business_id: businessId,
     conversation_id: conversationId,
@@ -223,7 +230,7 @@ export async function recordInteraction(
     content_reference: input.contentReference ?? null,
     content_excerpt: input.contentExcerpt ?? null,
     media_reference: input.mediaReference ?? null,
-    requires_response: input.requiresResponse ?? false,
+    requires_response: requiresResponse,
     source_module: input.sourceModule ?? null,
     source_reference: input.sourceReference ?? null,
     metadata: input.metadata ?? {},
@@ -261,8 +268,43 @@ export async function recordInteraction(
       channel: input.channel,
       requiresResponse: row.requires_response,
     });
+  } else {
+    // CRM-09.1's fourth rule, the other half of `evaluateRequiresResponse()`: "no
+    // qualifying business response exists." An inbound message can't know at the moment
+    // it arrives whether it'll be responded to -- this is where that becomes true. Any
+    // earlier inbound interaction in the same conversation still marked
+    // `requires_response` with no `responded_at` now has one, so it drops out of the
+    // Potential Lost Business queue (CRM-09.2) the same instant this reply is recorded,
+    // not on some later re-evaluation pass.
+    const { error: respondedError } = await supabase
+      .from("interaction")
+      .update({ status: "responded", requires_response: false, responded_at: row.occurred_at })
+      .eq("business_id", businessId)
+      .eq("conversation_id", conversationId)
+      .eq("direction", "inbound")
+      .eq("requires_response", true)
+      .is("responded_at", null);
+    if (respondedError) throw respondedError;
   }
   await publishCrmEvent(businessId, "crm.conversation.updated", { v: 1, conversationId, status: conversation.status });
 
+  return data as Interaction;
+}
+
+/** CRM-09.1's "user can mark not actionable" -- distinct from `markInteractionFailed()`
+ * (that's for a send that technically failed); this is a human judgment call that an
+ * inbound message the rules engine flagged doesn't actually need a reply (e.g. a false
+ * positive the deterministic rules didn't catch). Uses the interaction model's own
+ * `ignored` status rather than a separate flag column. */
+export async function markInteractionNotActionable(businessId: string, interactionId: string, clients?: CrmClientOverrides): Promise<Interaction> {
+  const supabase = clients?.crm ?? (await createClient());
+  const { data, error } = await supabase
+    .from("interaction")
+    .update({ status: "ignored", requires_response: false })
+    .eq("id", interactionId)
+    .eq("business_id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
   return data as Interaction;
 }

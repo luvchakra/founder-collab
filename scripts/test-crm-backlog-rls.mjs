@@ -379,6 +379,33 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.lead where id = '${waLead}'`), "0", "Bob cannot see Alice's WhatsApp-captured lead");
 
+      console.log("Verifying CRM-09.1's requires_response rules engine (outbound reply clears prior inbound, mark not actionable)...");
+      const rulesActorId = "wa-rules-actor-1";
+      const rulesInbound1 = psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, external_actor_id, requires_response, content_excerpt) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'inbound', '${rulesActorId}', true, 'Is this in stock?') returning id;`);
+      const rulesInbound2 = psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, external_actor_id, requires_response, content_excerpt) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'inbound', '${rulesActorId}', true, 'Also, what is the price?') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.interaction where conversation_id = '${aliceConversation}' and id in ('${rulesInbound1}', '${rulesInbound2}') and requires_response and responded_at is null`),
+        "2",
+        "both unanswered inbound messages start out needing a response",
+      );
+      // recordInteraction()'s own outbound branch, replicated: recording a business
+      // reply clears every still-unresponded inbound interaction in the same
+      // conversation, not just the one it's a literal reply to.
+      psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, content_excerpt) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'outbound', 'Yes, it is in stock, price is 500');`);
+      psqlAsAlice(`update crm.interaction set status = 'responded', requires_response = false, responded_at = now() where business_id = '${aliceBusiness}' and conversation_id = '${aliceConversation}' and direction = 'inbound' and requires_response = true and responded_at is null;`);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.interaction where conversation_id = '${aliceConversation}' and requires_response and responded_at is null`),
+        "0",
+        "a single outbound reply clears requires_response on every prior unanswered inbound interaction in the conversation, not just one",
+      );
+      assertEqual(psqlAsAlice(`select status from crm.interaction where id = '${rulesInbound1}'`), "responded", "the cleared interaction's status becomes 'responded'");
+
+      const notActionable = psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, channel, direction, requires_response, content_excerpt) values ('${aliceBusiness}', '${aliceConversation}', 'whatsapp', 'inbound', true, 'unsubscribe') returning id;`);
+      psqlAsAlice(`update crm.interaction set status = 'ignored', requires_response = false where id = '${notActionable}' and business_id = '${aliceBusiness}';`);
+      assertEqual(psqlAsAlice(`select status, requires_response from crm.interaction where id = '${notActionable}'`), "ignored|f", "markInteractionNotActionable() sets status='ignored' and clears requires_response, without setting responded_at (it was never actually answered)");
+      assertEqual(psqlAsAlice(`select responded_at is null from crm.interaction where id = '${notActionable}'`), "t", "a not-actionable interaction stays unresponded, distinct from an actually-answered one");
+      assertEqual(psqlAsBob(`select count(*) from crm.interaction where id in ('${rulesInbound1}', '${rulesInbound2}', '${notActionable}')`), "0", "Bob cannot see or affect Alice's interactions");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
