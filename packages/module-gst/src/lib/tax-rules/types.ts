@@ -13,6 +13,10 @@ export type TaxRule = {
   effective_from: string;
   effective_to: string | null;
   source: string;
+  /** COMPLY-P0-02.4: one of `lib/compliance/treatments.ts`'s own catalog codes, or null
+   * when this rule isn't about a supply's tax treatment at all (e.g. a threshold/deadline
+   * rule). */
+  treatment: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -25,4 +29,5 @@ export type TaxRuleInput = {
   value: Record<string, unknown>;
   effectiveFrom: string;
   source: string;
+  treatment?: string | null;
 };

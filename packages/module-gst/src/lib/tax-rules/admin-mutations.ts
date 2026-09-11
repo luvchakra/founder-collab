@@ -1,10 +1,13 @@
 import { createAdminClient } from "../../db/admin";
 import { isRegimeSupported } from "../compliance/countries";
 import { canonicalJurisdictionName } from "../compliance/jurisdictions";
+import { isTreatmentSupported } from "../compliance/treatments";
 import type { TaxRule, TaxRuleInput } from "./types";
 
 /**
  * COMPLY-P0-02.3 (Versioned Tax Rules): publishes and supersedes rows in `gst.tax_rules`.
+ * COMPLY-P0-02.4 (Tax Treatments) added the optional `treatment` input, validated against
+ * `lib/compliance/treatments.ts`'s own catalog the same way `jurisdiction` is validated.
  *
  * Deliberately NOT gated by `requireModule`/`requirePermission` the way every other
  * mutation in this module is -- rule content is centrally curated (by whoever ships a
@@ -18,7 +21,9 @@ import type { TaxRule, TaxRuleInput } from "./types";
  * request-scoped, RLS-authorized action.
  */
 
-function validateInput(input: TaxRuleInput): { country: string; jurisdiction: string | null; regime: string; ruleKey: string } {
+function validateInput(
+  input: TaxRuleInput,
+): { country: string; jurisdiction: string | null; regime: string; ruleKey: string; treatment: string | null } {
   if (!isRegimeSupported(input.country, input.regime)) {
     throw new Error(`${input.regime} isn't a valid tax regime for ${input.country}.`);
   }
@@ -38,14 +43,24 @@ function validateInput(input: TaxRuleInput): { country: string; jurisdiction: st
     jurisdiction = canonical;
   }
 
-  return { country: input.country, jurisdiction, regime: input.regime, ruleKey: input.ruleKey.trim() };
+  // COMPLY-P0-02.4: `treatment` is optional (plenty of rules aren't about a supply's tax
+  // treatment at all), but when given it must be one of the fixed catalog codes.
+  let treatment: string | null = null;
+  if (input.treatment) {
+    if (!isTreatmentSupported(input.treatment)) {
+      throw new Error(`"${input.treatment}" isn't a recognized tax treatment.`);
+    }
+    treatment = input.treatment;
+  }
+
+  return { country: input.country, jurisdiction, regime: input.regime, ruleKey: input.ruleKey.trim(), treatment };
 }
 
 /** Publishes version 1 of a brand-new rule lineage. Fails (via the table's own unique
  * constraint) if this exact lineage/version already exists -- use `supersedeTaxRule` to
  * add a later version of an existing lineage instead. */
 export async function publishTaxRule(input: TaxRuleInput): Promise<TaxRule> {
-  const { country, jurisdiction, regime, ruleKey } = validateInput(input);
+  const { country, jurisdiction, regime, ruleKey, treatment } = validateInput(input);
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -59,6 +74,7 @@ export async function publishTaxRule(input: TaxRuleInput): Promise<TaxRule> {
       version: 1,
       effective_from: input.effectiveFrom,
       source: input.source.trim(),
+      treatment,
     })
     .select("*")
     .single();
@@ -82,7 +98,7 @@ export async function publishTaxRule(input: TaxRuleInput): Promise<TaxRule> {
  * lineage's first version (`publishTaxRule` is the only way to start one).
  */
 export async function supersedeTaxRule(input: TaxRuleInput): Promise<TaxRule> {
-  const { country, jurisdiction, regime, ruleKey } = validateInput(input);
+  const { country, jurisdiction, regime, ruleKey, treatment } = validateInput(input);
   const supabase = createAdminClient();
 
   let currentQuery = supabase
@@ -123,6 +139,7 @@ export async function supersedeTaxRule(input: TaxRuleInput): Promise<TaxRule> {
       version: current.version + 1,
       effective_from: input.effectiveFrom,
       source: input.source.trim(),
+      treatment,
     })
     .select("*")
     .single();

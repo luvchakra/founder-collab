@@ -35,7 +35,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-02 | 02.1 | Tax Registration | Done |
 | | 02.2 | Tax Jurisdiction | Done |
 | | 02.3 | Versioned Tax Rules | Done |
-| | 02.4 | Tax Treatments | Not started |
+| | 02.4 | Tax Treatments | Done |
 | | 02.5 | Tax Determination Snapshot | Not started |
 | P0-03 | 03.1 | Core Transaction Contract | Not started |
 | | 03.2 | Inventory Tax Context | Not started |
@@ -58,12 +58,13 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**7 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**8 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-COMPLY-P0-02.3 is the last completed story; COMPLY-P0-02.4 (Tax Treatments) is next.
+COMPLY-P0-02.4 is the last completed story; COMPLY-P0-02.5 (Tax Determination Snapshot) is
+next, completing epic COMPLY-P0-02.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -644,3 +645,71 @@ jurisdiction uniqueness gap noted above.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift this time (`node_modules` was already installed from 02.2 earlier in
   this same session).
+
+### 02.4 — Tax Treatments (2026-09-11)
+
+The `TaxTreatment` concept from the backlog's own §4 data model -- "Standard/reduced/
+zero/exempt/out-of-scope/reverse-charge/export/import etc." COMPLY-P0-02.3's own migration
+comment named this exact story as the one to give `gst.tax_rules.value`'s jsonb shape a
+name, and this is that.
+
+**Design decision**: unlike `TaxRule` (real, versioned, source-cited government content --
+needs a table) or `TaxRegistration` (a business's own record -- needs a table),
+`TaxTreatment` is a small, closed, near-universal vocabulary -- every VAT/GST-shaped
+regime the backlog's own §1/§2 research surveys (India GST, EU VAT, UK VAT, Singapore
+GST, UAE VAT, ...) uses some form of these same eight categories. That makes it safe and
+appropriate to encode as a fixed application-code catalog -- the same shape
+`countries.ts`/`jurisdictions.ts` already established -- rather than a table, and does NOT
+conflict with "never hard-code tax rates into UI components": a treatment is a
+classification, never a rate; the actual numeric rate that goes with a treatment for a
+given country/regime/date is exactly what `gst.tax_rules.value` already stores, versioned
+and source-cited.
+
+**Checked against the entity-ownership map first**: no existing column or table anywhere
+in the platform holds a generic, cross-regime tax-treatment classification --
+`core.items.tax_rate` is a flat number with no treatment concept.
+
+**What was built**:
+- `lib/compliance/treatments.ts` -- `TAX_TREATMENT_CATALOG`, the eight codes named in the
+  backlog verbatim (`standard`, `reduced`, `zero_rated`, `exempt`, `out_of_scope`,
+  `reverse_charge`, `export`, `import`), each with a plain-language name and description
+  (a *software rule's* explanation of the classification, not a claim about any specific
+  country's law -- backlog rule 12's fact/rule/result/explanation distinction). Plus
+  `getTreatment`/`isTreatmentSupported` lookups, same shape as `countries.ts`'s own
+  `getCountry`/`isCountrySupported`.
+- `gst.tax_rules.treatment` (`20260911004600_gst_tax_rules_treatment.sql`) -- a plain
+  nullable text column, validated in application code against the new catalog, same
+  "free text, app-validated, not a DB enum" convention `regime`/`jurisdiction` on the same
+  table already use. Nullable, not required: not every tax rule concerns a supply's
+  treatment at all (a future threshold/deadline rule, say, has none) -- `rule_key` stays
+  the only required way to say what a rule is about.
+- `lib/tax-rules/admin-mutations.ts` -- `publishTaxRule`/`supersedeTaxRule` now accept an
+  optional `treatment` input, validated via `isTreatmentSupported` the same way
+  `jurisdiction` is validated via `canonicalJurisdictionName`, and store it on both the
+  new version and (via the same insert payload shape) every superseding version.
+  `TaxRule`/`TaxRuleInput` (`lib/tax-rules/types.ts`) gained the matching field.
+
+**What was deliberately left out**: any UI; India-specific treatment assignments to real
+rules (COMPLY-P0-04.5/04.7's own job -- this story shipped the classification vocabulary
+and the column, no actual India rule rows); and a jurisdiction-style "canonical form"
+normalizer for treatment (unnecessary -- treatment codes are already fixed lowercase
+snake_case identifiers a caller either matches exactly or doesn't, unlike a free-text
+jurisdiction name a user might type in mixed case).
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `npm run lint:boundaries` -- 997 files scanned, 0 violations.
+- `npm run lint:migrations` -- 107 migration files checked, 0 violations.
+- `npm run test --workspace=@cofounderai/module-gst` -- 25 tests passed (21 pre-existing +
+  4 new in `treatments.test.ts`: the exact eight-code set with no duplicates, every entry
+  has a name/description, `getTreatment`/`isTreatmentSupported` hit and miss cases).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning, and the same unused-index info list) -- a plain `alter table ... add column`
+  with no new index/constraint/policy introduces nothing new to flag.
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).

@@ -1,0 +1,27 @@
+-- WonderArc Compliance backlog, COMPLY-P0-02.4 (Tax Treatments): the `TaxTreatment`
+-- concept from the backlog's own §4 data model -- "Standard/reduced/zero/exempt/
+-- out-of-scope/reverse-charge/export/import etc."
+--
+-- COMPLY-P0-02.3's own migration comment named this as the next story's job: "COMPLY-
+-- P0-02.4 (Tax Treatments) is the next story's job to give some of that [tax_rules.value]
+-- jsonb shape a name, not this one's to guess ahead of time." This is that: a plain
+-- nullable `treatment` column on `gst.tax_rules`, validated in application code against
+-- `lib/compliance/treatments.ts`'s own fixed catalog (see that file's own docstring for
+-- why a small, universal, cross-regime classification like this is safe and appropriate
+-- to hard-code, unlike a tax *rate*) -- same "free text, validated app-side, not a DB
+-- enum" convention this table's own `regime`/`jurisdiction` columns already use, so a
+-- future regime pack needing a treatment this initial catalog doesn't have yet is an
+-- application-code change, not a migration.
+--
+-- Nullable, not required: not every tax rule concerns a supply's treatment at all (a
+-- future rule about a registration threshold or a filing deadline, say, has no
+-- "treatment" in this sense) -- COMPLY-P0-02.3's own `rule_key` stays the only required,
+-- free-text way to say what a rule is about; `treatment` is an optional, catalog-checked
+-- refinement for the subset of rules that do classify a supply's tax treatment.
+--
+-- Checked against docs/plan/00-MASTER-PLAN.md §5 and this backlog's own reconnaissance
+-- notes first (backlog rule 1 / CLAUDE.md non-negotiable #5): no existing column or table
+-- anywhere in the platform holds a generic, cross-regime treatment classification --
+-- `core.items.tax_rate` is a flat numeric rate with no treatment concept at all.
+
+alter table gst.tax_rules add column treatment text;
