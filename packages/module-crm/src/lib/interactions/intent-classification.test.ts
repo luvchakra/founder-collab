@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyMessageIntent } from "./intent-classification";
+import { classifyMessageIntent, isHighCommercialIntent } from "./intent-classification";
 
 describe("classifyMessageIntent", () => {
   it("returns general_enquiry at zero confidence for empty content", () => {
@@ -37,5 +37,32 @@ describe("classifyMessageIntent", () => {
     expect(result.intent).toBe("general_enquiry");
     expect(result.confidence).toBeGreaterThan(0);
     expect(result.confidence).toBeLessThan(0.5);
+  });
+});
+
+describe("isHighCommercialIntent", () => {
+  it("treats pricing, availability, purchase_intent, and appointment as high commercial intent", () => {
+    expect(isHighCommercialIntent("pricing")).toBe(true);
+    expect(isHighCommercialIntent("availability")).toBe(true);
+    expect(isHighCommercialIntent("purchase_intent")).toBe(true);
+    expect(isHighCommercialIntent("appointment")).toBe(true);
+  });
+
+  it("does not treat a generic product question or general enquiry as high commercial intent", () => {
+    expect(isHighCommercialIntent("product_question")).toBe(false);
+    expect(isHighCommercialIntent("general_enquiry")).toBe(false);
+  });
+
+  it("does not treat support/complaint/feedback/review/spam as high commercial intent", () => {
+    expect(isHighCommercialIntent("support")).toBe(false);
+    expect(isHighCommercialIntent("complaint")).toBe(false);
+    expect(isHighCommercialIntent("feedback")).toBe(false);
+    expect(isHighCommercialIntent("review")).toBe(false);
+    expect(isHighCommercialIntent("spam")).toBe(false);
+  });
+
+  it("is false for null/undefined", () => {
+    expect(isHighCommercialIntent(null)).toBe(false);
+    expect(isHighCommercialIntent(undefined)).toBe(false);
   });
 });

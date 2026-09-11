@@ -411,6 +411,20 @@ async function main() {
       assertEqual(psqlAsAlice(`select intent, intent_confidence from crm.interaction where id = '${classifiedInteraction}'`), "pricing|0.600", "classifyMessageIntent()'s result is stored on the interaction's own intent/intent_confidence columns (CRM-01.2, unused until this story)");
       assertEqual(psqlAsBob(`select count(*) from crm.interaction where id = '${classifiedInteraction}'`), "0", "Bob cannot see Alice's classified interaction");
 
+      console.log("Verifying CRM-09.4's commercial intent override (human correction at full confidence)...");
+      psqlAsAlice(`update crm.interaction set intent = 'support', intent_confidence = 1 where id = '${classifiedInteraction}' and business_id = '${aliceBusiness}';`);
+      assertEqual(
+        psqlAsAlice(`select intent, intent_confidence from crm.interaction where id = '${classifiedInteraction}'`),
+        "support|1.000",
+        "updateInteractionIntent()'s human correction overwrites the classifier's guess and records full confidence",
+      );
+      psqlAsBob(`update crm.interaction set intent = 'spam' where id = '${classifiedInteraction}' and business_id = '${bobBusiness}';`);
+      assertEqual(
+        psqlAsAlice(`select intent from crm.interaction where id = '${classifiedInteraction}'`),
+        "support",
+        "Bob cannot override Alice's interaction's intent -- updateInteractionIntent()'s own business_id filter (scoped to Bob's business) matches no rows, so Alice's row is unchanged",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

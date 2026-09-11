@@ -1,6 +1,6 @@
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
-import { classifyMessageIntent } from "./intent-classification";
+import { classifyMessageIntent, type MessageIntent } from "./intent-classification";
 import { matchPartyForActor, type CrmClientOverrides } from "./matching";
 import { evaluateRequiresResponse } from "./response-rules";
 import type { Interaction, RecordInteractionInput } from "./types";
@@ -309,6 +309,22 @@ export async function markInteractionNotActionable(businessId: string, interacti
   const { data, error } = await supabase
     .from("interaction")
     .update({ status: "ignored", requires_response: false })
+    .eq("id", interactionId)
+    .eq("business_id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Interaction;
+}
+
+/** CRM-09.4's "user can override classification" -- the deterministic classifier
+ * (CRM-09.3) is a rough guess, not a verdict; a human correcting it is recorded at full
+ * confidence (`1`) since a human's own judgment call isn't a probability estimate. */
+export async function updateInteractionIntent(businessId: string, interactionId: string, intent: MessageIntent, clients?: CrmClientOverrides): Promise<Interaction> {
+  const supabase = clients?.crm ?? (await createClient());
+  const { data, error } = await supabase
+    .from("interaction")
+    .update({ intent, intent_confidence: 1 })
     .eq("id", interactionId)
     .eq("business_id", businessId)
     .select("*")
