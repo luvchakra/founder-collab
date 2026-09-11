@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
-import { getPotentialLostBusinessDashboard } from "@cofounderai/module-crm/lib/dashboard/queries";
+import { getPotentialLostBusinessDashboard, getCrmDashboardKpis } from "@cofounderai/module-crm/lib/dashboard/queries";
+import { inr } from "@cofounderai/core/lib/format";
 
-function KpiCard({ label, value, detail, href }: { label: string; value: number; detail: string; href?: string }) {
+function KpiCard({ label, value, detail, href }: { label: string; value: string | number; detail: string; href?: string }) {
   const content = (
     <div className="flex h-full flex-col gap-1 rounded-md border p-4">
       <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
@@ -28,16 +29,23 @@ function KpiCard({ label, value, detail, href }: { label: string; value: number;
  * `unansweredReviewsRequiringAction` read real (if currently always-zero) counts against
  * schema CRM-08.x already anticipated -- not placeholders, just channels nothing writes
  * to yet (CRM-08.2/08.3/08.5, P1, not built).
+ *
+ * CRM-14.1 adds a second section below, "Pipeline & operations" -- the backlog's own
+ * nine-KPI "CRM Dashboard" (`getCrmDashboardKpis()`). Deliberately a second section on
+ * this same page rather than a separate route: CRM-14.2's own "primary dashboard, not a
+ * hidden report" already claimed the top-of-nav "Dashboard" slot, and these two KPI sets
+ * are complementary reads of the same underlying data (what's at risk vs. what's the
+ * current pipeline/operations state), not two different audiences.
  */
 export default async function CrmDashboardPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const metrics = await getPotentialLostBusinessDashboard(businessId);
+  const [metrics, kpis] = await Promise.all([getPotentialLostBusinessDashboard(businessId), getCrmDashboardKpis(businessId)]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s potential lost business, at a glance.</p>
@@ -75,6 +83,51 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
           detail="pricing, availability, or purchase intent"
           href={`/dashboard/businesses/${businessId}/crm/conversations`}
         />
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold">Pipeline &amp; operations</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Current pipeline state and response performance.</p>
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <KpiCard label="New leads" value={kpis.newLeads} detail="status: new" href={`/dashboard/businesses/${businessId}/crm/leads`} />
+          <KpiCard
+            label="Open opportunities"
+            value={kpis.openOpportunities}
+            detail="in an open stage"
+            href={`/dashboard/businesses/${businessId}/crm/opportunities`}
+          />
+          <KpiCard label="Pipeline value" value={inr.format(kpis.pipelineValue)} detail="open opportunities" href={`/dashboard/businesses/${businessId}/crm/opportunities`} />
+          <KpiCard label="Won value" value={inr.format(kpis.wonValue)} detail="all time" href={`/dashboard/businesses/${businessId}/crm/opportunities`} />
+          <KpiCard
+            label="Open conversations"
+            value={kpis.openConversations}
+            detail="new, open, or waiting"
+            href={`/dashboard/businesses/${businessId}/crm/conversations`}
+          />
+          <KpiCard
+            label="Unanswered commercial interactions"
+            value={kpis.unansweredCommercialInteractions}
+            detail="every channel"
+            href={`/dashboard/businesses/${businessId}/crm/lost-business`}
+          />
+          <KpiCard
+            label="Overdue follow-ups"
+            value={kpis.overdueFollowUps}
+            detail="past due"
+            href={`/dashboard/businesses/${businessId}/crm/follow-ups`}
+          />
+          <KpiCard
+            label="Quote follow-ups"
+            value={kpis.quoteFollowUps}
+            detail="open opportunities with an FSM quote"
+            href={`/dashboard/businesses/${businessId}/crm/opportunities`}
+          />
+          <KpiCard
+            label="Response SLA"
+            value={kpis.responseSlaPercent === null ? "--" : `${kpis.responseSlaPercent}%`}
+            detail="on-time replies, last 30 days"
+          />
+        </div>
       </div>
     </div>
   );

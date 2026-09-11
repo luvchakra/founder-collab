@@ -11,3 +11,23 @@ export type PotentialLostBusinessDashboard = {
   staleOpportunities: number;
   openHighIntentConversations: number;
 };
+
+/**
+ * CRM-14.1's "CRM Dashboard" -- nine KPI cards, verbatim from the backlog. Complements
+ * (never duplicates) CRM-14.2's Potential Lost Business Dashboard: that one is "what's
+ * at risk of falling through," this one is "what's the current state of the pipeline
+ * and my response performance." `responseSlaPercent` is `null` when no interaction in
+ * the window has had its SLA deadline pass yet -- a founder with zero decided outcomes
+ * has no compliance rate to report, not a fabricated 0% or 100%.
+ */
+export type CrmDashboardKpis = {
+  newLeads: number;
+  openOpportunities: number;
+  pipelineValue: number;
+  wonValue: number;
+  openConversations: number;
+  unansweredCommercialInteractions: number;
+  overdueFollowUps: number;
+  quoteFollowUps: number;
+  responseSlaPercent: number | null;
+};

@@ -2468,3 +2468,55 @@ are out of this backlog run's P0/P1 scope per Section 7's own sequence table).
 **Status**: 70 of 74 in-scope stories done. Next: Epic CRM-14 (Command Center &
 Analytics) -- CRM-14.1 "CRM Dashboard" (seq #67; CRM-14.2 was already done earlier this
 session).
+
+---
+
+## CRM-14.1 (2026-09-11)
+
+"CRM Dashboard": new leads, open opportunities, pipeline value, won value, open
+conversations, unanswered commercial interactions, overdue follow-ups, quote
+follow-ups, response SLA.
+
+**Design**: added as a second "Pipeline & operations" section on the existing
+`crm/dashboard` route rather than a new page -- CRM-14.2's own "primary dashboard, not a
+hidden report" already claimed the top-of-nav "Dashboard" slot, and the two KPI sets are
+complementary reads of the same business (what's at risk of falling through vs. what's
+the current pipeline/operations state), not two separate audiences that need separate
+pages. `getCrmDashboardKpis()` (`lib/dashboard/queries.ts`) computes all nine:
+
+- New leads / open opportunities / pipeline value / won value: plain counts and
+  `estimated_value` sums off `crm.lead`/`crm.opportunity` (pipeline = open, won = won,
+  all-time -- same lifetime semantics `calculatePipelineValue()` already established on
+  the Opportunities page, just recomputed here rather than imported, since this needs
+  the raw rows for two different filters anyway).
+- Open conversations: `status in (new, open, waiting)`.
+- Unanswered commercial interactions: reuses `getOpenCommercialInteractions()`
+  (CRM-01.3/09.2/14.2) -- the same underlying row set CRM-14.2's own two "unanswered"
+  metrics already split by channel, summed here instead.
+- Overdue follow-ups: `crm.follow_up` where `status='pending' and due_at < now()` -- a
+  plain count, distinct from CRM-14.2's `overdueLeads` (which counts distinct *leads*
+  behind overdue follow-ups, not follow-up rows themselves).
+- Quote follow-ups: open opportunities with `fsm_opportunity_id is not null` (CRM-11's
+  own bridge) -- "an FSM quote has gone out and this opportunity is still open" is a
+  deterministic, no-cross-module-call definition of "needs a quote follow-up," chosen
+  over a live-`getFsmQuoteStatus()` call per open opportunity (unnecessary for an
+  aggregate count, same "trust the caller's own filtering" reasoning
+  `getOpenTicketsCount()`'s own docstring already uses for a comparable aggregate).
+- Response SLA: % of inbound interactions (last 30 days, excluding `ignored`) whose SLA
+  deadline (`response_due_at`) has already passed that were answered on time
+  (`responded_at <= response_due_at`). Still-pending interactions not yet past their
+  deadline are excluded from both numerator and denominator -- they have no verdict yet,
+  so counting them either way would misrepresent compliance. `null` (rendered "--") when
+  there are zero decided outcomes in the window, rather than a fabricated 0% or 100%.
+
+No new migration -- every KPI reads existing tables (`crm.lead`, `crm.opportunity`,
+`crm.conversation`, `crm.follow_up`, `crm.interaction`), nothing new to cache or gate
+behind RLS.
+
+Verified with full monorepo typecheck, `lint:boundaries` (926 files, no violations),
+module-crm's vitest suite (111/111, unchanged -- no new pure-logic unit beyond what
+existing query-composition patterns already cover), and a clean `next build`. No
+database change, so no live migration/advisors step and no RLS-harness addition needed.
+
+**Status**: 71 of 74 in-scope stories done. Next: CRM-14.3 "Response Performance" (seq
+#68).

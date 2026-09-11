@@ -2,7 +2,7 @@ import { createClient } from "../../db/server";
 import { getOpenCommercialInteractions } from "../interactions/queries";
 import { isHighCommercialIntent } from "../interactions/intent-classification";
 import type { MessageIntent } from "../interactions/intent-classification";
-import type { PotentialLostBusinessDashboard } from "./types";
+import type { PotentialLostBusinessDashboard, CrmDashboardKpis } from "./types";
 
 /** S-5's own registry-driven dashboard: an open+pending ticket count across every
  * business the caller already knows has `crm` licensed -- see
@@ -89,5 +89,68 @@ export async function getPotentialLostBusinessDashboard(businessId: string): Pro
     overdueLeads,
     staleOpportunities: staleOpportunitiesRes.count ?? 0,
     openHighIntentConversations,
+  };
+}
+
+/** No SLA verdict exists until an interaction's own response deadline has actually
+ * passed -- a still-open inbound message that isn't yet overdue has no outcome to
+ * count, so it's excluded from both the numerator and denominator rather than counted
+ * as either compliant or a breach. */
+const SLA_WINDOW_DAYS = 30;
+
+/**
+ * CRM-14.1's "CRM Dashboard" -- nine KPI counts, verbatim from the backlog. Distinct
+ * from CRM-14.2's own dashboard (that one surfaces what's at risk of falling through;
+ * this one is pipeline/operations state), so both coexist on the same page as two
+ * separate sections rather than one replacing the other.
+ */
+export async function getCrmDashboardKpis(businessId: string): Promise<CrmDashboardKpis> {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const slaWindowStart = new Date(Date.now() - SLA_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const [newLeadsRes, opportunitiesRes, openConversationsRes, unansweredCommercial, overdueFollowUpsRes, quoteFollowUpsRes, slaInteractionsRes] = await Promise.all([
+    supabase.from("lead").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "new"),
+    supabase.from("opportunity").select("status, estimated_value").eq("business_id", businessId),
+    supabase.from("conversation").select("id", { count: "exact", head: true }).eq("business_id", businessId).in("status", ["new", "open", "waiting"]),
+    getOpenCommercialInteractions(businessId, 1000),
+    supabase.from("follow_up").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "pending").lt("due_at", now),
+    supabase.from("opportunity").select("id", { count: "exact", head: true }).eq("business_id", businessId).eq("status", "open").not("fsm_opportunity_id", "is", null),
+    supabase
+      .from("interaction")
+      .select("status, responded_at, response_due_at")
+      .eq("business_id", businessId)
+      .eq("direction", "inbound")
+      .neq("status", "ignored")
+      .not("response_due_at", "is", null)
+      .lte("response_due_at", now)
+      .gte("occurred_at", slaWindowStart),
+  ]);
+  if (newLeadsRes.error) throw newLeadsRes.error;
+  if (opportunitiesRes.error) throw opportunitiesRes.error;
+  if (openConversationsRes.error) throw openConversationsRes.error;
+  if (overdueFollowUpsRes.error) throw overdueFollowUpsRes.error;
+  if (quoteFollowUpsRes.error) throw quoteFollowUpsRes.error;
+  if (slaInteractionsRes.error) throw slaInteractionsRes.error;
+
+  const openOpportunities = (opportunitiesRes.data ?? []).filter((o) => o.status === "open");
+  const wonOpportunities = (opportunitiesRes.data ?? []).filter((o) => o.status === "won");
+  const pipelineValue = openOpportunities.reduce((sum, o) => sum + (o.estimated_value ?? 0), 0);
+  const wonValue = wonOpportunities.reduce((sum, o) => sum + (o.estimated_value ?? 0), 0);
+
+  const slaEligible = slaInteractionsRes.data ?? [];
+  const slaCompliant = slaEligible.filter((i) => i.responded_at && i.response_due_at && i.responded_at <= i.response_due_at);
+  const responseSlaPercent = slaEligible.length > 0 ? Math.round((slaCompliant.length / slaEligible.length) * 100) : null;
+
+  return {
+    newLeads: newLeadsRes.count ?? 0,
+    openOpportunities: openOpportunities.length,
+    pipelineValue,
+    wonValue,
+    openConversations: openConversationsRes.count ?? 0,
+    unansweredCommercialInteractions: unansweredCommercial.length,
+    overdueFollowUps: overdueFollowUpsRes.count ?? 0,
+    quoteFollowUps: quoteFollowUpsRes.count ?? 0,
+    responseSlaPercent,
   };
 }
