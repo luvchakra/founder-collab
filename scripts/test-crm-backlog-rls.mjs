@@ -170,6 +170,23 @@ async function main() {
         "a duplicate (business_id, provider, external_review_id) review_item is rejected",
       );
 
+      console.log("Verifying CRM-09.8's escalation config and follow_up interaction_id attachment (idempotency)...");
+      psqlAsAlice(`insert into crm.escalation_config (business_id, manager_employee_id) values ('${aliceBusiness}', '${aliceEmployee}');`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.escalation_config (business_id) values ('${aliceBusiness}')`),
+        "a duplicate escalation_config row for the same business is rejected -- setEscalationManager()'s own upsert relies on this",
+      );
+      const aliceEscalationFollowUp = psqlAsAlice(`
+        insert into crm.follow_up (business_id, interaction_id, conversation_id, due_at, priority, escalation_stage)
+        values ('${aliceBusiness}', '${aliceInteraction}', '${aliceConversation}', now(), 'normal', 'reminder')
+        returning id;
+      `);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.follow_up (business_id, interaction_id, conversation_id, due_at) values ('${aliceBusiness}', '${aliceInteraction}', '${aliceConversation}', now())`),
+        "a duplicate (business_id, interaction_id) follow_up is rejected -- applyEscalationRules()'s own idempotency",
+      );
+      assertEqual(psqlAsAlice(`select escalation_stage from crm.follow_up where id = '${aliceEscalationFollowUp}'`), "reminder", "the escalation follow-up records which stage it's reached");
+
       console.log("Verifying CRM-01.6's client_dedupe_key (outbound send-retry) idempotency...");
       const outboundAttempt = psqlAsAlice(`
         insert into crm.interaction (business_id, conversation_id, channel, direction, client_dedupe_key, status)
@@ -556,6 +573,17 @@ async function main() {
         () => psqlAsBob(`insert into crm.follow_up (business_id, review_item_id, due_at) values ('${bobBusiness}', '${aliceReviewItem}', now() + interval '2 days')`),
         "Bob cannot create a follow_up against Alice's review_item (CRM-08.7)",
       );
+
+      console.log("Verifying CRM-09.8's escalation config and follow_up interaction_id (cross-tenant smuggling)...");
+      assertThrows(
+        () => psqlAsBob(`insert into crm.escalation_config (business_id, manager_employee_id) values ('${bobBusiness}', '${aliceEmployee}')`),
+        "Bob cannot set Alice's employee as his own business's escalation manager",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.follow_up (business_id, interaction_id, conversation_id, due_at) values ('${bobBusiness}', '${aliceInteraction}', '${aliceConversation}', now())`),
+        "Bob cannot create a follow_up against Alice's interaction (CRM-09.8)",
+      );
+
       const bobOpportunity = psqlAsBob(`insert into crm.opportunity (business_id, party_id) values ('${bobBusiness}', '${bobParty}') returning id;`);
       assertThrows(
         () => psqlAsBob(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id) values ('${bobBusiness}', '${bobOpportunity}', '${aliceContact1}')`),

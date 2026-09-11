@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createRoutingRule, setRoutingRuleActive } from "@cofounderai/module-crm/lib/routing-rules/mutations";
+import { setEscalationManager } from "@cofounderai/module-crm/lib/escalation/mutations";
 import type { KnownSenderCondition } from "@cofounderai/module-crm/lib/routing-rules/types";
 
 function detailPath(businessId: string) {
@@ -32,5 +33,13 @@ export async function createRoutingRuleAction(
 
 export async function setRoutingRuleActiveAction(businessId: string, ruleId: string, isActive: boolean): Promise<void> {
   await setRoutingRuleActive(businessId, ruleId, isActive);
+  revalidatePath(detailPath(businessId));
+}
+
+/** CRM-09.8: sets who "manager escalation" (the ladder's own final rung) assigns an
+ * unresolved commercial message to. `employeeId` "" clears the designation. */
+export async function setEscalationManagerAction(businessId: string, formData: FormData): Promise<void> {
+  const employeeId = String(formData.get("managerEmployeeId") || "") || null;
+  await setEscalationManager(businessId, employeeId);
   revalidatePath(detailPath(businessId));
 }

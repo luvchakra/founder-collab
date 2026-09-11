@@ -2,18 +2,21 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { listRoutingRules, listEmployeeOptions } from "@cofounderai/module-crm/lib/routing-rules/queries";
 import { listChannels } from "@cofounderai/module-crm/lib/channels/queries";
+import { getEscalationConfig } from "@cofounderai/module-crm/lib/escalation/queries";
 import { RoutingRulesView } from "@cofounderai/module-crm/components/routing-rules/routing-rules-view";
-import { createRoutingRuleAction, setRoutingRuleActiveAction } from "./actions";
+import { createRoutingRuleAction, setEscalationManagerAction, setRoutingRuleActiveAction } from "./actions";
+import { EscalationSettings } from "./escalation-settings";
 
 export default async function CrmRoutingRulesPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [rules, channels, employees] = await Promise.all([
+  const [rules, channels, employees, escalationConfig] = await Promise.all([
     listRoutingRules(businessId),
     listChannels(businessId),
     listEmployeeOptions(businessId),
+    getEscalationConfig(businessId),
   ]);
 
   return (
@@ -33,6 +36,8 @@ export default async function CrmRoutingRulesPage({ params }: { params: Promise<
         createAction={createRoutingRuleAction.bind(null, businessId)}
         setActiveAction={setRoutingRuleActiveAction.bind(null, businessId)}
       />
+
+      <EscalationSettings config={escalationConfig} employees={employees} action={setEscalationManagerAction.bind(null, businessId)} />
     </div>
   );
 }
