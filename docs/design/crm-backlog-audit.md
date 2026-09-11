@@ -377,6 +377,36 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (including the new `computeLineValue` tests), and both CRM RLS
 test suites -- no migration needed, so no new advisor check either.
 
+## CRM-04.5 (2026-09-11)
+
+Adds "Opportunity Contacts": a new `crm.opportunity_contact` junction table (its own
+migration's header comment explains why this isn't `core.party_contacts.is_primary`
+reused directly -- that flag is the company's own primary contact, not this deal's
+chosen one, and the two can legitimately differ). "One can be primary" is a DB-level
+partial unique index (`opportunity_contact_one_primary_uq`, `unique (opportunity_id)
+where is_primary`), same reasoning as CRM-01.6's idempotency constraints -- not just an
+app-level check. `setPrimaryOpportunityContact()` unsets the old primary before setting
+the new one (two sequential updates, ordered around that constraint) since the two can't
+both be true at once even transiently.
+
+`role text` is nullable and unused by any UI control yet -- present from day one purely
+so a later story can start writing it without a migration, per the acceptance criteria's
+own "contact role can be captured later without restructuring the model." The section
+only renders for a `kind='company'` opportunity party (a person party has no
+`core.party_contacts` to pick from), mirroring Customer 360's own Contacts section rule
+exactly.
+
+New cross-tenant-reference and one-primary-constraint cases added to
+`test-crm-backlog-rls.mjs` (a fresh company party + two contacts, asserting: multiple
+contacts allowed, a second concurrent primary rejected, Bob cannot link Alice's contact
+to his own opportunity or write against Alice's opportunity at all).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+`lint:migrations`, module-crm's vitest suite, and both CRM RLS test suites (against a
+harness DB with this migration applied). Migration
+`20260911000500_crm_opportunity_contacts.sql` applied to dev Supabase; no new advisor
+findings.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

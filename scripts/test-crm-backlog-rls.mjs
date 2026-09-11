@@ -4,10 +4,12 @@
  * (20260911000000_crm_backlog_schema_baseline.sql) -- lead, opportunity,
  * opportunity_stage, channel_connection, conversation, conversation_participant,
  * interaction, activity, follow_up, crm_note, product_interest, review_item,
- * assignment. Mirrors test-crm-rls.mjs's own structure (same harness, same "tenant AND
- * licensed" pattern) but as its own file rather than folding into that one, since the
- * two schemas' tables are unrelated to each other (docs/design/crm-backlog-audit.md) and
- * a single 13-table test would be unwieldy.
+ * assignment -- plus CRM-04.5's later addition, opportunity_contact
+ * (20260911000500_crm_opportunity_contacts.sql). Mirrors test-crm-rls.mjs's own
+ * structure (same harness, same "tenant AND licensed" pattern) but as its own file
+ * rather than folding into that one, since the two schemas' tables are unrelated to each
+ * other (docs/design/crm-backlog-audit.md) and a single many-table test would be
+ * unwieldy.
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -214,6 +216,29 @@ async function main() {
         "requires_response defaults to false when not explicitly set",
       );
 
+      console.log("Verifying CRM-04.5's opportunity contacts (multiple contacts, one primary)...");
+      const aliceCompanyParty = psqlAsAlice(`insert into core.parties (business_id, name, kind) values ('${aliceBusiness}', 'Alice Corp', 'company') returning id;`);
+      const aliceContact1 = psqlAsAlice(`insert into core.party_contacts (business_id, party_id, first_name) values ('${aliceBusiness}', '${aliceCompanyParty}', 'Priya') returning id;`);
+      const aliceContact2 = psqlAsAlice(`insert into core.party_contacts (business_id, party_id, first_name) values ('${aliceBusiness}', '${aliceCompanyParty}', 'Rahul') returning id;`);
+      const aliceOppContact1 = psqlAsAlice(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id, is_primary) values ('${aliceBusiness}', '${aliceOpportunity}', '${aliceContact1}', true) returning id;`);
+      const aliceOppContact2 = psqlAsAlice(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id) values ('${aliceBusiness}', '${aliceOpportunity}', '${aliceContact2}') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.opportunity_contact where opportunity_id = '${aliceOpportunity}'`),
+        "2",
+        "an opportunity can have multiple contacts",
+      );
+      assertThrows(
+        () => psqlAsAlice(`update crm.opportunity_contact set is_primary = true where id = '${aliceOppContact2}'`),
+        "a second primary contact on the same opportunity is rejected -- setPrimaryOpportunityContact() relies on this to guarantee at most one",
+      );
+      psqlAsAlice(`update crm.opportunity_contact set is_primary = false where id = '${aliceOppContact1}'`);
+      psqlAsAlice(`update crm.opportunity_contact set is_primary = true where id = '${aliceOppContact2}'`);
+      assertEqual(
+        psqlAsAlice(`select is_primary from crm.opportunity_contact where id = '${aliceOppContact2}'`),
+        "t",
+        "unsetting the old primary first (setPrimaryOpportunityContact()'s own two-step order) allows a new one to be set",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
@@ -251,6 +276,15 @@ async function main() {
       assertThrows(
         () => psqlAsBob(`insert into crm.assignment (business_id, entity_type, entity_id, owner_id) values ('${bobBusiness}', 'lead', '${aliceLead}', '${aliceEmployee}')`),
         "Bob cannot create an assignment owned by Alice's employee",
+      );
+      const bobOpportunity = psqlAsBob(`insert into crm.opportunity (business_id, party_id) values ('${bobBusiness}', '${bobParty}') returning id;`);
+      assertThrows(
+        () => psqlAsBob(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id) values ('${bobBusiness}', '${bobOpportunity}', '${aliceContact1}')`),
+        "Bob cannot link Alice's party contact to his own opportunity",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.opportunity_contact (business_id, opportunity_id, party_contact_id) values ('${bobBusiness}', '${aliceOpportunity}', '${aliceContact1}')`),
+        "Bob cannot create an opportunity_contact against Alice's opportunity",
       );
 
       console.log("\nAll crm backlog-schema RLS checks passed.");

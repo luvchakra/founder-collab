@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getOpportunity, listStages } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
-import { getParty } from "@cofounderai/core/parties/queries";
+import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
+import { getParty, listContactsForParty } from "@cofounderai/core/parties/queries";
 import { listItemsForBusiness } from "@cofounderai/core/items/queries";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { formatDate, inr } from "@cofounderai/core/lib/format";
@@ -13,10 +14,16 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Package, Trash2 } from "lucide-react";
+import { Package, Star, Trash2, Users } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
 import { updateOpportunityValueAction } from "../actions";
-import { addOpportunityProductAction, removeOpportunityProductAction } from "./actions";
+import {
+  addOpportunityContactAction,
+  addOpportunityProductAction,
+  removeOpportunityContactAction,
+  removeOpportunityProductAction,
+  setPrimaryOpportunityContactAction,
+} from "./actions";
 
 /**
  * CRM-04.4's Opportunity detail page -- the first per-opportunity page (List/Kanban
@@ -25,7 +32,10 @@ import { addOpportunityProductAction, removeOpportunityProductAction } from "./a
  * is licensed" needs somewhere to live, and a detail page is the natural place per
  * docs/design/claude-ui-design-rules.md rule 1 (a page's own primary content should
  * match what a user came here to do, not be crammed into the list view's row).
- * CRM-04.5 (Opportunity Contacts) is expected to add its own section here next.
+ *
+ * CRM-04.5 adds the Contacts section below: only shown for a `kind='company'` opportunity
+ * party, since a `kind='person'` party has no `core.party_contacts` of its own to pick
+ * from (same rule the Customer 360 page's own Contacts section already follows).
  */
 export default async function OpportunityDetailPage({
   params,
@@ -39,10 +49,11 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, inventoryLicensed] = await Promise.all([
+  const [party, stages, products, contacts, inventoryLicensed] = await Promise.all([
     getParty(opportunity.party_id),
     listStages(businessId),
     listOpportunityProducts(businessId, opportunityId),
+    listOpportunityContacts(businessId, opportunityId),
     hasModule(businessId, "inventory"),
   ]);
   const stage = stages.find((s) => s.id === opportunity.stage_id);
@@ -51,6 +62,10 @@ export default async function OpportunityDetailPage({
   // so items simply isn't fetched rather than fetching and then hiding a populated list.
   const items = inventoryLicensed ? await listItemsForBusiness(businessId) : [];
   const activeItems = items.filter((item) => item.status === "active");
+
+  const companyContacts = party?.kind === "company" ? await listContactsForParty(party.id) : [];
+  const linkedContactIds = new Set(contacts.map((c) => c.partyContactId));
+  const availableContacts = companyContacts.filter((c) => !linkedContactIds.has(c.id));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
@@ -137,6 +152,73 @@ export default async function OpportunityDetailPage({
                   <Input id="quantity" name="quantity" type="number" min={0} step="0.01" />
                 </div>
                 <SubmitButton pendingText="Adding...">Add product</SubmitButton>
+              </form>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {party?.kind === "company" ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Contacts</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {contacts.length === 0 ? (
+              <EmptyState icon={Users} message="No contacts linked to this opportunity yet." />
+            ) : (
+              <div className="flex flex-col divide-y">
+                {contacts.map((contact) => (
+                  <div key={contact.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium">{contact.name}</p>
+                        {contact.isPrimary ? <Badge variant="secondary">Primary</Badge> : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {[contact.jobTitle, contact.role, contact.email ?? contact.phone].filter(Boolean).join(" -- ")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      {!contact.isPrimary ? (
+                        <form action={setPrimaryOpportunityContactAction.bind(null, businessId, opportunityId, contact.id)}>
+                          <SubmitButton variant="ghost" size="sm" title="Make primary">
+                            <Star className="size-4" aria-hidden="true" />
+                          </SubmitButton>
+                        </form>
+                      ) : null}
+                      <form action={removeOpportunityContactAction.bind(null, businessId, opportunityId, contact.id)}>
+                        <SubmitButton variant="ghost" size="sm">
+                          <Trash2 className="size-4" aria-hidden="true" />
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {availableContacts.length > 0 ? (
+              <form
+                action={addOpportunityContactAction.bind(null, businessId, opportunityId)}
+                className="flex flex-wrap items-end gap-2 border-t border-border pt-3"
+              >
+                <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+                  <label htmlFor="partyContactId" className="text-xs text-muted-foreground">
+                    Contact
+                  </label>
+                  <NativeSelect id="partyContactId" name="partyContactId" defaultValue="">
+                    <option value="" disabled>
+                      Select a contact
+                    </option>
+                    {availableContacts.map((contact) => (
+                      <option key={contact.id} value={contact.id}>
+                        {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unnamed contact"}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+                <SubmitButton pendingText="Adding...">Add contact</SubmitButton>
               </form>
             ) : null}
           </CardContent>
