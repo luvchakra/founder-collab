@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { getBusiness } from "@cofounderai/module-gst/lib/tenancy/queries";
+import { getEffectiveComplianceProfile } from "@cofounderai/module-gst/lib/compliance/queries";
+import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
+import { CountryBar } from "@cofounderai/module-gst/components/compliance/country-bar";
 import { moduleRegistry } from "@cofounderai/module-registry";
+import { setComplianceCountryAction } from "./actions";
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Compliance";
 
@@ -18,7 +22,11 @@ export default async function GstLayout({
   params: Promise<{ businessId: string }>;
 }) {
   const { businessId } = await params;
-  const business = await getBusiness(businessId);
+  const [business, profile, canEdit] = await Promise.all([
+    getBusiness(businessId),
+    getEffectiveComplianceProfile(businessId),
+    hasPermission(businessId, "settings.manage"),
+  ]);
   if (!business) notFound();
 
   return (
@@ -29,6 +37,7 @@ export default async function GstLayout({
           { label: MODULE_NAME },
         ]}
       />
+      <CountryBar profile={profile} canEdit={canEdit} action={setComplianceCountryAction.bind(null, businessId)} />
       {children}
     </div>
   );
