@@ -16,6 +16,12 @@ export type ReviewItem = {
   reviewer_name: string | null;
   occurred_at: string;
   status: ReviewItemStatus;
+  /** CRM-08.6's AI-drafted reply, pending human review -- cleared once actually
+   * published (the published text is whatever the human approved, which may have been
+   * edited from this draft, so it isn't kept as a second copy of the same string). */
+  draft_reply: string | null;
+  draft_input_hash: string | null;
+  draft_generated_at: string | null;
   created_at: string;
   updated_at: string;
 };

@@ -15,7 +15,8 @@ export type AiOperation =
   | "generate_reply"
   | "classify_reply"
   | "chat"
-  | "restructure_import";
+  | "restructure_import"
+  | "draft_review_response";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -57,6 +58,13 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // schema is extraction, not synthesis -- same tier classify_reply already uses for a
   // comparably mechanical task.
   restructure_import: { qualityTier: "fast", requiresWebSearch: false },
+  // Balanced, same tier as generate_outreach_message: drafting a short, on-brand reply
+  // to one review's rating/comment is a bounded writing task, not extraction (fast) or
+  // multi-source synthesis (reasoning). CRM-08.6's own first caller of this registry
+  // from outside module-discovery -- see business-router.ts for the business_id-scoped
+  // (rather than workspace_id-scoped) credential resolution any other non-discovery
+  // module can now reuse the same way.
+  draft_review_response: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

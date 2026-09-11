@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { connectGoogleBusinessProfileLocation, syncGoogleBusinessProfileReviews } from "@cofounderai/module-crm/lib/reviews/mutations";
+import {
+  connectGoogleBusinessProfileLocation,
+  draftReviewResponse,
+  publishReviewResponse,
+  syncGoogleBusinessProfileReviews,
+} from "@cofounderai/module-crm/lib/reviews/mutations";
 import { disconnectChannelConnection } from "@cofounderai/module-crm/lib/channel-connections/mutations";
 
 export type ConnectGoogleBusinessProfileActionState = { error: string } | null;
@@ -34,5 +39,25 @@ export async function disconnectGoogleBusinessProfileAction(businessId: string, 
 
 export async function syncGoogleBusinessProfileReviewsAction(businessId: string, connectionId: string): Promise<void> {
   await syncGoogleBusinessProfileReviews(businessId, connectionId);
+  revalidatePath(reviewsPath(businessId));
+}
+
+/** CRM-08.6: generates (or reuses a cached) AI draft -- never publishes anything, so no
+ * `revalidatePath` is needed; the dialog holds the draft in its own component state
+ * until the human approves it. */
+export async function generateReviewDraftAction(businessId: string, reviewId: string): Promise<{ draftReply: string } | { error: string }> {
+  try {
+    return await draftReviewResponse(businessId, reviewId);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not generate a draft reply." };
+  }
+}
+
+export async function publishReviewResponseAction(businessId: string, reviewId: string, replyText: string): Promise<{ error: string } | void> {
+  try {
+    await publishReviewResponse(businessId, reviewId, replyText);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not publish this reply." };
+  }
   revalidatePath(reviewsPath(businessId));
 }
