@@ -2760,3 +2760,58 @@ already satisfied at session start; 14.1, 14.3, 14.4, 14.5, 14.6 all built this 
 regression-hardening checkpoint -- "Note: Sequence 72 is a deliberate regression/
 security checkpoint, not a duplicate implementation requirement" (the backlog's own
 wording).
+
+---
+
+## Seq #72 -- CRM-01.6 regression-hardening checkpoint (2026-09-11)
+
+Per the backlog's own Section 7 note: "not a duplicate implementation requirement." No
+new code -- a full regression pass confirming CRM-01.6's own four acceptance criteria
+(`provider + external_message_id` idempotency; replayed webhook doesn't duplicate the
+timeline; send retries don't duplicate outbound records; failure states are visible and
+retryable) still hold after 33 subsequent stories built on top of the interaction model
+this session, plus a whole-platform sanity pass.
+
+**CRM-01.6's own four criteria, re-verified directly** (`test-crm-backlog-rls.mjs`'s
+existing "CRM-01.6's idempotency unique constraints" and "CRM-01.6's client_dedupe_key"
+sections, unchanged since CRM-01.6 itself, still pass clean):
+- `(business_id, channel, external_message_id)` unique constraint rejects a duplicate --
+  confirmed.
+- Two interactions with no `external_message_id` at all are both allowed (the partial
+  unique index correctly treats "no ID available" as distinct from "same ID twice") --
+  confirmed.
+- `client_dedupe_key` rejects a second insert under the same key, and
+  `retryFailedInteraction()`'s own update-in-place path still works -- confirmed. Every
+  channel added since (WhatsApp CRM-07.x, Instagram/Facebook CRM-08.2/08.3) writes
+  through the same `crm.interaction` table and the same `recordInteraction()`/
+  `ingestInboundSocialMessage()` entry points, so no new ingestion path could have
+  bypassed this.
+- `crm.interaction.status` still includes `failed`/`ignored` alongside
+  `received`/`processing`/`responded` -- failure states remain visible and distinguishable
+  from a merely-unanswered message (CRM-09.1's own `markInteractionNotActionable()`
+  distinction, still intact).
+
+**Whole-platform regression suite, run fresh from a clean state**:
+- Full monorepo typecheck: clean, all 9 workspaces.
+- `lint:boundaries`: 935 files, no violations.
+- `lint:migrations`: 81 migrations, no violations.
+- Every package's vitest suite (core, module-crm, module-discovery, module-gst,
+  module-inventory, module-registry): all green (module-fsm has no test suite at all,
+  a pre-existing condition unrelated to this checkpoint). module-crm: 119/119.
+- Both CRM RLS harness suites (`test-crm-backlog-rls.mjs`, `test-crm-rls.mjs`): full
+  re-run, every assertion accumulated across this entire backlog run still passes --
+  no drift in any tenant-isolation, license-gating, or cross-tenant-smuggling guarantee.
+- `next build`: clean.
+- Live Supabase project `get_advisors` (security + performance): identical findings to
+  every prior check this session -- the same 5 pre-existing `rls_enabled_no_policy` INFO
+  findings (unrelated tables), the same leaked-password-protection WARN, and the same
+  "unused index" INFO findings (now 125, all new ones from this session's own tables,
+  still only "unused" because this dev project has no real traffic). No new finding of
+  any kind.
+
+**Result**: no regression found. Nothing to fix.
+
+**Status**: 72 of 74 in-scope stories done. Next: seq #77-78, CRM-07.6 media expansion/
+CRM-07.9 "Rich messaging" and CRM-07.10 "Acquisition entrypoint" -- two P1 rows placed
+in the sequence table after the P2 automation block (CRM-13.x, out of scope), easy to
+miss on a linear read but still in this backlog run's 74-story scope.
