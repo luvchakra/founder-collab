@@ -532,6 +532,19 @@ test update for the new `crm.opportunity.updated` entry), a clean `next build`,
 `lint:boundaries`, module-crm's vitest suite, and both CRM RLS test suites (including a
 new assignment-history scratch case). No new migration, so no new advisor check either.
 
+## CRM-06.1 (2026-09-11) -- already satisfied, no code change
+
+"A conversation groups related interactions. Conversation has status: new, open,
+waiting, resolved. Conversation links to party/lead/opportunity when resolved." Fully
+built ahead of schedule in CRM-01.2/CRM-01.3: `crm.conversation_status` enum is exactly
+`new`/`open`/`waiting`/`resolved`; `party_id`/`lead_id`/`opportunity_id` are all nullable
+FKs on `crm.conversation` already tenant-isolation-tested; `getConversationById()`
+(`lib/interactions/queries.ts`, the public contract's own `getConversation()`) already
+returns the conversation plus its participants and interaction timeline together --
+literally "groups related interactions." `lib/conversations/types.ts`'s own doc comment
+already flagged "the full unified-inbox UI ... is CRM-06.2's own story; this is just the
+data." Recorded here so the story count and audit trail stay accurate. No files changed.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`
