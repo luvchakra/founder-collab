@@ -44,11 +44,11 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Done |
 | | 07.2 | Exception Resolution Actions | Done |
 | | 07.3 | Exception Auto-Close | Done |
-| INT-08 (P1) | 08.1 | Linked Object Graph | Not started |
+| INT-08 (P1) | 08.1 | Linked Object Graph | Done |
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 10/13 done. Overall: 26/29 (90%). Epic INT-07 complete (3/3) -- only Epic INT-08 (08.1/08.2/08.3) remains.**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 11/13 done. Overall: 27/29 (93%). Epic INT-07 complete (3/3) -- Epic INT-08 (08.2/08.3) is all that remains.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -434,3 +434,19 @@ Added both new actions to `core`'s shared `ACTION_LABEL`/`ENTITY_TYPE_LABEL` map
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (962 files, unchanged), `lint:migrations` (97 migrations, no violations -- the new migration only creates/replaces functions and a trigger, no `create`/`alter table` at all, so the schema-per-file checker has nothing to flag either way), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged) and module-fsm's (no test files, `--passWithNoTests`, unchanged), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings), **plus** two live-executed rolled-back transactions directly exercising each new trigger against real dev rows (one existing job, one freshly-inserted-then-rolled-back assessment) -- both produced exactly the expected `core.audit_log` row (`before`/`after` matching) before the transaction rolled back, so this isn't just "the DDL applied cleanly," the trigger logic itself was actually exercised. Clean `next build`.
 
 **Status**: 26 of 29 in-scope stories done -- **Epic INT-07 complete** (3/3). Only Epic INT-08 (Business Timeline & Linked Object Graph: 08.1/08.2/08.3) remains in scope. Next: INT-08.1, Linked Object Graph.
+
+### INT-08.1 — Linked Object Graph (2026-09-11)
+
+No original text for this story either; reconstructed from its title and the epic's own name. Checked what already exists before writing anything: the opportunity detail page already fetches Journey (INT-01.1), FSM quote status, fulfillment status, assessment status, and linked products -- but nothing on the page ties them into one structure, and critically, the Journey card's own badges (`journey-badge.tsx`) are plain, unclickable status pills ("Discovery ✓") with zero `href`s. A founder can see *that* a prospect or FSM opportunity is linked but has no way to jump to it from this page. That gap -- not a missing read, a missing structure and a few missing links -- is what this story closes.
+
+New `LinkedObjectGraph`/`ObjectGraphNode` (`module-crm/src/lib/object-graph`) and `buildLinkedObjectGraph()`, deliberately a **pure function** (no DB calls of its own) over data the page already has in hand (`journey`, `fsmQuoteStatus`, `products`, plus the opportunity's own `fulfillment_request_id`/`assessment_request_id` columns) -- adds zero new round trips, it only restructures what's already fetched. Checked which linked entities actually have a per-record page to link to before claiming any `href`: Discovery prospects and CRM leads have no detail route in this codebase at all (confirmed by directory listing, not assumed) -- those nodes carry real information with `href: null`, same convention `timeline/queries.ts`'s own prospect entry already established rather than guessing at a URL that doesn't exist. Inventory products and the fulfillment request (a sales order) are the same story -- list-only, no detail route. The genuinely new, real links: `/fsm/opportunities/[id]` (exists, but nothing on this page pointed at it before -- only its own estimate/job were reachable), `/fsm/jobs/[id]`, and `/fsm/assessments/[id]` (both already linked elsewhere on this same page via the FSM Quote/Assessment cards -- included here anyway since the value of this card is having every linked record in one compact place, not exclusively surfacing brand-new links).
+
+Deliberately one hop deep off the opportunity: a job's own children (INT-06.4's revisit jobs, INT-06.3's recommended parts) would need new cross-module contract surface just to reach from here (module-crm can't read `fsm.jobs` internals directly), and both are already one click away via the FSM job node this function does produce -- adding that surface with no concrete consumer yet would be exactly the speculative functionality CLAUDE.md principle 7 rules out.
+
+**UI**: a new "Linked records" card on the opportunity detail page, right after the Journey card -- a row of badge chips, clickable (`Link`) where a real `href` exists, plain (muted, unclickable) otherwise. Omitted entirely when the graph has no nodes yet (an opportunity with nothing linked), matching this codebase's "don't advertise emptiness with a dead card" convention.
+
+Added a real unit-test file (`queries.test.ts`, 5 tests) since this is a pure function -- same "pure derivation functions get a vitest file" precedent as `opportunities/fulfillment.test.ts`/`opportunities/products.test.ts`, unlike the DB-touching query functions elsewhere in this backlog that don't get one.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (965 files, no violations), `lint:migrations` (97 migrations, unchanged -- no schema touched), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (157/157 -- 152 previously plus 5 new), `node scripts/test-module.mjs crm` and `fsm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build`. No live migration/advisor check needed -- no schema touched.
+
+**Status**: 27 of 29 in-scope stories done. Next: INT-08.2, Unified Journey Timeline.

@@ -10,6 +10,7 @@ import {
 } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { getPrimaryAddress } from "@cofounderai/core/addresses/queries";
 import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
+import { buildLinkedObjectGraph } from "@cofounderai/module-crm/lib/object-graph/queries";
 import { listOpportunityJourneyHistory } from "@cofounderai/module-crm/lib/timeline/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { checkOpportunityFulfillmentAvailability, FULFILLMENT_AVAILABILITY_LABEL } from "@cofounderai/module-crm/lib/opportunities/availability";
@@ -85,6 +86,13 @@ const ACTIVITY_TYPES = [
  * `getFsmQuoteStatusForOpportunity()` (never cached on this page), and "Create job in
  * FSM" (the accepted-quote -> job action) appears once an estimate exists with no job
  * yet.
+ *
+ * INT-08.1 adds the "Linked records" card: a consolidated, clickable jump-list built by
+ * `buildLinkedObjectGraph()` (a pure function, zero new DB calls -- it only restructures
+ * `journey`/`fsmQuoteStatus`/`products` this page already fetches). Distinct from the
+ * Journey card above it: those badges are plain status pills, this card is the first
+ * place on this page a founder can jump straight to the linked FSM opportunity record
+ * (previously reachable only via its own estimate/job, never directly).
  */
 export default async function OpportunityDetailPage({
   params,
@@ -115,6 +123,7 @@ export default async function OpportunityDetailPage({
       resolveCommercialJourney(businessId, opportunityId),
     ]);
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
+  const objectGraph = buildLinkedObjectGraph(businessId, opportunity, journey, fsmQuoteStatus, products);
   // INT-05.1: only worth checking once there's something to request and nothing has
   // been requested yet -- an already-created fulfillment request is Inventory's own
   // commitment now, not a fresh availability question.
@@ -217,6 +226,29 @@ export default async function OpportunityDetailPage({
                 ) : null}
               </div>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {objectGraph.nodes.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Linked records</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {objectGraph.nodes.map((node) =>
+              node.href ? (
+                <Link key={node.id} href={node.href}>
+                  <Badge variant="outline" className="font-normal hover:bg-muted">
+                    {node.label}
+                  </Badge>
+                </Link>
+              ) : (
+                <Badge key={node.id} variant="outline" className="font-normal text-muted-foreground">
+                  {node.label}
+                </Badge>
+              ),
+            )}
           </CardContent>
         </Card>
       ) : null}
