@@ -43,7 +43,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 03.4 | Party Tax Context | Done |
 | | 03.5 | No Duplicate Masters | Done |
 | P0-04 | 04.1 | GSTIN Management | Done |
-| | 04.2 | GST Profile | Not started |
+| | 04.2 | GST Profile | Done |
 | | 04.3 | HSN/SAC | Not started |
 | | 04.4 | Place of Supply | Not started |
 | | 04.5 | GST Tax Determination | Not started |
@@ -58,15 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**14 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**15 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.1 (GSTIN Management) is the last completed story;
-COMPLY-P0-04.2 (GST Profile) is next.
+both now fully done.** COMPLY-P0-04.2 (GST Profile) is the last completed story;
+COMPLY-P0-04.3 (HSN/SAC) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1374,3 +1374,115 @@ their side.
   convention every prior UI-shipping story in this log has used.
 - No lockfile drift this time (`node_modules` was already installed earlier in this
   session, from COMPLY-P0-03.5's own verification pass).
+
+### 04.2 — GST Profile (2026-09-11)
+
+"Regular/composition, registration date, state, return frequency and e-invoice
+eligibility." `state` is already `jurisdiction` (COMPLY-P0-02.2/04.1) and "registration
+date" is already the `registered_from` column (COMPLY-P0-02.1, never exposed in a form
+until now) -- this story's real job is the remaining three, the India-GST-specific
+attributes `gst.tax_registrations.metadata` was reserved for by its own migration
+comment.
+
+**A correction worth naming explicitly, caught while reading that migration comment
+against COMPLY-P0-04.1's own create form**: the OLD single-value form
+(`core.business_settings.gst_registration_type`) has a third option, "unregistered,"
+because that form describes a business that might hold no GSTIN at all. A row in
+`gst.tax_registrations` can never mean that -- COMPLY-P0-04.1's create form already
+requires and validates a real GSTIN before a row exists -- so "unregistered" has no
+meaning as a per-registration classification here; a business with zero registrations is
+already visible as an empty Registrations list. This story's own `GstRegistrationType`
+is therefore `"regular" | "composition"` only, not the three-way enum the migration
+comment's shorthand implied. Flagged here per this run's "the live source of truth wins
+over a frozen spec sentence" convention -- in this case the "frozen spec sentence" being
+this backlog's own migration comment from three stories ago, not `docs/plan/` itself.
+
+**What was built**:
+- `packages/module-gst/src/lib/tax-registrations/gst-registration-profile.ts`: the typed
+  shape (`GstRegistrationProfile`: `registrationType`, `returnFrequency`,
+  `eInvoiceEligible`), its two closed enums, `parseGstRegistrationProfile` (reads a row's
+  `metadata` into this type, defaulting every field rather than treating "no profile set
+  yet" as a distinct unknown state -- Regular/Monthly/not-e-invoice-eligible are sensible,
+  explicit defaults, not guesses) and `buildGstRegistrationMetadata` (merges the three
+  keys onto whatever else `metadata` already holds, never a wholesale replace, since the
+  table is generic across regimes even though only India writes profile metadata today).
+  Every field is documented as user-DECLARED, not computed (backlog rule 12) --
+  e-invoice eligibility in particular is not derived from turnover or any signal this
+  module reads; COMPLY-P0-05's own future eligibility engine will consume it as an input,
+  not treat it as a settled fact.
+  `gst-registration-profile.test.ts` -- 6 cases: defaults for empty metadata, a
+  fully-populated round trip, falling back to defaults for an invalid/unrecognized value
+  (including the OLD form's own "unregistered," proving it's deliberately rejected here
+  rather than silently accepted), metadata merge preserving an unrelated existing key, and
+  both type guards' accept/reject sets.
+- `packages/module-gst/src/lib/tax-registrations/mutations.ts`: renamed
+  COMPLY-P0-04.1's own `shouldMirrorToBusinessSettings` to the more honestly-scoped
+  `isIndiaGstRegistration` (same boolean, now reused by this story's own guard rather than
+  called under a name describing only its original mirror-specific purpose) and added
+  `setGstRegistrationProfile(businessId, registrationId, { registeredFrom, profile })` --
+  fetches the row first and refuses (rather than silently writing India-shaped keys into
+  some other regime's metadata) unless `isIndiaGstRegistration` confirms it, then writes
+  `registered_from` and the merged `metadata` in one update. Same `requireModule`/
+  `requirePermission("settings.manage")` gate every other write in this file already
+  uses.
+- `packages/module-gst/src/components/registrations/registration-profile-modal.tsx`: an
+  edit-only "GST profile" modal per registration (registration type select, registration
+  date input, return frequency select, e-invoice-eligible checkbox with a one-line note
+  that it's self-declared, not verified) -- always pre-filled from
+  `parseGstRegistrationProfile`, following `RegistrationModal`'s own hand-rolled-overlay
+  convention (not the vendored shadcn Dialog) for consistency with every other modal this
+  epic has shipped.
+- `registrations-list.tsx`: a new "Type" column/chip (desktop table + mobile card) showing
+  each registration's `registrationType`, and an "Edit profile" row action (pencil icon,
+  matching `WarehousesList`'s own edit-affordance convention) opening the new modal --
+  the one row action every registration gets regardless of status, since editing
+  descriptive profile fields is harmless even for a suspended/cancelled registration,
+  unlike the status-transition buttons which only show the transitions actually valid
+  for that row's current state.
+- `apps/web/.../gst/registrations/actions.ts`: `setGstRegistrationProfileAction` --
+  validates the two enum fields via the new type guards (defense in depth on top of what
+  a native `<select>` can already only submit, matching this route's own established
+  precedent of validating in the action layer) and calls `setGstRegistrationProfile`
+  directly with no redundant `requirePermission` call, same reasoning as every other
+  action in this file.
+
+**What was deliberately left out**:
+- The three-way `"unregistered"` option -- corrected above, not carried forward from the
+  migration comment's own shorthand.
+- Any UI surfacing of return frequency/e-invoice eligibility outside the edit modal (e.g.
+  as its own table column) -- keeping the list itself lean (`docs/design/claude-ui-design-rules.md`
+  §6, "avoid unnecessary columns and visual noise") since "Type" is the one classification
+  worth a glance at list level; the other two only matter when actually editing or, later,
+  when COMPLY-P0-05/07 build features that consume them directly.
+- Any change to how e-invoice eligibility is actually determined -- this story only
+  records a self-declared flag; a real eligibility *engine* reading turnover/thresholds is
+  COMPLY-P0-05.1's own job, not this one's, and this modal's own copy says so explicitly
+  rather than implying otherwise.
+- Wiring this profile into the CGST/SGST-vs-IGST business-settings mirror
+  (COMPLY-P0-04.1) -- that mirror only ever copies `gstin`/`state`, both untouched by this
+  story; `gst_registration_type` on `core.business_settings` is a separate, still-manual
+  field on the legacy Profile form, not something this story's new `registrationType`
+  overwrites (mirroring a two-way relationship between "regular/composition" here and
+  "regular/composition/unregistered" there would need its own explicit decision, not an
+  implicit side effect of this story).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1019 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations
+  (no schema change -- the new mutation only writes existing columns/the existing jsonb
+  bucket).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 108 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 9 files / 51 tests passed (45
+  pre-existing + 6 new in `gst-registration-profile.test.ts`).
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`,
+  none found.
+- No migration to apply and no `get_advisors` re-check needed -- this story touched no
+  schema.
+- No live browser walkthrough -- see the limitation note at the top of this document;
+  verified by reading the rendered JSX against the design rules doc, same convention as
+  COMPLY-P0-04.1.
+- No lockfile drift (`node_modules` already installed earlier in this session).

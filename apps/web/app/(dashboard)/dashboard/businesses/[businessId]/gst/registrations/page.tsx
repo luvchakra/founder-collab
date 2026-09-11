@@ -3,7 +3,12 @@ import { getBusiness } from "@cofounderai/module-gst/lib/tenancy/queries";
 import { listTaxRegistrationsForRegime } from "@cofounderai/module-gst/lib/tax-registrations/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { RegistrationsList } from "@cofounderai/module-gst/components/registrations/registrations-list";
-import { createTaxRegistrationAction, setPrimaryTaxRegistrationAction, setTaxRegistrationStatusAction } from "./actions";
+import {
+  createTaxRegistrationAction,
+  setGstRegistrationProfileAction,
+  setPrimaryTaxRegistrationAction,
+  setTaxRegistrationStatusAction,
+} from "./actions";
 
 /**
  * COMPLY-P0-04.1 (GSTIN Management) -- the multi-registration screen this table's own
@@ -46,6 +51,7 @@ export default async function GstRegistrationsPage({
         createAction={createTaxRegistrationAction.bind(null, businessId)}
         setPrimaryAction={setPrimaryTaxRegistrationAction.bind(null, businessId)}
         setStatusAction={setTaxRegistrationStatusAction.bind(null, businessId)}
+        setProfileAction={setGstRegistrationProfileAction.bind(null, businessId)}
       />
     </div>
   );
