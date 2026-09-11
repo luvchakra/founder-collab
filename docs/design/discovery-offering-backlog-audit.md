@@ -23,7 +23,7 @@ only genuine architectural/key decisions are raised.
 | | 02.1 | Offering Setup | Done |
 | | 02.2 | Offering ICP | Done |
 | | 02.3 | Buyer Personas | Done |
-| B | 03.1 | Offering Context Selector | Not started |
+| B | 03.1 | Offering Context Selector | Done |
 | | 03.2 | Offering Overview | Not started |
 | | 03.3 | Offering Navigation | Not started |
 | | 04.1 | Discovery Definition | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**6 of 68 in-scope stories done — Phase A complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**7 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -402,3 +402,36 @@ user in this environment).
 
 **Status**: 6 of 68 in-scope stories done -- **Phase A complete**. Next: Phase B, 03.1
 Offering Context Selector.
+
+### 03.1 — Offering Context Selector (2026-09-11)
+
+Checked what already existed before building anything: the product layout's own
+`Breadcrumbs` call passed the *literal strings* `"Business"` and `"Product"` as labels --
+not the actual business/offering names -- so "the user must always know Business: X /
+Offering: Y" was genuinely not true before this story, not merely under-decorated. Fixed
+that first: the breadcrumb now carries `business.name` (already fetched by this layout)
+and `product.name`, so the real names are visible on every page under an offering.
+
+Added `OfferingSwitcher` (`components/offerings/offering-switcher.tsx`): a `NativeSelect`
+next to the offering's `EditableName` heading, listing every other offering in the same
+business (`listOfferings(businessId)`, already existing from 01.1 -- no new query), that
+navigates straight to another offering on selection. It preserves whichever *tab* the
+founder is currently on (icp/prospects/conversions/usage) by inspecting `usePathname()`
+and re-attaching the same known tab segment under the new offering id, but drops anything
+deeper (e.g. a specific prospect id) and falls back to that tab's own root, since a
+specific record from one offering has no counterpart under another -- "context persists
+through relevant navigation" without inventing a page that doesn't exist. Hidden entirely
+when the business has only one offering (nothing to switch to). "Results from another
+offering do not leak" was already true by construction -- every query under this layout
+is scoped server-side by `workspace_id`/`business_id`, RLS-enforced; this story only adds
+the ability to *navigate* between offerings; it changes no data access. Desktop/mobile:
+a native `<select>` needs no separate mobile treatment, same reasoning as `CloneIcpButton`'s
+own offering picker.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(980 files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (19/19, unchanged -- no lib code changed,
+UI/layout only), and a clean `next build`. No schema change, so no migration/advisor step
+this story. Same live-browser-walkthrough constraint noted in every prior story this run.
+
+**Status**: 7 of 68 in-scope stories done. Next: 03.2, Offering Discovery Overview.
