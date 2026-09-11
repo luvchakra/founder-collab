@@ -145,3 +145,21 @@ export async function setOpportunityStatus(opportunityId: string, status: Opport
   if (error) throw error;
   return data;
 }
+
+/**
+ * DISC-OFFER-P0-06.2: "Offering Research Brief" -- writes a freshly-generated brief's
+ * own `offering_fit` narrative into the opportunity it supports, mirroring exactly how
+ * `setOpportunityWhyNow` (05.4) writes `computeWhyNow`'s summary into `why_now`. No
+ * score-component wiring here, unlike `attachSignalCorrelation`/`setOpportunityWhyNow`:
+ * `offering_fit` is a qualitative narrative, not a number, and inventing a 0-100 ICP-fit
+ * score from prose would be exactly the false precision this module has avoided
+ * everywhere else (05.2's own `computeOpportunityScore`, 05.5's negative-signal
+ * detection). A real numeric `icp_fit_score` remains unpopulated until something
+ * produces one honestly.
+ */
+export async function setOpportunityWhyThem(opportunityId: string, whyThem: string): Promise<Opportunity> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("opportunities").update({ why_them: whyThem }).eq("id", opportunityId).select().single();
+  if (error) throw error;
+  return data;
+}
