@@ -56,13 +56,26 @@ export function ProductNav({
    * founder revisits constantly and out of order, not a checklist. Switching to a flat,
    * equal-weight tab bar once setup is complete matches how it's actually used, without
    * adding any destination that doesn't already exist -- the doc's own suggested
-   * Discovery/Opportunities/Signals/Watchlist/Research entries have no page behind them
-   * yet (04.2/05.x-07.x/P1/08.x), so they're left out rather than becoming dead links. */
+   * Discovery/Opportunities/Signals/Watchlist/Research entries had no page behind them
+   * yet at that story; "Discovery" gains one here in 04.1 (definitions), so it's added
+   * to this ongoing bar only -- not to the setup stepper below, since a Discovery
+   * Definition is optional/ongoing configuration, not a required setup step in order. */
   if (completed?.overview) {
+    const ongoingTabs: { href: string; label: string }[] = [
+      { href: basePath, label: "Overview" },
+      { href: `${basePath}/icp`, label: "ICP" },
+      { href: `${basePath}/discovery`, label: "Discovery" },
+      { href: `${basePath}/prospects`, label: "Prospects" },
+      { href: `${basePath}/conversions`, label: "Conversions" },
+    ];
+    const activeOngoingIndex = ongoingTabs.findIndex((tab) =>
+      tab.href === basePath ? pathname === basePath : pathname === tab.href || pathname.startsWith(`${tab.href}/`),
+    );
+
     return (
       <nav aria-label="Offering sections" className="flex w-full flex-wrap gap-1 rounded-lg border border-border bg-muted p-1">
-        {tabs.map((tab, i) => {
-          const isActive = i === activeIndex;
+        {ongoingTabs.map((tab, i) => {
+          const isActive = i === activeOngoingIndex;
           return (
             <Link
               key={tab.href}
