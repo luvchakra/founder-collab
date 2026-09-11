@@ -2713,3 +2713,50 @@ genuinely complete** (12.3 and 12.6 remain out of this backlog run's P0/P1 scope
 
 **Status**: 70 of 74 in-scope stories done. Next: CRM-14.6 "Channel Performance" (seq
 #71).
+
+---
+
+## CRM-14.6 (2026-09-11)
+
+"Channel Performance": compare Discovery/WhatsApp/Instagram/Facebook/website/referral/
+manual by response, qualified leads, opportunities, wins, revenue where available.
+
+**Design**: `crm.lead.source` and `crm.opportunity.source` are already the exact
+`crm.source_channel` enum this story wants to compare by -- no new column, no
+cross-module call, all seven backlog channels are real enum values already in use.
+`getChannelPerformance()` (`lib/dashboard/channel-performance.ts`) fetches every lead
+and opportunity for the business once, then groups in JS per channel:
+
+- Responded: leads with `status` not `new` and not `unresponsive` -- moved past the
+  initial stage without being marked as never replying.
+- Qualified leads: `status='qualified'` (a real value in `crm.lead_status`).
+- Opportunities / wins: opportunity count / count with `status='won'`, per channel.
+- Revenue: sum of `estimated_value` on that channel's won opportunities -- the same
+  figure CRM-14.1's "Won value" KPI already uses. "Revenue where available" means CRM's
+  own opportunity value here, not a per-channel join through FSM's invoices (CRM-14.5
+  already covers CRM->FSM revenue in aggregate; this story's own metric list doesn't ask
+  for that breakdown per channel too).
+
+All seven channels are always shown, including ones with no data yet -- a genuine
+comparison table, not one that only lists channels currently in use.
+
+**UI**: new "Channel performance" section on the Analytics page -- one row per channel
+(name + a small metrics grid), following this page's own established "plain divided
+list, not a `<Table>`" pattern (matching the Owner/team performance section already on
+this page) so it's mobile-responsive by construction with no separate card/table
+breakpoint logic needed.
+
+New `ChannelPerformanceRow` type in `module-crm/src/lib/dashboard/types.ts`.
+
+Verified with full monorepo typecheck, `lint:boundaries` (935 files, no violations),
+module-crm's vitest suite (119/119, unchanged), and a clean `next build`. No database
+change -- reads existing `crm.lead`/`crm.opportunity` only.
+
+**Epic CRM-14 status**: 6 of 6 in-scope stories done -- **epic complete** (14.2 was
+already satisfied at session start; 14.1, 14.3, 14.4, 14.5, 14.6 all built this session;
+14.7 stays out of this backlog run's 74-story scope, P2).
+
+**Status**: 71 of 74 in-scope stories done. Next: seq #72, the CRM-01.6
+regression-hardening checkpoint -- "Note: Sequence 72 is a deliberate regression/
+security checkpoint, not a duplicate implementation requirement" (the backlog's own
+wording).

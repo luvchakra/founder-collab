@@ -68,3 +68,14 @@ export type CrmFsmFunnel = {
   completed: number;
   revenue: number;
 };
+
+/** CRM-14.6's "Channel Performance" -- one row per source channel, five metrics
+ * verbatim from the backlog. See `channel-performance.ts` for exact definitions. */
+export type ChannelPerformanceRow = {
+  channel: string;
+  responded: number;
+  qualifiedLeads: number;
+  opportunities: number;
+  wins: number;
+  revenue: number;
+};

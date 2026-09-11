@@ -3,6 +3,7 @@ import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getResponsePerformance } from "@cofounderai/module-crm/lib/dashboard/response-performance";
 import { getDiscoveryCrmFunnel } from "@cofounderai/module-crm/lib/dashboard/discovery-funnel";
 import { getCrmFsmFunnel } from "@cofounderai/module-crm/lib/dashboard/fsm-funnel";
+import { getChannelPerformance } from "@cofounderai/module-crm/lib/dashboard/channel-performance";
 import { inr } from "@cofounderai/core/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -31,16 +32,20 @@ function formatMinutes(minutes: number | null): string {
  *
  * CRM-14.5 adds the "CRM -> FSM Funnel" section the same way, omitted when FSM isn't
  * licensed.
+ *
+ * CRM-14.6 adds the "Channel performance" comparison table -- always shown (every row
+ * is CRM's own `crm.lead`/`crm.opportunity` data, no cross-module license to gate on).
  */
 export default async function CrmAnalyticsPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [performance, discoveryFunnel, fsmFunnel] = await Promise.all([
+  const [performance, discoveryFunnel, fsmFunnel, channelPerformance] = await Promise.all([
     getResponsePerformance(businessId),
     getDiscoveryCrmFunnel(businessId),
     getCrmFsmFunnel(businessId),
+    getChannelPerformance(businessId),
   ]);
 
   return (
@@ -177,6 +182,32 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
           </CardContent>
         </Card>
       ) : null}
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Channel performance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {channelPerformance.every((c) => c.responded === 0 && c.qualifiedLeads === 0 && c.opportunities === 0) ? (
+            <EmptyState icon={BarChart3} message="No leads or opportunities recorded yet." />
+          ) : (
+            <div className="flex flex-col divide-y">
+              {channelPerformance.map((c) => (
+                <div key={c.channel} className="flex flex-col gap-1.5 py-2 text-sm">
+                  <span className="font-medium capitalize">{c.channel}</span>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-5">
+                    <span>Responded: {c.responded}</span>
+                    <span>Qualified: {c.qualifiedLeads}</span>
+                    <span>Opportunities: {c.opportunities}</span>
+                    <span>Wins: {c.wins}</span>
+                    <span>Revenue: {inr.format(c.revenue)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
