@@ -35,7 +35,7 @@ only genuine architectural/key decisions are raised.
 | | 05.4 | Why Now | Done |
 | | 05.5 | Negative Signals | Done |
 | | 06.1 | Evidence-Backed Research | Done |
-| | 06.2 | Research Brief | Not started |
+| | 06.2 | Research Brief | Done |
 | | 06.3 | Buyer Intelligence | Not started |
 | | 07.1 | Next Best Action | Not started |
 | | 07.2 | Today's Opportunities | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**17 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**18 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -936,3 +936,82 @@ every prior story this run.
 
 **Status**: 17 of 68 in-scope stories done -- Phase C continuing. Next: 06.2, Offering
 Research Brief.
+
+### 06.2 — Offering Research Brief (2026-09-11)
+
+The doc's own twelve-field brief (Company/Offering Fit/Why Them/Why Now/Likely
+Buyer/Buying Committee/Problem Hypothesis/Evidence/Potential Objection/Suggested
+Opening/Recommended Action/Confidence) turned out to be mostly *already representable*
+by fields this backlog already built, once mapped out explicitly: Company =
+`prospects.company_name`/`description`; Why Now = `opportunities.why_now` (05.4);
+Evidence = `prospect_research.evidence` (06.1); Recommended Action =
+`opportunities.recommended_action` (deliberately left to 07.1 "Next Best Action," which
+owns it -- generating it here would be front-running that story's own closed
+vocabulary). Checked `lib/outreach/` before building anything new, since
+`OutreachStrategy` (`strategy`/`reason`/`key_message`/`cta`) covers similar-sounding
+ground: genuinely a *different* artifact for a *different* moment -- outreach strategy
+is generated once a founder has already decided to reach out and needs a
+channel/CTA/message angle, while a research brief is the *decision* aid that comes
+before that decision is made (the doc's own "Decision summary -> Research brief ->
+Expandable evidence -> Raw signals" progressive-disclosure order only makes sense
+pre-decision). Conflating them would force a channel/CTA choice before a founder has
+even decided whether to pursue -- kept them separate.
+
+The two people-related fields -- Likely Buyer / Buying Committee -- are deliberately
+**not** AI-generated: 06.3 "Buyer/Person Intelligence" (the very next story) explicitly
+owns "do not invent people or roles," so 06.2 satisfies both fields with a plain
+deterministic match (`lib/research-briefs/match-committee.ts`,
+`matchBuyingCommittee()`) between a prospect's real `discovery.contacts` and the
+offering's real `discovery.buyer_personas`, reusing `fuzzyIncludes` (already exported
+for 05.5) against job title vs. persona title. A contact with no matching persona is
+still shown, unassigned, never hidden or invented. Computed fresh on every read, not
+persisted -- contacts and personas each change independently, so a stored snapshot would
+risk going stale. Four new vitest cases cover a match, an unassigned contact, a null job
+title, and an empty-personas case.
+
+What's genuinely new -- and the only part requiring an AI call -- is four synthesis
+fields: `offering_fit`, `problem_hypothesis`, `potential_objection`, `suggested_opening`,
+plus the brief's own `confidence` (distinct from every other confidence field in this
+module, per the "type/kind vs. how sure" split 05.4 already established -- this one is
+"how sure am I in this synthesis given how much real evidence backs it"). New
+`discovery.research_briefs` (one row per prospect, upsertable like `prospect_research`,
+same select/insert/update RLS shape). New `ResearchBriefSchema` (`lib/ai/schemas.ts`,
+deliberately small -- only the four new fields, everything else is referenced context,
+not re-generated) and `generateResearchBrief()` (`lib/ai/generate-research-brief.ts`),
+built directly off `generateOutreachStrategy()`'s own exact shape (gather
+prospect/workspace/product/ICP/research, build a prompt, call `generateObject` at the
+`reasoning` tier via the BYOK router, record the `ai_run`, upsert) -- registered as
+`generate_research_brief` in `packages/core/src/ai/operation-registry.ts`, reasoning
+tier + no web search (reuses `researchProspect()`'s own already-gathered findings,
+"minimize LLM calls"). New `prompts/research/research_brief_v1.ts` feeds in the offering
+profile, ICP, research findings, buyer persona titles, the opportunity's own `why_now`
+(if one exists) and any detected negative signals (05.5) as grounding for
+`potential_objection` -- explicitly instructed not to invent a generic objection when
+real concerns are already on record. Mirroring 05.3/05.4's "write back into the
+existing opportunity slot" pattern once more: when an opportunity already exists for
+this prospect, the new `setOpportunityWhyThem()` (`lib/opportunities/mutations.ts`)
+writes `offering_fit` straight into that opportunity's own `why_them` (05.1's own
+long-empty slot, the qualitative counterpart to `why_now`) -- deliberately *not* wired
+into any score component the way signal correlation/timing were, since a qualitative
+narrative has no honest 0-100 number to become without inventing false precision.
+
+UI: added a "Research brief" section to the prospect detail page, positioned *above* the
+existing "Research" section (raw findings + evidence) rather than nested inside it --
+the doc's own progressive-disclosure order puts the decision summary first, expandable
+evidence and raw signals after. Reuses the page's existing `AiActionForm`/`DependencyArrow`
+conventions exactly as the "Research"/"Score" sections already do. Shows a confidence
+badge, the four synthesis fields, and the buying committee list (contact + matched
+persona role badge, or unassigned) -- gated on research already existing, matching
+`generateResearchBrief()`'s own server-side guard.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1014 files, no violations), `lint:migrations` (111 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (45/45, +4 new), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings), and a clean `next build`. Same
+live-browser-walkthrough constraint noted in every prior story this run -- this one in
+particular (a new AI-generation UI flow) would benefit most from an actual browser
+check, which remains unavailable here.
+
+**Status**: 18 of 68 in-scope stories done -- Phase C continuing. Next: 06.3, Buyer/Person
+Intelligence.

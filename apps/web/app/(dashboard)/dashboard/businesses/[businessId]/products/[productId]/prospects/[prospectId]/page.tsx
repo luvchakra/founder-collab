@@ -8,6 +8,8 @@ import { getProspect } from "@cofounderai/module-discovery/lib/prospects/queries
 import { listContacts } from "@cofounderai/module-discovery/lib/contacts/queries";
 import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/queries";
 import { EVIDENCE_TYPE_LABEL } from "@cofounderai/module-discovery/lib/research/types";
+import { getResearchBrief, getBuyingCommitteeForProspect } from "@cofounderai/module-discovery/lib/research-briefs/queries";
+import { PERSONA_ROLE_LABEL } from "@cofounderai/module-discovery/lib/personas/types";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { WEIGHTS as SCORE_WEIGHTS } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { getLatestOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/queries";
@@ -44,6 +46,7 @@ import {
   updateContactAction,
   deleteContactAction,
   researchProspectAction,
+  generateResearchBriefAction,
   scoreProspectAction,
   generateStrategyAction,
   approveStrategyAction,
@@ -328,13 +331,15 @@ export default async function ProspectDetailPage({
   const prospect = await getProspect(prospectId);
   if (!prospect || prospect.workspace_id !== workspace.id) notFound();
 
-  const [contacts, research, scores, strategy, messages, conversations] = await Promise.all([
+  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyingCommittee] = await Promise.all([
     listContacts(prospect.id),
     getProspectResearch(prospect.id),
     listRecentProspectScores(prospect.id),
     getLatestOutreachStrategy(prospect.id),
     listMessages(prospect.id),
     listConversations(prospect.id),
+    getResearchBrief(prospect.id),
+    getBuyingCommitteeForProspect(workspace.id, prospect.id),
   ]);
 
   // Template selection is an optional enhancement to message generation -- a Resend
@@ -576,6 +581,86 @@ export default async function ProspectDetailPage({
           </form>
         </div>
       </section>
+
+      {/* DISC-OFFER-P0-06.2: "Offering Research Brief" -- the doc's own progressive-
+          disclosure order (decision summary -> research brief -> expandable evidence ->
+          raw signals), so this decision-support summary sits above the raw Research
+          section below it rather than buried inside it. Requires research to exist
+          first (same guard generateResearchBrief() itself enforces server-side). */}
+      <section id="research-brief" className="flex scroll-mt-4 flex-col gap-3 rounded-md border p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium">Research brief</h2>
+          {research ? (
+            <AiActionForm
+              action={generateResearchBriefAction.bind(null, businessId, productId, prospect.id)}
+              buttonLabel={researchBrief ? "Regenerate brief" : "Generate brief"}
+              pendingText="Generating..."
+            />
+          ) : null}
+        </div>
+
+        {!research ? (
+          <p className="text-sm text-muted-foreground">Research this prospect first to generate a brief.</p>
+        ) : !researchBrief ? (
+          <p className="text-sm text-muted-foreground">Not generated yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span
+                className={cn(
+                  "rounded px-1.5 py-0.5 text-xs font-medium",
+                  researchBrief.confidence === "high"
+                    ? "bg-emerald-100 text-emerald-800"
+                    : researchBrief.confidence === "medium"
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-muted text-muted-foreground",
+                )}
+              >
+                {researchBrief.confidence === "high" ? "High" : researchBrief.confidence === "medium" ? "Medium" : "Low"} confidence
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Generated {new Date(researchBrief.generated_at).toLocaleString()}
+              </span>
+            </div>
+            <div>
+              <p className="font-medium">Offering fit</p>
+              <p className="text-muted-foreground">{researchBrief.offering_fit}</p>
+            </div>
+            <div>
+              <p className="font-medium">Problem hypothesis</p>
+              <p className="text-muted-foreground">{researchBrief.problem_hypothesis}</p>
+            </div>
+            <div>
+              <p className="font-medium">Potential objection</p>
+              <p className="text-muted-foreground">{researchBrief.potential_objection}</p>
+            </div>
+            <div>
+              <p className="font-medium">Suggested opening</p>
+              <p className="text-muted-foreground">{researchBrief.suggested_opening}</p>
+            </div>
+            {buyingCommittee.length > 0 ? (
+              <div>
+                <p className="font-medium">Buying committee</p>
+                <ul className="mt-1 flex flex-col gap-1 text-muted-foreground">
+                  {buyingCommittee.map(({ contact, persona }) => (
+                    <li key={contact.id}>
+                      {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "(name unknown)"}
+                      {contact.job_title ? ` — ${contact.job_title}` : ""}
+                      {persona ? (
+                        <span className="ml-1 rounded bg-muted px-1 text-xs">{PERSONA_ROLE_LABEL[persona.role_in_committee]}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">No contacts recorded yet -- no buying committee to show.</p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <DependencyArrow />
 
       <section id="research" className="flex scroll-mt-4 flex-col gap-3 rounded-md border p-4">
         <div className="flex items-center justify-between">

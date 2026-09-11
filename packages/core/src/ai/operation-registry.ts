@@ -20,7 +20,8 @@ export type AiOperation =
   | "check_response_quality"
   | "summarize_customer"
   | "summarize_conversation"
-  | "suggest_offering_profile";
+  | "suggest_offering_profile"
+  | "generate_research_brief";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -90,6 +91,13 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // of flat fields is extraction, not synthesis, and needs no web search (unlike
   // understand_product, this never researches a website).
   suggest_offering_profile: { qualityTier: "fast", requiresWebSearch: false },
+  // DISC-OFFER-P0-06.2's "Offering Research Brief" -- reasoning, same tier and shape as
+  // generate_outreach_strategy: synthesizing offering_fit/problem_hypothesis/
+  // potential_objection/suggested_opening from already-gathered research, ICP and
+  // negative-signal evidence is exactly that tier's "tying research evidence to a
+  // specific angle" case, not extraction. No web search: this reuses researchProspect()'s
+  // own already-fetched findings rather than searching again (minimize LLM calls).
+  generate_research_brief: { qualityTier: "reasoning", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

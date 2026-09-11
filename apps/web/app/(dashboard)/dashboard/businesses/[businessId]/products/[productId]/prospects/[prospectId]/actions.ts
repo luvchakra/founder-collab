@@ -14,6 +14,7 @@ import {
   deleteContact,
 } from "@cofounderai/module-discovery/lib/contacts/mutations";
 import { researchProspect } from "@cofounderai/module-discovery/lib/ai/research-prospect";
+import { generateResearchBrief } from "@cofounderai/module-discovery/lib/ai/generate-research-brief";
 import { scoreProspect } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { generateOutreachStrategy } from "@cofounderai/module-discovery/lib/ai/generate-strategy";
 import { approveOutreachStrategy, updateOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/mutations";
@@ -146,6 +147,17 @@ export async function researchProspectAction(
 ): Promise<AiActionState> {
   return runAiAction(async () => {
     await researchProspect(prospectId);
+    revalidatePath(prospectPath(businessId, productId, prospectId));
+  });
+}
+
+export async function generateResearchBriefAction(
+  businessId: string,
+  productId: string,
+  prospectId: string,
+): Promise<AiActionState> {
+  return runAiAction(async () => {
+    await generateResearchBrief(prospectId);
     revalidatePath(prospectPath(businessId, productId, prospectId));
   });
 }
