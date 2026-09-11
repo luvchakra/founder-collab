@@ -38,7 +38,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.4 | Tax Treatments | Done |
 | | 02.5 | Tax Determination Snapshot | Done |
 | P0-03 | 03.1 | Core Transaction Contract | Done |
-| | 03.2 | Inventory Tax Context | Not started |
+| | 03.2 | Inventory Tax Context | Done |
 | | 03.3 | FSM Tax Context | Not started |
 | | 03.4 | Party Tax Context | Not started |
 | | 03.5 | No Duplicate Masters | Not started |
@@ -58,13 +58,13 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**10 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**11 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.1 is the last
-completed story; COMPLY-P0-03.2 (Inventory Tax Context) is next.
+**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-03.2 is the last
+completed story; COMPLY-P0-03.3 (FSM Tax Context) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -893,3 +893,67 @@ particular caller of it); party context (COMPLY-P0-03.4's own job); and any UI.
 - `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 03.2 — Inventory Tax Context (2026-09-11)
+
+"Read product/service classification from Inventory."
+
+**Checked the entity-ownership map before deciding how to read this** (backlog rule 1 /
+CLAUDE.md non-negotiable #5) -- this is the story's real decision, and it's a
+counter-intuitive one worth spelling out: the classification fields the backlog means
+(HSN code, tax rate, item kind) are NOT `inventory`-schema-owned. `00-MASTER-PLAN.md` §5
+assigns them explicitly: "Price / tax rate / HSN | on `core.items` + `core.tax_rates` |
+inventory, fsm, gst | never duplicated per module" -- confirmed against the real
+`core.items` migration (`kind`/`hsn_code`/`tax_rate` are columns there) and against
+`@cofounderai/module-inventory/contract/index.ts`'s own `upsertItem`, which writes those
+same `core.items` columns rather than owning a separate copy. So despite the story's own
+title, this is the identical situation to COMPLY-P0-03.1 -- `core` data, read directly
+(CLAUDE.md's ranked mechanism (1)) -- NOT a `module-inventory` contract call (mechanism
+(2), which the inventory contract doesn't even expose a matching read for today -- no
+`getItem`/`listItems`, only `upsertItem` and stock/warehouse-shaped reads). Flagged here
+rather than silently building a contract call, or an inventory-schema table, for data this
+module can already read more cheaply and directly.
+
+**What was built**:
+- `lib/inventory-tax-context/{types,queries}.ts`: `getItemTaxContext(businessId, itemId)`
+  and batch `listItemTaxContexts(businessId, itemIds)`, both reading `core.items`
+  (`id, kind, sku, name, unit, hsn_code, tax_rate, status`) directly via the same
+  `coreClient()` pattern COMPLY-P0-03.1 established -- deliberately NOT the whole
+  `core.items` row (cost/selling price, supplier, image, category are irrelevant to tax
+  classification and out of scope for this read, per backlog rule "never send unnecessary
+  context").
+- Distinguished explicitly, in the file's own docstring, from COMPLY-P0-03.1's document-
+  line reads: a document line's HSN/tax-rate is a frozen SNAPSHOT at the moment that line
+  was created (never re-derived, per `core.document_lines`' own migration comment); this
+  file reads the item's CURRENT classification instead -- for validating a new line before
+  it's created, or a future classification-readiness check (COMPLY-P0-04.3 HSN/SAC,
+  COMPLY-P1-12.1 Inventory Tax Readiness), not for reinterpreting an already-issued
+  document.
+- `mapItemTaxContext` exported as a pure function, unit-tested the same way COMPLY-P0-03.1
+  tests its own mapping functions (no live DB needed): field translation, null
+  `sku`/`hsn_code` passthrough (a service item has neither), and every `kind` the
+  platform's own check constraint allows.
+- Read-only, no migration, no new RLS surface -- `core.items` already enforces tenant
+  isolation via its own existing RLS and isn't gated by `gst` licensing (item master data
+  exists regardless of which modules a business has licensed), so no
+  `requireModule`/`requirePermission` call here either, same convention as every other
+  query-only file in this module.
+
+**What was deliberately left out**: any UI; any real caller (HSN validation is
+COMPLY-P0-04.3's own job); and anything from the actual `inventory` Postgres schema
+(warehouses/stock levels are genuinely inventory-owned, but irrelevant to tax
+classification -- a future Compliance story that needs those would go through
+`module-inventory`'s contract, mechanism (2), not this file).
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `npm run lint:boundaries` -- 1006 files scanned, 0 violations.
+- `npm run lint:migrations` -- 108 migration files checked, 0 violations -- unchanged,
+  confirming no schema change this story either.
+- `npm run test --workspace=@cofounderai/module-gst` -- 32 tests passed (29 pre-existing +
+  3 new in `queries.test.ts`).
+- No migration to apply, no `get_advisors` re-check needed.
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
