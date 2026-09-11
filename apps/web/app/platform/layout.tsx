@@ -5,6 +5,14 @@ import { createClient } from "@cofounderai/core/db/server";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { Badge } from "@cofounderai/core/ui/badge";
 
+// Every /platform/* page is a per-request, authenticated control-plane view (session +
+// cross-tenant admin queries) -- never a candidate for static prerendering. Forced here
+// rather than relying on Next's dynamic-API auto-detection, since PLATFORM-P0-02's
+// service-role queries (packages/core/src/admin/platform-dashboard-queries.ts) run before
+// any cookies()/headers() call would otherwise trip that heuristic during the build's
+// prerender pass, which fails hard in any environment without live Supabase env vars.
+export const dynamic = "force-dynamic";
+
 /**
  * PLATFORM-P0-01's control-plane shell -- a new top-level `apps/web/app/platform/`
  * segment, not nested inside `(dashboard)`, so it shares none of the customer app's

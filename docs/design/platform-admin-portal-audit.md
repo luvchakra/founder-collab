@@ -10,8 +10,8 @@ backlogs in this repo). Never merged into `main` unless explicitly instructed.
 
 | Phase | Story | Title | Status |
 |---|---|---|---|
-| P0 Phase 1 | 01 | SUPERADMIN (role, authorization, session context, no tenant context) | In progress |
-| | 02 | Platform Dashboard | Not started |
+| P0 Phase 1 | 01 | SUPERADMIN (role, authorization, session context, no tenant context) | Done |
+| | 02 | Platform Dashboard | Done |
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | Not started |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | Not started |
@@ -31,7 +31,7 @@ backlogs in this repo). Never merged into `main` unless explicitly instructed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 0/19 phases done (01 in progress). P1: 0/9 done.**
+**P0: 2/19 phases done (01, 02). P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -130,3 +130,71 @@ apply + `get_advisors` for both `security`/`performance`, and a clean `next buil
 **Status**: PLATFORM-P0-01 done. Stopping here per the doc's own §39 workflow --
 waiting for the next story (PLATFORM-P0-02, Platform Dashboard, is next in Phase 1's own
 order, but nothing auto-continues).
+
+### PLATFORM-P0-02 — Platform Dashboard (2026-09-11)
+
+New `packages/core/src/admin/platform-dashboard-queries.ts` -- three service-role query
+functions (`getPlatformOverview()`, `getConfigurationHealth()`, `getRecentGlobalChanges()`)
+following `admin/queries.ts`'s own already-established pattern exactly:
+`createAdminClient({ schema: "core" })`, no RLS bypass concerns because the only caller is
+`/platform`, which sits under `requireSuperadmin()` (PLATFORM-P0-01's own layout). No
+migration needed -- every metric reads existing `core` tables (`businesses`,
+`account_members`, `licenses`, `ai_runs`, `api_keys`, `api_rate_limit_counters`,
+`domain_events`, `license_events`, `ai_provider_credentials`), nothing new to store.
+
+**PLATFORM-P0-02.1 (Platform Overview)**: businesses, active users (distinct
+`account_members.user_id`), active licenses (a proxy for "active subscriptions" -- there
+is no separate subscription/billing entity yet), per-module license counts, 30-day AI
+usage (`ai_runs` count + summed `estimated_cost`), 24h API usage
+(`api_rate_limit_counters`), and open platform issues (`domain_events` stuck at
+`status = 'failed'`). MRR/ARR is deliberately rendered as "--" with a note pointing at
+PLATFORM-P0-04 rather than computed: nothing in `core` prices a license or plan yet
+(`core.business_settings.plan` is a free-text label, not a billing entity) -- a fabricated
+number would violate CLAUDE.md's "never implement speculative functionality" worse than an
+honest gap. No customer PII surfaced anywhere (§6.1) -- every widget is a count, a sum, or
+a business *name*.
+
+**PLATFORM-P0-02.2 (Configuration Health)**: all seven categories the doc lists (AI
+providers, payment provider, email, WhatsApp, country packs, subscription plans, feature
+flags) honestly report `configured: false` today, each with a `detail` string naming the
+future story that will wire it up (PLATFORM-P0-09/11/12/13/04/08) -- none of those
+platform-wide config surfaces exist yet, so nothing here is fabricated. The one category
+with a narrower real signal (per-business BYOK `ai_provider_credentials`) surfaces that
+count in its own detail text explicitly labeled as *not* the platform-wide provider
+registry PLATFORM-P0-09 will add, rather than being folded into a false "configured".
+
+**PLATFORM-P0-02.3 (Recent Global Changes)**: reads `core.license_events` (module
+activated/deactivated/reactivated/expired across every business) -- the only genuinely
+platform-wide "something changed" ledger that exists yet. Future stories add their own
+sources once they exist (PLATFORM-P0-04 plan changes, PLATFORM-P0-08's flag audit,
+PLATFORM-P0-15 announcements) rather than this story fabricating a generic events table
+ahead of that need.
+
+`apps/web/app/platform/page.tsx` rewritten from PLATFORM-P0-01's placeholder into the real
+dashboard -- three sections (Overview KPI grid, Configuration Health list, Recent Global
+Changes feed), reusing the Executive Dashboard's own `KpiCard`/`Card`/`Badge` composition
+pattern (`apps/web/app/(dashboard)/dashboard/page.tsx`) but with the platform layout's own
+dark zinc palette instead of the customer app's theme tokens (explicit `border-zinc-700
+text-zinc-300` override on the "Not configured" badge, since the shadcn `outline` variant's
+`text-foreground` would otherwise resolve against the site's normal light-theme tokens,
+unreadable on this hardcoded dark chrome).
+
+`apps/web/app/platform/layout.tsx` gets one addition: `export const dynamic =
+"force-dynamic"`. Discovered via a real build failure -- `next build` attempted to
+statically prerender `/platform` and executed the new service-role queries at build time,
+throwing on a missing `SUPABASE_SERVICE_ROLE_KEY` in an environment with no `.env.local`.
+Every `/platform/*` page is a per-request authenticated control-plane view by design, never
+a static-generation candidate, so this is forced explicitly rather than relying on Next's
+dynamic-API auto-detection (which apparently doesn't trip early enough here to prevent the
+prerender attempt from reaching page-level code).
+
+Verified with full monorepo typecheck, `node scripts/lint-import-boundaries.mjs` (1003
+files), `node scripts/lint-migration-schema.mjs` (107 migrations, unchanged -- no new
+migration this story), `npx vitest run --root packages/core` (37 tests, unchanged -- no new
+pure logic worth a unit test beyond what the sibling `admin/queries.ts` already
+establishes as this codebase's pattern for thin service-role query wrappers), and a clean
+`next build` after the `force-dynamic` fix (`/platform` now listed `ƒ` dynamic).
+
+**Status**: PLATFORM-P0-02 done. Stopping here per the doc's own §39 workflow -- waiting
+for the next story (PLATFORM-P0-16, Platform Audit, or PLATFORM-P0-18, Platform Security
+Controls, are next in Phase 1's own order, but nothing auto-continues).
