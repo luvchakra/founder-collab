@@ -5,6 +5,7 @@ import { getOpportunity, listStages } from "@cofounderai/module-crm/lib/opportun
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
+import { listFollowUpsForOpportunity } from "@cofounderai/module-crm/lib/follow-ups/queries";
 import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getParty, listContactsForParty } from "@cofounderai/core/parties/queries";
 import { listItemsForBusiness } from "@cofounderai/core/items/queries";
@@ -16,18 +17,22 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { CheckCircle2, ListTodo, Package, Star, Trash2, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, ListTodo, Package, Star, Trash2, Users } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
 import { updateOpportunityValueAction } from "../actions";
 import {
   addOpportunityContactAction,
   addOpportunityProductAction,
+  completeOpportunityFollowUpAction,
   completeOpportunityNextActionAction,
+  createOpportunityFollowUpAction,
   createOpportunityNextActionAction,
   removeOpportunityContactAction,
   removeOpportunityProductAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
+
+const FOLLOW_UP_PRIORITIES = ["low", "normal", "high"] as const;
 
 const ACTIVITY_TYPES = [
   "call", "meeting", "note", "email", "whatsapp", "social", "task", "follow_up", "quote_follow_up", "service_follow_up",
@@ -63,12 +68,13 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, contacts, employees, inventoryLicensed] = await Promise.all([
+  const [party, stages, products, contacts, employees, followUps, inventoryLicensed] = await Promise.all([
     getParty(opportunity.party_id),
     listStages(businessId),
     listOpportunityProducts(businessId, opportunityId),
     listOpportunityContacts(businessId, opportunityId),
     listEmployeeOptions(businessId),
+    listFollowUpsForOpportunity(businessId, opportunityId),
     hasModule(businessId, "inventory"),
   ]);
   const stage = stages.find((s) => s.id === opportunity.stage_id);
@@ -183,6 +189,77 @@ export default async function OpportunityDetailPage({
               </form>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Follow-ups</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {followUps.length === 0 ? (
+            <EmptyState icon={CalendarClock} message="No follow-ups scheduled." />
+          ) : (
+            <div className="flex flex-col divide-y">
+              {followUps.map((followUp) => (
+                <div key={followUp.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant={followUp.priority === "high" ? "destructive" : "outline"} className="capitalize">
+                        {followUp.priority}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">Due {formatDate(followUp.due_at)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{ownerName(followUp.owner_id) ?? "Unassigned"}</p>
+                  </div>
+                  <form action={completeOpportunityFollowUpAction.bind(null, businessId, opportunityId, followUp.id)}>
+                    <SubmitButton variant="ghost" size="sm">
+                      <CheckCircle2 className="size-4" aria-hidden="true" />
+                      Complete
+                    </SubmitButton>
+                  </form>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <form
+            action={createOpportunityFollowUpAction.bind(null, businessId, opportunityId)}
+            className="flex flex-wrap items-end gap-2 border-t border-border pt-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="followUpDueAt" className="text-xs text-muted-foreground">
+                Due
+              </label>
+              <Input id="followUpDueAt" name="dueAt" type="date" required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="priority" className="text-xs text-muted-foreground">
+                Priority
+              </label>
+              <NativeSelect id="priority" name="priority" defaultValue="normal">
+                {FOLLOW_UP_PRIORITIES.map((priority) => (
+                  <option key={priority} value={priority} className="capitalize">
+                    {priority}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex min-w-36 flex-col gap-1.5">
+              <label htmlFor="followUpOwnerId" className="text-xs text-muted-foreground">
+                Owner
+              </label>
+              <NativeSelect id="followUpOwnerId" name="ownerId" defaultValue="">
+                <option value="">Unassigned</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.full_name ?? employee.email ?? "Unnamed"}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <SubmitButton pendingText="Adding...">Add follow-up</SubmitButton>
+          </form>
         </CardContent>
       </Card>
 

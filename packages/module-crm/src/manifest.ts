@@ -20,6 +20,7 @@ export const crmManifest: ModuleManifest = {
       items: [
         { label: "Leads", slug: "leads", icon: "Users" },
         { label: "Opportunities", slug: "opportunities", icon: "Target" },
+        { label: "Follow-ups", slug: "follow-ups", icon: "ListTodo" },
       ],
     },
     {
@@ -30,7 +31,14 @@ export const crmManifest: ModuleManifest = {
       ],
     },
   ],
-  features: ["Unified inbox across channels", "Channel connections", "Automated routing rules", "Lead lifecycle tracking", "Opportunity pipeline"],
+  features: [
+    "Unified inbox across channels",
+    "Channel connections",
+    "Automated routing rules",
+    "Lead lifecycle tracking",
+    "Opportunity pipeline",
+    "Follow-up queue",
+  ],
   permissions: ["crm.access"],
   optionalPeers: ["discovery", "fsm", "inventory", "gst"],
 };

@@ -456,6 +456,42 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 harness DB with this migration applied). Migration `20260911000600_crm_next_action.sql`
 applied to dev Supabase; no new advisor findings.
 
+## CRM-05.3 (2026-09-11)
+
+Adds the Follow-up Queue: `priority` (new `crm.follow_up_priority` enum: low/normal/
+high, default normal) on `crm.follow_up` -- the one column this table (built ahead of
+schedule in CRM-01.2, whose own queries.ts doc comment already flagged "the full queue
+UI ... is CRM-05.3's own story") was missing for the backlog's "high-priority"
+view/filter.
+
+Two new lib pieces: `createFollowUp()`/`completeFollowUp()` (`follow-ups/mutations.ts`,
+new file -- no follow-up could be created through the app before this story) and
+`applyFollowUpQueueFilters()` (`follow-ups/queue.ts`), a pure function applying the
+backlog's exact five views (due today/overdue/upcoming/unassigned/high-priority) plus
+owner/source/channel/priority filters over one already-fetched list -- one function, unit
+tested with a fixed clock, rather than five separate queries per view. `source`/`channel`
+aren't columns on `crm.follow_up` itself (a follow-up's polymorphic party_id/lead_id/
+opportunity_id/conversation_id attachment means which one applies depends on what it's
+attached to); `listFollowUpQueue()` resolves them via separate lookups against the
+attached lead's `source` or conversation's `primary_channel`, the same not-a-join pattern
+already used throughout this module.
+
+New "Follow-ups" nav entry and route
+(`crm/follow-ups/page.tsx`) is the cross-entity queue screen: view tabs + a GET filter
+form (same pattern the platform dashboard's own business/product/industry filter already
+uses) + an inline Complete button per row -- "actionable from one screen" without
+navigating away. The Opportunity detail page also gets its own scoped Follow-ups card
+(list + add form + Complete), since that's the one entity-context page that already
+exists; a Lead-side equivalent is deferred for the same reason CRM-05.2's was -- no Lead
+detail page exists yet. Snoozing is deliberately not built here -- that's CRM-05.6's own
+separate story (specific date/time, optional reason, search-visibility requirement).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+`lint:migrations`, module-crm's vitest suite (including the new 7-case
+`applyFollowUpQueueFilters` suite), and both CRM RLS test suites. Migration
+`20260911000700_crm_follow_up_priority.sql` applied to dev Supabase; no new advisor
+findings.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

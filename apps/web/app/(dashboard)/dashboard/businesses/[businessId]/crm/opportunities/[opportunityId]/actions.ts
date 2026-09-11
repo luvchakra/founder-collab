@@ -10,6 +10,8 @@ import {
 import { setOpportunityNextAction } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
 import type { ActivityType } from "@cofounderai/module-crm/lib/activities/types";
+import { completeFollowUp, createFollowUp } from "@cofounderai/module-crm/lib/follow-ups/mutations";
+import type { FollowUpPriority } from "@cofounderai/module-crm/lib/follow-ups/types";
 
 function opportunityPath(businessId: string, opportunityId: string) {
   return `/dashboard/businesses/${businessId}/crm/opportunities/${opportunityId}`;
@@ -64,5 +66,20 @@ export async function createOpportunityNextActionAction(businessId: string, oppo
 export async function completeOpportunityNextActionAction(businessId: string, opportunityId: string, activityId: string): Promise<void> {
   await completeActivity(businessId, activityId);
   await setOpportunityNextAction(businessId, opportunityId, null);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** CRM-05.3's add-follow-up form action, scoped to this opportunity. */
+export async function createOpportunityFollowUpAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const dueAt = String(formData.get("dueAt") || "");
+  if (!dueAt) return;
+  const priority = String(formData.get("priority") || "normal") as FollowUpPriority;
+  const ownerId = String(formData.get("ownerId") || "") || null;
+  await createFollowUp(businessId, { opportunityId, dueAt, priority, ownerId });
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+export async function completeOpportunityFollowUpAction(businessId: string, opportunityId: string, followUpId: string): Promise<void> {
+  await completeFollowUp(businessId, followUpId);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }
