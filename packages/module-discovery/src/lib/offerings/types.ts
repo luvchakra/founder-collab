@@ -26,6 +26,12 @@ export const OFFERING_TYPE_LABEL: Record<OfferingType, string> = {
   other: "Other",
 };
 
+/** Runtime companion to the `OfferingType` union -- needed wherever a value array (a
+ * `<select>`'s options, a Zod enum) is required, not just a compile-time type. Derived
+ * from `OFFERING_TYPE_LABEL`'s own keys rather than hand-duplicated, so the two can't
+ * drift apart. */
+export const OFFERING_TYPE_VALUES = Object.keys(OFFERING_TYPE_LABEL) as OfferingType[];
+
 /** DISC-OFFER-P0-01.1: "Offerings support active/inactive/archive." */
 export type OfferingStatus = Offering["status"];
 

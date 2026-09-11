@@ -20,7 +20,7 @@ only genuine architectural/key decisions are raised.
 | A | 01.1 | Business Offering | Done |
 | | 01.2 | Existing Product Compatibility | Done |
 | | 01.3 | Offering CRUD UI | Done |
-| | 02.1 | Offering Setup | Not started |
+| | 02.1 | Offering Setup | Done |
 | | 02.2 | Offering ICP | Not started |
 | | 02.3 | Buyer Personas | Not started |
 | B | 03.1 | Offering Context Selector | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**3 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**4 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -259,3 +259,55 @@ story rewrote -- builds with no errors). No migration this story (schema landed 
 01.1/01.2).
 
 **Status**: 3 of 68 in-scope stories done. Next: 02.1, Offering Setup Wizard.
+
+### 02.1 — Offering Setup Wizard (2026-09-11)
+
+Checked what already exists before building anything: `understandProduct()`
+(`lib/ai/understand-product.ts`) already does "natural-language/website input → AI
+structures fields → founder reviews" for the *deep* research profile
+(`ProductProfile`) -- but it hard-requires a website ("there's nothing to research
+without one"), and critically, the existing Overview tab renders that profile as
+read-only `<dd>` text, not editable fields -- a real gap against this story's own "AI
+suggestions are editable" criterion (the only correction path today is editing the
+source description/website and regenerating the whole profile, not fixing one field).
+Fixing that for the deep profile (arrays of features/differentiators/use cases, etc.)
+would be a much larger editable-array-fields UI investment than this story's own scope
+("What do you sell / what problem / who buys it / where / why / optional context" --
+six flat questions), so 02.1 targets the flat Offering fields DISC-OFFER-P0-01.1 already
+added instead, where an editable form already exists (01.3's dialog).
+
+New `suggestOfferingProfile()` (`lib/offerings/ai/`): takes a founder's own free-text
+description (no website, no crawling -- genuinely different from `understandProduct()`,
+not a duplicate), returns a structured, nullable-field proposal
+(`OfferingProfileSuggestion` -- offering type/category/primary problem/target
+market/value proposition + confidence) via a new small prompt
+(`prompts/offerings/suggest_offering_profile_v1.ts`) and Zod schema. Registered as a new
+BYOK operation (`suggest_offering_profile`, fast tier, no web search --
+`packages/core/src/ai/operation-registry.ts`) and wired through the same
+`resolveAiModel`/`assertWithinUsageLimit`/`recordAiRun`/`hashInput`/`toAiProviderError`
+scaffolding `understandProduct()` already uses -- same metering/audit discipline, not a
+parallel one. Deliberately has **no write path of its own**: "AI does not silently save
+inferred information as fact" is enforced structurally, the function can only return a
+proposal, never persist it.
+
+Only offered from the **Edit** dialog, not Create: AI-usage accounting is
+workspace-scoped (`ai_runs.workspace_id not null`), and a not-yet-created offering has
+no workspace yet (one is only created alongside the product row). "You can complete
+setup without AI" already holds in Create, which stays plain manual fields. Converted
+`OfferingFormDialog`'s type/category/target-market/primary-problem/value-proposition
+fields from uncontrolled to controlled React state so a "Suggest fields with AI" click
+can fill them as edited-before-save proposals, added a "Describe it in your own words"
+textarea + button above the existing fields (only rendered when a `suggestAction` prop
+is passed, i.e. Edit mode).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- caught and fixed
+one real gap along the way: `resolveAiModel()` requires a registered `AiOperation`, so
+the new operation had to be added to `core`'s own registry, not just called ad hoc),
+`lint:boundaries` (973 files, no violations), `npm run lint` (0 errors, 1 pre-existing
+unrelated warning), `npm run test -w @cofounderai/module-discovery` (19/19, unchanged),
+and a clean `next build`. Same live-browser-walkthrough constraint as 01.3 (no seeded
+demo user/`.env.local` in this environment) -- verification is typecheck/lint/build plus
+disciplined reuse of the already-proven AI scaffolding and 01.3's own dialog, not a
+rendered screenshot. No migration this story.
+
+**Status**: 4 of 68 in-scope stories done. Next: 02.2, Offering ICP.

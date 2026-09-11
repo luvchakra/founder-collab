@@ -16,6 +16,7 @@ import {
   deleteProductAction,
   createOfferingAction,
   updateOfferingAction,
+  suggestOfferingProfileAction,
   setOfferingStatusAction,
   duplicateOfferingAction,
 } from "../actions";
@@ -110,6 +111,7 @@ export default async function BusinessDetailPage({
           rows={rows}
           createAction={createOfferingAction.bind(null, business.id)}
           updateAction={updateOfferingAction.bind(null, business.id)}
+          suggestAction={suggestOfferingProfileAction.bind(null, business.id)}
           setStatusAction={setOfferingStatusAction.bind(null, business.id)}
           duplicateAction={duplicateOfferingAction.bind(null, business.id)}
           deleteAction={deleteProductAction.bind(null, business.id)}

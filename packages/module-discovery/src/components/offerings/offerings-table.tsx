@@ -3,12 +3,14 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { formatDate } from "@cofounderai/core/lib/format";
+import type { OfferingProfileSuggestion } from "../../lib/ai/schemas";
 import { OFFERING_STATUS_LABEL, OFFERING_TYPE_LABEL } from "../../lib/offerings/types";
 import type { Offering, OfferingStatus } from "../../lib/offerings/types";
 import { OfferingFormDialog } from "./offering-form-dialog";
 import { OfferingRowActions } from "./offering-row-actions";
 
 type FormResult = { error: string } | { success: true };
+type SuggestResult = { error: string } | { success: true; suggestion: OfferingProfileSuggestion };
 
 export type OfferingRow = { offering: Offering; prospectCount: number };
 
@@ -41,6 +43,7 @@ export function OfferingsTable({
   rows,
   createAction,
   updateAction,
+  suggestAction,
   setStatusAction,
   duplicateAction,
   deleteAction,
@@ -49,6 +52,7 @@ export function OfferingsTable({
   rows: OfferingRow[];
   createAction: (formData: FormData) => Promise<FormResult>;
   updateAction: (offeringId: string, formData: FormData) => Promise<FormResult>;
+  suggestAction: (offeringId: string, description: string) => Promise<SuggestResult>;
   setStatusAction: (offeringId: string, status: OfferingStatus) => Promise<FormResult>;
   duplicateAction: (offeringId: string) => Promise<FormResult>;
   deleteAction: (offeringId: string) => Promise<FormResult>;
@@ -73,7 +77,7 @@ export function OfferingsTable({
                     {offering.name}
                   </Link>
                   <div className="flex shrink-0 items-center gap-0.5">
-                    <OfferingFormDialog mode="edit" offering={offering} action={updateAction.bind(null, offering.id)} />
+                    <OfferingFormDialog mode="edit" offering={offering} action={updateAction.bind(null, offering.id)} suggestAction={suggestAction.bind(null, offering.id)} />
                     <OfferingRowActions
                       offeringName={offering.name}
                       status={offering.status}
@@ -126,7 +130,7 @@ export function OfferingsTable({
                   <TableCell className="text-muted-foreground">{formatDate(offering.updated_at)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-0.5">
-                      <OfferingFormDialog mode="edit" offering={offering} action={updateAction.bind(null, offering.id)} />
+                      <OfferingFormDialog mode="edit" offering={offering} action={updateAction.bind(null, offering.id)} suggestAction={suggestAction.bind(null, offering.id)} />
                       <OfferingRowActions
                         offeringName={offering.name}
                         status={offering.status}

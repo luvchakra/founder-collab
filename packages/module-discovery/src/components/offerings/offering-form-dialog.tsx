@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import { Pencil, Plus, Sparkles } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@cofounderai/core/ui/dialog";
 import { Input } from "@cofounderai/core/ui/input";
@@ -11,10 +11,12 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { toast } from "@cofounderai/core/ui/sonner";
-import { OFFERING_TYPE_LABEL } from "../../lib/offerings/types";
+import type { OfferingProfileSuggestion } from "../../lib/ai/schemas";
+import { OFFERING_TYPE_LABEL, OFFERING_TYPE_VALUES } from "../../lib/offerings/types";
 import type { Offering, OfferingType } from "../../lib/offerings/types";
 
 type FormResult = { error: string } | { success: true };
+type SuggestResult = { error: string } | { success: true; suggestion: OfferingProfileSuggestion };
 
 /**
  * DISC-OFFER-P0-01.3's "Create/Edit UI" -- one dialog, two modes, rather than a
@@ -25,19 +27,39 @@ type FormResult = { error: string } | { success: true };
  * own "Commercial details" heading, separate from the always-visible basics -- keeping
  * the dialog from reading as one undifferentiated wall of inputs (the Global UI Design
  * Rule's own "improve information hierarchy... grouping").
+ *
+ * DISC-OFFER-P0-02.1's "Offering Setup Wizard" AI half lives here too, as a "Suggest
+ * fields" step inside Edit rather than a separate multi-screen wizard: a founder types
+ * one free-text description, clicks Suggest, and the type/category/target
+ * market/problem/value-proposition fields below fill in as *editable* proposals (never
+ * auto-saved -- "User must accept/edit suggestions before activation" holds because
+ * this is the exact same form Save always requires a click on). Only offered in Edit
+ * (`suggestAction` is undefined in Create): the AI call is workspace-scoped for usage
+ * accounting, and a not-yet-created offering has no workspace yet -- "You can complete
+ * setup without AI" already holds in Create, which is plain manual fields throughout.
  */
 export function OfferingFormDialog({
   mode,
   offering,
   action,
+  suggestAction,
 }: {
   mode: "create" | "edit";
   offering?: Offering;
   action: (formData: FormData) => Promise<FormResult>;
+  suggestAction?: (description: string) => Promise<SuggestResult>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [suggesting, startSuggestTransition] = useTransition();
+
+  const [quickDescription, setQuickDescription] = useState("");
+  const [offeringType, setOfferingType] = useState<OfferingType | "">(offering?.offering_type ?? "");
+  const [category, setCategory] = useState(offering?.category ?? "");
+  const [targetMarket, setTargetMarket] = useState(offering?.target_market ?? "");
+  const [primaryProblem, setPrimaryProblem] = useState(offering?.primary_problem ?? "");
+  const [valueProposition, setValueProposition] = useState(offering?.value_proposition ?? "");
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -49,6 +71,24 @@ export function OfferingFormDialog({
       setOpen(false);
       router.refresh();
       toast.success(mode === "create" ? "Offering created." : "Offering updated.");
+    });
+  }
+
+  function handleSuggest() {
+    if (!suggestAction) return;
+    startSuggestTransition(async () => {
+      const result = await suggestAction(quickDescription);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      const { suggestion } = result;
+      if (suggestion.offeringType) setOfferingType(suggestion.offeringType as OfferingType);
+      if (suggestion.category) setCategory(suggestion.category);
+      if (suggestion.targetMarket) setTargetMarket(suggestion.targetMarket);
+      if (suggestion.primaryProblem) setPrimaryProblem(suggestion.primaryProblem);
+      if (suggestion.valueProposition) setValueProposition(suggestion.valueProposition);
+      toast.success("Suggested fields below -- review and edit before saving.");
     });
   }
 
@@ -75,6 +115,23 @@ export function OfferingFormDialog({
           <DialogTitle>{mode === "create" ? "New offering" : `Edit ${offering?.name}`}</DialogTitle>
         </DialogHeader>
         <form action={handleSubmit} className="flex flex-col gap-4">
+          {suggestAction ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
+              <Label htmlFor="quickDescription">Describe it in your own words</Label>
+              <Textarea
+                id="quickDescription"
+                rows={2}
+                value={quickDescription}
+                onChange={(e) => setQuickDescription(e.target.value)}
+                placeholder="e.g. We provide managed IAM services to mid-size financial companies."
+              />
+              <Button type="button" variant="outline" size="sm" className="self-start" disabled={suggesting || !quickDescription.trim()} onClick={handleSuggest}>
+                <Sparkles className="size-3.5" aria-hidden="true" />
+                {suggesting ? "Suggesting..." : "Suggest fields with AI"}
+              </Button>
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>
@@ -83,11 +140,11 @@ export function OfferingFormDialog({
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="offeringType">Type</Label>
-                <NativeSelect id="offeringType" name="offeringType" defaultValue={offering?.offering_type ?? ""}>
+                <NativeSelect id="offeringType" name="offeringType" value={offeringType} onChange={(e) => setOfferingType(e.target.value as OfferingType)}>
                   <option value="" disabled>
                     Select a type
                   </option>
-                  {(Object.keys(OFFERING_TYPE_LABEL) as OfferingType[]).map((type) => (
+                  {OFFERING_TYPE_VALUES.map((type) => (
                     <option key={type} value={type}>
                       {OFFERING_TYPE_LABEL[type]}
                     </option>
@@ -96,7 +153,7 @@ export function OfferingFormDialog({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="category">Category</Label>
-                <Input id="category" name="category" defaultValue={offering?.category ?? ""} placeholder="e.g. Managed security services" />
+                <Input id="category" name="category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. Managed security services" />
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
@@ -113,15 +170,21 @@ export function OfferingFormDialog({
             <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Commercial details</p>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="targetMarket">Target market</Label>
-              <Input id="targetMarket" name="targetMarket" defaultValue={offering?.target_market ?? ""} placeholder="e.g. Mid-size financial services companies" />
+              <Input
+                id="targetMarket"
+                name="targetMarket"
+                value={targetMarket}
+                onChange={(e) => setTargetMarket(e.target.value)}
+                placeholder="e.g. Mid-size financial services companies"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="primaryProblem">Primary problem it solves</Label>
-              <Textarea id="primaryProblem" name="primaryProblem" rows={2} defaultValue={offering?.primary_problem ?? ""} />
+              <Textarea id="primaryProblem" name="primaryProblem" rows={2} value={primaryProblem} onChange={(e) => setPrimaryProblem(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="valueProposition">Value proposition</Label>
-              <Textarea id="valueProposition" name="valueProposition" rows={2} defaultValue={offering?.value_proposition ?? ""} />
+              <Textarea id="valueProposition" name="valueProposition" rows={2} value={valueProposition} onChange={(e) => setValueProposition(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="detailedDescription">Detailed description</Label>

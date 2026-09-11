@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OFFERING_TYPE_VALUES } from "../offerings/types";
 
 /**
  * Structured product understanding output (blueprint §12, §17). Every field must be
@@ -247,3 +248,28 @@ export const ChatResponseSchema = z.object({
 });
 
 export type ChatResponse = z.infer<typeof ChatResponseSchema>;
+
+/**
+ * DISC-OFFER-P0-02.1's "Offering Setup Wizard" -- structures a founder's own
+ * natural-language description ("We provide managed IAM services to mid-size financial
+ * companies") straight into the flat Offering fields DISC-OFFER-P0-01.1 added, with NO
+ * website research step (unlike `ProductProfileSchema` above, which requires one) --
+ * this only restates what the founder already typed, it never invents anything they
+ * didn't say. Every field is nullable: "AI does not silently save inferred information
+ * as fact" means a short or ambiguous description should come back mostly null rather
+ * than a confident guess, and the caller never writes this straight to the database --
+ * it's returned to the create/edit dialog as an editable proposal only.
+ */
+export const OfferingProfileSuggestionSchema = z.object({
+  offeringType: z
+    .enum(OFFERING_TYPE_VALUES as [string, ...string[]])
+    .nullable()
+    .describe("Best-fit offering type, or null if the description doesn't make one clear"),
+  category: z.string().nullable().describe("A short category label, e.g. 'B2B SaaS - invoice reconciliation', or null"),
+  primaryProblem: z.string().nullable().describe("The problem this offering solves, only if stated or clearly implied"),
+  targetMarket: z.string().nullable().describe("Who normally buys it, only if stated or clearly implied"),
+  valueProposition: z.string().nullable().describe("Why customers choose it over alternatives, only if stated or clearly implied"),
+  confidence: z.number().min(0).max(1).describe("0-1, lower for a one-line description, higher for a detailed one"),
+});
+
+export type OfferingProfileSuggestion = z.infer<typeof OfferingProfileSuggestionSchema>;

@@ -15,8 +15,10 @@ import {
   setOfferingStatus,
   updateOfferingProfile,
 } from "@cofounderai/module-discovery/lib/offerings/mutations";
+import { suggestOfferingProfile } from "@cofounderai/module-discovery/lib/offerings/ai/suggest-offering-profile";
 import { updateProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import type { OfferingStatus, OfferingType } from "@cofounderai/module-discovery/lib/offerings/types";
+import type { OfferingProfileSuggestion } from "@cofounderai/module-discovery/lib/ai/schemas";
 import {
   parseProductImportFile,
   type ProductImportRow,
@@ -242,6 +244,27 @@ export async function setOfferingStatusAction(
   }
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };
+}
+
+/**
+ * DISC-OFFER-P0-02.1's "Suggest fields" -- only ever called from the Edit dialog on an
+ * already-created offering (see `suggestOfferingProfile()`'s own doc comment for why:
+ * AI-usage accounting is workspace-scoped, and a not-yet-created offering has none
+ * yet). Returns the suggestion for the dialog to pre-fill as *editable* values, never
+ * writes it anywhere itself.
+ */
+export async function suggestOfferingProfileAction(
+  _businessId: string,
+  offeringId: string,
+  description: string,
+): Promise<{ error: string } | { success: true; suggestion: OfferingProfileSuggestion }> {
+  try {
+    const suggestion = await suggestOfferingProfile(offeringId, description);
+    return { success: true, suggestion };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not suggest fields for this offering." };
+  }
 }
 
 export async function duplicateOfferingAction(

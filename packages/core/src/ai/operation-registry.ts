@@ -19,7 +19,8 @@ export type AiOperation =
   | "draft_review_response"
   | "check_response_quality"
   | "summarize_customer"
-  | "summarize_conversation";
+  | "summarize_conversation"
+  | "suggest_offering_profile";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -84,6 +85,11 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // actions/sentiment from one conversation's own message history is bounded analysis
   // over given text, not multi-source synthesis.
   summarize_conversation: { qualityTier: "balanced", requiresWebSearch: false },
+  // DISC-OFFER-P0-02.1's "Offering Setup Wizard" -- fast, same tier as classify_reply/
+  // restructure_import: restating a founder's own free-text description into a handful
+  // of flat fields is extraction, not synthesis, and needs no web search (unlike
+  // understand_product, this never researches a website).
+  suggest_offering_profile: { qualityTier: "fast", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {
