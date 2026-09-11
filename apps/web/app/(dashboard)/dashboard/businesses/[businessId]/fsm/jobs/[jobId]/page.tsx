@@ -40,6 +40,7 @@ import {
   uploadJobAttachmentAction,
   resolveJobPartsShortageAction,
   retryJobPartsReservationAction,
+  recordJobPartsConsumptionAction,
 } from "./actions";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ businessId: string; jobId: string }> }) {
@@ -144,6 +145,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       materialRequirement={materialRequirement}
       resolveShortageAction={resolveJobPartsShortageAction.bind(null, businessId, jobId)}
       retryReservationAction={retryJobPartsReservationAction.bind(null, businessId, jobId)}
+      recordConsumptionAction={recordJobPartsConsumptionAction.bind(null, businessId, jobId)}
     />
   );
 }

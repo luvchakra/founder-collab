@@ -28,7 +28,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | INT-03 (P0) | 03.1 | FSM Job Material Requirement | Done |
 | | 03.2 | Reserve Parts for FSM Job | Done |
 | | 03.3 | Parts Shortage -> FSM Exception | Done |
-| | 03.4 | Technician Consumption -> Inventory | Not started |
+| | 03.4 | Technician Consumption -> Inventory | Done |
 | | 03.5 | Parts Returned / Unused -> Inventory | Not started |
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Not started |
 | | 04.2 | Create FSM Assessment Request | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 10/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 10/29 (34%).**
+**P0 (INT-01 through INT-04): 11/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 11/29 (38%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -236,3 +236,17 @@ Also closes the "Retry Handoff" gap INT-03.2's own doc comment deliberately defe
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (86 migrations, no violations), a live migration application to the dev Supabase project followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
 
 **Status**: 10 of 29 in-scope stories done. Next: INT-03.4, Technician Consumption -> Inventory.
+
+### INT-03.4 — Technician Consumption -> Inventory (2026-09-11)
+
+New `fsm.jobs.parts_consumption` (jsonb array, migration `20260911002400`) + `parts_consumption_recorded_at`: a technician's explicit report of `actual`/`returned`/`wasted` per material line, distinct from `planned` (what `listJobMaterialRequirement()` says was needed). `actual` + `wasted` both permanently leave stock (`consumeStock`, "outbound" -- used productively or used-but-lost are the same movement from Inventory's point of view, the contract exposes no separate "damaged" movement type and this story doesn't invent one); `returned` releases its reservation back to available (`releaseStock`) -- correctly covers "never left the warehouse, wasn't needed after all." A genuine issue-then-return round trip (parts that physically left and came back) needs an inbound movement type the contract doesn't have -- deliberately left to INT-03.5, whose own acceptance criteria ("Only implement states supported by the existing FSM/Inventory models") explicitly license not building it here.
+
+`recordJobPartsConsumption()` (new, `inventory-integration/mutations.ts`) is idempotent and correction-safe through one mechanism: every call computes the *delta* against the job's last-recorded `parts_consumption` (zero the first time) and only moves that delta. An identical resubmission moves nothing ("duplicate technician submission does not double-consume stock"); a genuine correction (different numbers) moves exactly the difference, and the new totals are always persisted so the correction itself stays visible ("corrections are auditable") even on the rare case where a *decrease* can't be reflected in stock (un-consuming/un-releasing isn't a movement this contract supports either, same limitation as the issue/return gap above).
+
+`consumeJobParts()` (F-14's own completion hook) is now a fallback: if a technician already explicitly reported usage (`parts_consumption` set), it does nothing, since that report already moved the real stock -- blindly consuming the *planned* quantity on top would double-consume. Jobs where nobody records detailed usage keep the original planned-quantity behavior unchanged, so detailed reporting is additive/supported, never required.
+
+**UI**: the Materials tab gains a "Report actual usage" panel (shown once a job reaches `in_progress`/`on_hold`/`completed`, gated on `canEdit`) -- one row per material line with three number inputs (actual/returned/wasted, defaulting to planned/0/0, or the last-recorded values once a report exists) and a submit button.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (87 migrations, no violations), a live migration application followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
+
+**Status**: 11 of 29 in-scope stories done. Next: INT-03.5, Parts Returned / Unused -> Inventory.

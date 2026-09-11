@@ -3,7 +3,7 @@ import { hasModule, requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { listWarehouses, reserveStock, releaseStock, consumeStock, getAvailability } from "@cofounderai/module-inventory/contract/index";
 import { listJobMaterialRequirement } from "./queries";
-import type { JobPartsReservationStatus, JobPartsShortageResolution, JobPartsShortfallLine } from "../jobs/types";
+import type { JobPartsConsumptionLine, JobPartsReservationStatus, JobPartsShortageResolution, JobPartsShortfallLine } from "../jobs/types";
 
 function fsmClient() {
   return createCoreClient({ schema: "fsm" });
@@ -90,11 +90,22 @@ export async function reserveJobParts(businessId: string, jobId: string): Promis
  * no-op, caught and ignored, if nothing was actually reserved: `inventory` might not
  * have been licensed yet at schedule time, or the reservation itself failed) then
  * permanently consumes the same quantity. Same best-effort reasoning as
- * `reserveJobParts` -- a completed job is never rolled back over a stock shortfall. */
+ * `reserveJobParts` -- a completed job is never rolled back over a stock shortfall.
+ *
+ * INT-03.4: this is now the *fallback* -- if a technician already explicitly reported
+ * actual/returned/wasted usage via `recordJobPartsConsumption()` (job's own
+ * `parts_consumption` is set), that report already moved the real stock, so blindly
+ * consuming the *planned* quantity here on top of it would double-consume. Jobs where
+ * nobody ever reports detailed usage still get this planned-quantity behavior
+ * unchanged -- detailed technician reporting is supported, not required. */
 export async function consumeJobParts(businessId: string, jobId: string): Promise<void> {
   await requireModule(businessId, "fsm");
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
+
+  const fsm = await fsmClient();
+  const { data: existing } = await fsm.from("jobs").select("parts_consumption").eq("id", jobId).eq("business_id", businessId).maybeSingle();
+  if (existing?.parts_consumption) return;
 
   const lines = await listJobMaterialRequirement(businessId, jobId);
   if (lines.length === 0) return;
@@ -106,6 +117,85 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
     await releaseStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
     await consumeStock(businessId, line.itemId, warehouseId, line.quantity, `fsm.jobs:${jobId}`).catch(() => null);
   }
+}
+
+/**
+ * INT-03.4's "Technician Consumption -> Inventory" -- an explicit report of what was
+ * actually used, distinct from the `planned` (originally reserved) quantity:
+ * `actual` (installed/used) and `wasted` (used but not usefully, e.g. cut to waste,
+ * damaged) both permanently leave stock (`consumeStock`, "outbound"); `returned`
+ * releases its reservation back to available (`releaseStock`) -- covering "never left
+ * the warehouse, wasn't needed after all." A genuine issue-then-return round trip (parts
+ * that physically left and came back) needs an inbound movement the Inventory contract
+ * doesn't expose yet -- that's INT-03.5's own job, not this one's.
+ *
+ * Idempotent by construction, and corrections stay auditable, via the same mechanism:
+ * every call computes the *delta* from the job's last-recorded `parts_consumption`
+ * (zero the first time) and only moves that delta -- an identical resubmission moves
+ * nothing ("duplicate technician submission does not double-consume stock"), and a
+ * genuine correction (the technician re-enters different numbers) moves exactly the
+ * difference, not the full amount again. A delta that would *reduce* a prior
+ * consumed/returned amount is skipped (un-consuming/un-releasing isn't a movement this
+ * contract supports either) rather than silently ignored -- the new totals are still
+ * recorded so the correction itself is visible, just not reflected in stock.
+ */
+export async function recordJobPartsConsumption(
+  businessId: string,
+  jobId: string,
+  lines: { itemId: string; actual: number; returned: number; wasted: number }[],
+): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "jobs.edit");
+  const licensed = await hasModule(businessId, "inventory");
+  if (!licensed) throw new Error("Inventory isn't licensed for this business.");
+
+  const requirement = await listJobMaterialRequirement(businessId, jobId);
+  const requirementById = new Map(requirement.map((r) => [r.itemId, r]));
+
+  const fsm = await fsmClient();
+  const { data: existing } = await fsm.from("jobs").select("parts_consumption").eq("id", jobId).eq("business_id", businessId).maybeSingle();
+  const previousById = new Map(((existing?.parts_consumption as JobPartsConsumptionLine[] | null) ?? []).map((l) => [l.itemId, l]));
+
+  const warehouseId = await firstActiveWarehouseId(businessId);
+
+  const recorded: JobPartsConsumptionLine[] = [];
+  for (const line of lines) {
+    const requirementLine = requirementById.get(line.itemId);
+    if (!requirementLine) continue;
+    const previous = previousById.get(line.itemId);
+    const actual = Math.max(0, line.actual);
+    const returned = Math.max(0, line.returned);
+    const wasted = Math.max(0, line.wasted);
+
+    if (warehouseId) {
+      const deltaConsume = actual + wasted - ((previous?.actual ?? 0) + (previous?.wasted ?? 0));
+      if (deltaConsume > 0) {
+        await consumeStock(businessId, line.itemId, warehouseId, deltaConsume, `fsm.jobs:${jobId}:consumption`).catch(() => null);
+      }
+      const deltaReturn = returned - (previous?.returned ?? 0);
+      if (deltaReturn > 0) {
+        await releaseStock(businessId, line.itemId, warehouseId, deltaReturn, `fsm.jobs:${jobId}:consumption`).catch(() => null);
+      }
+    }
+
+    recorded.push({
+      itemId: line.itemId,
+      itemName: requirementLine.itemName,
+      itemSku: requirementLine.itemSku,
+      unit: requirementLine.unit,
+      planned: requirementLine.quantity,
+      actual,
+      returned,
+      wasted,
+    });
+  }
+
+  const { error } = await fsm
+    .from("jobs")
+    .update({ parts_consumption: recorded, parts_consumption_recorded_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("business_id", businessId);
+  if (error) throw error;
 }
 
 /** "...release on cancellation" -- the other side of `consumeJobParts()`'s own release

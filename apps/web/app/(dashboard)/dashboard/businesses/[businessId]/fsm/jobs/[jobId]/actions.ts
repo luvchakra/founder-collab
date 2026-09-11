@@ -25,7 +25,7 @@ import { addNote } from "@cofounderai/module-fsm/lib/notes/mutations";
 import { uploadJobAttachment, deleteJobAttachment } from "@cofounderai/module-fsm/lib/attachments/mutations";
 import { captureSignature } from "@cofounderai/module-fsm/lib/signatures/mutations";
 import { sendJobMessage } from "@cofounderai/module-fsm/lib/messages/mutations";
-import { resolveJobPartsShortage, retryJobPartsReservation } from "@cofounderai/module-fsm/lib/inventory-integration/mutations";
+import { resolveJobPartsShortage, retryJobPartsReservation, recordJobPartsConsumption } from "@cofounderai/module-fsm/lib/inventory-integration/mutations";
 import type { NoteVisibility } from "@cofounderai/module-fsm/lib/notes/types";
 import type { JobPartsShortageResolution } from "@cofounderai/module-fsm/lib/jobs/types";
 
@@ -210,5 +210,15 @@ export async function resolveJobPartsShortageAction(
  * own idempotency guard defers to this story. */
 export async function retryJobPartsReservationAction(businessId: string, jobId: string): Promise<void> {
   await retryJobPartsReservation(businessId, jobId);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+/** INT-03.4's technician-reported actual/returned/wasted submit. */
+export async function recordJobPartsConsumptionAction(
+  businessId: string,
+  jobId: string,
+  lines: { itemId: string; actual: number; returned: number; wasted: number }[],
+): Promise<void> {
+  await recordJobPartsConsumption(businessId, jobId, lines);
   revalidatePath(detailPath(businessId, jobId));
 }

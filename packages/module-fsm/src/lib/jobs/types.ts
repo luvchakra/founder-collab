@@ -24,6 +24,23 @@ export type JobPartsShortfallLine = {
  * than duplicating them here -- this column only records the decision itself. */
 export type JobPartsShortageResolution = "await_replenishment" | "substitute_item" | "reschedule_job" | "obtain_manually";
 
+/** INT-03.4: one material line's technician-reported actual usage, vs. `planned` (the
+ * quantity `listJobMaterialRequirement()` says the job needed). `actual` + `wasted`
+ * leave stock permanently (consumed); `returned` releases back to available -- covers
+ * "never left the warehouse, wasn't needed after all," not a genuine issue-then-return
+ * round trip (the Inventory contract has no inbound/return movement type today; that
+ * gap is INT-03.5's own explicit job, not this story's). */
+export type JobPartsConsumptionLine = {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  unit: string;
+  planned: number;
+  actual: number;
+  returned: number;
+  wasted: number;
+};
+
 export interface Job {
   id: string;
   business_id: string;
@@ -46,6 +63,8 @@ export interface Job {
   parts_shortage_resolution: JobPartsShortageResolution | null;
   parts_shortage_resolution_note: string | null;
   parts_shortage_resolved_at: string | null;
+  parts_consumption: JobPartsConsumptionLine[] | null;
+  parts_consumption_recorded_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

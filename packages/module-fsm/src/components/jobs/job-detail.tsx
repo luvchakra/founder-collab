@@ -112,6 +112,7 @@ export function JobDetail({
   materialRequirement,
   resolveShortageAction,
   retryReservationAction,
+  recordConsumptionAction,
 }: {
   job: Job;
   partyName: string;
@@ -161,6 +162,7 @@ export function JobDetail({
   materialRequirement: JobMaterialRequirementLine[];
   resolveShortageAction: (resolution: JobPartsShortageResolution, note: string) => Promise<void>;
   retryReservationAction: () => Promise<void>;
+  recordConsumptionAction: (lines: { itemId: string; actual: number; returned: number; wasted: number }[]) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -170,6 +172,19 @@ export function JobDetail({
   const [holdReason, setHoldReason] = useState("");
   const [shortageResolution, setShortageResolution] = useState<JobPartsShortageResolution>(job.parts_shortage_resolution ?? "await_replenishment");
   const [shortageNote, setShortageNote] = useState(job.parts_shortage_resolution_note ?? "");
+  const [consumption, setConsumption] = useState<Record<string, { actual: string; returned: string; wasted: string }>>(() => {
+    const byItemId = new Map((job.parts_consumption ?? []).map((l) => [l.itemId, l]));
+    const initial: Record<string, { actual: string; returned: string; wasted: string }> = {};
+    for (const line of materialRequirement) {
+      const recorded = byItemId.get(line.itemId);
+      initial[line.itemId] = {
+        actual: String(recorded?.actual ?? line.quantity),
+        returned: String(recorded?.returned ?? 0),
+        wasted: String(recorded?.wasted ?? 0),
+      };
+    }
+    return initial;
+  });
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -534,6 +549,88 @@ export function JobDetail({
                         </div>
                       </>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {canEdit && (job.status === "in_progress" || job.status === "on_hold" || job.status === "completed") ? (
+                  <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                    <p className="text-sm font-medium">
+                      {job.parts_consumption ? "Actual usage" : "Report actual usage"}
+                      {job.parts_consumption_recorded_at ? (
+                        <span className="ml-2 text-xs font-normal text-muted-foreground">last updated {formatDateTime(job.parts_consumption_recorded_at)}</span>
+                      ) : null}
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {materialRequirement.map((line) => (
+                        <div key={line.itemId} className="flex flex-col gap-2 border-b border-border pb-2 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-sm">
+                            {line.itemName} <span className="text-xs text-muted-foreground">(planned {line.quantity} {line.unit})</span>
+                          </p>
+                          <div className="flex gap-2">
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor={`actual-${line.itemId}`} className="text-xs text-muted-foreground">
+                                Actual
+                              </Label>
+                              <Input
+                                id={`actual-${line.itemId}`}
+                                type="number"
+                                min={0}
+                                className="w-20"
+                                value={consumption[line.itemId]?.actual ?? "0"}
+                                onChange={(e) => setConsumption((prev) => ({ ...prev, [line.itemId]: { ...prev[line.itemId]!, actual: e.target.value } }))}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor={`returned-${line.itemId}`} className="text-xs text-muted-foreground">
+                                Returned
+                              </Label>
+                              <Input
+                                id={`returned-${line.itemId}`}
+                                type="number"
+                                min={0}
+                                className="w-20"
+                                value={consumption[line.itemId]?.returned ?? "0"}
+                                onChange={(e) => setConsumption((prev) => ({ ...prev, [line.itemId]: { ...prev[line.itemId]!, returned: e.target.value } }))}
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor={`wasted-${line.itemId}`} className="text-xs text-muted-foreground">
+                                Wasted
+                              </Label>
+                              <Input
+                                id={`wasted-${line.itemId}`}
+                                type="number"
+                                min={0}
+                                className="w-20"
+                                value={consumption[line.itemId]?.wasted ?? "0"}
+                                onChange={(e) => setConsumption((prev) => ({ ...prev, [line.itemId]: { ...prev[line.itemId]!, wasted: e.target.value } }))}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-fit"
+                      disabled={pending}
+                      onClick={() =>
+                        run(
+                          () =>
+                            recordConsumptionAction(
+                              materialRequirement.map((line) => ({
+                                itemId: line.itemId,
+                                actual: Number(consumption[line.itemId]?.actual ?? 0),
+                                returned: Number(consumption[line.itemId]?.returned ?? 0),
+                                wasted: Number(consumption[line.itemId]?.wasted ?? 0),
+                              })),
+                            ),
+                          "Usage recorded.",
+                        )
+                      }
+                    >
+                      {job.parts_consumption ? "Update usage" : "Record usage"}
+                    </Button>
                   </div>
                 ) : null}
               </>
