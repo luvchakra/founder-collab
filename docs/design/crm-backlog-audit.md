@@ -1079,3 +1079,44 @@ module-crm's vitest suite (unchanged -- these functions are DB-touching orchestr
 tested via the RLS harness instead per this module's own established split), and both
 CRM RLS test suites (5 new cases replicating the lead-reuse check, both conversation
 links, and that the original interaction is never modified). No new migration.
+
+## CRM-09.6 (2026-09-11)
+
+"AI Suggested Response" -- the last of Epic CRM-09's P0 stories. New `lib/interactions/
+draft-reply.ts#draftInteractionReply()`: template-by-intent, NOT a real LLM call, the
+same documented gap this backlog has hit three times now (the old ticket model's own
+`lib/ai/draft-reply.ts`, CRM-09.3's classifier, and now this) -- module-crm has no
+sanctioned cross-module contract to call a real model through. A new file again rather
+than reusing the old one, for the same reason CRM-09.3 didn't: `lib/ai/draft-reply.ts`
+still serves the live `crm-meta` pipeline's own `DetectedIntent` taxonomy.
+
+Covers the backlog's own context list ("latest conversation, party 360, Discovery
+research, Inventory product details/availability, FSM quote/job data") almost entirely
+by reusing `getCustomer360()` (CRM-02.1's already-built cross-module aggregation) rather
+than re-fetching each piece separately -- `getDraftReplyForInteraction()` is the thin
+query wrapper that resolves an interaction's party, calls it, and feeds the result plus
+the interaction's own CRM-09.3 `intent` into the pure template function. "Business
+instructions" (a configurable per-business prompt/tone) isn't built anywhere in this
+platform yet, so it's the one context source this story doesn't cover -- named here
+rather than silently dropped.
+
+"System clearly separates factual retrieval from generated wording": `draftInteractionReply()`
+returns `{ draft, sources }` as two distinct values -- `sources` names exactly which real
+Customer 360 facts (contact name, product interest, Discovery research, recent orders,
+recent jobs) actually shaped this draft, `draft` is the generated wording itself, never
+presented as a verified fact on its own. The UI renders both: the WhatsApp reply
+composer (CRM-07.6) now shows the suggested draft in a dashed box labeled "AI suggested
+reply -- based on X, Y" above the textarea, with a "Use this draft" button that only
+fills the textarea (a plain DOM ref write, no form submission) -- "draft only," "user can
+edit," and "user must explicitly send" all hold exactly as before, since nothing about
+the Send button's own behavior changed.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`, and
+module-crm's vitest suite (6 new tests for the pure template function). No new
+RLS-harness cases -- no new schema or DB-level decision logic, just a new read composed
+from an already-tested query; both CRM RLS suites re-run clean as regression checks. No
+new migration.
+
+**Epic CRM-09 (The Lost Opportunity Engine) is now complete: 8 of 8 P0 stories done**
+(09.1 through 09.6, plus 09.2 and 09.5 covering the queue and its actions). P1 stories
+09.7 (Response Quality Check) and 09.8 (Escalation Rules) remain for the P1 pass.
