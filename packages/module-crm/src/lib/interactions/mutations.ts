@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
+import { classifyMessageIntent } from "./intent-classification";
 import { matchPartyForActor, type CrmClientOverrides } from "./matching";
 import { evaluateRequiresResponse } from "./response-rules";
 import type { Interaction, RecordInteractionInput } from "./types";
@@ -216,6 +217,11 @@ export async function recordInteraction(
   // defaulting to `false` the way this used to.
   const requiresResponse = input.requiresResponse ?? evaluateRequiresResponse({ direction: input.direction, channel: input.channel, contentExcerpt: input.contentExcerpt });
 
+  // CRM-09.3: only inbound messages have a sender's intent to classify -- an outbound
+  // reply's "intent" isn't a meaningful concept here, so those stay null exactly as
+  // before this story.
+  const classification = input.direction === "inbound" ? classifyMessageIntent(input.contentExcerpt) : null;
+
   const row = {
     business_id: businessId,
     conversation_id: conversationId,
@@ -231,6 +237,8 @@ export async function recordInteraction(
     content_excerpt: input.contentExcerpt ?? null,
     media_reference: input.mediaReference ?? null,
     requires_response: requiresResponse,
+    intent: classification?.intent ?? null,
+    intent_confidence: classification?.confidence ?? null,
     source_module: input.sourceModule ?? null,
     source_reference: input.sourceReference ?? null,
     metadata: input.metadata ?? {},
