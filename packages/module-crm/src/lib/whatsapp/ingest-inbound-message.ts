@@ -1,5 +1,6 @@
 import { createAdminClient } from "@cofounderai/core/db/admin";
 import { recordInteraction, markInteractionFailed } from "../interactions/mutations";
+import { captureLeadFromWhatsAppMessage } from "./lead-capture";
 import { parseWhatsAppWebhookPayload } from "./cloud-api-adapter";
 import type { WhatsAppWebhookEvent } from "./types";
 
@@ -7,7 +8,7 @@ type WhatsAppEntryChange = { field?: string; value?: { metadata?: { phone_number
 type WhatsAppWebhookPayload = { entry?: { changes?: WhatsAppEntryChange[] }[] };
 
 export type IngestWhatsAppResult =
-  | { ok: true; kind: "message"; interactionId: string; conversationId: string }
+  | { ok: true; kind: "message"; interactionId: string; conversationId: string; leadId: string }
   | { ok: true; kind: "status"; externalMessageId: string; matched: boolean }
   | { ok: false; reason: "unknown_phone_number_id"; phoneNumberId: string };
 
@@ -94,7 +95,26 @@ async function ingestEvent(
       },
       { crm: crmAdmin, core: coreAdmin },
     );
-    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id };
+
+    // CRM-07.11: every inbound message gets a lead if one doesn't already exist for this
+    // WhatsApp sender -- see lead-capture.ts's own doc comment for why an unmatched
+    // sender getting a brand-new party here is safe in a way CRM-06.4's tier 5 isn't.
+    const capture = await captureLeadFromWhatsAppMessage(
+      businessId,
+      { partyId: interaction.party_id, externalActorId: event.externalActorId, senderPhone: event.senderPhone },
+      { crm: crmAdmin, core: coreAdmin },
+    );
+    if (capture.createdParty && !interaction.party_id) {
+      await crmAdmin.from("conversation").update({ party_id: capture.partyId }).eq("id", interaction.conversation_id).is("party_id", null);
+      await crmAdmin
+        .from("conversation_participant")
+        .update({ party_id: capture.partyId })
+        .eq("conversation_id", interaction.conversation_id)
+        .eq("external_actor_id", event.externalActorId)
+        .is("party_id", null);
+    }
+
+    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id, leadId: capture.leadId };
   }
 
   // event.kind === "status": find the outbound interaction this status belongs to by its

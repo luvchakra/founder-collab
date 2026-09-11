@@ -830,3 +830,47 @@ module-crm's vitest suite (unchanged), and both CRM RLS test suites (5 new
 `whatsapp_template` cases: default-active, name+language dedupe, a different language is
 a distinct allowed row, cross-tenant isolation, and the variable_count >= 0 check).
 Migration applied to the dev Supabase project.
+
+## CRM-07.11 (2026-09-11)
+
+"WhatsApp Lead Capture", the last of CRM-07's P0 stories: new `lib/whatsapp/lead-
+capture.ts#captureLeadFromWhatsAppMessage()`, wired into `ingestInboundWhatsAppMessage()`'s
+`"message"` branch right after `recordInteraction()`. Dedup follows
+`promoteProspectToLead()`'s own established shape exactly (CRM-03.1): an upfront check
+against `crm.lead`'s `(business_id, source_module, source_reference)` -- here
+`source_module='whatsapp'`, `source_reference=<sender's WhatsApp id>` -- then a
+try/insert with the same unique-violation catch for the race case, so a second message
+from the same number never creates a second lead.
+
+The one real decision this story required: what to do for a sender CRM-06.4 couldn't
+match to an existing party. CRM-06.4's own doc comment is explicit that its tier 5
+("create new party") needs user-controlled confirmation, and deliberately doesn't create
+one. This story creates one anyway, on purpose -- the two cases aren't the same risk.
+Tier 5 was about a *possible match to an existing party* that's too uncertain to accept
+automatically (accepting it wrongly means merging into someone else's record). Here
+there's no existing party being second-guessed at all: a real, provider-verified
+WhatsApp phone number reaching the business for the first time is by construction a
+brand-new contact, so creating a `core.parties` row for it (`kind: 'person'`, name
+`"WhatsApp <phone>"`, the phone itself) carries none of that wrong-merge risk. The new
+party is also written onto the conversation and its `conversation_participant` row
+(previously null from CRM-07.4's party-less-conversation path) so the "human resolves
+the match later" story CRM-06.4 describes already holds -- except automatically, which
+is this story's entire point.
+
+This needed one small plumbing fix upstream: `createLead()` (CRM-01.3) and
+`@cofounderai/core/events/mutations.ts#publish()` (the function every
+`publishCrmEvent()` call goes through) both only ever used the RLS-scoped session
+client, with no override -- exactly the same gap CRM-07.3 already fixed once for
+`recordInteraction()`/`matchPartyForActor()`. Both gained the identical optional
+`client?: SupabaseClient` parameter (defaulting to today's behavior when omitted), so a
+webhook-captured lead still publishes its `crm.lead.created` event through the admin
+client instead of silently failing on write, or silently not firing.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (unchanged -- no new pure logic), and both CRM RLS test suites
+(3 new cases: `source='whatsapp'` is recorded, the same-sender dedupe constraint fires,
+cross-tenant isolation). No new migration -- `crm.lead`'s `source` enum already included
+`'whatsapp'` and its `lead_source_reference_uq` index already covers any `source_module`.
+
+**Epic CRM-07 (WhatsApp) is now complete: 8 of 8 P0 stories done** (07.1, 07.2, 07.3,
+07.4, 07.6, 07.7, 07.8, 07.11).

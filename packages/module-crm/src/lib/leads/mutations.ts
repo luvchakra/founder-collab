@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
@@ -6,9 +7,12 @@ import type { CreateLeadInput, Lead, LeadStatus } from "./types";
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
 /** CRM-01.3's `createLead()` contract operation. Publishes `crm.lead.created`
- * (CRM-01.4). */
-export async function createLead(businessId: string, input: CreateLeadInput): Promise<Lead> {
-  const supabase = await createClient();
+ * (CRM-01.4). `client` (CRM-07.11): an optional override, same DI shape
+ * `interactions/matching.ts#CrmClientOverrides` established -- a webhook capturing a
+ * lead automatically (no logged-in user) passes its own admin client here instead of
+ * the default RLS-scoped one. */
+export async function createLead(businessId: string, input: CreateLeadInput, client?: SupabaseClient): Promise<Lead> {
+  const supabase = client ?? (await createClient());
   const { data, error } = await supabase
     .from("lead")
     .insert({
@@ -23,7 +27,7 @@ export async function createLead(businessId: string, input: CreateLeadInput): Pr
     .single();
   if (error) throw error;
 
-  await publishCrmEvent(businessId, "crm.lead.created", { v: 1, leadId: data.id, partyId: data.party_id, source: data.source });
+  await publishCrmEvent(businessId, "crm.lead.created", { v: 1, leadId: data.id, partyId: data.party_id, source: data.source }, undefined, client);
 
   return data as Lead;
 }
