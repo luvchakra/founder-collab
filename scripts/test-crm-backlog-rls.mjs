@@ -350,6 +350,24 @@ async function main() {
         "Bob cannot see Alice's WhatsApp connection -- confirms the webhook's lookup must run on an admin/service-role client, not an RLS-scoped one",
       );
 
+      console.log("Verifying CRM-07.8's WhatsApp template catalog (tenant isolation + dedupe)...");
+      const aliceTemplate = psqlAsAlice(`insert into crm.whatsapp_template (business_id, name, language_code, variable_count) values ('${aliceBusiness}', 'order_confirmation', 'en_US', 2) returning id;`);
+      assertEqual(psqlAsAlice(`select is_active from crm.whatsapp_template where id = '${aliceTemplate}'`), "t", "a new template defaults to active");
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.whatsapp_template (business_id, name, language_code, variable_count) values ('${aliceBusiness}', 'order_confirmation', 'en_US', 3)`),
+        "a duplicate (business_id, name, language_code) template is rejected -- createWhatsAppTemplate() relies on this to avoid two catalog entries for the same real Meta template",
+      );
+      assertEqual(
+        psqlAsAlice(`insert into crm.whatsapp_template (business_id, name, language_code, variable_count) values ('${aliceBusiness}', 'order_confirmation', 'es_MX', 2) returning language_code;`),
+        "es_MX",
+        "the same template name in a different language is a distinct, allowed catalog entry",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.whatsapp_template where id = '${aliceTemplate}'`), "0", "Bob cannot see Alice's WhatsApp templates");
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.whatsapp_template (business_id, name, language_code, variable_count) values ('${aliceBusiness}', 'bad', 'en_US', -1)`),
+        "a negative variable_count is rejected",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
