@@ -2520,3 +2520,45 @@ database change, so no live migration/advisors step and no RLS-harness addition 
 
 **Status**: 71 of 74 in-scope stories done. Next: CRM-14.3 "Response Performance" (seq
 #68).
+
+---
+
+## CRM-14.3 (2026-09-11)
+
+"Response Performance": median first response time, SLA compliance, unresolved
+interactions by age, owner/team performance, channel response time.
+
+**Design**: new "Analytics" nav item/route (`crm/analytics`) rather than a third section
+on the Dashboard page -- that page is already two sections deep after CRM-14.1, and a
+growing set of full reports (this story plus CRM-14.4/14.5/14.6 still to come) belongs on
+its own page, same reasoning FSM's own Reports page lives separately from its Dashboard.
+`getResponsePerformance()` (`lib/dashboard/response-performance.ts`) computes all five,
+over a 30-day window, off `crm.interaction`/`crm.conversation`:
+
+- Median first response time: `median()` of (responded_at - occurred_at) in minutes,
+  over every inbound interaction with `status='responded'`.
+- SLA compliance: same "deadline already passed, so there's a verdict" gating CRM-14.1's
+  dashboard card uses (`response_due_at` not null and already in the past), recomputed
+  here since this query fetches a different column set for its other four metrics.
+- Unresolved interactions by age: every inbound interaction still with
+  `requires_response=true`, bucketed by `ageBucket()` (0-1/1-3/3-7/7+ days).
+- Channel response time: the same median calculation, grouped by `channel`.
+- Owner/team performance: attributed via `conversation.assigned_to` (CRM-06.3's own
+  ownership field) rather than a per-interaction sender -- an individual `crm.interaction`
+  row has no "responded by" column of its own, so the conversation it belongs to is the
+  only real attribution the schema supports.
+
+`median()`/`ageBucket()` are exported and unit-tested
+(`response-performance.test.ts`, 8 new tests) -- genuinely new pure logic, unlike
+CRM-14.1's plain aggregation, so worth a dedicated test rather than only exercising it
+through a full query.
+
+No new migration -- reads existing tables only, no new cache/state to gate behind RLS.
+
+Verified with full monorepo typecheck (caught and fixed one real `noUncheckedIndexedAccess`
+error in `median()`'s own array-index access), `lint:boundaries` (928 files, no
+violations), module-crm's vitest suite (119/119, +8 new), and a clean `next build`
+(confirmed the new `/crm/analytics` route compiles). No database change.
+
+**Status**: 72 of 74 in-scope stories done. Next: CRM-14.4 "Discovery -> CRM Funnel"
+(seq #69).

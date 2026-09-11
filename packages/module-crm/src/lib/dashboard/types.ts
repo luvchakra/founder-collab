@@ -31,3 +31,16 @@ export type CrmDashboardKpis = {
   quoteFollowUps: number;
   responseSlaPercent: number | null;
 };
+
+/**
+ * CRM-14.3's "Response Performance" -- five metrics, verbatim from the backlog. All
+ * `null`/empty values mean "no decided data in the window yet," never a fabricated
+ * zero -- see `response-performance.ts` for exactly which rows qualify for each.
+ */
+export type ResponsePerformance = {
+  medianFirstResponseMinutes: number | null;
+  slaCompliancePercent: number | null;
+  unresolvedByAge: { bucket: string; count: number }[];
+  ownerPerformance: { ownerId: string | null; ownerName: string; responded: number; medianResponseMinutes: number | null }[];
+  channelResponseTime: { channel: string; medianResponseMinutes: number | null }[];
+};

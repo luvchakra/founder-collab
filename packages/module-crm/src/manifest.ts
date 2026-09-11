@@ -22,6 +22,7 @@ export const crmManifest: ModuleManifest = {
         { label: "Conversations", slug: "conversations", icon: "MessageCircle" },
         { label: "Potential Lost Business", slug: "lost-business", icon: "AlertTriangle" },
         { label: "Reviews", slug: "reviews", icon: "Star" },
+        { label: "Analytics", slug: "analytics", icon: "BarChart3" },
       ],
     },
     {
