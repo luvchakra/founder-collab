@@ -874,3 +874,59 @@ cross-tenant isolation). No new migration -- `crm.lead`'s `source` enum already 
 
 **Epic CRM-07 (WhatsApp) is now complete: 8 of 8 P0 stories done** (07.1, 07.2, 07.3,
 07.4, 07.6, 07.7, 07.8, 07.11).
+
+The user re-shared the full backlog document (`WonderArc_CRM_Epics_Stories_
+Implementation_Backlog.md`) this session after an earlier context compaction lost it --
+CRM-09 onward is now built against its exact acceptance criteria rather than a
+reconstruction, per that document's own Section 7 sequence table (seq #35 onward).
+
+## CRM-09.1 (2026-09-11)
+
+Epic CRM-09 ("The Lost Opportunity Engine") begins: `requires_response` Rules Engine,
+"the strongest product-specific CRM differentiator" per the epic's own framing.
+Implements the backlog's exact four-part rule ("direction = inbound; channel is
+supported; content is not obvious spam/system noise; no qualifying business response
+exists") as `lib/interactions/response-rules.ts#evaluateRequiresResponse()`, a pure,
+unit-tested function -- deterministic, no LLM call, per CLAUDE.md's "do not use an LLM
+for deterministic operations" and the backlog's own "deterministic before AI
+enrichment" (CRM-09.3's real intent classifier is a later, additive refinement, not a
+replacement for this floor).
+
+"Channel is supported" is read as "has a real outbound send path today" (only
+`whatsapp`, per CRM-07.6) -- flagging a message on a channel the business can't yet
+reply through would be a false promise. "Not obvious spam/system noise" is a small,
+deliberately conservative regex set (empty content, `unsubscribe`, out-of-office,
+automatic-reply, no-reply) rather than a classifier.
+
+`recordInteraction()` (CRM-01.3) now calls this as the *default* only when the caller
+doesn't already have an opinion (`input.requiresResponse` left unset) -- an existing
+caller with its own more-informed decision (CRM-03.2's classification-based
+`requiresResponse`) still wins outright, matching the same "a caller that already
+resolved this itself" precedent CRM-06.4 established for party matching. The WhatsApp
+webhook ingest path (CRM-07.3/07.4), which previously hardcoded `requiresResponse: true`
+unconditionally for every inbound message regardless of content, now leaves it unset and
+gets the real rule evaluation instead -- a concrete behavior change this story exists to
+make.
+
+The fourth rule ("no qualifying business response exists") can't be evaluated at the
+moment a fresh inbound message arrives -- nothing has answered it yet by definition. It
+matters the moment a reply *is* sent: `recordInteraction()`'s outbound path now clears
+`requires_response` (`status: 'responded'`, `responded_at` set) on every prior
+unresponded inbound interaction in the same conversation, not just conceptually "the one
+being replied to" -- a business's single reply commonly addresses several open questions
+in a row. This is also new -- previously an inbound interaction's `requires_response`
+never changed after insert.
+
+New `markInteractionNotActionable()` (mutations.ts) satisfies "user can mark not
+actionable": sets `status: 'ignored'` (the interaction model's own existing status,
+CRM-01.5) and clears `requires_response`, deliberately *not* setting `responded_at` --
+distinct from an interaction that was genuinely answered. Wired into the Conversations
+detail pane (CRM-06.2) as a small action next to each "Needs response" badge.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (9 new `response-rules` tests), and both CRM RLS test suites
+(6 new cases: the outbound-clears-prior-unresponded behavior across multiple inbound
+rows, the cleared row's status, not-actionable's status/requires_response/responded_at
+distinction, cross-tenant isolation). No new migration -- `requires_response`,
+`responded_at`, and the `ignored` status value all already existed on `crm.interaction`
+from CRM-01.2/01.5.

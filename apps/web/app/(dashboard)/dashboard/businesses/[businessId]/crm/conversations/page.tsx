@@ -21,7 +21,7 @@ import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Inbox, MessageCircle } from "lucide-react";
-import { assignConversationAction, sendWhatsAppReplyAction, sendWhatsAppTemplateAction } from "./actions";
+import { assignConversationAction, markInteractionNotActionableAction, sendWhatsAppReplyAction, sendWhatsAppTemplateAction } from "./actions";
 import { WhatsAppReplyForm } from "./reply-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 
@@ -256,7 +256,16 @@ export default async function CrmConversationsPage({
                   <span>{formatDateTime(interaction.occurred_at)}</span>
                 </div>
                 <p>{interaction.content_excerpt ?? "(no preview)"}</p>
-                {interaction.requires_response && !interaction.responded_at ? <Badge variant="destructive">Needs response</Badge> : null}
+                {interaction.requires_response && !interaction.responded_at ? (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="destructive">Needs response</Badge>
+                    <form action={markInteractionNotActionableAction.bind(null, businessId, interaction.id)}>
+                      <SubmitButton size="sm" variant="ghost" pendingText="Marking...">
+                        Not actionable
+                      </SubmitButton>
+                    </form>
+                  </div>
+                ) : null}
               </div>
             ))
           )}

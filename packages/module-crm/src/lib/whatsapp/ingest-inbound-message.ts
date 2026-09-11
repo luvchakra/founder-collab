@@ -77,7 +77,9 @@ async function ingestEvent(
     // CRM-07.4 ("Receive WhatsApp Text Messages"): `recordInteraction()` already does
     // everything this needs -- CRM-06.4 party matching by phone, find-or-create the
     // conversation (including the party-less "unresolved contact candidate" path for a
-    // still-unmatched sender), and `requiresResponse: true` so it surfaces in the queue.
+    // still-unmatched sender). `requiresResponse` is left unset deliberately (CRM-09.1):
+    // `recordInteraction()`'s own deterministic rules engine decides, rather than every
+    // inbound WhatsApp message being flagged unconditionally regardless of content.
     const interaction = await recordInteraction(
       businessId,
       {
@@ -89,7 +91,6 @@ async function ingestEvent(
         occurredAt: event.occurredAt,
         contentExcerpt: event.text,
         mediaReference: event.mediaId,
-        requiresResponse: true,
         sourceModule: "whatsapp",
         metadata: event.mediaId ? { mediaId: event.mediaId } : {},
       },

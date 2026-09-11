@@ -3,12 +3,21 @@
 import { revalidatePath } from "next/cache";
 import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
 import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
 export async function assignConversationAction(businessId: string, conversationId: string, formData: FormData): Promise<void> {
   const ownerId = String(formData.get("ownerId") || "") || null;
   await assignEntity(businessId, "conversation", conversationId, ownerId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+/** CRM-09.1's "user can mark not actionable" -- a false positive from the deterministic
+ * rules engine (or a caller's own classification) that a human has decided doesn't
+ * actually need a reply. */
+export async function markInteractionNotActionableAction(businessId: string, interactionId: string): Promise<void> {
+  await markInteractionNotActionable(businessId, interactionId);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
 }
 
