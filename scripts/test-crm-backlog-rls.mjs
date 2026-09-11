@@ -514,6 +514,28 @@ async function main() {
         "Bob cannot change the status of Alice's channel_connection -- his own business_id filter matches no rows",
       );
 
+      console.log("Verifying CRM-10.3/10.4's out-of-stock waitlist (idempotency, cross-tenant)...");
+      const waitlistProductInterest = psqlAsAlice(`insert into crm.product_interest (business_id, party_id, conversation_id, item_id) values ('${aliceBusiness}', '${aliceParty}', '${aliceConversation}', '${aliceItem}') returning id;`);
+      const waitlistFollowUp = psqlAsAlice(`
+        insert into crm.follow_up (business_id, party_id, conversation_id, product_interest_id, due_at)
+        values ('${aliceBusiness}', '${aliceParty}', '${aliceConversation}', '${waitlistProductInterest}', now() + interval '30 days')
+        returning id;
+      `);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.follow_up (business_id, product_interest_id, due_at) values ('${aliceBusiness}', '${waitlistProductInterest}', now())`),
+        "a duplicate (business_id, product_interest_id) follow_up is rejected -- createOutOfStockWaitlist()'s own idempotency, same shape review_item_id/interaction_id already established",
+      );
+      // CRM-10.4's own event handler: a replenishment event for this item pulls the
+      // waitlist follow-up's due_at forward to now and bumps its priority, rather than
+      // creating a second row.
+      psqlAsAlice(`update crm.follow_up set due_at = now(), priority = 'high' where business_id = '${aliceBusiness}' and status = 'pending' and product_interest_id in (select id from crm.product_interest where business_id = '${aliceBusiness}' and item_id = '${aliceItem}');`);
+      assertEqual(psqlAsAlice(`select priority from crm.follow_up where id = '${waitlistFollowUp}'`), "high", "a replenishment event pulls the waitlist follow-up forward (due now, high priority) instead of creating a second row");
+      assertThrows(
+        () => psqlAsBob(`insert into crm.follow_up (business_id, product_interest_id, due_at) values ('${bobBusiness}', '${waitlistProductInterest}', now())`),
+        "Bob cannot attach a follow_up to Alice's product_interest -- enforce_product_interest_business_id()",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.follow_up where id = '${waitlistFollowUp}'`), "0", "Bob cannot see Alice's waitlist follow-up");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

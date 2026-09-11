@@ -1,5 +1,6 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
+import { getTotalAvailability } from "../conversations/products";
 import type { FollowUp, FollowUpQueueRow } from "./types";
 
 /** CRM-01.3's `listOpenFollowUps()` contract operation. The full queue UI (due today /
@@ -55,12 +56,14 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
   const opportunityIds = [...new Set(followUps.map((f) => f.opportunity_id).filter((id): id is string => Boolean(id)))];
   const conversationIds = [...new Set(followUps.map((f) => f.conversation_id).filter((id): id is string => Boolean(id)))];
   const reviewItemIds = [...new Set(followUps.map((f) => f.review_item_id).filter((id): id is string => Boolean(id)))];
+  const productInterestIds = [...new Set(followUps.map((f) => f.product_interest_id).filter((id): id is string => Boolean(id)))];
 
   const [
     { data: leads, error: leadsError },
     { data: opportunities, error: opportunitiesError },
     { data: conversations, error: conversationsError },
     { data: reviewItems, error: reviewItemsError },
+    { data: productInterests, error: productInterestsError },
   ] = await Promise.all([
     leadIds.length
       ? supabase.from("lead").select("id, party_id, source").in("id", leadIds)
@@ -74,23 +77,38 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
     reviewItemIds.length
       ? supabase.from("review_item").select("id, rating, reviewer_name, comment_excerpt").in("id", reviewItemIds)
       : Promise.resolve({ data: [] as { id: string; rating: number | null; reviewer_name: string | null; comment_excerpt: string | null }[], error: null }),
+    productInterestIds.length
+      ? supabase.from("product_interest").select("id, item_id").in("id", productInterestIds)
+      : Promise.resolve({ data: [] as { id: string; item_id: string }[], error: null }),
   ]);
   if (leadsError) throw leadsError;
   if (opportunitiesError) throw opportunitiesError;
   if (conversationsError) throw conversationsError;
   if (reviewItemsError) throw reviewItemsError;
+  if (productInterestsError) throw productInterestsError;
 
   const leadById = new Map(leads.map((l) => [l.id, l]));
   const opportunityById = new Map(opportunities.map((o) => [o.id, o]));
   const conversationById = new Map(conversations.map((c) => [c.id, c]));
   const reviewItemById = new Map(reviewItems.map((r) => [r.id, r]));
+  const productInterestById = new Map(productInterests.map((p) => [p.id, p]));
+
+  const core = await createCoreClient({ schema: "core" });
+
+  const itemIds = [...new Set(productInterests.map((p) => p.item_id))];
+  const [{ data: items, error: itemsError }, availabilityEntries] = await Promise.all([
+    itemIds.length ? core.from("items").select("id, name").in("id", itemIds) : Promise.resolve({ data: [] as { id: string; name: string }[], error: null }),
+    Promise.all(itemIds.map(async (itemId) => [itemId, await getTotalAvailability(businessId, itemId)] as const)),
+  ]);
+  if (itemsError) throw itemsError;
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const availabilityByItemId = new Map(availabilityEntries);
 
   const partyIds = new Set<string>();
   for (const f of followUps) {
     const resolved = f.party_id ?? leadById.get(f.lead_id ?? "")?.party_id ?? opportunityById.get(f.opportunity_id ?? "")?.party_id ?? conversationById.get(f.conversation_id ?? "")?.party_id;
     if (resolved) partyIds.add(resolved);
   }
-  const core = await createCoreClient({ schema: "core" });
   const { data: parties, error: partiesError } = partyIds.size
     ? await core.from("parties").select("id, name").in("id", [...partyIds])
     : { data: [] as { id: string; name: string }[], error: null };
@@ -102,7 +120,10 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
     const opportunity = f.opportunity_id ? opportunityById.get(f.opportunity_id) : undefined;
     const conversation = f.conversation_id ? conversationById.get(f.conversation_id) : undefined;
     const reviewItem = f.review_item_id ? reviewItemById.get(f.review_item_id) : undefined;
+    const productInterest = f.product_interest_id ? productInterestById.get(f.product_interest_id) : undefined;
     const resolvedPartyId = f.party_id ?? lead?.party_id ?? opportunity?.party_id ?? conversation?.party_id ?? null;
+    const productInterestItem = productInterest ? itemById.get(productInterest.item_id) : undefined;
+    const productInterestAvailability = productInterest ? (availabilityByItemId.get(productInterest.item_id) ?? null) : null;
     return {
       ...(f as FollowUp),
       partyName: resolvedPartyId ? (partyNameById.get(resolvedPartyId) ?? null) : null,
@@ -110,6 +131,9 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
       channel: conversation?.primary_channel ?? null,
       reviewSummary: reviewItem
         ? `${reviewItem.rating != null ? "★".repeat(reviewItem.rating) + "☆".repeat(5 - reviewItem.rating) : "Unrated"} review from ${reviewItem.reviewer_name ?? "Anonymous"}${reviewItem.comment_excerpt ? `: "${reviewItem.comment_excerpt}"` : ""}`
+        : null,
+      productInterestSummary: productInterest
+        ? `${productInterestAvailability !== null && productInterestAvailability > 0 ? "Back in stock" : "Waitlist"}: ${productInterestItem?.name ?? "Unknown product"}`
         : null,
     };
   });

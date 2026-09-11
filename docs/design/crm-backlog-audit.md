@@ -2034,3 +2034,103 @@ backlog run's 74-story scope). Next: CRM-10.3 (Out-of-Stock Opportunity, seq #56
 and CRM-10.4 (Back-in-Stock Follow-up, seq #57, P1).
 
 **Status**: 60 of 74 in-scope stories done.
+
+## CRM-10.3 + CRM-10.4 (2026-09-11)
+
+**CRM-10.3, "Out-of-Stock Opportunity"**: "Interest captured -> waitlist/follow-up ->
+inventory event" when a customer requests an unavailable product. **CRM-10.4, "Back-in-
+Stock Follow-up"**: "When Inventory publishes a replenishment event: find relevant open
+interests -> create suggested follow-up -> let user approve/send communication." Built
+together -- they're the two ends of the same lifecycle (a waitlist entry CRM-10.3 creates
+is exactly the "open interest" CRM-10.4 later reacts to), and CRM-10.4 depends directly
+on a schema/event CRM-10.3's own migration introduces.
+
+**The real gap this surfaced**: `inventory.stock.contract_adjusted` (the only domain
+event `module-inventory` publishes today) fires only through the cross-module
+reservation *contract* (`reserveStock`/`releaseStock`/`consumeStock` -- other modules
+calling in), never from Inventory's own purchasing flow, and fires on decreases too, not
+just increases. A real "back in stock" signal needed a genuinely new event, published
+from the one place stock actually increases through a restock action:
+`inventory.receive_purchase_order_item()` (a PL/pgSQL function, `20260906111000_
+inventory_procedural_layer.sql`). Rather than build a false "subscribe to something that
+technically exists but would never fire for the real scenario" version of CRM-10.4, this
+story's own migration (`20260911001400_crm_follow_up_product_interest.sql`) does a
+`create or replace function` on that inventory-owned function, appending one
+`insert into core.domain_events (..., type => 'inventory.stock.replenished', ...)`
+after its existing status-update logic -- copied verbatim otherwise. This is touching
+`module-inventory`'s own schema code, not importing its internals from CRM (CLAUDE.md
+rule 3 is about TypeScript module boundaries, enforced by `lint:boundaries`'s own import
+scan -- a migration is schema, owned collectively, and CRM-07.x's own precedent already
+established that a story may edit another module's schema when its own story genuinely
+needs a new signal from it). `required_module: 'crm'` on the inserted event means a
+business with inventory but not crm licensed parks it rather than the handler running
+against a schema it isn't entitled to (`core/events/drain.ts`'s own documented mechanism).
+No formal `InventoryEventType` vocabulary file exists (unlike CRM-01.4's own closed
+list for crm) -- `inventory.stock.replenished` follows the same bare-string-literal
+convention `contract_adjusted` already uses at its one call site, rather than inventing
+governance module-inventory itself hasn't established.
+
+**Schema**: `crm.follow_up` gains a nullable `product_interest_id` (same "no `attached to
+something` constraint" reasoning CRM-08.7's `review_item_id` and CRM-09.8's
+`interaction_id` already established for this table), a partial unique index on
+`(business_id, product_interest_id)` for idempotency, and the matching
+`enforce_product_interest_business_id()` trigger check appended to
+`enforce_follow_up_refs()`.
+
+**CRM-10.3's own code**: `lib/conversations/products.ts#createOutOfStockWaitlist()` --
+upfront-check-then-unique-violation-catch idempotency (`promoteProspectToLead()`'s own
+shape), creates the waitlist `follow_up` (30-day nominal `due_at` -- there's no real
+deadline for an indefinite wait until CRM-10.4's own handler pulls it forward), and
+publishes a new closed-vocabulary event, `crm.product_interest.stockout_requested`
+(`events/types.ts`, extending CRM-01.4's own `CrmEventType`/`CrmEventPayloads` --
+`events/types.test.ts` updated alongside, its own doc comment now explicit that the list
+grows with later stories rather than staying frozen at CRM-01.4's original scope). No
+consumer of this event exists yet, by design -- ADR-10's "no hard dependencies" means
+this doesn't need one to be complete; a future Inventory-side reorder-suggestion feature
+could subscribe without this event's shape ever changing. `listConversationProducts()`
+gained a `waitlisted: boolean` per product (batched follow_up lookup, no cross-schema
+embed) so the Conversations page's own "Waitlist" button only shows once, for a product
+genuinely reading `0` available (not `null`/unlicensed -- those are a different,
+non-actionable state).
+
+**CRM-10.4's own code**: `events/handlers.ts` gains a new `registerEventHandler(
+"inventory.stock.replenished", ...)` subscription (mirrors the file's own existing
+`prospect.won` handler exactly -- admin-scoped, no session in the drain-loop cron).
+"Open interests" = `crm.product_interest` rows for the replenished `item_id` with a still
+-`pending` waitlist follow-up. Rather than creating a *second* follow-up row (the naive
+reading of "create a suggested follow-up"), which would need yet another linking column
+and leave two rows describing the same wait, it pulls the *existing* waitlist row's
+`due_at` forward to now and bumps its priority to `high` -- dormant-but-real becomes
+due-now, satisfying "create a suggested follow-up" without new schema. It never sends
+anything itself ("let user approve/send communication" -- completing the task, same as
+every other follow-up, is the human's own separate action, no new send mechanism built).
+The Follow-ups queue's own label for such a row (`follow-ups/queries.ts#listFollowUpQueue()`,
+new `productInterestSummary` field, same pattern `reviewSummary` already established)
+computes "Waitlist: `<item>`" or "Back in stock: `<item>`" fresh at read time from live
+`getTotalAvailability()` -- never stored, same "never persisted" discipline CRM-10.2's
+own availability read established -- so the label is correct even in the gap between the
+event firing and a founder next opening the queue.
+
+New RLS-harness coverage (`scripts/test-crm-backlog-rls.mjs`): the waitlist follow-up's
+own `(business_id, product_interest_id)` idempotency, the event-handler's own due_at/
+priority pull-forward simulated at the SQL level, and cross-tenant smuggling on
+`product_interest_id` (Bob cannot attach a follow_up to Alice's product interest, cannot
+see Alice's waitlist row). Verified with full monorepo typecheck (caught and fixed two
+real issues: an existing `follow-ups/queue.test.ts` fixture missing the two new
+`FollowUpQueueRow` fields, and a duplicate `const core` declaration introduced while
+wiring the new item-name/availability lookups into `listFollowUpQueue()` -- both fixed
+before the suite was re-run clean), `lint:boundaries` (920 files, no violations),
+`lint:migrations` (76 migrations, no violations), module-crm's vitest suite (111/111,
+unchanged -- no new pure logic beyond what CRM-10.2's own availability collapse and the
+established idempotency-catch pattern already cover), both CRM RLS suites (re-run clean,
++4 new assertions), and a clean `next build`. Migration applied live to the dev Supabase
+project; `get_advisors` re-checked clean on both performance (the new index shows as
+"unused" only because the project has no real traffic yet, same as every other index on
+this fresh demo-data project) and security (unchanged, same 6 pre-existing findings).
+
+**Epic CRM-10 status**: 3 of 3 remaining in-scope stories done -- **epic complete**
+(10.1 already satisfied by the CRM-01.2 baseline; 10.2, 10.3, 10.4 all built this
+session; 10.5 stays out of this backlog run's 74-story scope).
+
+**Status**: 62 of 74 in-scope stories done. Next: Epic CRM-11 (CRM -> FSM Continuity) --
+CRM-11.1 (seq #58), then 11.2/11.3/11.4.

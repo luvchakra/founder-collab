@@ -144,7 +144,7 @@ export default async function CrmFollowUpsPage({
             {rows.map((row) => (
               <li key={row.id} className="flex flex-col gap-2 p-3 text-sm">
                 <div className="flex min-w-0 items-start justify-between gap-2">
-                  <p className="min-w-0 truncate font-medium">{row.partyName ?? row.reviewSummary ?? "Unknown contact"}</p>
+                  <p className="min-w-0 truncate font-medium">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</p>
                   <Badge variant={row.priority === "high" ? "destructive" : "outline"} className="shrink-0 capitalize">
                     {row.priority}
                   </Badge>
@@ -178,7 +178,7 @@ export default async function CrmFollowUpsPage({
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.id}>
-                  <TableCell className="max-w-xs truncate font-medium">{row.partyName ?? row.reviewSummary ?? "Unknown contact"}</TableCell>
+                  <TableCell className="max-w-xs truncate font-medium">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</TableCell>
                   <TableCell className="text-muted-foreground">{row.source ?? "--"}</TableCell>
                   <TableCell className="text-muted-foreground capitalize">{row.channel ?? "--"}</TableCell>
                   <TableCell>

@@ -4,7 +4,12 @@ import type { CrmEventPayloads, CrmEventType } from "./types";
 /** CRM-01.4's acceptance criteria ("event names are documented", "payloads are
  * versionable") are compile-time properties more than runtime ones -- this test exists
  * mainly to keep the vocabulary from silently drifting: every event type must have a
- * corresponding payload entry, and every payload must carry a version tag. */
+ * corresponding payload entry, and every payload must carry a version tag.
+ *
+ * The list started as exactly CRM-01.4's own originally-specified 15 event names; a
+ * later story (e.g. CRM-10.3) that needs a new event type extends both this list and
+ * `CrmEventPayloads` together -- this test's job is that the two never drift apart from
+ * each other, not that the vocabulary is frozen at CRM-01.4's own original scope. */
 describe("CRM domain event vocabulary", () => {
   const REQUIRED_EVENT_TYPES: CrmEventType[] = [
     "crm.lead.created",
@@ -22,9 +27,10 @@ describe("CRM domain event vocabulary", () => {
     "crm.conversation.updated",
     "crm.channel.connected",
     "crm.review.received",
+    "crm.product_interest.stockout_requested",
   ];
 
-  it("declares exactly the backlog's required event names", () => {
+  it("declares exactly the currently-required event names", () => {
     const samplePayloads: CrmEventPayloads = {
       "crm.lead.created": { v: 1, leadId: "l", partyId: "p", source: "manual" },
       "crm.lead.updated": { v: 1, leadId: "l", changedFields: [] },
@@ -41,6 +47,7 @@ describe("CRM domain event vocabulary", () => {
       "crm.conversation.updated": { v: 1, conversationId: "c", status: "open" },
       "crm.channel.connected": { v: 1, channelConnectionId: "cc", channel: "whatsapp", provider: "whatsapp_business" },
       "crm.review.received": { v: 1, reviewItemId: "r", provider: "google_business_profile", rating: 5 },
+      "crm.product_interest.stockout_requested": { v: 1, productInterestId: "pi", itemId: "it", partyId: "p", quantity: null },
     };
 
     for (const type of REQUIRED_EVENT_TYPES) {

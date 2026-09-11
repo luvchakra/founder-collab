@@ -80,3 +80,46 @@ registerEventHandler("prospect.won", async (event: DomainEvent) => {
     if (insertError) throw insertError;
   }
 });
+
+/**
+ * CRM-10.4's "Back-in-Stock Follow-up": "When Inventory publishes a replenishment
+ * event: find relevant open interests -> create suggested follow-up -> let user
+ * approve/send communication." Published from a real purchase-order receipt
+ * (`inventory.receive_purchase_order_item()`, CRM-10.3's own migration), `required_module:
+ * 'crm'` on that event means this only ever runs for a business with crm actually
+ * licensed.
+ *
+ * "Open interest" here means CRM-10.3's own waitlist: a `crm.follow_up` row with
+ * `product_interest_id` set and still `status = 'pending'` -- an interest nobody ever
+ * waitlisted isn't "open" in any actionable sense (there's no task to surface). Rather
+ * than creating a *second* follow-up row (which would need yet another linking column
+ * and leave two rows about the same wait), this pulls the existing waitlist task
+ * forward to `due_at = now()` -- dormant-but-real becomes due-now, the "suggested
+ * follow-up" this story asks for. It never sends anything itself ("let user
+ * approve/send communication" -- completing the task is the human's own separate,
+ * already-existing action); the Follow-ups queue's own label for a waitlisted row
+ * already flips from "Waitlist: X" to "Back in stock: X" once live availability
+ * confirms it (follow-ups/queries.ts), computed fresh rather than stored, same
+ * "never persisted" discipline CRM-10.2's own availability read already established.
+ */
+registerEventHandler("inventory.stock.replenished", async (event: DomainEvent) => {
+  const payload = event.payload as { itemId?: string };
+  if (!payload.itemId) return;
+
+  const crm = createCrmAdminClient();
+
+  const { data: interests, error: interestsError } = await crm.from("product_interest").select("id").eq("business_id", event.business_id).eq("item_id", payload.itemId);
+  if (interestsError) throw interestsError;
+  if (!interests || interests.length === 0) return;
+
+  const { error: updateError } = await crm
+    .from("follow_up")
+    .update({ due_at: new Date().toISOString(), priority: "high" })
+    .eq("business_id", event.business_id)
+    .eq("status", "pending")
+    .in(
+      "product_interest_id",
+      interests.map((i) => i.id),
+    );
+  if (updateError) throw updateError;
+});
