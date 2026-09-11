@@ -25,7 +25,7 @@ only genuine architectural/key decisions are raised.
 | | 02.3 | Buyer Personas | Done |
 | B | 03.1 | Offering Context Selector | Done |
 | | 03.2 | Offering Overview | Done |
-| | 03.3 | Offering Navigation | Not started |
+| | 03.3 | Offering Navigation | Done |
 | | 04.1 | Discovery Definition | Not started |
 | | 04.2 | Discovery Plays | Not started |
 | C | 05.1 | Opportunity Model | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**8 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**9 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -471,3 +471,36 @@ and a clean `next build`. No schema change this story. Same live-browser-walkthr
 constraint noted in every prior story this run.
 
 **Status**: 8 of 68 in-scope stories done. Next: 03.3, Offering Navigation.
+
+### 03.3 — Offering Navigation (2026-09-11)
+
+The doc's own recommended "Offering" nav group (Overview/ICP/Discovery/Opportunities/
+Signals/Watchlist/Research) lists five destinations with no page behind them yet
+(Discovery is 04.2, Opportunities/Signals are 05.x-07.x, Watchlist is P1-01.3, Research
+has no single owning story so far). Adding them now would mean dead links -- worse than
+the "no false precision" numbers problem already avoided twice this run, since a click
+would 404 rather than just under-inform. Left them out; the real, deliverable part of
+this story is what "Do not create unnecessary nested navigation. Preserve the existing
+WonderArc shell" actually asks for structurally, which `ProductNav` already satisfies
+(flat, single level, shell untouched) -- so the genuine gap here was elsewhere.
+
+`ProductNav` was a numbered stepper (1/2/3/4 circles, progress-line connectors) --
+correct framing for a brand-new offering's first pass through Overview -> ICP ->
+Prospects -> Conversions, but wrong once that's done: from then on this is an ongoing
+workspace a founder jumps around in constantly, not a checklist to complete once in
+order, and a stepper visually implies otherwise. Switched `ProductNav` to a flat,
+equal-weight tab bar once `completed.overview` is true (i.e. once a profile exists --
+the same gate 03.2 already uses for the overview dashboard), keeping the exact same four
+destinations/hrefs; the stepper is unchanged and still shown during initial setup, where
+"do these in order once" is the correct message.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(981 files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (19/19, unchanged), and a clean `next
+build`. No schema change this story. Same live-browser-walkthrough constraint noted in
+every prior story this run -- this one in particular (a purely visual/structural nav
+change) would benefit most from an actual browser check, which remains unavailable here.
+
+**Status**: 9 of 68 in-scope stories done. Next: 04.1, Discovery Definition (still
+Phase B -- EPIC DISC-OFFER-P0-04 is grouped into Phase B alongside 03.1-03.3 per the
+progress table above).
