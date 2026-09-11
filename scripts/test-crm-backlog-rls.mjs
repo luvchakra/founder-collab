@@ -93,6 +93,26 @@ async function main() {
       `);
       assertEqual(psqlAsAlice(`select status from crm.opportunity where id = '${aliceOpportunity}'`), "open", "a new opportunity defaults to status 'open'");
 
+      console.log("Verifying CRM-03.4's convert-to-opportunity backfill (product interest and activity history remain attached)...");
+      const scratchLeadOnlyActivity = psqlAsAlice(`insert into crm.activity (business_id, type, lead_id, owner_id) values ('${aliceBusiness}', 'call', '${aliceLead}', '${aliceEmployee}') returning id;`);
+      const scratchLeadOnlyProductInterest = psqlAsAlice(`insert into crm.product_interest (business_id, lead_id, item_id) values ('${aliceBusiness}', '${aliceLead}', '${aliceItem}') returning id;`);
+      // convertLeadToOpportunity()'s own backfill: opportunity_id set wherever lead_id
+      // matches and opportunity_id is still null -- exactly what the app code runs.
+      psqlAsAlice(`update crm.activity set opportunity_id = '${aliceOpportunity}' where business_id = '${aliceBusiness}' and lead_id = '${aliceLead}' and opportunity_id is null`);
+      psqlAsAlice(`update crm.product_interest set opportunity_id = '${aliceOpportunity}' where business_id = '${aliceBusiness}' and lead_id = '${aliceLead}' and opportunity_id is null`);
+      assertEqual(
+        psqlAsAlice(`select lead_id || '|' || opportunity_id from crm.activity where id = '${scratchLeadOnlyActivity}'`),
+        `${aliceLead}|${aliceOpportunity}`,
+        "an activity attached only to the lead keeps its lead_id and gains the new opportunity_id -- both links hold after conversion",
+      );
+      assertEqual(
+        psqlAsAlice(`select lead_id || '|' || opportunity_id from crm.product_interest where id = '${scratchLeadOnlyProductInterest}'`),
+        `${aliceLead}|${aliceOpportunity}`,
+        "product interest attached only to the lead is preserved and now also attached to the opportunity",
+      );
+      psqlAsAlice(`delete from crm.activity where id = '${scratchLeadOnlyActivity}'`);
+      psqlAsAlice(`delete from crm.product_interest where id = '${scratchLeadOnlyProductInterest}'`);
+
       const aliceConversation = psqlAsAlice(`
         insert into crm.conversation (business_id, party_id, primary_channel, lead_id, opportunity_id, assigned_to)
         values ('${aliceBusiness}', '${aliceParty}', 'whatsapp', '${aliceLead}', '${aliceOpportunity}', '${aliceEmployee}')

@@ -254,6 +254,21 @@ contract change was needed.
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`, and both
 module-crm's and module-discovery's vitest suites.
 
+## CRM-03.4 (2026-09-11)
+
+`convertLeadToOpportunity()` already satisfied "lead remains auditable" and "opportunity
+links to same party/account" (CRM-01.3). This closes the remaining two criteria for
+real: "product interest is preserved" and "activity and conversation history remain
+attached" now mean something concrete -- any `crm.activity`/`crm.conversation`/
+`crm.follow_up`/`crm.product_interest` row that was attached only to the lead (created
+before conversion) gets `opportunity_id` backfilled wherever it's still null, without
+touching its existing `lead_id`. Without this, a caller that filters by `opportunity_id`
+(as CRM-04.x's own pipeline UI will) would see none of that pre-conversion history.
+
+Verified with a new RLS-harness assertion (scratch activity/product_interest rows
+attached only to the lead, confirmed to keep `lead_id` and gain `opportunity_id`), full
+monorepo typecheck, `lint:boundaries`, and module-crm's vitest suite.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

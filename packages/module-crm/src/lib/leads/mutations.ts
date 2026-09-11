@@ -27,13 +27,21 @@ export async function createLead(businessId: string, input: CreateLeadInput): Pr
   return data as Lead;
 }
 
-/** CRM-01.3's `convertLeadToOpportunity()` contract operation (CRM-03.4's own full
+/**
+ * CRM-01.3's `convertLeadToOpportunity()` contract operation (CRM-03.4's own full
  * acceptance criteria -- Kanban/value/close-date fields -- land with CRM-04.x; this is
  * the minimal state transition: create the opportunity row carrying the lead's party/
  * source/owner forward, then mark the lead 'opportunity'. The lead row itself is never
- * deleted, so it stays auditable, and nothing that already points at the lead (activity,
- * follow_up, conversation) needs to change -- they keep their own lead_id untouched.
- * Publishes `crm.opportunity.created` and `crm.lead.converted` (CRM-01.4). */
+ * deleted, so it stays auditable ("lead remains auditable after conversion").
+ *
+ * "Product interest is preserved" and "activity and conversation history remain
+ * attached": rather than trusting that every future reader of `crm.activity`/
+ * `crm.conversation`/`crm.product_interest` remembers to also check `lead_id` (not just
+ * `opportunity_id`) for history that predates the conversion, this backfills
+ * `opportunity_id` onto every such row that was attached to the lead and has no
+ * opportunity yet -- their own `lead_id` is left untouched, so both links now hold.
+ * Publishes `crm.opportunity.created` and `crm.lead.converted` (CRM-01.4).
+ */
 export async function convertLeadToOpportunity(businessId: string, leadId: string): Promise<{ opportunityId: string }> {
   const supabase = await createClient();
   const { data: lead, error: leadError } = await supabase.from("lead").select("*").eq("id", leadId).eq("business_id", businessId).single();
@@ -54,6 +62,16 @@ export async function convertLeadToOpportunity(businessId: string, leadId: strin
 
   const { error: updateError } = await supabase.from("lead").update({ status: "opportunity" }).eq("id", leadId);
   if (updateError) throw updateError;
+
+  for (const table of ["activity", "conversation", "follow_up", "product_interest"] as const) {
+    const { error: backfillError } = await supabase
+      .from(table)
+      .update({ opportunity_id: opportunity.id })
+      .eq("business_id", businessId)
+      .eq("lead_id", leadId)
+      .is("opportunity_id", null);
+    if (backfillError) throw backfillError;
+  }
 
   await publishCrmEvent(businessId, "crm.opportunity.created", { v: 1, opportunityId: opportunity.id, partyId: lead.party_id, leadId: lead.id });
   await publishCrmEvent(businessId, "crm.lead.converted", { v: 1, leadId, opportunityId: opportunity.id });
