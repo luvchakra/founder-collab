@@ -1213,3 +1213,31 @@ change required re-ordering for), and both CRM RLS test suites (unchanged, re-ru
 regress from this story). Confirmed the seed data directly against the live dev project
 (`select role, permission_key from core.role_permissions where ...`): all 25 expected
 role/permission grants present. Migration applied to the dev Supabase project.
+
+## CRM-15.3 (2026-09-11) -- already satisfied for what's built, rest deferred
+
+"External Action Approval Guard": every listed action must require explicit user
+action -- send WhatsApp, send social reply, publish Google review reply, create FSM
+quote/job, merge parties. Of the five, only **send WhatsApp** exists in this codebase
+today; the other four are all later, not-yet-built P1 stories (CRM-08.2-08.4 social
+reply, CRM-08.6 review publish, CRM-11.1/11.3 FSM quote/job, CRM-02.5 party merge) --
+correctly deferred, not a gap this story needs to close early (CLAUDE.md: "do not
+pre-build ahead of scope").
+
+Verified send WhatsApp directly rather than assuming CRM-07.6/07.8's own "human user
+explicitly presses Send" acceptance criterion still holds after everything built since:
+`grep`'d every caller of `sendWhatsAppReply()`/`sendWhatsAppTemplate()` across the whole
+monorepo -- the only two call sites are `conversations/actions.ts`'s
+`sendWhatsAppReplyAction`/`sendWhatsAppTemplateAction`, both plain server actions bound
+to a `<form>` submit in a client component (`useActionState`), never called from a cron
+route, domain-event consumer, or any AI-generated-content path. Also read
+`events/handlers.ts` (the one existing CRM domain-event consumer, `prospect.won`) in
+full: it only ever inserts an internal `status: 'draft'` note, never sends anything --
+confirming this codebase's "human-in-the-loop" discipline (backlog rule #11, CRM-09.6's
+own "draft only, no auto-send") already extends to every reactive code path checked, not
+just the ones with their own explicit acceptance criteria.
+
+No gap found for the one action that exists; the other four have no code yet to guard.
+Documented per this audit's own "already satisfied" pattern rather than silently
+skipping. No code change, no new tests (nothing to test beyond the grep-confirmed call
+graph above) -- both CRM RLS suites re-run clean as the standard regression check.
