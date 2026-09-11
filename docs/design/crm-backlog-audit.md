@@ -1990,3 +1990,47 @@ this is the first of that epic's remaining P1 stories: letting CRM answer commer
 questions using the authoritative Inventory module -- a genuine cross-module contract
 call (ADR-10 degraded mode required, since `inventory` may not be licensed) into
 territory this backlog run hasn't touched yet.
+
+## CRM-10.2 (2026-09-11)
+
+**Inventory Availability in Conversation.** New `packages/module-crm/src/lib/
+conversations/products.ts`: `listConversationProducts()` (mirrors `opportunities/
+products.ts`'s exact shape at the `conversation_id` grain -- `crm.product_interest`
+already had this column from CRM-01.2's generic schema, so no migration was needed
+this story), `addConversationProduct()`/`removeConversationProduct()` (both gated
+`requireModule(businessId, "inventory")`, same defense-in-depth reasoning the
+opportunity-side mutations already document), and `getTotalAvailability(businessId,
+itemId)` -- calls `module-inventory/contract/index.ts#getAvailability()` (pre-existing,
+no inventory-side change needed) and collapses its `ContractResult` to `number | null`:
+`null` for both "Inventory not licensed" and "call failed", so the acceptance
+criterion's "unlicensed/locked Inventory results in a graceful not-available state" is
+satisfied by construction, not a special case. Summed across every warehouse -- a
+conversation-level "in stock at all" signal, not a per-warehouse breakdown a
+customer-facing conversation has no use for. Nothing here is ever persisted (computed
+fresh on every render), satisfying "no stock ledger is copied into CRM" the same way.
+
+**UI**: the conversation detail page gained a "Products of interest" section (`apps/
+web/.../crm/conversations/page.tsx`, `actions.ts` gained `addConversationProductAction`/
+`removeConversationProductAction`) between the lead/opportunity badges and the owner-
+assignment form. Deliberately diverges from the Opportunity detail page's own
+Products-card precedent (which hides its whole section when Inventory is unlicensed):
+here the products-of-interest list itself always renders (it's CRM's own data,
+independent of Inventory), and only (a) the per-item availability figure degrades to
+"Not available" and (b) the add-product picker (which needs a real catalog to choose
+from) is hidden, when Inventory isn't licensed -- a more precise reading of this
+story's own "graceful not-available state" criterion than blanket-hiding would give.
+
+Verified: full monorepo typecheck (clean across every workspace), `lint:boundaries`
+(920 files, no violations), `lint:migrations` (75 migrations, unchanged -- no new
+migration this story), module-crm's vitest suite (111/111, unchanged -- no new pure
+logic to unit-test, `getTotalAvailability()`'s only branching is the contract-call
+collapse), both CRM RLS suites (re-run clean, unchanged -- no new table/column), and a
+clean `next build`. No live migration to apply and no advisor re-check needed this
+story, since nothing in the schema changed.
+
+**Epic CRM-10 status**: 1 of 3 remaining in-scope stories done (CRM-10.1 was already
+satisfied by the CRM-01.2 baseline with no dedicated commit; CRM-10.5 is out of this
+backlog run's 74-story scope). Next: CRM-10.3 (Out-of-Stock Opportunity, seq #56, P1)
+and CRM-10.4 (Back-in-Stock Follow-up, seq #57, P1).
+
+**Status**: 60 of 74 in-scope stories done.
