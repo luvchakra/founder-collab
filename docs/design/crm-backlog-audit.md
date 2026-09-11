@@ -212,6 +212,32 @@ module-crm's vitest suite, and both CRM RLS test scripts (including a new dedupe
 assertion). Migration applied to the dev Supabase project and confirmed clean on
 security/performance advisors.
 
+## CRM-03.2 (2026-09-11)
+
+`logInboundReplyAction` (the manual "log a prospect's reply" action on the prospect
+detail page) now also calls `recordInteraction()` after `logInboundReply()`'s existing
+best-effort AI classification, when that classification is meaningful
+(`interested`/`question`/`objection` set `requires_response: true`; a definitive
+`not_interested` is still recorded, `requires_response: false`; `out_of_office`/
+`unsubscribe`/`other` are treated as noise and skipped, matching CRM-09.1's later "not
+obvious spam/system noise" framing). `recordInteraction()`'s own party+channel matching
+(CRM-01.3) reuses an existing open conversation for the party/channel rather than always
+starting a new one. `sourceModule: "discovery"` + `sourceReference: prospectId` (plus the
+originating Discovery message id in `metadata`) keep the original reference traceable.
+The CRM call is best-effort (caught and logged, never thrown) so a CRM hiccup can never
+lose a reply that already saved successfully.
+
+Deliberately out of scope: the automatic inbound-email webhook path
+(`ingest-inbound-email.ts` -> `classifyReply()`) runs on the admin client with no user
+session, and `recordInteraction()` is currently session-client-only -- wiring that path
+needs either an admin-mode `recordInteraction()` or a different integration point, which
+is closer to CRM-07.x's real channel/webhook work than this story's "Discovery Response"
+scope. Only the manual reply-logging path (already session-authenticated, real,
+production UI) is wired here.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`, and
+module-crm's vitest suite.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

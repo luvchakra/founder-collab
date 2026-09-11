@@ -33,7 +33,26 @@ import {
   logInboundReply,
 } from "@cofounderai/module-discovery/lib/conversations/mutations";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
-import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
+import { promoteProspectToCrm, recordInteraction } from "@cofounderai/module-crm/contract/index";
+import type { RecordInteractionInput } from "@cofounderai/module-crm/lib/interactions/types";
+import type { MessageChannel, MessageClassification } from "@cofounderai/module-discovery/lib/messages/types";
+
+/** CRM-03.2: which classifications are meaningful enough to become a CRM interaction at
+ * all (not spam/noise -- out_of_office and unsubscribe are signal-free for CRM purposes),
+ * and which of those need `requires_response = true` (a definitive "not interested" is
+ * still worth recording for the relationship timeline, but nobody needs to act on it). */
+const CRM_INTERACTION_CLASSIFICATIONS: Partial<Record<MessageClassification, { requiresResponse: boolean }>> = {
+  interested: { requiresResponse: true },
+  question: { requiresResponse: true },
+  objection: { requiresResponse: true },
+  not_interested: { requiresResponse: false },
+};
+
+const DISCOVERY_TO_CRM_CHANNEL: Record<MessageChannel, RecordInteractionInput["channel"]> = {
+  email: "email",
+  whatsapp: "whatsapp",
+  linkedin: "other",
+};
 
 function prospectPath(businessId: string, productId: string, prospectId: string) {
   return `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospectId}`;
@@ -319,22 +338,52 @@ export async function closeConversationAction(
   }
 }
 
-/** Logs a prospect's reply typed in by hand (docs section: Conversations redesign) --
+/**
+ * Logs a prospect's reply typed in by hand (docs section: Conversations redesign) --
  * uses runAiAction/AiActionState like the other AI-invoking actions here because
  * logInboundReply best-effort-classifies the reply, an AI call that can fail on a usage
- * limit or provider error. */
+ * limit or provider error.
+ *
+ * CRM-03.2: a meaningful classification (see CRM_INTERACTION_CLASSIFICATIONS above)
+ * also records a CRM interaction -- best-effort, same as classification itself, since a
+ * CRM hiccup must never lose the reply that already saved successfully.
+ * `recordInteraction()`'s own party+channel matching (CRM-01.3) reuses an existing open
+ * conversation for this party/channel when one exists rather than always starting a new
+ * one. `sourceModule`/`sourceReference` keep the original Discovery prospect traceable.
+ * Nothing is recorded when the prospect has no linked `core.parties` row yet.
+ */
 export async function logInboundReplyAction(
   businessId: string,
   productId: string,
   prospectId: string,
+  partyId: string | null,
   conversationId: string,
   _prevState: AiActionState,
   formData: FormData,
 ): Promise<AiActionState> {
   return runAiAction(async () => {
     const content = String(formData.get("content") ?? "");
-    await logInboundReply(conversationId, content);
+    const message = await logInboundReply(conversationId, content);
     revalidatePath(prospectPath(businessId, productId, prospectId));
+
+    const rule = message.classification ? CRM_INTERACTION_CLASSIFICATIONS[message.classification] : undefined;
+    if (rule && partyId) {
+      try {
+        await recordInteraction(businessId, {
+          partyId,
+          channel: DISCOVERY_TO_CRM_CHANNEL[message.channel],
+          direction: "inbound",
+          occurredAt: message.sent_at ?? undefined,
+          contentExcerpt: message.content.slice(0, 500),
+          requiresResponse: rule.requiresResponse,
+          sourceModule: "discovery",
+          sourceReference: prospectId,
+          metadata: { discoveryMessageId: message.id, classification: message.classification },
+        });
+      } catch (err) {
+        console.error("[crm] failed to record interaction for Discovery reply:", err);
+      }
+    }
   });
 }
 

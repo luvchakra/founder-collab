@@ -955,7 +955,7 @@ export default async function ProspectDetailPage({
 
                   {c.status !== "closed" ? (
                     <AiActionForm
-                      action={logInboundReplyAction.bind(null, businessId, productId, prospect.id, c.id)}
+                      action={logInboundReplyAction.bind(null, businessId, productId, prospect.id, prospect.party_id, c.id)}
                       buttonLabel="Log reply"
                       pendingText="Saving..."
                       formClassName="flex flex-col gap-2"
