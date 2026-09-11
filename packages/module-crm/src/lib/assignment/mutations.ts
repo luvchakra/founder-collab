@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import type { AssignableEntity } from "./types";
@@ -69,8 +70,11 @@ export async function assignEntity(businessId: string, entityType: AssignableEnt
     after: { [column]: ownerId },
   });
 
+  // core.employees, not crm.employees -- a table that doesn't exist under the crm
+  // schema, which the crm-scoped `supabase` client above can't reach.
+  const core = await createCoreClient({ schema: "core" });
   const { data: assigner } = user
-    ? await supabase.from("employees").select("id").eq("business_id", businessId).eq("user_id", user.id).maybeSingle()
+    ? await core.from("employees").select("id").eq("business_id", businessId).eq("user_id", user.id).maybeSingle()
     : { data: null };
 
   const { error: closeError } = await supabase

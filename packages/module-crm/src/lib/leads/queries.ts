@@ -16,6 +16,15 @@ export async function listLeads(
   return data as Lead[];
 }
 
+/** CRM-06.2's Unified Inbox needs a single-lead fetch for its right-pane CRM context
+ * (the linked lead's own status badge) that no prior story's list-only queries provided. */
+export async function getLead(businessId: string, leadId: string): Promise<Lead | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("lead").select("*").eq("business_id", businessId).eq("id", leadId).maybeSingle();
+  if (error) throw error;
+  return data as Lead | null;
+}
+
 /** CRM-02.4: "Analytics can aggregate by source." A count-by-source breakdown is the
  * minimal proof that `crm.lead.source` (set at creation, CRM-01.2) supports aggregation
  * today -- the actual reporting UI is CRM-14.x's own story ("Discovery -> CRM Funnel",

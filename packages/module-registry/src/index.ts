@@ -160,7 +160,13 @@ export const moduleRegistry: ModuleManifest[] = [
     icon: "Inbox",
     routePrefix: "/crm",
     nav: [
-      { heading: "Overview", items: [{ label: "Inbox", slug: "", icon: "Inbox" }] },
+      {
+        heading: "Overview",
+        items: [
+          { label: "Inbox", slug: "", icon: "Inbox" },
+          { label: "Conversations", slug: "conversations", icon: "MessageCircle" },
+        ],
+      },
       {
         heading: "Sales",
         items: [
@@ -184,6 +190,7 @@ export const moduleRegistry: ModuleManifest[] = [
       "Lead lifecycle tracking",
       "Opportunity pipeline",
       "Follow-up queue",
+      "Conversation-based unified inbox",
     ],
     permissions: ["crm.access"],
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],

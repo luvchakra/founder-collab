@@ -545,6 +545,56 @@ literally "groups related interactions." `lib/conversations/types.ts`'s own doc 
 already flagged "the full unified-inbox UI ... is CRM-06.2's own story; this is just the
 data." Recorded here so the story count and audit trail stay accurate. No files changed.
 
+## CRM-06.2 + CRM-06.3 (2026-09-11) -- plus a CRM-05.4 bug fix
+
+Built together: CRM-06.3's own remaining work (an assign control) is a few lines once
+`assignEntity()` already generically supports "conversation" (CRM-05.4), so it lives on
+the same screen CRM-06.2 builds rather than as a separate page.
+
+New `crm/conversations` route -- the backlog's own three-region layout (left filters,
+center list, right conversation + CRM context), a real CSS-grid three-column layout at
+`md`+; below `md` only one pane shows at a time (list, or the detail pane with a back
+link, driven by `?conversationId=`), since three real columns don't fit a phone width.
+Each pane renders exactly once in the tree (visibility toggled per breakpoint via a
+wrapper class) rather than being duplicated per breakpoint -- the filter form and the
+assign form both contain fixed `id`s that would collide if mounted twice at once, unlike
+the table/card-list dual-render pattern elsewhere in this app, which has no such ids.
+
+Filters ("needs response, assigned to me, overdue, high intent, channel, status,
+owner"), all real: `needsResponse`/`overdue` come from `crm.interaction`'s own
+`requires_response`/`responded_at`/`response_due_at` fields (no new columns);
+`highIntent` reads `intent_confidence` against a documented 0.7 default threshold.
+`overdue` and `highIntent` are honest-but-empty until their producers exist
+(`response_due_at` isn't set anywhere until CRM-05.5's SLA Timer; `intent_confidence`
+isn't set until CRM-09.x's classifier) -- not fabricated, just plumbing ahead of the
+data, same reasoning as CRM-04.5's unused `role` column. `computeConversationFlags()`
+and `applyConversationQueueFilters()` (`lib/conversations/queue.ts`) are pure and unit
+tested (12 cases) with a fixed clock. "Unassigned queue" is the Owner filter's own
+"Unassigned" option, not a separate screen. No reply composition here -- sending is
+CRM-07.x's own job; this screen is browse/triage/assign only, matching CRM-06.2's actual
+acceptance criteria (layout + filters, nothing about composing).
+
+**Bug fix (CRM-05.4)**: `assignEntity()` and the new `getCurrentEmployeeId()` both
+queried `employees` through the `crm`-scoped Supabase client, but `core.employees` lives
+in the `core` schema, not `crm` -- a real runtime bug (would throw or 404, not silently
+misbehave) that the RLS harness's raw-SQL tests couldn't catch, since they never
+exercise the actual TypeScript mutation. Fixed by routing that one lookup through a
+core-scoped client, same pattern `listEmployeeOptions` (tickets/queries.ts) already uses.
+
+Also adds `getLead()` (leads/queries.ts) and an explicit `ConversationDetail` return
+type on `getConversationById()` (interactions/queries.ts) -- previously untyped, which
+surfaced as an implicit-`any` typecheck error the moment a real caller (this inbox)
+consumed its `interactions` array.
+
+New "Conversations" nav entry alongside the existing ticket-based "Inbox" (left
+untouched, per the retirement plan: each old piece is retired by its own dedicated
+story, never a silent side effect of an unrelated one).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (12 new conversation-queue tests), and both CRM RLS test
+suites (which incidentally exercise the fixed employees-lookup path via existing
+assignment scratch cases). No new migration.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`
