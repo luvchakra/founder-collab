@@ -1,3 +1,5 @@
+import type { FulfillmentCommitmentState } from "../opportunities/fulfillment";
+
 /**
  * INT-01.1's own vocabulary -- shared by the resolver (queries.ts) and anything that
  * renders its result (the opportunity detail page's compact journey badge row).
@@ -15,7 +17,15 @@ export type CommercialJourneyState = {
   opportunityId: string;
   discovery: JourneyModuleSection & { prospectId: string | null };
   crm: JourneyModuleSection & { leadId: string | null; opportunityStatus: string; ownerId: string | null; nextActionId: string | null };
-  inventory: JourneyModuleSection & { productCount: number; fulfillmentRequestId: string | null };
+  inventory: JourneyModuleSection & {
+    productCount: number;
+    fulfillmentRequestId: string | null;
+    /** INT-02.4: null until a fulfillment request exists, then the live projection
+     * `deriveFulfillmentCommitmentState()` produces -- distinguishes "requested but
+     * still reserving" from "actually fulfilled," which `status: "ok"` alone can't (both
+     * read as `ok`; only a cancelled/stale one reads `warning`). */
+    commitmentState: FulfillmentCommitmentState | null;
+  };
   fsm: JourneyModuleSection & { fsmOpportunityId: string | null; jobStatus: string | null };
   /** A short machine-readable summary of where this journey stands overall --
    * deliberately coarse (not one code per possible per-module combination); the

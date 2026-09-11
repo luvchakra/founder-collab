@@ -78,17 +78,29 @@ export async function resolveCommercialJourney(businessId: string, opportunityId
   // whose fulfillment fell through doesn't silently read as fully handled.
   let inventory: CommercialJourneyState["inventory"];
   if (!inventoryLicensed) {
-    inventory = { status: "not_available", label: "Inventory not licensed", productCount: 0, fulfillmentRequestId: null };
+    inventory = { status: "not_available", label: "Inventory not licensed", productCount: 0, fulfillmentRequestId: null, commitmentState: null };
   } else {
     const products = await listOpportunityProducts(businessId, opportunityId);
     if (products.length === 0) {
-      inventory = { status: "not_applicable", label: "No products linked", productCount: 0, fulfillmentRequestId: null };
+      inventory = { status: "not_applicable", label: "No products linked", productCount: 0, fulfillmentRequestId: null, commitmentState: null };
     } else if (!opportunity.fulfillment_request_id) {
-      inventory = { status: "ok", label: `${products.length} product${products.length === 1 ? "" : "s"} linked`, productCount: products.length, fulfillmentRequestId: null };
+      inventory = {
+        status: "ok",
+        label: `${products.length} product${products.length === 1 ? "" : "s"} linked`,
+        productCount: products.length,
+        fulfillmentRequestId: null,
+        commitmentState: null,
+      };
     } else {
       const fulfillmentStatus = await getFulfillmentStatusForOpportunity(businessId, opportunity);
       if (!fulfillmentStatus) {
-        inventory = { status: "warning", label: "Fulfillment reference is stale", productCount: products.length, fulfillmentRequestId: opportunity.fulfillment_request_id };
+        inventory = {
+          status: "warning",
+          label: "Fulfillment reference is stale",
+          productCount: products.length,
+          fulfillmentRequestId: opportunity.fulfillment_request_id,
+          commitmentState: null,
+        };
       } else {
         const commitment = deriveFulfillmentCommitmentState(fulfillmentStatus.status);
         inventory = {
@@ -96,6 +108,7 @@ export async function resolveCommercialJourney(businessId: string, opportunityId
           label: `Fulfillment: ${commitment.label}`,
           productCount: products.length,
           fulfillmentRequestId: opportunity.fulfillment_request_id,
+          commitmentState: commitment.state,
         };
       }
     }
@@ -138,7 +151,10 @@ export function deriveOverallState(
     return { overallStage: "closed_lost", blockedReason: "Opportunity marked lost", nextRecommendedAction: null };
   }
 
-  const fulfillmentPending = (inventory.status === "ok" && inventory.productCount > 0 && !inventory.fulfillmentRequestId) || inventory.status === "warning";
+  // INT-02.4: "fulfilled" is the only commitment state that counts as done -- a merely
+  // requested/reserved one is still in progress, distinct from `status: "ok"` alone
+  // (which both share until the commitment actually reaches its terminal state).
+  const fulfillmentPending = inventory.status === "warning" || (inventory.status === "ok" && inventory.productCount > 0 && inventory.commitmentState !== "fulfilled");
   const fsmPending = fsm.status === "warning";
 
   if (crm.label === "Won") {
@@ -179,8 +195,8 @@ export function resolveNextCrossModuleAction(state: CommercialJourneyState): Nex
 
   // Won, with products linked and no fulfillment request made yet -- already requested
   // (`fulfillmentRequestId` set) means there's nothing left for this resolver to
-  // recommend here; INT-02.3/02.4 is where a *follow-up* action on an existing request
-  // (if any) would eventually live, not this one.
+  // recommend here; re-requesting after a cancellation is INT-05's "partial
+  // fulfillment/shortage loop" territory, not this one.
   if (state.crm.opportunityStatus === "won" && state.inventory.status === "ok" && state.inventory.productCount > 0 && !state.inventory.fulfillmentRequestId) {
     actions.push({ code: "request_fulfillment", label: "Request inventory fulfillment", enabled: true, disabledReason: null });
   }
@@ -194,10 +210,13 @@ export function resolveNextCrossModuleAction(state: CommercialJourneyState): Nex
   }
 
   // Won, nothing else pending in either module -- the relationship itself is the only
-  // thing left to act on.
+  // thing left to act on. INT-02.4: a fulfillment request that's merely reserved isn't
+  // "nothing else pending" -- only `commitmentState === "fulfilled"` (or no Inventory
+  // engagement at all) counts, matching `deriveOverallState()`'s own `fulfillmentPending`
+  // rule ("Inventory fulfilled -> CRM post-sale journey" when FSM isn't required).
   if (
     state.crm.opportunityStatus === "won" &&
-    (state.inventory.status === "not_applicable" || state.inventory.status === "not_available") &&
+    (state.inventory.status === "not_applicable" || state.inventory.status === "not_available" || state.inventory.commitmentState === "fulfilled") &&
     (state.fsm.status === "not_applicable" || state.fsm.status === "not_available")
   ) {
     actions.push({ code: "follow_up_customer", label: "Follow up with customer", enabled: true, disabledReason: null });

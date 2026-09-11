@@ -145,3 +145,17 @@ Also extended `FulfillmentStatus` (module-inventory contract) with `updatedAt` -
 Verified with full monorepo typecheck (clean), `lint:boundaries` (949 files, no violations), module-crm's vitest suite (149/149 -- 6 new) and module-inventory's (6/6, unchanged), and a clean `next build`. No migration -- purely additive TypeScript surface over already-selected/available columns.
 
 **Status**: 6 of 29 in-scope stories done. Next: INT-02.4, Fulfillment Completion -> CRM.
+
+### INT-02.4 — Fulfillment Completion -> CRM (2026-09-11)
+
+INT-02.3 already made the live commitment state visible; this story closes the actual gap the backlog's own outcome names ("next action resolved"). Before this story, `deriveOverallState()`'s `fulfillmentPending` treated *any* existing fulfillment request as done (`status: "ok"` reads the same whether a sales order is merely `draft`/reserved or genuinely `delivered`) -- a won opportunity read as `won_complete` the moment a request was made, not once it was actually fulfilled.
+
+Added `commitmentState: FulfillmentCommitmentState | null` to the journey's Inventory section (`journey/types.ts`) -- null until a request exists, then INT-02.3's own `deriveFulfillmentCommitmentState()` result, carried alongside `status`/`label` rather than replacing them (badge coloring still wants the coarser `ok`/`warning` distinction). `fulfillmentPending` now reads `inventory.commitmentState !== "fulfilled"` instead of merely checking `fulfillmentRequestId` is set -- "pending"/"reserved" (still fulfilling) correctly keep the opportunity `won_in_progress`; only `"fulfilled"` (or no Inventory engagement at all) allows `won_complete`.
+
+`resolveNextCrossModuleAction()`'s `follow_up_customer` guard is extended the same way: it now also fires once `commitmentState === "fulfilled"`, not just when Inventory was never applicable -- "Inventory fulfilled -> CRM post-sale journey" (the backlog's own "FSM not required" branch). The FSM-required branch ("Inventory fulfilled -> FSM handoff becomes available") needed no code change: `create_fsm_quote` was never gated on fulfillment completion to begin with, so it's already available as soon as products are linked, independent of where the fulfillment request stands.
+
+Deliberately unchanged: `createFulfillmentRequestForOpportunity()`'s idempotency (still always returns an existing reference regardless of status) -- letting a founder request a *new* fulfillment after a cancelled one is INT-05's "partial fulfillment / shortage loop," not this story's "next action resolved" scope.
+
+Verified with full monorepo typecheck (clean), `lint:boundaries` (949 files, no violations), module-crm's vitest suite (152/152 -- 3 new: a won+reserved case staying `won_in_progress`, a won+fulfilled case reaching `won_complete`, and `resolveNextCrossModuleAction` recommending `follow_up_customer` once fulfilled), and a clean `next build`. No migration.
+
+**Status**: 7 of 29 in-scope stories done -- **Epic INT-02 complete** (4/4). Next: INT-03.1, FSM Job Material Requirement (starts Epic INT-03).
