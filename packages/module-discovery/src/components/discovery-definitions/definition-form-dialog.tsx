@@ -31,10 +31,17 @@ export function DefinitionFormDialog({
   mode,
   definition,
   action,
+  initialValues,
+  triggerLabel,
 }: {
   mode: "create" | "edit";
   definition?: DiscoveryDefinition;
   action: (formData: FormData) => Promise<FormResult>;
+  /** DISC-OFFER-P0-04.2's "Discovery Play" presets -- create-mode only, a starting
+   * point the founder still reviews and can edit before saving, same as every other
+   * pre-filled-but-not-auto-saved proposal in this platform. */
+  initialValues?: { name?: string; desiredSignals?: string[] };
+  triggerLabel?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -57,9 +64,9 @@ export function DefinitionFormDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         {mode === "create" ? (
-          <Button size="sm">
+          <Button size="sm" variant={initialValues ? "outline" : "default"}>
             <Plus className="size-4" aria-hidden="true" />
-            New definition
+            {triggerLabel ?? "New definition"}
           </Button>
         ) : (
           <button
@@ -78,7 +85,7 @@ export function DefinitionFormDialog({
         <form action={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" defaultValue={definition?.name} placeholder="e.g. Recently Funded Watch" required />
+            <Input id="name" name="name" defaultValue={definition?.name ?? initialValues?.name} placeholder="e.g. Recently Funded Watch" required />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -113,7 +120,7 @@ export function DefinitionFormDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="desiredSignals">Desired signals</Label>
-              <Textarea id="desiredSignals" name="desiredSignals" rows={3} defaultValue={toLines(definition?.desired_signals ?? [])} />
+              <Textarea id="desiredSignals" name="desiredSignals" rows={3} defaultValue={toLines(definition?.desired_signals ?? initialValues?.desiredSignals ?? [])} />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="excludedSignals">Excluded signals</Label>
