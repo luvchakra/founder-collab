@@ -9,6 +9,7 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { RelatedDocumentButton } from "@cofounderai/module-crm/components/tickets/related-document-button";
 import { getTicket } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getCustomer360 } from "@cofounderai/module-crm/lib/customer-360/queries";
+import { listRelationshipTimeline } from "@cofounderai/module-crm/lib/timeline/queries";
 import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
 import { linkTicketToDocumentAction } from "./actions";
 
@@ -50,11 +51,12 @@ export default async function CustomerPanelPage({
   const party = await getParty(partyId);
   if (!party || party.business_id !== businessId) notFound();
 
-  const [customer360, aging, ticket, contacts] = await Promise.all([
+  const [customer360, aging, ticket, contacts, timeline] = await Promise.all([
     getCustomer360(businessId, partyId),
     listAgingForParty(businessId, partyId),
     ticketId ? getTicket(ticketId) : Promise.resolve(null),
     party.kind === "company" ? listContactsForParty(partyId) : Promise.resolve([]),
+    listRelationshipTimeline(businessId, partyId),
   ]);
 
   const totalOutstanding = aging.reduce((sum, row) => sum + Number(row.balance_amount), 0);
@@ -76,7 +78,8 @@ export default async function CustomerPanelPage({
     customer360.recentConversations.length > 0 ||
     customer360.productsOfInterest.length > 0 ||
     customer360.notes.length > 0 ||
-    contacts.length > 0;
+    contacts.length > 0 ||
+    timeline.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
@@ -112,6 +115,34 @@ export default async function CustomerPanelPage({
                 </div>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {timeline.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Timeline</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col divide-y">
+            {timeline.map((entry) => {
+              const row = (
+                <div className="flex items-start justify-between gap-3 py-1.5 text-sm">
+                  <div>
+                    <p>{entry.label}</p>
+                    {entry.detail ? <p className="text-muted-foreground">{entry.detail}</p> : null}
+                  </div>
+                  <span className="shrink-0 whitespace-nowrap text-muted-foreground">{formatDate(entry.occurredAt)}</span>
+                </div>
+              );
+              return entry.detailHref ? (
+                <Link key={entry.id} href={entry.detailHref} className="hover:bg-muted/50">
+                  {row}
+                </Link>
+              ) : (
+                <div key={entry.id}>{row}</div>
+              );
+            })}
           </CardContent>
         </Card>
       ) : null}

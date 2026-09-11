@@ -21,6 +21,20 @@ export async function getOpenCommercialInteractions(businessId: string, limit = 
   return data as Interaction[];
 }
 
+/** CRM-02.3's relationship timeline needs a party's full interaction history, most
+ * recent first. */
+export async function listInteractionsForParty(businessId: string, partyId: string): Promise<Interaction[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("interaction")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("party_id", partyId)
+    .order("occurred_at", { ascending: false });
+  if (error) throw error;
+  return data as Interaction[];
+}
+
 /** CRM-01.3's `getConversation()` contract operation. */
 export async function getConversationById(businessId: string, conversationId: string) {
   const supabase = await createClient();

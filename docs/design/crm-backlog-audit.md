@@ -152,6 +152,22 @@ a CRM-side copy -- shown with name, `job_title`, primary flag, and email/phone,
 conditionally fetched only when `party.kind === "company"`. Verified with typecheck and
 a clean `next build`.
 
+## CRM-02.3 (2026-09-11)
+
+Adds `listRelationshipTimeline()` (`lib/timeline/queries.ts`) merging CRM's own
+activity/interaction history (`listActivitiesForParty`/`listInteractionsForParty`, both
+new) with Inventory orders, FSM jobs, and Discovery's current prospect state, each
+omitted when that module isn't licensed rather than erroring (ADR-10) -- so "timeline
+remains useful with only CRM licensed" holds since the CRM-owned entries alone are a
+real chronological list, not an empty page. Reviews (CRM-08.5) and FSM quote-status
+history (CRM-11.2) aren't included: no ingestion/contract exists yet to source them
+from, so adding entries for them now would be pre-building ahead of those stories.
+Sorted newest-first; each entry carries its source (`crm.activity`/`crm.interaction`/
+`inventory.order`/`fsm.job`/`discovery.prospect`) and a `detailHref` only where a real
+detail page exists to link to (only FSM's `jobs/[jobId]` today). Rendered as a new
+"Timeline" card on the Customer 360 page. Verified with full monorepo typecheck, a clean
+`next build`, `lint:boundaries`, and module-crm's vitest suite.
+
 ## No unrelated module changed
 
 This audit and CRM-01.2's schema migration touch only `docs/design/`, this new audit
