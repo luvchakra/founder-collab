@@ -5,8 +5,10 @@ import { getWorkspace, getProduct } from "../tenancy/queries";
 import { getIcpProfile } from "../icp/queries";
 import { getProspectResearch } from "../research/queries";
 import { listBuyerPersonas } from "../personas/queries";
+import { listContacts } from "../contacts/queries";
+import { computeBuyerIntelligence } from "../buyer-intelligence/intelligence";
 import { listOpportunitiesForProspect } from "../opportunities/queries";
-import { setOpportunityWhyThem } from "../opportunities/mutations";
+import { setOpportunityWhyThem, setOpportunityBuyerIntelligence } from "../opportunities/mutations";
 import { listNegativeSignalsForProspect } from "../negative-signals/queries";
 import type { ResearchBrief } from "../research-briefs/types";
 import { researchBriefPrompt, RESEARCH_BRIEF_PROMPT_VERSION } from "../../prompts/research/research_brief_v1";
@@ -32,6 +34,13 @@ const OPERATION = "generate_research_brief";
  * opportunity is used when more than one exists (a prospect can have several across
  * different discovery definitions, 05.1) since a fresh brief reflects the current state
  * of research, most relevant to whichever evaluation is newest.
+ *
+ * DISC-OFFER-P0-06.3: this is also the natural moment to (re)compute this prospect's
+ * buyer intelligence and wire its own `buyer_fit_score`/`contactability_score` into the
+ * same opportunity (`setOpportunityBuyerIntelligence`) -- contacts and personas are
+ * already available in this function's own scope, and a fresh brief is exactly the
+ * "decision aid" moment 06.3's per-person view exists to support. No AI call of its own
+ * (CLAUDE.md dev principle #4/#5): `computeBuyerIntelligence` is entirely deterministic.
  */
 export async function generateResearchBrief(prospectId: string): Promise<ResearchBrief> {
   const prospect = await getProspect(prospectId);
@@ -117,6 +126,9 @@ export async function generateResearchBrief(prospectId: string): Promise<Researc
 
     if (opportunity) {
       await setOpportunityWhyThem(opportunity.id, draft.offering_fit);
+      const contacts = await listContacts(prospect.id);
+      const buyerIntelligence = computeBuyerIntelligence(contacts, personas, icp.roles, research.evidence);
+      await setOpportunityBuyerIntelligence(opportunity.id, buyerIntelligence);
     }
 
     return data;
