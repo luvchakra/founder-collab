@@ -1,5 +1,21 @@
 export type JobStatus = "unscheduled" | "scheduled" | "in_progress" | "on_hold" | "completed" | "cancelled";
 
+/** INT-03.2: outcome of the job's own last parts-reservation attempt
+ * (`reserveJobParts()`, `lib/inventory-integration/mutations.ts`) -- not a stock ledger,
+ * Inventory's `stock_movements`/`stock_levels` remain the only authority on what
+ * actually moved and what's currently available; this is a small FSM-owned fact about
+ * the job itself, the same kind of thing `status`/`on_hold_reason` already are. */
+export type JobPartsReservationStatus = "reserved" | "partially_reserved" | "unavailable";
+
+export type JobPartsShortfallLine = {
+  itemId: string;
+  itemName: string;
+  itemSku: string | null;
+  unit: string;
+  requested: number;
+  shortfall: number;
+};
+
 export interface Job {
   id: string;
   business_id: string;
@@ -16,6 +32,9 @@ export interface Job {
   completed_at: string | null;
   on_hold_reason: string | null;
   recurring_template_id: string | null;
+  parts_reservation_status: JobPartsReservationStatus | null;
+  parts_reservation_detail: JobPartsShortfallLine[] | null;
+  parts_reservation_checked_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;

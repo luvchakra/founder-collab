@@ -26,7 +26,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 02.3 | Inventory Commitment State -> CRM | Done |
 | | 02.4 | Fulfillment Completion -> CRM | Done |
 | INT-03 (P0) | 03.1 | FSM Job Material Requirement | Done |
-| | 03.2 | Reserve Parts for FSM Job | Not started |
+| | 03.2 | Reserve Parts for FSM Job | Done |
 | | 03.3 | Parts Shortage -> FSM Exception | Not started |
 | | 03.4 | Technician Consumption -> Inventory | Not started |
 | | 03.5 | Parts Returned / Unused -> Inventory | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 8/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 8/29 (28%).**
+**P0 (INT-01 through INT-04): 9/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 9/29 (31%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -210,3 +210,17 @@ Refactored the corrected function out of `mutations.ts` into a new `inventory-in
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), and a clean `next build`. `node scripts/test-module.mjs fsm` ran too: its vitest package suite passes (module-fsm has no unit test files at all -- consistent with the rest of this module relying on the live-DB scripts in `scripts/test-fsm-*.mjs` rather than mocked unit tests for anything DB-shaped), and its RLS harness failed only on `createdb: connection to server ... failed` -- no local Postgres in this environment, an environment limitation the skill's own guidance calls out, not a regression from this change. No migration -- no schema change, only a corrected client and a new read function over existing tables.
 
 **Status**: 8 of 29 in-scope stories done. Next: INT-03.2, Reserve Parts for FSM Job.
+
+### INT-03.2 — Reserve Parts for FSM Job (2026-09-11)
+
+`reserveJobParts()` (F-14) already reused the correct existing mechanism (`reserveStock()`, module-inventory's contract) and already made no direct FSM writes to Inventory tables -- two of this story's five acceptance criteria held before today. The other three didn't: every per-line result was discarded (`.catch(() => null)`, not even checking `.ok`), so "Reserved / Partially Reserved / Unavailable" was never actually knowable, "partial availability is explicit" and "user sees missing items" both failed silently, and nothing made a second `reserveJobParts()` call for the same job safe from double-reserving (no exception ever fired to prevent it, since `reserveStock()` returns a result object, not a throw).
+
+New `fsm.jobs` columns (migration `20260911002200`): `parts_reservation_status` (`reserved`/`partially_reserved`/`unavailable`, nullable), `parts_reservation_detail` (jsonb, the shortfall lines), `parts_reservation_checked_at`. Deliberately not a stock ledger -- `inventory.stock_movements`/`stock_levels` remain the only authority on what actually moved and what's currently available; this is a small FSM-owned fact about the job itself ("what happened when this job tried to reserve its parts"), the same kind of thing `status`/`on_hold_reason` already are. `reserveJobParts()` now checks each `reserveStock()` result; a failed line's shortfall is computed via the existing `getAvailability()` contract read (no new Inventory surface) and recorded, and the job's overall status is derived from how many lines succeeded.
+
+Idempotency: `reserveJobParts()` now checks `parts_reservation_status` first and returns immediately if a reservation attempt has already run for this job, rather than re-attempting (which would double-reserve already-successful lines) -- a deliberate retry after replenishment is explicitly left to INT-03.3's own "Retry Handoff" exception action, not something this function does on repeated invocation. Also fixed `releaseJobParts()` (cancellation) to clear the status columns after releasing -- leaving a stale `Reserved`/`Partially reserved` badge on a cancelled job (nothing is actually reserved any more) would have been actively wrong. `consumeJobParts()` is deliberately untouched; richer actual/returned/wasted consumption state is INT-03.4/03.5's own job.
+
+**UI**: the Materials tab (INT-03.1) now shows a status badge (secondary/default/destructive for reserved/partially_reserved/unavailable) and, per shortfall line, "Short N `<unit>`" in the item row.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (85 migrations, no violations), a live migration application to the dev Supabase project followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only, no new one from the three added columns), and a clean `next build`. No live end-to-end reservation smoke test was run (would need a seeded job/estimate/item chain plus an authenticated request cycle, heavier than this environment's available tooling) -- code review against the already-verified `adjust_stock_for_contract` RPC semantics (INT-03.1's own live query confirmed its behavior) is this story's verification instead.
+
+**Status**: 9 of 29 in-scope stories done. Next: INT-03.3, Parts Shortage -> FSM Exception.

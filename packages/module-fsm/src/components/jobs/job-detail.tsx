@@ -49,6 +49,12 @@ const ACTION_LABEL: Record<string, string> = {
   "job.status_changed": "Status changed",
 };
 
+const RESERVATION_STATUS_LABEL: Record<NonNullable<Job["parts_reservation_status"]>, string> = {
+  reserved: "Reserved",
+  partially_reserved: "Partially reserved",
+  unavailable: "Unavailable",
+};
+
 export function JobDetail({
   job,
   partyName,
@@ -423,26 +429,50 @@ export function JobDetail({
         </TabsContent>
 
         {inventoryLicensed ? (
-          <TabsContent value="materials">
+          <TabsContent value="materials" className="flex flex-col gap-3">
             {materialRequirement.length === 0 ? (
               <EmptyState
                 variant="inline"
                 message="No inventory items required for this job."
               />
             ) : (
-              <ul className="flex flex-col gap-2">
-                {materialRequirement.map((line) => (
-                  <li key={line.itemId} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{line.itemName}</p>
-                      {line.itemSku ? <p className="text-xs text-muted-foreground">{line.itemSku}</p> : null}
-                    </div>
-                    <span className="text-muted-foreground">
-                      {line.quantity} {line.unit}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                {job.parts_reservation_status ? (
+                  <Badge
+                    variant={
+                      job.parts_reservation_status === "reserved"
+                        ? "secondary"
+                        : job.parts_reservation_status === "unavailable"
+                          ? "destructive"
+                          : "default"
+                    }
+                    className="w-fit capitalize"
+                  >
+                    {RESERVATION_STATUS_LABEL[job.parts_reservation_status]}
+                  </Badge>
+                ) : null}
+                <ul className="flex flex-col gap-2">
+                  {materialRequirement.map((line) => {
+                    const shortfall = job.parts_reservation_detail?.find((d) => d.itemId === line.itemId);
+                    return (
+                      <li key={line.itemId} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{line.itemName}</p>
+                          {line.itemSku ? <p className="text-xs text-muted-foreground">{line.itemSku}</p> : null}
+                          {shortfall ? (
+                            <p className="text-xs text-destructive">
+                              Short {shortfall.shortfall} {line.unit}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className="text-muted-foreground">
+                          {line.quantity} {line.unit}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
             )}
           </TabsContent>
         ) : null}
