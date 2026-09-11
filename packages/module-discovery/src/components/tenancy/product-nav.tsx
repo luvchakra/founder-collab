@@ -59,12 +59,16 @@ export function ProductNav({
    * Discovery/Opportunities/Signals/Watchlist/Research entries had no page behind them
    * yet at that story; "Discovery" gains one here in 04.1 (definitions), so it's added
    * to this ongoing bar only -- not to the setup stepper below, since a Discovery
-   * Definition is optional/ongoing configuration, not a required setup step in order. */
+   * Definition is optional/ongoing configuration, not a required setup step in order.
+   * "Opportunities" gains a real page the same way in DISC-OFFER-P0-07.2 (the "Today's
+   * Opportunities" dashboard) -- Signals/Watchlist/Research still have no page behind
+   * them and stay out for the same "no dead links" reason. */
   if (completed?.overview) {
     const ongoingTabs: { href: string; label: string }[] = [
       { href: basePath, label: "Overview" },
       { href: `${basePath}/icp`, label: "ICP" },
       { href: `${basePath}/discovery`, label: "Discovery" },
+      { href: `${basePath}/opportunities`, label: "Opportunities" },
       { href: `${basePath}/prospects`, label: "Prospects" },
       { href: `${basePath}/conversions`, label: "Conversions" },
     ];

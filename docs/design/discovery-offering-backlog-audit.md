@@ -38,7 +38,7 @@ only genuine architectural/key decisions are raised.
 | | 06.2 | Research Brief | Done |
 | | 06.3 | Buyer Intelligence | Done |
 | | 07.1 | Next Best Action | Done |
-| | 07.2 | Today's Opportunities | Not started |
+| | 07.2 | Today's Opportunities | Done |
 | | 07.3 | Opportunity Detail | Not started |
 | D | 08.1 | Offering-Aware CRM Handoff | Not started |
 | | 08.2 | Existing Relationship Detection | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**20 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**21 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1173,3 +1173,81 @@ this run -- no UI was built this story regardless.
 
 **Status**: 20 of 68 in-scope stories done -- Phase C continuing. Next: 07.2, Today's
 Opportunities.
+
+### 07.2 — Today's Opportunities (2026-09-11)
+
+The first real gap this run surfaces head-on: `discovery.opportunities` has had zero
+live callers creating rows anywhere in the app since 05.1 -- every one of 05.1-07.1 was
+deliberately schema/lib-only, with the actual signal-matching pipeline that would create
+opportunity rows belonging to Phase E (10.x, much later in §29's own sequence). Rather
+than block this story on a pipeline that isn't due for many stories yet, or invent a
+speculative creation trigger CLAUDE.md dev principle #7 would flag ("never implement
+speculative functionality"), built the dashboard itself as a real, live-queried
+consumer of the real schema -- it renders whatever `discovery.opportunities` actually
+holds (nothing, in this dev environment, today) and will show real rows the moment
+anything upstream creates them, exactly the way `OfferingsTable` (01.3) was a real,
+working screen before any Offering had been created too. An honest empty state
+("No active opportunities yet...") stands in for real data now, never a fabricated
+example row -- the same "no false precision" discipline this entire run has held to.
+
+New `lib/opportunities/dashboard.ts` -- `classifyOpportunityForDashboard()` -- pure,
+deterministic (CLAUDE.md dev principle #4/#5), sorting an opportunity into exactly one
+of the doc's own five bins (Hot/Needs Review/New/Watching/Insufficient Evidence) or
+`null` for an opportunity already resolved (`sent_to_crm`/`dismissed`/`expired` --
+this is an *active-work* dashboard, not a full history). Rule order: `watching` status
+always keeps its own bin regardless of score (a founder's own explicit choice to keep
+watching outranks whatever the score says); a null score (05.2's own "insufficient
+evidence" case) always lands in Insufficient Evidence regardless of status, since there
+is nothing real yet to judge urgency from; otherwise `new`/`reviewing`/`action_required`
+opportunities split into Hot (high priority or score >= 75) vs. their own resting bin
+(New, or Needs Review for `reviewing`/`action_required`). Six new vitest cases cover
+every branch including the "watching wins over score" and "null score wins over status"
+precedence rules.
+
+New `lib/opportunities/dashboard-queries.ts` -- `getOpportunityDashboardRows()` --
+composes one row per active opportunity with exactly the fields the doc's own row shape
+needs beyond what's already a plain `Opportunity` column (Company/Score/Priority/
+Offering Fit [`why_them`]/Why Now/Recommended Action all are already columns): "Contact"
+reuses 06.3's own `computeBuyerIntelligence`/`computeBuyerFitScores` to pick the same
+strongest real candidate buyer 06.3 already selects for `buyer_fit_score`, rather than a
+second, different "which contact matters" rule; "Top Signal" is the *exact*
+`signal_correlations` row this opportunity's own `signal_correlation_id` (05.3) points
+to -- new `getSignalCorrelation(id)` (`lib/signals/queries.ts`) added since the only
+existing lookup, `getLatestSignalCorrelation`, would show the prospect's newest
+correlation even if a weaker one has run since without being re-attached to this
+opportunity, which would misrepresent what actually justified this opportunity's own
+score. Computed fresh per request, never persisted -- the same discipline 06.2/06.3
+already established, since contacts/signals/research can each change independently of
+the opportunity row.
+
+UI: new `OpportunitiesDashboard` renders each non-empty bin as its own section, desktop
+proto-table + mobile compact cards (CLAUDE.md non-negotiable #12) -- the exact same
+responsive split `OfferingsTable` (01.3) already established, reused rather than
+inventing a second pattern. An empty bin is skipped entirely rather than shown as an
+empty section (five permanently-empty headings on every real page load today would be
+worse than showing nothing). Company links to the prospect's own real, existing detail
+page (`/prospects/[prospectId]`, already enriched with research brief and buyer
+intelligence from 06.2/06.3) rather than a dedicated opportunity detail page -- that is
+07.3's own story, and linking anywhere else today would be a dead link, the same
+discipline 03.3 already established for nav destinations with no real page behind them
+yet. New route `apps/web/.../products/[productId]/opportunities/page.tsx`, and a new
+"Opportunities" tab added to `ProductNav`'s ongoing (post-setup) tab bar between
+Discovery and Prospects -- the same "add a tab only once a real page exists behind it"
+precedent 04.1 established for "Discovery"; Signals/Watchlist/Research still have no
+page and stay out.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1035 files, no violations), `lint:migrations` (112 migrations, no violations -- no
+schema change this story), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (87/87, +6 new), and a clean `next build`
+(confirmed the new `/opportunities` route builds and appears in the route list). No live
+migration apply/`get_advisors` step this story -- no schema change. Same
+live-browser-walkthrough constraint noted in every prior story this run -- this one in
+particular (a brand-new dashboard page, currently rendering its empty state against real
+dev data with zero opportunity rows) would benefit most from an actual browser check,
+which remains unavailable here; confirmed instead that the empty-state branch and the
+populated-bin branch are both exercised by the classify function's own test suite and
+that the page/query/component chain typechecks and builds end to end.
+
+**Status**: 21 of 68 in-scope stories done -- Phase C continuing. Next: 07.3, Opportunity
+Detail.
