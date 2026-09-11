@@ -536,6 +536,29 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.follow_up where id = '${waitlistFollowUp}'`), "0", "Bob cannot see Alice's waitlist follow-up");
 
+      console.log("Verifying CRM-11.1's crm.opportunity.fsm_opportunity_id bridge column...");
+      // Bare uuid, no FK (fsm.opportunities lives in module-fsm's own schema) -- so the
+      // only enforcement to verify is crm.opportunity's own existing "tenant AND
+      // licensed" RLS, same as any other column on this table.
+      const bridgeFsmOpportunityId = "33333333-3333-3333-3333-333333333333";
+      psqlAsAlice(`update crm.opportunity set fsm_opportunity_id = '${bridgeFsmOpportunityId}' where id = '${aliceOpportunity}' and business_id = '${aliceBusiness}';`);
+      assertEqual(
+        psqlAsAlice(`select fsm_opportunity_id from crm.opportunity where id = '${aliceOpportunity}'`),
+        bridgeFsmOpportunityId,
+        "Alice can record the FSM quote pointer on her own opportunity -- createFsmQuoteForOpportunity()'s own write",
+      );
+      psqlAsBob(`update crm.opportunity set fsm_opportunity_id = '${bridgeFsmOpportunityId}' where id = '${aliceOpportunity}' and business_id = '${bobBusiness}';`);
+      assertEqual(
+        psqlAsAlice(`select fsm_opportunity_id from crm.opportunity where id = '${aliceOpportunity}'`),
+        bridgeFsmOpportunityId,
+        "Bob cannot overwrite Alice's fsm_opportunity_id -- his own business_id filter matches no rows",
+      );
+      assertEqual(
+        psqlAsBob(`select count(*) from crm.opportunity where id = '${aliceOpportunity}'`),
+        "0",
+        "Bob cannot see Alice's opportunity or its fsm_opportunity_id at all",
+      );
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

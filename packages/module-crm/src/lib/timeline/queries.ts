@@ -3,6 +3,7 @@ import { listRecentJobsForParty } from "@cofounderai/module-fsm/contract/index";
 import { getProspectSummaryForParty } from "@cofounderai/module-discovery/contract/index";
 import { listActivitiesForParty } from "../activities/queries";
 import { listInteractionsForParty } from "../interactions/queries";
+import { getFsmQuoteStatusForOpportunity, listOpportunitiesWithFsmQuoteForParty } from "../opportunities/queries";
 import type { TimelineEntry } from "./types";
 
 /**
@@ -13,18 +14,19 @@ import type { TimelineEntry } from "./types";
  * with only CRM licensed" holds -- the CRM-owned entries alone are still a real,
  * chronological timeline, not an empty page.
  *
- * Reviews (CRM-08.5) and quote status (CRM-11.2) aren't included yet: no review
- * ingestion or FSM quote-status contract exists to source them from -- adding entries
- * for sources that don't emit anything yet would be pre-building ahead of those stories,
- * not a real timeline capability.
+ * CRM-11.4's "Job Timeline in Customer 360" (fsm.quote entries below) is what this
+ * file's own earlier comment anticipated once a real FSM quote-status contract existed
+ * (CRM-11.2's `getFsmQuoteStatus()`) -- reviews (CRM-08.5) shipped separately, on their
+ * own page, not through this timeline.
  */
 export async function listRelationshipTimeline(businessId: string, partyId: string): Promise<TimelineEntry[]> {
-  const [activities, interactions, ordersResult, jobsResult, prospectResult] = await Promise.all([
+  const [activities, interactions, ordersResult, jobsResult, prospectResult, opportunitiesWithFsmQuote] = await Promise.all([
     listActivitiesForParty(businessId, partyId),
     listInteractionsForParty(businessId, partyId),
     listRecentOrdersForParty(businessId, partyId),
     listRecentJobsForParty(businessId, partyId),
     getProspectSummaryForParty(businessId, partyId),
+    listOpportunitiesWithFsmQuoteForParty(businessId, partyId),
   ]);
 
   const entries: TimelineEntry[] = [];
@@ -87,6 +89,24 @@ export async function listRelationshipTimeline(businessId: string, partyId: stri
       label: `Discovery: ${prospectResult.data.productName} -- ${prospectResult.data.status}/${prospectResult.data.outcome}`,
       detail: null,
       detailHref: null,
+    });
+  }
+
+  for (const opportunity of opportunitiesWithFsmQuote) {
+    const quoteStatus = await getFsmQuoteStatusForOpportunity(businessId, opportunity);
+    if (!quoteStatus) continue;
+    entries.push({
+      id: `fsm-quote-${opportunity.id}`,
+      source: "fsm.quote",
+      // Same "no real timestamp -- represents current state" precedent as the
+      // discovery.prospect entry above: quote/job status is a live projection
+      // (CRM-11.2), not a dated event, so it sorts to "now".
+      occurredAt: new Date().toISOString(),
+      label: quoteStatus.jobStatus
+        ? `FSM quote ${quoteStatus.estimateStatus ?? quoteStatus.opportunityStatus} -- job ${quoteStatus.jobStatus}`
+        : `FSM quote ${quoteStatus.estimateStatus ?? quoteStatus.opportunityStatus}`,
+      detail: null,
+      detailHref: `/dashboard/businesses/${businessId}/crm/opportunities/${opportunity.id}`,
     });
   }
 

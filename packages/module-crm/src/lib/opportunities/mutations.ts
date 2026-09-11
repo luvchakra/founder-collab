@@ -1,7 +1,9 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
+import { createFsmQuoteFromCrmOpportunity, acceptFsmQuoteAndCreateJob, getFsmQuoteStatus } from "@cofounderai/module-fsm/contract/index";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
+import { listOpportunityProducts } from "./products";
 import { DEFAULT_OPPORTUNITY_STAGES } from "./types";
 import type { OpportunityStage } from "./types";
 
@@ -121,4 +123,99 @@ export async function setOpportunityNextAction(businessId: string, opportunityId
     .eq("id", opportunityId)
     .eq("business_id", businessId);
   if (error) throw error;
+}
+
+/**
+ * CRM-11.1's "Create FSM Quote from Opportunity": line items are this opportunity's own
+ * `crm.product_interest` rows (CRM-10.1's schema, already surfaced on this page by
+ * `listOpportunityProducts()`) -- "Customer/product context is passed through FSM
+ * public contract" happens entirely inside `createFsmQuoteFromCrmOpportunity()`, this
+ * function's own job is just resolving what to pass it and recording the one pointer
+ * back ("no duplicated quote master in CRM" -- quote status is always re-read live,
+ * never copied here).
+ */
+export async function createFsmQuoteForOpportunity(businessId: string, opportunityId: string): Promise<{ fsmOpportunityId: string; estimateId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: opportunity, error: opportunityError } = await supabase
+    .from("opportunity")
+    .select("id, party_id, fsm_opportunity_id")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (opportunityError) throw opportunityError;
+  if (opportunity.fsm_opportunity_id) throw new Error("An FSM quote already exists for this opportunity.");
+
+  const products = await listOpportunityProducts(businessId, opportunityId);
+  if (products.length === 0) throw new Error("Add at least one product before creating an FSM quote.");
+
+  const result = await createFsmQuoteFromCrmOpportunity(businessId, {
+    crmOpportunityId: opportunityId,
+    partyId: opportunity.party_id,
+    lineItems: products.map((p) => ({ itemId: p.itemId, quantity: p.quantity ?? 1, taxable: true })),
+  });
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "FSM isn't licensed for this business." : result.error);
+
+  const { error: updateError } = await supabase
+    .from("opportunity")
+    .update({ fsm_opportunity_id: result.data.fsmOpportunityId })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.fsm_quote_created",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { fsm_opportunity_id: result.data.fsmOpportunityId, estimate_id: result.data.estimateId },
+  });
+
+  return result.data;
+}
+
+/**
+ * CRM-11.3's "Accepted Quote -> Job": "User action: Create Job in FSM." Needs the
+ * quote's current `estimateId` to hand to `acceptFsmQuoteAndCreateJob()`, re-read live
+ * (same "never copied" discipline `createFsmQuoteForOpportunity()` above follows)
+ * rather than trusting a value this function might otherwise have stashed.
+ */
+export async function createJobFromFsmQuote(businessId: string, opportunityId: string): Promise<{ jobId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: opportunity, error: opportunityError } = await supabase
+    .from("opportunity")
+    .select("fsm_opportunity_id")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (opportunityError) throw opportunityError;
+  if (!opportunity.fsm_opportunity_id) throw new Error("No FSM quote exists for this opportunity yet.");
+
+  const statusResult = await getFsmQuoteStatus(businessId, opportunity.fsm_opportunity_id);
+  if (!statusResult.ok) throw new Error(statusResult.error === "MODULE_NOT_LICENSED" ? "FSM isn't licensed for this business." : statusResult.error);
+  if (!statusResult.data.estimateId) throw new Error("This FSM quote has no estimate yet.");
+
+  const result = await acceptFsmQuoteAndCreateJob(businessId, opportunity.fsm_opportunity_id, statusResult.data.estimateId);
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "FSM isn't licensed for this business." : result.error);
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.fsm_job_created",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { fsm_job_id: result.data.jobId },
+  });
+
+  return result.data;
 }

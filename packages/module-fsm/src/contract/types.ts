@@ -43,3 +43,29 @@ export type ContractJobSummary = {
   scheduledAt: string | null;
   createdAt: string;
 };
+
+/** CRM-11.1's "Create FSM Quote from Opportunity" -- everything the CRM opportunity
+ * detail page already has in hand: which of its own rows this quote is for
+ * (`crmOpportunityId`, the idempotency key), who it's for, and the line items to seed
+ * the estimate with (CRM-10.1's own `crm.product_interest` rows, resolved to real
+ * `core.items`). */
+export type CreateFsmQuoteInput = {
+  crmOpportunityId: string;
+  partyId: string;
+  description?: string | null;
+  lineItems: { itemId: string; quantity: number; taxable: boolean }[];
+};
+
+/** CRM-11.2's "Quote Status Projection" + CRM-11.4's job status, read live off the FSM
+ * opportunity CRM-11.1 created -- never stored in CRM, so this is always current.
+ * `estimateStatus` is FSM's own real values (`draft`/`sent`/`viewed`/`approved`/
+ * `declined`) -- FSM has no `expired` state, matching CRM-11.2's own "where available"
+ * wording rather than inventing one FSM doesn't have. */
+export type FsmQuoteStatus = {
+  fsmOpportunityId: string;
+  opportunityStatus: string;
+  estimateId: string | null;
+  estimateStatus: string | null;
+  jobId: string | null;
+  jobStatus: string | null;
+};

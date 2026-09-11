@@ -1,0 +1,15 @@
+-- CRM-11.1 (WonderArc CRM backlog, Epic CRM-11 "CRM -> FSM Continuity"): "Create FSM
+-- Quote from Opportunity." "No duplicated quote master in CRM" -- crm.opportunity gets
+-- one bare pointer to the fsm.opportunities row this creates (the anchor FSM's own
+-- estimate/job model hangs off of), everything else (quote status, job status) is read
+-- live through module-fsm's own contract on every render, never copied/cached here.
+-- Bare uuid, no FK -- fsm.opportunities lives in another module's schema, and CLAUDE.md
+-- non-negotiable #1 restricts cross-schema FKs to `core` only. Same reasoning
+-- fsm.opportunities.source_prospect_id already uses for its own cross-schema reference
+-- to discovery.prospects.
+--
+-- The fsm-schema side of this same bridge (a `crm` source value + source_reference
+-- column on fsm.opportunities) lives in its own migration
+-- (20260911001501_fsm_crm_quote_source.sql) -- lint:migrations enforces one module
+-- schema (plus core) per migration file.
+alter table crm.opportunity add column fsm_opportunity_id uuid;

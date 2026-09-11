@@ -17,6 +17,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_channel_connection.connected": "CRM channel connected",
   "crm_channel_connection.disconnected": "CRM channel disconnected",
   "crm_channel_connection.health_changed": "CRM channel connection health changed",
+  "crm_opportunity.fsm_quote_created": "FSM quote created from CRM opportunity",
+  "crm_opportunity.fsm_job_created": "FSM job created from CRM opportunity",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {

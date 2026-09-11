@@ -4,8 +4,8 @@ import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
-import { addChargeLine, getOrCreateEstimate } from "../lib/estimates/mutations";
-import type { ContractJobSummary, ContractResult, CreateOpportunityFromProspectInput, ProspectHandoffStatus } from "./types";
+import { addChargeLine, approveEstimateInternal, getOrCreateEstimate } from "../lib/estimates/mutations";
+import type { ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
 import type { Opportunity } from "../lib/opportunities/types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
@@ -279,4 +279,139 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
   }
 
   return { ok: true, data: alerts.map((a) => ({ ...a, businessId })) };
+}
+
+/**
+ * CRM-11.1's "Create FSM Quote from Opportunity" -- the CRM-shaped sibling of
+ * `createOpportunityFromWonProspect()` above, same idempotent-by-source shape (`source:
+ * 'crm'`/`source_reference` instead of `'discovery'`/`source_prospect_id`) but a real
+ * line-item list instead of that function's single best-effort pre-seeded charge.
+ * "Customer/product context is passed through FSM public contract" -- `partyId` and
+ * every line item cross this one call, nothing is looked up FSM-side from a CRM id it
+ * has no access to. "No duplicated quote master in CRM" -- returns the estimate id so
+ * CRM can store *that* pointer (via `fsm_opportunity_id`, the estimate itself is always
+ * re-resolved through `getFsmQuoteStatus()` below), never a copy of the estimate's own
+ * line items or totals.
+ */
+export async function createFsmQuoteFromCrmOpportunity(businessId: string, input: CreateFsmQuoteInput): Promise<ContractResult<{ fsmOpportunityId: string; estimateId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data: existing, error: existingError } = await fsm
+    .from("opportunities")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("source", "crm")
+    .eq("source_reference", input.crmOpportunityId)
+    .maybeSingle();
+  if (existingError) return { ok: false, error: existingError.message };
+
+  let fsmOpportunityId: string;
+  if (existing) {
+    fsmOpportunityId = existing.id;
+  } else {
+    const { data, error } = await fsm
+      .from("opportunities")
+      .insert({
+        business_id: businessId,
+        party_id: input.partyId,
+        description: input.description || null,
+        source: "crm",
+        source_reference: input.crmOpportunityId,
+      })
+      .select("*")
+      .single();
+    if (error) return { ok: false, error: error.message };
+    fsmOpportunityId = data.id;
+  }
+
+  try {
+    const { data: opportunity, error: oppError } = await fsm.from("opportunities").select("*").eq("id", fsmOpportunityId).single();
+    if (oppError) throw oppError;
+
+    const estimateId = await getOrCreateEstimate(businessId, opportunity as Opportunity);
+    for (const line of input.lineItems) {
+      await addChargeLine(businessId, estimateId, { itemId: line.itemId, quantity: line.quantity, taxable: line.taxable });
+    }
+    return { ok: true, data: { fsmOpportunityId, estimateId } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * CRM-11.2's "Quote Status Projection" and CRM-11.4's job status, both read live off
+ * the one FSM opportunity `createFsmQuoteFromCrmOpportunity()` created -- CRM stores
+ * only `fsm_opportunity_id`, everything else here is fetched fresh on every call, same
+ * "no stock ledger copied into CRM" discipline CRM-10.2's `getTotalAvailability()`
+ * already established for a different module.
+ */
+export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: string): Promise<ContractResult<FsmQuoteStatus>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data: opportunity, error: oppError } = await fsm
+    .from("opportunities")
+    .select("id, status, converted_job_id")
+    .eq("business_id", businessId)
+    .eq("id", fsmOpportunityId)
+    .maybeSingle();
+  if (oppError) return { ok: false, error: oppError.message };
+  if (!opportunity) return { ok: false, error: "NOT_FOUND" };
+
+  const core = await coreClient();
+  const { data: estimate, error: estimateError } = await core
+    .from("documents")
+    .select("id, status")
+    .eq("business_id", businessId)
+    .eq("doc_type", "estimate")
+    .eq("source_module", "fsm")
+    .contains("source_ref", { opportunity_id: fsmOpportunityId })
+    .maybeSingle();
+  if (estimateError) return { ok: false, error: estimateError.message };
+
+  let jobStatus: string | null = null;
+  if (opportunity.converted_job_id) {
+    const { data: job, error: jobError } = await fsm.from("jobs").select("status").eq("id", opportunity.converted_job_id).maybeSingle();
+    if (jobError) return { ok: false, error: jobError.message };
+    jobStatus = job?.status ?? null;
+  }
+
+  return {
+    ok: true,
+    data: {
+      fsmOpportunityId: opportunity.id,
+      opportunityStatus: opportunity.status,
+      estimateId: estimate?.id ?? null,
+      estimateStatus: estimate?.status ?? null,
+      jobId: opportunity.converted_job_id ?? null,
+      jobStatus,
+    },
+  };
+}
+
+/**
+ * CRM-11.3's "Accepted Quote -> Job": "User action: Create Job in FSM. No automatic job
+ * creation... unless an explicit future business rule enables it." Wraps
+ * `approveEstimateInternal()` -- FSM's own model already fuses "mark this estimate
+ * accepted" and "create the job it becomes" into one staff action (its own doc comment:
+ * "same effect as a customer approving on the public page... triggered from the
+ * opportunity detail page by someone who took a verbal/phone approval"), which is
+ * exactly this button's real-world case: a customer told the founder "yes" over
+ * WhatsApp, and this is how that gets formalized into FSM without the founder switching
+ * modules. Idempotent (that function's own behavior): clicking it again on an
+ * already-approved quote returns the same job rather than minting a second one.
+ */
+export async function acceptFsmQuoteAndCreateJob(businessId: string, fsmOpportunityId: string, estimateId: string): Promise<ContractResult<{ jobId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  try {
+    const result = await approveEstimateInternal(businessId, fsmOpportunityId, estimateId);
+    return { ok: true, data: result };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

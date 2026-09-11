@@ -7,7 +7,7 @@ import {
   removeOpportunityContact,
   setPrimaryOpportunityContact,
 } from "@cofounderai/module-crm/lib/opportunities/contacts";
-import { setOpportunityNextAction } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import { setOpportunityNextAction, createFsmQuoteForOpportunity, createJobFromFsmQuote } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { completeActivity, createActivity } from "@cofounderai/module-crm/lib/activities/mutations";
 import type { ActivityType } from "@cofounderai/module-crm/lib/activities/types";
 import { completeFollowUp, createFollowUp } from "@cofounderai/module-crm/lib/follow-ups/mutations";
@@ -81,5 +81,17 @@ export async function createOpportunityFollowUpAction(businessId: string, opport
 
 export async function completeOpportunityFollowUpAction(businessId: string, opportunityId: string, followUpId: string): Promise<void> {
   await completeFollowUp(businessId, followUpId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** CRM-11.1's "Create FSM Quote from Opportunity" button. */
+export async function createFsmQuoteAction(businessId: string, opportunityId: string): Promise<void> {
+  await createFsmQuoteForOpportunity(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** CRM-11.3's "Accepted Quote -> Job" button ("User action: Create Job in FSM"). */
+export async function createFsmJobAction(businessId: string, opportunityId: string): Promise<void> {
+  await createJobFromFsmQuote(businessId, opportunityId);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

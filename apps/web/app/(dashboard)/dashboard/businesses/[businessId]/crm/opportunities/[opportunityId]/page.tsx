@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
-import { getOpportunity, listStages } from "@cofounderai/module-crm/lib/opportunities/queries";
+import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
@@ -17,7 +17,7 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { CalendarClock, CheckCircle2, ListTodo, Package, Star, Trash2, Users } from "lucide-react";
+import { CalendarClock, CheckCircle2, ListTodo, Package, Star, Trash2, Users, Wrench } from "lucide-react";
 import { EditValueDialog } from "../edit-value-dialog";
 import { assignOpportunityAction, updateOpportunityValueAction } from "../actions";
 import {
@@ -25,6 +25,8 @@ import {
   addOpportunityProductAction,
   completeOpportunityFollowUpAction,
   completeOpportunityNextActionAction,
+  createFsmJobAction,
+  createFsmQuoteAction,
   createOpportunityFollowUpAction,
   createOpportunityNextActionAction,
   removeOpportunityContactAction,
@@ -55,6 +57,12 @@ const ACTIVITY_TYPES = [
  * `opportunity.next_action_id` so the add-next-action form reappears in its place --
  * that immediate reappearance is this codebase's answer to "completing an action can
  * prompt creation of the next action," without a separate modal flow.
+ *
+ * CRM-11.1/11.2/11.3 add the FSM quote card: "Create FSM Quote" seeds an FSM estimate
+ * from this opportunity's products; once created, status is always re-read live via
+ * `getFsmQuoteStatusForOpportunity()` (never cached on this page), and "Create job in
+ * FSM" (the accepted-quote -> job action) appears once an estimate exists with no job
+ * yet.
  */
 export default async function OpportunityDetailPage({
   params,
@@ -68,7 +76,7 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, contacts, employees, followUps, inventoryLicensed] = await Promise.all([
+  const [party, stages, products, contacts, employees, followUps, inventoryLicensed, fsmLicensed, fsmQuoteStatus] = await Promise.all([
     getParty(opportunity.party_id),
     listStages(businessId),
     listOpportunityProducts(businessId, opportunityId),
@@ -76,6 +84,8 @@ export default async function OpportunityDetailPage({
     listEmployeeOptions(businessId),
     listFollowUpsForOpportunity(businessId, opportunityId),
     hasModule(businessId, "inventory"),
+    hasModule(businessId, "fsm"),
+    getFsmQuoteStatusForOpportunity(businessId, opportunity),
   ]);
   const stage = stages.find((s) => s.id === opportunity.stage_id);
   const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
@@ -340,6 +350,47 @@ export default async function OpportunityDetailPage({
                 <SubmitButton pendingText="Adding...">Add product</SubmitButton>
               </form>
             ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {fsmLicensed ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">FSM quote</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {!opportunity.fsm_opportunity_id ? (
+              <div className="flex flex-col gap-3">
+                <EmptyState icon={Wrench} message="No FSM quote created for this opportunity yet." />
+                <form action={createFsmQuoteAction.bind(null, businessId, opportunityId)}>
+                  <SubmitButton pendingText="Creating..." disabled={products.length === 0}>
+                    Create FSM quote
+                  </SubmitButton>
+                </form>
+                {products.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Add at least one product above before creating a quote.</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="outline" className="capitalize">
+                    Quote {fsmQuoteStatus?.estimateStatus ?? fsmQuoteStatus?.opportunityStatus ?? "pending"}
+                  </Badge>
+                  {fsmQuoteStatus?.jobStatus ? (
+                    <Badge variant="secondary" className="capitalize">
+                      Job {fsmQuoteStatus.jobStatus}
+                    </Badge>
+                  ) : null}
+                </div>
+                {fsmQuoteStatus?.estimateId && !fsmQuoteStatus.jobId ? (
+                  <form action={createFsmJobAction.bind(null, businessId, opportunityId)}>
+                    <SubmitButton pendingText="Creating job...">Create job in FSM</SubmitButton>
+                  </form>
+                ) : null}
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : null}

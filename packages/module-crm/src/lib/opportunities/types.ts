@@ -28,6 +28,12 @@ export type Opportunity = {
   /** CRM-05.2. The one activity currently designated this opportunity's next action --
    * owner/due date are read from that crm.activity row, not duplicated here. */
   next_action_id: string | null;
+  /** CRM-11.1. The `fsm.opportunities` row `createFsmQuoteFromCrmOpportunity()` created
+   * for this opportunity, once created -- the one pointer CRM stores; quote/job status
+   * are always read live through the FSM contract (`getFsmQuoteStatus()`), never copied
+   * here ("no duplicated quote master in CRM"). Bare id, no FK -- fsm.opportunities lives
+   * in another module's schema. */
+  fsm_opportunity_id: string | null;
   created_at: string;
   updated_at: string;
 };

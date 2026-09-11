@@ -2134,3 +2134,100 @@ session; 10.5 stays out of this backlog run's 74-story scope).
 
 **Status**: 62 of 74 in-scope stories done. Next: Epic CRM-11 (CRM -> FSM Continuity) --
 CRM-11.1 (seq #58), then 11.2/11.3/11.4.
+
+---
+
+## CRM-11.1 + CRM-11.2 + CRM-11.3 + CRM-11.4 (2026-09-11)
+
+Epic CRM-11 "CRM -> FSM Continuity" -- all four in-scope stories built together as one
+pass, the same "closely related stories, one combined pass" precedent CRM-10.3+10.4 and
+CRM-08.2+08.3+08.4 already established.
+
+**Design**: FSM already has a real document/estimate/job lifecycle (`core.documents`
+with `doc_type='estimate'`, `fsm.opportunities` as the anchor, `fsm.jobs`) -- this epic
+maps CRM directly onto that instead of inventing a parallel quote/job concept. CRM stores
+exactly one bare pointer, `crm.opportunity.fsm_opportunity_id` (uuid, no FK -- FSM's
+schema is another module's, CLAUDE.md non-negotiable #1 restricts cross-schema FKs to
+`core`), set once by `createFsmQuoteForOpportunity()`. Everything else -- quote status,
+job status -- is read live through three new `module-fsm` contract functions
+(`createFsmQuoteFromCrmOpportunity()`, `getFsmQuoteStatus()`,
+`acceptFsmQuoteAndCreateJob()`) on every render, never cached in CRM ("no duplicated
+quote master in CRM," same discipline CRM-10.2's `getTotalAvailability()` established for
+Inventory).
+
+- **CRM-11.1 (Create FSM Quote from Opportunity)**: `createFsmQuoteForOpportunity()`
+  (`opportunities/mutations.ts`) resolves this opportunity's own `crm.product_interest`
+  rows (CRM-10.1's schema, already surfaced by `listOpportunityProducts()`) into FSM line
+  items and calls the new contract function, which is itself idempotent (`(business_id,
+  source='crm', source_reference=crmOpportunityId)` lookup-then-insert on
+  `fsm.opportunities`, same app-level idempotency style
+  `createOpportunityFromWonProspect()`'s sibling handoff already uses for
+  `source_prospect_id` -- no DB constraint, by design, matching that precedent rather
+  than holding only the new column to a stricter standard). Refuses to run with zero
+  products, or a second time once a quote already exists.
+- **CRM-11.2 (Quote Status Projection)**: `getFsmQuoteStatus()` reads the FSM
+  opportunity's status, the linked estimate's status (FSM's real values --
+  `draft/sent/viewed/approved/declined`, no `expired` state; the backlog's own "where
+  available" wording is explicitly permissive of that gap), and job status if a job
+  exists. `getFsmQuoteStatusForOpportunity()` (CRM's own `opportunities/queries.ts`)
+  collapses the `ContractResult` to `null` for both "no quote yet" and "FSM not
+  licensed"/error, the same graceful-degradation shape as every other cross-module read
+  in this codebase.
+- **CRM-11.3 (Accepted Quote -> Job)**: "User action: Create Job in FSM" is a manual
+  button (`createJobFromFsmQuote()` -> `acceptFsmQuoteAndCreateJob()`) -- no automatic
+  job creation, matching the backlog's own wording and this codebase's human-in-the-loop
+  discipline. Reuses FSM's existing `approveEstimateInternal()` verbatim (the same
+  function the public estimate-approval page and FSM's own staff UI already call), which
+  fuses "mark approved" and "create job" into one atomic, idempotent action -- calling it
+  a second time on an already-approved estimate returns the existing job rather than
+  erroring, so a double-click is harmless.
+- **CRM-11.4 (Job Timeline in Customer 360)**: `timeline/queries.ts#listRelationshipTimeline()`
+  gains a `fsm.quote` entry per opportunity-with-a-quote, built from
+  `listOpportunitiesWithFsmQuoteForParty()` (id-only) +
+  `getFsmQuoteStatusForOpportunity()` (live status), same "no real timestamp -- sorts to
+  now, represents current state" precedent the `discovery.prospect` entry already
+  established. This is the addition that file's own CRM-02.3-era doc comment had already
+  anticipated and deferred pending a real quote-status contract.
+
+**Migration** (split into two files -- `lint:migrations` enforces one module schema plus
+`core` per file):
+- `20260911001500_crm_fsm_quote_bridge.sql` (crm schema): `crm.opportunity.fsm_opportunity_id uuid`.
+- `20260911001501_fsm_crm_quote_source.sql` (fsm schema): `fsm.opportunity_source` gains
+  enum value `'crm'`; `fsm.opportunities.source_reference uuid` (generic, not reusing
+  `source_prospect_id` -- that column's name is Discovery-specific, reusing it for a CRM
+  opportunity id would mislead a future reader).
+
+**UI**: Opportunity detail page gets a new "FSM quote" card (gated on `fsm` being
+licensed, ADR-10 degraded mode -- simply omitted when it isn't): before a quote exists,
+an empty state plus a "Create FSM quote" button (disabled with an inline hint when there
+are no products yet); after, live status badges (`Quote <estimateStatus>`, `Job
+<jobStatus>` when a job exists) plus a "Create job in FSM" button that appears once an
+estimate exists with no job yet. New server actions `createFsmQuoteAction` /
+`createFsmJobAction` in `[opportunityId]/actions.ts`, both thin wrappers around the two
+new `opportunities/mutations.ts` functions with a `revalidatePath`.
+
+**Audit log**: two new `ACTION_LABEL` entries, `crm_opportunity.fsm_quote_created` and
+`crm_opportunity.fsm_job_created`.
+
+**New RLS-harness coverage** (`scripts/test-crm-backlog-rls.mjs`): a dedicated section
+for `crm.opportunity.fsm_opportunity_id` -- Alice can set it on her own opportunity, Bob
+cannot overwrite it or see it at all (his own `business_id` filter matches no rows; the
+column has no FK/trigger of its own to test beyond the table's existing RLS, since it's a
+bare pointer by design).
+
+Verified with full monorepo typecheck (caught and fixed a test-fixture gap --
+`opportunities/types.test.ts`'s `opp()` helper was missing the new
+`fsm_opportunity_id` field), `lint:boundaries` (920 files, no violations),
+`lint:migrations` (78 migrations, no violations after the two-file split),
+module-crm's vitest suite (111/111, unchanged), both CRM RLS suites (re-run clean, +3 new
+assertions), and a clean `next build`. Both migrations applied live to the dev Supabase
+project; `get_advisors` re-checked clean on both performance and security (no new
+findings -- the pre-existing unused-index/RLS-no-policy/leaked-password findings are
+unrelated to this change, same fresh-demo-data-project noise as every prior story).
+
+**Epic CRM-11 status**: 4 of 4 in-scope stories done -- **epic complete**.
+
+**Status**: 66 of 74 in-scope stories done. Next: Epic CRM-12 (AI Relationship
+Intelligence) -- CRM-12.1 "Customer AI summary" (seq #62), then 12.2 "Conversation
+summary", 12.4 "Next best action", 12.5 "Buying intent", 12.7 "Reactivation
+opportunities" (12.3 and 12.6 are out of this backlog run's P0/P1 scope).
