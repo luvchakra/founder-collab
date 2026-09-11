@@ -69,3 +69,22 @@ export type FsmQuoteStatus = {
   jobId: string | null;
   jobStatus: string | null;
 };
+
+/** CRM-14.5's "CRM -> FSM Funnel": `opportunity -> quote -> accepted -> job ->
+ * completed -> revenue`. Only the last four stages need FSM's own data (the first two,
+ * `opportunity`/`quote`, are plain counts off `crm.opportunity` -- `fsm_opportunity_id`
+ * is already a column there, CRM-11.1's own bridge, so no contract call is needed to
+ * know whether a quote exists). Scoped to `fsm.opportunities` rows with `source='crm'`
+ * (that same bridge marker) -- FSM's own organically-created opportunities aren't part
+ * of this funnel. `accepted` and `job` are the same underlying count: CRM-11.3 reuses
+ * `approveEstimateInternal()`, which fuses "mark the estimate approved" and "create the
+ * job" into one atomic action, so nothing in this schema can be accepted without also
+ * becoming a job. Reported as two fields anyway since the backlog names them as
+ * separate funnel stages -- an accurate reflection of how this platform's quote
+ * acceptance actually works, not a bug. */
+export type FsmQuoteFunnelCounts = {
+  accepted: number;
+  job: number;
+  completed: number;
+  revenue: number;
+};

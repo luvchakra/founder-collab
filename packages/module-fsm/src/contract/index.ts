@@ -5,7 +5,7 @@ import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
 import { addChargeLine, approveEstimateInternal, getOrCreateEstimate } from "../lib/estimates/mutations";
-import type { ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
+import type { ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteFunnelCounts, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
 import type { Opportunity } from "../lib/opportunities/types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
@@ -414,4 +414,56 @@ export async function acceptFsmQuoteAndCreateJob(businessId: string, fsmOpportun
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * CRM-14.5's "CRM -> FSM Funnel" -- the four stages that need FSM's own data
+ * (`opportunity`/`quote` are plain `crm.opportunity` counts, computed CRM-side with no
+ * contract call needed). `accepted`/`job` share one query (`converted_job_id is not
+ * null` -- see this file's own `FsmQuoteFunnelCounts` doc comment for why they're the
+ * same underlying set). `revenue` sums the `total_amount` of each completed job's own
+ * invoice, same `core.documents`/`source_ref.job_id` shape `getInvoiceForJob()` already
+ * reads -- "revenue where available" (the backlog's own wording) is exactly this: a job
+ * with no invoice yet contributes 0, not an error.
+ */
+export async function getCrmQuoteFunnelCounts(businessId: string): Promise<ContractResult<FsmQuoteFunnelCounts>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const fsm = await createClient();
+  const { data: opportunities, error: oppError } = await fsm
+    .from("opportunities")
+    .select("converted_job_id")
+    .eq("business_id", businessId)
+    .eq("source", "crm");
+  if (oppError) return { ok: false, error: oppError.message };
+
+  const jobIds = [...new Set(opportunities.map((o) => o.converted_job_id).filter((id): id is string => Boolean(id)))];
+  const accepted = jobIds.length;
+  const job = jobIds.length;
+
+  let completed = 0;
+  let revenue = 0;
+  if (jobIds.length > 0) {
+    const { data: jobs, error: jobsError } = await fsm.from("jobs").select("id, status").in("id", jobIds);
+    if (jobsError) return { ok: false, error: jobsError.message };
+    const completedJobIds = new Set(jobs.filter((j) => j.status === "completed").map((j) => j.id));
+    completed = completedJobIds.size;
+
+    if (completedJobIds.size > 0) {
+      const core = await coreClient();
+      const { data: invoices, error: invoicesError } = await core
+        .from("documents")
+        .select("total_amount, source_ref")
+        .eq("business_id", businessId)
+        .eq("doc_type", "invoice")
+        .eq("source_module", "fsm");
+      if (invoicesError) return { ok: false, error: invoicesError.message };
+      revenue = invoices
+        .filter((inv) => completedJobIds.has((inv.source_ref as { job_id?: string })?.job_id ?? ""))
+        .reduce((sum, inv) => sum + Number(inv.total_amount), 0);
+    }
+  }
+
+  return { ok: true, data: { accepted, job, completed, revenue } };
 }

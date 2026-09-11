@@ -56,3 +56,15 @@ export type DiscoveryCrmFunnel = {
   opportunity: number;
   won: number;
 };
+
+/** CRM-14.5's "CRM -> FSM Funnel" -- six stages, verbatim from the backlog. See
+ * `fsm-funnel.ts` for which two come from `crm.opportunity` directly and which four are
+ * module-fsm's own contract. */
+export type CrmFsmFunnel = {
+  opportunity: number;
+  quote: number;
+  accepted: number;
+  job: number;
+  completed: number;
+  revenue: number;
+};

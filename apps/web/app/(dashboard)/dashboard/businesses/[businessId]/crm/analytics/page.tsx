@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getResponsePerformance } from "@cofounderai/module-crm/lib/dashboard/response-performance";
 import { getDiscoveryCrmFunnel } from "@cofounderai/module-crm/lib/dashboard/discovery-funnel";
+import { getCrmFsmFunnel } from "@cofounderai/module-crm/lib/dashboard/fsm-funnel";
+import { inr } from "@cofounderai/core/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { BarChart3 } from "lucide-react";
@@ -26,13 +28,20 @@ function formatMinutes(minutes: number | null): string {
  * (`funnel === null`) when Discovery isn't licensed for this business (ADR-10 degraded
  * mode), rather than showing six zeros that would misrepresent "nothing has happened"
  * as "Discovery isn't connected."
+ *
+ * CRM-14.5 adds the "CRM -> FSM Funnel" section the same way, omitted when FSM isn't
+ * licensed.
  */
 export default async function CrmAnalyticsPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [performance, funnel] = await Promise.all([getResponsePerformance(businessId), getDiscoveryCrmFunnel(businessId)]);
+  const [performance, discoveryFunnel, fsmFunnel] = await Promise.all([
+    getResponsePerformance(businessId),
+    getDiscoveryCrmFunnel(businessId),
+    getCrmFsmFunnel(businessId),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -115,7 +124,7 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
         </CardContent>
       </Card>
 
-      {funnel ? (
+      {discoveryFunnel ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Discovery &rarr; CRM funnel</CardTitle>
@@ -124,17 +133,44 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
             <div className="flex flex-col divide-y">
               {(
                 [
-                  ["Discovered", funnel.discovered],
-                  ["Contacted", funnel.contacted],
-                  ["Engaged", funnel.engaged],
-                  ["Qualified", funnel.qualified],
-                  ["Opportunity", funnel.opportunity],
-                  ["Won", funnel.won],
+                  ["Discovered", discoveryFunnel.discovered],
+                  ["Contacted", discoveryFunnel.contacted],
+                  ["Engaged", discoveryFunnel.engaged],
+                  ["Qualified", discoveryFunnel.qualified],
+                  ["Opportunity", discoveryFunnel.opportunity],
+                  ["Won", discoveryFunnel.won],
                 ] as const
               ).map(([label, count]) => (
                 <div key={label} className="flex items-center justify-between py-1.5 text-sm">
                   <span className="text-muted-foreground">{label}</span>
                   <span className="font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {fsmFunnel ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">CRM &rarr; FSM funnel</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col divide-y">
+              {(
+                [
+                  ["Opportunity", String(fsmFunnel.opportunity)],
+                  ["Quote", String(fsmFunnel.quote)],
+                  ["Accepted", String(fsmFunnel.accepted)],
+                  ["Job", String(fsmFunnel.job)],
+                  ["Completed", String(fsmFunnel.completed)],
+                  ["Revenue", inr.format(fsmFunnel.revenue)],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between py-1.5 text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
                 </div>
               ))}
             </div>

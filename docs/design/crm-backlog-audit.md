@@ -2605,3 +2605,54 @@ and a clean `next build`. No database change -- reads existing `discovery.prospe
 
 **Status**: 73 of 74 in-scope stories done. Next: CRM-14.5 "CRM -> FSM Funnel" (seq
 #70).
+
+---
+
+## CRM-14.5 (2026-09-11)
+
+"CRM -> FSM Funnel": `opportunity -> quote -> accepted -> job -> completed -> revenue`.
+
+**Design**: `opportunity`/`quote` are plain counts off `crm.opportunity`
+(`fsm_opportunity_id is not null` for the quote stage -- CRM-11.1's own bridge column,
+already on this table, no contract call needed). The remaining four come from a new
+contract function, `getCrmQuoteFunnelCounts()` in `module-fsm/src/contract/index.ts`
+(this session's second new cross-module contract call, same shape as CRM-14.4's
+Discovery one): scoped to `fsm.opportunities` rows with `source='crm'`.
+`accepted`/`job` share one query (`converted_job_id is not null`) -- CRM-11.3's own
+`approveEstimateInternal()` fuses "mark approved" and "create job" into one atomic
+action, so nothing in this schema can be accepted without also becoming a job; reported
+as two fields anyway since the backlog names them as separate stages. `completed` counts
+those jobs with `status='completed'`. `revenue` sums each completed job's own invoice
+`total_amount` (`core.documents`, `doc_type='invoice'`, `source_module='fsm'`,
+`source_ref.job_id` -- the exact shape `getInvoiceForJob()` already reads) -- "revenue
+where available" (the backlog's own wording) means a completed job with no invoice yet
+contributes 0, not an error.
+
+New CRM-side `lib/dashboard/fsm-funnel.ts#getCrmFsmFunnel()` combines both halves,
+returning `null` (the whole section omitted) when FSM isn't licensed (ADR-10).
+
+**UI**: new "CRM -> FSM funnel" card on the Analytics page, alongside CRM-14.4's
+Discovery funnel card.
+
+New `FsmQuoteFunnelCounts` type in `module-fsm/src/contract/types.ts`; `CrmFsmFunnel`
+type in `module-crm/src/lib/dashboard/types.ts`.
+
+Verified with full monorepo typecheck, `lint:boundaries` (931 files, no violations),
+module-crm's vitest suite (119/119, unchanged -- module-fsm has no test suite at all,
+pre-existing and unrelated to this change), and a clean `next build`. No database
+change.
+
+**Bookkeeping correction, found while closing out this story**: the Epic CRM-12 status
+line above ("5 of 5 in-scope stories done -- epic complete") is wrong. CRM-12.7
+"Reactivation Opportunities" (seq #66) was never actually built this session -- only
+12.1/12.2/12.4/12.5 were. The running "N of 74" counter through CRM-14.5 also
+over-counted: cross-checking every row in the backlog's own Section 7 sequence table
+against what's actually been built shows **69 of 74** done, not 73 -- five rows still
+open: CRM-12.7 (#66), CRM-14.6 (#71), the CRM-01.6 regression-hardening checkpoint
+(#72), and CRM-07.6 media expansion/CRM-07.9 + CRM-07.10 (#77-78, P1 rows placed after
+the P2 automation block in the table, easy to miss on a linear read). Continuing with
+CRM-12.7 next to close the gap, then back to the numbered sequence (CRM-14.6, the
+checkpoint, then #77-78) until all 74 are genuinely done.
+
+**Status**: 69 of 74 in-scope stories done (corrected). Next: CRM-12.7 "Reactivation
+Opportunities" (seq #66).
