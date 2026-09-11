@@ -82,13 +82,29 @@ export const IcpProfileSchema = z.object({
 export type IcpProfileDraft = z.infer<typeof IcpProfileSchema>;
 
 /**
- * Evidence model (blueprint §33): every claim distinguishes FACT / INFERENCE / ASSUMPTION
- * / UNKNOWN rather than being asserted flatly. Used by prospect research.
+ * Evidence model (blueprint §33; extended by DISC-OFFER-P0-06.1 "Evidence-Backed
+ * Research"): every claim distinguishes FACT / INFERENCE / ASSUMPTION / UNKNOWN
+ * (`evidence_type` -- the doc's own "Verified fact / Inference / Hypothesis /
+ * Insufficient evidence", same four-way split, see `EVIDENCE_TYPE_LABEL` in
+ * lib/research/types.ts) rather than being asserted flatly. `confidence` is a
+ * deliberately separate dimension from `evidence_type` -- how sure the model is the
+ * statement is accurate, independent of what *kind* of claim it is (a clearly-stated
+ * fact from an ambiguous source can be lower confidence than a well-reasoned
+ * inference from a clearly authoritative one) -- the same "type vs. how sure" split
+ * `timingStrength`/`confidence` already established for Why Now (05.4). Used by
+ * prospect research.
  */
 export const EvidenceItemSchema = z.object({
-  claim: z.string(),
+  statement: z.string(),
+  source: z.string().nullable().describe('What kind of source this is (e.g. "company website", "news article", "LinkedIn profile"), or null if unclear'),
   source_url: z.string().nullable().describe("URL where this was found, or null"),
-  confidence: z.enum(["fact", "inference", "assumption", "unknown"]),
+  observed_at: z.string().nullable().describe("Date the source was published or the event happened, if stated, or null"),
+  supporting_signal: z
+    .string()
+    .nullable()
+    .describe("The exact text of the buying_signal or recent_event this evidence backs, if any, or null"),
+  evidence_type: z.enum(["fact", "inference", "assumption", "unknown"]),
+  confidence: z.enum(["low", "medium", "high"]),
 });
 
 /**

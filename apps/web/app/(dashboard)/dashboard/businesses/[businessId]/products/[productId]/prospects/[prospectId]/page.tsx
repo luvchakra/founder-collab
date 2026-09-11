@@ -7,6 +7,7 @@ import {
 import { getProspect } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { listContacts } from "@cofounderai/module-discovery/lib/contacts/queries";
 import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/queries";
+import { EVIDENCE_TYPE_LABEL } from "@cofounderai/module-discovery/lib/research/types";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { WEIGHTS as SCORE_WEIGHTS } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { getLatestOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/queries";
@@ -60,12 +61,9 @@ import {
   promoteProspectToCrmAction,
 } from "./actions";
 
-const CONFIDENCE_LABEL: Record<string, string> = {
-  fact: "Fact",
-  inference: "Inference",
-  assumption: "Assumption",
-  unknown: "Unknown",
-};
+/** DISC-OFFER-P0-06.1: replaced by `EVIDENCE_TYPE_LABEL` (module-discovery's own
+ * lib/research/types.ts) -- one source of truth for the doc's own "Verified fact /
+ * Inference / Hypothesis / Insufficient evidence" labels, not a second local copy. */
 
 const STATUS_OPTIONS = ["new", "qualified", "disqualified"] as const;
 
@@ -628,9 +626,15 @@ export default async function ProspectDetailPage({
                   {research.evidence.map((item, i) => (
                     <li key={i} className="text-muted-foreground">
                       <span className="rounded bg-muted px-1 text-xs">
-                        {CONFIDENCE_LABEL[item.confidence] ?? item.confidence}
+                        {EVIDENCE_TYPE_LABEL[item.evidence_type] ?? item.evidence_type}
                       </span>{" "}
-                      {item.claim}
+                      {item.statement}
+                      {item.source || item.observed_at ? (
+                        <span className="text-xs">
+                          {" "}
+                          ({[item.source, item.observed_at].filter(Boolean).join(", ")})
+                        </span>
+                      ) : null}
                       {item.source_url ? (
                         <>
                           {" — "}
