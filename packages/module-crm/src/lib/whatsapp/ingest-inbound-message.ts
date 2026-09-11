@@ -2,6 +2,7 @@ import { createAdminClient } from "@cofounderai/core/db/admin";
 import { recordInteraction, markInteractionFailed } from "../interactions/mutations";
 import { captureLeadFromWhatsAppMessage } from "./lead-capture";
 import { parseWhatsAppWebhookPayload } from "./cloud-api-adapter";
+import { extractClickToChatRef, stripClickToChatRef } from "../click-to-chat/link";
 import type { WhatsAppWebhookEvent } from "./types";
 
 type WhatsAppEntryChange = { field?: string; value?: { metadata?: { phone_number_id?: string } } };
@@ -74,6 +75,25 @@ async function ingestEvent(
   coreAdmin: ReturnType<typeof createAdminClient>,
 ): Promise<IngestWhatsAppResult> {
   if (event.kind === "message") {
+    // CRM-07.10: a click-to-chat link's pre-filled text carries its attribution as a
+    // trailing `[ref:CODE]` tag -- resolve it against `crm.click_to_chat_link` before
+    // recording the interaction so the match lands in the very first message of the
+    // conversation it started. An unknown/inactive code (a stale link, a coincidental
+    // match) just means no attribution, not an ingest failure.
+    const refCode = extractClickToChatRef(event.text);
+    let clickToChatLinkId: string | null = null;
+    if (refCode) {
+      const { data: link, error: linkError } = await crmAdmin
+        .from("click_to_chat_link")
+        .select("id")
+        .eq("business_id", businessId)
+        .eq("ref_code", refCode)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (linkError) throw linkError;
+      clickToChatLinkId = link?.id ?? null;
+    }
+
     // CRM-07.4 ("Receive WhatsApp Text Messages"): `recordInteraction()` already does
     // everything this needs -- CRM-06.4 party matching by phone, find-or-create the
     // conversation (including the party-less "unresolved contact candidate" path for a
@@ -89,10 +109,13 @@ async function ingestEvent(
         externalMessageId: event.externalMessageId,
         direction: "inbound",
         occurredAt: event.occurredAt,
-        contentExcerpt: event.text,
+        contentExcerpt: refCode && event.text ? stripClickToChatRef(event.text) : event.text,
         mediaReference: event.mediaId,
         sourceModule: "whatsapp",
-        metadata: event.mediaId ? { mediaId: event.mediaId } : {},
+        metadata: {
+          ...(event.mediaId ? { mediaId: event.mediaId } : {}),
+          ...(clickToChatLinkId ? { clickToChatLinkId } : {}),
+        },
       },
       { crm: crmAdmin, core: coreAdmin },
     );

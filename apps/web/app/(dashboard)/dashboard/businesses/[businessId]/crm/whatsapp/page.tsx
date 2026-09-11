@@ -2,15 +2,26 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { listChannelConnections } from "@cofounderai/module-crm/lib/channel-connections/queries";
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
+import { listClickToChatLinks, countAttributedConversations } from "@cofounderai/module-crm/lib/click-to-chat/queries";
+import { buildWaMeLink } from "@cofounderai/module-crm/lib/click-to-chat/link";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import { Alert, AlertDescription } from "@cofounderai/core/ui/alert";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { FileText } from "lucide-react";
-import { checkWhatsAppConnectionNowAction, connectWhatsAppAction, createWhatsAppTemplateAction, deactivateWhatsAppTemplateAction, disconnectWhatsAppAction } from "./actions";
+import { FileText, Link2 } from "lucide-react";
+import {
+  checkWhatsAppConnectionNowAction,
+  connectWhatsAppAction,
+  createClickToChatLinkAction,
+  createWhatsAppTemplateAction,
+  deactivateClickToChatLinkAction,
+  deactivateWhatsAppTemplateAction,
+  disconnectWhatsAppAction,
+} from "./actions";
 import { ConnectWhatsAppForm } from "./connect-form";
+import { CreateClickToChatLinkForm } from "./click-to-chat-form";
 import { AddWhatsAppTemplateForm } from "./template-form";
 
 const STATUS_VARIANT: Record<string, "secondary" | "outline" | "destructive"> = {
@@ -53,6 +64,8 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
   const connections = await listChannelConnections(businessId);
   const whatsapp = connections.find((c) => c.channel === "whatsapp" && c.status !== "disconnected");
   const templates = await listWhatsAppTemplates(businessId);
+  const clickToChatLinks = await listClickToChatLinks(businessId);
+  const clickToChatCounts = await Promise.all(clickToChatLinks.map((link) => countAttributedConversations(businessId, link.id)));
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
@@ -149,6 +162,52 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
             </ul>
           )}
           <AddWhatsAppTemplateForm action={createWhatsAppTemplateAction.bind(null, businessId)} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Click-to-chat links</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">
+            Each link opens a WhatsApp chat with a pre-filled message and attributes the resulting conversation back to you -- share it on a bio, a flyer, or an ad.
+          </p>
+          {clickToChatLinks.length === 0 ? (
+            <EmptyState icon={Link2} message="No click-to-chat links yet." />
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {clickToChatLinks.map((link, index) => {
+                const url = buildWaMeLink(link.whatsapp_number, link.prefilled_message);
+                const attributedCount = clickToChatCounts[index] ?? 0;
+                return (
+                  <li key={link.id} className="flex flex-col gap-2 py-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col">
+                        <span className="font-medium">{link.label}</span>
+                        {link.campaign ? <span className="text-xs text-muted-foreground">{link.campaign}</span> : null}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!link.is_active ? <Badge variant="outline">Inactive</Badge> : null}
+                        <Badge variant="secondary">{attributedCount} conversation{attributedCount === 1 ? "" : "s"}</Badge>
+                        {link.is_active ? (
+                          <form action={deactivateClickToChatLinkAction.bind(null, businessId, link.id)}>
+                            <SubmitButton size="sm" variant="ghost" pendingText="Removing...">
+                              Deactivate
+                            </SubmitButton>
+                          </form>
+                        ) : null}
+                      </div>
+                    </div>
+                    <a href={url} target="_blank" rel="noreferrer" className="break-all text-xs text-primary underline underline-offset-2">
+                      {url}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <CreateClickToChatLinkForm action={createClickToChatLinkAction.bind(null, businessId)} />
         </CardContent>
       </Card>
     </div>

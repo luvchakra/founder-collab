@@ -613,6 +613,17 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.buying_intent_score where id = '${aliceScore}'`), "0", "Bob cannot see Alice's cached buying intent score");
 
+      console.log("Verifying CRM-07.10's crm.click_to_chat_link (idempotency, cross-tenant)...");
+      const aliceLink = psqlAsAlice(`insert into crm.click_to_chat_link (business_id, label, whatsapp_number, ref_code, prefilled_message) values ('${aliceBusiness}', 'Instagram bio', '15551234567', 'REF001', 'Hi! [ref:REF001]') returning id;`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.click_to_chat_link (business_id, label, whatsapp_number, ref_code, prefilled_message) values ('${aliceBusiness}', 'Flyer', '15551234567', 'REF001', 'Hi! [ref:REF001]')`),
+        "a duplicate (business_id, ref_code) click_to_chat_link is rejected -- createClickToChatLink()'s own unique ref-code guarantee relies on this",
+      );
+      const bobLinkSameCode = psqlAsBob(`insert into crm.click_to_chat_link (business_id, label, whatsapp_number, ref_code, prefilled_message) values ('${bobBusiness}', 'Bob bio', '15559876543', 'REF001', 'Hi! [ref:REF001]') returning id;`);
+      assertEqual(psqlAsBob(`select count(*) from crm.click_to_chat_link where id = '${bobLinkSameCode}'`), "1", "Bob can reuse the same ref_code Alice used -- the unique constraint is scoped per business, not global");
+      assertEqual(psqlAsBob(`select count(*) from crm.click_to_chat_link where id = '${aliceLink}'`), "0", "Bob cannot see Alice's click-to-chat link");
+      assertEqual(psqlAsAlice(`select count(*) from crm.click_to_chat_link where id = '${bobLinkSameCode}'`), "0", "Alice cannot see Bob's click-to-chat link");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

@@ -2864,3 +2864,88 @@ RLS harness run needed.
 
 **Status**: 73 of 74 in-scope stories done. Next: seq #78, CRM-07.10 "WhatsApp
 click-to-chat link" -- the last story in this backlog run's 74-story scope.
+
+---
+
+## Seq #78 -- CRM-07.10 WhatsApp Click-to-Chat Link (2026-09-11)
+
+The backlog's own one-line summary: "Generate a business-owned click-to-chat entry
+point that can attribute the resulting conversation to a product/source/campaign." No
+bullet acceptance criteria are listed under this story in the source document (unlike
+its neighbor CRM-07.11, which has three) -- built directly from that summary plus the
+attribution design worked out earlier this session.
+
+**The attribution mechanism**: Meta's `wa.me` click-to-chat links carry no structured
+metadata of their own -- only a pre-filled message string. A short `[ref:CODE]` tag is
+appended to that string (`buildPrefilledMessageWithRef()`), parsed back out of the
+first inbound message on the CRM-07.3 ingest path (`extractClickToChatRef()` in the new
+`click-to-chat/link.ts`, zero server imports -- pure regex functions), matched against
+the new `crm.click_to_chat_link.ref_code`, and the resulting link id is written onto
+the *interaction's* own `metadata.clickToChatLinkId`, not onto `crm.lead` --
+`crm.lead.source_module`/`source_reference` are already claimed by CRM-07.11's own
+`(business_id, source_module='whatsapp', source_reference=<externalActorId>)` dedup
+key, and reusing those columns for a second, incompatible meaning would have broken
+that guarantee. The tag itself is stripped back out of the stored `contentExcerpt`
+(`stripClickToChatRef()`) so a human reading the conversation transcript never sees the
+attribution plumbing.
+
+New table `crm.click_to_chat_link` (migration `20260911001900_crm_click_to_chat_link.sql`):
+`business_id`, `label`, `whatsapp_number` (the dialable number `wa.me` needs -- entered
+directly rather than looked up from `channel_connection.external_account_id`, which is
+Meta's internal `phone_number_id`, not the public number; fetching the real one would
+mean a new Graph API field lookup this story doesn't otherwise need), `ref_code`
+(unique per business), `campaign` (free text -- covers "product/source/campaign" in one
+field; a `core.items` FK + picker UI was considered and dropped, since nothing in this
+story's own one-line scope calls for a structured product link and a half-built picker
+is worse than a working text field), `prefilled_message`, `is_active`. Standard 4-policy
+`tenant AND licensed` RLS, same shape as every other `crm.*` table this session.
+
+New `packages/module-crm/src/lib/click-to-chat/` module: `link.ts` (pure, client-safe:
+`generateRefCode`, `buildPrefilledMessageWithRef`, `extractClickToChatRef`,
+`stripClickToChatRef`, `buildWaMeLink`), `types.ts`, `queries.ts`
+(`listClickToChatLinks`, and `countAttributedConversations()` -- computed live via
+`interaction.metadata @> {clickToChatLinkId}` rather than a maintained counter column,
+same "no duplicated master data" discipline as CRM-14.4/14.5's funnels), `mutations.ts`
+(`createClickToChatLink()` retries on a `ref_code` unique-violation rather than
+surfacing it as a user error; `deactivateClickToChatLink()`, soft-remove only -- a link
+already shared publicly keeps attributing correctly even after retirement).
+
+`ingest-inbound-message.ts`'s message branch now resolves the ref code (an unknown or
+inactive code is simply "no attribution," not an ingest failure) before calling
+`recordInteraction()`.
+
+**UI**: new "Click-to-chat links" card on the WhatsApp settings page, following the
+Template catalog card's own established pattern exactly -- list + create form
+(`CreateClickToChatLinkForm`, a `useActionState` client component taking only the
+local `actions.ts` action-state type, avoiding the CRM-12.4 client/server boundary
+pitfall). Each row shows the label, campaign note, a live "N conversations" badge, the
+full `wa.me` URL as a clickable/copyable link, and a Deactivate action.
+
+Verified with full monorepo typecheck (clean, all 9 workspaces), `lint:boundaries` (941
+files, no violations), `lint:migrations` (82 migrations, no violations), module-crm's
+vitest suite (126/126 -- 7 new unit tests for `link.ts`'s pure functions), both CRM RLS
+harnesses (`test-crm-backlog-rls.mjs` with a new "CRM-07.10's crm.click_to_chat_link"
+section covering ref-code uniqueness-per-business and cross-tenant isolation both ways;
+`test-crm-rls.mjs` unaffected, clean), a clean `next build`, and a live migration
+applied to the dev Supabase project (`jazdtomcgqjxjueedmck`) followed by `get_advisors`
+for both security and performance -- identical pre-existing findings to every prior
+check this session, plus one expected new "unused index" INFO
+(`click_to_chat_link_business_id_idx`, no real traffic on this dev project), no new
+finding of any other kind.
+
+**Status**: 74 of 74 in-scope stories done -- **the WonderArc CRM backlog's P0/P1 scope
+for this run is complete.**
+
+## Backlog run completion summary
+
+All 74 in-scope (P0 + P1) rows from the backlog's own Section 7 sequence table are now
+built, verified, committed, and merged to `main`. Every epic (CRM-01 through CRM-15) has
+either reached its own "N of N in-scope stories done -- epic complete" marker in this
+document, or (CRM-16, entirely P2/P3) was correctly out of scope from the start. P2/P3
+rows (CRM-07.8's reviewer-identity refinement CRM-08.8, CRM-13.x automation, CRM-16.x
+additional channel providers, CRM-14.7) remain intentionally unbuilt, per the standing
+scope restriction. The one bookkeeping correction mid-run (documented in the CRM-14.5
+entry above) was caught and fixed before completion, and a full regression checkpoint
+(seq #72, re-verifying CRM-01.6's four original acceptance criteria against 33
+subsequent stories' worth of code built on the same interaction model) found no
+regression anywhere in the run.

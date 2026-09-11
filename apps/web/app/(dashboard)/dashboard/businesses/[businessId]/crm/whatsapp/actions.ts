@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { connectWhatsApp, disconnectChannelConnection } from "@cofounderai/module-crm/lib/channel-connections/mutations";
 import { createWhatsAppTemplate, deactivateWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { checkWhatsAppConnectionNow } from "@cofounderai/module-crm/lib/whatsapp/health";
+import { createClickToChatLink, deactivateClickToChatLink } from "@cofounderai/module-crm/lib/click-to-chat/mutations";
 
 export type WhatsAppConnectActionState = { error: string } | null;
 
@@ -60,5 +61,31 @@ export async function disconnectWhatsAppAction(businessId: string, connectionId:
  * periodic health-check cron to get to it. */
 export async function checkWhatsAppConnectionNowAction(businessId: string, connectionId: string): Promise<void> {
   await checkWhatsAppConnectionNow(businessId, connectionId);
+  revalidatePath(whatsappPath(businessId));
+}
+
+export type CreateClickToChatLinkActionState = { error: string } | null;
+
+/** CRM-07.10: creates a business-owned `wa.me` entry point -- see
+ * `createClickToChatLink()`'s own doc comment for the ref-code attribution mechanism. */
+export async function createClickToChatLinkAction(businessId: string, _prevState: CreateClickToChatLinkActionState, formData: FormData): Promise<CreateClickToChatLinkActionState> {
+  const label = String(formData.get("label") || "").trim();
+  const whatsappNumber = String(formData.get("whatsappNumber") || "").trim();
+  const message = String(formData.get("message") || "").trim();
+  const campaign = String(formData.get("campaign") || "").trim() || null;
+  if (!label || !whatsappNumber || !message) return { error: "Label, WhatsApp number, and message are all required." };
+
+  try {
+    await createClickToChatLink(businessId, { label, whatsappNumber, message, campaign });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not create this link." };
+  }
+
+  revalidatePath(whatsappPath(businessId));
+  return null;
+}
+
+export async function deactivateClickToChatLinkAction(businessId: string, linkId: string): Promise<void> {
+  await deactivateClickToChatLink(businessId, linkId);
   revalidatePath(whatsappPath(businessId));
 }
