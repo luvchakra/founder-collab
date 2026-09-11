@@ -39,7 +39,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.5 | Tax Determination Snapshot | Done |
 | P0-03 | 03.1 | Core Transaction Contract | Done |
 | | 03.2 | Inventory Tax Context | Done |
-| | 03.3 | FSM Tax Context | Not started |
+| | 03.3 | FSM Tax Context | Done (partial scope, see story log) |
 | | 03.4 | Party Tax Context | Not started |
 | | 03.5 | No Duplicate Masters | Not started |
 | P0-04 | 04.1 | GSTIN Management | Not started |
@@ -957,3 +957,47 @@ classification -- a future Compliance story that needs those would go through
 - `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift.
+
+### 03.3 — FSM Tax Context (2026-09-11)
+
+"Read service-billing context from FSM" -- unlike COMPLY-P0-03.1 (Core) and COMPLY-P0-03.2
+(Inventory, which turned out to be `core`-owned data too), `fsm.jobs`/`fsm.service_types`
+are genuinely `fsm`-schema-owned by a real sibling licensed module. This run's own
+operating instructions restrict all work to `module-gst`, and CLAUDE.md non-negotiable #3
+says the ONLY thing another module may import from `module-fsm` is its own
+`contract/index.ts`. Checked that contract's current exports (`listRecentJobsForParty`,
+`getFsmQuoteStatus`, `getAssessmentStatus`, ...) for anything that already answers "what
+service context applies to job X" -- none do; the closest, `listRecentJobsForParty`, is
+keyed by `partyId` and returns no `service_type`/`service_address`.
+
+**Ships this story**: `packages/module-gst/src/lib/fsm-tax-context/{types.ts,queries.ts}`
+-- `getFsmJobReference(businessId, documentId)`, reading `core.documents.source_ref` to
+find which FSM job (if any) produced a given document. This is genuinely `core`-owned data
+(the document's own `source_ref` jsonb), not an `fsm`-schema read, so it needs no new
+contract export and no module-boundary exception.
+
+**Deliberately NOT shipped, and why**: the fuller ask (service type, job status, service
+address for a job) is `fsm`-schema data reachable only through a NEW read-only export on
+`module-fsm`'s own contract (e.g. `getJobTaxContext(businessId, jobId)`) -- a
+`module-fsm` change, out of scope for a run restricted to `module-gst`. Reaching around the
+boundary with a raw `schema: "fsm"` client would not trip `lint:boundaries` (which only
+parses TypeScript `import` statements) but would violate the rule's actual intent, which
+`module-fsm/contract/index.ts`'s own docstring states directly. **Follow-up flagged for a
+future story**: add `getJobTaxContext()` (or similar) to `module-fsm`'s contract, then
+extend `fsm-tax-context/queries.ts` to call it for the full service-context fields.
+
+No test file added -- `getFsmJobReference` is a thin service-role-free query wrapper with
+no pure logic to isolate (same reasoning `packages/core/src/admin/queries.ts` has no test
+file in this repo's established convention; COMPLY-P0-03.2's own test coverage was for its
+*pure mapping function*, `mapItemTaxContext`, which this story has no equivalent of).
+
+**How verified**: `npx tsc --noEmit` clean in `module-gst`; `node
+scripts/lint-import-boundaries.mjs` -- 1008 files scanned, 0 violations (confirms no
+`module-fsm` import exists anywhere in this story's new files); `npx vitest run --root
+packages/module-gst` -- 6 files / 32 tests passed, unchanged from COMPLY-P0-03.2 (no
+regression, no new test needed per the reasoning above). No migration, no new RLS surface,
+no UI, so `lint:migrations` and `next build` were not re-run for this specific story.
+
+**Status**: COMPLY-P0-03.3 done (partial scope, follow-up flagged above), committed and
+merged to `main` by a different session picking up mid-run after this one ended on an
+account-wide spend-limit error. Next story is COMPLY-P0-03.4 (Party Tax Context).
