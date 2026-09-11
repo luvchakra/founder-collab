@@ -81,6 +81,22 @@ export async function addOpportunityProduct(
   if (error) throw error;
 }
 
+/** INT-05.1's "cancel unavailable quantity" / "change requested quantity" decisions --
+ * both are the same underlying edit (set the line to a smaller, or any other, number),
+ * just pre-filled differently by the caller (available quantity vs. a free-form value).
+ * No audit log here, matching this file's own sibling functions above. */
+export async function updateOpportunityProductQuantity(businessId: string, opportunityId: string, productInterestId: string, quantity: number): Promise<void> {
+  await requireModule(businessId, "inventory");
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("product_interest")
+    .update({ quantity })
+    .eq("id", productInterestId)
+    .eq("business_id", businessId)
+    .eq("opportunity_id", opportunityId);
+  if (error) throw error;
+}
+
 export async function removeOpportunityProduct(businessId: string, opportunityId: string, productInterestId: string): Promise<void> {
   await requireModule(businessId, "inventory");
   const supabase = await createClient();

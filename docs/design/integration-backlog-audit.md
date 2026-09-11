@@ -34,7 +34,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 04.2 | Create FSM Assessment Request | Done |
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Done |
 | | 04.4 | Assessment -> Quote Continuation | Done |
-| INT-05 (P1) | 05.1 | Partial Availability Decision | Not started |
+| INT-05 (P1) | 05.1 | Partial Availability Decision | Done |
 | | 05.2 | Inventory Substitution Recommendation | Not started |
 | | 05.3 | Shortage -> Customer Follow-up | Not started |
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 16/29 (55%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 1/13 done. Overall: 17/29 (59%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -308,3 +308,15 @@ Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:bou
 **Epic INT-04 complete (4/4). All of P0 complete (16/16).**
 
 **Status**: 16 of 29 in-scope stories done. Next: INT-05.1, Partial Availability Decision (starts Epic INT-05, the first P1 epic).
+
+### INT-05.1 — Partial Availability Decision (2026-09-11)
+
+New `checkOpportunityFulfillmentAvailability()` (`lib/opportunities/availability.ts`) -- classifies each opportunity product line as `available`/`backordered`/`unavailable` by summing `getAvailability()` (already-existing Inventory contract call) across every warehouse and comparing to the requested quantity. Run before a fulfillment request is created, not after: `inventory.confirm_sales_order()`'s own atomic all-or-nothing reservation (documented in `fulfillment.ts`'s existing comment) means a full-quantity request against short stock would only fail later, silently, at confirm time -- exactly what this story's "Do not silently alter the opportunity" forbids.
+
+When every line is fully available, the opportunity page's existing "Request inventory fulfillment" button behaves exactly as before (INT-02.2, unchanged). When any line is short, that button is replaced by an explicit decision panel: a per-line breakdown (item, status badge, requested vs. available) plus real actions for four of the epic's five named options -- "fulfill available quantity" (new `fulfillAvailableQuantityForOpportunity()`, creates a request capped to each line's own available quantity, dropping lines with none), "wait for complete quantity" (new `recordFulfillmentWaitDecision()`, a deliberate no-op on the opportunity itself, audited so the choice is recorded rather than silently absent), and "cancel unavailable quantity"/"change requested quantity" (both the same new `updateOpportunityProductQuantity()` edit on `crm.product_interest.quantity`, pre-filled with the available amount as a convenience but freely editable). "Substitute" is the fifth option and is deliberately not built here -- INT-05.2, the very next story, is what gives Inventory a substitution concept to offer; building a substitute action against nothing to substitute would be exactly the speculative functionality CLAUDE.md principle 7 forbids. It's added to this same decision panel once INT-05.2 lands.
+
+Also fixed a pre-existing gap while touching this file: `"crm_opportunity.fulfillment_requested"` (INT-02.2's own audit action) was never added to `ACTION_LABEL`, so it rendered as a raw key on any audit log view -- a one-line completion of an already-established pattern, not a refactor.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (91 migrations, no violations -- no schema change this story, `crm.product_interest.quantity` already existed), module-crm's vitest suite (152/152, unchanged), and a clean `next build`.
+
+**Status**: 17 of 29 in-scope stories done. Next: INT-05.2, Inventory Substitution Recommendation.

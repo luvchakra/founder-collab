@@ -14,6 +14,7 @@ import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import { listOpportunityContacts } from "./contacts";
 import { listOpportunityProducts } from "./products";
+import { checkOpportunityFulfillmentAvailability } from "./availability";
 import { DEFAULT_OPPORTUNITY_STAGES } from "./types";
 import type { AssessmentRequirement, OpportunityStage } from "./types";
 
@@ -301,6 +302,85 @@ export async function createFulfillmentRequestForOpportunity(businessId: string,
   });
 
   return { fulfillmentRequestId: result.data.fulfillmentRequestId };
+}
+
+/**
+ * INT-05.1's "fulfill available quantity" decision -- creates a fulfillment request
+ * scoped to only what Inventory can supply right now (each line capped at its own
+ * available quantity; a line with none is dropped entirely), rather than the full
+ * requested quantities `createFulfillmentRequestForOpportunity()` above assumes are all
+ * in stock. Availability is recomputed here rather than trusting whatever the page last
+ * rendered -- stock can move between page load and this submit. Same idempotent-by-
+ * stored-pointer shape as the full-quantity path.
+ */
+export async function fulfillAvailableQuantityForOpportunity(businessId: string, opportunityId: string): Promise<{ fulfillmentRequestId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: opportunity, error: opportunityError } = await supabase
+    .from("opportunity")
+    .select("id, party_id, fulfillment_request_id")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (opportunityError) throw opportunityError;
+  if (opportunity.fulfillment_request_id) return { fulfillmentRequestId: opportunity.fulfillment_request_id };
+
+  const products = await listOpportunityProducts(businessId, opportunityId);
+  if (products.length === 0) throw new Error("Add at least one product before requesting fulfillment.");
+
+  const availability = await checkOpportunityFulfillmentAvailability(businessId, products);
+  const lineItems = availability.lines
+    .filter((line) => line.availableQuantity > 0)
+    .map((line) => ({ itemId: line.itemId, quantity: Math.min(line.requestedQuantity, line.availableQuantity) }));
+  if (lineItems.length === 0) throw new Error("Nothing is available to fulfill right now.");
+
+  const result = await createFulfillmentRequest(businessId, { partyId: opportunity.party_id, lineItems });
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "Inventory isn't licensed for this business." : result.error);
+
+  const { error: updateError } = await supabase
+    .from("opportunity")
+    .update({ fulfillment_request_id: result.data.fulfillmentRequestId })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.fulfillment_partial_requested",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { fulfillment_request_id: result.data.fulfillmentRequestId, lines: lineItems },
+  });
+
+  return { fulfillmentRequestId: result.data.fulfillmentRequestId };
+}
+
+/**
+ * INT-05.1's "wait for complete quantity" decision -- deliberately makes no change to
+ * the opportunity itself (no request created, no quantity touched); the audit entry is
+ * what keeps this "not silent" per the story's own "Do not silently alter the
+ * opportunity" wording. Choosing to wait is a recorded decision, not the absence of one.
+ */
+export async function recordFulfillmentWaitDecision(businessId: string, opportunityId: string): Promise<void> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.fulfillment_wait_selected",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { decision: "wait_for_complete_quantity" },
+  });
 }
 
 /**

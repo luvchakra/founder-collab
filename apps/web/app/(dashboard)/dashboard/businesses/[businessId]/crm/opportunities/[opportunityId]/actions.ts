@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addOpportunityProduct, removeOpportunityProduct } from "@cofounderai/module-crm/lib/opportunities/products";
+import { addOpportunityProduct, removeOpportunityProduct, updateOpportunityProductQuantity } from "@cofounderai/module-crm/lib/opportunities/products";
 import {
   addOpportunityContact,
   removeOpportunityContact,
@@ -12,6 +12,8 @@ import {
   createFsmQuoteForOpportunity,
   createJobFromFsmQuote,
   createFulfillmentRequestForOpportunity,
+  fulfillAvailableQuantityForOpportunity,
+  recordFulfillmentWaitDecision,
   createAssessmentRequestForOpportunity,
 } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { setFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
@@ -117,6 +119,28 @@ export async function setFulfillmentRequirementAction(businessId: string, opport
 /** INT-02.2's "Request inventory fulfillment" button. */
 export async function requestFulfillmentAction(businessId: string, opportunityId: string): Promise<void> {
   await createFulfillmentRequestForOpportunity(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-05.1's "fulfill available quantity" button. */
+export async function fulfillAvailableQuantityAction(businessId: string, opportunityId: string): Promise<void> {
+  await fulfillAvailableQuantityForOpportunity(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-05.1's "wait for complete quantity" button. */
+export async function recordFulfillmentWaitAction(businessId: string, opportunityId: string): Promise<void> {
+  await recordFulfillmentWaitDecision(businessId, opportunityId);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-05.1's "cancel unavailable quantity" / "change requested quantity" form action. */
+export async function updateOpportunityProductQuantityAction(businessId: string, opportunityId: string, productInterestId: string, formData: FormData): Promise<void> {
+  const rawQuantity = formData.get("quantity");
+  if (rawQuantity === null || rawQuantity === "") return;
+  const quantity = Number(rawQuantity);
+  if (!Number.isFinite(quantity) || quantity < 0) return;
+  await updateOpportunityProductQuantity(businessId, opportunityId, productInterestId, quantity);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }
 

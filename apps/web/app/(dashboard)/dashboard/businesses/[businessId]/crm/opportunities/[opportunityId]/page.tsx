@@ -12,6 +12,7 @@ import { getPrimaryAddress } from "@cofounderai/core/addresses/queries";
 import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
 import { listOpportunityJourneyHistory } from "@cofounderai/module-crm/lib/timeline/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
+import { checkOpportunityFulfillmentAvailability, FULFILLMENT_AVAILABILITY_LABEL } from "@cofounderai/module-crm/lib/opportunities/availability";
 import { listOpportunityContacts } from "@cofounderai/module-crm/lib/opportunities/contacts";
 import { getActivity } from "@cofounderai/module-crm/lib/activities/queries";
 import { listFollowUpsForOpportunity } from "@cofounderai/module-crm/lib/follow-ups/queries";
@@ -44,6 +45,9 @@ import {
   removeOpportunityContactAction,
   removeOpportunityProductAction,
   requestFulfillmentAction,
+  fulfillAvailableQuantityAction,
+  recordFulfillmentWaitAction,
+  updateOpportunityProductQuantityAction,
   setFulfillmentRequirementAction,
   setAssessmentRequirementAction,
   requestAssessmentAction,
@@ -110,6 +114,13 @@ export default async function OpportunityDetailPage({
       resolveCommercialJourney(businessId, opportunityId),
     ]);
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
+  // INT-05.1: only worth checking once there's something to request and nothing has
+  // been requested yet -- an already-created fulfillment request is Inventory's own
+  // commitment now, not a fresh availability question.
+  const availabilityCheck =
+    inventoryLicensed && !opportunity.fulfillment_request_id && products.length > 0
+      ? await checkOpportunityFulfillmentAvailability(businessId, products)
+      : null;
   const fulfillmentCommitment = deriveFulfillmentCommitmentState(fulfillmentStatus?.status ?? "draft");
   const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
   // INT-04.3: "User can create/update quote only after required assessment conditions
@@ -426,15 +437,55 @@ export default async function OpportunityDetailPage({
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {!opportunity.fulfillment_request_id ? (
-              <div className="flex flex-col gap-3">
-                <EmptyState icon={Package} message="No fulfillment requested for this opportunity yet." />
-                <form action={requestFulfillmentAction.bind(null, businessId, opportunityId)}>
-                  <SubmitButton pendingText="Requesting..." disabled={products.length === 0}>
-                    Request inventory fulfillment
-                  </SubmitButton>
-                </form>
-                {products.length === 0 ? <p className="text-xs text-muted-foreground">Add at least one product above before requesting fulfillment.</p> : null}
-              </div>
+              availabilityCheck && !availabilityCheck.allAvailable ? (
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Inventory can&apos;t fully cover the requested quantities right now. Choose how to proceed instead of requesting the full amount.
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {availabilityCheck.lines.map((line) => (
+                      <div key={line.productInterestId} className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
+                        <span className="font-medium">{line.itemName}</span>
+                        <Badge variant={line.status === "backordered" ? "outline" : "destructive"}>{FULFILLMENT_AVAILABILITY_LABEL[line.status]}</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Requested {line.requestedQuantity} / Available {line.availableQuantity}
+                        </span>
+                        {line.status !== "available" ? (
+                          <form
+                            action={updateOpportunityProductQuantityAction.bind(null, businessId, opportunityId, line.productInterestId)}
+                            className="ml-auto flex items-center gap-1.5"
+                          >
+                            <Input name="quantity" type="number" min={0} step="0.01" defaultValue={line.availableQuantity} className="h-8 w-20" />
+                            <SubmitButton pendingText="Updating..." className="h-8 px-2 text-xs">
+                              Change quantity
+                            </SubmitButton>
+                          </form>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <form action={fulfillAvailableQuantityAction.bind(null, businessId, opportunityId)}>
+                      <SubmitButton pendingText="Requesting...">Fulfill available quantity</SubmitButton>
+                    </form>
+                    <form action={recordFulfillmentWaitAction.bind(null, businessId, opportunityId)}>
+                      <SubmitButton variant="outline" pendingText="Recording...">
+                        Wait for complete quantity
+                      </SubmitButton>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <EmptyState icon={Package} message="No fulfillment requested for this opportunity yet." />
+                  <form action={requestFulfillmentAction.bind(null, businessId, opportunityId)}>
+                    <SubmitButton pendingText="Requesting..." disabled={products.length === 0}>
+                      Request inventory fulfillment
+                    </SubmitButton>
+                  </form>
+                  {products.length === 0 ? <p className="text-xs text-muted-foreground">Add at least one product above before requesting fulfillment.</p> : null}
+                </div>
+              )
             ) : (
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <Badge variant={fulfillmentCommitment.state === "cancelled" ? "destructive" : "secondary"}>{fulfillmentCommitment.label}</Badge>

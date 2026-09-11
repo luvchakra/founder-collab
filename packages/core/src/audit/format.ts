@@ -21,6 +21,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_opportunity.fsm_job_created": "FSM job created from CRM opportunity",
   "crm_buying_intent.recalculated": "Buying intent score recalculated",
   "crm_opportunity.fulfillment_requirement_set": "CRM opportunity fulfillment requirement set",
+  "crm_opportunity.fulfillment_requested": "CRM opportunity inventory fulfillment requested",
+  "crm_opportunity.fulfillment_partial_requested": "CRM opportunity partial inventory fulfillment requested",
+  "crm_opportunity.fulfillment_wait_selected": "CRM opportunity chose to wait for full inventory availability",
   "crm_opportunity.assessment_requirement_set": "CRM opportunity assessment requirement set",
   "crm_opportunity.assessment_requested": "CRM opportunity FSM assessment requested",
 };
