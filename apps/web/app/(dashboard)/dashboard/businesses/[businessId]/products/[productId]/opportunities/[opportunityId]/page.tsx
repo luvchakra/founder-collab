@@ -9,6 +9,7 @@ import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/l
 import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { OpportunityDetail } from "@cofounderai/module-discovery/components/opportunities/opportunity-detail";
+import { classifyExistingRelationship } from "@cofounderai/module-crm/contract/index";
 import { sendOpportunityToCrmAction, updateOpportunityStatusAction } from "./actions";
 
 export default async function OpportunityDetailPage({
@@ -40,6 +41,15 @@ export default async function OpportunityDetailPage({
   const { primaryContactId } = computeBuyerFitScores(buyerIntelligence);
   const primaryContact = buyerIntelligence.find((person) => person.contact.id === primaryContactId) ?? buyerIntelligence[0] ?? null;
 
+  // DISC-OFFER-P0-08.2: "before handoff classify" -- a degraded null (not a thrown
+  // error) when CRM isn't licensed for this business, ADR-10's normal-result pattern.
+  const relationshipResult = await classifyExistingRelationship(businessId, {
+    companyName: prospect.company_name,
+    excludePartyId: prospect.party_id,
+    contactEmail: primaryContact?.contact.email ?? null,
+  });
+  const relationship = relationshipResult.ok ? relationshipResult.data : null;
+
   return (
     <OpportunityDetail
       businessId={businessId}
@@ -52,6 +62,7 @@ export default async function OpportunityDetailPage({
       primaryContact={primaryContact}
       scoreHistory={scoreHistory}
       hasParty={Boolean(prospect.party_id)}
+      relationship={relationship}
       updateStatusAction={updateOpportunityStatusAction.bind(null, businessId, productId, opportunity.id)}
       sendToCrmAction={sendOpportunityToCrmAction.bind(null, businessId, productId, opportunity.id, prospect.id, prospect.party_id ?? "")}
     />

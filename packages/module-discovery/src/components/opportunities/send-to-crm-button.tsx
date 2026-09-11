@@ -17,6 +17,27 @@ import {
 
 type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolean } } | { ok: false; error: string };
 
+/** Structurally mirrors module-crm's own `RelationshipMatch` (DISC-OFFER-P0-08.2) --
+ * declared locally rather than imported, the same "no cross-module internals import"
+ * rule (CLAUDE.md architecture rule #3) `PromoteResult` above already respects for its
+ * own shape; `apps/web` (exempt from that rule) is the one place these two independent
+ * declarations get bridged together. `null` means the check couldn't run (CRM not
+ * licensed, or nothing to check yet) -- shown as no warning at all, not an error. */
+export type RelationshipMatch = {
+  status: "new_prospect" | "existing_lead" | "existing_customer" | "existing_opportunity" | "existing_contact" | "potential_duplicate";
+  matchedPartyName: string | null;
+  detail: string | null;
+};
+
+const RELATIONSHIP_STATUS_LABEL: Record<RelationshipMatch["status"], string> = {
+  new_prospect: "New Prospect",
+  existing_lead: "Existing Lead",
+  existing_customer: "Existing Customer",
+  existing_opportunity: "Existing CRM Opportunity",
+  existing_contact: "Existing Contact",
+  potential_duplicate: "Potential Duplicate",
+};
+
 /**
  * DISC-OFFER-P0-08.1: the opportunity-aware sibling of the prospect page's own
  * `PromoteToCrmButton` (CRM-03.1, `apps/web/.../prospects/[prospectId]/`) -- same
@@ -31,9 +52,15 @@ type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolea
  */
 export function SendToCrmButton({
   hasParty,
+  relationship,
   sendAction,
 }: {
   hasParty: boolean;
+  /** DISC-OFFER-P0-08.2's own "before handoff classify" check -- shown in the
+   * confirmation dialog so a founder sees it before creating a possibly-duplicate CRM
+   * relationship, never blocked automatically (this platform never silently decides on
+   * a human's behalf -- see the contract function's own doc comment). */
+  relationship: RelationshipMatch | null;
   sendAction: () => Promise<PromoteResult>;
 }) {
   const [pending, startTransition] = useTransition();
@@ -64,6 +91,12 @@ export function SendToCrmButton({
             &quot;Sent to CRM.&quot;
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {relationship && relationship.status !== "new_prospect" ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">{RELATIONSHIP_STATUS_LABEL[relationship.status]}</p>
+            {relationship.detail ? <p className="mt-1">{relationship.detail}</p> : null}
+          </div>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction asChild>
