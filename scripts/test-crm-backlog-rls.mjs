@@ -217,6 +217,38 @@ async function main() {
         "requires_response defaults to false when not explicitly set",
       );
 
+      console.log("Verifying CRM-06.4's party-match hierarchy queries (matching.ts#matchPartyForActor)...");
+      const knownActorId = "wa-actor-known-1";
+      psqlAsAlice(`insert into crm.conversation_participant (business_id, conversation_id, party_id, external_actor_id) values ('${aliceBusiness}', '${aliceConversation}', '${aliceParty}', '${knownActorId}');`);
+      assertEqual(
+        psqlAsAlice(`select party_id from crm.conversation_participant where business_id = '${aliceBusiness}' and external_actor_id = '${knownActorId}' and party_id is not null limit 1`),
+        aliceParty,
+        "tier 1: a known external_actor_id resolves to its party via conversation_participant",
+      );
+      const priorInteractionActorId = "wa-actor-prior-2";
+      psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, external_actor_id) values ('${aliceBusiness}', '${aliceConversation}', '${aliceParty}', 'whatsapp', 'inbound', '${priorInteractionActorId}');`);
+      assertEqual(
+        psqlAsAlice(`select party_id from crm.interaction where business_id = '${aliceBusiness}' and channel = 'whatsapp' and external_actor_id = '${priorInteractionActorId}' and party_id is not null order by occurred_at desc limit 1`),
+        aliceParty,
+        "tier 1 fallback: a known external_actor_id also resolves via a prior interaction, not just conversation_participant",
+      );
+      const alicePhoneParty = psqlAsAlice(`insert into core.parties (business_id, name, phone) values ('${aliceBusiness}', 'Phone Contact', '+911234500000') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select id from core.parties where business_id = '${aliceBusiness}' and phone = '+911234500000' limit 1`),
+        alicePhoneParty,
+        "tier 2: an exact phone match resolves to its party",
+      );
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.conversation_participant where business_id = '${aliceBusiness}' and external_actor_id = 'no-such-actor'`),
+        "0",
+        "tier 3 (unmatched): an external_actor_id never seen before matches nothing -- matchPartyForActor() leaves party_id null rather than guessing",
+      );
+      assertEqual(
+        psqlAsBob(`select count(*) from core.parties where phone = '+911234500000'`),
+        "0",
+        "Bob's own match lookup cannot see Alice's phone-matched party at all -- RLS scopes the lookup, not just the function's own business_id filter",
+      );
+
       console.log("Verifying CRM-04.5's opportunity contacts (multiple contacts, one primary)...");
       const aliceCompanyParty = psqlAsAlice(`insert into core.parties (business_id, name, kind) values ('${aliceBusiness}', 'Alice Corp', 'company') returning id;`);
       const aliceContact1 = psqlAsAlice(`insert into core.party_contacts (business_id, party_id, first_name) values ('${aliceBusiness}', '${aliceCompanyParty}', 'Priya') returning id;`);

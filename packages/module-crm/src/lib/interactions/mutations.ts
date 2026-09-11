@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
+import { matchPartyForActor } from "./matching";
 import type { Interaction, RecordInteractionInput } from "./types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
@@ -92,8 +93,13 @@ export async function markInteractionFailed(businessId: string, interactionId: s
  * CRM-01.3's `recordInteraction()` contract operation -- the one entry point any module
  * (or a future inbound webhook) uses to log an interaction against the shared
  * provider-neutral model (CRM-01.5). Finds or creates a conversation when the caller
- * doesn't already have one (simple party+channel match -- CRM-06.4's own richer matching
- * hierarchy comes later), then inserts the interaction.
+ * doesn't already have one, then inserts the interaction. When the caller supplies
+ * `externalActorId` but not `partyId`, CRM-06.4's match hierarchy
+ * (`matching.ts#matchPartyForActor()`) runs first to try to resolve one automatically;
+ * an unmatched sender still needs `conversationId` or `partyId` from the caller today
+ * (relaxing that -- letting a genuinely unresolved sender start a party-less
+ * conversation as an "unresolved contact candidate" -- is CRM-07.4's own acceptance
+ * criterion, once a live inbound channel exists to drive it, not this function's).
  *
  * CRM-01.6 idempotency has two mechanisms, for the two cases that need different ones:
  * - **Inbound / already has a provider id**: `crm.interaction`'s own partial unique
@@ -127,12 +133,27 @@ export async function recordInteraction(businessId: string, input: RecordInterac
     if (existing) return retryFailedInteraction(supabase, businessId, existing as Interaction, input);
   }
 
-  const conversationId = await findOrCreateConversation(supabase, businessId, input);
+  // CRM-06.4: only run the match hierarchy when the caller doesn't already know the
+  // party -- a caller with a real partyId (e.g. a manually-logged reply, CRM-03.2)
+  // already resolved this itself and matching would be redundant work at best.
+  let resolvedPartyId = input.partyId ?? null;
+  if (!resolvedPartyId && input.externalActorId) {
+    const match = await matchPartyForActor(businessId, {
+      channel: input.channel,
+      externalActorId: input.externalActorId,
+      phone: input.senderPhone,
+      email: input.senderEmail,
+    });
+    resolvedPartyId = match.partyId;
+  }
+  const resolvedInput = { ...input, partyId: resolvedPartyId };
+
+  const conversationId = await findOrCreateConversation(supabase, businessId, resolvedInput);
 
   const row = {
     business_id: businessId,
     conversation_id: conversationId,
-    party_id: input.partyId ?? null,
+    party_id: resolvedPartyId,
     channel: input.channel,
     external_actor_id: input.externalActorId ?? null,
     external_message_id: input.externalMessageId ?? null,

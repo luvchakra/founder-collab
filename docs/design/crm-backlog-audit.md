@@ -604,3 +604,36 @@ Customer 360 page, CRM-03.1's "Promote to CRM" button) -- the specific `apps/web
 composition-root files for that one feature, following the exact pattern
 `conversions/actions.ts` already established for the Discovery -> FSM handoff. No other
 module's own internal code, schema, or docs were changed.
+
+## CRM-06.4 (2026-09-11)
+
+Adds `matchPartyForActor()` (`lib/interactions/matching.ts`), collapsing the backlog's
+five-tier match hierarchy to three tiers this schema can actually back without
+fabricating an unused signal: `known_external_id` (backlog tiers 1 "verified mapping"
+and 3 "channel-specific external ID" collapse into one lookup -- neither
+`conversation_participant` nor `interaction` distinguishes a deliberately-verified link
+from one that simply recurred, so inventing a `verified` boolean nothing ever sets would
+be worse than naming the collapse honestly), `contact_exact` (backlog tier 2: exact
+phone/email match against `core.parties`, two separate `.eq()` queries rather than one
+`.or()` filter -- `.or()`'s filter syntax is a string language, not parameterized, and
+building one from untrusted webhook-sourced input risks filter injection), and
+`unmatched` (backlog tier 4). Backlog tier 5 ("create new party only with
+user-controlled confirmation") is deliberately not this function's job -- it never
+creates a party.
+
+Wired into `recordInteraction()`: when a caller supplies `externalActorId` but not
+`partyId`, matching runs before conversation lookup/creation and before the interaction
+insert. An unmatched sender still needs `conversationId` or `partyId` from the caller
+today -- relaxing that so a genuinely unresolved sender can start a party-less
+"unresolved contact candidate" conversation is CRM-07.4's own acceptance criterion, once
+a live inbound channel exists to drive it, not this schema-only matching story's.
+
+Tested via the RLS harness (matching against real Postgres data, same discipline as
+every other DB-touching mutation in this module) rather than a mocked unit test --
+`matchPartyForActor()`'s own queries have no precedent for Supabase-client mocking
+anywhere in this codebase, so scratch rows verify each tier's underlying query plus
+cross-tenant isolation (Bob's own lookup cannot see Alice's phone-matched party at all).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite, and both CRM RLS test suites (5 new match-hierarchy cases).
+No new migration.
