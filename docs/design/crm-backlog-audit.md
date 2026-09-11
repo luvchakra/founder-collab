@@ -1008,3 +1008,29 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (8 new tests), and both CRM RLS test suites (1 new case
 confirming `intent`/`intent_confidence` persist and stay tenant-isolated). No new
 migration -- both columns already existed on `crm.interaction` from CRM-01.2.
+
+## CRM-09.4 (2026-09-11)
+
+"Commercial Intent Detection": the backlog's own signal list ("asks for price," "asks if
+available," "asks how to buy," "asks for a quote," "asks for an appointment,"
+"explicitly says interested") maps directly onto four of CRM-09.3's already-classified
+intent categories, so no separate classifier was needed -- new
+`lib/interactions/intent-classification.ts#isHighCommercialIntent()` is a pure lookup
+(`pricing`/`availability`/`purchase_intent`/`appointment` → true; everything else,
+including the more neutral `product_question`, → false), unit tested (4 new cases).
+
+"High commercial intent is visually obvious": the Lost Business queue (CRM-09.2) now
+shows a destructive-variant "High intent" badge next to the intent column (both mobile
+cards and the desktop table) whenever `isHighCommercialIntent()` is true for that row.
+
+"User can override classification": new `updateInteractionIntent()` (mutations.ts) lets
+a human correct a wrongly-classified interaction, recorded at `intent_confidence: 1` --
+a human's judgment call isn't a probability estimate the way the deterministic
+classifier's guess is. Wired into the Lost Business queue as an inline `NativeSelect` +
+`SubmitButton` form per row (docs/design/claude-ui-design-rules.md rule 4's "obvious edit
+mechanism"), same pattern the Leads page's own inline status editor already established.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (4 new tests), and both CRM RLS test suites (2 new cases: the
+override itself records full confidence, and Bob's own business-scoped update matches
+none of Alice's rows). No new migration -- `intent`/`intent_confidence` already existed.

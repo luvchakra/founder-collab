@@ -63,3 +63,18 @@ export function classifyMessageIntent(text: string | null | undefined): IntentCl
   }
   return { intent: "general_enquiry", confidence: 0.3 };
 }
+
+/**
+ * CRM-09.4's "Commercial Intent Detection": the backlog's own signal list ("asks for
+ * price," "asks if available," "asks how to buy," "asks for a quote," "asks for an
+ * appointment," "explicitly says interested") maps directly onto four of CRM-09.3's
+ * already-classified intent categories -- no separate classifier is needed, this is a
+ * pure lookup over that same result. `product_question`/`general_enquiry` stay neutral:
+ * a generic product question isn't yet a concrete buying signal the way "is this
+ * available" or "how much does it cost" is.
+ */
+const HIGH_COMMERCIAL_INTENTS: ReadonlySet<MessageIntent> = new Set(["pricing", "availability", "purchase_intent", "appointment"]);
+
+export function isHighCommercialIntent(intent: MessageIntent | null | undefined): boolean {
+  return intent !== null && intent !== undefined && HIGH_COMMERCIAL_INTENTS.has(intent);
+}

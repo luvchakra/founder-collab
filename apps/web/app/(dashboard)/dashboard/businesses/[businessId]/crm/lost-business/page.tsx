@@ -3,22 +3,64 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { listPotentialLostBusinessQueue } from "@cofounderai/module-crm/lib/interactions/queries";
 import { formatAge } from "@cofounderai/module-crm/lib/interactions/lost-business";
+import { isHighCommercialIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
+import type { MessageIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
 import { listEmployeeOptions } from "@cofounderai/module-crm/lib/tickets/queries";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { AlertTriangle } from "lucide-react";
+import { overrideInteractionIntentAction } from "./actions";
+
+const MESSAGE_INTENTS: MessageIntent[] = [
+  "pricing",
+  "product_question",
+  "availability",
+  "purchase_intent",
+  "appointment",
+  "support",
+  "complaint",
+  "feedback",
+  "review",
+  "general_enquiry",
+  "spam",
+];
+
+/** CRM-09.4's "user can override classification" -- an inline edit on the row itself
+ * (docs/design/claude-ui-design-rules.md rule 4), same SubmitButton-driven form pattern
+ * the Leads page's own inline status editor already uses. */
+function IntentForm({ businessId, interactionId, intent }: { businessId: string; interactionId: string; intent: string | null }) {
+  return (
+    <form action={overrideInteractionIntentAction.bind(null, businessId, interactionId)} className="flex items-center gap-2">
+      <NativeSelect name="intent" defaultValue={intent ?? "general_enquiry"} className="w-auto">
+        {MESSAGE_INTENTS.map((i) => (
+          <option key={i} value={i}>
+            {i.replaceAll("_", " ")}
+          </option>
+        ))}
+      </NativeSelect>
+      <SubmitButton size="sm" variant="ghost" pendingText="Saving...">
+        Correct
+      </SubmitButton>
+    </form>
+  );
+}
 
 /**
  * CRM-09.2's "Potential Lost Business Queue" -- the backlog's own framing: "a primary
  * dashboard, not a hidden report," meant to feel like "here is the business I might lose
  * today," not a contact database. Shows the backlog's exact column list (age, person/
  * company, channel, message excerpt, intent, related product, opportunity value if
- * known, owner, SLA status); `intent` and `related product` render as an em dash until
- * CRM-09.3/CRM-10.1 exist to populate them (see lost-business.ts's own doc comment on
- * why those stay honestly empty rather than fabricated). No actions here yet --
+ * known, owner, SLA status); `related product` renders as an em dash until CRM-10.1
+ * exists to populate it (see lost-business.ts's own doc comment on why it stays honestly
+ * empty rather than fabricated). `intent` is now real (CRM-09.3) and CRM-09.4 makes high
+ * commercial intent (`pricing`/`availability`/`purchase_intent`/`appointment`) visually
+ * obvious with a destructive-variant badge, plus an inline correction form since the
+ * classifier is a rough guess a human can override. No other actions here --
  * "Respond / Create Lead / Create Opportunity / Create Task / Not Relevant" is CRM-09.5's
- * own story, this one is read-only visibility per its own acceptance criteria.
+ * own story.
  *
  * Oldest first (desktop table, cards below `md` per docs/design/claude-ui-design-rules.md
  * rule 5) -- the longest-unanswered message is the most urgent one to see first.
@@ -58,9 +100,11 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
                   <Badge variant="outline" className="capitalize">
                     {row.channel}
                   </Badge>
+                  {isHighCommercialIntent(row.intent as MessageIntent | null) ? <Badge variant="destructive">High intent</Badge> : null}
                   <span>{row.opportunityValue ? `${row.opportunityCurrency ?? "INR"} ${row.opportunityValue}` : "—"}</span>
                   <Badge variant={row.ownerId ? "secondary" : "outline"}>{employeeById.get(row.ownerId ?? "")?.full_name ?? "Unassigned"}</Badge>
                 </div>
+                <IntentForm businessId={businessId} interactionId={row.interactionId} intent={row.intent} />
               </li>
             ))}
           </ul>
@@ -93,7 +137,15 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
                     </Badge>
                   </TableCell>
                   <TableCell className="max-w-xs truncate text-muted-foreground">{row.contentExcerpt ?? "(no preview)"}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.intent ?? "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="capitalize text-muted-foreground">{row.intent?.replaceAll("_", " ") ?? "—"}</span>
+                        {isHighCommercialIntent(row.intent as MessageIntent | null) ? <Badge variant="destructive">High intent</Badge> : null}
+                      </div>
+                      <IntentForm businessId={businessId} interactionId={row.interactionId} intent={row.intent} />
+                    </div>
+                  </TableCell>
                   <TableCell>{row.opportunityValue ? `${row.opportunityCurrency ?? "INR"} ${row.opportunityValue}` : "—"}</TableCell>
                   <TableCell>
                     <Badge variant={row.ownerId ? "secondary" : "outline"}>{employeeById.get(row.ownerId ?? "")?.full_name ?? "Unassigned"}</Badge>
