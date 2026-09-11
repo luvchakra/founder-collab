@@ -69,7 +69,7 @@ async function postToGraphApi(accessToken: string, request: GraphApiRequest): Pr
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      return { ok: false, error: `WhatsApp send failed with status ${response.status}.${detail ? ` ${detail}` : ""}` };
+      return { ok: false, error: `WhatsApp send failed with status ${response.status}.${detail ? ` ${detail}` : ""}`, statusCode: response.status };
     }
     const json = (await response.json().catch(() => null)) as { messages?: { id?: string }[] } | null;
     return { ok: true, providerMessageId: json?.messages?.[0]?.id ?? null };
@@ -131,14 +131,14 @@ export function parseWhatsAppWebhookPayload(rawPayload: unknown): WhatsAppWebhoo
   return events;
 }
 
-async function verifyCredentials(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string }> {
+async function verifyCredentials(credentials: WhatsAppConnectionCredentials): Promise<{ ok: boolean; detail?: string; statusCode?: number }> {
   try {
     const response = await fetch(`${GRAPH_API_BASE}/${GRAPH_API_VERSION}/${credentials.phoneNumberId}`, {
       headers: { Authorization: `Bearer ${credentials.accessToken}` },
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
-      return { ok: false, detail: `Graph API returned ${response.status}.${detail ? ` ${detail}` : ""}` };
+      return { ok: false, detail: `Graph API returned ${response.status}.${detail ? ` ${detail}` : ""}`, statusCode: response.status };
     }
     return { ok: true };
   } catch (err) {

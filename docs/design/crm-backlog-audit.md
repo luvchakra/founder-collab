@@ -1295,3 +1295,86 @@ module-crm's vitest suite (92/92, no regressions -- these functions had no exist
 tests asserting on their return shape that a new async call could break), both CRM RLS
 suites (re-run clean, unchanged since this story touches no RLS policy), and a clean
 `next build`.
+
+## CRM-15.5 (2026-09-11)
+
+"Integration Failure Handling": required states `connected`, `degraded`,
+`reauthorization_required`, `disconnected`, `provider_error`; "user must have a visible
+resolution path." The enum already carried all five values
+(`crm.channel_connection_status`, `20260911000000_crm_backlog_schema_baseline.sql`, with
+a comment explicitly attributing them to this story) and the WhatsApp admin page already
+rendered a status badge for each -- what didn't exist was anything that ever *set* a
+connection to `degraded`/`reauthorization_required`/`provider_error`, or a way out of one.
+
+**Classifying a failure.** `whatsapp/failure-classification.ts` (new, pure,
+unit-tested): `classifyWhatsAppFailure(statusCode)` maps a Graph API HTTP status to the
+connection-level implication -- 401/403 -> `reauthorization_required` (the token itself
+is dead, only a fresh one fixes it), 429 -> `degraded` (Meta's own rate limit,
+self-resolving), 5xx or no status at all (a network failure that never got a response) ->
+`provider_error` (Meta's side, not this connection's credentials), any other 4xx (bad
+recipient, unknown template) -> `null` -- a single bad phone number never degrades a
+perfectly healthy connection. `WhatsAppSendResult`/`WhatsAppProviderAdapter.connect()`/
+`healthCheck()` (whatsapp/types.ts) and `postToGraphApi()`/`verifyCredentials()`
+(cloud-api-adapter.ts) all gained an optional `statusCode` alongside their existing
+error/detail so a caller can classify without re-parsing an error string.
+
+**Applying it.** `channel-connections/mutations.ts#applyChannelConnectionHealthResult()`
+(new): given one provider-call outcome, fetches the connection's current status, computes
+what it should become (`classifyWhatsAppFailure()` on failure, `connected` on success),
+and no-ops if that's null, unchanged, or the connection is `disconnected` (a human's own
+explicit choice -- a stray delayed send/health-check for it must never resurrect it).
+Wired into both halves of every WhatsApp send: `sendWhatsAppReply()`/
+`sendWhatsAppTemplate()` (whatsapp/messaging.ts) call it after every send attempt,
+success or failure, so a connection's own send traffic is itself a live health signal
+with no extra polling needed for the common case.
+
+**The periodic check + the visible resolution path.** A connection nobody sends through
+for a while could sit silently broken with no send failure to surface it, so
+`whatsapp/health.ts` adds two more callers: `checkAllWhatsAppConnectionsHealth()` --
+CRM-07.1's own `healthCheck()` doc comment already anticipated this exact job -- sweeps
+every non-disconnected WhatsApp connection across every business (admin-scoped, no
+session to resolve a business from) via a new cron route
+(`app/api/cron/check-whatsapp-health`, registered in `vercel.json`, same shared-secret
+auth as the other three cron routes). `checkWhatsAppConnectionNow()` is the user-facing
+half -- session-scoped, `channel_connections.manage`-gated, called from a new "Check now"
+button the WhatsApp admin page now shows for `degraded`/`provider_error` connections
+alongside an explanatory `Alert`; a `reauthorization_required` connection instead shows
+the connect form again inline ("reconnect with a fresh token") since no amount of
+rechecking fixes a dead token. This is the backlog's own "visible resolution path" --
+every non-`connected` state now has plain-language text explaining what's happening and
+a concrete action to take, not just a badge.
+
+**The audit gap this reopened, and how it's closed correctly.** An automatic health-driven
+status flip is a genuine "connection change" per CRM-15.4's own audit list, so
+`applyChannelConnectionHealthResult()` writes a `crm_channel_connection.health_changed`
+audit entry on every real transition (no-op, so a run of identical failures doesn't
+flood the log). The cron path surfaced a real gap while building this: `writeAuditLog()`
+(`packages/core/src/audit/mutations.ts`) always opens its own cookie/session-based
+`core`-schema client internally -- in a cron request with no logged-in user at all, that
+client authenticates as `anon`, which has no execute grant on `core.write_audit_log()`
+(`revoke ... from public, anon; grant ... to authenticated;`,
+`20260906109000_core_audit_log.sql`) and the call would fail. `service_role` *does* have
+that grant (`20260907140000_grant_function_execute_to_service_role.sql`'s blanket
+`grant execute on all functions in schema core to service_role`), and separately
+`core.audit_log` itself has no client-facing RLS policy at all, only `GRANT ALL ... TO
+service_role` (that migration's own comment) -- so the cron path
+(`applyChannelConnectionHealthResult()`'s `adminClient` param, set only by
+`checkAllWhatsAppConnectionsHealth()`) writes the audit row with a *direct insert* via a
+freshly created core-scoped admin client instead of going through `writeAuditLog()`,
+which is in fact the more idiomatic path for a service-role caller per that table's own
+design intent, not a workaround. `messaging.ts`'s two send functions and
+`checkWhatsAppConnectionNow()` all call `applyChannelConnectionHealthResult()` with no
+explicit client (real session, `writeAuditLog()` is correct and safe there). This same
+latent gap already exists in `module-inventory/events/handlers.ts`'s unconditional
+`writeAuditLog()` call from the domain-events drain cron -- left alone here as a
+pre-existing, unrelated issue (CLAUDE.md: no unrelated refactors), but worth flagging
+since this story's own research is what surfaced it.
+
+New RLS-harness coverage (`scripts/test-crm-backlog-rls.mjs`): reusing CRM-07.2's own
+`aliceWhatsAppConnection` row, replicates `applyChannelConnectionHealthResult()`'s exact
+logic at the SQL level -- a `provider_error` classification flips a connected connection,
+a successful recheck recovers it, a `disconnected` connection is never touched by a later
+outcome, and Bob's own business-scoped update against Alice's connection matches zero
+rows. Verified with full monorepo typecheck, `lint:boundaries`, module-crm's vitest suite
+(98/98, +6 for `classifyWhatsAppFailure()`), both CRM RLS suites (re-run clean, +4 new
+assertions), and a clean `next build` (confirms the new cron route compiles).

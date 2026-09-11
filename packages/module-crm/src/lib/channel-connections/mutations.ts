@@ -1,9 +1,13 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { createClient } from "../../db/server";
 import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
+import { classifyWhatsAppFailure } from "../whatsapp/failure-classification";
+import type { ChannelConnectionStatus } from "./types";
 
 /**
  * CRM-07.2's connect flow: verifies the phone_number_id + access token actually work
@@ -86,4 +90,86 @@ export async function disconnectChannelConnection(businessId: string, connection
     entityId: connectionId,
     after: { status: "disconnected" },
   });
+}
+
+/**
+ * CRM-15.5's own state-transition rule: takes the outcome of one real provider call
+ * (a send failure's status code, or a health-check's own ok/fail) and applies whatever
+ * `crm.channel_connection.status` change it implies. An inline send failure/success
+ * inside `sendWhatsAppReply()`/`sendWhatsAppTemplate()` and the user-triggered
+ * "Recheck now" (`checkWhatsAppConnectionNow()`, whatsapp/health.ts) both use the plain
+ * session default (this is a system-detected signal, not the human's own action, so
+ * it's never permission-gated the way `connectWhatsApp()`/`disconnectChannelConnection()`
+ * are) -- and the periodic health-check cron (`checkAllWhatsAppConnectionsHealth()`),
+ * which has no session at all and passes its own crm-scoped admin client explicitly.
+ *
+ * That `adminClient` param is *only* ever the cron's admin client -- when it's set, the
+ * audit entry is written with a matching core-scoped *admin* client instead of the
+ * ordinary `writeAuditLog()` helper, because `writeAuditLog()` always opens its own
+ * cookie/session-based `core`-schema client internally, which would run unauthenticated
+ * (`anon`, no execute grant on `core.write_audit_log`) in a cron request with no real
+ * user session -- `service_role` does have that grant
+ * (`20260907140000_grant_function_execute_to_service_role.sql`), so a matching
+ * service-role client for the audit write is what actually needs to happen here.
+ *
+ * A `disconnected` connection is never touched -- that's a human's own explicit choice,
+ * and a stray delayed send/health-check for it shouldn't resurrect it into a failure
+ * state. A message-specific 4xx (bad recipient, unknown template --
+ * `classifyWhatsAppFailure()` returns `null` for these) never changes the connection's
+ * status either. No-ops (no audit entry) when the computed status equals the current one,
+ * so a string of identical failures doesn't flood the audit log with duplicate entries.
+ * Returns whether a status change was actually applied, so a caller checking many
+ * connections at once (the cron) can report how many it actually changed.
+ */
+export async function applyChannelConnectionHealthResult(
+  businessId: string,
+  connectionId: string,
+  result: { ok: true } | { ok: false; statusCode?: number },
+  adminClient?: SupabaseClient,
+): Promise<boolean> {
+  const supabase = adminClient ?? (await createClient());
+  const { data: connection, error: fetchError } = await supabase
+    .from("channel_connection")
+    .select("status")
+    .eq("id", connectionId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  if (!connection || connection.status === "disconnected") return false;
+
+  const nextStatus: ChannelConnectionStatus | null = result.ok ? "connected" : classifyWhatsAppFailure(result.statusCode);
+  if (!nextStatus || nextStatus === connection.status) return false;
+
+  const updates: { status: ChannelConnectionStatus; last_synced_at?: string } = { status: nextStatus };
+  if (result.ok) updates.last_synced_at = new Date().toISOString();
+
+  const { error: updateError } = await supabase.from("channel_connection").update(updates).eq("id", connectionId).eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  const auditEntry = {
+    businessId,
+    actorId: null as string | null,
+    action: "crm_channel_connection.health_changed",
+    entityType: "crm_channel_connection",
+    entityId: connectionId,
+    before: { status: connection.status },
+    after: { status: nextStatus },
+  };
+  if (adminClient) {
+    const coreAdmin = createCoreAdminClient({ schema: "core" });
+    const { error: auditError } = await coreAdmin.from("audit_log").insert({
+      business_id: auditEntry.businessId,
+      actor_id: auditEntry.actorId,
+      action: auditEntry.action,
+      entity_type: auditEntry.entityType,
+      entity_id: auditEntry.entityId,
+      before: auditEntry.before,
+      after: auditEntry.after,
+    });
+    if (auditError) throw auditError;
+  } else {
+    await writeAuditLog(auditEntry);
+  }
+
+  return true;
 }

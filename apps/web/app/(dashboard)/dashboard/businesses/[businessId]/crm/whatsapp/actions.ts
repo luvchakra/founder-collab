@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { connectWhatsApp, disconnectChannelConnection } from "@cofounderai/module-crm/lib/channel-connections/mutations";
 import { createWhatsAppTemplate, deactivateWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/templates";
+import { checkWhatsAppConnectionNow } from "@cofounderai/module-crm/lib/whatsapp/health";
 
 export type WhatsAppConnectActionState = { error: string } | null;
 
@@ -51,5 +52,13 @@ export async function connectWhatsAppAction(businessId: string, _prevState: What
 
 export async function disconnectWhatsAppAction(businessId: string, connectionId: string): Promise<void> {
   await disconnectChannelConnection(businessId, connectionId);
+  revalidatePath(whatsappPath(businessId));
+}
+
+/** CRM-15.5's visible resolution path for a `degraded`/`provider_error` connection --
+ * re-verifies the stored token against Meta right now instead of waiting for the
+ * periodic health-check cron to get to it. */
+export async function checkWhatsAppConnectionNowAction(businessId: string, connectionId: string): Promise<void> {
+  await checkWhatsAppConnectionNow(businessId, connectionId);
   revalidatePath(whatsappPath(businessId));
 }
