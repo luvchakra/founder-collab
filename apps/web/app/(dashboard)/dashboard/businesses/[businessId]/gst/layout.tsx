@@ -6,7 +6,7 @@ import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { CountryBar } from "@cofounderai/module-gst/components/compliance/country-bar";
 import { moduleRegistry } from "@cofounderai/module-registry";
-import { setComplianceCountryAction } from "./actions";
+import { setComplianceCountryAction, setComplianceRegimeAction } from "./actions";
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Compliance";
 
@@ -37,7 +37,12 @@ export default async function GstLayout({
           { label: MODULE_NAME },
         ]}
       />
-      <CountryBar profile={profile} canEdit={canEdit} action={setComplianceCountryAction.bind(null, businessId)} />
+      <CountryBar
+        profile={profile}
+        canEdit={canEdit}
+        countryAction={setComplianceCountryAction.bind(null, businessId)}
+        regimeAction={setComplianceRegimeAction.bind(null, businessId)}
+      />
       {children}
     </div>
   );
