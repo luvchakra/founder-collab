@@ -104,7 +104,13 @@ export default async function CrmOpportunitiesPage({
                   </span>
                   <span>Created {formatDate(opportunity.created_at)}</span>
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/dashboard/businesses/${businessId}/crm/opportunities/${opportunity.id}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    View
+                  </Link>
                   <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
                 </div>
               </li>
@@ -139,7 +145,15 @@ export default async function CrmOpportunitiesPage({
                   <TableCell className="text-muted-foreground">{opportunity.expected_close_date ? formatDate(opportunity.expected_close_date) : "—"}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{formatDate(opportunity.created_at)}</TableCell>
                   <TableCell className="text-right">
-                    <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                    <div className="flex items-center justify-end gap-2">
+                      <Link
+                        href={`/dashboard/businesses/${businessId}/crm/opportunities/${opportunity.id}`}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        View
+                      </Link>
+                      <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

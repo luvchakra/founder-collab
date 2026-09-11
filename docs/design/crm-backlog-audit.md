@@ -346,6 +346,37 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (including the two new `calculatePipelineValue` tests), and
 both CRM RLS test suites (against a harness DB with this migration applied).
 
+## CRM-04.4 (2026-09-11)
+
+Adds "Multiple Products per Opportunity" -- no new table needed. `crm.product_interest`
+(CRM-01.2/CRM-10.1, already used by Customer 360's own "products of interest" section)
+already models exactly this: an `opportunity_id` FK, an `item_id` FK into `core.items`
+(no duplicate product catalog, Section 4), and a `quantity` column, all already
+tenant-isolation-tested (`test-crm-backlog-rls.mjs`'s existing "Bob cannot associate
+product interest with Alice's item" case). `computeLineValue()` (products.ts, unit
+tested) is the one place quantity-times-catalog-price math happens -- `unit_price` is
+read live from `core.items.selling_price`, not copied into `crm.product_interest`, so a
+line's value can never drift from the catalog.
+
+"Where Inventory is licensed": gated with `requireModule(businessId, "inventory")` in
+both `addOpportunityProduct()`/`removeOpportunityProduct()` (defense in depth) and, at
+the page level, by simply not fetching `core.items` at all when Inventory isn't licensed
+-- ADR-10's degraded mode, same shape as Customer 360's own per-module sections. This is
+deliberately a stricter check than CRM's own license (which RLS already enforces on
+every `crm.*` table): an opportunity is fine to exist with no Inventory license, it just
+has no catalog to reference.
+
+This is also CRM-04.4's first per-opportunity detail page
+(`crm/opportunities/[opportunityId]/page.tsx`) -- List/Kanban only ever showed row/card
+summaries before. Kanban cards and List rows now link here (Kanban's card link moved
+from the customer page to this one, since the customer is still one click away via the
+contact-name heading); CRM-04.5 (Opportunity Contacts) is expected to add its own
+section to this same page next, not a second detail page.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (including the new `computeLineValue` tests), and both CRM RLS
+test suites -- no migration needed, so no new advisor check either.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

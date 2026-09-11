@@ -65,7 +65,7 @@ export function OpportunitiesKanban({
               {stageOpportunities.map((opportunity) => (
                 <Link
                   key={opportunity.id}
-                  href={`/dashboard/businesses/${businessId}/crm/customers/${opportunity.party_id}`}
+                  href={`/dashboard/businesses/${businessId}/crm/opportunities/${opportunity.id}`}
                   draggable
                   onDragStart={(e) => onDragStart(e, opportunity.id)}
                   className="rounded-md border border-border bg-card p-2 text-sm hover:border-primary/40"
