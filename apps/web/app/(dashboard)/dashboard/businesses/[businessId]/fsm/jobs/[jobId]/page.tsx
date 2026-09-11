@@ -9,7 +9,9 @@ import { listNotesForJob } from "@cofounderai/module-fsm/lib/notes/queries";
 import { listJobAttachments } from "@cofounderai/module-fsm/lib/attachments/queries";
 import { listSignaturesForJob } from "@cofounderai/module-fsm/lib/signatures/queries";
 import { listJobMessages } from "@cofounderai/module-fsm/lib/messages/queries";
+import { listJobMaterialRequirement } from "@cofounderai/module-fsm/lib/inventory-integration/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
+import { hasModule } from "@cofounderai/core/licensing/queries";
 import { JobDetail } from "@cofounderai/module-fsm/components/jobs/job-detail";
 import {
   addExpenseAction,
@@ -62,6 +64,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     canEditNotes,
     messages,
     canManageMessages,
+    inventoryLicensed,
   ] = await Promise.all([
     getJobContext(job),
     listTagsFor(businessId, "job", jobId),
@@ -81,7 +84,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
     hasPermission(businessId, "notes.edit"),
     listJobMessages(businessId, jobId),
     hasPermission(businessId, "messages.manage"),
+    hasModule(businessId, "inventory"),
   ]);
+
+  // ADR-10 degraded mode: no Inventory license means no material requirement to
+  // compute (Rule 5 -- "don't advertise" the unlicensed capability by omitting the tab
+  // entirely rather than fetching and then hiding a populated list).
+  const materialRequirement = inventoryLicensed ? await listJobMaterialRequirement(businessId, jobId) : [];
 
   return (
     <JobDetail
@@ -129,6 +138,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       messages={messages}
       canManageMessages={canManageMessages}
       sendMessageAction={sendJobMessageAction.bind(null, businessId, jobId)}
+      inventoryLicensed={inventoryLicensed}
+      materialRequirement={materialRequirement}
     />
   );
 }

@@ -32,6 +32,7 @@ import type { SignatureItem } from "../../lib/signatures/types";
 import type { Tag } from "../../lib/tags/types";
 import type { OpenTimeEntry, TimeEntryItem } from "../../lib/time-entries/types";
 import type { Message } from "@cofounderai/core/messages/types";
+import type { JobMaterialRequirementLine } from "../../lib/inventory-integration/queries";
 import { FieldWorkTab } from "../field/field-work-tab";
 import { MessagesTab } from "../messages/messages-tab";
 
@@ -93,6 +94,8 @@ export function JobDetail({
   messages,
   canManageMessages,
   sendMessageAction,
+  inventoryLicensed,
+  materialRequirement,
 }: {
   job: Job;
   partyName: string;
@@ -138,6 +141,8 @@ export function JobDetail({
   messages: Message[];
   canManageMessages: boolean;
   sendMessageAction: (body: string, subject?: string) => Promise<void>;
+  inventoryLicensed: boolean;
+  materialRequirement: JobMaterialRequirementLine[];
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -299,6 +304,7 @@ export function JobDetail({
         <TabsList>
           <TabsTrigger value="details">Job details</TabsTrigger>
           <TabsTrigger value="field">Field work</TabsTrigger>
+          {inventoryLicensed ? <TabsTrigger value="materials">Materials</TabsTrigger> : null}
           <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
@@ -415,6 +421,31 @@ export function JobDetail({
             captureSignatureAction={captureSignatureAction}
           />
         </TabsContent>
+
+        {inventoryLicensed ? (
+          <TabsContent value="materials">
+            {materialRequirement.length === 0 ? (
+              <EmptyState
+                variant="inline"
+                message="No inventory items required for this job."
+              />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {materialRequirement.map((line) => (
+                  <li key={line.itemId} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{line.itemName}</p>
+                      {line.itemSku ? <p className="text-xs text-muted-foreground">{line.itemSku}</p> : null}
+                    </div>
+                    <span className="text-muted-foreground">
+                      {line.quantity} {line.unit}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="messages">
           <MessagesTab messages={messages} canManage={canManageMessages} sendAction={sendMessageAction} />

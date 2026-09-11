@@ -1,48 +1,13 @@
-import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule, requireModule } from "@cofounderai/core/licensing/queries";
 import { listWarehouses, reserveStock, releaseStock, consumeStock } from "@cofounderai/module-inventory/contract/index";
-import { getEstimateForOpportunity, listEstimateLines } from "../estimates/queries";
+import { listJobMaterialRequirement } from "./queries";
 
-function coreClient() {
-  return createCoreClient({ schema: "core" });
-}
-
-/** A job's own "parts" (F-14, PRD §2 Field service integration row): the charge lines of
- * its originating estimate (`job.opportunity_id -> fsm.opportunities -> core.documents`)
- * that reference a `core.items` row with `kind='good'` -- the one kind
- * `core.item_inventory_attrs`'s own invariant ties to real stock tracking (confirmed by
- * reading `20260906103000_core_items.sql`'s own comment before writing this, not
- * assumed). A job created directly (no opportunity, F-5) or whose estimate was never
- * approved has no reliable parts source and simply yields no lines here -- reserve/
- * consume are both correctly no-ops for it, not an error.
- *
- * Deliberately reads the *estimate*'s lines, not the invoice's -- the estimate is the
- * one source available at both "on schedule" (usually before any invoice exists) and
- * "on completion", so both hooks agree on the same parts list rather than reserving
- * against one document and consuming against a different one that might have been
- * edited in between. */
-async function listJobPartLines(businessId: string, jobId: string): Promise<{ itemId: string; quantity: number }[]> {
-  const core = coreClient();
-  const supabase = await core;
-  const { data: job, error: jobError } = await supabase.from("jobs").select("opportunity_id").eq("id", jobId).eq("business_id", businessId).maybeSingle();
-  if (jobError) throw jobError;
-  if (!job?.opportunity_id) return [];
-
-  const estimate = await getEstimateForOpportunity(businessId, job.opportunity_id);
-  if (!estimate) return [];
-
-  const lines = await listEstimateLines(businessId, estimate.id);
-  if (lines.length === 0) return [];
-
-  const itemIds = [...new Set(lines.map((l) => l.item_id).filter((id): id is string => Boolean(id)))];
-  if (itemIds.length === 0) return [];
-  const { data: items, error: itemsError } = await supabase.from("items").select("id, kind").in("id", itemIds);
-  if (itemsError) throw itemsError;
-  const stockedItemIds = new Set(items.filter((i) => i.kind === "good").map((i) => i.id));
-
-  return lines.filter((l) => l.item_id && stockedItemIds.has(l.item_id)).map((l) => ({ itemId: l.item_id!, quantity: l.quantity }));
-}
-
+/** The parts list every function below reserves/consumes/releases against is
+ * `listJobMaterialRequirement()` (`./queries.ts`) -- the same read INT-03.1's job page
+ * shows, so a job's displayed requirement and what actually moves stock are always one
+ * source, never two. (That function's own docstring covers a schema-scoping bug fixed
+ * there while inspecting this file for INT-03.1: F-14's reserve/consume/release had
+ * never actually run a stock movement until that fix.) */
 async function firstActiveWarehouseId(businessId: string): Promise<string | null> {
   const result = await listWarehouses(businessId);
   if (!result.ok || result.data.length === 0) return null;
@@ -61,7 +26,7 @@ export async function reserveJobParts(businessId: string, jobId: string): Promis
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 
-  const lines = await listJobPartLines(businessId, jobId);
+  const lines = await listJobMaterialRequirement(businessId, jobId);
   if (lines.length === 0) return;
 
   const warehouseId = await firstActiveWarehouseId(businessId);
@@ -82,7 +47,7 @@ export async function consumeJobParts(businessId: string, jobId: string): Promis
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 
-  const lines = await listJobPartLines(businessId, jobId);
+  const lines = await listJobMaterialRequirement(businessId, jobId);
   if (lines.length === 0) return;
 
   const warehouseId = await firstActiveWarehouseId(businessId);
@@ -107,7 +72,7 @@ export async function releaseJobParts(businessId: string, jobId: string): Promis
   const licensed = await hasModule(businessId, "inventory");
   if (!licensed) return;
 
-  const lines = await listJobPartLines(businessId, jobId);
+  const lines = await listJobMaterialRequirement(businessId, jobId);
   if (lines.length === 0) return;
 
   const warehouseId = await firstActiveWarehouseId(businessId);

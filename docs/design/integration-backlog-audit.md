@@ -25,7 +25,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 02.2 | Create Inventory Fulfillment/Reservation Request | Done |
 | | 02.3 | Inventory Commitment State -> CRM | Done |
 | | 02.4 | Fulfillment Completion -> CRM | Done |
-| INT-03 (P0) | 03.1 | FSM Job Material Requirement | In progress |
+| INT-03 (P0) | 03.1 | FSM Job Material Requirement | Done |
 | | 03.2 | Reserve Parts for FSM Job | Not started |
 | | 03.3 | Parts Shortage -> FSM Exception | Not started |
 | | 03.4 | Technician Consumption -> Inventory | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 7/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 7/29 (24%).**
+**P0 (INT-01 through INT-04): 8/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 8/29 (28%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -198,3 +198,15 @@ Deliberately unchanged: `createFulfillmentRequestForOpportunity()`'s idempotency
 Verified with full monorepo typecheck (clean), `lint:boundaries` (949 files, no violations), module-crm's vitest suite (152/152 -- 3 new: a won+reserved case staying `won_in_progress`, a won+fulfilled case reaching `won_complete`, and `resolveNextCrossModuleAction` recommending `follow_up_customer` once fulfilled), and a clean `next build`. No migration.
 
 **Status**: 7 of 29 in-scope stories done -- **Epic INT-02 complete** (4/4). Next: INT-03.1, FSM Job Material Requirement (starts Epic INT-03).
+
+### INT-03.1 — FSM Job Material Requirement (2026-09-11)
+
+Rule 1 inspection before writing anything found F-14's `inventory-integration/mutations.ts` already computes exactly this ("a job's parts are its originating estimate's charge lines with `core.items.kind='good'`") -- but also found a real, live bug in it: `listJobPartLines()`'s job lookup ran through a client scoped to the `core` Postgres schema and queried `.from("jobs")`, while jobs actually live in `fsm.jobs` -- confirmed live against the dev project (`information_schema.tables` has only `fsm.jobs`, no `core.jobs`). That query has always thrown, and every one of its three callers (`reserveJobParts`/`consumeJobParts`/`releaseJobParts`) wraps it in `.catch(() => {})`/`.catch(() => null)` at the call site in `jobs/mutations.ts` -- so F-14's entire reserve-on-schedule/consume-on-completion/release-on-cancel mechanism has silently done nothing since it shipped. Fixed by giving the job lookup its own `fsm`-schema client (the same `createClient({schema: "fsm"})` pattern `module-fsm/src/db/server.ts` and `estimates/queries.ts`'s own `fsmSchemaClient()` already establish) rather than the `core`-schema one, which stays correct for the `core.items` lookup right after it.
+
+Refactored the corrected function out of `mutations.ts` into a new `inventory-integration/queries.ts` as `listJobMaterialRequirement()`, returning full display data (item name/SKU/unit, not just id/quantity) instead of the old internal-only shape -- one function, two consumers: `reserveJobParts`/`consumeJobParts`/`releaseJobParts` for the reservation math, and the new read this story actually asks for ("Allow an FSM job/work order to declare required inventory items where applicable"). No new requirement entity or stock ledger was created (Rule 3, "Never Copy Ownership") -- FSM "declares" required items by simply having them on the estimate that became the job, the same source already used for reservation.
+
+**UI**: a new "Materials" tab on the job detail page (`JobDetail`, `components/jobs/job-detail.tsx`), shown only when Inventory is licensed (ADR-10 "don't advertise" -- ADR-10-gated feature, tab omitted rather than shown-then-hidden when unlicensed). Lists item name/SKU/quantity/unit, or an empty state ("No inventory items required for this job.") for a service-only job -- "service-only jobs require no inventory" holds trivially, not as a special case.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), and a clean `next build`. `node scripts/test-module.mjs fsm` ran too: its vitest package suite passes (module-fsm has no unit test files at all -- consistent with the rest of this module relying on the live-DB scripts in `scripts/test-fsm-*.mjs` rather than mocked unit tests for anything DB-shaped), and its RLS harness failed only on `createdb: connection to server ... failed` -- no local Postgres in this environment, an environment limitation the skill's own guidance calls out, not a regression from this change. No migration -- no schema change, only a corrected client and a new read function over existing tables.
+
+**Status**: 8 of 29 in-scope stories done. Next: INT-03.2, Reserve Parts for FSM Job.
