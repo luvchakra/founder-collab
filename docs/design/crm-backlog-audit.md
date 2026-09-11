@@ -1847,3 +1847,60 @@ confirmed the missing-index gap was real and is now fixed (only pre-existing
 production query volume yet).
 
 **Epic CRM-08 status**: 6 of 6 in-scope stories done -- **epic complete.**
+
+## CRM-09.7 (2026-09-11)
+
+"Response Quality Check." Before send, optionally flag: unanswered question in draft;
+unsupported product claim; missing price/availability fact; overly long response;
+risky/uncertain statement; wrong customer/context. No autonomous send.
+
+**Scope note.** Not put to the user as a fresh architectural question: CRM-08.6
+(immediately prior in this same session) already settled "real LLM call, not a
+deterministic template" for this epic's family of AI features, and this story's five
+semantic checks are squarely the same kind of judgment task -- re-asking so soon after
+an explicit answer would have been re-litigating a decision already made, not genuine
+new ambiguity. Continued autonomously per the standing instructions.
+
+**"Optionally flag" and "no autonomous send" both hold by construction.** New
+`lib/conversations/response-quality.ts#checkResponseQuality()` only ever *returns*
+flags; it never blocks, edits, or sends anything. Wired into the existing WhatsApp
+reply composer (`reply-form.tsx`, CRM-07.6) as a new "Check before sending" button that
+runs outside the form's own submission cycle (same pattern CRM-08.6's "Generate AI
+draft" button already established) -- flags render as a dismissible warning list above
+the still-always-clickable "Send" button, never disabling or gating it. Editing the
+draft after a check clears the shown flags (state going stale silently would be worse
+than no check at all).
+
+**One deterministic check, five real LLM ones -- not six of either.** `overly_long` is
+a plain character-count threshold (`checkOverlyLong()`, unit-tested, no model call --
+CLAUDE.md principle 4: "do not use an LLM for deterministic operations"). The other
+five (unanswered question, unsupported claim, missing price/availability, risky/
+uncertain, wrong customer/context) are genuine semantic judgment calls, checked via
+`resolveBusinessAiModel(businessId, "check_response_quality")` -- the same
+`business_id`-scoped real-LLM path CRM-08.6 built, now serving its second caller. New
+`check_response_quality` operation added to the shared `core/ai/operation-registry.ts`
+at the `balanced` tier (a message about to reach a real customer is worth more than
+`classify_reply`'s `fast` tier for a comparable-shaped single-label task).
+
+**Grounding stays deliberately light.** Customer name and product-interest names come
+from `getCustomer360()` (CRM-02.1's already-built aggregation, reused rather than
+re-fetched piecemeal) -- no live inventory stock/price lookup: that would mean a
+cross-module call into a possibly-unlicensed module (ADR-10) for a check whose own
+acceptance criteria only ask whether the draft *addresses* price/availability at all,
+not whether a quoted figure is factually correct against live stock. `missingPrice
+OrAvailability` is worded accordingly ("didn't mention either, even approximately"),
+not as a fact-verification claim.
+
+No new migration, no new permission (gated by the same `crm_messages.send` the send
+action itself already requires -- checking a reply a person can't send anyway has no
+purpose). Verified with full monorepo typecheck (clean across every workspace),
+`lint:boundaries` (913 files, no violations), `lint:migrations` (74 migrations,
+unchanged, no violations), core's vitest suite (34/34, unchanged) and module-crm's
+(105/105 -- 4 new tests for `checkOverlyLong()` and `responseQualityPrompt()`), both CRM
+RLS suites (re-run clean, unchanged -- no new schema to cover), and a clean `next build`
+(unchanged route count). `get_advisors(security)` re-confirmed the same 6 pre-existing
+findings, as expected for a story with no schema change.
+
+**Status**: 58 of 74 in-scope stories done. Next: CRM-09.8 (Escalation Rules, seq #54,
+P1) -- a configurable timed sequence (new inquiry -> 15m reminder -> 1h owner escalation
+-> 4h manager escalation).

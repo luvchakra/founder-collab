@@ -27,6 +27,7 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Inbox, MessageCircle } from "lucide-react";
 import {
   assignConversationAction,
+  checkResponseQualityAction,
   createLeadFromInteractionAction,
   createOpportunityFromInteractionAction,
   createTaskFromInteractionAction,
@@ -321,6 +322,7 @@ export default async function CrmConversationsPage({
             <WhatsAppReplyForm
               key={selected.interactions.length}
               action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)}
+              checkAction={checkResponseQualityAction.bind(null, businessId, selected.id)}
               suggestedDraft={suggestedReply?.draft || null}
               suggestedDraftSources={suggestedReply?.sources}
             />
