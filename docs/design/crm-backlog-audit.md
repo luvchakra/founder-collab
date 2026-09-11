@@ -314,6 +314,38 @@ page. New "Opportunities" nav entry alongside Leads under Sales.
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite, and the CRM RLS test suite.
 
+## CRM-04.3 (2026-09-11)
+
+Adds "Opportunity Value & Close Date": `estimated_value` (numeric, nullable -- an
+unestimated opportunity contributes nothing to pipeline value rather than a fabricated
+zero), `currency` (default `INR`), `probability` (integer 0-100, DB-checked), and
+`expected_close_date` to `crm.opportunity`. `owner_id` and `source` already existed from
+CRM-01.2 so weren't touched. "Primary product(s)" is explicitly CRM-04.4's own story
+(Multiple Products per Opportunity) and is deliberately not built here.
+
+`calculatePipelineValue()` is the one place pipeline math happens (types.ts, unit
+tested): open and won estimated values are summed separately -- pipeline value is a
+forecast of what might still close, won value is a closed fact, and blending the two
+would produce a meaningless number. Lost and unestimated opportunities contribute to
+neither. The Opportunities page now shows this as two summary cards above the
+board/list.
+
+`updateOpportunityValue()` writes the four fields directly with no audit/event of their
+own -- unlike stage changes, these aren't a lifecycle transition the rest of the platform
+reacts to, just numbers a founder is refining. The edit affordance is a per-row Dialog
+(`EditValueDialog`), per `docs/design/claude-ui-design-rules.md` rule 4 (don't force a
+page navigation for a simple edit) -- same pattern as `create-opportunity-dialog.tsx` in
+module-fsm and the Edit-button already used in `purchase-orders-list.tsx`. Present on
+both the mobile card and desktop table rows of List view.
+
+Migration `20260911000400_crm_opportunity_value_fields.sql` applied to dev Supabase; no
+new advisor findings (the existing unused-index/no-policy findings are pre-existing and
+unrelated to this migration's columns, which added no new indexes).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (including the two new `calculatePipelineValue` tests), and
+both CRM RLS test suites (against a harness DB with this migration applied).
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

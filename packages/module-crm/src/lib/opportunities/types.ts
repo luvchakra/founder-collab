@@ -19,6 +19,12 @@ export type Opportunity = {
   status: OpportunityStatus;
   source: string;
   owner_id: string | null;
+  /** CRM-04.3. Null until a founder sets it -- an unestimated opportunity contributes
+   * nothing to pipeline value rather than a fabricated zero or default amount. */
+  estimated_value: number | null;
+  currency: string;
+  probability: number | null;
+  expected_close_date: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -35,3 +41,23 @@ export const DEFAULT_OPPORTUNITY_STAGES: { key: string; name: string; isWon?: bo
   { key: "won", name: "Won", isWon: true },
   { key: "lost", name: "Lost", isLost: true },
 ];
+
+/**
+ * CRM-04.3: "Pipeline value is calculated consistently" / "closed-won values are
+ * distinguishable from estimates" -- the one place this sum is computed, rather than
+ * every consumer (page, future dashboard widget) writing its own reduce. `open` and
+ * `won` are summed separately on purpose: pipeline value is a forecast of what might
+ * still close, won value is what actually did -- adding them together would blend an
+ * estimate with a closed fact into one meaningless number. `lost` and unestimated
+ * (`estimated_value: null`) opportunities contribute to neither.
+ */
+export function calculatePipelineValue(opportunities: Opportunity[]): { openValue: number; wonValue: number } {
+  let openValue = 0;
+  let wonValue = 0;
+  for (const opportunity of opportunities) {
+    if (!opportunity.estimated_value) continue;
+    if (opportunity.status === "open") openValue += opportunity.estimated_value;
+    else if (opportunity.status === "won") wonValue += opportunity.estimated_value;
+  }
+  return { openValue, wonValue };
+}

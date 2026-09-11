@@ -3,15 +3,18 @@ import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { ensureDefaultStages } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { listOpportunities } from "@cofounderai/module-crm/lib/opportunities/queries";
+import { calculatePipelineValue } from "@cofounderai/module-crm/lib/opportunities/types";
 import { listPartiesForBusiness } from "@cofounderai/core/parties/queries";
-import { formatDate } from "@cofounderai/core/lib/format";
+import { formatDate, inr } from "@cofounderai/core/lib/format";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
+import { Card, CardContent } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { Target } from "lucide-react";
-import { updateOpportunityStageAction } from "./actions";
+import { updateOpportunityStageAction, updateOpportunityValueAction } from "./actions";
 import { OpportunitiesKanban } from "./opportunities-kanban";
+import { EditValueDialog } from "./edit-value-dialog";
 
 /**
  * CRM-04.2's Opportunity Pipeline -- Kanban (default) and List views of the same data,
@@ -43,6 +46,7 @@ export default async function CrmOpportunitiesPage({
 
   const isListView = view === "list";
   const basePath = `/dashboard/businesses/${businessId}/crm/opportunities`;
+  const { openValue, wonValue } = calculatePipelineValue(opportunities);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,6 +65,23 @@ export default async function CrmOpportunitiesPage({
         </div>
       </div>
 
+      {opportunities.length > 0 ? (
+        <div className="grid grid-cols-2 gap-4 sm:max-w-md">
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs text-muted-foreground uppercase">Pipeline value</p>
+              <p className="mt-1 text-xl font-semibold">{inr.format(openValue)}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="py-4">
+              <p className="text-xs text-muted-foreground uppercase">Won value</p>
+              <p className="mt-1 text-xl font-semibold">{inr.format(wonValue)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
+
       {opportunities.length === 0 ? (
         <EmptyState icon={Target} message="No opportunities yet. Convert a lead to create one." />
       ) : isListView ? (
@@ -76,7 +97,16 @@ export default async function CrmOpportunitiesPage({
                     {opportunity.stage_id ? stageNameById.get(opportunity.stage_id) : opportunity.status}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground">Created {formatDate(opportunity.created_at)}</p>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    {opportunity.estimated_value ? inr.format(opportunity.estimated_value) : "No estimate"}
+                    {opportunity.expected_close_date ? ` -- close ${formatDate(opportunity.expected_close_date)}` : ""}
+                  </span>
+                  <span>Created {formatDate(opportunity.created_at)}</span>
+                </div>
+                <div>
+                  <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                </div>
               </li>
             ))}
           </ul>
@@ -86,8 +116,10 @@ export default async function CrmOpportunitiesPage({
               <TableRow>
                 <TableHead>Contact</TableHead>
                 <TableHead>Stage</TableHead>
-                <TableHead>Source</TableHead>
+                <TableHead>Value</TableHead>
+                <TableHead>Close date</TableHead>
                 <TableHead className="text-right">Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,10 +135,12 @@ export default async function CrmOpportunitiesPage({
                       {opportunity.stage_id ? stageNameById.get(opportunity.stage_id) : opportunity.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{opportunity.source}</Badge>
-                  </TableCell>
+                  <TableCell className="text-muted-foreground">{opportunity.estimated_value ? inr.format(opportunity.estimated_value) : "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{opportunity.expected_close_date ? formatDate(opportunity.expected_close_date) : "—"}</TableCell>
                   <TableCell className="text-right text-muted-foreground">{formatDate(opportunity.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

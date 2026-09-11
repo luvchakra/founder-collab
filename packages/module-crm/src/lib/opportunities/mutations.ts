@@ -86,3 +86,25 @@ export async function updateOpportunityStage(businessId: string, opportunityId: 
   if (stage.is_won) await publishCrmEvent(businessId, "crm.opportunity.won", { v: 1, opportunityId });
   if (stage.is_lost) await publishCrmEvent(businessId, "crm.opportunity.lost", { v: 1, opportunityId, reason: null });
 }
+
+/** CRM-04.3: sets the forecasting fields directly -- no audit/event of their own
+ * (unlike stage, these aren't a lifecycle transition the rest of the platform reacts
+ * to, just numbers a founder is refining). */
+export async function updateOpportunityValue(
+  businessId: string,
+  opportunityId: string,
+  input: { estimatedValue: number | null; currency: string; probability: number | null; expectedCloseDate: string | null },
+): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("opportunity")
+    .update({
+      estimated_value: input.estimatedValue,
+      currency: input.currency,
+      probability: input.probability,
+      expected_close_date: input.expectedCloseDate,
+    })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (error) throw error;
+}
