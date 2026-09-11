@@ -11,7 +11,7 @@ import { join, relative } from "node:path";
 const ROOT = new URL("..", import.meta.url).pathname;
 const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 const DDL_RE = /\b(?:create|alter)\s+table\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?\.\s*"?[a-z_][a-z0-9_]*"?/gi;
-const KNOWN_SCHEMAS = new Set(["core", "discovery", "inventory", "fsm", "crm", "gst"]);
+const KNOWN_SCHEMAS = new Set(["core", "discovery", "inventory", "fsm", "crm", "gst", "platform"]);
 
 function main() {
   let files;
