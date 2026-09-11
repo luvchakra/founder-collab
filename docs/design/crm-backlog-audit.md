@@ -238,6 +238,22 @@ production UI) is wired here.
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`, and
 module-crm's vitest suite.
 
+## CRM-03.3 (2026-09-11)
+
+Extends Discovery's existing `getProspectSummaryForParty()` contract function with
+`buyingSignals` (from `prospect_research.buying_signals`), `researchId`, `researchedAt`,
+`workspaceId`, and `productId` -- all it needed was reading one more already-existing
+table (`getProspectResearch()`, unchanged) into the same result, no new query path.
+Since `customer360.prospect` (Customer 360's own Discovery section, CRM-02.1) already
+carries this contract type straight through, the new fields reached the page for free;
+only the Discovery card's own JSX needed a "Buying signals" list, a "Researched <date>"
+timestamp, and a link back to the prospect's own detail page (where research is shown
+inline -- there's no separate research page to link to instead). No CRM-side schema or
+contract change was needed.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`, and both
+module-crm's and module-discovery's vitest suites.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

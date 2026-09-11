@@ -2,6 +2,7 @@ import { hasModule } from "@cofounderai/core/licensing/queries";
 import { addPartyContact, addPartyRole } from "@cofounderai/core/parties/mutations";
 import { getFirstWorkspaceForBusiness, getProduct, getWorkspace } from "../lib/tenancy/queries";
 import { createProspect } from "../lib/prospects/mutations";
+import { getProspectResearch } from "../lib/research/queries";
 import { createClient } from "../db/server";
 import type {
   ContractProspectSummary,
@@ -133,14 +134,20 @@ export async function getProspectSummaryForParty(
 
   const workspace = await getWorkspace(prospect.workspace_id);
   const product = workspace ? await getProduct(workspace.product_id) : null;
+  const research = await getProspectResearch(prospect.id);
 
   return {
     ok: true,
     data: {
       prospectId: prospect.id,
+      workspaceId: prospect.workspace_id,
+      productId: workspace?.product_id ?? "",
       productName: product?.name ?? "Unknown product",
       status: prospect.status,
       outcome: prospect.outcome,
+      buyingSignals: research?.buying_signals ?? [],
+      researchId: research?.id ?? null,
+      researchedAt: research?.researched_at ?? null,
     },
   };
 }

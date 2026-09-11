@@ -15,9 +15,20 @@ export type ContractResult<T> = { ok: true; data: T } | { ok: false; error: "MOD
  * prospect"). */
 export type ContractProspectSummary = {
   prospectId: string;
+  workspaceId: string;
+  productId: string;
   productName: string;
   status: "new" | "qualified" | "disqualified";
   outcome: "open" | "won" | "lost";
+  /** CRM-03.3: "current relevant buying signal... source and timestamp... link back to
+   * Discovery research." `researchId` doubles as the "is there research at all" check
+   * (null when this prospect has never been researched) and as a stable id CRM could
+   * link to if a dedicated research view existed -- today the prospect detail page
+   * itself is the link target, since research is shown inline there, not on its own
+   * page. */
+  buyingSignals: string[];
+  researchId: string | null;
+  researchedAt: string | null;
 };
 
 export type CreateProspectFromExternalLeadInput = {

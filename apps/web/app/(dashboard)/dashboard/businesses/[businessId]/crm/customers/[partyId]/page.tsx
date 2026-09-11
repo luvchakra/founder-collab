@@ -255,14 +255,37 @@ export default async function CustomerPanelPage({
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Discovery</CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">{customer360.prospect.productName}</span>
-            <div className="flex gap-2">
-              <Badge variant="outline">{customer360.prospect.status}</Badge>
-              <Badge variant={customer360.prospect.outcome === "won" ? "secondary" : "outline"}>
-                {customer360.prospect.outcome}
-              </Badge>
+          <CardContent className="flex flex-col gap-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{customer360.prospect.productName}</span>
+              <div className="flex gap-2">
+                <Badge variant="outline">{customer360.prospect.status}</Badge>
+                <Badge variant={customer360.prospect.outcome === "won" ? "secondary" : "outline"}>
+                  {customer360.prospect.outcome}
+                </Badge>
+              </div>
             </div>
+            {customer360.prospect.buyingSignals.length > 0 ? (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <p className="font-medium">Buying signals</p>
+                  {customer360.prospect.researchedAt ? (
+                    <span className="text-xs text-muted-foreground">Researched {formatDate(customer360.prospect.researchedAt)}</span>
+                  ) : null}
+                </div>
+                <ul className="list-inside list-disc text-muted-foreground">
+                  {customer360.prospect.buyingSignals.map((signal) => (
+                    <li key={signal}>{signal}</li>
+                  ))}
+                </ul>
+                <Link
+                  href={`/dashboard/businesses/${businessId}/products/${customer360.prospect.productId}/prospects/${customer360.prospect.prospectId}`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  View Discovery research &rarr;
+                </Link>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
