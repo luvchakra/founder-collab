@@ -1,4 +1,5 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 
 export type WhatsAppTemplate = {
@@ -36,6 +37,7 @@ export async function getWhatsAppTemplate(businessId: string, templateId: string
 
 export async function createWhatsAppTemplate(businessId: string, input: { name: string; languageCode: string; variableCount: number }): Promise<WhatsAppTemplate> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("whatsapp_template")
@@ -51,6 +53,7 @@ export async function createWhatsAppTemplate(businessId: string, input: { name: 
  * that history for no benefit, so this just stops it from being offered for new sends. */
 export async function deactivateWhatsAppTemplate(businessId: string, templateId: string): Promise<void> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { error } = await supabase.from("whatsapp_template").update({ is_active: false }).eq("business_id", businessId).eq("id", templateId);
   if (error) throw error;

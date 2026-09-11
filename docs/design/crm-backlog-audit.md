@@ -1150,3 +1150,66 @@ No gap found, so no migration or code change -- documented per this audit's own 
 satisfied" pattern (CRM-05.1, CRM-06.1) rather than silently skipping the story. Verified
 with both CRM RLS test suites (unchanged, re-run clean) and the live project's own
 advisors.
+
+## CRM-15.2 (2026-09-11)
+
+"Role Permissions": seeds the backlog's own exact 9-key list into `core.permissions`
+(C-7's catalog, already anticipating this: "FSM/CRM/GST's own permission catalogs get
+seeded when those modules' own stories build them"). `core.permissions.key` is a global
+primary key, not scoped per module, so 3 keys are prefixed (`crm_opportunities.manage`,
+`crm_messages.send`, `crm_settings.manage`) specifically to avoid colliding with fsm's
+already-seeded `opportunities.edit`/`messages.manage` and inventory's `settings.manage`
+-- the other 6 (`crm.view`, `leads.manage`, `activities.manage`,
+`channel_connections.manage`, `reviews.publish`, `analytics.view`) have no existing
+collision and stay the plain `<noun>.<verb>` shape every other module's own keys use.
+Owner/admin get all 9 (every other module's permission migration grants its own new
+keys to owner/admin explicitly -- the base C-7 migration's owner/admin cross-join only
+covered permissions that existed at that migration's own time). `sales_manager`
+(already one of StockPilot's six operational roles) gets the day-to-day operating
+subset -- everything except `channel_connections.manage`/`crm_settings.manage`, which
+stay owner/admin-only, the same "configuration vs. operation" split inventory's own
+`sales_manager` grant already draws against `settings.manage`.
+
+Enforcement follows fsm's own precedent exactly (app-layer `requirePermission()` calls
+in `mutations.ts`, not a DB-level rewrite of RLS policies/triggers the way gst's
+`gst.generate` or inventory's approval-trigger checks do -- that's a materially heavier
+lift this story's own brief text doesn't ask for, and fsm's comparable permission
+stories didn't do it either). Wired into one representative, clearly-scoped mutation per
+permission, not exhaustively into every helper across each domain:
+
+| Permission | Wired into |
+|---|---|
+| `leads.manage` | `promoteProspectToLead()`, `updateLeadStatus()` |
+| `crm_opportunities.manage` | `convertLeadToOpportunity()`, `updateOpportunityStage()` |
+| `activities.manage` | `createActivity()`, `createFollowUp()` |
+| `crm_messages.send` | `sendWhatsAppReply()`, `sendWhatsAppTemplate()` |
+| `channel_connections.manage` | `connectWhatsApp()`, `disconnectChannelConnection()`, `createWhatsAppTemplate()`, `deactivateWhatsAppTemplate()` |
+| `crm_settings.manage` | `createRoutingRule()`, `setRoutingRuleActive()` (gained a `businessId` param it was missing, so it can check this and scope its own update by tenant explicitly) |
+| `crm.view` / `analytics.view` | catalog only, no enforcement point yet -- inventory's own base migration already documented this exact gap for itself ("the actual RLS policy rewrite... to check `has_permission()`... not yet done"), so CRM isn't behind its own most mature peer here |
+| `reviews.publish` | catalog only -- no review-publish mutation exists yet (CRM-08.6, P1, not built) |
+
+Deliberately NOT gated: `createLead()` itself -- it's the one primitive both a human
+action (`promoteProspectToLead()`, `conversion-actions.ts`) and CRM-07.11's session-less
+WhatsApp webhook share, and `has_permission()` needs a real `auth.uid()` the webhook
+path has none of. Every other lead/opportunity/activity mutation this session built
+(`assignEntity()`, `setLeadNextAction()`, `markInteractionNotActionable()`,
+`updateInteractionIntent()`, the rest of `conversion-actions.ts`, ...) is likewise not
+individually gated -- a real, working representative set per permission, not an
+exhaustive sweep, matching this story's own brief scope.
+
+One pre-existing unit test (`activities/mutations.test.ts`) broke and was fixed as part
+of this change: it expected `createActivity()`'s own input-shape validation error before
+any DB/session call, but `requirePermission()` (which needs a live request's cookies)
+was added ahead of it, throwing a different error first in the vitest environment (no
+request scope there). Reordered so the cheap, session-free validation still runs first --
+correct regardless of the test, and the right sequencing (arguably right the way this
+should have always been done in this whole session across mutations that both validate
+and authorize).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (92/92, including the one existing test whose expectation this
+change required re-ordering for), and both CRM RLS test suites (unchanged, re-run clean
+-- permission checks are app-layer, not RLS policy changes, so nothing there could
+regress from this story). Confirmed the seed data directly against the live dev project
+(`select role, permission_key from core.role_permissions where ...`): all 25 expected
+role/permission grants present. Migration applied to the dev Supabase project.

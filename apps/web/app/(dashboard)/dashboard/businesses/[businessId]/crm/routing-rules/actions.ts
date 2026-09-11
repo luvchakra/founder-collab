@@ -31,6 +31,6 @@ export async function createRoutingRuleAction(
 }
 
 export async function setRoutingRuleActiveAction(businessId: string, ruleId: string, isActive: boolean): Promise<void> {
-  await setRoutingRuleActive(ruleId, isActive);
+  await setRoutingRuleActive(businessId, ruleId, isActive);
   revalidatePath(detailPath(businessId));
 }

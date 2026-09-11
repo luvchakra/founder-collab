@@ -1,4 +1,5 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import type { KnownSenderCondition } from "./types";
 
@@ -19,6 +20,7 @@ export type CreateRoutingRuleInput = {
  * applies these against a real inbound message; this file just persists them. */
 export async function createRoutingRule(businessId: string, input: CreateRoutingRuleInput): Promise<void> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "crm_settings.manage");
   const supabase = await createClient();
   const { error } = await supabase.from("routing_rules").insert({
     business_id: businessId,
@@ -35,10 +37,14 @@ export async function createRoutingRule(businessId: string, input: CreateRouting
 
 /** See `tickets/mutations.ts#updateTicketStatus`'s own doc comment for why this checks
  * the row actually came back instead of trusting a plain `.update()` with no `.select()`
- * -- RLS silently excludes non-matching rows from an UPDATE rather than erroring. */
-export async function setRoutingRuleActive(ruleId: string, isActive: boolean): Promise<void> {
+ * -- RLS silently excludes non-matching rows from an UPDATE rather than erroring.
+ * CRM-15.2 added the `businessId` parameter (previously missing) so this can call
+ * `requirePermission()` and scope the update by tenant explicitly, not just by `ruleId`
+ * plus RLS. */
+export async function setRoutingRuleActive(businessId: string, ruleId: string, isActive: boolean): Promise<void> {
+  await requirePermission(businessId, "crm_settings.manage");
   const supabase = await createClient();
-  const { data, error } = await supabase.from("routing_rules").update({ is_active: isActive }).eq("id", ruleId).select("id");
+  const { data, error } = await supabase.from("routing_rules").update({ is_active: isActive }).eq("id", ruleId).eq("business_id", businessId).select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
     throw new Error("This routing rule could not be updated -- it may have been removed, or your access to it may have changed.");

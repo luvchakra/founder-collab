@@ -1,4 +1,5 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import { attachOutboundMessageId, markInteractionFailed, recordInteraction } from "../interactions/mutations";
 import { getDecryptedAccessToken } from "../channel-connections/queries";
@@ -75,6 +76,7 @@ async function resolveOutboundContext(supabase: Awaited<ReturnType<typeof create
  */
 export async function sendWhatsAppReply(businessId: string, conversationId: string, text: string): Promise<SendWhatsAppReplyResult> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "crm_messages.send");
   const supabase = await createClient();
 
   const context = await resolveOutboundContext(supabase, businessId, conversationId);
@@ -119,6 +121,7 @@ export async function sendWhatsAppReply(businessId: string, conversationId: stri
  */
 export async function sendWhatsAppTemplate(businessId: string, conversationId: string, templateId: string, variables: string[]): Promise<SendWhatsAppReplyResult> {
   await requireModule(businessId, "crm");
+  await requirePermission(businessId, "crm_messages.send");
   const supabase = await createClient();
 
   const template = await getWhatsAppTemplate(businessId, templateId);

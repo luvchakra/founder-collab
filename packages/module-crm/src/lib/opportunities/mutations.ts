@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
 import { DEFAULT_OPPORTUNITY_STAGES } from "./types";
@@ -41,6 +42,7 @@ export async function ensureDefaultStages(businessId: string): Promise<Opportuni
  * (CRM-01.4) and, on a terminal transition, `crm.opportunity.won`/`crm.opportunity.lost`.
  */
 export async function updateOpportunityStage(businessId: string, opportunityId: string, stageId: string): Promise<void> {
+  await requirePermission(businessId, "crm_opportunities.manage");
   const supabase = await createClient();
   const {
     data: { user },
