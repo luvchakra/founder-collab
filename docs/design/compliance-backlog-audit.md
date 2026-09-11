@@ -36,7 +36,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.2 | Tax Jurisdiction | Done |
 | | 02.3 | Versioned Tax Rules | Done |
 | | 02.4 | Tax Treatments | Done |
-| | 02.5 | Tax Determination Snapshot | Not started |
+| | 02.5 | Tax Determination Snapshot | Done |
 | P0-03 | 03.1 | Core Transaction Contract | Not started |
 | | 03.2 | Inventory Tax Context | Not started |
 | | 03.3 | FSM Tax Context | Not started |
@@ -58,13 +58,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**8 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**9 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-COMPLY-P0-02.4 is the last completed story; COMPLY-P0-02.5 (Tax Determination Snapshot) is
-next, completing epic COMPLY-P0-02.
+**COMPLY-P0-02 (Generic Tax Framework) is now fully done.** COMPLY-P0-02.5 is the last
+completed story; COMPLY-P0-03.1 (Core Transaction Contract) is next, starting epic
+COMPLY-P0-03 (Existing-Data Integration).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -713,3 +714,115 @@ jurisdiction name a user might type in mixed case).
 - `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 02.5 — Tax Determination Snapshot (2026-09-11)
+
+The `TaxDetermination` entity from the backlog's own §4 data model -- "Persist the result
+used for a transaction." §3's own product-decision language ("historical transactions
+must retain a tax determination snapshot") is the direct spec for this table, and it's the
+last piece of COMPLY-P0-02: registration -> jurisdiction -> versioned rules -> treatments
+-> the computed, persisted **result** of applying all four to one real transaction.
+
+**Checked against the entity-ownership map and existing code first**: nothing in the
+platform persists a tax *computation result* as its own row today --
+`core.documents.cgst_amount`/`sgst_amount`/`igst_amount`/`total_amount` are the CURRENT,
+live, self-healing totals on the document itself (that table's own trigger recalculates
+them whenever a line changes) -- COMPLY-P0-03.1's future job to read, never this table's
+job to duplicate. This table is a different thing: an immutable, append-only record of
+"here is exactly what was computed, under exactly which rule version(s), at exactly what
+moment" -- backlog rule 11 ("never claim compliant simply because a calculation
+succeeded") and rule 13 ("preserve historical filing/evidence state") both depend on that
+distinction existing as a real, separate row a live document total can never provide.
+
+**Design decisions**:
+- No formal "Core Transaction Contract" exists yet to reference what was taxed
+  (COMPLY-P0-03.1, the very next story, in the next epic) -- so, following the exact same
+  precedent `crm.opportunity.source_module`/`source_reference` already established
+  (INT-06.2, a prior cross-module backlog's own story, spotted while checking the
+  entity-ownership map), `source_module`/`source_reference` here are opaque text, not a
+  foreign key. COMPLY-P0-03.1 can give this a typed shape later; this story must not
+  reach ahead and guess that contract now (backlog rule 4/5).
+- Unlike `gst.tax_rules` (platform-wide, no `business_id`), this table IS tenant-scoped --
+  a determination is the result of taxing one specific business's own transaction, so it
+  gets the standard `business_id`/tenant-AND-licensed RLS shape
+  `gst.tax_registrations`/`gst.compliance_profiles` already use.
+- Unlike those two tables, though, this one is **immutable**: no UPDATE policy and no
+  DELETE policy at all, only INSERT and SELECT. A mis-computed determination is corrected
+  by recording a NEW, later snapshot (a recompute), never by editing the old row --
+  the entire point of a "snapshot" is that it never silently changes after the fact.
+- INSERT requires only module licensing, deliberately NOT `settings.manage` (unlike
+  `createTaxRegistration`) -- recording a determination is an automatic byproduct of a
+  business member completing an ordinary transaction, not a settings decision. Checked
+  for precedent first: `core.domain_events`'s own INSERT policy is exactly this shape too
+  (tenant membership only, no permission check) -- confirms this is the platform's
+  existing convention for "system record-keeping" tables, not a new pattern invented here.
+- `rule_refs` (an unconstrained jsonb array of `gst.tax_rules.id` values, each of which
+  already pins one specific version) is the traceability hook backlog rule 14 /
+  COMPLY-P0-07.4 "Return Drill-Down" / COMPLY-P0-10.4 "Source Traceability" will build on
+  later -- left as a simple array rather than a join table since a determination can cite
+  zero rules (an out-of-scope result) or several (CGST + SGST each its own rule row), and
+  no real consumer exists yet to justify a normalized table over this simpler shape.
+
+**What was built**:
+- `gst.tax_determinations` (`20260911004700_gst_tax_determinations.sql`):
+  `business_id`, `source_module`/`source_reference` (opaque), `country`/`jurisdiction`/
+  `regime`/`treatment` (same validation conventions as `gst.tax_rules`), `taxable_amount`/
+  `tax_amount` (numeric(14,2), matching `core.documents`' own money-column convention --
+  no `currency` column, since nothing else in the platform tracks currency either, so
+  adding one here would introduce a concept the rest of the platform doesn't have),
+  `rule_refs jsonb`, `computed_at`. Two indexes: `business_id` (the standard tenant index
+  every business-scoped table has) and `(business_id, source_module, source_reference,
+  computed_at desc)` (the actual "every snapshot for this transaction, newest first" query
+  this table exists to serve).
+- `lib/tax-determinations/{types,queries,mutations}.ts`: `recordTaxDetermination`
+  (validates regime/jurisdiction/treatment via the same catalog functions
+  `createTaxRegistration`/`publishTaxRule` already use, plus a finite-number check on both
+  amounts; only `requireModule`, no `requirePermission`, matching the RLS design above);
+  `listTaxDeterminations`/`getLatestTaxDetermination` (read the full history or just the
+  current snapshot for one transaction reference).
+- `scripts/test-gst-tax-determinations-rls.mjs` (wired into `package.json`'s `test:db`
+  chain): tenant isolation, license gating, the "even a viewer role can insert -- this
+  is licensed-membership only, not a settings action" invariant (documented as
+  intentional, not a gap), a full recompute sequence (two snapshots for the same
+  transaction reference both persist; the newest-first read picks the latest one), and
+  the "no UPDATE, no DELETE policy at all" immutability guarantee.
+
+**What was deliberately left out**: any UI; any real caller (no document/job/invoice
+action calls `recordTaxDetermination` yet -- that's COMPLY-P0-03.1's Core Transaction
+Contract plus COMPLY-P0-04.5's GST Tax Determination, which will actually compute and
+persist real India GST results); and a typed `source_module`/`source_reference` contract
+(COMPLY-P0-03.1's own job).
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `npm run lint:boundaries` -- 1000 files scanned, 0 violations.
+- `npm run lint:migrations` -- 108 migration files checked, 0 violations.
+- `npm run test --workspace=@cofounderai/module-gst` -- still 25 tests passing; no new
+  vitest file, for the same reasoning as every prior mutation-layer story -- the real
+  branch logic (`isRegimeSupported`/`canonicalJurisdictionName`/`isTreatmentSupported`) is
+  already covered by existing catalog test files, and the new RLS script above is the
+  real end-to-end coverage for this table's own schema-level guarantees.
+- `node --test scripts/*.test.mjs` -- still 6/6 passing.
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): identical
+  finding set to immediately before this story (same 5 pre-existing infos, 1 pre-existing
+  warning) -- no new findings. Performance: the two new indexes
+  (`tax_determinations_business_id_idx`/`tax_determinations_source_idx`) appear only in
+  the expected "unused index" info list for a brand-new table; no missing-index finding
+  (the only FK, `business_id`, is covered by its own index). The advisor run also showed a
+  couple of new `discovery.negative_signals` index entries that are not this story's own
+  work -- the parallel Discovery agent's own migrations landing on the shared dev project
+  between advisor calls, expected and outside this run's scope per the isolation
+  instructions.
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+**COMPLY-P0-02 (Generic Tax Framework) is now fully done** -- all five stories
+(Registration, Jurisdiction, Versioned Rules, Treatments, Determination Snapshot)
+implemented as country/regime-agnostic infrastructure with zero India-specific content or
+UI, exactly matching the backlog's own "one generic Compliance domain plus country/regime
+packs" design decision and its own P0 Release 1 delivery order (epics 01 -> 02 -> 03 ->
+04). Next: COMPLY-P0-03 (Existing-Data Integration), starting with COMPLY-P0-03.1 (Core
+Transaction Contract).
