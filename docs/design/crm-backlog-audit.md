@@ -753,3 +753,43 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (unchanged -- no new pure logic needing its own unit tests),
 and both CRM RLS test suites (5 new cases). No new migration -- `crm.channel_connection`,
 `crm.conversation_participant`, and `crm.interaction` already existed.
+
+## CRM-07.6 + CRM-07.7 (2026-09-11)
+
+Built together: CRM-07.7's 24-hour window check has nothing to gate without CRM-07.6's
+send path, and CRM-07.6's send path needs the window check to match Meta's own Cloud API
+behavior (a free-form send outside the window is rejected provider-side regardless) --
+same combined-story reasoning as every other tightly-coupled pair in this backlog so far.
+
+New `lib/whatsapp/window.ts#computeWhatsAppWindowStatus(lastInboundAt, now)` (CRM-07.7):
+pure, unit-tested (5 cases including the exact 24-hour boundary) against a fixed clock
+parameter rather than `Date.now()`, same split as `conversations/queue.ts`'s own flag
+computation. No inbound message at all counts as outside the window -- there's no session
+to have opened.
+
+New `lib/whatsapp/messaging.ts#sendWhatsAppReply()` (CRM-07.6): resolves the conversation's
+last inbound interaction (its `external_actor_id` is the reply's recipient phone number
+and its `occurred_at` is what the window check runs against), checks the window, then
+sends through `whatsAppCloudApiAdapter.sendText()` against the business's connected
+`channel_connection`. Follows `recordInteraction()`'s own documented outbound-idempotency
+shape exactly: the interaction row is inserted (fresh `clientDedupeKey`, CRM-01.6) *before*
+the network send, then either `attachOutboundMessageId()` (new, mutations.ts -- attaches
+the provider's message id once send succeeds, the same field a later status webhook,
+CRM-07.3, looks it up by) or `markInteractionFailed()` (send failed) updates the row
+afterward -- a failed send is never silently unrecorded. `getConversationWhatsAppWindowStatus()`
+is the read-only counterpart the page uses to decide what to render; it duplicates
+`sendWhatsAppReply()`'s own window query rather than sharing it, since one is a cheap
+per-request read and the other guards a real send.
+
+UI: the Conversations detail pane (CRM-06.2) now shows, for a `whatsapp` conversation
+only, either a free-form reply composer (`reply-form.tsx`'s `WhatsAppReplyForm`,
+`useActionState`, same pattern as the CRM-07.2 connect form) when the window is open, or
+a plain notice naming when it closed and that template sending is a future story
+(CRM-07.8) when it isn't. The composer remounts (via a `key` tied to the interaction
+count) after every send so a successful send clears the textarea without hand-rolled
+form-reset logic.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (5 new window tests), and both CRM RLS test suites (unchanged
+-- no new schema or DB-level decision logic; the window/send logic is exercised by its
+own unit tests instead). No new migration.

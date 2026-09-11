@@ -98,6 +98,17 @@ async function retryFailedInteraction(
   return data as Interaction;
 }
 
+/** CRM-07.6: the provider only assigns a message id once a send actually succeeds, after
+ * `recordInteraction()` has already inserted the row (see its own doc comment on why
+ * outbound sends are recorded before the send completes) -- this attaches it after the
+ * fact so a later status webhook (CRM-07.3) can find this exact row by
+ * `external_message_id` the same way it already does for inbound ones. */
+export async function attachOutboundMessageId(businessId: string, interactionId: string, externalMessageId: string, clients?: CrmClientOverrides): Promise<void> {
+  const supabase = clients?.crm ?? (await createClient());
+  const { error } = await supabase.from("interaction").update({ external_message_id: externalMessageId }).eq("id", interactionId).eq("business_id", businessId);
+  if (error) throw error;
+}
+
 /** CRM-01.6: "failure states are visible and retryable." Marks an interaction (an
  * outbound send that failed, most often) `failed` with a human-readable reason recorded
  * in `metadata.failureReason` -- visible to any UI reading the interaction, and
