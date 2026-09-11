@@ -123,6 +123,22 @@ and rejected).
   (internal-only, not part of the CRM-01.3 contract list) so a failure is visible
   (`status = 'failed'`, reason in `metadata.failureReason`) and retryable. Verified via
   `scripts/test-crm-backlog-rls.mjs`.
+- **CRM-02.1** (Customer/Contact 360 view) — done. The route already existed from the
+  pre-backlog design doc's B1 (`apps/web/.../crm/customers/[partyId]/page.tsx`) and
+  already covered "quotations/jobs when licensed" (Inventory orders, FSM jobs), Discovery
+  prospect stage, plus GST e-invoice status and core payment aging (both beyond this
+  story's own "Show" list, kept as-is). `getCustomer360()` was extended to call those
+  same already-existing cross-module contracts itself (so the CRM-01.3 contract function
+  returns a complete picture for any external caller, not just this page) and to add the
+  CRM-owned sections the backlog's "Show" list requires: name/contact methods
+  (`core.parties` directly), lifecycle status/owner/source (from the party's most recent
+  `crm.lead`, reusing CRM-04.1's vocabulary rather than a second one), products of
+  interest (`crm.product_interest` joined to `core.items` by a second query, not a
+  cross-schema embed), open opportunities, open follow-ups, recent conversations, and
+  notes. The page now sources prospect/orders/jobs from the one `getCustomer360()` call
+  instead of three separate direct contract calls, and renders the new sections; the
+  ticket-linking controls are untouched. Full monorepo typecheck, `next build`,
+  `lint:boundaries`, and module-crm's vitest suite all verified clean.
 
 ## No unrelated module changed
 

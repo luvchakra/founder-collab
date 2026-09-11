@@ -19,6 +19,9 @@
   },
   "dependencies": {
     "@cofounderai/core": "*",
+    "@cofounderai/module-discovery": "*",
+    "@cofounderai/module-fsm": "*",
+    "@cofounderai/module-inventory": "*",
     "react": "19.2.8"
   },
   "peerDependencies": {
