@@ -50,6 +50,9 @@ jobs:
       - name: Migration schema lint
         run: npm run lint:migrations
 
+      - name: Compliance (gst) no-duplicate-masters lint
+        run: npm run lint:gst-no-duplicate-masters
+
       - name: Test
         run: npm run test
 

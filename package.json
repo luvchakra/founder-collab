@@ -17,7 +17,8 @@
     "test:module": "node scripts/test-module.mjs",
     "perf:rls": "node scripts/perf-check-tenant-license-rls.mjs",
     "lint:boundaries": "node scripts/lint-import-boundaries.mjs",
-    "lint:migrations": "node scripts/lint-migration-schema.mjs"
+    "lint:migrations": "node scripts/lint-migration-schema.mjs",
+    "lint:gst-no-duplicate-masters": "node scripts/lint-gst-no-duplicate-masters.mjs"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
