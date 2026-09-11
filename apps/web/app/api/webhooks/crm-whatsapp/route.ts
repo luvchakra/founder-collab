@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyMetaSignature, verifyMetaSubscription } from "@cofounderai/module-crm/lib/webhooks/verify-meta-signature";
-import { ingestInboundCrmMessage } from "@cofounderai/module-crm/lib/tickets/ingest-inbound-message";
+import { ingestInboundWhatsAppMessage } from "@cofounderai/module-crm/lib/whatsapp/ingest-inbound-message";
 
 /**
  * WhatsApp Business Platform (Cloud API) inbound webhook (docs/design/
@@ -8,6 +8,12 @@ import { ingestInboundCrmMessage } from "@cofounderai/module-crm/lib/tickets/ing
  * Meta (Instagram/Messenger) one at crm-meta, per that doc's own note ("each their own
  * integration"), even though the signature scheme is identical (both are Meta Graph API
  * products).
+ *
+ * CRM-07.3: the POST handler's message-processing internals were rebuilt on the new
+ * provider-neutral `crm.interaction`/`crm.conversation` model (`ingestInboundWhatsAppMessage()`)
+ * per docs/design/crm-backlog-audit.md's retirement table -- this is the one webhook Meta
+ * can be configured to POST to, so there is no parallel-run option the way a new UI route
+ * has; `verify-meta-signature.ts` (both GET and POST) is unaffected, reused as-is.
  */
 
 export async function GET(request: Request) {
@@ -22,16 +28,6 @@ export async function GET(request: Request) {
   return new NextResponse(result.challenge, { status: 200 });
 }
 
-type WhatsAppChangeValue = {
-  metadata?: { phone_number_id?: string };
-  contacts?: { wa_id?: string; profile?: { name?: string } }[];
-  messages?: { from?: string; text?: { body?: string }; type?: string }[];
-};
-
-type WhatsAppWebhookPayload = {
-  entry?: { changes?: { field?: string; value?: WhatsAppChangeValue }[] }[];
-};
-
 export async function POST(request: Request) {
   const appSecret = process.env.CRM_WHATSAPP_APP_SECRET;
   if (!appSecret) {
@@ -43,34 +39,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  const payload = JSON.parse(rawBody) as WhatsAppWebhookPayload;
-
-  const results: unknown[] = [];
-  for (const entry of payload.entry ?? []) {
-    for (const change of entry.changes ?? []) {
-      if (change.field !== "messages") continue;
-      const value = change.value;
-      const externalAccountId = value?.metadata?.phone_number_id;
-      if (!externalAccountId) continue;
-
-      for (const message of value?.messages ?? []) {
-        // Only plain text is normalized here -- media/location/interactive-reply
-        // message types are a real feature (transcription/attachment handling) this
-        // P0 pass doesn't build; they're simply not ingested rather than half-handled.
-        if (message.type !== "text" || !message.from || !message.text?.body) continue;
-
-        const contact = value?.contacts?.find((c) => c.wa_id === message.from);
-        const result = await ingestInboundCrmMessage({
-          provider: "whatsapp_business",
-          externalAccountId,
-          senderHandle: message.from,
-          senderName: contact?.profile?.name ?? null,
-          text: message.text.body,
-        });
-        results.push(result);
-      }
-    }
-  }
+  const payload = JSON.parse(rawBody) as unknown;
+  const results = await ingestInboundWhatsAppMessage(payload);
 
   // 200 regardless -- same "don't make Meta retry forever over an unmatched account"
   // reasoning as crm-meta's own route.

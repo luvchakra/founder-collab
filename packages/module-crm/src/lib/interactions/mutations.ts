@@ -1,6 +1,6 @@
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
-import { matchPartyForActor } from "./matching";
+import { matchPartyForActor, type CrmClientOverrides } from "./matching";
 import type { Interaction, RecordInteractionInput } from "./types";
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
@@ -11,30 +11,64 @@ async function findOrCreateConversation(
   input: RecordInteractionInput,
 ): Promise<string> {
   if (input.conversationId) return input.conversationId;
-  if (!input.partyId) {
-    throw new Error("recordInteraction: either conversationId or partyId is required to find or create a conversation");
+
+  if (input.partyId) {
+    const { data: existing, error: existingError } = await supabase
+      .from("conversation")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("party_id", input.partyId)
+      .eq("primary_channel", input.channel)
+      .neq("status", "resolved")
+      .order("last_interaction_at", { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) return existing.id;
+
+    const { data: created, error: createError } = await supabase
+      .from("conversation")
+      .insert({ business_id: businessId, party_id: input.partyId, primary_channel: input.channel })
+      .select("id")
+      .single();
+    if (createError) throw createError;
+    return created.id;
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from("conversation")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("party_id", input.partyId)
-    .eq("primary_channel", input.channel)
-    .neq("status", "resolved")
-    .order("last_interaction_at", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-  if (existingError) throw existingError;
-  if (existing) return existing.id;
+  // CRM-07.4: "unmatched sender appears as unresolved contact candidate" -- no partyId
+  // means matchPartyForActor() (CRM-06.4) couldn't resolve one, not that there's
+  // nowhere for the message to go. A party-less conversation is dedupe'd by
+  // (business_id, channel, external_actor_id) through the conversation's own
+  // participant row instead of party_id, so a second message from the same still-
+  // unmatched sender appends to the same conversation rather than starting a new one
+  // each time; a human resolving the match later (CRM-06.4 tier 4) just sets
+  // conversation.party_id, no data to migrate.
+  if (input.externalActorId) {
+    const { data: existingParticipant, error: participantError } = await supabase
+      .from("conversation_participant")
+      .select("conversation_id")
+      .eq("business_id", businessId)
+      .eq("external_actor_id", input.externalActorId)
+      .maybeSingle();
+    if (participantError) throw participantError;
+    if (existingParticipant) return existingParticipant.conversation_id;
 
-  const { data: created, error: createError } = await supabase
-    .from("conversation")
-    .insert({ business_id: businessId, party_id: input.partyId, primary_channel: input.channel })
-    .select("id")
-    .single();
-  if (createError) throw createError;
-  return created.id;
+    const { data: created, error: createError } = await supabase
+      .from("conversation")
+      .insert({ business_id: businessId, party_id: null, primary_channel: input.channel })
+      .select("id")
+      .single();
+    if (createError) throw createError;
+
+    const { error: participantInsertError } = await supabase
+      .from("conversation_participant")
+      .insert({ business_id: businessId, conversation_id: created.id, party_id: null, external_actor_id: input.externalActorId });
+    if (participantInsertError) throw participantInsertError;
+
+    return created.id;
+  }
+
+  throw new Error("recordInteraction: either conversationId, partyId, or externalActorId is required to find or create a conversation");
 }
 
 /** CRM-01.6: retries a previously `failed` outbound interaction under the same
@@ -68,8 +102,13 @@ async function retryFailedInteraction(
  * outbound send that failed, most often) `failed` with a human-readable reason recorded
  * in `metadata.failureReason` -- visible to any UI reading the interaction, and
  * retryable by calling `recordInteraction()` again with the same `clientDedupeKey`. */
-export async function markInteractionFailed(businessId: string, interactionId: string, reason: string): Promise<Interaction> {
-  const supabase = await createClient();
+export async function markInteractionFailed(
+  businessId: string,
+  interactionId: string,
+  reason: string,
+  clients?: CrmClientOverrides,
+): Promise<Interaction> {
+  const supabase = clients?.crm ?? (await createClient());
   const { data: existing, error: existingError } = await supabase
     .from("interaction")
     .select("metadata")
@@ -96,10 +135,10 @@ export async function markInteractionFailed(businessId: string, interactionId: s
  * doesn't already have one, then inserts the interaction. When the caller supplies
  * `externalActorId` but not `partyId`, CRM-06.4's match hierarchy
  * (`matching.ts#matchPartyForActor()`) runs first to try to resolve one automatically;
- * an unmatched sender still needs `conversationId` or `partyId` from the caller today
- * (relaxing that -- letting a genuinely unresolved sender start a party-less
- * conversation as an "unresolved contact candidate" -- is CRM-07.4's own acceptance
- * criterion, once a live inbound channel exists to drive it, not this function's).
+ * an unmatched sender still gets a real, party-less conversation (CRM-07.4's "unmatched
+ * sender appears as unresolved contact candidate") deduped by `external_actor_id`
+ * through a `conversation_participant` row rather than `party_id` -- a human resolving
+ * the match later just sets `conversation.party_id`, no rows to migrate.
  *
  * CRM-01.6 idempotency has two mechanisms, for the two cases that need different ones:
  * - **Inbound / already has a provider id**: `crm.interaction`'s own partial unique
@@ -117,9 +156,19 @@ export async function markInteractionFailed(businessId: string, interactionId: s
  *
  * Either path is deliberately silent about re-publishing `crm.interaction.received`/
  * `crm.conversation.updated` (CRM-01.4's events fire only on the genuine-insert path).
+ *
+ * `clients` (CRM-07.3): every existing caller runs inside a logged-in user's request and
+ * omits this, getting today's RLS-scoped `createClient()` exactly as before. A webhook
+ * handler has no session to back that client with, so it passes its own admin/service-
+ * role client here instead -- the one deliberate RLS bypass point for inbound channel
+ * ingestion, same trust boundary the old ticket-based `ingestInboundCrmMessage()` used.
  */
-export async function recordInteraction(businessId: string, input: RecordInteractionInput): Promise<Interaction> {
-  const supabase = await createClient();
+export async function recordInteraction(
+  businessId: string,
+  input: RecordInteractionInput,
+  clients?: CrmClientOverrides,
+): Promise<Interaction> {
+  const supabase = clients?.crm ?? (await createClient());
 
   if (input.clientDedupeKey) {
     const { data: existing, error: existingError } = await supabase
@@ -138,12 +187,11 @@ export async function recordInteraction(businessId: string, input: RecordInterac
   // already resolved this itself and matching would be redundant work at best.
   let resolvedPartyId = input.partyId ?? null;
   if (!resolvedPartyId && input.externalActorId) {
-    const match = await matchPartyForActor(businessId, {
-      channel: input.channel,
-      externalActorId: input.externalActorId,
-      phone: input.senderPhone,
-      email: input.senderEmail,
-    });
+    const match = await matchPartyForActor(
+      businessId,
+      { channel: input.channel, externalActorId: input.externalActorId, phone: input.senderPhone, email: input.senderEmail },
+      clients,
+    );
     resolvedPartyId = match.partyId;
   }
   const resolvedInput = { ...input, partyId: resolvedPartyId };
