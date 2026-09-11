@@ -17,6 +17,7 @@ export const crmManifest: ModuleManifest = {
     {
       heading: "Overview",
       items: [
+        { label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" },
         { label: "Inbox", slug: "", icon: "Inbox" },
         { label: "Conversations", slug: "conversations", icon: "MessageCircle" },
         { label: "Potential Lost Business", slug: "lost-business", icon: "AlertTriangle" },
@@ -49,6 +50,7 @@ export const crmManifest: ModuleManifest = {
     "Conversation-based unified inbox",
     "WhatsApp Business integration",
     "Potential Lost Business queue",
+    "Potential Lost Business dashboard",
   ],
   permissions: ["crm.access"],
   optionalPeers: ["discovery", "fsm", "inventory", "gst"],
