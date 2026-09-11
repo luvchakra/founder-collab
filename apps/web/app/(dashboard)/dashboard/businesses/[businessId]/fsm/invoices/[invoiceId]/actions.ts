@@ -89,7 +89,7 @@ export async function voidInvoiceAction(businessId: string, invoiceId: string, r
 }
 
 function unwrap<T>(result: ContractResult<T>): void {
-  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "GST module is not licensed for this business." : result.error);
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "Compliance module is not licensed for this business." : result.error);
 }
 
 export async function generateInvoiceEinvoiceAction(businessId: string, invoiceId: string): Promise<void> {

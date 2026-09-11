@@ -18,7 +18,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 const TITLE = `${BRAND_NAME} Platform`;
-const DESCRIPTION = `${BRAND_NAME} — GTM, inventory, field service, CRM and GST in one portal.`;
+const DESCRIPTION = `${BRAND_NAME} — GTM, inventory, field service, CRM and Compliance in one portal.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
