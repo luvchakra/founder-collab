@@ -11,6 +11,45 @@ run, stories are implemented one after another automatically (not stopping after
 one to ask, which is what the source doc's own Definition of Done literally says) —
 only genuine architectural/key decisions are raised.
 
+## Progress
+
+Kept up to date after every story (most recent status line in each story's own log
+entry below is the source of truth; this table is the at-a-glance summary of it).
+
+| Epic | Story | Title | Status |
+|---|---|---|---|
+| INT-01 (P0) | 01.1 | Commercial Journey Resolver | Done |
+| | 01.2 | Next Cross-Module Action Resolver | Done |
+| | 01.3 | Journey State History | Done |
+| INT-02 (P0) | 02.1 | Fulfillment Requirement Gate | Done |
+| | 02.2 | Create Inventory Fulfillment/Reservation Request | Done |
+| | 02.3 | Inventory Commitment State -> CRM | Done |
+| | 02.4 | Fulfillment Completion -> CRM | Done |
+| INT-03 (P0) | 03.1 | FSM Job Material Requirement | In progress |
+| | 03.2 | Reserve Parts for FSM Job | Not started |
+| | 03.3 | Parts Shortage -> FSM Exception | Not started |
+| | 03.4 | Technician Consumption -> Inventory | Not started |
+| | 03.5 | Parts Returned / Unused -> Inventory | Not started |
+| INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Not started |
+| | 04.2 | Create FSM Assessment Request | Not started |
+| | 04.3 | Assessment Outcome -> CRM Opportunity | Not started |
+| | 04.4 | Assessment -> Quote Continuation | Not started |
+| INT-05 (P1) | 05.1 | Partial Availability Decision | Not started |
+| | 05.2 | Inventory Substitution Recommendation | Not started |
+| | 05.3 | Shortage -> Customer Follow-up | Not started |
+| INT-06 (P1) | 06.1 | Service Outcome Classification | Not started |
+| | 06.2 | Additional Work -> CRM Opportunity | Not started |
+| | 06.3 | Recommended Parts -> Inventory | Not started |
+| | 06.4 | Warranty / Revisit -> FSM | Not started |
+| INT-07 (P1) | 07.1 | Cross-Module Exception Model | Not started |
+| | 07.2 | Exception Resolution Actions | Not started |
+| | 07.3 | Exception Auto-Close | Not started |
+| INT-08 (P1) | 08.1 | Linked Object Graph | Not started |
+| | 08.2 | Unified Journey Timeline | Not started |
+| | 08.3 | Context-Preserving Navigation | Not started |
+
+**P0 (INT-01 through INT-04): 7/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 7/29 (24%).**
+
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
 Before writing any code, the following existing infrastructure was inspected and is
