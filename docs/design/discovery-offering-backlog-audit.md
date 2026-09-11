@@ -18,7 +18,7 @@ only genuine architectural/key decisions are raised.
 | Phase | Story | Title | Status |
 |---|---|---|---|
 | A | 01.1 | Business Offering | Done |
-| | 01.2 | Existing Product Compatibility | Not started |
+| | 01.2 | Existing Product Compatibility | Done |
 | | 01.3 | Offering CRUD UI | Not started |
 | | 02.1 | Offering Setup | Not started |
 | | 02.2 | Offering ICP | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**1 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**2 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -169,3 +169,30 @@ or `"active" | "archived"` literal-union dependents exist anywhere in `module-di
 or `apps/web`).
 
 **Status**: 1 of 68 in-scope stories done. Next: 01.2, Existing Product Compatibility.
+
+### 01.2 — Existing Product Compatibility (2026-09-11)
+
+Because 01.1 was built by extending `discovery.products` in place (not renaming the
+table or creating a parallel `offerings` table), most of this story's own acceptance
+criteria were already true by construction: nothing was renamed, removed, or made
+non-nullable, so every existing product/prospect/research/signal/ICP record stayed
+exactly as it was, and every existing caller of `lib/tenancy/queries.ts`/`mutations.ts`
+was already confirmed unaffected during 01.1's own verification. The one genuine,
+story-specific gap: every pre-existing product had `offering_type = null`, and future
+Offering-centric screens (01.3 onward) will want a real type to display/filter/badge by.
+
+New data-only migration (`20260911003700_discovery_offering_type_backfill.sql`)
+backfills `offering_type = 'product'` for every row where it's still null. Not
+inventing a business fact -- it's the literal, honest statement that a row previously
+modeled exclusively as a "Product" defaults to the `product` offering type, the same
+answer a founder would give if asked directly. Live-applied and confirmed: all 20
+existing dev products now read `offering_type = 'product'`, no other column touched.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- no code
+changed), `lint:boundaries` (968 files, unchanged), `lint:migrations` (99 migrations, no
+violations -- a plain `update`, no `create`/`alter table` for the schema-per-file
+checker to look at either way), `npm run lint` (0 errors, 1 pre-existing unrelated
+warning), and a live migration apply confirmed against dev data. No test suite or build
+re-run needed -- no TypeScript/UI changed this story.
+
+**Status**: 2 of 68 in-scope stories done. Next: 01.3, Offering CRUD UI.
