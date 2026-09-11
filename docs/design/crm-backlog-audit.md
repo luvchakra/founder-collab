@@ -407,6 +407,22 @@ harness DB with this migration applied). Migration
 `20260911000500_crm_opportunity_contacts.sql` applied to dev Supabase; no new advisor
 findings.
 
+## CRM-05.1 (2026-09-11) -- already satisfied, no code change
+
+"Activity can be attached to party, lead, opportunity or conversation. Due date and
+owner are supported." This was fully built ahead of schedule while CRM-01.2 laid down
+the backlog schema baseline (`crm.activity`'s own header comment there already says "CRM-
+05.1") and CRM-01.3/CRM-02.1 added the lib layer: `crm.activity_type` enum has the exact
+ten types the backlog lists (call/meeting/note/email/whatsapp/social/task/follow_up/
+quote_follow_up/service_follow_up); the table's `activity_attached_to_something` check
+constraint requires at least one of party_id/lead_id/opportunity_id/conversation_id
+(and `createActivity()` in `lib/activities/mutations.ts` validates the same rule with a
+clear message before ever hitting that constraint, unit tested in
+`mutations.test.ts`); `due_at` and `owner_id` are plain nullable columns already
+supported by `CreateActivityInput`. Recorded here rather than silently skipped so the
+story count and the "what's done and why" trail both stay accurate. No files changed for
+this story.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`
