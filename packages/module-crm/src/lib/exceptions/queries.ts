@@ -60,6 +60,8 @@ export async function listCrossModuleExceptions(businessId: string): Promise<Cro
       label: `${partyNameById.get(job.partyId) ?? "Unknown customer"} -- job short on parts`,
       detail: job.jobNumber,
       detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${job.jobId}`,
+      entityId: job.jobId,
+      assessmentRequested: null,
     });
   }
 
@@ -71,6 +73,8 @@ export async function listCrossModuleExceptions(businessId: string): Promise<Cro
       label: `${partyNameById.get(o.party_id) ?? "Unknown customer"} -- assessment pending`,
       detail: o.assessment_request_id ? "Requested, awaiting outcome" : "Not yet requested",
       detailHref: `/dashboard/businesses/${businessId}/crm/opportunities/${o.id}`,
+      entityId: o.id,
+      assessmentRequested: Boolean(o.assessment_request_id),
     });
   }
 

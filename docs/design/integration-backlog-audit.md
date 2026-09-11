@@ -42,13 +42,13 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 06.3 | Recommended Parts -> Inventory | Done |
 | | 06.4 | Warranty / Revisit -> FSM | Done |
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Done |
-| | 07.2 | Exception Resolution Actions | Not started |
+| | 07.2 | Exception Resolution Actions | Done |
 | | 07.3 | Exception Auto-Close | Not started |
 | INT-08 (P1) | 08.1 | Linked Object Graph | Not started |
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 8/13 done. Overall: 24/29 (83%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 9/13 done. Overall: 25/29 (86%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -407,3 +407,18 @@ Party names resolved in one batched `core.parties` read across both sources (sam
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (960 files, no violations -- `module-crm` importing `module-fsm`'s `contract/index.ts` is an already-established pattern, not a new boundary crossing), `lint:migrations` (96 migrations, unchanged -- this story adds no schema), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session, not a regression), and a clean `next build`. No live migration/advisor check needed -- no schema touched.
 
 **Status**: 24 of 29 in-scope stories done. Next: INT-07.2, Exception Resolution Actions.
+
+### INT-07.2 — Exception Resolution Actions (2026-09-11)
+
+INT-07.1's Model needed a home: a new Exception Center list page (`crm/exceptions`) -- every open `CrossModuleException`, one screen, each row actionable in place, same "actionable from one screen" principle the Follow-up Queue (CRM-05.3) already established for a different worklist. Added a real nav entry (`manifest.ts` + `module-registry`'s own hand-mirrored copy, same "kept in sync by hand" convention both files' own comments already document -- confirmed they'd drifted slightly before this story on two unrelated items, Analytics/Reactivation, left alone since fixing that wasn't this story's job) under CRM's existing "Sales" section, alongside Follow-ups. The CRM dashboard's "Open exceptions" KPI card (INT-07.1) now has a real `href` to this page instead of none.
+
+Two resolution shapes, matching what each exception kind's own underlying state actually supports -- not a generic "resolve" button that means something different per row:
+
+- **`fsm_parts_shortage`**: the real 4-option resolution picker (`await_replenishment`/`substitute_item`/`reschedule_job`/`obtain_manually` + optional note), calling the exact same `resolveJobPartsShortage()` mutation the FSM job detail page's own INT-03.3 picker already uses -- reachable here without navigating to the job first. New route-local `actions.ts` imports the mutation directly from `module-fsm/src/lib/inventory-integration/mutations.ts` (not via `contract/index.ts`) -- `apps/web` is exempt from the module-boundary contract-only rule (confirmed against `lint-import-boundaries.mjs`'s own `owner.kind === "app"` exemption before relying on it, same precedent the shared `LoadingSkeleton`/`Breadcrumbs` reuse already established), the same way `fsm/jobs/[jobId]/actions.ts` itself does for this exact function.
+- **`assessment_pending`**: when no assessment has been requested yet (new `CrossModuleException.assessmentRequested` field, additive to INT-07.1's model), a one-click "Request assessment" button calling the same `createAssessmentRequestForOpportunity()` the opportunity page's own INT-04.2 button uses -- safe to expose without that page's missing-contact/address hints alongside it, since the function itself already tolerates both being absent rather than throwing (verified by reading it, not assumed). Once already requested, the row only links out ("Open in FSM") rather than inventing a second, thinner way to record a real outcome -- that action needs narrative detail (what was actually found on site) only FSM's own assessment page collects; a one-click aggregate-list shortcut for it would be a worse version of an already-correct flow, not a real resolution action.
+
+Both actions are plain `FormData` server actions (not typed positional args), matching `createOpportunityFollowUpAction`'s own shape for a plain (non-client-component) multi-field form -- this list has no client-side state of its own.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (962 files, no violations), `lint:migrations` (96 migrations, unchanged -- no schema touched), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (152/152, unchanged -- no unit test added for `listCrossModuleExceptions` itself, consistent with every other DB/contract-composing query function in this codebase, e.g. `getFsmQuoteStatusForOpportunity`/`getFulfillmentStatusForOpportunity`, none of which have one either), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build` (confirmed `/dashboard/businesses/[businessId]/crm/exceptions` is actually built, not just present in source).
+
+**Status**: 25 of 29 in-scope stories done. Next: INT-07.3, Exception Auto-Close.

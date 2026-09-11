@@ -39,11 +39,8 @@ function KpiCard({ label, value, detail, href }: { label: string; value: string 
  * current pipeline/operations state), not two different audiences.
  *
  * INT-07.1 adds one more card to the first section, "Open exceptions" -- the count from
- * the new business-wide Cross-Module Exception Model (`listCrossModuleExceptions()`).
- * No `href` yet, same as "Reviews requiring action"/"Response SLA" below: this story is
- * deliberately scoped to the model itself, not the resolution actions or a dedicated
- * list page (INT-07.2/07.3's own job) -- the count is real, not a placeholder, it just
- * has nowhere to drill into yet.
+ * the business-wide Cross-Module Exception Model (`listCrossModuleExceptions()`).
+ * INT-07.2 gives it an `href` once the Exception Center list page exists to link to.
  */
 export default async function CrmDashboardPage({ params }: { params: Promise<{ businessId: string }> }) {
   const { businessId } = await params;
@@ -95,7 +92,12 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
           detail="pricing, availability, or purchase intent"
           href={`/dashboard/businesses/${businessId}/crm/conversations`}
         />
-        <KpiCard label="Open exceptions" value={exceptions.length} detail="parts shortages and assessments needing a decision" />
+        <KpiCard
+          label="Open exceptions"
+          value={exceptions.length}
+          detail="parts shortages and assessments needing a decision"
+          href={`/dashboard/businesses/${businessId}/crm/exceptions`}
+        />
       </div>
 
       <div>

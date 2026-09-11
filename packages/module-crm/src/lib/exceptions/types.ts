@@ -28,4 +28,14 @@ export type CrossModuleException = {
   label: string;
   detail: string | null;
   detailHref: string;
+  /** INT-07.2: the raw entity id a resolution action targets -- the job id for
+   * `fsm_parts_shortage`, the opportunity id for `assessment_pending`. Kept separate
+   * from `detailHref` (a UI link) so an action doesn't have to parse a URL. */
+  entityId: string;
+  /** INT-07.2, `assessment_pending` only: whether an FSM assessment has already been
+   * requested. Drives which resolution action the row offers -- "Request assessment"
+   * when false, nothing inline when true (recording a real outcome needs narrative
+   * detail only FSM's own assessment page collects; this model doesn't invent a second,
+   * inline way to do that). Null for every other kind. */
+  assessmentRequested: boolean | null;
 };
