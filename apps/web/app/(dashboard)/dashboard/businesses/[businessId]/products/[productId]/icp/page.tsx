@@ -11,7 +11,18 @@ import { Label } from "@cofounderai/core/ui/label";
 import { IcpField } from "@cofounderai/module-discovery/components/icp/icp-field";
 import { CloneIcpButton } from "@cofounderai/module-discovery/components/icp/clone-icp-button";
 import { AutoPopulateStepBanner } from "@cofounderai/module-discovery/components/tenancy/auto-populate-step-banner";
-import { generateIcpAction, updateIcpAction, approveIcpAction, cloneIcpAction, autoPopulateIcpAction } from "./actions";
+import { PersonaSection } from "@cofounderai/module-discovery/components/personas/persona-section";
+import { listBuyerPersonas } from "@cofounderai/module-discovery/lib/personas/queries";
+import {
+  generateIcpAction,
+  updateIcpAction,
+  approveIcpAction,
+  cloneIcpAction,
+  autoPopulateIcpAction,
+  createPersonaAction,
+  updatePersonaAction,
+  deletePersonaAction,
+} from "./actions";
 
 function toLines(items: string[]) {
   return items.join("\n");
@@ -39,13 +50,29 @@ export default async function IcpPage({
     />
   );
 
+  /* DISC-OFFER-P0-02.3: buyer personas belong to the offering's workspace, independent
+   * of whether a product profile or ICP exists yet -- shown at the bottom of every
+   * branch below rather than gated behind them. */
+  const personas = await listBuyerPersonas(workspace.id);
+  const personaSection = (
+    <PersonaSection
+      personas={personas}
+      createAction={createPersonaAction.bind(null, businessId, productId)}
+      updateAction={updatePersonaAction.bind(null, businessId, productId)}
+      deleteAction={deletePersonaAction.bind(null, businessId, productId)}
+    />
+  );
+
   if (!product.product_profile) {
     return (
-      <div className="flex flex-col gap-3">
-        {autoPopulateBanner}
-        <p className="text-sm text-muted-foreground">
-          Generate a product profile on the Overview tab before defining an ICP.
-        </p>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          {autoPopulateBanner}
+          <p className="text-sm text-muted-foreground">
+            Generate a product profile on the Overview tab before defining an ICP.
+          </p>
+        </div>
+        {personaSection}
       </div>
     );
   }
@@ -57,19 +84,22 @@ export default async function IcpPage({
 
   if (!icp) {
     return (
-      <div className="flex flex-col gap-3">
-        {autoPopulateBanner}
-        <p className="text-sm text-muted-foreground">
-          No ICP yet. Generate one from the approved product profile{cloneSources.length > 0 ? ", or clone one from another offering." : "."}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <AiActionForm
-            action={generateIcpAction.bind(null, businessId, productId)}
-            buttonLabel="Generate ICP"
-            pendingText="Generating..."
-          />
-          <CloneIcpButton sources={cloneSources} hasExistingIcp={false} cloneAction={cloneIcpAction.bind(null, businessId, productId)} />
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          {autoPopulateBanner}
+          <p className="text-sm text-muted-foreground">
+            No ICP yet. Generate one from the approved product profile{cloneSources.length > 0 ? ", or clone one from another offering." : "."}
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <AiActionForm
+              action={generateIcpAction.bind(null, businessId, productId)}
+              buttonLabel="Generate ICP"
+              pendingText="Generating..."
+            />
+            <CloneIcpButton sources={cloneSources} hasExistingIcp={false} cloneAction={cloneIcpAction.bind(null, businessId, productId)} />
+          </div>
         </div>
+        {personaSection}
       </div>
     );
   }
@@ -167,6 +197,8 @@ export default async function IcpPage({
           Save changes
         </SubmitButton>
       </form>
+
+      {personaSection}
     </div>
   );
 }

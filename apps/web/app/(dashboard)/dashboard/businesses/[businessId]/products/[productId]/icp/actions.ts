@@ -10,6 +10,8 @@ import {
 } from "@cofounderai/module-discovery/lib/icp/mutations";
 import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
+import { createBuyerPersona, updateBuyerPersona, deleteBuyerPersona } from "@cofounderai/module-discovery/lib/personas/mutations";
+import type { PersonaPriority, PersonaRole } from "@cofounderai/module-discovery/lib/personas/types";
 
 function icpPath(businessId: string, productId: string) {
   return `/dashboard/businesses/${businessId}/products/${productId}/icp`;
@@ -89,4 +91,60 @@ export async function autoPopulateIcpAction(businessId: string, productId: strin
   const icp = await generateIcp(productId, { force: true });
   await approveIcpProfile(icp.id);
   revalidatePath(icpPath(businessId, productId));
+}
+
+/** DISC-OFFER-P0-02.3's "Offering Buyer Persona Definition" actions. */
+function personaFieldsFromFormData(formData: FormData) {
+  return {
+    title: String(formData.get("title") ?? ""),
+    roleInCommittee: String(formData.get("roleInCommittee") ?? "other") as PersonaRole,
+    priority: String(formData.get("priority") ?? "medium") as PersonaPriority,
+    notes: String(formData.get("notes") ?? ""),
+  };
+}
+
+export async function createPersonaAction(
+  businessId: string,
+  productId: string,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const workspace = await getWorkspaceForProduct(productId);
+  if (!workspace) return { error: "Workspace not found for this offering." };
+
+  try {
+    await createBuyerPersona(workspace.id, personaFieldsFromFormData(formData));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not add this persona." };
+  }
+  revalidatePath(icpPath(businessId, productId));
+  return { success: true };
+}
+
+export async function updatePersonaAction(
+  businessId: string,
+  productId: string,
+  personaId: string,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await updateBuyerPersona(personaId, personaFieldsFromFormData(formData));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not save this persona." };
+  }
+  revalidatePath(icpPath(businessId, productId));
+  return { success: true };
+}
+
+export async function deletePersonaAction(
+  businessId: string,
+  productId: string,
+  personaId: string,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await deleteBuyerPersona(personaId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Could not delete this persona." };
+  }
+  revalidatePath(icpPath(businessId, productId));
+  return { success: true };
 }

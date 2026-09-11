@@ -22,7 +22,7 @@ only genuine architectural/key decisions are raised.
 | | 01.3 | Offering CRUD UI | Done |
 | | 02.1 | Offering Setup | Done |
 | | 02.2 | Offering ICP | Done |
-| | 02.3 | Buyer Personas | Not started |
+| | 02.3 | Buyer Personas | Done |
 | B | 03.1 | Offering Context Selector | Not started |
 | | 03.2 | Offering Overview | Not started |
 | | 03.3 | Offering Navigation | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**5 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**6 of 68 in-scope stories done — Phase A complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -352,3 +352,53 @@ live-browser-walkthrough constraint noted in 01.3/02.1 (no seeded demo user in t
 environment).
 
 **Status**: 5 of 68 in-scope stories done. Next: 02.3, Buyer Persona Definition.
+
+### 02.3 — Buyer Persona Definition (2026-09-11)
+
+Grepped for "persona" across every `lib`/`components`/`prompts` directory and every prior
+migration first -- zero relevant matches, confirming this is a genuinely new entity
+(distinct from `icp_profiles.roles`, which is a flat list of job titles describing the
+target company's makeup, not a buying-committee model with its own priority).
+
+New `discovery.buyer_personas` table, one-to-many against the offering's workspace
+(unlike `icp_profiles.workspace_id`, this FK is *not* unique -- the backlog's own example
+has three personas per offering). `role_in_committee` and `priority` are both `check`-
+constrained enums (executive_buyer/decision_maker/influencer/budget_stakeholder/user/other;
+high/medium/low) rather than free text, matching every other closed-vocabulary field in
+this module (`offering_type`, `status`). RLS: the exact same four-policy pattern against
+`discovery.user_workspace_ids()` as `product_knowledge`/`prospect_discovery_locks`, read
+directly from the schema migration before writing it rather than assumed. Caught one real
+gap myself after applying the migration: `get_advisors`' `unindexed_foreign_keys` check
+flagged the new `workspace_id` FK with no covering index -- every *other* workspace-scoped
+table in this schema (`product_knowledge`, `prospects`, `ai_runs`, etc.) has one, so this
+was a genuine miss, fixed with a same-day follow-up migration
+(`20260911004000_discovery_buyer_personas_index.sql`) rather than folded silently into the
+first one, since the first had already been applied live.
+
+`lib/personas/{types,queries,mutations}.ts` follow the same shape as `lib/icp/`:
+`listBuyerPersonas()` is `cache()`-wrapped and exported cleanly enough that Phase C's
+Buyer Intelligence (06.3) can consume it later without any interface change -- this
+story's own scope is only "personas are available to research/scoring" (i.e. a real query
+function exists), not any actual scoring integration.
+
+UI: a new `PersonaSection` (create/edit/delete) on the ICP page, shown in *every* branch
+of that page -- including "no product profile yet" and "no ICP yet" -- since personas
+belong to the offering's workspace independent of whether an ICP or product profile
+exists. Deliberately built as a list of compact cards rather than a `<Table>`: each
+persona is only a title + two badges + optional notes, so there's no wide-table/mobile-
+card split to design in the first place (CLAUDE.md non-negotiable #12 doesn't bite when
+there's no table to begin with). Edit reuses the same dialog as create (`PersonaFormDialog`,
+mirroring `OfferingFormDialog`'s own two-mode pattern); delete goes behind the same
+`AlertDialog` confirmation every other destructive action in this module already uses.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(979 files, no violations), `lint:migrations` (102 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (19/19, unchanged), two live migration applies +
+`get_advisors` for both `security`/`performance` (the missing-index finding above was
+caught and fixed this way; no other new findings), and a clean `next build`. Same
+live-browser-walkthrough constraint noted in every prior story this run (no seeded demo
+user in this environment).
+
+**Status**: 6 of 68 in-scope stories done -- **Phase A complete**. Next: Phase B, 03.1
+Offering Context Selector.
