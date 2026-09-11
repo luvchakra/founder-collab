@@ -87,7 +87,7 @@ E-invoicing is mandated for the applicable taxpayer class at ₹5 crore+ aggrega
 
 ## European Union
 
-Do not model "Europe" as one tax jurisdiction.
+Do not model “Europe” as one tax jurisdiction.
 
 EU VAT has a common framework, but member states control many rates and detailed processes. VAT returns are filed in the member state where registered, with country-dependent frequencies and special schemes such as OSS/IOSS. [18][19]
 
