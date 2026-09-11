@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getParty } from "@cofounderai/core/parties/queries";
+import { getParty, listContactsForParty } from "@cofounderai/core/parties/queries";
 import { listAgingForParty } from "@cofounderai/core/payments/queries";
 import { inr, formatDate } from "@cofounderai/core/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
@@ -30,6 +30,13 @@ import { linkTicketToDocumentAction } from "./actions";
  * that's the existing ticket model's own interop, not something this story's new
  * lead/opportunity/conversation sections replace (docs/design/crm-backlog-audit.md's
  * incremental-retirement plan: tickets retire story-by-story, not in one cutover).
+ *
+ * CRM-02.2 (Company/Account 360): every section above already filters by `party_id`
+ * regardless of `core.parties.kind`, so a `kind='company'` party already gets the same
+ * opportunity/interaction/follow-up view a `kind='person'` one does -- B2B and B2C are
+ * both the same one panel, not two. The one thing a company party needs that a person
+ * one doesn't is its list of contacts (`core.party_contacts`, D-1) -- added below,
+ * reusing `listContactsForParty()` directly rather than adding a CRM-side copy.
  */
 export default async function CustomerPanelPage({
   params,
@@ -43,10 +50,11 @@ export default async function CustomerPanelPage({
   const party = await getParty(partyId);
   if (!party || party.business_id !== businessId) notFound();
 
-  const [customer360, aging, ticket] = await Promise.all([
+  const [customer360, aging, ticket, contacts] = await Promise.all([
     getCustomer360(businessId, partyId),
     listAgingForParty(businessId, partyId),
     ticketId ? getTicket(ticketId) : Promise.resolve(null),
+    party.kind === "company" ? listContactsForParty(partyId) : Promise.resolve([]),
   ]);
 
   const totalOutstanding = aging.reduce((sum, row) => sum + Number(row.balance_amount), 0);
@@ -67,7 +75,8 @@ export default async function CustomerPanelPage({
     customer360.openFollowUps.length > 0 ||
     customer360.recentConversations.length > 0 ||
     customer360.productsOfInterest.length > 0 ||
-    customer360.notes.length > 0;
+    customer360.notes.length > 0 ||
+    contacts.length > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
@@ -84,6 +93,28 @@ export default async function CustomerPanelPage({
           {customer360.source ? <Badge variant="outline">Source: {customer360.source}</Badge> : null}
         </div>
       </div>
+
+      {contacts.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Contacts</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col divide-y">
+            {contacts.map((contact) => (
+              <div key={contact.id} className="flex items-center justify-between py-1.5 text-sm">
+                <span>
+                  {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unnamed contact"}
+                  {contact.job_title ? <span className="text-muted-foreground"> -- {contact.job_title}</span> : null}
+                </span>
+                <div className="flex items-center gap-2">
+                  {contact.is_primary ? <Badge variant="secondary">Primary</Badge> : null}
+                  <span className="text-muted-foreground">{contact.email ?? contact.phone ?? ""}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {customer360.openOpportunities.length > 0 ? (
         <Card>

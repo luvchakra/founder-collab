@@ -140,6 +140,18 @@ and rejected).
   ticket-linking controls are untouched. Full monorepo typecheck, `next build`,
   `lint:boundaries`, and module-crm's vitest suite all verified clean.
 
+## CRM-02.2 (2026-09-11)
+
+Every Customer 360 section already filters by `party_id` regardless of
+`core.parties.kind`, so a `kind='company'` party already gets the same
+opportunity/interaction/follow-up/conversation view a `kind='person'` one does -- B2B
+and B2C are the same one panel, not two, satisfying that acceptance criterion with no
+code change. The one gap was contacts: added a "Contacts" card to the same page, reusing
+`core.parties.listContactsForParty()` (D-1, already existed) directly rather than adding
+a CRM-side copy -- shown with name, `job_title`, primary flag, and email/phone,
+conditionally fetched only when `party.kind === "company"`. Verified with typecheck and
+a clean `next build`.
+
 ## No unrelated module changed
 
 This audit and CRM-01.2's schema migration touch only `docs/design/`, this new audit
