@@ -44,7 +44,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 03.5 | No Duplicate Masters | Done |
 | P0-04 | 04.1 | GSTIN Management | Done |
 | | 04.2 | GST Profile | Done |
-| | 04.3 | HSN/SAC | Not started |
+| | 04.3 | HSN/SAC | Done |
 | | 04.4 | Place of Supply | Not started |
 | | 04.5 | GST Tax Determination | Not started |
 | | 04.6 | GST Invoice Validation | Not started |
@@ -58,15 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**15 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**16 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.2 (GST Profile) is the last completed story;
-COMPLY-P0-04.3 (HSN/SAC) is next.
+both now fully done.** COMPLY-P0-04.3 (HSN/SAC) is the last completed story;
+COMPLY-P0-04.4 (Place of Supply) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1485,4 +1485,88 @@ this backlog's own migration comment from three stories ago, not `docs/plan/` it
 - No live browser walkthrough -- see the limitation note at the top of this document;
   verified by reading the rendered JSX against the design rules doc, same convention as
   COMPLY-P0-04.1.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 04.3 — HSN/SAC (2026-09-11)
+
+"Classification and validation." `core.items.hsn_code` already exists, is already
+`core`-owned per the entity-ownership map ("never duplicated per module"), and is already
+read by this module (COMPLY-P0-03.2's `getItemTaxContext`/`listItemTaxContexts`) --
+that read function's own docstring literally named this story ("classification-readiness
+checks (COMPLY-P0-04.3 HSN/SAC, COMPLY-P1-12.1 Inventory Tax Readiness)") as one of its
+future consumers. This story is that consumer's own logic: not a new table, not a new
+edit surface, but the validation Compliance can apply to a code once it's read.
+
+**Scoping decisions, made explicit**:
+- **No lookup against a real HSN/SAC master code list.** That is a government-maintained
+  catalog of many thousands of entries this run has no way to source accurately or keep
+  current -- shipping a fabricated or stale one would be worse than shipping none, and
+  would violate backlog rule 6 (versioned/source-referenced country rules). What this
+  story validates instead is STRUCTURE: does a code look like a real HSN/SAC code at all
+  (right digit count, right family), not whether those specific digits are a currently-
+  assigned commodity code. The file's own docstring names this distinction explicitly per
+  backlog rule 12 (regulatory fact vs. software rule vs. calculated result).
+- **No turnover-based digit-count mandate hard-coded.** GSTN's actual minimum-digit
+  requirement depends on a business's own aggregate turnover slab (a real, versioned
+  regulatory fact) -- out of scope for this story; if a future story needs to enforce it,
+  the right home is a versioned, source-cited `gst.tax_rules` row (COMPLY-P0-02.3), not a
+  hard-coded threshold in this file.
+- **No new edit UI.** `core.items.hsn_code`'s only existing edit surface is
+  `module-inventory`'s own `product-modal.tsx` free-text input -- wiring live validation
+  into that form means editing another module's own source, out of scope for a run
+  restricted to `module-gst`. **Follow-up flagged for a future story in `module-inventory`**:
+  call `validateHsnSacCode`/`validateItemHsnSac` from that form (or its own mutation) to
+  surface a validation hint at entry time, the same "flag the missing cross-module wiring"
+  pattern COMPLY-P0-03.3 already used for FSM.
+- **No new dashboard/readiness page.** Surfacing "N items with missing/invalid HSN/SAC"
+  across a business's whole product catalog is explicitly COMPLY-P1-12.1's own future story
+  name ("Inventory Tax Readiness") -- building that now would be exactly the "do not
+  implement future stories implicitly" backlog rule 4 forbids. This story ships the
+  validator only; a future story wires it into a real readiness view.
+
+**What was built**:
+- `packages/module-gst/src/lib/inventory-tax-context/hsn-sac.ts`: `hsnSacRequirementForKind`
+  (good/part -> HSN, service -> SAC, labour/expense -> not_applicable -- these last two are
+  internal line-item kinds GST invoicing doesn't require a code for at all, so flagging
+  them "missing" would be a false positive), `classifyHsnSacCode` (structural: 6-digit
+  codes starting with "99" are SAC per GSTN's own published convention -- the Harmonized
+  System's chapter 99 is otherwise unused for goods, which is exactly why India repurposed
+  it for services under GST, a stable documented fact, not a guess; any other 2/4/6/8-digit
+  numeric string is HSN), and `validateHsnSacCode`/`validateItemHsnSac` (kind-aware:
+  missing/invalid/valid/not_applicable, each with a plain-language `reason` for the
+  non-valid cases, including a specifically helpful one when a goods item was tagged with
+  an obviously-services-shaped 99-prefixed 6-digit code, a plausible data-entry mistake).
+  Never throws -- every input maps to a result, so a future caller building a readiness
+  list over many items doesn't need its own per-item try/catch.
+  `hsn-sac.test.ts` -- 19 cases across all four functions: kind-to-requirement mapping,
+  structural classification (both code families, non-numeric input, unrecognized digit
+  lengths, whitespace tolerance), full kind-aware validation (valid/missing/invalid for
+  both HSN and SAC paths, the SAC-on-a-goods-item and HSN-on-a-service-item cross-checks,
+  the not_applicable short-circuit for labour/expense regardless of code presence), and the
+  `ItemTaxContext`-shaped convenience wrapper.
+- No change to `queries.ts`/`types.ts` (COMPLY-P0-03.2) at all -- those stay a pure,
+  unopinionated passthrough read of `core.items`; this story's validator is a separate,
+  composable function a caller applies to an already-read `ItemTaxContext`, not baked into
+  the read itself (keeps the read function honest about what it actually does: fetch, not
+  judge).
+
+**What was deliberately left out**: a real HSN/SAC master catalog; a turnover-based digit
+mandate; any change to `module-inventory`'s own product form (flagged above as a follow-up
+for that module); and any dashboard/readiness UI (COMPLY-P1-12.1's own future job).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1021 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations (no
+  schema change).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 108 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 10 files / 70 tests passed (51
+  pre-existing + 19 new in `hsn-sac.test.ts`).
+- No migration to apply, no `get_advisors` re-check, no `apps/web` change -- a pure-library
+  story, matching COMPLY-P0-02.x/03.x's own established "lib-only story" verification
+  convention (no `next build` re-run needed).
+- No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
