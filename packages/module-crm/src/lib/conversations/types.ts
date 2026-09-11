@@ -6,6 +6,7 @@ export type ChannelType =
   | "instagram"
   | "facebook_messenger"
   | "google_business_messages"
+  | "google_business_profile"
   | "email"
   | "sms"
   | "website"

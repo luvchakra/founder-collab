@@ -167,6 +167,7 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Inbox", slug: "", icon: "Inbox" },
           { label: "Conversations", slug: "conversations", icon: "MessageCircle" },
           { label: "Potential Lost Business", slug: "lost-business", icon: "AlertTriangle" },
+          { label: "Reviews", slug: "reviews", icon: "Star" },
         ],
       },
       {
@@ -197,6 +198,7 @@ export const moduleRegistry: ModuleManifest[] = [
       "WhatsApp Business integration",
       "Potential Lost Business queue",
       "Potential Lost Business dashboard",
+      "Google Business Profile review inbox",
     ],
     permissions: ["crm.access"],
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],

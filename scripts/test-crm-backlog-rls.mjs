@@ -501,6 +501,7 @@ async function main() {
       assertEqual(psqlAsBob("select count(*) from crm.opportunity"), "0", "Bob sees none of Alice's opportunities");
       assertEqual(psqlAsBob("select count(*) from crm.conversation"), "0", "Bob sees none of Alice's conversations");
       assertEqual(psqlAsBob("select count(*) from crm.interaction"), "0", "Bob sees none of Alice's interactions");
+      assertEqual(psqlAsBob("select count(*) from crm.review_item"), "0", "Bob sees none of Alice's review_item rows (CRM-08.5)");
 
       console.log("Verifying cross-tenant reference-smuggling triggers...");
       assertThrows(
@@ -530,6 +531,10 @@ async function main() {
       assertThrows(
         () => psqlAsBob(`insert into crm.assignment (business_id, entity_type, entity_id, owner_id) values ('${bobBusiness}', 'lead', '${aliceLead}', '${aliceEmployee}')`),
         "Bob cannot create an assignment owned by Alice's employee",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.review_item (business_id, channel_connection_id, provider, external_review_id, occurred_at) values ('${bobBusiness}', '${aliceChannelConnection}', 'google_business_profile', 'review-bob-1', now())`),
+        "Bob cannot create a review_item against Alice's channel_connection (CRM-08.5)",
       );
       const bobOpportunity = psqlAsBob(`insert into crm.opportunity (business_id, party_id) values ('${bobBusiness}', '${bobParty}') returning id;`);
       assertThrows(

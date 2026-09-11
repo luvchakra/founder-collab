@@ -1574,3 +1574,99 @@ this should be the first thing verified before merging further work.
 
 **Epic CRM-08 status**: 3 of 6 in-scope stories done. Next: CRM-08.5 (Google Business
 Profile Review Inbox, seq #50).
+
+## CRM-08.5 (2026-09-11)
+
+"Google Business Profile Review Inbox." Goal: bring reviews into the same recovery
+queue. Acceptance criteria: reviews can be listed for connected locations; a review
+includes rating, comment, reviewer, create time, and reply state when available; a
+review appears in the customer/reputation queue.
+
+**New channel, not a new provider.** `crm.channel_connection.provider` is already free
+text specifically so a new *provider* never needs a migration (CRM-01.2's own doc
+comment, citing CRM-16.3) -- but Google Business Profile Reviews is a genuinely
+different *channel* from `google_business_messages`: a different Google API (the legacy
+Google My Business API v4's `accounts.locations.reviews` resource, cited by the backlog
+itself as "[11]"), a different OAuth scope, and a different connection identity (a
+location, not a phone number or a page). Reusing `google_business_messages` for a
+connection that has nothing to do with messaging would have been the wrong kind of
+reuse -- confusing, not simplifying. New migration
+(`20260911001000_crm_review_channel_google_business_profile.sql`) adds
+`'google_business_profile'` to `crm.channel_type` via `alter type ... add value if not
+exists`, the same kind of "add a value when a real new surface needs one" extension
+`20260906111000_inventory_procedural_layer.sql` already established for
+`inventory.movement_type`. `crm.review_item` itself needed no schema change --
+CRM-01.2 already anticipated this exact story ("content_retention_expires_at exists from
+the start"), and its `unique (business_id, provider, external_review_id)` constraint is
+already the right idempotency key for a re-sync.
+
+**New `lib/reviews/` domain folder.** `google-business-profile-adapter.ts` follows the
+same split `whatsapp/cloud-api-adapter.ts` established: a pure mapping function
+(`normalizeGoogleBusinessProfileReview()`, unit-tested against real API response shapes
+without a network mock) separated from the actual `fetch()`-calling functions
+(`verifyGoogleBusinessProfileLocation()`, `listAllGoogleBusinessProfileReviews()`, the
+latter following `nextPageToken` up to a fixed 5-page/250-review cap). `mutations.ts`
+adds `connectGoogleBusinessProfileLocation()` (verifies the account id + location id +
+token against a real `reviews.list` call before ever storing anything, same
+"verify before persisting" discipline `connectWhatsApp()` established -- there is no
+separate "get location" read this story's acceptance criteria need, so the connect check
+reuses the same real read path the sync does) and `syncGoogleBusinessProfileReviews()`
+(pulls every review for one connection and upserts `crm.review_item`). `queries.ts` adds
+`listReviewItems()`.
+
+**Reply state without ever downgrading a human's own triage.** `crm.review_item.status`
+(CRM-01.2's own `review_item_status` enum: `new`/`in_progress`/`responded`/`dismissed`)
+doubles as the "reply state" the acceptance criteria ask for -- `new` means unreplied,
+`responded` means the location has replied on the provider's side. `syncGoogleBusiness
+ProfileReviews()` only ever *sets* this on first sight (`responded` if the provider
+already shows a reply, `new` otherwise) or bumps a still-`new` row to `responded` once a
+reply appears later -- it never touches a row a human has already moved to
+`in_progress`/`dismissed`, the same "a system-detected signal never overrides a human's
+own explicit action" rule `applyChannelConnectionHealthResult()` already applies to
+connection status. No party matching is attempted (a review carries no phone/email to
+match on, unlike a WhatsApp/social sender) -- `party_id` stays honestly null, same
+discipline `ingestInboundSocialMessage()` already established for an unmatched sender.
+
+**UI: new `/crm/reviews` page**, gated the same way `/crm/whatsapp` is
+(`channel_connections.manage` for connect/disconnect/sync; the page itself just needs the
+`crm` license). Shows every connected location with a manual "Sync now" button (no cron
+-- this story's acceptance criteria only ask for listing, not automatic polling; a
+sync-on-demand button is the honest minimum, not a speculative background job) plus the
+review list itself as its own reputation queue: rating (star icons), reviewer, comment,
+posted date, and a reply-state badge, mobile compact cards + desktop table per
+docs/design/claude-ui-design-rules.md rule 5. New "Reviews" nav entry in both
+`module-crm/src/manifest.ts` and `module-registry/src/index.ts` (hand-kept in sync, same
+as every other nav change), plus a `Star` icon added to `ModuleIcon`'s lookup map since
+nav item icons resolve through it. `docs/design/crm-backlog-audit.md`'s own earlier
+CRM-14.2 section already anticipated this: the dashboard's `unansweredReviewsRequiring
+Action` KPI and the Lost Business page's review count "start reporting for real the
+moment this story ships" -- confirmed true, since both already query `review_item` by
+`business_id`/`status` with no code change needed.
+
+**New RLS-harness coverage** (`test-crm-backlog-rls.mjs`): this is the first story to
+actually exercise `review_item`'s write path beyond CRM-01.2's own sanity/uniqueness
+checks, so added a same-tenant read-isolation assertion ("Bob sees none of Alice's
+review_item rows") and a cross-tenant reference-smuggling assertion ("Bob cannot create a
+review_item against Alice's channel_connection") exercising the pre-existing
+`enforce_review_item_refs` trigger, which had no test of its own until now.
+
+Verified with full monorepo typecheck (clean across every workspace), `lint:boundaries`
+(907 files, no violations), `lint:migrations` (72 migrations, no violations),
+module-crm's vitest suite (101/101 -- 3 new mapping tests), both CRM RLS suites (re-run
+clean, including the 2 new review_item cases above), and a clean `next build` (32 routes,
+`/crm/reviews` present). Migration applied live to the dev Supabase project
+(`jazdtomcgqjxjueedmck`) via `apply_migration`; `get_advisors(security)` re-run
+afterward shows the same 6 pre-existing findings as before this change (5 RLS-enabled-
+no-policy tables unrelated to CRM, 1 leaked-password-protection warning) -- no new
+finding introduced.
+
+**Epic CRM-08 status**: 4 of 6 in-scope stories done. Next: CRM-08.6 (Review Response
+Drafting, seq #51, P1) -- "AI drafts response, human approval required before
+publishing, user sees the action is external and requires authorization" is a separate
+acceptance criterion from this story's own listing/ingest scope (`reviews.publish` is
+already seeded in the permission catalog for the eventual publish step). Note for that
+story: module-crm has no sanctioned cross-module AI provider contract today -- its
+existing "AI" features (intent classification, etc.) are deterministic keyword/template
+heuristics, not real LLM calls -- so CRM-08.6 needs an explicit decision on what "AI
+drafts response" means here before implementation, not an assumption that a real model
+call is already wired up.
