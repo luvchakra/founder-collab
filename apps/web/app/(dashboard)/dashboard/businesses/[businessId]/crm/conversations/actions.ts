@@ -7,6 +7,7 @@ import { checkResponseQuality, type ResponseQualityFlag } from "@cofounderai/mod
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
 import { addConversationProduct, createOutOfStockWaitlist, removeConversationProduct } from "@cofounderai/module-crm/lib/conversations/products";
+import { generateConversationSummary, type ConversationSummaryResult } from "@cofounderai/module-crm/lib/ai/conversation-summary";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -78,6 +79,20 @@ export async function removeConversationProductAction(businessId: string, conver
 export async function createWaitlistAction(businessId: string, productInterestId: string): Promise<void> {
   await createOutOfStockWaitlist(businessId, productInterestId);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+/** CRM-12.2's "Generate summary" button, scoped to one conversation's own message
+ * history. Caches on `crm.conversation_summary` (generateConversationSummary()'s own
+ * input-hash check), so `revalidatePath` here just keeps the server-rendered
+ * `generatedAt` timestamp in sync with what the client just received. */
+export async function generateConversationSummaryAction(businessId: string, conversationId: string): Promise<ConversationSummaryResult | { error: string }> {
+  try {
+    const result = await generateConversationSummary(businessId, conversationId);
+    revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+    return result;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not generate a summary." };
+  }
 }
 
 export type SendWhatsAppReplyActionState = { error: string } | null;

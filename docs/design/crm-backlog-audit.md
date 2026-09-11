@@ -2298,3 +2298,55 @@ security (no new findings).
 
 **Status**: 67 of 74 in-scope stories done. Next: CRM-12.2 "Conversation summary" (seq
 #63).
+
+---
+
+## CRM-12.2 (2026-09-11)
+
+"Conversation Summary" -- for one specific conversation: summary, unresolved questions,
+promised actions, customer sentiment, next action.
+
+**Design**: same real-LLM-call + cache-by-input-hash shape as CRM-12.1, scoped to one
+conversation's own message history (`getConversationById()`, already fetched by the
+Conversations page for its own right pane) instead of the customer's full cross-module
+footprint. Unlike CRM-12.1's single free-text `summary`, this story's acceptance
+criteria name five distinct fields, so the AI call returns a structured object (Zod
+`{ summary, unresolvedQuestions: string[], promisedActions: string[], sentiment:
+"positive"|"neutral"|"negative", nextAction }`) rather than one blob -- `generateObject()`
+validates it directly, same as every other structured AI call in this codebase. Messages
+are capped to the most recent 30 (`RECENT_INTERACTIONS_LIMIT`) so a long-running
+conversation still produces a bounded prompt.
+
+New `AiOperation` value `summarize_conversation`, `balanced` tier (same as
+`summarize_customer`/`draft_review_response` -- bounded analysis over given text, not
+multi-source synthesis).
+
+**Caching**: new table `crm.conversation_summary` (`20260911001700_crm_conversation_summary.sql`,
+crm schema only), one row per `(business_id, conversation_id)`. Unlike
+`crm.customer_summary`'s `party_id` (a cross-schema reference into `core.parties`),
+`conversation_id` is a same-schema reference into `crm.conversation`, so it's a plain FK
+plus the existing `crm.enforce_conversation_business_id()` helper (`crm.follow_up` and
+several other CRM tables already reference `conversation_id` the same way) -- no new
+cross-schema-reference pattern needed. The five-field result is stored as one `data`
+jsonb column rather than five separate columns: it's one cohesive AI response, always
+read and written together, never queried by an individual field.
+
+**UI**: new card (`conversation-summary-card.tsx`) in the Conversations page's right
+pane, just below the lead/opportunity badges -- sentiment badge, summary, bulleted
+unresolved questions / promised actions (only rendered when non-empty), and the
+recommended next action. `key={selected.id}` on the card resets its local state when the
+founder switches conversations, so a stale summary from the previous conversation never
+lingers. New server action `generateConversationSummaryAction`
+(`conversations/actions.ts`), same try/catch-to-`{ error }` shape as CRM-12.1's action.
+
+Verified with full monorepo typecheck, `lint:boundaries` (924 files, no violations),
+`lint:migrations` (80 migrations, no violations), module-crm's vitest suite (111/111,
+unchanged), both CRM RLS suites (re-run clean, +4 new assertions for
+`crm.conversation_summary`'s idempotency/regeneration-in-place/cross-tenant smuggling),
+and a clean `next build`. Migration applied live to the dev Supabase project;
+`get_advisors` re-checked clean on both performance (the two new indexes show as
+"unused" only because the project has no real traffic yet) and security (no new
+findings).
+
+**Status**: 68 of 74 in-scope stories done. Next: CRM-12.4 "Next best action" (seq #64;
+CRM-12.3 is out of this backlog run's scope per Section 7's own sequence table).

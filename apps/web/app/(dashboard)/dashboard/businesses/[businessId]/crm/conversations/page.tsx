@@ -17,6 +17,7 @@ import { getDraftReplyForInteraction } from "@cofounderai/module-crm/lib/interac
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { isHighCommercialIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
 import type { MessageIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
+import { getConversationSummary } from "@cofounderai/module-crm/lib/ai/conversation-summary";
 import { getParty } from "@cofounderai/core/parties/queries";
 import { formatDateTime } from "@cofounderai/core/lib/format";
 import { Alert, AlertDescription } from "@cofounderai/core/ui/alert";
@@ -37,11 +38,13 @@ import {
   createOpportunityFromInteractionAction,
   createTaskFromInteractionAction,
   createWaitlistAction,
+  generateConversationSummaryAction,
   markInteractionNotActionableAction,
   removeConversationProductAction,
   sendWhatsAppReplyAction,
   sendWhatsAppTemplateAction,
 } from "./actions";
+import { ConversationSummaryCard } from "./conversation-summary-card";
 import { WhatsAppReplyForm } from "./reply-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 
@@ -84,6 +87,10 @@ function conversationHref(businessId: string, params: Record<string, string | un
  * path yet, so they show neither. CRM-09.6 adds an AI-suggested draft (template-by-
  * intent, not a real model call -- see draft-reply.ts's own doc comment) above that
  * composer, computed from the conversation's last inbound message.
+ *
+ * CRM-12.2 adds a real AI-generated conversation summary card (unresolved questions,
+ * promised actions, sentiment, next action) just below the lead/opportunity badges --
+ * see `lib/ai/conversation-summary.ts`, an explicit click, not automatic on selection.
  */
 export default async function CrmConversationsPage({
   params,
@@ -138,6 +145,7 @@ export default async function CrmConversationsPage({
   const lastInboundInteraction = selected ? [...selected.interactions].reverse().find((i) => i.direction === "inbound") : undefined;
   const suggestedReply =
     selected && whatsAppWindow?.withinWindow && lastInboundInteraction ? await getDraftReplyForInteraction(businessId, lastInboundInteraction.id) : null;
+  const conversationSummary = selected ? await getConversationSummary(businessId, selected.id) : null;
 
   // CRM-10.2: products this specific conversation has expressed interest in, each with
   // a live (never stored) Inventory availability figure -- ADR-10's degraded mode
@@ -264,6 +272,12 @@ export default async function CrmConversationsPage({
             </Link>
           ) : null}
         </div>
+
+        <ConversationSummaryCard
+          key={selected.id}
+          initialSummary={conversationSummary}
+          generateAction={generateConversationSummaryAction.bind(null, businessId, selected.id)}
+        />
 
         <div className="flex flex-col gap-3 border-t border-border pt-3">
           <p className="text-sm font-medium">Products of interest</p>

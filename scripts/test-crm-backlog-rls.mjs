@@ -577,6 +577,24 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.customer_summary where id = '${aliceSummary}'`), "0", "Bob cannot see Alice's cached customer summary");
 
+      console.log("Verifying CRM-12.2's crm.conversation_summary cache (idempotency, cross-tenant)...");
+      const aliceConvoSummary = psqlAsAlice(`insert into crm.conversation_summary (business_id, conversation_id, data, input_hash) values ('${aliceBusiness}', '${aliceConversation}', '{"summary":"a","unresolvedQuestions":[],"promisedActions":[],"sentiment":"neutral","nextAction":"follow up"}', 'hash-v1') returning id;`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.conversation_summary (business_id, conversation_id, data, input_hash) values ('${aliceBusiness}', '${aliceConversation}', '{}', 'hash-v2')`),
+        "a duplicate (business_id, conversation_id) conversation_summary is rejected -- generateConversationSummary()'s own one-row-per-conversation cache relies on this for its upsert",
+      );
+      psqlAsAlice(`update crm.conversation_summary set data = '{"summary":"b","unresolvedQuestions":[],"promisedActions":[],"sentiment":"positive","nextAction":"send quote"}', input_hash = 'hash-v2' where business_id = '${aliceBusiness}' and conversation_id = '${aliceConversation}';`);
+      assertEqual(
+        psqlAsAlice(`select data->>'sentiment' from crm.conversation_summary where id = '${aliceConvoSummary}'`),
+        "positive",
+        "regenerating (changed input_hash) updates the same cached row in place rather than inserting a second one",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.conversation_summary (business_id, conversation_id, data, input_hash) values ('${bobBusiness}', '${aliceConversation}', '{}', 'hash')`),
+        "Bob cannot create a conversation_summary against Alice's conversation -- enforce_conversation_summary_refs()",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.conversation_summary where id = '${aliceConvoSummary}'`), "0", "Bob cannot see Alice's cached conversation summary");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

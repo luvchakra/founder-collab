@@ -18,7 +18,8 @@ export type AiOperation =
   | "restructure_import"
   | "draft_review_response"
   | "check_response_quality"
-  | "summarize_customer";
+  | "summarize_customer"
+  | "summarize_conversation";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -79,6 +80,10 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // not the multi-source strategic synthesis chat/generate_outreach_strategy use
   // "reasoning" for.
   summarize_customer: { qualityTier: "balanced", requiresWebSearch: false },
+  // Balanced, same tier as summarize_customer: extracting unresolved questions/promised
+  // actions/sentiment from one conversation's own message history is bounded analysis
+  // over given text, not multi-source synthesis.
+  summarize_conversation: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {
