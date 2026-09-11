@@ -182,8 +182,42 @@ CRM-04.2 builds the pipeline (today opportunities only exist via
 `convertLeadToOpportunity()`), so a dedicated opportunities-aggregation query has nothing
 real to attach to yet.
 
+## CRM-03.1 (2026-09-11)
+
+Adds `promoteProspectToLead()` (`lib/leads/mutations.ts`) and the CRM-01.3-style contract
+wrapper `promoteProspectToCrm()`, called from a new "Promote to CRM" button on Discovery's
+prospect detail page (`apps/web/.../prospects/[prospectId]/promote-to-crm-button.tsx` +
+`actions.ts`). Prospect context (product reference, ICP fit, buying signals, research
+summary, outreach state, latest response) carries forward *by reference*
+(`source_module='discovery'`, `source_reference=prospectId`) rather than being copied
+onto `crm.lead` -- Section 4's reuse map explicitly calls for "score/reason + source
+reference" and "optional research summary pointer/reference," not unrestricted copies,
+and a later lookup (`getProspectSummaryForParty`, already used by Customer 360/the
+timeline) reads the live values back through that reference. The confirmation dialog
+names what's carried across (acceptance criterion: "user sees what data is being carried
+across") without previewing copied values that don't exist.
+
+"CRM lead is not duplicated if already promoted" is backed by a real constraint, not just
+an app-level check: `lead_source_reference_uq`, a partial unique index on
+`(business_id, source_module, source_reference)`, added in this story rather than
+CRM-01.2 since the promotion flow (and its race condition) didn't exist until now.
+`promoteProspectToLead()`'s upfront existence check is an optimization; the constraint
+violation is caught the same way `recordInteraction()`'s own dedupe race is handled
+(CRM-01.6). This module-discovery <-> module-crm cross-module call direction mirrors the
+already-existing module-discovery <-> module-inventory bidirectional dependency in this
+codebase -- not a new architectural pattern.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite, and both CRM RLS test scripts (including a new dedupe-race
+assertion). Migration applied to the dev Supabase project and confirmed clean on
+security/performance advisors.
+
 ## No unrelated module changed
 
-This audit and CRM-01.2's schema migration touch only `docs/design/`, this new audit
-note, and `supabase/migrations/` (`crm` schema only, plus read-only foreign keys into
-`core`). No other module's code, schema, or docs were changed.
+Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`
+(`crm` schema only, plus read-only foreign keys into `core`), `packages/module-crm/`,
+and -- where a story's own acceptance criteria call for a cross-module action (CRM-02.1's
+Customer 360 page, CRM-03.1's "Promote to CRM" button) -- the specific `apps/web/`
+composition-root files for that one feature, following the exact pattern
+`conversions/actions.ts` already established for the Discovery -> FSM handoff. No other
+module's own internal code, schema, or docs were changed.

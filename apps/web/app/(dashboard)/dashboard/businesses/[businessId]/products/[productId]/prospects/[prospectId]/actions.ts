@@ -33,6 +33,7 @@ import {
   logInboundReply,
 } from "@cofounderai/module-discovery/lib/conversations/mutations";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
+import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
 
 function prospectPath(businessId: string, productId: string, prospectId: string) {
   return `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospectId}`;
@@ -335,4 +336,18 @@ export async function logInboundReplyAction(
     await logInboundReply(conversationId, content);
     revalidatePath(prospectPath(businessId, productId, prospectId));
   });
+}
+
+/**
+ * CRM-03.1's "Promote to CRM" button. Carries the prospect forward *by reference*
+ * (party + prospect id) rather than copying its ICP fit/buying signals/research into a
+ * new CRM-side snapshot -- see module-crm's `promoteProspectToLead()` docstring. Returns
+ * the contract's own result so the button can distinguish `MODULE_NOT_LICENSED` from a
+ * genuine error, same ADR-10 pattern `createOpportunityAction` in the Conversions
+ * route already follows.
+ */
+export async function promoteProspectToCrmAction(businessId: string, productId: string, prospectId: string, partyId: string) {
+  const result = await promoteProspectToCrm(businessId, { partyId, prospectId });
+  if (result.ok) revalidatePath(prospectPath(businessId, productId, prospectId));
+  return result;
 }

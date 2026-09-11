@@ -6,7 +6,11 @@ import { getCustomer360 as getCustomer360Query } from "../lib/customer-360/queri
 import { listOpenFollowUps as listOpenFollowUpsQuery } from "../lib/follow-ups/queries";
 import { getConversationById, getOpenCommercialInteractions as getOpenCommercialInteractionsQuery } from "../lib/interactions/queries";
 import { recordInteraction as recordInteractionMutation } from "../lib/interactions/mutations";
-import { createLead as createLeadMutation, convertLeadToOpportunity as convertLeadToOpportunityMutation } from "../lib/leads/mutations";
+import {
+  createLead as createLeadMutation,
+  convertLeadToOpportunity as convertLeadToOpportunityMutation,
+  promoteProspectToLead,
+} from "../lib/leads/mutations";
 import { listLeads as listLeadsQuery } from "../lib/leads/queries";
 import type { ContractResult } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
@@ -169,5 +173,22 @@ export async function getOpenCommercialInteractions(businessId: string): Promise
   if (licenseError) return { ok: false, error: licenseError };
 
   const data = await getOpenCommercialInteractionsQuery(businessId);
+  return { ok: true, data };
+}
+
+/** CRM-03.1: Discovery's "Promote to CRM" action -- turns a discovered prospect into a
+ * managed CRM lead without re-entering data. See lib/leads/mutations.ts's own
+ * `promoteProspectToLead()` docstring for why the richer prospect context (ICP fit,
+ * buying signals, research) is carried forward by reference rather than copied, and for
+ * the idempotency guarantee (calling this twice for the same prospect never creates a
+ * second lead). */
+export async function promoteProspectToCrm(
+  businessId: string,
+  input: { partyId: string; prospectId: string; ownerId?: string | null },
+): Promise<ContractResult<{ leadId: string; alreadyPromoted: boolean }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const data = await promoteProspectToLead(businessId, input);
   return { ok: true, data };
 }

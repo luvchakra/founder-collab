@@ -32,6 +32,7 @@ import { ContactRow } from "@cofounderai/module-discovery/components/prospects/c
 import { ScoreRagBadge } from "@cofounderai/module-discovery/components/prospects/rag-badge";
 import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
+import { PromoteToCrmButton } from "./promote-to-crm-button";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import type { ConversationChannel } from "@cofounderai/module-discovery/lib/conversations/types";
@@ -56,6 +57,7 @@ import {
   generateReplyAction,
   closeConversationAction,
   logInboundReplyAction,
+  promoteProspectToCrmAction,
 } from "./actions";
 
 const CONFIDENCE_LABEL: Record<string, string> = {
@@ -415,21 +417,27 @@ export default async function ProspectDetailPage({
       <section className="flex flex-col gap-4 rounded-md border p-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-medium">{prospect.company_name}</h2>
-          <form
-            action={updateProspectStatusAction.bind(null, businessId, productId, prospect.id)}
-            className="flex items-center gap-2"
-          >
-            <NativeSelect name="status" defaultValue={prospect.status} className="w-auto">
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </NativeSelect>
-            <SubmitButton size="sm" variant="outline" pendingText="Updating...">
-              Update status
-            </SubmitButton>
-          </form>
+          <div className="flex items-center gap-2">
+            <PromoteToCrmButton
+              hasParty={Boolean(prospect.party_id)}
+              promoteAction={promoteProspectToCrmAction.bind(null, businessId, productId, prospect.id, prospect.party_id ?? "")}
+            />
+            <form
+              action={updateProspectStatusAction.bind(null, businessId, productId, prospect.id)}
+              className="flex items-center gap-2"
+            >
+              <NativeSelect name="status" defaultValue={prospect.status} className="w-auto">
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </NativeSelect>
+              <SubmitButton size="sm" variant="outline" pendingText="Updating...">
+                Update status
+              </SubmitButton>
+            </form>
+          </div>
         </div>
 
         <form

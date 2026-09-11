@@ -72,6 +72,20 @@ async function main() {
       const aliceLead = psqlAsAlice(`insert into crm.lead (business_id, party_id, owner_id) values ('${aliceBusiness}', '${aliceParty}', '${aliceEmployee}') returning id;`);
       assertEqual(psqlAsAlice(`select status from crm.lead where id = '${aliceLead}'`), "new", "a new lead defaults to status 'new'");
 
+      console.log("Verifying CRM-03.1's promotion dedupe constraint...");
+      const scratchPromotedLead1 = psqlAsAlice(`insert into crm.lead (business_id, party_id, source_module, source_reference) values ('${aliceBusiness}', '${aliceParty}', 'discovery', 'prospect-1') returning id;`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.lead (business_id, party_id, source_module, source_reference) values ('${aliceBusiness}', '${aliceParty}', 'discovery', 'prospect-1')`),
+        "a second lead for the same (business_id, source_module, source_reference) is rejected -- promoteProspectToLead() relies on this to never double-promote under a race",
+      );
+      const scratchPromotedLead2 = psqlAsAlice(`insert into crm.lead (business_id, party_id, source_module, source_reference) values ('${aliceBusiness}', '${aliceParty}', 'discovery', 'prospect-2') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.lead where business_id = '${aliceBusiness}' and source_module = 'discovery'`),
+        "2",
+        "a different source_reference for the same source_module is a distinct, allowed lead",
+      );
+      psqlAsAlice(`delete from crm.lead where id in ('${scratchPromotedLead1}', '${scratchPromotedLead2}')`);
+
       const aliceOpportunity = psqlAsAlice(`
         insert into crm.opportunity (business_id, party_id, lead_id, stage_id, owner_id)
         values ('${aliceBusiness}', '${aliceParty}', '${aliceLead}', '${aliceStage}', '${aliceEmployee}')
