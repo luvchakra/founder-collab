@@ -31,7 +31,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 03.4 | Technician Consumption -> Inventory | Done |
 | | 03.5 | Parts Returned / Unused -> Inventory | Done |
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Done |
-| | 04.2 | Create FSM Assessment Request | Not started |
+| | 04.2 | Create FSM Assessment Request | Done |
 | | 04.3 | Assessment Outcome -> CRM Opportunity | Not started |
 | | 04.4 | Assessment -> Quote Continuation | Not started |
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 13/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 13/29 (45%).**
+**P0 (INT-01 through INT-04): 14/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 14/29 (48%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -270,3 +270,17 @@ New nullable `crm.opportunity.assessment_requirement` (migration `20260911002500
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (952 files, no violations), `lint:migrations` (88 migrations, no violations), module-crm's vitest suite (152/152, unchanged -- no pure logic of its own to add a test for, matching `setFulfillmentRequirement()`'s own precedent of no dedicated mutation test), a live migration application followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
 
 **Status**: 13 of 29 in-scope stories done. Next: INT-04.2, Create FSM Assessment Request.
+
+### INT-04.2 — Create FSM Assessment Request (2026-09-11)
+
+The genuinely new entity this backlog's own recon flagged: no "assessment/site-visit" concept exists anywhere in the schema (checked against `docs/plan/00-MASTER-PLAN.md`'s entity-ownership map -- absent). New `fsm.assessments` table (3 migrations, split by schema per `lint:migrations`' own single-non-core-schema-per-file rule: the table itself, `crm.opportunity.assessment_request_id`, and `core.permissions`/`role_permissions` for a new `assessments.manage` key). Modeled as its own lightweight table rather than a special `fsm.jobs` row: INT-08's own object-graph example lists "FSM Assessment", "FSM Quote", and "FSM Job" as three separate linked things under one CRM opportunity, and an assessment has its own small outcome vocabulary (INT-04.3) that doesn't belong on jobs. Same RLS/cross-reference-enforcement pattern as every other `fsm` table, reusing the schema's own existing `enforce_party_business_id`/`enforce_party_contact_business_id`/`enforce_address_business_id` helpers -- no new ones needed. `get_advisors`' first performance pass caught a real gap (`unindexed_foreign_keys` on the two new FK columns) -- fixed in the same migration file before commit, confirmed clean on re-check.
+
+No column on `fsm.assessments` points back at the originating CRM opportunity as a live reference -- the established direction throughout this backlog holds: CRM stores the one pointer (`assessment_request_id`, mirrors `fsm_opportunity_id`/`fulfillment_request_id`), FSM never imports CRM's contract. Defense-in-depth dedup exists at both layers anyway (a `source`/`source_reference` unique partial index on the FSM table, same shape as `fsm.opportunities`' own CRM-11.1 dedup, plus `createAssessmentRequestForOpportunity()`'s own check-first) -- "Duplicate assessment creation prevented" holds even if a future caller skips the CRM-side wrapper.
+
+New contract functions `createFsmAssessmentFromCrmOpportunity()`/`getAssessmentStatus()` (module-fsm), mirroring `createFsmQuoteFromCrmOpportunity()`/`getFsmQuoteStatus()`'s own shape exactly (collapse to `ContractResult`, `MODULE_NOT_LICENSED` handling). The CRM-side wrapper `createAssessmentRequestForOpportunity()` resolves what it needs from data CRM already has on file rather than asking the founder to re-enter it: the opportunity's own primary contact (`listOpportunityContacts()`, already fetched by this page) and the party's own primary `service`-kind address (`core.addresses`' existing `getPrimaryAddress()`, reused directly -- core-owned, no cross-module import issue). Discovery context is transferred once at creation time as a plain text snapshot (`getProspectSummaryForParty()`, "where authorized" = discovery licensed and a matching prospect exists) -- Rule 3, a handoff transfers context, not a live pointer. Refuses to run before INT-04.1's own gate says something other than `none`/unset -- this function only carries out a decision already made, it doesn't make one.
+
+**UI**: a new "Assessment" card on the opportunity detail page (before the FSM quote card), shown once `assessment_requirement` is set to something other than `none` -- an empty state with a "Request FSM assessment" button plus explicit "No contact on file"/"No service address on file" notes when either is missing ("Missing address/contact requirements clearly shown," this story's own acceptance criterion -- shown, not blocking, since FSM's own columns are nullable and a founder may still want to request one to unblock next steps), or the live status/outcome badges once requested.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (955 files, no violations), `lint:migrations` (91 migrations, no violations), module-crm's vitest suite (152/152, unchanged), live migration applications to the dev Supabase project (the table, the two missing indexes, the CRM pointer column, the permission seed) followed by `get_advisors` for both `security` and `performance` (clean after the index fix, otherwise identical pre-existing findings only), and a clean `next build`.
+
+**Status**: 14 of 29 in-scope stories done. Next: INT-04.3, Assessment Outcome -> CRM Opportunity.

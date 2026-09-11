@@ -54,6 +54,11 @@ export type Opportunity = {
   /** INT-04.1. Null until a human confirms or overrides it -- no smart default exists
    * for this one (see `assessment.ts`'s own docstring). */
   assessment_requirement: AssessmentRequirement | null;
+  /** INT-04.2. The `fsm.assessments` row `createAssessmentRequestForOpportunity()`
+   * created, once requested -- same "one pointer, everything else read live" shape as
+   * `fsm_opportunity_id`/`fulfillment_request_id`. Bare id, no FK -- lives in another
+   * module's schema. */
+  assessment_request_id: string | null;
   created_at: string;
   updated_at: string;
 };

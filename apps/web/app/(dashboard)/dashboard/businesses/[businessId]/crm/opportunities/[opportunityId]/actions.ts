@@ -12,6 +12,7 @@ import {
   createFsmQuoteForOpportunity,
   createJobFromFsmQuote,
   createFulfillmentRequestForOpportunity,
+  createAssessmentRequestForOpportunity,
 } from "@cofounderai/module-crm/lib/opportunities/mutations";
 import { setFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
 import { setAssessmentRequirement } from "@cofounderai/module-crm/lib/opportunities/assessment";
@@ -124,5 +125,11 @@ export async function setAssessmentRequirementAction(businessId: string, opportu
   const value = String(formData.get("assessmentRequirement") || "") as AssessmentRequirement;
   if (!value) return;
   await setAssessmentRequirement(businessId, opportunityId, value);
+  revalidatePath(opportunityPath(businessId, opportunityId));
+}
+
+/** INT-04.2's "Request FSM assessment" button. */
+export async function requestAssessmentAction(businessId: string, opportunityId: string): Promise<void> {
+  await createAssessmentRequestForOpportunity(businessId, opportunityId);
   revalidatePath(opportunityPath(businessId, opportunityId));
 }

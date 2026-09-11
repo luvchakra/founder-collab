@@ -5,8 +5,21 @@ import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
 import { getDispatcherDashboard } from "../lib/dashboard/queries";
 import { addChargeLine, approveEstimateInternal, getOrCreateEstimate } from "../lib/estimates/mutations";
-import type { CompletedJobForReactivation, ContractJobSummary, ContractResult, CreateFsmQuoteInput, CreateOpportunityFromProspectInput, FsmQuoteFunnelCounts, FsmQuoteStatus, ProspectHandoffStatus } from "./types";
+import type {
+  CompletedJobForReactivation,
+  ContractJobSummary,
+  ContractResult,
+  CreateFsmAssessmentInput,
+  CreateFsmQuoteInput,
+  CreateOpportunityFromProspectInput,
+  FsmAssessmentStatus,
+  FsmQuoteFunnelCounts,
+  FsmQuoteStatus,
+  ProspectHandoffStatus,
+} from "./types";
 import type { Opportunity } from "../lib/opportunities/types";
+import { createAssessment } from "../lib/assessments/mutations";
+import { getAssessment } from "../lib/assessments/queries";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
 /**
@@ -399,6 +412,60 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
       fsmOpportunityCreatedAt: opportunity.created_at,
       jobCreatedAt,
       jobCompletedAt,
+    },
+  };
+}
+
+/**
+ * INT-04.2's "Create FSM Assessment Request" -- the CRM-shaped entry point into
+ * `lib/assessments/mutations.ts`'s `createAssessment()`, same collapse-to-ContractResult
+ * shape every other cross-module mutation here uses (`requirePermission()` throws;
+ * ADR-10 wants a catchable, friendly result instead of an unhandled exception reaching a
+ * caller in another module).
+ */
+export async function createFsmAssessmentFromCrmOpportunity(businessId: string, input: CreateFsmAssessmentInput): Promise<ContractResult<{ assessmentId: string }>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  try {
+    const assessment = await createAssessment(businessId, {
+      partyId: input.partyId,
+      contactId: input.contactId,
+      serviceAddressId: input.serviceAddressId,
+      kind: input.kind,
+      requestedScope: input.requestedScope,
+      customerNotes: input.customerNotes,
+      discoveryContext: input.discoveryContext,
+      preferredTiming: input.preferredTiming,
+      crmOpportunityId: input.crmOpportunityId,
+    });
+    return { ok: true, data: { assessmentId: assessment.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** INT-04.2's "CRM stores reference/status only" -- read live off the assessment
+ * `createFsmAssessmentFromCrmOpportunity()` created, same discipline as
+ * `getFsmQuoteStatus()`. */
+export async function getAssessmentStatus(businessId: string, assessmentId: string): Promise<ContractResult<FsmAssessmentStatus>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const assessment = await getAssessment(businessId, assessmentId);
+  if (!assessment) return { ok: false, error: "NOT_FOUND" };
+
+  return {
+    ok: true,
+    data: {
+      assessmentId: assessment.id,
+      status: assessment.status,
+      kind: assessment.kind,
+      outcome: assessment.outcome,
+      outcomeNotes: assessment.outcome_notes,
+      createdAt: assessment.created_at,
+      scheduledAt: assessment.scheduled_at,
+      completedAt: assessment.completed_at,
     },
   };
 }

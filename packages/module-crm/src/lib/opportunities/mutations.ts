@@ -1,12 +1,15 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import { createFsmQuoteFromCrmOpportunity, acceptFsmQuoteAndCreateJob, getFsmQuoteStatus } from "@cofounderai/module-fsm/contract/index";
+import { createFsmQuoteFromCrmOpportunity, acceptFsmQuoteAndCreateJob, getFsmQuoteStatus, createFsmAssessmentFromCrmOpportunity } from "@cofounderai/module-fsm/contract/index";
 import { createFulfillmentRequest } from "@cofounderai/module-inventory/contract/index";
+import { getProspectSummaryForParty } from "@cofounderai/module-discovery/contract/index";
+import { getPrimaryAddress } from "@cofounderai/core/addresses/queries";
 import { createClient } from "../../db/server";
 import { publishCrmEvent } from "../../events/publish";
+import { listOpportunityContacts } from "./contacts";
 import { listOpportunityProducts } from "./products";
 import { DEFAULT_OPPORTUNITY_STAGES } from "./types";
-import type { OpportunityStage } from "./types";
+import type { AssessmentRequirement, OpportunityStage } from "./types";
 
 /** CRM-04.2: "Stage configuration stored at business level." Lazily provisions the
  * default pipeline the first time a business's Opportunities page is opened -- there's
@@ -271,4 +274,74 @@ export async function createFulfillmentRequestForOpportunity(businessId: string,
   });
 
   return { fulfillmentRequestId: result.data.fulfillmentRequestId };
+}
+
+/**
+ * INT-04.2's "Create FSM Assessment Request" -- same idempotent-by-stored-pointer shape
+ * as `createFulfillmentRequestForOpportunity()` above: an opportunity that already has
+ * `assessment_request_id` returns it rather than creating a second one. Requires
+ * INT-04.1's own gate to already say something other than `none`/unset -- this function
+ * doesn't decide *whether* an assessment is needed, only carries out a decision already
+ * made. Resolves the contact/address FSM needs from what CRM already has on file (the
+ * opportunity's own primary contact, the party's own primary `service` address) rather
+ * than asking the founder to re-enter them; "Missing address/contact requirements
+ * clearly shown" is the caller's job (the page shows what's missing before this ever
+ * runs), not this function silently failing on nulls FSM's own schema already tolerates.
+ */
+export async function createAssessmentRequestForOpportunity(businessId: string, opportunityId: string): Promise<{ assessmentRequestId: string }> {
+  await requirePermission(businessId, "crm_opportunities.manage");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: opportunity, error: opportunityError } = await supabase
+    .from("opportunity")
+    .select("id, party_id, assessment_requirement, assessment_request_id")
+    .eq("id", opportunityId)
+    .eq("business_id", businessId)
+    .single();
+  if (opportunityError) throw opportunityError;
+  if (opportunity.assessment_request_id) return { assessmentRequestId: opportunity.assessment_request_id };
+
+  const requirement = opportunity.assessment_requirement as AssessmentRequirement | null;
+  if (!requirement || requirement === "none") {
+    throw new Error("Set an assessment requirement (remote, on-site, or technical) before requesting one.");
+  }
+
+  const [contacts, serviceAddress, discovery] = await Promise.all([
+    listOpportunityContacts(businessId, opportunityId),
+    getPrimaryAddress(opportunity.party_id, "service"),
+    getProspectSummaryForParty(businessId, opportunity.party_id),
+  ]);
+  const primaryContact = contacts.find((c) => c.isPrimary) ?? contacts[0] ?? null;
+  const discoveryContext = discovery.ok && discovery.data ? `Discovery: ${discovery.data.productName} -- ${discovery.data.status}/${discovery.data.outcome}` : null;
+
+  const result = await createFsmAssessmentFromCrmOpportunity(businessId, {
+    crmOpportunityId: opportunityId,
+    partyId: opportunity.party_id,
+    contactId: primaryContact?.partyContactId ?? null,
+    serviceAddressId: serviceAddress?.id ?? null,
+    kind: requirement,
+    discoveryContext,
+  });
+  if (!result.ok) throw new Error(result.error === "MODULE_NOT_LICENSED" ? "FSM isn't licensed for this business." : result.error);
+
+  const { error: updateError } = await supabase
+    .from("opportunity")
+    .update({ assessment_request_id: result.data.assessmentId })
+    .eq("id", opportunityId)
+    .eq("business_id", businessId);
+  if (updateError) throw updateError;
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_opportunity.assessment_requested",
+    entityType: "crm_opportunity",
+    entityId: opportunityId,
+    after: { assessment_request_id: result.data.assessmentId },
+  });
+
+  return { assessmentRequestId: result.data.assessmentId };
 }

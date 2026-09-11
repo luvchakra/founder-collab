@@ -77,6 +77,38 @@ export type FsmQuoteStatus = {
   jobCompletedAt: string | null;
 };
 
+/** INT-04.2's "Create FSM Assessment Request" -- everything CRM already has in hand:
+ * which of its own opportunities this is for (`crmOpportunityId`, the idempotency key,
+ * same role `CreateFsmQuoteInput.crmOpportunityId` plays), who/where it's for, and the
+ * context to transfer once at creation time (never a live pointer back into CRM or
+ * Discovery -- Rule 3, "a handoff transfers context, not ownership"). */
+export type CreateFsmAssessmentInput = {
+  crmOpportunityId: string;
+  partyId: string;
+  contactId?: string | null;
+  serviceAddressId?: string | null;
+  kind: "remote" | "on_site" | "technical";
+  requestedScope?: string | null;
+  customerNotes?: string | null;
+  discoveryContext?: string | null;
+  preferredTiming?: string | null;
+};
+
+/** INT-04.2's "CRM stores reference/status only" projection, read live off the FSM
+ * assessment `createFsmAssessmentFromCrmOpportunity()` created -- same discipline as
+ * `FsmQuoteStatus` above. `outcome`/`outcomeNotes` are null until INT-04.3's own
+ * `recordAssessmentOutcome()` sets them. */
+export type FsmAssessmentStatus = {
+  assessmentId: string;
+  status: string;
+  kind: string;
+  outcome: string | null;
+  outcomeNotes: string | null;
+  createdAt: string;
+  scheduledAt: string | null;
+  completedAt: string | null;
+};
+
 /** CRM-14.5's "CRM -> FSM Funnel": `opportunity -> quote -> accepted -> job ->
  * completed -> revenue`. Only the last four stages need FSM's own data (the first two,
  * `opportunity`/`quote`, are plain counts off `crm.opportunity` -- `fsm_opportunity_id`

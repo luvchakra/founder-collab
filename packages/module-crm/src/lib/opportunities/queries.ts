@@ -1,5 +1,5 @@
-import { getFsmQuoteStatus } from "@cofounderai/module-fsm/contract/index";
-import type { FsmQuoteStatus } from "@cofounderai/module-fsm/contract/types";
+import { getFsmQuoteStatus, getAssessmentStatus } from "@cofounderai/module-fsm/contract/index";
+import type { FsmQuoteStatus, FsmAssessmentStatus } from "@cofounderai/module-fsm/contract/types";
 import { getFulfillmentStatus } from "@cofounderai/module-inventory/contract/index";
 import type { FulfillmentStatus } from "@cofounderai/module-inventory/contract/types";
 import { createClient } from "../../db/server";
@@ -52,6 +52,14 @@ export async function getFsmQuoteStatusForOpportunity(businessId: string, opport
 export async function getFulfillmentStatusForOpportunity(businessId: string, opportunity: Opportunity): Promise<FulfillmentStatus | null> {
   if (!opportunity.fulfillment_request_id) return null;
   const result = await getFulfillmentStatus(businessId, opportunity.fulfillment_request_id);
+  return result.ok ? result.data : null;
+}
+
+/** INT-04.2's own "CRM stores reference/status only" read, same collapse-to-null shape
+ * as `getFulfillmentStatusForOpportunity()`. */
+export async function getAssessmentStatusForOpportunity(businessId: string, opportunity: Opportunity): Promise<FsmAssessmentStatus | null> {
+  if (!opportunity.assessment_request_id) return null;
+  const result = await getAssessmentStatus(businessId, opportunity.assessment_request_id);
   return result.ok ? result.data : null;
 }
 

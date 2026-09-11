@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
-import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity, getFulfillmentStatusForOpportunity } from "@cofounderai/module-crm/lib/opportunities/queries";
+import {
+  getOpportunity,
+  listStages,
+  getFsmQuoteStatusForOpportunity,
+  getFulfillmentStatusForOpportunity,
+  getAssessmentStatusForOpportunity,
+} from "@cofounderai/module-crm/lib/opportunities/queries";
+import { getPrimaryAddress } from "@cofounderai/core/addresses/queries";
 import { resolveCommercialJourney, resolveNextCrossModuleAction } from "@cofounderai/module-crm/lib/journey/queries";
 import { listOpportunityJourneyHistory } from "@cofounderai/module-crm/lib/timeline/queries";
 import { listOpportunityProducts } from "@cofounderai/module-crm/lib/opportunities/products";
@@ -39,6 +46,7 @@ import {
   requestFulfillmentAction,
   setFulfillmentRequirementAction,
   setAssessmentRequirementAction,
+  requestAssessmentAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
 import { suggestFulfillmentRequirement, deriveFulfillmentCommitmentState } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
@@ -85,19 +93,22 @@ export default async function OpportunityDetailPage({
   const opportunity = await getOpportunity(businessId, opportunityId);
   if (!opportunity) notFound();
 
-  const [party, stages, products, contacts, employees, followUps, inventoryLicensed, fsmLicensed, fsmQuoteStatus, fulfillmentStatus, journey] = await Promise.all([
-    getParty(opportunity.party_id),
-    listStages(businessId),
-    listOpportunityProducts(businessId, opportunityId),
-    listOpportunityContacts(businessId, opportunityId),
-    listEmployeeOptions(businessId),
-    listFollowUpsForOpportunity(businessId, opportunityId),
-    hasModule(businessId, "inventory"),
-    hasModule(businessId, "fsm"),
-    getFsmQuoteStatusForOpportunity(businessId, opportunity),
-    getFulfillmentStatusForOpportunity(businessId, opportunity),
-    resolveCommercialJourney(businessId, opportunityId),
-  ]);
+  const [party, stages, products, contacts, employees, followUps, inventoryLicensed, fsmLicensed, fsmQuoteStatus, fulfillmentStatus, assessmentStatus, serviceAddress, journey] =
+    await Promise.all([
+      getParty(opportunity.party_id),
+      listStages(businessId),
+      listOpportunityProducts(businessId, opportunityId),
+      listOpportunityContacts(businessId, opportunityId),
+      listEmployeeOptions(businessId),
+      listFollowUpsForOpportunity(businessId, opportunityId),
+      hasModule(businessId, "inventory"),
+      hasModule(businessId, "fsm"),
+      getFsmQuoteStatusForOpportunity(businessId, opportunity),
+      getFulfillmentStatusForOpportunity(businessId, opportunity),
+      getAssessmentStatusForOpportunity(businessId, opportunity),
+      getPrimaryAddress(opportunity.party_id, "service"),
+      resolveCommercialJourney(businessId, opportunityId),
+    ]);
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
   const fulfillmentCommitment = deriveFulfillmentCommitmentState(fulfillmentStatus?.status ?? "draft");
   const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
@@ -430,6 +441,37 @@ export default async function OpportunityDetailPage({
                   </Badge>
                 ) : null}
                 {fulfillmentStatus ? <span className="text-muted-foreground">{inr.format(fulfillmentStatus.totalAmount)}</span> : null}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {fsmLicensed && opportunity.assessment_requirement && opportunity.assessment_requirement !== "none" ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Assessment</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {!opportunity.assessment_request_id ? (
+              <div className="flex flex-col gap-3">
+                <EmptyState icon={Wrench} message="No FSM assessment requested for this opportunity yet." />
+                <form action={requestAssessmentAction.bind(null, businessId, opportunityId)}>
+                  <SubmitButton pendingText="Requesting...">Request FSM assessment</SubmitButton>
+                </form>
+                {contacts.length === 0 ? <p className="text-xs text-muted-foreground">No contact on file for this opportunity yet.</p> : null}
+                {!serviceAddress ? <p className="text-xs text-muted-foreground">No service address on file for this customer yet.</p> : null}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <Badge variant="outline" className="capitalize">
+                  {assessmentStatus?.status ?? "requested"}
+                </Badge>
+                {assessmentStatus?.outcome ? (
+                  <Badge variant="secondary" className="capitalize">
+                    {assessmentStatus.outcome.replace(/_/g, " ")}
+                  </Badge>
+                ) : null}
               </div>
             )}
           </CardContent>
