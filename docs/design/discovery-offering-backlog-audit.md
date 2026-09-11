@@ -33,7 +33,7 @@ only genuine architectural/key decisions are raised.
 | | 05.2 | Opportunity Score | Done |
 | | 05.3 | Multi-Signal Correlation | Done |
 | | 05.4 | Why Now | Done |
-| | 05.5 | Negative Signals | Not started |
+| | 05.5 | Negative Signals | Done |
 | | 06.1 | Evidence-Backed Research | Not started |
 | | 06.2 | Research Brief | Not started |
 | | 06.3 | Buyer Intelligence | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**15 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**16 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -805,3 +805,73 @@ every prior story this run -- no UI was built this story regardless.
 
 **Status**: 15 of 68 in-scope stories done -- Phase C in progress. Next: 05.5, Negative
 Signals.
+
+### 05.5 — Negative Signals (2026-09-11)
+
+Checked for an existing "negative" or "disqualifying" concept before creating one:
+`discovery_definitions.disqualifiers` is a definition's own free-text *matching
+criteria*, never evaluated against a specific prospect anywhere in the current code;
+`prospects.status = 'disqualified'` is a persistent qualification state with no reason
+attached. Neither satisfies the doc's own "show the reason to the user" -- genuinely new
+entity, structurally the *opposite* of 05.3's `discovery.signals`: where a signal is an
+immutable observed fact (append-only, no update policy), a negative signal is a
+*current assessment* that should be corrected as new information arrives (an industry
+mismatch found last week is still true today; "recent rejection" stops being true once
+the relationship changes) -- so `discovery.negative_signals` gets the standard
+select/insert/update/delete four-policy shape instead, with `unique (prospect_id,
+reason)` so re-evaluating refreshes the one current row per reason rather than
+accumulating history.
+
+Went through the doc's own nine-reason list and classified each against what this
+module can actually know today, rather than inventing detection for what it can't:
+seven are `source: 'auto'`, deterministically derived (CLAUDE.md dev principles #4/#5,
+no AI call) from data already on hand --
+`wrong_industry`/`wrong_size`/`wrong_geography` (reused `fuzzyIncludes` from
+`lib/scoring/score-prospect.ts`, now exported, against the workspace's *approved* ICP
+only -- same "approve an ICP before scoring" guard `scoreProspect()` already uses, so a
+draft/absent ICP never false-flags), `insufficient_evidence`/`no_relevant_problem`
+(deliberately distinct: no research row at all vs. research that found zero pain
+points -- the same "absence of evidence isn't evidence of absence" precision 05.2's own
+`computeOpportunityScore` already applies to missing score components), `no_buyer`
+(zero `discovery.contacts` rows), and `recent_rejection` (`prospect.outcome ===
+'lost'`). The remaining two -- `known_incompatible_solution` (no competitor/tooling
+knowledge exists anywhere in Discovery) and `existing_active_relationship` (needs CRM
+data; DISC-OFFER-P0-08.2 "Existing Relationship Detection" explicitly owns real
+detection later in this same backlog) -- are `source: 'manual'` only, via a new
+`recordManualNegativeSignal()` a future caller with that context can use; auto-sync
+never touches them.
+
+New `lib/negative-signals/{types,detect,queries,mutations}.ts`. `detectNegativeSignals()`
+is pure (mirrors 05.3/05.4's own pure-logic/DB-wrapper split). `syncNegativeSignalsForProspect()`
+reconciles the table to match a fresh detection pass: upserts every currently-detected
+reason and deletes any `source: 'auto'` row whose reason no longer applies (e.g. the ICP
+changed and the industry now matches) -- scoped to a fixed `AUTO_DETECTABLE_REASONS`
+list so it can never delete or overwrite a `manual` row for a reason it has no way to
+verify itself. Seven new vitest cases cover a clean match, all three ICP-mismatch
+reasons, the ICP-approval guard (null and draft both skip ICP checks), the
+insufficient-evidence-vs-no-relevant-problem distinction, no_buyer, recent_rejection,
+and that the two manual-only reasons are never returned by auto-detection.
+
+Deliberately did not wire this into `computeOpportunityScore`/`setOpportunityScoreComponents`
+the way 05.3 (signal_strength) and 05.4 (timing) did -- unlike those two, the doc names
+no specific score component for negative signals here ("Support signals that reduce
+opportunity quality... Show the reason to the user" describes surfacing a reason, not a
+scoring formula), and inventing a penalty-weighting rule the doc never specified would
+be exactly the kind of speculative addition CLAUDE.md's dev principles warn against. The
+data layer (detect + sync + query) is real and complete; how 07.x's opportunity UI
+chooses to *display* a prospect's negative signals alongside its score is that story's
+own call to make once it exists.
+
+Deliberately no UI change this story either, same reasoning as 05.1-05.4: 07.1-07.3 own
+the opportunity UI, and Phase C isn't finished yet (06.1-06.3, 07.1-07.3 still remain).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1007 files, no violations), `lint:migrations` (110 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (41/41, +7 new), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings -- only the same empty-dev-table
+"unused index" noise every new table in this session has shown), and a clean `next
+build`. Same live-browser-walkthrough constraint noted in every prior story this run.
+
+**Status**: 16 of 68 in-scope stories done -- **Phase C, Opportunity Model/Score/Signal
+Correlation/Why Now/Negative Signals all done**. Next: 06.1, Evidence-Backed Research.

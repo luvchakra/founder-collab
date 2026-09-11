@@ -17,7 +17,10 @@ import type { ProspectScore } from "./types";
  */
 export const WEIGHTS = { icp: 0.5, intent: 0.25, timing: 0.25 };
 
-function fuzzyIncludes(haystack: string[], needle: string | null): boolean {
+/** Exported for `lib/negative-signals/detect.ts` (DISC-OFFER-P0-05.5) -- the same
+ * ICP-vs-prospect substring match, reused rather than reimplemented, so "does this
+ * prospect's industry match the ICP" has exactly one definition in the module. */
+export function fuzzyIncludes(haystack: string[], needle: string | null): boolean {
   if (!needle) return false;
   const normalized = needle.toLowerCase();
   return haystack.some(
