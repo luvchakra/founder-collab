@@ -45,7 +45,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-04 | 04.1 | GSTIN Management | Done |
 | | 04.2 | GST Profile | Done |
 | | 04.3 | HSN/SAC | Done |
-| | 04.4 | Place of Supply | Not started |
+| | 04.4 | Place of Supply | Done |
 | | 04.5 | GST Tax Determination | Not started |
 | | 04.6 | GST Invoice Validation | Not started |
 | | 04.7 | GST Rule Versioning | Not started |
@@ -58,15 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**16 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**17 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.3 (HSN/SAC) is the last completed story;
-COMPLY-P0-04.4 (Place of Supply) is next.
+both now fully done.** COMPLY-P0-04.4 (Place of Supply) is the last completed story;
+COMPLY-P0-04.5 (GST Tax Determination) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1568,5 +1568,93 @@ for that module); and any dashboard/readiness UI (COMPLY-P1-12.1's own future jo
 - No migration to apply, no `get_advisors` re-check, no `apps/web` change -- a pure-library
   story, matching COMPLY-P0-02.x/03.x's own established "lib-only story" verification
   convention (no `next build` re-run needed).
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 04.4 — Place of Supply (2026-09-11)
+
+"Determine intra/inter-state/export/special treatment." `core/lib/gst.ts`'s existing
+`computeLineGst` already splits a KNOWN intra-/inter-state pair into CGST+SGST vs. IGST
+amounts, given both state codes as input -- but it has no concept of "export" at all, and
+returns a zeroed `incomplete: true` result rather than a named category when a state can't
+be resolved. This story is the missing layer above that: actually classifying a supply
+into intra/inter/export/unknown from a business's own registration plus a party's tax
+identity/address, reusing (never re-deriving) COMPLY-P0-03.4's and COMPLY-P0-04.1's own
+existing reads.
+
+**The "special treatment" gap, flagged explicitly rather than absorbed silently**: GST's
+own "special treatment" category is SEZ (Special Economic Zone) supplies, zero-rated
+similarly to exports. No field anywhere in this platform records whether a party is an SEZ
+unit/developer (checked `core.tax_identities` and `core.parties`, confirmed via their own
+migrations -- neither has one), and adding such a column is a `core`-schema decision bigger
+than this story's own "read what already exists" scope (CLAUDE.md's mechanism-1 reads
+existing shared data; it doesn't license inventing new shared columns implicitly). Rather
+than misclassifying an SEZ supply as "export" (wrong -- it's domestic) or "inter_state"
+(wrong -- it would miss the zero-rating entirely), `determinePlaceOfSupply` simply has no
+SEZ case yet and this gap is named here as a concrete follow-up: add an SEZ classification
+field (most likely `core.tax_identities`, which already carries a GST-specific
+`gst_registration_type` enum column, so extending it -- or adding a sibling boolean -- has
+real precedent) once a future story actually needs to act on it, rather than guessing at
+the right data model now.
+
+**What was built**:
+- `packages/module-gst/src/lib/place-of-supply/{types.ts,determine.ts,determine.test.ts}`:
+  `PlaceOfSupplyTreatment` (`intra_state | inter_state | export | unknown`) and the pure
+  `determinePlaceOfSupply(sellerStateCode, buyerStateCode, buyerCountry)`. A buyer country
+  that clearly isn't India wins outright as "export"; an EMPTY/unset country does NOT
+  default to "assume domestic" -- it falls through to the same state-code comparison
+  `computeLineGst` already does today, so this function is a backward-compatible superset
+  of that existing behavior, not a new risky assumption (backlog rule 11). `isIndiaCountry`
+  is its own exported tri-state helper (`true`/`false`/`null` for unknown) since
+  `core.addresses.country` is free text with no fixed catalog (unlike `jurisdiction`), so
+  it normalizes/compares rather than doing an exact-match catalog lookup the way
+  `isJurisdictionSupported` can.
+  `determine.test.ts` -- 10 cases: India-alias recognition (case/whitespace-insensitive),
+  a clear non-India country, unset country returning `null` not `false`, matching/differing
+  state codes, export overriding state codes entirely, the "unset country still falls
+  through to state comparison" non-default behavior called out explicitly, and both
+  "unknown" branches (seller state missing, buyer state missing, both missing) each with
+  their own distinct `reason`.
+- `packages/module-gst/src/lib/place-of-supply/{queries.ts,queries.test.ts}`:
+  `getPlaceOfSupplyForParty(businessId, partyId)` -- the orchestrator ties
+  COMPLY-P0-04.1's `getPrimaryTaxRegistration(businessId, "IN", "GST")` (seller state, via
+  `resolveStateCode` on the registration's own jurisdiction/GSTIN, reusing `core/lib/gst.ts`
+  rather than re-deriving state-from-GSTIN logic here) and COMPLY-P0-03.4's
+  `getPartyTaxContext` (buyer state/country) into one callable place-of-supply answer.
+  Buyer "location" prefers the shipping address, falls back to billing, then to the tax
+  identity's own bare `state` field -- documented explicitly as a reasonable default, NOT a
+  full implementation of GST's own services-vs-goods/bill-to-ship-to place-of-supply
+  sub-rules for every scenario; refining that is left for COMPLY-P0-04.5 once real
+  transaction data actually needs the nuance, not guessed at speculatively now.
+  `chooseBuyerAddress` exported and unit-tested on its own (3 cases: prefers shipping,
+  falls back to billing, `null` when the party has neither) -- the one piece of real branch
+  logic in this file, matching this module's own "extract the real logic into a pure,
+  testable function" convention; `getPlaceOfSupplyForParty` itself has no test file (a
+  thin orchestrator over three already-tested pieces, the same "no test file needed"
+  reasoning as every other DB-calling orchestrator in this module).
+
+**What was deliberately left out**: an SEZ treatment category (flagged above as a concrete,
+named data-model gap, not silently folded into an existing category); any UI; a full
+implementation of GST's services-vs-goods/bill-to-ship-to place-of-supply sub-rules beyond
+the shipping-then-billing-then-tax-identity default; and any change to `computeLineGst`
+itself (still used exactly as-is by module-inventory/module-fsm for the actual CGST/SGST/
+IGST split once a treatment is already known).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1026 files scanned, 0 violations (confirms
+  the only cross-package import here is `@cofounderai/core/lib/gst`, plus this module's own
+  `tax-registrations`/`party-tax-context` subpaths -- no reach into another module).
+- `node scripts/lint-migration-schema.mjs` -- 108 migration files checked, 0 violations (no
+  schema change).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 108 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 12 files / 83 tests passed (70
+  pre-existing + 13 new: 10 in `determine.test.ts`, 3 in `queries.test.ts`).
+- No migration to apply, no `get_advisors` re-check, no `apps/web` change -- a pure-library
+  story, matching every prior COMPLY-P0-02.x/03.x/04.3 "lib-only story" verification
+  convention.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
