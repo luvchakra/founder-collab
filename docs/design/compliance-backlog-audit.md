@@ -34,7 +34,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 01.5 | Unsupported-Country UX | Done |
 | P0-02 | 02.1 | Tax Registration | Done |
 | | 02.2 | Tax Jurisdiction | Done |
-| | 02.3 | Versioned Tax Rules | Not started |
+| | 02.3 | Versioned Tax Rules | Done |
 | | 02.4 | Tax Treatments | Not started |
 | | 02.5 | Tax Determination Snapshot | Not started |
 | P0-03 | 03.1 | Core Transaction Contract | Not started |
@@ -58,12 +58,12 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**6 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**7 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which is now unblocked by 02.1's
 `gst.tax_registrations` table but not yet wired into any UI).
 
-COMPLY-P0-02.2 is the last completed story; COMPLY-P0-02.3 (Versioned Tax Rules) is next.
+COMPLY-P0-02.3 is the last completed story; COMPLY-P0-02.4 (Tax Treatments) is next.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -542,3 +542,105 @@ that migration's own comment anticipated).
   `package-lock.json`, and the resulting lockfile drift (none this time beyond what 01.1
   already flagged as a pre-existing, unrelated `module-crm`/`zod` line) was reverted via
   `git checkout -- package-lock.json` before committing.
+
+### 02.3 — Versioned Tax Rules (2026-09-11)
+
+The `TaxRule` entity from the backlog's own §4 data model -- "Rules have effective dates
+and source references," the exact `country`/`jurisdiction`/`regime`/`effective_from`/
+`effective_to`/`version`/`source` shape §4 requires of every country rule. This is the
+first story to actually create government-rule *content* storage (as opposed to
+02.1/02.2's registration/jurisdiction facts about a business), so it is also the first
+`gst`-schema table with no `business_id` at all.
+
+**Checked against the entity-ownership map and existing code first**: `core.tax_rates` (5
+rows -- the flat, unversioned GST 0/5/12/18/28% slabs `core.items.tax_rate` already picks
+from, shared by inventory/fsm/gst) is the closest existing thing, and is explicitly NOT
+this table -- it stays exactly as-is (`core.items`' own tax-rate picker keeps reading it);
+this new table is the versioned, source-cited, multi-country/regime rule engine the
+backlog's own §5 assigns to Compliance ownership specifically. `core.tax_rates`'s own RLS
+comment ("readable by everyone, writable by nobody from the client") is the precedent this
+story's RLS design follows, adapted to Compliance's own licensing (gated on a `gst`
+license, not every authenticated user, since this is Compliance-specific regulatory
+content, not a cross-module basic constant).
+
+**What was built**:
+- `gst.tax_rules` (`20260911004500_gst_tax_rules.sql`): `country`/`jurisdiction`/`regime`
+  (same shape and validation convention as `gst.tax_registrations`), `rule_key` (free
+  text -- this generic layer doesn't define a rule vocabulary; that is each regime pack's
+  own job, COMPLY-P0-04.7 for India), `value jsonb` (opaque rule payload -- giving any of
+  it a name is COMPLY-P0-02.4 Tax Treatments' job, not this one's), `version`,
+  `effective_from`/`effective_to` (open-ended when null), and a required `source` column
+  (a rule with no citation would undermine backlog rule 12's "distinguish regulatory fact
+  ... from AI explanation," so it's `not null` with a non-blank check, unlike every other
+  nullable/optional column on this table). No `business_id` -- deliberately platform-wide,
+  not tenant-scoped, since a tax rule is a fact about a country/regime's law, not
+  something any one business owns (see the migration's own extensive comment for the full
+  reasoning, including one documented, deliberately-unfixed limitation: Postgres treats
+  NULL as distinct from itself in the `unique(country, regime, jurisdiction, rule_key,
+  version)` index, so two null-jurisdiction rows could theoretically share a version
+  number without violating it -- not worth a sentinel-value workaround yet with no real
+  rule content or multi-writer workflow to make the gap concrete).
+- RLS: SELECT gated on the calling user belonging to ANY `gst`-licensed business
+  (`exists (... core.user_business_ids() ... in core.licensed_business_ids('gst'))`,
+  since there's no per-row `business_id` to match against) -- no INSERT/UPDATE/DELETE
+  grant to `authenticated` at all, matching `core.tax_rates`'s "writable by nobody from
+  the client" shape. All writes go through `service_role` (this module's own
+  `db/admin.ts`), since rule content is centrally curated (whoever ships a country/regime
+  pack), not a business's own settings input.
+- `lib/tax-rules/{types,queries}.ts`: `getEffectiveTaxRule(lineage, asOf?)` (the rule in
+  effect for a country/regime/jurisdiction/rule_key as of a date, defaulting to today --
+  highest version whose effective range covers that date) and `listTaxRuleVersions(lineage)`
+  (full history, newest first). Both rely on the table's own RLS for authorization (same
+  as every other read-only query function in this module) and deliberately do NOT fall
+  back from a specific jurisdiction to a null/national rule when no override exists --
+  that's real tax-determination logic for COMPLY-P0-04.5, not this generic lookup.
+- `lib/tax-rules/admin-mutations.ts`: `publishTaxRule` (version 1 of a new lineage) and
+  `supersedeTaxRule` (closes the currently-open version's `effective_to` at the new
+  version's own `effective_from`, then inserts version+1 -- two sequential admin-client
+  statements, not one transaction, same accepted-race tradeoff
+  `setPrimaryTaxRegistration` already makes). Both validate country/regime via
+  `isRegimeSupported` and a non-empty jurisdiction via `canonicalJurisdictionName` (reusing
+  02.2's own catalog), matching `createTaxRegistration`'s validation shape. Deliberately
+  NOT gated by `requireModule`/`requirePermission` like every other mutation in this
+  module -- there is no end-user caller yet (no UI, no server action), so these exist to
+  be called from a future trusted admin tool or seed script (COMPLY-P0-04.7's own job),
+  not a request-scoped action.
+- `scripts/test-gst-tax-rules-rls.mjs` (wired into `package.json`'s `test:db` chain right
+  after the tax-registrations script): license-gating (not tenant-isolation -- there's no
+  tenant), the "no write grant to authenticated at all" invariant, the `rule_key`/`source`
+  non-blank checks, the `effective_to > effective_from` check, a full supersede sequence
+  (close v1, insert v2, both rows still queryable, the as-of-date lookup picks the right
+  version on either side of the supersede date), and the unique-version-per-lineage
+  constraint.
+
+**What was deliberately left out**: any UI or India-specific rule content (COMPLY-P0-04.5/
+04.7's own job); interpreting/naming any shape inside `value` (COMPLY-P0-02.4 Tax
+Treatments); a jurisdiction-fallback lookup (COMPLY-P0-04.5); and the documented NULL-
+jurisdiction uniqueness gap noted above.
+
+**How verified**:
+- `npm run typecheck` -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `npm run lint:boundaries` -- 995 files scanned, 0 violations.
+- `npm run lint:migrations` -- 106 migration files checked, 0 violations.
+- `npm run test --workspace=@cofounderai/module-gst` -- still 21 tests passing; no new
+  vitest file, for the same reasoning as 02.1's own mutation layer -- the new mutation
+  module's real branch logic (`isRegimeSupported`/`canonicalJurisdictionName`) is already
+  covered by `countries.test.ts`/`jurisdictions.test.ts`, and the new RLS/versioning
+  script above is the real end-to-end coverage for this table's own schema-level
+  guarantees (constraints, RLS grants, the supersede sequence).
+- `node --test scripts/*.test.mjs` -- still 6/6 passing (confirms the `package.json`
+  `test:db` chain edit didn't break the scripts' own self-tests).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): only the
+  same 5 pre-existing `rls_enabled_no_policy` infos (unrelated tables) and the 1
+  pre-existing `auth_leaked_password_protection` warning -- no new findings, confirming
+  the SELECT-only/no-write-grant RLS design didn't trip the "RLS enabled, no policy"
+  check (it has one). Performance: the new `tax_rules_lookup_idx` appears only in the
+  expected "unused index" info list (a brand-new table with zero query traffic, same as
+  every other new table's own index) -- no missing-index finding, since this table has no
+  foreign-key columns at all.
+- `cd apps/web && npm run build` -- clean production build; grepped for `error`/`failed`.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift this time (`node_modules` was already installed from 02.2 earlier in
+  this same session).
