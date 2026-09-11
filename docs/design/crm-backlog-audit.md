@@ -1241,3 +1241,57 @@ No gap found for the one action that exists; the other four have no code yet to 
 Documented per this audit's own "already satisfied" pattern rather than silently
 skipping. No code change, no new tests (nothing to test beyond the grep-confirmed call
 graph above) -- both CRM RLS suites re-run clean as the standard regression check.
+
+## CRM-15.4 (2026-09-11)
+
+"Audit Events": assignment changes, stage changes, sends, external responses, AI draft
+generation, external publishing, record merges, connection changes must all be
+recorded to `core.audit_log`. Went through the backlog's own 8-item list one at a time
+rather than assuming coverage:
+
+| Item | Status |
+|---|---|
+| Assignment changes | Already audited (CRM-05.4, `crm_lead.assigned`/`crm_opportunity.assigned`/`crm_conversation.assigned`) |
+| Stage changes | Already audited (CRM-04.2, `crm_opportunity.stage_changed`) |
+| Sends | **Gap -- closed this story** |
+| External responses | Covered by construction -- `crm.interaction` itself is the complete immutable record of every inbound message; a parallel audit_log row would duplicate it, not add anything |
+| AI draft generation | Deliberately not logged (see below) |
+| External publishing | Not built yet (CRM-08.6, P1) -- nothing to instrument |
+| Record merges | Not built yet (CRM-02.5, P1) -- nothing to instrument |
+| Connection changes | **Gap -- closed this story** |
+
+Closed the two real gaps: `sendWhatsAppReply()` and `sendWhatsAppTemplate()`
+(`whatsapp/messaging.ts`) now call `writeAuditLog()` on the success path only (after
+`attachOutboundMessageId()`, never on a failed send), action `crm_interaction.sent`,
+entityType `crm_interaction`, entityId the created interaction's own id -- `after`
+records the conversation, channel, and (for a template send) which template. Fetches
+`actorId` via `supabase.auth.getUser()`, same pattern as `updateOpportunityStage()`.
+`connectWhatsApp()` and `disconnectChannelConnection()` (`channel-connections/mutations.ts`)
+now log `crm_channel_connection.connected`/`crm_channel_connection.disconnected` the same
+way -- `connectWhatsApp()`'s upsert gained a `.select("id").single()` it didn't need
+before (nothing read the row back), since the audit entry needs a real entityId, not just
+a business-scoped side effect. Both new action keys and their entity-type labels added to
+`packages/core/src/audit/format.ts`'s `ACTION_LABEL`/`ENTITY_TYPE_LABEL` maps, per that
+file's own "a future module's own trigger adds its action here" doc comment.
+
+AI draft generation deliberately NOT logged, and not because it was missed:
+`getDraftReplyForInteraction()` (CRM-09.6) runs on every conversation page render, not on
+a discrete user-initiated "generate" action -- logging it would flood `audit_log` with an
+entry per page view of a passive computation, which is the wrong scope for what
+"audit" means everywhere else in this list (a consequential action a human or the system
+took, not a read). The backlog's real intent here -- knowing whether a sent reply was
+AI-assisted -- doesn't need a second audit-log entry at all: it's better captured as a
+signal on the send event itself. Left as a documented gap rather than half-building it,
+since threading a "used AI draft" flag from the reply form's "Use this draft" button
+through to `sendWhatsAppReply()`'s own audit `after` payload is a small follow-on the
+backlog doesn't explicitly ask for as its own line item, and CLAUDE.md rule 7 (no
+speculative functionality) argues against adding it speculatively in this story.
+
+No new migration (both audit action keys write against the existing `core.audit_log`
+table and `write_audit_log()` RPC from D-10/C-7's own migrations). No new RLS-harness
+cases needed -- `writeAuditLog()` is a thin, already-covered wrapper around an existing
+RPC, not a new table or policy. Verified with full monorepo typecheck, `lint:boundaries`,
+module-crm's vitest suite (92/92, no regressions -- these functions had no existing unit
+tests asserting on their return shape that a new async call could break), both CRM RLS
+suites (re-run clean, unchanged since this story touches no RLS policy), and a clean
+`next build`.

@@ -1,5 +1,6 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
+import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
 import { attachOutboundMessageId, markInteractionFailed, recordInteraction } from "../interactions/mutations";
 import { getDecryptedAccessToken } from "../channel-connections/queries";
@@ -78,6 +79,9 @@ export async function sendWhatsAppReply(businessId: string, conversationId: stri
   await requireModule(businessId, "crm");
   await requirePermission(businessId, "crm_messages.send");
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const context = await resolveOutboundContext(supabase, businessId, conversationId);
   if (!context.ok) return context;
@@ -108,6 +112,16 @@ export async function sendWhatsAppReply(businessId: string, conversationId: stri
   if (sendResult.providerMessageId) {
     await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId);
   }
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_interaction.sent",
+    entityType: "crm_interaction",
+    entityId: interaction.id,
+    after: { conversationId, channel: "whatsapp", kind: "free_form" },
+  });
+
   return { ok: true, interactionId: interaction.id };
 }
 
@@ -123,6 +137,9 @@ export async function sendWhatsAppTemplate(businessId: string, conversationId: s
   await requireModule(businessId, "crm");
   await requirePermission(businessId, "crm_messages.send");
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const template = await getWhatsAppTemplate(businessId, templateId);
   if (!template || !template.is_active) return { ok: false, error: "This template is not available." };
@@ -158,6 +175,16 @@ export async function sendWhatsAppTemplate(businessId: string, conversationId: s
   if (sendResult.providerMessageId) {
     await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId);
   }
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_interaction.sent",
+    entityType: "crm_interaction",
+    entityId: interaction.id,
+    after: { conversationId, channel: "whatsapp", kind: "template", templateId: template.id, templateName: template.name },
+  });
+
   return { ok: true, interactionId: interaction.id };
 }
 
