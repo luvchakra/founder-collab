@@ -2398,3 +2398,73 @@ boundary fix above). No new migration, no live-database change needed.
 
 **Status**: 69 of 74 in-scope stories done. Next: CRM-12.5 "Buying Intent Score" (seq
 #65).
+
+---
+
+## CRM-12.5 (2026-09-11)
+
+"Buying Intent Score" -- inputs: Discovery buying signal, interaction recency, customer
+reply behavior, product interest, quote activity, appointment activity, review/feedback
+where applicable. Acceptance: explainable contributing signals, visible source evidence,
+auditable recalculation.
+
+**Design decision -- deterministic, not AI**: unlike CRM-12.1/12.2/12.4, this is
+deliberately NOT an LLM call. CLAUDE.md principle 4 ("do not use an LLM for
+deterministic operations") plus the acceptance criteria themselves (explainable
+contributing signals, auditable recalculation -- both imply a reproducible computation,
+not a generative one a re-run could answer differently) point the same direction:
+`calculateBuyingIntentScore()` (`lib/scoring/buying-intent.ts`) is a plain weighted sum
+over seven real signals, each capped so no single input can dominate, summing to 0-100:
+
+- Discovery buying signal: +5/signal, capped 20 (from `getCustomer360().prospect`).
+- Interaction recency: 20/10/5/0 for <=2/<=7/<=30/>30 days since the last interaction.
+- Customer reply behavior: 15/8/0 for 2+/1/0 inbound interactions that reached
+  `status='responded'` (a real back-and-forth, not just an unanswered inbound message).
+- Product interest: +5/product, capped 15.
+- Quote activity: +15 if an FSM quote exists (CRM-11's own bridge,
+  `listOpportunitiesWithFsmQuoteForParty()`), else +8 for a bare open opportunity.
+- Appointment activity: +7/job, capped 15 (`recentJobs`).
+- Review/feedback: +10 for a 4-5-star review, +5 for any review, else 0.
+
+Each signal returns its own `{ points, maxPoints, evidence }` -- the "explainable
+contributing signals" / "user can see source evidence" criteria are satisfied by the
+function's own return shape, not a separate lookup a UI would have to reconstruct.
+
+**Caching + auditability**: new table `crm.buying_intent_score`
+(`20260911001800_crm_buying_intent_score.sql`, crm schema only), same one-row-per-party
+shape as `crm.customer_summary`, `signals` stored as jsonb. `getBuyingIntentScore()`
+reads the cached row for the page's initial render (no recalculation just from viewing
+the page); `recalculateBuyingIntentScore()` is the explicit "Recalculate" action --
+computes a fresh score, upserts it, and calls `writeAuditLog()`
+(`crm_buying_intent.recalculated`, before/after score) so every recalculation is a
+visible, attributable event in the business's own Audit Log. That's this story's "score
+recalculation is auditable" criterion, satisfied by reusing existing infrastructure
+(D-10's audit log) rather than building a parallel score-history table.
+
+**UI**: new "Buying intent" card on Customer 360, between the AI summary card and the
+Contacts section -- score out of 100, each signal with non-null evidence shown with its
+own points/evidence, and a plain `<form>` + `SubmitButton` "Recalculate" (no client
+component needed here, unlike the two AI cards: this is a fast, synchronous, no-external-
+provider-failure computation, so the simpler plain-form pattern this codebase already
+uses for the page's other buttons fits). New server action
+`recalculateBuyingIntentScoreAction` (`[partyId]/actions.ts`).
+
+New `ACTION_LABEL`/`ENTITY_TYPE_LABEL` entries: `crm_buying_intent.recalculated` /
+`crm_buying_intent_score`.
+
+Verified with full monorepo typecheck, `lint:boundaries` (926 files, no violations),
+`lint:migrations` (81 migrations, no violations), module-crm's vitest suite (111/111,
+unchanged -- this story added no new pure-logic unit worth a dedicated test beyond what
+the RLS harness already exercises at the SQL level), both CRM RLS suites (re-run clean,
++4 new assertions for `crm.buying_intent_score`'s idempotency/recalculation-in-place/
+cross-tenant smuggling), and a clean `next build`. Migration applied live to the dev
+Supabase project; `get_advisors` re-checked clean on both performance (two new indexes,
+"unused" for the same no-real-traffic reason as every other index here) and security (no
+new findings).
+
+**Epic CRM-12 status**: 5 of 5 in-scope stories done -- **epic complete** (12.3 and 12.6
+are out of this backlog run's P0/P1 scope per Section 7's own sequence table).
+
+**Status**: 70 of 74 in-scope stories done. Next: Epic CRM-14 (Command Center &
+Analytics) -- CRM-14.1 "CRM Dashboard" (seq #67; CRM-14.2 was already done earlier this
+session).

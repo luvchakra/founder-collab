@@ -595,6 +595,24 @@ async function main() {
       );
       assertEqual(psqlAsBob(`select count(*) from crm.conversation_summary where id = '${aliceConvoSummary}'`), "0", "Bob cannot see Alice's cached conversation summary");
 
+      console.log("Verifying CRM-12.5's crm.buying_intent_score cache (idempotency, cross-tenant)...");
+      const aliceScore = psqlAsAlice(`insert into crm.buying_intent_score (business_id, party_id, score, signals) values ('${aliceBusiness}', '${aliceParty}', 40, '[{"key":"discovery_buying_signal","label":"Discovery buying signals","points":20,"maxPoints":20,"evidence":"2 signals"}]') returning id;`);
+      assertThrows(
+        () => psqlAsAlice(`insert into crm.buying_intent_score (business_id, party_id, score, signals) values ('${aliceBusiness}', '${aliceParty}', 10, '[]')`),
+        "a duplicate (business_id, party_id) buying_intent_score is rejected -- recalculateBuyingIntentScore()'s own one-row-per-customer cache relies on this for its upsert",
+      );
+      psqlAsAlice(`update crm.buying_intent_score set score = 65, signals = '[{"key":"interaction_recency","label":"Interaction recency","points":20,"maxPoints":20,"evidence":"Last interaction 1 day ago"}]' where business_id = '${aliceBusiness}' and party_id = '${aliceParty}';`);
+      assertEqual(
+        psqlAsAlice(`select score from crm.buying_intent_score where id = '${aliceScore}'`),
+        "65",
+        "recalculating (a new score) updates the same cached row in place rather than inserting a second one",
+      );
+      assertThrows(
+        () => psqlAsBob(`insert into crm.buying_intent_score (business_id, party_id, score, signals) values ('${bobBusiness}', '${aliceParty}', 50, '[]')`),
+        "Bob cannot create a buying_intent_score against Alice's party -- enforce_buying_intent_score_refs()",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.buying_intent_score where id = '${aliceScore}'`), "0", "Bob cannot see Alice's cached buying intent score");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);

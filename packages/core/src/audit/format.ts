@@ -19,6 +19,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "crm_channel_connection.health_changed": "CRM channel connection health changed",
   "crm_opportunity.fsm_quote_created": "FSM quote created from CRM opportunity",
   "crm_opportunity.fsm_job_created": "FSM job created from CRM opportunity",
+  "crm_buying_intent.recalculated": "Buying intent score recalculated",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -30,6 +31,7 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   crm_conversation: "CRM Conversation",
   crm_interaction: "CRM Interaction",
   crm_channel_connection: "CRM Channel Connection",
+  crm_buying_intent_score: "CRM Buying Intent Score",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

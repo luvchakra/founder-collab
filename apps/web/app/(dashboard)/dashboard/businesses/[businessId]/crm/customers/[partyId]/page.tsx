@@ -6,13 +6,16 @@ import { inr, formatDate } from "@cofounderai/core/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { RelatedDocumentButton } from "@cofounderai/module-crm/components/tickets/related-document-button";
 import { getTicket } from "@cofounderai/module-crm/lib/tickets/queries";
 import { getCustomer360 } from "@cofounderai/module-crm/lib/customer-360/queries";
 import { listRelationshipTimeline } from "@cofounderai/module-crm/lib/timeline/queries";
 import { getCustomerSummary } from "@cofounderai/module-crm/lib/ai/customer-summary";
+import { getBuyingIntentScore } from "@cofounderai/module-crm/lib/scoring/buying-intent";
 import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
-import { generateCustomerSummaryAction, linkTicketToDocumentAction } from "./actions";
+import { TrendingUp } from "lucide-react";
+import { generateCustomerSummaryAction, linkTicketToDocumentAction, recalculateBuyingIntentScoreAction } from "./actions";
 import { CustomerSummaryCard } from "./customer-summary-card";
 
 /**
@@ -44,6 +47,11 @@ import { CustomerSummaryCard } from "./customer-summary-card";
  * CRM-12.1 adds the AI summary card: generated on an explicit click (never on page
  * load), from the exact same `getCustomer360()` data this page already renders as
  * cards -- see `lib/ai/customer-summary.ts` for the prompt and its own cache.
+ *
+ * CRM-12.5 adds the Buying Intent card: a deterministic weighted score (never an LLM
+ * call -- see `lib/scoring/buying-intent.ts`), each contributing signal shown with its
+ * own point value and source evidence, recalculated on an explicit click that writes an
+ * audit log entry.
  */
 export default async function CustomerPanelPage({
   params,
@@ -57,13 +65,14 @@ export default async function CustomerPanelPage({
   const party = await getParty(partyId);
   if (!party || party.business_id !== businessId) notFound();
 
-  const [customer360, aging, ticket, contacts, timeline, customerSummary] = await Promise.all([
+  const [customer360, aging, ticket, contacts, timeline, customerSummary, buyingIntentScore] = await Promise.all([
     getCustomer360(businessId, partyId),
     listAgingForParty(businessId, partyId),
     ticketId ? getTicket(ticketId) : Promise.resolve(null),
     party.kind === "company" ? listContactsForParty(partyId) : Promise.resolve([]),
     listRelationshipTimeline(businessId, partyId),
     getCustomerSummary(businessId, partyId),
+    getBuyingIntentScore(businessId, partyId),
   ]);
 
   const totalOutstanding = aging.reduce((sum, row) => sum + Number(row.balance_amount), 0);
@@ -105,6 +114,45 @@ export default async function CustomerPanelPage({
       </div>
 
       <CustomerSummaryCard initialSummary={customerSummary} generateAction={generateCustomerSummaryAction.bind(null, businessId, partyId)} />
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-base">Buying intent</CardTitle>
+          <form action={recalculateBuyingIntentScoreAction.bind(null, businessId, partyId)}>
+            <SubmitButton type="submit" size="sm" variant="outline" pendingText="Recalculating...">
+              {buyingIntentScore ? "Recalculate" : "Calculate score"}
+            </SubmitButton>
+          </form>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {buyingIntentScore ? (
+            <>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-semibold">{buyingIntentScore.score}</span>
+                <span className="text-sm text-muted-foreground">/ 100</span>
+                <span className="text-xs text-muted-foreground">Calculated {formatDate(buyingIntentScore.calculatedAt)}</span>
+              </div>
+              <div className="flex flex-col divide-y">
+                {buyingIntentScore.signals
+                  .filter((s) => s.evidence)
+                  .map((s) => (
+                    <div key={s.key} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium">{s.label}</p>
+                        <p className="truncate text-xs text-muted-foreground">{s.evidence}</p>
+                      </div>
+                      <span className="shrink-0 font-medium">
+                        +{s.points}/{s.maxPoints}
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </>
+          ) : (
+            <EmptyState icon={TrendingUp} message="No score calculated yet." />
+          )}
+        </CardContent>
+      </Card>
 
       {contacts.length > 0 ? (
         <Card>

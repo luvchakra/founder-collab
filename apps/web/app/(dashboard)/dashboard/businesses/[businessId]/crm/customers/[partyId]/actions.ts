@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { setTicketRelatedDocument } from "@cofounderai/module-crm/lib/tickets/mutations";
 import { generateCustomerSummary } from "@cofounderai/module-crm/lib/ai/customer-summary";
+import { recalculateBuyingIntentScore } from "@cofounderai/module-crm/lib/scoring/buying-intent";
 
 /**
  * B2 (docs/design/crm-module-design.md Part B) -- called from the Customer 360 panel
@@ -32,4 +33,14 @@ export async function generateCustomerSummaryAction(businessId: string, partyId:
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not generate a summary." };
   }
+}
+
+/** CRM-12.5's "Recalculate" button -- a plain form action (no client-side pending/error
+ * state needed, unlike the AI cards above: this is a deterministic, fast computation
+ * with no external-provider failure mode to surface). Each click writes an audit log
+ * entry (`recalculateBuyingIntentScore()`'s own job), satisfying "score recalculation is
+ * auditable." */
+export async function recalculateBuyingIntentScoreAction(businessId: string, partyId: string): Promise<void> {
+  await recalculateBuyingIntentScore(businessId, partyId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/customers/${partyId}`);
 }
