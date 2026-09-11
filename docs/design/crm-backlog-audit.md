@@ -1034,3 +1034,48 @@ Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite (4 new tests), and both CRM RLS test suites (2 new cases: the
 override itself records full confidence, and Bob's own business-scoped update matches
 none of Alice's rows). No new migration -- `intent`/`intent_confidence` already existed.
+
+## CRM-09.5 (2026-09-11)
+
+"One-click Convert to Lead/Opportunity" -- the backlog's exact action row from an
+unanswered message: `Respond | Create Lead | Create Opportunity | Create Task | Not
+Relevant`. `Respond` is a plain link into the Conversations detail pane (CRM-07.6's
+reply composer already lives there, nothing new to build); `Not Relevant` is
+`markInteractionNotActionable()`, already built for CRM-09.1 and just relabeled here to
+match the backlog's own button name.
+
+New `lib/interactions/conversion-actions.ts`: `convertInteractionToLead()`,
+`convertInteractionToOpportunity()`, `convertInteractionToTask()`. Both lead/opportunity
+paths require the interaction to already have a resolved `party_id` (CRM-06.4) -- shown
+only in the UI when one exists, satisfying "existing party is reused" by construction
+rather than inventing a new-party-creation flow (that's CRM-06.4's own tier-5 territory,
+deliberately out of scope here). `convertInteractionToLead()` first checks for the
+party's own most recent still-open lead (any source) and reuses it instead of always
+creating a new one -- otherwise a party CRM-07.11 already auto-captured a WhatsApp lead
+for would get a second, competing lead the moment a human clicked "Create Lead" on a
+later message in the same thread. Only when none exists does it create one, keyed on
+`(business_id, source_module='crm_interaction', source_reference=interactionId)` --
+reusing `crm.lead`'s existing `lead_source_reference_uq` index (no new migration needed,
+the constraint doesn't care what `source_module` value it's given).
+`convertInteractionToOpportunity()` reuses `convertLeadToOpportunity()` (CRM-03.4) on
+that same lead rather than a parallel direct-insert path, and if the lead had already
+been converted by an earlier click, reuses the existing opportunity instead of creating
+a duplicate one.
+
+"User never loses the original message context": both conversions link the result back
+onto `crm.conversation.lead_id`/`opportunity_id` (only when not already set, so a repeat
+click never clobbers a different existing link) -- the Conversations page's own "Lead:
+..."/"Opportunity: ..." badges (CRM-06.2) surface it immediately, on the same
+conversation the interaction still lives in. "Conversion preserves original
+interaction" holds by construction: none of these functions ever update or delete the
+`crm.interaction` row itself, only insert/update other tables.
+
+UI: a new `ActionsRow` component on the Lost Business queue (CRM-09.2) renders the
+backlog's exact five actions per row (mobile cards and the desktop table's new
+right-aligned Actions column).
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (unchanged -- these functions are DB-touching orchestration,
+tested via the RLS harness instead per this module's own established split), and both
+CRM RLS test suites (5 new cases replicating the lead-reuse check, both conversation
+links, and that the original interaction is never modified). No new migration.

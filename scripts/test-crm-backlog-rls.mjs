@@ -425,11 +425,46 @@ async function main() {
         "Bob cannot override Alice's interaction's intent -- updateInteractionIntent()'s own business_id filter (scoped to Bob's business) matches no rows, so Alice's row is unchanged",
       );
 
+      console.log("Verifying CRM-09.5's one-click conversion (lead reuse, conversation linking, original interaction untouched)...");
+      const convActorParty = psqlAsAlice(`insert into core.parties (business_id, name) values ('${aliceBusiness}', 'Convert Test Party') returning id;`);
+      const convConversation = psqlAsAlice(`insert into crm.conversation (business_id, party_id, primary_channel) values ('${aliceBusiness}', '${convActorParty}', 'whatsapp') returning id;`);
+      const convInteraction = psqlAsAlice(`insert into crm.interaction (business_id, conversation_id, party_id, channel, direction, content_excerpt) values ('${aliceBusiness}', '${convConversation}', '${convActorParty}', 'whatsapp', 'inbound', 'I want to buy this') returning id;`);
+
+      // convertInteractionToLead()'s own upfront check: no active lead exists yet for
+      // this party, so it creates one -- replicated here at the SQL level.
+      const convLead = psqlAsAlice(`insert into crm.lead (business_id, party_id, source, source_module, source_reference) values ('${aliceBusiness}', '${convActorParty}', 'manual', 'crm_interaction', '${convInteraction}') returning id;`);
+      psqlAsAlice(`update crm.conversation set lead_id = '${convLead}' where id = '${convConversation}' and lead_id is null;`);
+      assertEqual(
+        psqlAsAlice(`select lead_id from crm.conversation where id = '${convConversation}'`),
+        convLead,
+        "convertInteractionToLead() links the created lead onto the conversation so the Conversations page's own 'Lead: ...' badge surfaces it immediately",
+      );
+      assertEqual(
+        psqlAsAlice(`select count(*) from crm.lead where party_id = '${convActorParty}' and status not in ('won', 'lost')`),
+        "1",
+        "a party with an already-open lead never gets a second one from a repeat conversion click -- convertInteractionToLead()'s own reuse check",
+      );
+
+      const convOpportunity = psqlAsAlice(`insert into crm.opportunity (business_id, party_id, lead_id, source) values ('${aliceBusiness}', '${convActorParty}', '${convLead}', 'manual') returning id;`);
+      psqlAsAlice(`update crm.lead set status = 'opportunity' where id = '${convLead}';`);
+      psqlAsAlice(`update crm.conversation set opportunity_id = '${convOpportunity}' where id = '${convConversation}' and opportunity_id is null;`);
+      assertEqual(
+        psqlAsAlice(`select opportunity_id from crm.conversation where id = '${convConversation}'`),
+        convOpportunity,
+        "convertInteractionToOpportunity() links the resulting opportunity onto the same conversation",
+      );
+      assertEqual(
+        psqlAsAlice(`select content_excerpt from crm.interaction where id = '${convInteraction}'`),
+        "I want to buy this",
+        "converting to a lead/opportunity never modifies the original interaction row -- CRM-09.5's own 'conversion preserves original interaction'",
+      );
+      assertEqual(psqlAsBob(`select count(*) from crm.lead where id = '${convLead}'`), "0", "Bob cannot see Alice's converted lead");
+
       console.log("Verifying tenant isolation between two licensed businesses...");
       const bobParty = psqlAsBob(`insert into core.parties (business_id, name) values ('${bobBusiness}', 'Bob Customer') returning id;`);
       psqlAsBob(`insert into crm.lead (business_id, party_id) values ('${bobBusiness}', '${bobParty}');`);
       assertEqual(psqlAsBob("select count(*) from crm.lead"), "1", "Bob sees only his own lead");
-      assertEqual(psqlAsAlice("select count(*) from crm.lead"), "2", "Alice still sees only her own leads (the earlier one plus CRM-07.11's WhatsApp-captured one), none of Bob's");
+      assertEqual(psqlAsAlice("select count(*) from crm.lead"), "3", "Alice still sees only her own leads (the earlier one, CRM-07.11's WhatsApp-captured one, and CRM-09.5's converted one), none of Bob's");
       assertEqual(psqlAsBob("select count(*) from crm.opportunity"), "0", "Bob sees none of Alice's opportunities");
       assertEqual(psqlAsBob("select count(*) from crm.conversation"), "0", "Bob sees none of Alice's conversations");
       assertEqual(psqlAsBob("select count(*) from crm.interaction"), "0", "Bob sees none of Alice's interactions");
