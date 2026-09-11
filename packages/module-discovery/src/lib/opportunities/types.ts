@@ -43,4 +43,9 @@ export type Opportunity = {
   contactability_score: number | null;
   evidence_confidence_score: number | null;
   score_reason: string | null;
+  /** DISC-OFFER-P0-05.3: which `discovery.signal_correlations` row (if any) most
+   * recently justified this opportunity's `signal_strength_score` -- see
+   * `attachSignalCorrelation` in mutations.ts. Soft reference, same "on delete set
+   * null" treatment as `discovery_definition_id`. */
+  signal_correlation_id: string | null;
 };
