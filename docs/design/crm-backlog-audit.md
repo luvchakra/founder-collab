@@ -1378,3 +1378,73 @@ outcome, and Bob's own business-scoped update against Alice's connection matches
 rows. Verified with full monorepo typecheck, `lint:boundaries`, module-crm's vitest suite
 (98/98, +6 for `classifyWhatsAppFailure()`), both CRM RLS suites (re-run clean, +4 new
 assertions), and a clean `next build` (confirms the new cron route compiles).
+
+## CRM-14.2 (2026-09-11)
+
+"Potential Lost Business Dashboard" -- the last P0 story in Section 7's sequence
+(seq #46). "This is a primary dashboard, not a hidden report," six metrics verbatim:
+unanswered messages, unanswered social questions, unanswered reviews requiring action,
+overdue leads, stale opportunities, open high-intent conversations. Deliberately distinct
+from CRM-09.2's "Potential Lost Business" queue (a worklist of individual interactions to
+act on one at a time, already built) -- this is the aggregate KPI view.
+
+**New route, not a takeover of the existing root.** `/crm` today still serves the
+pre-backlog ticket-based Inbox (`crm.tickets`/`crm.channels`) -- the retirement table's
+own CRM-06.1 row only retired `crm.tickets`' data role by building `conversation`
+alongside it; the old UI route and its "Inbox" nav entry were never actually swapped out,
+a leftover from before this session's backlog work. Retiring that route is a bigger,
+disruptive UI decision nobody chartered to this story, so rather than reinterpreting
+"primary, not hidden" as "replace the module's root page," it's satisfied instead by nav
+prominence: a new `/crm/dashboard` route (`packages/module-crm/src/lib/dashboard/`,
+`apps/web/.../crm/dashboard/`) with its own "Dashboard" nav entry (icon
+`LayoutDashboard`, matching inventory's own dashboard nav convention exactly) placed
+*first* under "Overview," above "Inbox" -- hand-synced into both `manifest.ts` and
+`module-registry/src/index.ts` as always.
+
+**The six metrics, and what's genuinely new vs. reused:**
+- *Unanswered messages* / *open high-intent conversations*: both derived from
+  `getOpenCommercialInteractions()` (CRM-01.3/09.2's own query, raised to a 1000-row
+  limit here since a dashboard count needs the true total, not one paginated page) --
+  "messages" is that same row set minus the three social `channel_type` values
+  (Instagram/Facebook Messenger/Google Business Messages), "high-intent conversations" is
+  the distinct `conversation_id` count among that set filtered through CRM-09.4's already
+  -built `isHighCommercialIntent()`.
+- *Unanswered social questions* / *reviews requiring action*: real queries against
+  schema CRM-01.2 already anticipated (`channel_type`'s social values; `crm.review_item`
+  and its `review_item_status` enum) -- currently always 0 since nothing writes to either
+  yet (CRM-08.2/08.3 social inbound, CRM-08.5 Google reviews, all P1, not built). Not
+  placeholders or hardcoded zeros: the moment those stories ship, these numbers start
+  reporting for real with no change needed here.
+- *Overdue leads*: a genuinely new definition, since nothing in the schema has an
+  "overdue" concept for a lead directly -- defined as a lead (not `won`/`lost`) with a
+  `pending` `follow_up` row whose `due_at` has passed, reusing CRM-05.3's own due-date
+  tracking rather than inventing a second one.
+- *Stale opportunities*: CRM-04.6 "Stale Opportunity Detection" (the story that would
+  define this properly, with per-stage thresholds) is a separate, not-yet-built P1 story
+  not even in Section 7's own sequence. Rather than leaving the metric out or half-building
+  CRM-04.6 ahead of its own turn, this uses the simplest defensible definition needing no
+  new schema: an open opportunity whose `updated_at` (kept current by the generic
+  `set_updated_at()` trigger every crm-schema table already has) is more than 14 days
+  old. Documented here as a placeholder *definition*, not a placeholder *number* --
+  a real, if simple, threshold a founder can act on today, superseded whenever CRM-04.6
+  actually ships.
+
+No new migration (every query reads existing tables/columns). No new RLS-harness cases --
+every query is a straightforward `eq("business_id", ...)`-scoped read or count against
+tables already covered by existing tenant-isolation tests (`review_item`, `follow_up`,
+`opportunity`, `lead`, and `getOpenCommercialInteractions()`'s own `interaction` query),
+with no new policy or column to verify. Verified with full monorepo typecheck (caught and
+fixed a real mistake mid-story: the new `dashboard/queries.ts` file collided with an
+existing one from S-5 holding `getOpenTicketsCount()`, used by the top-level
+`/dashboard` widget grid and `contract/index.ts` -- restored it alongside the new
+`getPotentialLostBusinessDashboard()` rather than losing it), `lint:boundaries`,
+module-crm's vitest suite (98/98, unchanged -- a pure aggregation query with no new pure
+logic to unit-test beyond what CRM-09.4's `isHighCommercialIntent()` already covers),
+both CRM RLS suites (re-run clean, unchanged), and a clean `next build` (confirms the new
+route compiles).
+
+**Epic CRM-14 status**: 1 of 6 in-scope stories done (this one, the only P0 story in the
+epic). The remaining five (14.1, 14.3-14.6) are P1, next in Section 7's sequence.
+
+**All P0 stories are now complete** (46 of 46, seq #1-46). The P1 run begins next at
+seq #47 (CRM-08.2, Facebook Messenger Inbound).
