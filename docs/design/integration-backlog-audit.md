@@ -38,7 +38,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 05.2 | Inventory Substitution Recommendation | Done |
 | | 05.3 | Shortage -> Customer Follow-up | Done |
 | INT-06 (P1) | 06.1 | Service Outcome Classification | Done |
-| | 06.2 | Additional Work -> CRM Opportunity | Not started |
+| | 06.2 | Additional Work -> CRM Opportunity | Done |
 | | 06.3 | Recommended Parts -> Inventory | Not started |
 | | 06.4 | Warranty / Revisit -> FSM | Not started |
 | INT-07 (P1) | 07.1 | Cross-Module Exception Model | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 4/13 done. Overall: 20/29 (69%).**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 5/13 done. Overall: 21/29 (72%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -354,3 +354,13 @@ UI: the job detail page's "Complete" button now opens a dialog (mirroring the ex
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (92 migrations, no violations), `node scripts/test-module.mjs fsm` (module-fsm has no unit test files, consistent with the rest of this module; the RLS harness failed only on the expected no-local-Postgres `createdb` connection error, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings beyond the same pre-existing INFO noise), and a clean `next build`.
 
 **Status**: 20 of 29 in-scope stories done. Next: INT-06.2, Additional Work -> CRM Opportunity.
+
+### INT-06.2 — Additional Work -> CRM Opportunity (2026-09-11)
+
+"CRM creates suggested opportunity" -- literally CRM, not FSM: the established one-way direction (CRM is the composition hub, FSM never imports CRM's contract) means FSM can't create a `crm.opportunity` row directly. Publishes a domain event instead (mechanism 3, ADR-5), the same "downstream module produces an outcome the upstream module reacts to" shape `inventory.stock.replenished` already uses -- `completeJob()` publishes `fsm.job.additional_work_identified` (best-effort, same discipline as its existing invoice-generation side effect) only when the founder's own INT-06.1 classification is `additional_work_required`; every other outcome is silent here, since only that one value means "additional commercial work."
+
+New `module-crm/src/events/handlers.ts` subscriber creates the suggested opportunity: `crm.opportunity.source_module`/`source_reference` (new migration, mirrors `crm.lead`'s own existing pair verbatim -- not a new concept) dedupes idempotently per `(business_id, 'fsm_job', jobId)`, so a replayed drain attempt or a reopened-and-recompleted job never produces a second suggested opportunity. No `stage_id` set, matching `convertLeadToOpportunity()`'s own established shape for a freshly created opportunity. "Existing party/job context attached" is a `crm.crm_note` on the new opportunity (job number, description, outcome notes) -- reusing the table CRM already has for exactly this, not a new notes mechanism. "No automatic customer message" is true by construction: this handler only ever inserts an opportunity + a note, it never touches `crm.interaction` or sends anything -- "owner reviews" is the founder finding this new opportunity in their own pipeline.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (958 files, no violations), `lint:migrations` (93 migrations, no violations), module-crm's vitest suite (152/152, unchanged), `node scripts/test-module.mjs fsm` (same expected no-local-Postgres RLS harness failure as every other fsm-touching story this session, not a regression), a live migration apply + `get_advisors` for both `security`/`performance` (no new findings), and a clean `next build`.
+
+**Status**: 21 of 29 in-scope stories done. Next: INT-06.3, Recommended Parts -> Inventory.

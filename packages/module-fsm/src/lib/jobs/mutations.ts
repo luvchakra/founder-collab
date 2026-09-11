@@ -2,6 +2,7 @@ import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
+import { publish } from "@cofounderai/core/events/mutations";
 import { resolveCustomerPartyId } from "../opportunities/mutations";
 import { getOrCreateInvoiceForJob } from "../invoices/mutations";
 import { consumeJobParts, releaseJobParts, reserveJobParts } from "../inventory-integration/mutations";
@@ -110,19 +111,42 @@ export async function resumeJob(id: string, businessId: string): Promise<void> {
  * generates the job's invoice (still a draft -- "generation" per the settings flag, not
  * sending) via the same idempotent `getOrCreateInvoiceForJob` the invoice screen itself
  * uses; best-effort, since a completed job shouldn't be blocked by an
- * invoice-generation failure the user can always retry from the invoice screen. */
+ * invoice-generation failure the user can always retry from the invoice screen.
+ *
+ * INT-06.2's "Additional Work -> CRM Opportunity": FSM never imports CRM's contract
+ * (the established one-way direction -- CRM is the composition hub, FSM only ever gets
+ * called *by* it), so this can't create the CRM opportunity directly. It publishes a
+ * domain event instead (mechanism 3, ADR-5) -- the same "downstream module produces an
+ * outcome the upstream module reacts to" shape `estimate.approved`/`document.issued`
+ * already use elsewhere in this file -- and `module-crm/src/events/handlers.ts`'s own
+ * new subscriber is what actually creates the suggested opportunity. Best-effort: a
+ * completed job shouldn't be blocked by this any more than invoice generation is. */
 export async function completeJob(id: string, businessId: string, outcome: JobOutcome, outcomeNotes?: string | null): Promise<void> {
   await requireModule(businessId, "fsm");
   await requirePermission(businessId, "jobs.edit");
+  const trimmedNotes = outcomeNotes?.trim() || null;
   await transition(id, businessId, ["in_progress", "on_hold"], {
     status: "completed",
     completed_at: new Date().toISOString(),
     outcome,
-    outcome_notes: outcomeNotes?.trim() || null,
+    outcome_notes: trimmedNotes,
   });
   await consumeJobParts(businessId, id).catch(() => {});
 
   const fsm = await createClient();
+
+  if (outcome === "additional_work_required") {
+    const { data: job } = await fsm.from("jobs").select("party_id, number, description").eq("id", id).eq("business_id", businessId).maybeSingle();
+    if (job) {
+      await publish({
+        businessId,
+        type: "fsm.job.additional_work_identified",
+        payload: { jobId: id, partyId: job.party_id, jobNumber: job.number, description: job.description, outcomeNotes: trimmedNotes },
+        requiredModule: "crm",
+      }).catch(() => {});
+    }
+  }
+
   const { data: settings } = await fsm.from("settings").select("auto_invoice_on_complete").eq("business_id", businessId).maybeSingle();
   if (settings?.auto_invoice_on_complete) {
     await getOrCreateInvoiceForJob(businessId, id).catch(() => {});

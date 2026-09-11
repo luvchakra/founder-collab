@@ -123,3 +123,63 @@ registerEventHandler("inventory.stock.replenished", async (event: DomainEvent) =
     );
   if (updateError) throw updateError;
 });
+
+/**
+ * INT-06.2's "Additional Work -> CRM Opportunity": "Job completed -> additional work
+ * identified -> CRM creates suggested opportunity -> existing party/job context
+ * attached -> owner reviews. No automatic customer message." Published from
+ * `completeJob()` (module-fsm/src/lib/jobs/mutations.ts) once the founder classifies a
+ * job's outcome as `additional_work_required` (INT-06.1) -- FSM never imports CRM's
+ * contract, so this event is the only legal way that outcome reaches CRM (mechanism 3,
+ * ADR-5).
+ *
+ * Idempotent per `(business_id, source_module: 'fsm_job', source_reference: jobId)` --
+ * `crm.opportunity`'s own new columns (INT-06.2's migration), same generic pair
+ * `crm.lead` already has -- so a replayed drain attempt or a reopened-and-recompleted
+ * job never creates a second suggested opportunity for the same job. No `stage_id` set,
+ * same as `convertLeadToOpportunity()`'s own established shape for a freshly created
+ * opportunity; "existing party/job context attached" is a `crm.crm_note` on the new
+ * opportunity (job number/description/outcome notes), not a message to the customer --
+ * this handler never sends anything, it only creates a row for "owner reviews."
+ */
+registerEventHandler("fsm.job.additional_work_identified", async (event: DomainEvent) => {
+  const payload = event.payload as { jobId?: string; partyId?: string; jobNumber?: string | null; description?: string | null; outcomeNotes?: string | null };
+  if (!payload.jobId || !payload.partyId) return;
+
+  const crm = createCrmAdminClient();
+
+  const { data: existing, error: existingError } = await crm
+    .from("opportunity")
+    .select("id")
+    .eq("business_id", event.business_id)
+    .eq("source_module", "fsm_job")
+    .eq("source_reference", payload.jobId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing) return;
+
+  const { data: opportunity, error: insertError } = await crm
+    .from("opportunity")
+    .insert({
+      business_id: event.business_id,
+      party_id: payload.partyId,
+      source: "fsm",
+      source_module: "fsm_job",
+      source_reference: payload.jobId,
+    })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+
+  const noteLines = [payload.jobNumber ? `Additional work identified on FSM job ${payload.jobNumber}.` : "Additional work identified on a completed FSM job.", payload.description, payload.outcomeNotes].filter(
+    (line): line is string => Boolean(line),
+  );
+
+  const { error: noteError } = await crm.from("crm_note").insert({
+    business_id: event.business_id,
+    party_id: payload.partyId,
+    opportunity_id: opportunity.id,
+    body: noteLines.join(" "),
+  });
+  if (noteError) throw noteError;
+});

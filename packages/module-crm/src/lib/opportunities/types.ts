@@ -29,6 +29,13 @@ export type Opportunity = {
   stage_id: string | null;
   status: OpportunityStatus;
   source: string;
+  /** INT-06.2: generic "opaque reference into whatever created this row" pair, same
+   * shape `crm.lead`'s own `source_module`/`source_reference` already established --
+   * used to dedup an FSM-outcome-suggested opportunity idempotently (`source_module:
+   * "fsm_job"`, `source_reference: <jobId>`). Null for every opportunity created any
+   * other way. */
+  source_module: string | null;
+  source_reference: string | null;
   owner_id: string | null;
   /** CRM-04.3. Null until a founder sets it -- an unestimated opportunity contributes
    * nothing to pipeline value rather than a fabricated zero or default amount. */

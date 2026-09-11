@@ -11,6 +11,8 @@ function opp(overrides: Partial<Opportunity>): Opportunity {
     stage_id: null,
     status: "open",
     source: "manual",
+    source_module: null,
+    source_reference: null,
     owner_id: null,
     estimated_value: null,
     currency: "INR",
