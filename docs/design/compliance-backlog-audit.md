@@ -26,7 +26,7 @@ offering backlog's own audit log has been documenting the same limitation.
 |---|---|---|---|
 | P0-01 | 01.1 | Rename GST UI to Compliance | Done |
 | | 01.2 | Country Selector | Done |
-| | 01.3 | Tax Regime Selector | Not started |
+| | 01.3 | Tax Regime Selector | Done |
 | | 01.4 | Context Persistence | Partial (persistence for country/regime shipped as part of 01.2; not a separate story) |
 | | 01.5 | Unsupported-Country UX | Not started |
 | P0-02 | 02.1 | Tax Registration | Not started |
@@ -55,7 +55,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**2 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**3 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why).
 
 ## Pre-implementation reconnaissance (done once, up front)
@@ -283,3 +283,51 @@ disabled selector option (COMPLY-P0-01.5's fuller scope).
   module's existing `test:db` entries. Noted once here; applies to every later story in
   this log that touches schema, without repeating the full explanation each time.
 - No live browser walkthrough — see the limitation note at the top of this document.
+
+### 01.3 — Tax Regime Selector (2026-09-11)
+
+No P0 or currently-cataloged P1 country has more than one regime (India: GST only; every
+P1 entry in `countries.ts` also lists exactly one) -- so this story is the *mechanism*,
+not a feature any business can actually exercise from the UI today. Built now anyway,
+per the epic's own grouping (01.2/01.3/01.4 under one "Compliance Shell & Country Switch"
+epic) and because building it once, generically, alongside the country selector is
+cheaper and less error-prone than retrofitting it into the first P1 country pack that
+needs two regimes.
+
+**What was built**:
+- `setComplianceRegime(businessId, regime)` (`lib/compliance/mutations.ts`) -- switches
+  the regime *within* the business's current country (as opposed to `setComplianceCountry`,
+  which always resets regime to the new country's default). Reads the business's actual
+  saved country from `gst.compliance_profiles` itself rather than trusting a country
+  argument from the caller, then validates the requested regime belongs to that country's
+  own catalog entry via `isRegimeSupported()` (already covered by 01.2's own
+  `countries.test.ts`) -- same `requireModule`/`requirePermission('settings.manage')`
+  gate as the country mutation.
+- `country-bar.tsx` now renders a second `<select>` for regime, but only when
+  `current.regimes.length > 1` -- for every country in today's catalog this condition is
+  false, so the bar renders exactly as it did after 01.2 (a static regime badge, no
+  control). The regime badge itself is hidden only in the (currently unreachable) case
+  where an editable regime selector is shown instead, to avoid showing the same
+  information twice.
+- `setComplianceRegimeAction` (`gst/actions.ts`), wired into `gst/layout.tsx` alongside
+  the existing country action.
+
+**How verified**:
+- `npm run typecheck` / `npm run lint` (0 errors, same 1 pre-existing unrelated warning) /
+  `npm run lint:boundaries` (986 files, 0 violations) / `npm run lint:migrations` (103
+  files, 0 violations -- no schema change this story).
+- `npm run test --workspace=@cofounderai/module-gst` -- still 14 tests passing; no new
+  test file, since `setComplianceRegime`'s only real branch logic
+  (`isRegimeSupported(country, regime)`) is exactly what 01.2's `countries.test.ts`
+  already exercises (including the "real regime, wrong country" and "unknown country"
+  cases) -- adding a second test file that re-asserts the same pure function through a
+  mocked Supabase client would test the mock, not new behavior. The RLS test written in
+  01.2 (`gst.compliance_profiles`, tenant/license/permission enforcement on the same
+  table this mutation writes) already covers the table-level guarantees this mutation
+  relies on.
+- No schema change -- nothing to apply via Supabase MCP or re-check with `get_advisors`
+  this story.
+- `cd apps/web && npm run build` -- clean production build.
+- No live browser walkthrough (see the limitation note at the top of this document) --
+  and, as noted above, there is no country in today's catalog that would even show the
+  regime selector in a real browser session yet regardless.
