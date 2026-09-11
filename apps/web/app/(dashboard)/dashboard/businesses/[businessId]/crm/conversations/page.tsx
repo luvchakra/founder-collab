@@ -36,6 +36,7 @@ import {
   createLeadFromInteractionAction,
   createOpportunityFromInteractionAction,
   createTaskFromInteractionAction,
+  createWaitlistAction,
   markInteractionNotActionableAction,
   removeConversationProductAction,
   sendWhatsAppReplyAction,
@@ -280,6 +281,17 @@ export default async function CrmConversationsPage({
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-xs text-muted-foreground">{availability === null ? "Not available" : `${availability} available`}</span>
+                      {availability === 0 ? (
+                        product.waitlisted ? (
+                          <Badge variant="outline">Waitlisted</Badge>
+                        ) : (
+                          <form action={createWaitlistAction.bind(null, businessId, product.id)}>
+                            <SubmitButton size="sm" variant="outline" pendingText="Adding...">
+                              Waitlist
+                            </SubmitButton>
+                          </form>
+                        )
+                      ) : null}
                       <form action={removeConversationProductAction.bind(null, businessId, selected.id, product.id)}>
                         <SubmitButton variant="ghost" size="sm">
                           <Trash2 className="size-4" aria-hidden="true" />

@@ -6,7 +6,7 @@ import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm
 import { checkResponseQuality, type ResponseQualityFlag } from "@cofounderai/module-crm/lib/conversations/response-quality";
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
-import { addConversationProduct, removeConversationProduct } from "@cofounderai/module-crm/lib/conversations/products";
+import { addConversationProduct, createOutOfStockWaitlist, removeConversationProduct } from "@cofounderai/module-crm/lib/conversations/products";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -70,6 +70,13 @@ export async function addConversationProductAction(businessId: string, conversat
 
 export async function removeConversationProductAction(businessId: string, conversationId: string, productInterestId: string): Promise<void> {
   await removeConversationProduct(businessId, conversationId, productInterestId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+/** CRM-10.3's "Out-of-Stock Opportunity" -- offered only when the item's own live
+ * availability reads exactly 0 (page.tsx's own gating). */
+export async function createWaitlistAction(businessId: string, productInterestId: string): Promise<void> {
+  await createOutOfStockWaitlist(businessId, productInterestId);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
 }
 

@@ -37,7 +37,8 @@ export type CrmEventType =
   | "crm.follow_up.completed"
   | "crm.conversation.updated"
   | "crm.channel.connected"
-  | "crm.review.received";
+  | "crm.review.received"
+  | "crm.product_interest.stockout_requested";
 
 export type CrmLeadCreatedPayloadV1 = { v: 1; leadId: string; partyId: string; source: string };
 export type CrmLeadUpdatedPayloadV1 = { v: 1; leadId: string; changedFields: string[] };
@@ -61,6 +62,12 @@ export type CrmFollowUpCompletedPayloadV1 = { v: 1; followUpId: string };
 export type CrmConversationUpdatedPayloadV1 = { v: 1; conversationId: string; status: string };
 export type CrmChannelConnectedPayloadV1 = { v: 1; channelConnectionId: string; channel: string; provider: string };
 export type CrmReviewReceivedPayloadV1 = { v: 1; reviewItemId: string; provider: string; rating: number | null };
+/** CRM-10.3: "Interest captured -> waitlist/follow-up -> inventory event" -- this is
+ * that third step. No producer of any kind subscribes to it today (not even
+ * module-inventory itself, per ADR-10's own "no hard dependencies" -- a future
+ * reorder-suggestion feature on the Inventory side could, without this event's shape
+ * ever needing to change). */
+export type CrmProductInterestStockoutRequestedPayloadV1 = { v: 1; productInterestId: string; itemId: string; partyId: string | null; quantity: number | null };
 
 /** Maps each event type to its (current-version) payload shape -- `publishCrmEvent()`
  * uses this to type-check the payload against the event name at the call site. */
@@ -80,4 +87,5 @@ export type CrmEventPayloads = {
   "crm.conversation.updated": CrmConversationUpdatedPayloadV1;
   "crm.channel.connected": CrmChannelConnectedPayloadV1;
   "crm.review.received": CrmReviewReceivedPayloadV1;
+  "crm.product_interest.stockout_requested": CrmProductInterestStockoutRequestedPayloadV1;
 };

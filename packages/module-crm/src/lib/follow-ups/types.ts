@@ -14,6 +14,12 @@ export type FollowUp = {
    * attachment a review-triggered follow-up has -- a review carries no party_id in the
    * common (unmatched) case, unlike every other follow-up source. */
   review_item_id: string | null;
+  /** CRM-10.3: the out-of-stock product interest this waitlist task is for, when it was
+   * created by `createOutOfStockWaitlist()` rather than a person. CRM-10.4's own event
+   * handler pulls this row's `due_at` forward once the item is genuinely replenished --
+   * never a second row, so this is the one place "waitlisted" and "back in stock" both
+   * live. */
+  product_interest_id: string | null;
   owner_id: string | null;
   due_at: string;
   status: FollowUpStatus;
@@ -55,4 +61,10 @@ export type FollowUpQueueRow = FollowUp & {
    * "Unknown contact" with no clue what it's actually about. Null for every other
    * follow-up. */
   reviewSummary: string | null;
+  /** CRM-10.3/10.4: "Waitlist: <item>" or, once `getTotalAvailability()` confirms real
+   * stock again, "Back in stock: <item>" -- computed fresh at query time (never stored,
+   * same discipline CRM-10.2's own availability read already established) so this label
+   * is always current even between the replenishment event firing and a founder next
+   * viewing the queue. Null for every follow-up not attached via `product_interest_id`. */
+  productInterestSummary: string | null;
 };
