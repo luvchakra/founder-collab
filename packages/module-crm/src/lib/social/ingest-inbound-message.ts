@@ -74,3 +74,64 @@ export async function ingestInboundSocialMessage(input: {
 
   return { ok: true, interactionId: interaction.id, conversationId: interaction.conversation_id };
 }
+
+export type IngestInstagramCommentResult =
+  | { ok: true; interactionId: string; conversationId: string }
+  | { ok: false; reason: "unknown_external_account_id"; externalAccountId: string }
+  | { ok: false; reason: "empty_comment" };
+
+/**
+ * CRM-08.4's "Instagram Comment / Private Reply Recovery": a public comment on a
+ * business's own Instagram post/reel, mapped onto the same `interaction`/`conversation`
+ * model as a DM (`interaction_type: "comment"` is the only thing distinguishing it from
+ * one) rather than a parallel comments table -- CRM-01.5's own "provider-neutral"
+ * principle applies exactly as it did for the channel-specific detail (Instagram comment
+ * id/media id) other interactions already carry in `metadata`.
+ *
+ * "CRM identifies comment as reply-needed" (this story's own acceptance criterion) is
+ * satisfied by the same CRM-09.3 intent classifier every inbound interaction already gets
+ * (channel-independent, unlike `requires_response` -- see that field's own doc comment on
+ * why Instagram isn't in `SUPPORTED_RESPONSE_CHANNELS`: no send-reply story for it exists
+ * in the required sequence, so flagging one as *needing* a reply the business has no way
+ * to send would be the false promise that field exists to avoid). A high-commercial-intent
+ * comment is surfaced instead via its own UI treatment on the Conversations page
+ * (conversations/page.tsx), independent of `requires_response` -- including the one-click
+ * lead/opportunity/task conversions CRM-09.5 already built, satisfying this story's own
+ * "create a response opportunity" goal without a second parallel mechanism.
+ */
+export async function ingestInboundInstagramComment(input: {
+  externalAccountId: string;
+  commentId: string;
+  mediaId: string | null;
+  senderHandle: string;
+  text: string;
+  occurredAt?: string;
+}): Promise<IngestInstagramCommentResult> {
+  const senderHandle = input.senderHandle.trim();
+  const text = input.text.trim();
+  if (!senderHandle || !text) return { ok: false, reason: "empty_comment" };
+
+  const account = await getConnectedChannelAccountByExternalId("instagram", input.externalAccountId);
+  if (!account) return { ok: false, reason: "unknown_external_account_id", externalAccountId: input.externalAccountId };
+
+  const crmAdmin = createAdminClient({ schema: "crm" });
+  const coreAdmin = createAdminClient({ schema: "core" });
+
+  const interaction = await recordInteraction(
+    account.business_id,
+    {
+      channel: "instagram",
+      externalActorId: senderHandle,
+      externalMessageId: input.commentId,
+      interactionType: "comment",
+      direction: "inbound",
+      occurredAt: input.occurredAt,
+      contentExcerpt: text,
+      sourceModule: "instagram",
+      metadata: input.mediaId ? { mediaId: input.mediaId } : {},
+    },
+    { crm: crmAdmin, core: coreAdmin },
+  );
+
+  return { ok: true, interactionId: interaction.id, conversationId: interaction.conversation_id };
+}

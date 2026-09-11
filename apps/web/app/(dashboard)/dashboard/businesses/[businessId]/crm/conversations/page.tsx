@@ -12,8 +12,11 @@ import { getOpportunity } from "@cofounderai/module-crm/lib/opportunities/querie
 import { getConversationWhatsAppWindowStatus } from "@cofounderai/module-crm/lib/whatsapp/messaging";
 import { getDraftReplyForInteraction } from "@cofounderai/module-crm/lib/interactions/draft-reply";
 import { listWhatsAppTemplates } from "@cofounderai/module-crm/lib/whatsapp/templates";
+import { isHighCommercialIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
+import type { MessageIntent } from "@cofounderai/module-crm/lib/interactions/intent-classification";
 import { getParty } from "@cofounderai/core/parties/queries";
 import { formatDateTime } from "@cofounderai/core/lib/format";
+import { Alert, AlertDescription } from "@cofounderai/core/ui/alert";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
@@ -22,7 +25,15 @@ import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Inbox, MessageCircle } from "lucide-react";
-import { assignConversationAction, markInteractionNotActionableAction, sendWhatsAppReplyAction, sendWhatsAppTemplateAction } from "./actions";
+import {
+  assignConversationAction,
+  createLeadFromInteractionAction,
+  createOpportunityFromInteractionAction,
+  createTaskFromInteractionAction,
+  markInteractionNotActionableAction,
+  sendWhatsAppReplyAction,
+  sendWhatsAppTemplateAction,
+} from "./actions";
 import { WhatsAppReplyForm } from "./reply-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 
@@ -253,27 +264,55 @@ export default async function CrmConversationsPage({
           {selected.interactions.length === 0 ? (
             <EmptyState icon={MessageCircle} message="No interactions yet." />
           ) : (
-            selected.interactions.map((interaction) => (
-              <div key={interaction.id} className={`flex flex-col gap-1 rounded-lg border border-border p-2 text-sm ${interaction.direction === "outbound" ? "ml-6" : "mr-6"}`}>
-                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="capitalize">
-                    {interaction.direction} -- {interaction.channel}
-                  </span>
-                  <span>{formatDateTime(interaction.occurred_at)}</span>
-                </div>
-                <p>{interaction.content_excerpt ?? "(no preview)"}</p>
-                {interaction.requires_response && !interaction.responded_at ? (
-                  <div className="flex items-center gap-2">
-                    <Badge variant="destructive">Needs response</Badge>
-                    <form action={markInteractionNotActionableAction.bind(null, businessId, interaction.id)}>
-                      <SubmitButton size="sm" variant="ghost" pendingText="Marking...">
-                        Not actionable
-                      </SubmitButton>
-                    </form>
+            selected.interactions.map((interaction) => {
+              const isHighIntentComment = interaction.interaction_type === "comment" && isHighCommercialIntent(interaction.intent as MessageIntent | null);
+              return (
+                <div key={interaction.id} className={`flex flex-col gap-1 rounded-lg border border-border p-2 text-sm ${interaction.direction === "outbound" ? "ml-6" : "mr-6"}`}>
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="capitalize">
+                      {interaction.direction} -- {interaction.channel}
+                      {interaction.interaction_type === "comment" ? " comment" : ""}
+                    </span>
+                    <span>{formatDateTime(interaction.occurred_at)}</span>
                   </div>
-                ) : null}
-              </div>
-            ))
+                  <p>{interaction.content_excerpt ?? "(no preview)"}</p>
+                  {interaction.requires_response && !interaction.responded_at ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive">Needs response</Badge>
+                      <form action={markInteractionNotActionableAction.bind(null, businessId, interaction.id)}>
+                        <SubmitButton size="sm" variant="ghost" pendingText="Marking...">
+                          Not actionable
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
+                  {isHighIntentComment ? (
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <Badge variant="destructive">High intent -- response opportunity</Badge>
+                      {selected.party_id ? (
+                        <>
+                          <form action={createLeadFromInteractionAction.bind(null, businessId, interaction.id)}>
+                            <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+                              Create Lead
+                            </SubmitButton>
+                          </form>
+                          <form action={createOpportunityFromInteractionAction.bind(null, businessId, interaction.id)}>
+                            <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+                              Create Opportunity
+                            </SubmitButton>
+                          </form>
+                        </>
+                      ) : null}
+                      <form action={createTaskFromInteractionAction.bind(null, businessId, interaction.id)}>
+                        <SubmitButton size="sm" variant="outline" pendingText="Creating...">
+                          Create Task
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -299,6 +338,13 @@ export default async function CrmConversationsPage({
               />
             </div>
           )
+        ) : selected.primary_channel === "instagram" ? (
+          <Alert>
+            <AlertDescription>
+              Sending replies from here isn&apos;t supported for Instagram yet -- Meta also limits private replies to comments to a short window
+              after they&apos;re posted and only for eligible comments. Reply directly on Instagram for now.
+            </AlertDescription>
+          </Alert>
         ) : null}
       </CardContent>
     </Card>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyMetaSignature, verifyMetaSubscription } from "@cofounderai/module-crm/lib/webhooks/verify-meta-signature";
-import { ingestInboundSocialMessage } from "@cofounderai/module-crm/lib/social/ingest-inbound-message";
+import { ingestInboundInstagramComment, ingestInboundSocialMessage } from "@cofounderai/module-crm/lib/social/ingest-inbound-message";
 
 /**
  * Combined Instagram DM + Facebook Page Messenger webhook (docs/design/
@@ -9,11 +9,15 @@ import { ingestInboundSocialMessage } from "@cofounderai/module-crm/lib/social/i
  * two separate builds). Point the Meta App dashboard's Instagram *and* Messenger
  * webhook subscriptions at this same URL.
  *
- * CRM-08.2/08.3: the ingest call below moved from `ingestInboundCrmMessage()` (the old
- * ticket model) to `ingestInboundSocialMessage()` (the new interaction/conversation
+ * CRM-08.2/08.3: the DM ingest call below moved from `ingestInboundCrmMessage()` (the
+ * old ticket model) to `ingestInboundSocialMessage()` (the new interaction/conversation
  * model) -- everything else in this route (signature verification, the subscription
- * handshake, the payload shape it parses) is unchanged, reused as-is per
+ * handshake, the DM payload shape it parses) is unchanged, reused as-is per
  * docs/design/crm-backlog-audit.md's retirement table.
+ *
+ * CRM-08.4 adds Instagram comment handling to this same route -- a completely different
+ * webhook field ("comments" under `entry[].changes[]`, not `entry[].messaging[]`), still
+ * the same signature/subscription verification underneath.
  */
 
 /** Meta's one-time webhook-registration handshake -- see verify-meta-signature.ts. */
@@ -35,9 +39,22 @@ type MetaMessagingEntry = {
   message?: { text?: string };
 };
 
+/** CRM-08.4: Instagram's own comment-webhook shape ("comments" field), a completely
+ * different structure from the DM "messaging" array above -- a comment arrives under
+ * `entry[].changes[]`, not `entry[].messaging[]`. */
+type MetaCommentChange = {
+  field?: string;
+  value?: {
+    id?: string;
+    text?: string;
+    from?: { id?: string; username?: string };
+    media?: { id?: string };
+  };
+};
+
 type MetaWebhookPayload = {
   object?: "instagram" | "page";
-  entry?: { id?: string; messaging?: MetaMessagingEntry[] }[];
+  entry?: { id?: string; messaging?: MetaMessagingEntry[]; changes?: MetaCommentChange[] }[];
 };
 
 export async function POST(request: Request) {
@@ -68,6 +85,28 @@ export async function POST(request: Request) {
 
       const result = await ingestInboundSocialMessage({ provider, externalAccountId, senderHandle, text });
       results.push(result);
+    }
+
+    // CRM-08.4: comments only exist on Instagram (Facebook Page feed comments are a
+    // separate, not-yet-asked-for capability -- this story is specifically "Instagram
+    // Comment / Private Reply Recovery").
+    if (payload.object === "instagram") {
+      for (const change of entry.changes ?? []) {
+        if (change.field !== "comments") continue;
+        const commentId = change.value?.id;
+        const senderHandle = change.value?.from?.id;
+        const text = change.value?.text;
+        if (!commentId || !senderHandle || !text) continue;
+
+        const result = await ingestInboundInstagramComment({
+          externalAccountId,
+          commentId,
+          mediaId: change.value?.media?.id ?? null,
+          senderHandle,
+          text,
+        });
+        results.push(result);
+      }
     }
   }
 

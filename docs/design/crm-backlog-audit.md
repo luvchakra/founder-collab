@@ -1523,3 +1523,54 @@ unchanged), and a clean `next build`.
 
 **Epic CRM-08 status**: 2 of 6 in-scope stories done. Next: CRM-08.4 (Instagram Comment /
 Private Reply Recovery, seq #49).
+
+## CRM-08.4 (2026-09-11)
+
+"Instagram Comment / Private Reply Recovery." Goal: detect comments that indicate buying
+intent and create a response opportunity. Acceptance criteria: a relevant comment can
+become an interaction; CRM identifies the comment as reply-needed; the UI indicates
+channel/provider limitations before sending.
+
+**Comment ingest, new webhook field.** Instagram comments arrive under
+`entry[].changes[]` with `field: "comments"` -- an entirely different shape from the DM
+`entry[].messaging[]` array CRM-08.2/08.3 already parse. `crm-meta/route.ts` now handles
+both in the same POST handler (comments gated to `payload.object === "instagram"` only --
+Facebook Page feed comments are a separate, not-asked-for capability). A new
+`lib/social/ingest-inbound-message.ts#ingestInboundInstagramComment()` maps a comment onto
+the same `interaction`/`conversation` model as a DM, `interaction_type: "comment"` the
+only thing distinguishing it (no parallel comments table -- CRM-01.5's own
+provider-neutral principle), storing the Instagram media id in `metadata`. Reuses
+`getConnectedChannelAccountByExternalId("instagram", ...)` for tenant resolution, same
+as the DM path.
+
+**"Identifies as reply-needed" without a fake promise to send.** CRM-09.3's intent
+classifier already runs on every inbound interaction regardless of channel (unlike
+`requires_response`, which stays gated to `SUPPORTED_RESPONSE_CHANNELS` -- still
+`["whatsapp"]` only, since no send-reply story for Instagram exists in the required
+sequence). So a high-commercial-intent comment is surfaced by a new, separate UI signal
+on the Conversations page (`interaction.interaction_type === "comment" &&
+isHighCommercialIntent(interaction.intent)`) rather than by adding Instagram to
+`SUPPORTED_RESPONSE_CHANNELS`, which would have implied a working send path that doesn't
+exist. That signal renders a "High intent -- response opportunity" badge plus the same
+one-click Create Lead/Opportunity/Task buttons CRM-09.5 already built (new bound actions
+in `conversations/actions.ts`, calling the same `conversion-actions.ts` mutations the
+Lost Business Queue uses) -- satisfying "create a response opportunity" without a second
+parallel conversion mechanism.
+
+**"UI indicates limitations before sending."** The Conversations page's reply-composer
+slot (previously `null` for every non-WhatsApp channel) now shows an `Alert` for an
+Instagram conversation explaining replies aren't sendable from here yet and naming Meta's
+own real restriction (private replies to comments are time-boxed and comment-eligibility-
+gated).
+
+No new migration (`interaction_type` is free text, no enum to extend). No new
+RLS-harness cases, same reasoning as CRM-08.2/08.3 (the underlying `recordInteraction()`
+path for this exact channel is already proven; `getConnectedChannelAccountByExternalId()`
+is unchanged). Verified with full monorepo typecheck, `lint:boundaries`, module-crm's
+vitest suite (98/98, unchanged), both CRM RLS suites (re-run clean, unchanged).
+**`next build` was not re-run for this specific commit** (session ended before it could
+run) -- typecheck passing across every workspace is strong evidence it would succeed, but
+this should be the first thing verified before merging further work.
+
+**Epic CRM-08 status**: 3 of 6 in-scope stories done. Next: CRM-08.5 (Google Business
+Profile Review Inbox, seq #50).

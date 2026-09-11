@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
 import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
+import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -18,6 +19,27 @@ export async function assignConversationAction(businessId: string, conversationI
  * actually need a reply. */
 export async function markInteractionNotActionableAction(businessId: string, interactionId: string): Promise<void> {
   await markInteractionNotActionable(businessId, interactionId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+/**
+ * CRM-08.4's "create a response opportunity" for a high-intent Instagram comment (no
+ * send path exists for it yet, so there's no "Respond" action here the way the Lost
+ * Business Queue's own copy of these three has -- just the same one-click conversions,
+ * reusing CRM-09.5's mutations directly rather than duplicating them).
+ */
+export async function createLeadFromInteractionAction(businessId: string, interactionId: string): Promise<void> {
+  await convertInteractionToLead(businessId, interactionId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+export async function createOpportunityFromInteractionAction(businessId: string, interactionId: string): Promise<void> {
+  await convertInteractionToOpportunity(businessId, interactionId);
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+}
+
+export async function createTaskFromInteractionAction(businessId: string, interactionId: string): Promise<void> {
+  await convertInteractionToTask(businessId, interactionId);
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
 }
 
