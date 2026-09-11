@@ -1,5 +1,7 @@
 import { createClient } from "../../db/server";
-import type { Offering, OfferingType } from "./types";
+import { createProduct } from "../tenancy/mutations";
+import { getOffering } from "./queries";
+import type { Offering, OfferingStatus, OfferingType } from "./types";
 
 /**
  * DISC-OFFER-P0-01.1's own new fields -- deliberately a separate function from
@@ -35,4 +37,80 @@ export async function updateOfferingProfile(
   const { data, error } = await supabase.from("products").update(patch).eq("id", offeringId).select().single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * DISC-OFFER-P0-01.3's "Create" action, full field set -- creates the base row through
+ * the existing `createProduct()` (so the inventory-item mirror side effect it already
+ * has keeps happening unchanged) then applies the new Offering fields as a second,
+ * additive write via `updateOfferingProfile()` above, rather than duplicating
+ * `createProduct()`'s own insert + mirror logic here.
+ */
+export async function createOffering(
+  businessId: string,
+  input: {
+    name: string;
+    website?: string | null;
+    description?: string | null;
+    category?: string | null;
+    offeringType?: OfferingType | null;
+    valueProposition?: string | null;
+    primaryProblem?: string | null;
+    targetMarket?: string | null;
+    detailedDescription?: string | null;
+  },
+): Promise<Offering> {
+  const created = await createProduct(businessId, {
+    name: input.name,
+    website: input.website ?? undefined,
+    description: input.description ?? undefined,
+  });
+  return updateOfferingProfile(created.id, {
+    category: input.category,
+    offeringType: input.offeringType,
+    valueProposition: input.valueProposition,
+    primaryProblem: input.primaryProblem,
+    targetMarket: input.targetMarket,
+    detailedDescription: input.detailedDescription,
+  });
+}
+
+/**
+ * DISC-OFFER-P0-01.3's real three-way lifecycle ("Offerings support active/inactive/
+ * archive") -- a single explicit setter rather than three separate
+ * activate/deactivate/archive functions, since all three are the same one-column write;
+ * `disableProduct()`/`enableProduct()` (`lib/tenancy/mutations.ts`) stay exactly as they
+ * are for whatever still calls them, this doesn't replace them.
+ */
+export async function setOfferingStatus(offeringId: string, status: OfferingStatus): Promise<Offering> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("products").update({ status }).eq("id", offeringId).select().single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * DISC-OFFER-P0-01.3's "Duplicate/clone" -- a real new offering (its own new
+ * `discovery.workspaces` row, auto-created by the same DB trigger every product gets),
+ * copying every field including the new Offering ones, not just name/description/
+ * website. Deliberately does NOT copy `product_profile`/`product_profile_generated_at`
+ * (the AI-researched deep profile) -- that was generated for the original's own
+ * website/description at a point in time, and cloning it onto a fresh row would present
+ * stale AI research as if it were already current for the copy.
+ */
+export async function duplicateOffering(businessId: string, offeringId: string): Promise<Offering> {
+  const original = await getOffering(offeringId);
+  if (!original) throw new Error("Offering not found.");
+
+  return createOffering(businessId, {
+    name: `${original.name} (copy)`,
+    website: original.website,
+    description: original.description,
+    category: original.category,
+    offeringType: original.offering_type,
+    valueProposition: original.value_proposition,
+    primaryProblem: original.primary_problem,
+    targetMarket: original.target_market,
+    detailedDescription: original.detailed_description,
+  });
 }

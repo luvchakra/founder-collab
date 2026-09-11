@@ -10,6 +10,14 @@ import {
   enableProduct,
 } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import {
+  createOffering,
+  duplicateOffering,
+  setOfferingStatus,
+  updateOfferingProfile,
+} from "@cofounderai/module-discovery/lib/offerings/mutations";
+import { updateProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import type { OfferingStatus, OfferingType } from "@cofounderai/module-discovery/lib/offerings/types";
+import {
   parseProductImportFile,
   type ProductImportRow,
   type ProductImportPreviewResult,
@@ -150,6 +158,101 @@ export async function enableProductAction(
   } catch (error) {
     unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "Could not enable this product." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+/** DISC-OFFER-P0-01.3's own field set, read from the create/edit dialog's FormData --
+ * both actions below share this rather than each re-listing all nine fields. */
+function offeringInputFromFormData(formData: FormData) {
+  const text = (key: string) => String(formData.get(key) ?? "").trim() || null;
+  const offeringType = text("offeringType") as OfferingType | null;
+  return {
+    name: String(formData.get("name") ?? "").trim(),
+    website: text("website"),
+    description: text("description"),
+    category: text("category"),
+    offeringType,
+    valueProposition: text("valueProposition"),
+    primaryProblem: text("primaryProblem"),
+    targetMarket: text("targetMarket"),
+    detailedDescription: text("detailedDescription"),
+  };
+}
+
+export async function createOfferingAction(
+  businessId: string,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const input = offeringInputFromFormData(formData);
+  if (!input.name) return { error: "Name is required." };
+
+  try {
+    await createOffering(businessId, input);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not create this offering." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+/** Writes through both `updateProduct()` (name/description/website -- the fields every
+ * existing caller of that function already edits) and `updateOfferingProfile()` (the
+ * new fields) -- one dialog submit, two calls onto the same row, same reasoning
+ * `lib/offerings/mutations.ts`'s own doc comment gives for keeping them separate
+ * functions. */
+export async function updateOfferingAction(
+  businessId: string,
+  offeringId: string,
+  formData: FormData,
+): Promise<{ error: string } | { success: true }> {
+  const input = offeringInputFromFormData(formData);
+  if (!input.name) return { error: "Name is required." };
+
+  try {
+    await updateProduct(offeringId, { name: input.name, description: input.description ?? "", website: input.website ?? "" });
+    await updateOfferingProfile(offeringId, {
+      category: input.category,
+      offeringType: input.offeringType,
+      valueProposition: input.valueProposition,
+      primaryProblem: input.primaryProblem,
+      targetMarket: input.targetMarket,
+      detailedDescription: input.detailedDescription,
+    });
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not update this offering." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+export async function setOfferingStatusAction(
+  businessId: string,
+  offeringId: string,
+  status: OfferingStatus,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await setOfferingStatus(offeringId, status);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not change this offering's status." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+export async function duplicateOfferingAction(
+  businessId: string,
+  offeringId: string,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await duplicateOffering(businessId, offeringId);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not duplicate this offering." };
   }
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };

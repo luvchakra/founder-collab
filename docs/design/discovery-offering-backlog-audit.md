@@ -19,7 +19,7 @@ only genuine architectural/key decisions are raised.
 |---|---|---|---|
 | A | 01.1 | Business Offering | Done |
 | | 01.2 | Existing Product Compatibility | Done |
-| | 01.3 | Offering CRUD UI | Not started |
+| | 01.3 | Offering CRUD UI | Done |
 | | 02.1 | Offering Setup | Not started |
 | | 02.2 | Offering ICP | Not started |
 | | 02.3 | Buyer Personas | Not started |
@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**2 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**3 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -196,3 +196,66 @@ warning), and a live migration apply confirmed against dev data. No test suite o
 re-run needed -- no TypeScript/UI changed this story.
 
 **Status**: 2 of 68 in-scope stories done. Next: 01.3, Offering CRUD UI.
+
+### 01.3 — Offering CRUD UI (2026-09-11)
+
+Replaced the business page's "Products" section (a two-column card grid with only
+Delete/disable-toggle actions and a plain bottom form for Create) with a real,
+responsive Offering management screen, per the Global UI Design Rule: `OfferingsTable`
+(`module-discovery/src/components/offerings/`) renders a desktop `<Table>` (`Offering |
+Type | Target market | Status | Updated | Actions`, per the backlog's own suggested
+columns) and a one-card-per-row mobile list (CLAUDE.md non-negotiable #12) from the
+exact same row data. Omitted the backlog's suggested "Active Discovery" column
+deliberately, not by oversight: it needs a real Discovery Definition to report
+against, which doesn't exist until DISC-OFFER-P0-04.1 -- adding a column with nothing
+real behind it would be the same false-precision problem §5.2 of the backlog itself
+warns against for opportunity scores. A natural, non-breaking column to add once 04.1
+lands.
+
+One dialog (`OfferingFormDialog`) handles both Create and Edit -- same field set either
+way, grouped into always-visible basics (name/type/category/website/short description)
+and a "Commercial details" section below a divider (target market/primary
+problem/value proposition/detailed description) so the dialog doesn't read as one
+undifferentiated wall of inputs. "Long descriptions are truncated with a way to view
+full content": the table truncates target market to one line; the pre-filled Edit
+dialog (not a separate read-only viewer) is the way to see the rest -- a second,
+read-only surface would just duplicate the same form.
+
+Row actions follow this platform's own "[Edit] [•••]" convention (established by the
+cross-module Exception Center/Follow-up Queue rows earlier this session): a direct Edit
+icon, and a "•••" `DropdownMenu` (Duplicate, then whichever of Active/Inactive/Archived
+the row *isn't* currently, then Delete behind the existing `AlertDialog` confirmation
+pattern, naming the prospect count at stake exactly like `delete-product-button.tsx`
+already did). `DropdownMenu` is vendored shadcn that had zero adopters anywhere in the
+platform before this -- exactly the tool this backlog's own row-action mockups (`[•••]`
+→ `Edit / Watch / Change Priority / Dismiss`) call for, not a new dependency.
+
+New mutations (`lib/offerings/mutations.ts`): `createOffering()` (wraps the existing
+`createProduct()` for the base insert -- keeping its inventory-item-mirror side effect
+-- then `updateOfferingProfile()` for the new fields), `setOfferingStatus()` (the real
+three-way active/inactive/archived setter DISC-OFFER-P0-01.1's schema change was for),
+`duplicateOffering()` (copies every field except the AI-generated `product_profile` --
+cloning stale research onto a fresh row would misrepresent it as current). New actions
+in the business page's own `actions.ts`: `createOfferingAction`/`updateOfferingAction`
+(the latter writes through both `updateProduct()` and `updateOfferingProfile()` -- one
+dialog submit, two calls onto the same row, matching why those stayed separate
+functions), `setOfferingStatusAction`, `duplicateOfferingAction`; `deleteProductAction`
+(unchanged) is reused directly for Delete, no new function needed.
+
+**Verification note**: this environment has no seeded demo-user credentials or
+`apps/web/.env.local`, so an authenticated live-browser walkthrough of the new dialog/
+table/menu interactions isn't practically reachable here (same constraint the prior
+cross-module integration backlog's ~15 UI-touching stories operated under all session).
+Verification is typecheck/lint/build plus disciplined reuse of already-proven
+components (`Table`/`Dialog`/`AlertDialog`/`DropdownMenu`/`NativeSelect`/`EmptyState`,
+each already used correctly elsewhere in this codebase) rather than a rendered
+screenshot -- flagged explicitly rather than silently claimed as done.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(971 files, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (19/19, unchanged), and a clean
+`next build` (confirmed `/dashboard/businesses/[businessId]/business` -- the page this
+story rewrote -- builds with no errors). No migration this story (schema landed in
+01.1/01.2).
+
+**Status**: 3 of 68 in-scope stories done. Next: 02.1, Offering Setup Wizard.

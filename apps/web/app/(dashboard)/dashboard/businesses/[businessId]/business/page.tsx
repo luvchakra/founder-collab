@@ -1,14 +1,12 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Globe, Sparkles } from "lucide-react";
+import { Globe, Sparkles } from "lucide-react";
+import Link from "next/link";
 import {
   getBusiness,
   getWorkspaceForProduct,
   listProducts,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
-import { createProductAction } from "@/app/(dashboard)/dashboard/actions";
 import {
   renameBusinessAction,
   updateBusinessDescriptionAction,
@@ -16,54 +14,23 @@ import {
   previewProductImportAction,
   importProductsAction,
   deleteProductAction,
-  disableProductAction,
-  enableProductAction,
+  createOfferingAction,
+  updateOfferingAction,
+  setOfferingStatusAction,
+  duplicateOfferingAction,
 } from "../actions";
-import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Input } from "@cofounderai/core/ui/input";
-import { Label } from "@cofounderai/core/ui/label";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
 import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
-import { DeleteProductButton } from "@cofounderai/module-discovery/components/tenancy/delete-product-button";
-import { ProductStatusButton } from "@cofounderai/module-discovery/components/tenancy/product-status-button";
-import { cn } from "@cofounderai/core/lib/utils";
+import { OfferingsTable, type OfferingRow } from "@cofounderai/module-discovery/components/offerings/offerings-table";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
-type ProductCardData = {
-  product: Product;
-  hasProfile: boolean;
-  hasIcp: boolean;
-  prospectCount: number;
-};
-
-async function loadProductCardData(product: Product): Promise<ProductCardData> {
+async function loadOfferingRow(product: Product): Promise<OfferingRow> {
   const workspace = await getWorkspaceForProduct(product.id);
-  const [icp, prospectCounts] = workspace
-    ? await Promise.all([getIcpProfile(workspace.id), getProspectCounts(workspace.id)])
-    : [null, null];
-
-  return {
-    product,
-    hasProfile: Boolean(product.product_profile),
-    hasIcp: Boolean(icp),
-    prospectCount: prospectCounts?.total ?? 0,
-  };
-}
-
-function StatusChip({ done, doneLabel, todoLabel }: { done: boolean; doneLabel: string; todoLabel: string }) {
-  return (
-    <span
-      className={cn(
-        "rounded-full px-2 py-0.5 text-xs font-medium",
-        done ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
-      )}
-    >
-      {done ? doneLabel : todoLabel}
-    </span>
-  );
+  const prospectCounts = workspace ? await getProspectCounts(workspace.id) : null;
+  return { offering: product, prospectCount: prospectCounts?.total ?? 0 };
 }
 
 /**
@@ -82,7 +49,7 @@ export default async function BusinessDetailPage({
   if (!business) notFound();
 
   const products = await listProducts(business.id);
-  const cards = await Promise.all(products.map(loadProductCardData));
+  const rows = await Promise.all(products.map(loadOfferingRow));
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
@@ -131,94 +98,22 @@ export default async function BusinessDetailPage({
         </div>
       </div>
 
-      <section>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-medium">Products</h2>
+      <section className="flex flex-col gap-3">
+        <div className="flex justify-end">
           <ProductImportWizard
             previewAction={previewProductImportAction.bind(null, business.id)}
             importAction={importProductsAction.bind(null, business.id)}
           />
         </div>
-        {cards.length === 0 ? (
-          <p className="mt-2 text-muted-foreground">
-            Create a product to get its own GTM workspace.
-          </p>
-        ) : (
-          <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {cards.map(({ product, hasProfile, hasIcp, prospectCount }) => {
-              const isDisabled = product.status === "archived";
-              return (
-                <li key={product.id}>
-                  <Link
-                    href={`/dashboard/businesses/${business.id}/products/${product.id}`}
-                    className={cn(
-                      "group flex h-full flex-col gap-3 rounded-lg border p-4 transition-colors hover:border-primary hover:bg-accent/40",
-                      isDisabled && "opacity-60",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="font-medium">{product.name}</h3>
-                        {isDisabled ? (
-                          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                            Disabled
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <ProductStatusButton
-                          productName={product.name}
-                          disabled={isDisabled}
-                          disableAction={disableProductAction.bind(null, business.id, product.id)}
-                          enableAction={enableProductAction.bind(null, business.id, product.id)}
-                        />
-                        <DeleteProductButton
-                          productName={product.name}
-                          prospectCount={prospectCount}
-                          action={deleteProductAction.bind(null, business.id, product.id)}
-                        />
-                        <ChevronRight
-                          className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
-                          aria-hidden="true"
-                        />
-                      </div>
-                    </div>
-                    {product.description ? (
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {product.description}
-                      </p>
-                    ) : null}
-                    <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
-                      <StatusChip done={hasProfile} doneLabel="Profile ready" todoLabel="No profile" />
-                      <StatusChip done={hasIcp} doneLabel="ICP defined" todoLabel="No ICP" />
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                        {prospectCount} prospect{prospectCount === 1 ? "" : "s"}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section className="flex flex-col gap-3 rounded-md border p-4">
-        <h2 className="font-medium">Create a product</h2>
-        <form
-          action={createProductAction.bind(null, business.id)}
-          className="flex flex-col gap-3"
-        >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="name">Name</Label>
-            <Input id="name" name="name" required />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="website">Website</Label>
-            <Input id="website" name="website" type="text" placeholder="https://" />
-          </div>
-          <SubmitButton pendingText="Creating...">Create product</SubmitButton>
-        </form>
+        <OfferingsTable
+          businessId={business.id}
+          rows={rows}
+          createAction={createOfferingAction.bind(null, business.id)}
+          updateAction={updateOfferingAction.bind(null, business.id)}
+          setStatusAction={setOfferingStatusAction.bind(null, business.id)}
+          duplicateAction={duplicateOfferingAction.bind(null, business.id)}
+          deleteAction={deleteProductAction.bind(null, business.id)}
+        />
       </section>
     </main>
   );
