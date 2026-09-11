@@ -101,6 +101,12 @@ pattern ADR-5 requires here).
     card per row, key attributes as labeled chips/fields) below the `md` breakpoint —
     never a horizontally-scrolling or truncated table on a small screen. This applies
     platform-wide, to every module, not just the ones a given story touches.
+13. Before building or changing any page's UI, follow
+    `docs/design/claude-ui-design-rules.md` in full — plan the page's visual hierarchy,
+    button placement, and desktop-table-vs-mobile-card treatment before writing markup,
+    not after. Rule 12 above is that doc's mobile-card rule specifically; the doc also
+    covers borders, editable-row affordances, and desktop table design that rule 12
+    doesn't.
 
 ## Repository structure
 
