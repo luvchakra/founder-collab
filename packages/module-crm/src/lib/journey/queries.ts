@@ -1,7 +1,8 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { getProspectSummaryForParty } from "@cofounderai/module-discovery/contract/index";
 import { getLead } from "../leads/queries";
-import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity } from "../opportunities/queries";
+import { getOpportunity, listStages, getFsmQuoteStatusForOpportunity, getFulfillmentStatusForOpportunity } from "../opportunities/queries";
+import { deriveFulfillmentCommitmentState } from "../opportunities/fulfillment";
 import { listOpportunityProducts } from "../opportunities/products";
 import type { CommercialJourneyState, JourneyAction, JourneyModuleSection, NextActionResolution } from "./types";
 
@@ -18,10 +19,9 @@ import type { CommercialJourneyState, JourneyAction, JourneyModuleSection, NextA
  * (`getProspectSummaryForParty`, `getFsmQuoteStatusForOpportunity`) -- one read model,
  * two presentations (a chronological feed there, a compact per-module rollup here).
  *
- * The Inventory section is deliberately minimal today: no "fulfillment request" entity
- * exists yet (that's INT-02's own job), so this can only report whether products are
- * linked at all, not a real reservation/commitment state. INT-02.3/02.4 extends this
- * exact function once that entity exists, rather than this story inventing one early.
+ * The Inventory section reports product-count linkage until a fulfillment request
+ * exists (INT-02.2), then the live commitment state INT-02.3's
+ * `deriveFulfillmentCommitmentState()` projects from it -- never a cached copy.
  */
 export async function resolveCommercialJourney(businessId: string, opportunityId: string): Promise<CommercialJourneyState | null> {
   const opportunity = await getOpportunity(businessId, opportunityId);
@@ -69,17 +69,36 @@ export async function resolveCommercialJourney(businessId: string, opportunityId
           };
 
   // --- Inventory ---------------------------------------------------------------
+  // INT-02.3: once a fulfillment request exists, its status is always re-read live
+  // through the Inventory contract (never cached here) and projected through
+  // `deriveFulfillmentCommitmentState()` -- the same "one pointer, everything else read
+  // live" discipline `fsm_opportunity_id`/`getFsmQuoteStatusForOpportunity()` already
+  // established just below. A cancelled/returned commitment surfaces as `warning` (same
+  // treatment as FSM's own stale-reference case) rather than `ok`, so a won opportunity
+  // whose fulfillment fell through doesn't silently read as fully handled.
   let inventory: CommercialJourneyState["inventory"];
   if (!inventoryLicensed) {
     inventory = { status: "not_available", label: "Inventory not licensed", productCount: 0, fulfillmentRequestId: null };
   } else {
     const products = await listOpportunityProducts(businessId, opportunityId);
-    inventory =
-      products.length === 0
-        ? { status: "not_applicable", label: "No products linked", productCount: 0, fulfillmentRequestId: null }
-        : opportunity.fulfillment_request_id
-          ? { status: "ok", label: "Fulfillment requested", productCount: products.length, fulfillmentRequestId: opportunity.fulfillment_request_id }
-          : { status: "ok", label: `${products.length} product${products.length === 1 ? "" : "s"} linked`, productCount: products.length, fulfillmentRequestId: null };
+    if (products.length === 0) {
+      inventory = { status: "not_applicable", label: "No products linked", productCount: 0, fulfillmentRequestId: null };
+    } else if (!opportunity.fulfillment_request_id) {
+      inventory = { status: "ok", label: `${products.length} product${products.length === 1 ? "" : "s"} linked`, productCount: products.length, fulfillmentRequestId: null };
+    } else {
+      const fulfillmentStatus = await getFulfillmentStatusForOpportunity(businessId, opportunity);
+      if (!fulfillmentStatus) {
+        inventory = { status: "warning", label: "Fulfillment reference is stale", productCount: products.length, fulfillmentRequestId: opportunity.fulfillment_request_id };
+      } else {
+        const commitment = deriveFulfillmentCommitmentState(fulfillmentStatus.status);
+        inventory = {
+          status: commitment.state === "cancelled" ? "warning" : "ok",
+          label: `Fulfillment: ${commitment.label}`,
+          productCount: products.length,
+          fulfillmentRequestId: opportunity.fulfillment_request_id,
+        };
+      }
+    }
   }
 
   // --- FSM ---------------------------------------------------------------------
@@ -119,7 +138,7 @@ export function deriveOverallState(
     return { overallStage: "closed_lost", blockedReason: "Opportunity marked lost", nextRecommendedAction: null };
   }
 
-  const fulfillmentPending = inventory.status === "ok" && inventory.productCount > 0 && !inventory.fulfillmentRequestId;
+  const fulfillmentPending = (inventory.status === "ok" && inventory.productCount > 0 && !inventory.fulfillmentRequestId) || inventory.status === "warning";
   const fsmPending = fsm.status === "warning";
 
   if (crm.label === "Won") {

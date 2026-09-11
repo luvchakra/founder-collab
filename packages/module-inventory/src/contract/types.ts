@@ -61,6 +61,7 @@ export type FulfillmentStatus = {
   status: string;
   totalAmount: number;
   warehouseId: string | null;
+  updatedAt: string;
 };
 
 export type UpsertItemInput = {

@@ -5,7 +5,13 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
 import { listActivitiesForParty } from "../activities/queries";
 import { listInteractionsForParty } from "../interactions/queries";
-import { getOpportunity, getFsmQuoteStatusForOpportunity, listOpportunitiesWithFsmQuoteForParty } from "../opportunities/queries";
+import {
+  getOpportunity,
+  getFsmQuoteStatusForOpportunity,
+  getFulfillmentStatusForOpportunity,
+  listOpportunitiesWithFsmQuoteForParty,
+} from "../opportunities/queries";
+import { deriveFulfillmentCommitmentState } from "../opportunities/fulfillment";
 import type { Activity } from "../activities/types";
 import type { TimelineEntry } from "./types";
 
@@ -138,7 +144,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
   const supabase = await createClient();
   const core = await createCoreClient({ schema: "core" });
 
-  const [activitiesRes, conversationsRes, prospectResult, fsmQuoteStatus, productInterestRes] = await Promise.all([
+  const [activitiesRes, conversationsRes, prospectResult, fsmQuoteStatus, productInterestRes, fulfillmentStatus] = await Promise.all([
     // Queried directly by opportunity_id (not listActivitiesForParty()) -- an activity
     // created straight against this opportunity (CRM-05.2's own "Add next action" form)
     // may have no party_id set at all, so filtering a party-scoped list down would miss
@@ -148,6 +154,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
     getProspectSummaryForParty(businessId, opportunity.party_id),
     getFsmQuoteStatusForOpportunity(businessId, opportunity),
     supabase.from("product_interest").select("id, item_id, created_at").eq("business_id", businessId).eq("opportunity_id", opportunityId),
+    getFulfillmentStatusForOpportunity(businessId, opportunity),
   ]);
   if (activitiesRes.error) throw activitiesRes.error;
   if (conversationsRes.error) throw conversationsRes.error;
@@ -253,6 +260,22 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
       });
     }
+  }
+
+  // INT-02.3: one entry for the fulfillment request's current commitment state --
+  // `updatedAt` moves every time `deriveFulfillmentCommitmentState()`'s underlying
+  // status changes, so this reads as "last meaningful fulfillment change" rather than a
+  // full reserve/pack/ship transition log the sales order itself doesn't expose.
+  if (fulfillmentStatus) {
+    const commitment = deriveFulfillmentCommitmentState(fulfillmentStatus.status);
+    entries.push({
+      id: `fulfillment-${fulfillmentStatus.fulfillmentRequestId}`,
+      source: "inventory.order",
+      occurredAt: fulfillmentStatus.updatedAt,
+      label: `Inventory fulfillment: ${commitment.label}`,
+      detail: null,
+      detailHref: null,
+    });
   }
 
   return entries.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());

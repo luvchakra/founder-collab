@@ -39,7 +39,7 @@ import {
   setFulfillmentRequirementAction,
   setPrimaryOpportunityContactAction,
 } from "./actions";
-import { suggestFulfillmentRequirement } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
+import { suggestFulfillmentRequirement, deriveFulfillmentCommitmentState } from "@cofounderai/module-crm/lib/opportunities/fulfillment";
 
 const FOLLOW_UP_PRIORITIES = ["low", "normal", "high"] as const;
 
@@ -97,6 +97,7 @@ export default async function OpportunityDetailPage({
     resolveCommercialJourney(businessId, opportunityId),
   ]);
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
+  const fulfillmentCommitment = deriveFulfillmentCommitmentState(fulfillmentStatus?.status ?? "draft");
   const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
   const stage = stages.find((s) => s.id === opportunity.stage_id);
   const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
@@ -416,9 +417,12 @@ export default async function OpportunityDetailPage({
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="outline" className="capitalize">
-                  {fulfillmentStatus?.status ?? "pending"}
-                </Badge>
+                <Badge variant={fulfillmentCommitment.state === "cancelled" ? "destructive" : "secondary"}>{fulfillmentCommitment.label}</Badge>
+                {fulfillmentStatus ? (
+                  <Badge variant="outline" className="capitalize">
+                    {fulfillmentStatus.status}
+                  </Badge>
+                ) : null}
                 {fulfillmentStatus ? <span className="text-muted-foreground">{inr.format(fulfillmentStatus.totalAmount)}</span> : null}
               </div>
             )}

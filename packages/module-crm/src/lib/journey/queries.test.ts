@@ -45,6 +45,12 @@ describe("deriveOverallState", () => {
     expect(result.nextRecommendedAction).toBe("Fulfill the linked products.");
   });
 
+  it("marks a won opportunity with a cancelled/stale fulfillment reference as won_in_progress", () => {
+    const result = deriveOverallState(crm("ok", "Won"), inventory("warning", 2, "so-1"), fsm("not_applicable"));
+    expect(result.overallStage).toBe("won_in_progress");
+    expect(result.nextRecommendedAction).toBe("Fulfill the linked products.");
+  });
+
   it("marks a won opportunity with an accepted-but-not-jobbed FSM quote as won_in_progress", () => {
     const result = deriveOverallState(crm("ok", "Won"), inventory("not_applicable", 0), fsm("warning"));
     expect(result.overallStage).toBe("won_in_progress");

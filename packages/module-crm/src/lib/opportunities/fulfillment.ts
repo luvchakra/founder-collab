@@ -26,6 +26,38 @@ export function suggestFulfillmentRequirement(hasProducts: boolean, hasFsmEngage
   return "not_required";
 }
 
+export type FulfillmentCommitmentState = "pending" | "reserved" | "fulfilled" | "cancelled";
+
+/**
+ * INT-02.3's "Inventory Commitment State -> CRM" projection. The backlog's own suggested
+ * vocabulary (Requested -> Pending -> Reserved -> Partially Reserved -> Backordered ->
+ * Fulfilled -> Cancelled) assumes a partial-reservation concept the real Inventory domain
+ * doesn't have: `inventory.confirm_sales_order()` reserves a sales order's lines
+ * atomically and raises if any line is short (see the procedural-layer migration) -- there
+ * is no persisted "partially reserved"/"backordered" state to read, so this only ever
+ * projects the states `SalesOrderStatus` genuinely has (per this story's own instruction:
+ * "use only states supported by the existing Inventory domain").
+ */
+export function deriveFulfillmentCommitmentState(status: string): { state: FulfillmentCommitmentState; label: string } {
+  switch (status) {
+    case "draft":
+      return { state: "pending", label: "Pending reservation" };
+    case "confirmed":
+    case "processing":
+    case "packed":
+    case "shipped":
+      return { state: "reserved", label: "Reserved" };
+    case "delivered":
+      return { state: "fulfilled", label: "Fulfilled" };
+    case "returned":
+      return { state: "cancelled", label: "Returned" };
+    case "cancelled":
+      return { state: "cancelled", label: "Cancelled" };
+    default:
+      return { state: "pending", label: status };
+  }
+}
+
 /** Sets the human-confirmed (or overridden) fulfillment requirement -- CRM-owned,
  * audited, no cross-module effect of its own (INT-02.2 is what actually acts on
  * `inventory_required`/`product_and_service`). */

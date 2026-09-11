@@ -453,7 +453,7 @@ export async function getFulfillmentStatus(businessId: string, fulfillmentReques
   const supabase = await createClient();
   const { data: salesOrder, error } = await supabase
     .from("sales_orders")
-    .select("id, status, total_amount, warehouse_id")
+    .select("id, status, total_amount, warehouse_id, updated_at")
     .eq("org_id", businessId)
     .eq("id", fulfillmentRequestId)
     .maybeSingle();
@@ -467,6 +467,7 @@ export async function getFulfillmentStatus(businessId: string, fulfillmentReques
       status: salesOrder.status,
       totalAmount: Number(salesOrder.total_amount),
       warehouseId: salesOrder.warehouse_id,
+      updatedAt: salesOrder.updated_at,
     },
   };
 }

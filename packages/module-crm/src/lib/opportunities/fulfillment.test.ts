@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestFulfillmentRequirement } from "./fulfillment";
+import { deriveFulfillmentCommitmentState, suggestFulfillmentRequirement } from "./fulfillment";
 
 describe("suggestFulfillmentRequirement", () => {
   it("suggests product_and_service when both products and an FSM engagement exist", () => {
@@ -16,5 +16,30 @@ describe("suggestFulfillmentRequirement", () => {
 
   it("suggests not_required when neither applies", () => {
     expect(suggestFulfillmentRequirement(false, false)).toBe("not_required");
+  });
+});
+
+describe("deriveFulfillmentCommitmentState", () => {
+  it("maps draft to pending reservation", () => {
+    expect(deriveFulfillmentCommitmentState("draft")).toEqual({ state: "pending", label: "Pending reservation" });
+  });
+
+  it("maps confirmed, processing, packed, and shipped to reserved", () => {
+    for (const status of ["confirmed", "processing", "packed", "shipped"]) {
+      expect(deriveFulfillmentCommitmentState(status)).toEqual({ state: "reserved", label: "Reserved" });
+    }
+  });
+
+  it("maps delivered to fulfilled", () => {
+    expect(deriveFulfillmentCommitmentState("delivered")).toEqual({ state: "fulfilled", label: "Fulfilled" });
+  });
+
+  it("maps cancelled and returned to the cancelled state with distinct labels", () => {
+    expect(deriveFulfillmentCommitmentState("cancelled")).toEqual({ state: "cancelled", label: "Cancelled" });
+    expect(deriveFulfillmentCommitmentState("returned")).toEqual({ state: "cancelled", label: "Returned" });
+  });
+
+  it("falls back to the raw status for anything unrecognized", () => {
+    expect(deriveFulfillmentCommitmentState("weird")).toEqual({ state: "pending", label: "weird" });
   });
 });
