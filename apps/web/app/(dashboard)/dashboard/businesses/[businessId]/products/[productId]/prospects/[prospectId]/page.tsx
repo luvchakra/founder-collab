@@ -8,7 +8,13 @@ import { getProspect } from "@cofounderai/module-discovery/lib/prospects/queries
 import { listContacts } from "@cofounderai/module-discovery/lib/contacts/queries";
 import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/queries";
 import { EVIDENCE_TYPE_LABEL } from "@cofounderai/module-discovery/lib/research/types";
-import { getResearchBrief, getBuyingCommitteeForProspect } from "@cofounderai/module-discovery/lib/research-briefs/queries";
+import { getResearchBrief } from "@cofounderai/module-discovery/lib/research-briefs/queries";
+import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
+import {
+  CONTACTABILITY_LABEL,
+  RELEVANCE_LABEL,
+  SENIORITY_LABEL,
+} from "@cofounderai/module-discovery/lib/buyer-intelligence/types";
 import { PERSONA_ROLE_LABEL } from "@cofounderai/module-discovery/lib/personas/types";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { WEIGHTS as SCORE_WEIGHTS } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
@@ -331,7 +337,7 @@ export default async function ProspectDetailPage({
   const prospect = await getProspect(prospectId);
   if (!prospect || prospect.workspace_id !== workspace.id) notFound();
 
-  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyingCommittee] = await Promise.all([
+  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyerIntelligence] = await Promise.all([
     listContacts(prospect.id),
     getProspectResearch(prospect.id),
     listRecentProspectScores(prospect.id),
@@ -339,7 +345,7 @@ export default async function ProspectDetailPage({
     listMessages(prospect.id),
     listConversations(prospect.id),
     getResearchBrief(prospect.id),
-    getBuyingCommitteeForProspect(workspace.id, prospect.id),
+    getBuyerIntelligenceForProspect(workspace.id, prospect.id),
   ]);
 
   // Template selection is an optional enhancement to message generation -- a Resend
@@ -638,25 +644,77 @@ export default async function ProspectDetailPage({
               <p className="font-medium">Suggested opening</p>
               <p className="text-muted-foreground">{researchBrief.suggested_opening}</p>
             </div>
-            {buyingCommittee.length > 0 ? (
-              <div>
-                <p className="font-medium">Buying committee</p>
-                <ul className="mt-1 flex flex-col gap-1 text-muted-foreground">
-                  {buyingCommittee.map(({ contact, persona }) => (
-                    <li key={contact.id}>
-                      {[contact.first_name, contact.last_name].filter(Boolean).join(" ") || "(name unknown)"}
-                      {contact.job_title ? ` — ${contact.job_title}` : ""}
-                      {persona ? (
-                        <span className="ml-1 rounded bg-muted px-1 text-xs">{PERSONA_ROLE_LABEL[persona.role_in_committee]}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="text-muted-foreground">No contacts recorded yet -- no buying committee to show.</p>
-            )}
           </div>
+        )}
+      </section>
+
+      {/* DISC-OFFER-P0-06.3: "Buyer/Person Intelligence" -- one row per real
+          discovery.contacts row (never invented), each enriched with seniority,
+          likely buying-committee role, relevance to this offering, contactability, and
+          any research evidence that actually mentions them. Shown independently of
+          whether a research brief has been generated yet -- it only needs contacts,
+          which can exist before research does. */}
+      <section id="buyer-intelligence" className="flex scroll-mt-4 flex-col gap-3 rounded-md border p-4">
+        <h2 className="font-medium">Buyer intelligence</h2>
+        {buyerIntelligence.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No contacts recorded yet -- add a contact to see buyer intelligence.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {buyerIntelligence.map((person) => (
+              <li key={person.contact.id} className="rounded-md border p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{person.name}</span>
+                  {person.title ? <span className="text-muted-foreground">— {person.title}</span> : null}
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                    {SENIORITY_LABEL[person.seniority]}
+                  </span>
+                  {person.persona ? (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</span>
+                  ) : (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Unassigned role</span>
+                  )}
+                  <span
+                    className={cn(
+                      "rounded px-1.5 py-0.5 text-xs font-medium",
+                      person.confidence === "high"
+                        ? "bg-emerald-100 text-emerald-800"
+                        : person.confidence === "medium"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {person.confidence} confidence
+                  </span>
+                </div>
+                <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
+                  <div>
+                    <dt className="inline font-medium text-foreground">Relevance to offering: </dt>
+                    <dd className="inline">
+                      {RELEVANCE_LABEL[person.relevance]} — {person.relevanceReason}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="inline font-medium text-foreground">Contactability: </dt>
+                    <dd className="inline">
+                      {CONTACTABILITY_LABEL[person.contactability]} — {person.contactabilityReason}
+                    </dd>
+                  </div>
+                </dl>
+                {person.supportingEvidence.length > 0 ? (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium">Supporting evidence</p>
+                    <ul className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
+                      {person.supportingEvidence.map((item, i) => (
+                        <li key={i}>{item.statement}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">No supporting evidence found in research yet.</p>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

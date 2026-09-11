@@ -36,7 +36,7 @@ only genuine architectural/key decisions are raised.
 | | 05.5 | Negative Signals | Done |
 | | 06.1 | Evidence-Backed Research | Done |
 | | 06.2 | Research Brief | Done |
-| | 06.3 | Buyer Intelligence | Not started |
+| | 06.3 | Buyer Intelligence | Done |
 | | 07.1 | Next Best Action | Not started |
 | | 07.2 | Today's Opportunities | Not started |
 | | 07.3 | Opportunity Detail | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**18 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**19 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1015,3 +1015,93 @@ check, which remains unavailable here.
 
 **Status**: 18 of 68 in-scope stories done -- Phase C continuing. Next: 06.3, Buyer/Person
 Intelligence.
+
+### 06.3 — Buyer/Person Intelligence (2026-09-11)
+
+The doc's own field list ("for each candidate person show: name, title, seniority,
+likely role in buying committee, relevance to offering, contactability, supporting
+evidence, confidence" -- "do not invent people or roles") turned out to already have two
+of its eight fields covered by prior stories once mapped out: name/title are
+`discovery.contacts` columns, and "likely role in buying committee" is exactly 06.2's own
+`matchBuyingCommittee()` (a real persona match, or unassigned -- never invented). The six
+genuinely new fields -- seniority, relevance to offering, contactability, supporting
+evidence, and a confidence in this specific characterization -- are all derivable
+deterministically from data this module already has (CLAUDE.md dev principle #4: don't
+use an LLM for a deterministic operation), so this story is schema-free (no migration)
+and AI-free: a new `lib/buyer-intelligence/` with one small pure function per field
+(`seniority.ts` keyword-classifies a real job title into c_level/vp/director/manager/
+individual_contributor/unknown; `contactability.ts` counts real email/LinkedIn/phone
+channels into high/medium/low; `relevance.ts` reuses `fuzzyIncludes` (already exported
+from `score-prospect.ts` for 05.5/06.2) to fall back from a matched persona's own
+priority to a plain ICP target-role match, `unknown` -- not `low` -- when there's no job
+title at all to judge; `supporting-evidence.ts` substring-matches a contact's name/title
+against 06.1's own evidence `statement`/`supporting_signal` fields). "Do not invent
+people or roles" holds structurally throughout, the same way 06.2's own
+`matchBuyingCommittee` already made that instruction true a story early: every output
+row wraps one real `discovery.contacts` row, and every field on it is either read
+straight off that row or produced by one of these pure rules, never generated.
+`intelligence.ts`'s own `buildBuyerPersonIntelligence()`/`computeBuyerIntelligence()`
+combine all of the above (plus 06.2's `matchBuyingCommittee` for the persona match) into
+one per-prospect list; confidence is the same "count how many signals are actually known,
+never zero-fill" tiering 05.2's own `computeOpportunityScore` established (title present,
+a persona/ICP match found, evidence found, a real contact channel on file -- 3+ of 4 is
+high, 1-2 is medium, 0 is low), computed fresh on every read rather than persisted, same
+reasoning `getBuyingCommitteeForProspect` (06.2) already gave for why a contacts/personas/
+research snapshot would risk going stale.
+
+Also noticed, and fixed, a real connection to 05.2's own scoring model: `buyer_fit_score`
+and `contactability_score` are two of the seven named score components 05.2 defined but
+nothing had ever populated -- the exact same situation `signal_strength_score` (05.3) and
+`timing_score` (05.4) were each in before their own story wired them up. New
+`computeBuyerFitScores()` (`lib/buyer-intelligence/scoring.ts`) picks the single strongest
+real candidate (highest relevance, ties broken by contactability -- "unknown" relevance
+candidates excluded from consideration entirely) and maps its relevance/contactability
+onto the same low/medium/high -> 30/60/90 scale `attachSignalCorrelation`'s own
+`CORRELATION_CONFIDENCE_TO_SIGNAL_STRENGTH` already established; both scores stay null
+with no known candidate at all, no false precision. New
+`setOpportunityBuyerIntelligence()` (`lib/opportunities/mutations.ts`) re-reads the
+opportunity's other five components unchanged and reuses `setOpportunityScoreComponents`
+-- `score` still can never be written except through `computeOpportunityScore`. Wired
+from `generateResearchBrief()` (06.2's own AI flow, which already assembles contacts/
+personas/ICP/research/opportunity in one place) right after its existing
+`setOpportunityWhyThem` call: a fresh research brief is exactly the "decision aid" moment
+06.3's per-person view exists to support, so recomputing buyer intelligence at the same
+moment needed no new trigger point. Ten new vitest cases across
+`seniority`/`contactability`/`relevance`/`supporting-evidence`/`intelligence`/`scoring`
+cover the closed-vocabulary tiers, the "unknown vs. low" distinction, the null-with-no-
+known-candidate case, and the relevance-then-contactability tie-break rule (module suite
+now 70/70, up from 45 -- one real bug caught by the new seniority tests themselves before
+they ever ran against real code: "Senior Vice President" was classifying as `c_level`
+because "president" is a substring of "vice president", fixed by checking VP patterns
+before C-level ones).
+
+UI: promoted the existing "Buying committee" list (which lived nested inside the
+Research Brief section, gated on a brief already existing) into its own standalone
+"Buyer intelligence" section on the prospect detail page, positioned right after it --
+buyer intelligence only needs contacts, which can exist before any research or brief
+does, so gating it on a generated brief would hide real information unnecessarily. Each
+contact renders as a compact card (name, title, seniority badge, role-in-committee badge
+or "Unassigned role", confidence badge, then relevance/contactability with their own
+plain-English reasons, then supporting evidence or an explicit "none found yet" line) --
+deliberately not a `<Table>`: the same "few fields, no wide-table/mobile-card split to
+design" reasoning `PersonaSection` (02.3) already established, so CLAUDE.md non-negotiable
+#12 doesn't bite here either. Replaced the page's `getBuyingCommitteeForProspect` call
+with the new, superset `getBuyerIntelligenceForProspect` (the old function/type stay
+exported in `lib/research-briefs/` for any future direct consumer, just no longer this
+page's own source of the list).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- this session's
+worktree started with no `node_modules` at all, same environment quirk 05.3 already
+flagged; `npm ci` at the repo root was required first, confirmed afterward to have caused
+no lockfile drift), `lint:boundaries` (1060 files, no violations), `lint:migrations` (118
+migrations, no violations -- no migration this story, schema unchanged), `npm run lint`
+(0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (70/70, +25 new), and a clean `next build` (confirmed the
+prospect detail route this story touched builds with no errors). No live migration apply/
+`get_advisors` step this story -- no schema change. Same live-browser-walkthrough
+constraint noted in every prior story this run (no seeded demo user/`.env.local` in this
+environment) -- this one in particular (a new UI section with several derived badges)
+would benefit most from an actual browser check, which remains unavailable here.
+
+**Status**: 19 of 68 in-scope stories done -- Phase C continuing. Next: 07.1, Next Best
+Action.

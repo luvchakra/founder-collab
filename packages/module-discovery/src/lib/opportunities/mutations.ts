@@ -1,4 +1,6 @@
 import { createClient } from "../../db/server";
+import { computeBuyerFitScores } from "../buyer-intelligence/scoring";
+import type { BuyerPersonIntelligence } from "../buyer-intelligence/types";
 import type { SignalCorrelation } from "../signals/types";
 import { getOpportunity } from "./queries";
 import { computeOpportunityScore, type ScoreComponents } from "./scoring";
@@ -162,4 +164,33 @@ export async function setOpportunityWhyThem(opportunityId: string, whyThem: stri
   const { data, error } = await supabase.from("opportunities").update({ why_them: whyThem }).eq("id", opportunityId).select().single();
   if (error) throw error;
   return data;
+}
+
+/**
+ * DISC-OFFER-P0-06.3: "Buyer/Person Intelligence" -- wires the strongest real candidate
+ * buyer's relevance/contactability into the `buyer_fit_score`/`contactability_score`
+ * components 05.2 named but nothing had populated yet (`computeBuyerFitScores`), the
+ * same "write back into the existing opportunity slot" pattern `attachSignalCorrelation`
+ * (05.3) and `setOpportunityWhyNow` (05.4) already established. Re-reads the
+ * opportunity's other five components unchanged, so a caller still can never write
+ * `score` except through `computeOpportunityScore`.
+ */
+export async function setOpportunityBuyerIntelligence(
+  opportunityId: string,
+  candidates: BuyerPersonIntelligence[],
+): Promise<Opportunity> {
+  const current = await getOpportunity(opportunityId);
+  if (!current) throw new Error("Opportunity not found.");
+
+  const { buyerFitScore, contactabilityScore } = computeBuyerFitScores(candidates);
+
+  return setOpportunityScoreComponents(opportunityId, {
+    icpFit: current.icp_fit_score,
+    buyerFit: buyerFitScore,
+    needFit: current.need_fit_score,
+    timing: current.timing_score,
+    signalStrength: current.signal_strength_score,
+    contactability: contactabilityScore,
+    evidenceConfidence: current.evidence_confidence_score,
+  });
 }
