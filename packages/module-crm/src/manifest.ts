@@ -33,6 +33,7 @@ export const crmManifest: ModuleManifest = {
       heading: "Administration",
       items: [
         { label: "Channels", slug: "channels", icon: "Radio" },
+        { label: "WhatsApp", slug: "whatsapp", icon: "MessageCircle" },
         { label: "Routing Rules", slug: "routing-rules", icon: "Route" },
       ],
     },
@@ -45,6 +46,7 @@ export const crmManifest: ModuleManifest = {
     "Opportunity pipeline",
     "Follow-up queue",
     "Conversation-based unified inbox",
+    "WhatsApp Business integration",
   ],
   permissions: ["crm.access"],
   optionalPeers: ["discovery", "fsm", "inventory", "gst"],

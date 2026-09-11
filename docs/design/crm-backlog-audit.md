@@ -637,3 +637,50 @@ cross-tenant isolation (Bob's own lookup cannot see Alice's phone-matched party 
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite, and both CRM RLS test suites (5 new match-hierarchy cases).
 No new migration.
+
+## CRM-07.1 + CRM-07.2 (2026-09-11)
+
+Built together: CRM-07.1's adapter interface has no real caller until CRM-07.2's connect
+flow exists to use it, and CRM-07.2's connect flow has nothing to call without the
+adapter -- same reasoning CRM-06.2/06.3 were combined for.
+
+New `lib/whatsapp/` (the provider adapter, CRM-07.1): `WhatsAppProviderAdapter`
+(types.ts) declares the backlog's exact nine operations
+(`connect/disconnect/healthCheck/receiveWebhook/sendText/sendMedia/sendTemplate/
+markRead/getMessageStatus`); `whatsAppCloudApiAdapter` (cloud-api-adapter.ts) is its one
+implementation against Meta's real Cloud API. Request-shape logic is split from network
+I/O into pure `buildSend*Request()` functions (unit tested) the same way this codebase
+already separates decision logic from DB calls elsewhere (routing-rules/evaluate.ts);
+the fetch-executing wrapper itself has no test, matching the existing
+`sendCrmChannelMessage` precedent (real production HTTP code with no live account to
+test against in this environment, same as GST's own credential code). `receiveWebhook`
+is a pure parser (`parseWhatsAppWebhookPayload`, 8 test cases) turning Meta's nested
+`entry[].changes[].value.{messages,statuses}` shape into a flat, normalized event list
+-- CRM-07.3/07.4's own job to call it, not built here. `disconnect`/`getMessageStatus`
+are documented no-ops: Cloud API has no session-close call or a status-by-id read
+endpoint (status only ever arrives via webhook push), and the interface exists to stay
+uniform across a future provider that might have real behavior there.
+
+New `lib/channel-connections/` (CRM-07.2, the provider-neutral successor to the old
+`crm.channel_accounts` per the retirement table): `connectWhatsApp()` calls
+`whatsAppCloudApiAdapter.connect()` to verify a phone_number_id + access token against
+the real Graph API *before* ever storing them, encrypts the token with the same
+AES-256-GCM helper BYOK/GST credentials already use, and upserts into
+`crm.channel_connection` (already built in CRM-01.2, previously unused by any route).
+`getDecryptedAccessToken()` is the one place `access_token_encrypted` is ever read --
+never from a query a page renders, only from a future send/health-check mutation path.
+`disconnectChannelConnection()` clears the stored token, not just the status, since
+reconnecting is just calling `connectWhatsApp()` again with a fresh one.
+
+New `crm/whatsapp` route (Administration) with a manual connect form
+(phone_number_id + access token) -- Meta's Embedded Signup (the backlog's "recommended
+path") is a JS-SDK popup flow that isn't buildable or testable without a live Meta App
+and app review in this environment; this form is where either that flow or the simpler
+manual path lands once a real token is in hand, same separation the old
+`channel-accounts/mutations.ts` already documented for itself. The token is never
+rendered back once connected, satisfying CRM-07.2's own "credentials/tokens are never
+rendered to ordinary users."
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite (10 new adapter/parser tests), and both CRM RLS test suites.
+No new migration -- `crm.channel_connection` already existed from CRM-01.2.
