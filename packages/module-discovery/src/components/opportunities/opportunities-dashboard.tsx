@@ -27,9 +27,9 @@ function TruncatedText({ value }: { value: string | null }) {
  * throughout this backlog for a missing/zero real value). Desktop gets a real table per
  * bin, mobile gets one card per row (CLAUDE.md non-negotiable #12) -- exactly the same
  * split `OfferingsTable` (01.3) already established, reused here rather than inventing
- * a second responsive pattern. Company links to the prospect's own detail page (a real,
- * existing route) rather than a dedicated opportunity detail page -- that page is
- * DISC-OFFER-P0-07.3's own story; linking anywhere else today would be a dead link.
+ * a second responsive pattern. Company links to the opportunity's own detail page
+ * (DISC-OFFER-P0-07.3, added the same session this dashboard's own dead-link concern
+ * would otherwise have applied).
  */
 export function OpportunitiesDashboard({
   businessId,
@@ -44,7 +44,7 @@ export function OpportunitiesDashboard({
     return <EmptyState message="No active opportunities yet. They'll appear here once Discovery surfaces one." />;
   }
 
-  const basePath = `/dashboard/businesses/${businessId}/products/${productId}/prospects`;
+  const basePath = `/dashboard/businesses/${businessId}/products/${productId}/opportunities`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,7 +64,7 @@ export function OpportunitiesDashboard({
                 {binRows.map(({ opportunity, prospect, contactName, topSignal }) => (
                   <li key={opportunity.id} className="flex flex-col gap-2 p-3 text-sm">
                     <div className="flex items-start justify-between gap-2">
-                      <Link href={`${basePath}/${prospect.id}`} className="min-w-0 truncate font-medium hover:underline">
+                      <Link href={`${basePath}/${opportunity.id}`} className="min-w-0 truncate font-medium hover:underline">
                         {prospect.company_name}
                       </Link>
                       <Badge variant={PRIORITY_BADGE_VARIANT[opportunity.priority]}>{opportunity.priority}</Badge>
@@ -123,7 +123,7 @@ export function OpportunitiesDashboard({
                   {binRows.map(({ opportunity, prospect, contactName, topSignal }) => (
                     <TableRow key={opportunity.id}>
                       <TableCell className="max-w-40">
-                        <Link href={`${basePath}/${prospect.id}`} className="block truncate font-medium hover:underline">
+                        <Link href={`${basePath}/${opportunity.id}`} className="block truncate font-medium hover:underline">
                           {prospect.company_name}
                         </Link>
                       </TableCell>
