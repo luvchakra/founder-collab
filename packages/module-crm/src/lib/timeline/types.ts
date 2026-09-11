@@ -11,6 +11,7 @@ export type TimelineSource =
   | "inventory.product_interest"
   | "fsm.job"
   | "fsm.quote"
+  | "fsm.assessment"
   | "discovery.prospect";
 
 export type TimelineEntry = {

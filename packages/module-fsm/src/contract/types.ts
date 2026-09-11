@@ -83,6 +83,16 @@ export type FsmQuoteStatus = {
   fsmOpportunityCreatedAt: string;
   jobCreatedAt: string | null;
   jobCompletedAt: string | null;
+  /** INT-08.2's "Unified Journey Timeline" -- purely additive, same shape as INT-01.3's
+   * own extension of this type just above: already-available job columns
+   * (INT-06.1's outcome, INT-03.3's shortage resolution, INT-06.4's revisit pointer)
+   * the timeline needs to render a richer "FSM job completed" entry and two new ones
+   * ("parts shortage resolved," "warranty revisit job created") it couldn't before. */
+  jobOutcome: string | null;
+  jobPartsShortageResolution: string | null;
+  jobPartsShortageResolvedAt: string | null;
+  revisitJobId: string | null;
+  revisitJobCreatedAt: string | null;
 };
 
 /** INT-04.2's "Create FSM Assessment Request" -- everything CRM already has in hand:

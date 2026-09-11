@@ -45,10 +45,10 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 07.2 | Exception Resolution Actions | Done |
 | | 07.3 | Exception Auto-Close | Done |
 | INT-08 (P1) | 08.1 | Linked Object Graph | Done |
-| | 08.2 | Unified Journey Timeline | Not started |
+| | 08.2 | Unified Journey Timeline | Done |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 11/13 done. Overall: 27/29 (93%). Epic INT-07 complete (3/3) -- Epic INT-08 (08.2/08.3) is all that remains.**
+**P0 (INT-01 through INT-04): 16/16 done. P1 (INT-05 through INT-08): 12/13 done. Overall: 28/29 (97%). Only INT-08.3 remains.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -450,3 +450,17 @@ Added a real unit-test file (`queries.test.ts`, 5 tests) since this is a pure fu
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (965 files, no violations), `lint:migrations` (97 migrations, unchanged -- no schema touched), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (157/157 -- 152 previously plus 5 new), `node scripts/test-module.mjs crm` and `fsm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build`. No live migration/advisor check needed -- no schema touched.
 
 **Status**: 27 of 29 in-scope stories done. Next: INT-08.2, Unified Journey Timeline.
+
+### INT-08.2 — Unified Journey Timeline (2026-09-11)
+
+No original text; reconstructed from the title and, more concretely, from the recon section's own explicit note at the top of this doc: `listRelationshipTimeline()`/`listOpportunityJourneyHistory()` (`timeline/queries.ts`) already substantially *are* this story, and "INT-08 extends this file... rather than building a second timeline." Took that literally rather than building anything new.
+
+Audited both functions against every story INT-01 through INT-07 introduced to find what was genuinely missing from `listOpportunityJourneyHistory()` (the opportunity-scoped one, used by the opportunity detail page's own History card): **FSM assessments were entirely unrepresented** despite having their own card on that same page -- no request entry, no outcome entry, nothing. Also missing: INT-06.1's job outcome (the existing "FSM job completed" entry didn't say *how* it was completed), INT-03.3's parts-shortage resolution (a real decision with no timeline trace at all), and INT-06.4's revisit job (created automatically, but with `listOpportunityJourneyHistory()`'s own quote-status-only lens, invisible unless you opened the job directly).
+
+Extended `FsmQuoteStatus` (module-fsm's contract) additively -- same shape as INT-01.3's own extension of this exact type -- with `jobOutcome`/`jobPartsShortageResolution`/`jobPartsShortageResolvedAt`/`revisitJobId`/`revisitJobCreatedAt`, all already-existing `fsm.jobs` columns `getFsmQuoteStatus()` simply wasn't selecting yet (the revisit lookup is new, a reverse-FK query mirroring `getRevisitJobLinks()`'s -- the job detail page's own equivalent -- "most recent wins" reasoning for a job reopened/recompleted more than once). New `fsm.assessment` timeline source (additive to `TimelineSource`, no exhaustive switch anywhere depends on that union so nothing else needed touching) backs two new entries: assessment requested, and assessment outcome recorded (via the already-existing `getAssessmentStatusForOpportunity()`, now also fetched inside `listOpportunityJourneyHistory()`, not just the page itself).
+
+**Deliberately left alone**: `listRelationshipTimeline()` (the party-scoped version, used elsewhere e.g. Customer 360) already surfaces every job for the party as its own row via `listRecentJobsForParty()` -- a revisit job already appears there for free as an additional job row, no code change needed. Enriching that function's own per-job label with `outcome` too was considered and skipped: unlike the opportunity-scoped timeline, this function had no genuine *absence* (nothing was invisible, just less detailed), and touching a second, differently-shaped function for a "nice to have" rather than a real gap is exactly the kind of unscoped padding this story didn't ask for.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- confirmed the additive `FsmQuoteStatus` fields don't break any existing object-literal construction of that type; only `object-graph/queries.test.ts`'s mocks exist and those are `as never`-cast), `lint:boundaries` (965 files, unchanged), `lint:migrations` (97 migrations, unchanged -- no schema touched, this story is pure TypeScript), `npm run lint` (0 errors, 1 pre-existing unrelated warning), module-crm's vitest suite (157/157, unchanged -- no unit test added for `listOpportunityJourneyHistory()` itself, same DB-composing-function precedent as every other query file in this backlog), `node scripts/test-module.mjs fsm` and `crm` (same expected no-local-Postgres RLS harness failure both modules have shown all session), and a clean `next build`. No live migration/advisor check needed.
+
+**Status**: 28 of 29 in-scope stories done. Only INT-08.3 (Context-Preserving Navigation) remains in scope. Next: INT-08.3.

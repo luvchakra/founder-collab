@@ -9,6 +9,7 @@ import {
   getOpportunity,
   getFsmQuoteStatusForOpportunity,
   getFulfillmentStatusForOpportunity,
+  getAssessmentStatusForOpportunity,
   listOpportunitiesWithFsmQuoteForParty,
 } from "../opportunities/queries";
 import { deriveFulfillmentCommitmentState } from "../opportunities/fulfillment";
@@ -144,7 +145,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
   const supabase = await createClient();
   const core = await createCoreClient({ schema: "core" });
 
-  const [activitiesRes, conversationsRes, prospectResult, fsmQuoteStatus, productInterestRes, fulfillmentStatus] = await Promise.all([
+  const [activitiesRes, conversationsRes, prospectResult, fsmQuoteStatus, productInterestRes, fulfillmentStatus, assessmentStatus] = await Promise.all([
     // Queried directly by opportunity_id (not listActivitiesForParty()) -- an activity
     // created straight against this opportunity (CRM-05.2's own "Add next action" form)
     // may have no party_id set at all, so filtering a party-scoped list down would miss
@@ -155,6 +156,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
     getFsmQuoteStatusForOpportunity(businessId, opportunity),
     supabase.from("product_interest").select("id, item_id, created_at").eq("business_id", businessId).eq("opportunity_id", opportunityId),
     getFulfillmentStatusForOpportunity(businessId, opportunity),
+    getAssessmentStatusForOpportunity(businessId, opportunity),
   ]);
   if (activitiesRes.error) throw activitiesRes.error;
   if (conversationsRes.error) throw conversationsRes.error;
@@ -255,9 +257,62 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         id: `fsm-job-completed-${fsmQuoteStatus.jobId}`,
         source: "fsm.job",
         occurredAt: fsmQuoteStatus.jobCompletedAt,
-        label: "FSM job completed",
+        // INT-08.2: INT-06.1's outcome classification, when set -- "FSM job completed"
+        // alone doesn't say whether that meant done, needs a revisit, or unresolved.
+        label: fsmQuoteStatus.jobOutcome ? `FSM job completed -- ${fsmQuoteStatus.jobOutcome.replace(/_/g, " ")}` : "FSM job completed",
         detail: null,
         detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+      });
+    }
+    // INT-08.2: INT-03.3's own resolution of a job's parts shortage -- a real state
+    // transition the timeline had no entry for at all before this story (only the
+    // shortage's *current* status was ever visible, never that a decision was made).
+    if (fsmQuoteStatus.jobId && fsmQuoteStatus.jobPartsShortageResolvedAt && fsmQuoteStatus.jobPartsShortageResolution) {
+      entries.push({
+        id: `fsm-job-shortage-resolved-${fsmQuoteStatus.jobId}`,
+        source: "fsm.job",
+        occurredAt: fsmQuoteStatus.jobPartsShortageResolvedAt,
+        label: `FSM job parts shortage resolved -- ${fsmQuoteStatus.jobPartsShortageResolution.replace(/_/g, " ")}`,
+        detail: null,
+        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+      });
+    }
+    // INT-08.2: INT-06.4's automatically-created follow-up job -- not commercial work
+    // (no CRM opportunity involved), so this is the only place besides the job's own
+    // page a founder would ever see that one was created.
+    if (fsmQuoteStatus.revisitJobId && fsmQuoteStatus.revisitJobCreatedAt) {
+      entries.push({
+        id: `fsm-job-revisit-created-${fsmQuoteStatus.revisitJobId}`,
+        source: "fsm.job",
+        occurredAt: fsmQuoteStatus.revisitJobCreatedAt,
+        label: "Warranty revisit job created",
+        detail: null,
+        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.revisitJobId}`,
+      });
+    }
+  }
+
+  // INT-08.2: INT-04's assessment request/outcome -- previously entirely absent from
+  // this timeline despite having its own card on the opportunity detail page. Two
+  // entries when an outcome has been recorded (the request, and the outcome as a
+  // separate, later moment); one when it's still pending.
+  if (opportunity.assessment_request_id) {
+    entries.push({
+      id: `fsm-assessment-requested-${opportunity.assessment_request_id}`,
+      source: "fsm.assessment",
+      occurredAt: assessmentStatus?.createdAt ?? opportunity.created_at,
+      label: "FSM assessment requested",
+      detail: null,
+      detailHref: `/dashboard/businesses/${businessId}/fsm/assessments/${opportunity.assessment_request_id}`,
+    });
+    if (assessmentStatus?.outcome) {
+      entries.push({
+        id: `fsm-assessment-outcome-${opportunity.assessment_request_id}`,
+        source: "fsm.assessment",
+        occurredAt: assessmentStatus.completedAt ?? assessmentStatus.createdAt,
+        label: `FSM assessment outcome: ${assessmentStatus.outcome.replace(/_/g, " ")}`,
+        detail: assessmentStatus.outcomeNotes,
+        detailHref: `/dashboard/businesses/${businessId}/fsm/assessments/${opportunity.assessment_request_id}`,
       });
     }
   }

@@ -391,16 +391,40 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
   let jobStatus: string | null = null;
   let jobCreatedAt: string | null = null;
   let jobCompletedAt: string | null = null;
+  let jobOutcome: string | null = null;
+  let jobPartsShortageResolution: string | null = null;
+  let jobPartsShortageResolvedAt: string | null = null;
+  let revisitJobId: string | null = null;
+  let revisitJobCreatedAt: string | null = null;
   if (opportunity.converted_job_id) {
-    const { data: job, error: jobError } = await fsm
-      .from("jobs")
-      .select("status, created_at, completed_at")
-      .eq("id", opportunity.converted_job_id)
-      .maybeSingle();
+    const [{ data: job, error: jobError }, { data: revisitJob, error: revisitJobError }] = await Promise.all([
+      fsm
+        .from("jobs")
+        .select("status, created_at, completed_at, outcome, parts_shortage_resolution, parts_shortage_resolved_at")
+        .eq("id", opportunity.converted_job_id)
+        .maybeSingle(),
+      // INT-08.2: the reverse of `revisit_of_job_id` -- did completing this job with a
+      // 'warranty_revisit_required' outcome (INT-06.4) spawn a follow-up job. Most
+      // recent wins, same "a job reopened and recompleted could have more than one"
+      // reasoning `getRevisitJobLinks()` (the job detail page's own equivalent lookup)
+      // already documents.
+      fsm
+        .from("jobs")
+        .select("id, created_at")
+        .eq("revisit_of_job_id", opportunity.converted_job_id)
+        .order("created_at", { ascending: false })
+        .limit(1),
+    ]);
     if (jobError) return { ok: false, error: jobError.message };
+    if (revisitJobError) return { ok: false, error: revisitJobError.message };
     jobStatus = job?.status ?? null;
     jobCreatedAt = job?.created_at ?? null;
     jobCompletedAt = job?.completed_at ?? null;
+    jobOutcome = job?.outcome ?? null;
+    jobPartsShortageResolution = job?.parts_shortage_resolution ?? null;
+    jobPartsShortageResolvedAt = job?.parts_shortage_resolved_at ?? null;
+    revisitJobId = revisitJob?.[0]?.id ?? null;
+    revisitJobCreatedAt = revisitJob?.[0]?.created_at ?? null;
   }
 
   return {
@@ -415,6 +439,11 @@ export async function getFsmQuoteStatus(businessId: string, fsmOpportunityId: st
       fsmOpportunityCreatedAt: opportunity.created_at,
       jobCreatedAt,
       jobCompletedAt,
+      jobOutcome,
+      jobPartsShortageResolution,
+      jobPartsShortageResolvedAt,
+      revisitJobId,
+      revisitJobCreatedAt,
     },
   };
 }
