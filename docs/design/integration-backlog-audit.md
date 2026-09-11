@@ -27,7 +27,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 02.4 | Fulfillment Completion -> CRM | Done |
 | INT-03 (P0) | 03.1 | FSM Job Material Requirement | Done |
 | | 03.2 | Reserve Parts for FSM Job | Done |
-| | 03.3 | Parts Shortage -> FSM Exception | Not started |
+| | 03.3 | Parts Shortage -> FSM Exception | Done |
 | | 03.4 | Technician Consumption -> Inventory | Not started |
 | | 03.5 | Parts Returned / Unused -> Inventory | Not started |
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 9/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 9/29 (31%).**
+**P0 (INT-01 through INT-04): 10/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 10/29 (34%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -224,3 +224,15 @@ Idempotency: `reserveJobParts()` now checks `parts_reservation_status` first and
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (85 migrations, no violations), a live migration application to the dev Supabase project followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only, no new one from the three added columns), and a clean `next build`. No live end-to-end reservation smoke test was run (would need a seeded job/estimate/item chain plus an authenticated request cycle, heavier than this environment's available tooling) -- code review against the already-verified `adjust_stock_for_contract` RPC semantics (INT-03.1's own live query confirmed its behavior) is this story's verification instead.
 
 **Status**: 9 of 29 in-scope stories done. Next: INT-03.3, Parts Shortage -> FSM Exception.
+
+### INT-03.3 — Parts Shortage -> FSM Exception (2026-09-11)
+
+New `fsm.jobs` columns (migration `20260911002300`): `parts_shortage_resolution` (`await_replenishment`/`substitute_item`/`reschedule_job`/`obtain_manually`), `parts_shortage_resolution_note`, `parts_shortage_resolved_at` -- deliberately orthogonal to INT-03.2's `parts_reservation_status`, which stays Inventory's own live truth about the reservation attempt; this records what the founder decided to do about it. None of the four resolutions are executed by this function -- "reschedule" points at the job's existing Schedule feature (F-6), "substitute" at INT-05.2's future recommendation engine (not built yet, correctly deferred rather than half-built here), and "await replenishment"/"obtain manually" are inherently outside-the-system facts -- `resolveJobPartsShortage()` (new, `inventory-integration/mutations.ts`) only records which one was picked, satisfying "the user must explicitly choose the resolution" without inventing mechanisms this story doesn't ask for.
+
+Also closes the "Retry Handoff" gap INT-03.2's own doc comment deliberately deferred here: new `retryJobPartsReservation()` clears a job's reservation outcome and shortage resolution, then re-runs `reserveJobParts()` -- the explicit, human-triggered way to retry after stock arrives (no background poller/cron; Rule 6's "AI cannot silently... alter authoritative inventory" territory this story stays out of by keeping the retry manual).
+
+**UI**: the Materials tab (INT-03.1/03.2) grows an exception panel, shown only when `parts_reservation_status` is `partially_reserved`/`unavailable` -- the recorded resolution (once set) or a plain "this job is short on parts" prompt, a resolution picker (`NativeSelect` + optional note, matching the codebase's existing plain-controlled-state form pattern in this same file) gated on `canEdit`, and a "Retry reservation" button.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (950 files, no violations), `lint:migrations` (86 migrations, no violations), a live migration application to the dev Supabase project followed by `get_advisors` for both `security` and `performance` (identical pre-existing findings only), and a clean `next build`.
+
+**Status**: 10 of 29 in-scope stories done. Next: INT-03.4, Technician Consumption -> Inventory.

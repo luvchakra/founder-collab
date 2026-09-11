@@ -25,7 +25,9 @@ import { addNote } from "@cofounderai/module-fsm/lib/notes/mutations";
 import { uploadJobAttachment, deleteJobAttachment } from "@cofounderai/module-fsm/lib/attachments/mutations";
 import { captureSignature } from "@cofounderai/module-fsm/lib/signatures/mutations";
 import { sendJobMessage } from "@cofounderai/module-fsm/lib/messages/mutations";
+import { resolveJobPartsShortage, retryJobPartsReservation } from "@cofounderai/module-fsm/lib/inventory-integration/mutations";
 import type { NoteVisibility } from "@cofounderai/module-fsm/lib/notes/types";
+import type { JobPartsShortageResolution } from "@cofounderai/module-fsm/lib/jobs/types";
 
 const TAGGABLE_TYPE = "job";
 
@@ -190,5 +192,23 @@ export async function captureSignatureAction(businessId: string, jobId: string, 
 export async function sendJobMessageAction(businessId: string, jobId: string, body: string, subject?: string): Promise<void> {
   await requirePermission(businessId, "messages.manage");
   await sendJobMessage(businessId, jobId, body, subject);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+/** INT-03.3's resolution-picker submit. */
+export async function resolveJobPartsShortageAction(
+  businessId: string,
+  jobId: string,
+  resolution: JobPartsShortageResolution,
+  note: string,
+): Promise<void> {
+  await resolveJobPartsShortage(businessId, jobId, resolution, note.trim() || null);
+  revalidatePath(detailPath(businessId, jobId));
+}
+
+/** INT-03.3's "Retry reservation" button -- the explicit retry `reserveJobParts()`'s
+ * own idempotency guard defers to this story. */
+export async function retryJobPartsReservationAction(businessId: string, jobId: string): Promise<void> {
+  await retryJobPartsReservation(businessId, jobId);
   revalidatePath(detailPath(businessId, jobId));
 }

@@ -38,6 +38,8 @@ import {
   startJobAction,
   updateJobAction,
   uploadJobAttachmentAction,
+  resolveJobPartsShortageAction,
+  retryJobPartsReservationAction,
 } from "./actions";
 
 export default async function JobDetailPage({ params }: { params: Promise<{ businessId: string; jobId: string }> }) {
@@ -140,6 +142,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ busi
       sendMessageAction={sendJobMessageAction.bind(null, businessId, jobId)}
       inventoryLicensed={inventoryLicensed}
       materialRequirement={materialRequirement}
+      resolveShortageAction={resolveJobPartsShortageAction.bind(null, businessId, jobId)}
+      retryReservationAction={retryJobPartsReservationAction.bind(null, businessId, jobId)}
     />
   );
 }

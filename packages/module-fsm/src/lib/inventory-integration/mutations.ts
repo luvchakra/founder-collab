@@ -1,8 +1,9 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule, requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { listWarehouses, reserveStock, releaseStock, consumeStock, getAvailability } from "@cofounderai/module-inventory/contract/index";
 import { listJobMaterialRequirement } from "./queries";
-import type { JobPartsReservationStatus, JobPartsShortfallLine } from "../jobs/types";
+import type { JobPartsReservationStatus, JobPartsShortageResolution, JobPartsShortfallLine } from "../jobs/types";
 
 function fsmClient() {
   return createCoreClient({ schema: "fsm" });
@@ -142,4 +143,73 @@ export async function releaseJobParts(businessId: string, jobId: string): Promis
     .update({ parts_reservation_status: null, parts_reservation_detail: null, parts_reservation_checked_at: new Date().toISOString() })
     .eq("id", jobId)
     .eq("business_id", businessId);
+}
+
+/**
+ * INT-03.3's "Parts Shortage -> FSM Exception" -- the human's explicit choice of how to
+ * handle a job whose reservation came back `partially_reserved`/`unavailable`
+ * (`parts_reservation_status`, INT-03.2). Deliberately does not attempt any of the four
+ * resolutions itself: "reschedule" points at the job's own existing Schedule feature
+ * (F-6), "substitute" at INT-05.2's future recommendation engine (not built yet), and
+ * "await replenishment"/"obtain manually" are inherently things that happen outside
+ * this system or via `retryJobPartsReservation()` below -- this function only records
+ * which one the founder picked, satisfying "the user must explicitly choose the
+ * resolution" without inventing mechanisms this story doesn't ask for.
+ */
+export async function resolveJobPartsShortage(
+  businessId: string,
+  jobId: string,
+  resolution: JobPartsShortageResolution,
+  note: string | null,
+): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "jobs.edit");
+
+  const fsm = await fsmClient();
+  const { data: job, error: jobError } = await fsm
+    .from("jobs")
+    .select("parts_reservation_status")
+    .eq("id", jobId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (jobError) throw jobError;
+  if (!job?.parts_reservation_status || job.parts_reservation_status === "reserved") {
+    throw new Error("This job has no parts shortage to resolve.");
+  }
+
+  const { error } = await fsm
+    .from("jobs")
+    .update({ parts_shortage_resolution: resolution, parts_shortage_resolution_note: note, parts_shortage_resolved_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("business_id", businessId);
+  if (error) throw error;
+}
+
+/**
+ * The "retry" side of INT-03.2's own deferred idempotency note: clears a job's
+ * reservation outcome (and any prior shortage resolution, now moot) and re-runs
+ * `reserveJobParts()` -- e.g. after the founder chose "await replenishment" and stock
+ * has since arrived. A deliberate, explicit user action, never automatic (no background
+ * poller/cron watching for restocks -- Rule 6 territory this story doesn't need).
+ */
+export async function retryJobPartsReservation(businessId: string, jobId: string): Promise<void> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "jobs.edit");
+
+  const fsm = await fsmClient();
+  const { error } = await fsm
+    .from("jobs")
+    .update({
+      parts_reservation_status: null,
+      parts_reservation_detail: null,
+      parts_reservation_checked_at: null,
+      parts_shortage_resolution: null,
+      parts_shortage_resolution_note: null,
+      parts_shortage_resolved_at: null,
+    })
+    .eq("id", jobId)
+    .eq("business_id", businessId);
+  if (error) throw error;
+
+  await reserveJobParts(businessId, jobId);
 }

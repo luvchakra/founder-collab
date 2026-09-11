@@ -8,6 +8,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@cofounderai/core/ui/dialog";
@@ -26,7 +27,7 @@ import { formatDateTime } from "@cofounderai/core/lib/format";
 import type { CustomFieldWithValue } from "../../lib/custom-fields/types";
 import type { Expense } from "../../lib/expenses/types";
 import type { JobAttachmentItem } from "../../lib/attachments/types";
-import type { AuditLogEntry, Job, JobStatus } from "../../lib/jobs/types";
+import type { AuditLogEntry, Job, JobPartsShortageResolution, JobStatus } from "../../lib/jobs/types";
 import type { NoteItem, NoteVisibility } from "../../lib/notes/types";
 import type { SignatureItem } from "../../lib/signatures/types";
 import type { Tag } from "../../lib/tags/types";
@@ -53,6 +54,13 @@ const RESERVATION_STATUS_LABEL: Record<NonNullable<Job["parts_reservation_status
   reserved: "Reserved",
   partially_reserved: "Partially reserved",
   unavailable: "Unavailable",
+};
+
+const SHORTAGE_RESOLUTION_LABEL: Record<JobPartsShortageResolution, string> = {
+  await_replenishment: "Wait for replenishment",
+  substitute_item: "Substitute item",
+  reschedule_job: "Reschedule the job",
+  obtain_manually: "Obtain manually (outside this system)",
 };
 
 export function JobDetail({
@@ -102,6 +110,8 @@ export function JobDetail({
   sendMessageAction,
   inventoryLicensed,
   materialRequirement,
+  resolveShortageAction,
+  retryReservationAction,
 }: {
   job: Job;
   partyName: string;
@@ -149,6 +159,8 @@ export function JobDetail({
   sendMessageAction: (body: string, subject?: string) => Promise<void>;
   inventoryLicensed: boolean;
   materialRequirement: JobMaterialRequirementLine[];
+  resolveShortageAction: (resolution: JobPartsShortageResolution, note: string) => Promise<void>;
+  retryReservationAction: () => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [description, setDescription] = useState(job.description ?? "");
@@ -156,6 +168,8 @@ export function JobDetail({
   const [newTag, setNewTag] = useState("");
   const [holdOpen, setHoldOpen] = useState(false);
   const [holdReason, setHoldReason] = useState("");
+  const [shortageResolution, setShortageResolution] = useState<JobPartsShortageResolution>(job.parts_shortage_resolution ?? "await_replenishment");
+  const [shortageNote, setShortageNote] = useState(job.parts_shortage_resolution_note ?? "");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -472,6 +486,56 @@ export function JobDetail({
                     );
                   })}
                 </ul>
+
+                {job.parts_reservation_status === "partially_reserved" || job.parts_reservation_status === "unavailable" ? (
+                  <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                    {job.parts_shortage_resolution ? (
+                      <p className="text-sm">
+                        Resolution: <span className="font-medium">{SHORTAGE_RESOLUTION_LABEL[job.parts_shortage_resolution]}</span>
+                        {job.parts_shortage_resolution_note ? <span className="text-muted-foreground"> -- {job.parts_shortage_resolution_note}</span> : null}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">This job is short on parts. Choose how to handle it.</p>
+                    )}
+                    {canEdit ? (
+                      <>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="shortage-resolution">Resolution</Label>
+                            <NativeSelect
+                              id="shortage-resolution"
+                              value={shortageResolution}
+                              onChange={(e) => setShortageResolution(e.target.value as JobPartsShortageResolution)}
+                            >
+                              {(Object.entries(SHORTAGE_RESOLUTION_LABEL) as [JobPartsShortageResolution, string][]).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </NativeSelect>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="shortage-note">Note (optional)</Label>
+                            <Input id="shortage-note" value={shortageNote} onChange={(e) => setShortageNote(e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={pending}
+                            onClick={() => run(() => resolveShortageAction(shortageResolution, shortageNote), "Resolution recorded.")}
+                          >
+                            {job.parts_shortage_resolution ? "Update resolution" : "Record resolution"}
+                          </Button>
+                          <Button size="sm" disabled={pending} onClick={() => run(retryReservationAction, "Reservation retried.")}>
+                            Retry reservation
+                          </Button>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
               </>
             )}
           </TabsContent>

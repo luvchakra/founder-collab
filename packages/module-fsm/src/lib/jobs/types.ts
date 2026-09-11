@@ -16,6 +16,14 @@ export type JobPartsShortfallLine = {
   shortfall: number;
 };
 
+/** INT-03.3: the founder's explicit choice of how to handle a shortage
+ * (`parts_reservation_status` of `partially_reserved`/`unavailable`) -- orthogonal to
+ * that status, which stays Inventory's own live truth; this records what the founder
+ * decided to do about it. "Reschedule" and "substitute" point at existing/future
+ * mechanisms elsewhere (Schedule, INT-05.2's own substitution recommendation) rather
+ * than duplicating them here -- this column only records the decision itself. */
+export type JobPartsShortageResolution = "await_replenishment" | "substitute_item" | "reschedule_job" | "obtain_manually";
+
 export interface Job {
   id: string;
   business_id: string;
@@ -35,6 +43,9 @@ export interface Job {
   parts_reservation_status: JobPartsReservationStatus | null;
   parts_reservation_detail: JobPartsShortfallLine[] | null;
   parts_reservation_checked_at: string | null;
+  parts_shortage_resolution: JobPartsShortageResolution | null;
+  parts_shortage_resolution_note: string | null;
+  parts_shortage_resolved_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
