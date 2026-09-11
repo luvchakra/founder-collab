@@ -39,7 +39,7 @@ only genuine architectural/key decisions are raised.
 | | 06.3 | Buyer Intelligence | Done |
 | | 07.1 | Next Best Action | Done |
 | | 07.2 | Today's Opportunities | Done |
-| | 07.3 | Opportunity Detail | Not started |
+| | 07.3 | Opportunity Detail | Done |
 | D | 08.1 | Offering-Aware CRM Handoff | Not started |
 | | 08.2 | Existing Relationship Detection | Not started |
 | | 08.3 | Handoff Status | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**21 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**22 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1251,3 +1251,69 @@ that the page/query/component chain typechecks and builds end to end.
 
 **Status**: 21 of 68 in-scope stories done -- Phase C continuing. Next: 07.3, Opportunity
 Detail.
+
+### 07.3 — Opportunity Detail (2026-09-11)
+
+The doc's own ten-section list (Score/Why Now/Why Them/Primary Contact/Signals/Evidence/
+Research Brief/Recommended Action/History/Feedback) turned out to be almost entirely
+*already real data* by this point in the run -- nine of the ten stories before this one
+(05.1-07.2) exist specifically to produce these fields, so this story's actual job was
+composition and layout, not new domain logic. One deliberate omission: **Feedback** has
+no real capture mechanism anywhere in this module -- `DISC-OFFER-P1-04.1`/`P1-04.2`
+("Learn From User Edits"/"Learn From Outcomes") explicitly own building that as their own
+future P1 stories. Building a feedback widget with nothing behind it now would be the
+same speculative-functionality CLAUDE.md dev principle #7 forbids that 06.2 already
+declined for "Recommended Action" a story early; omitted with an explanation in the
+component's own doc comment rather than silently, the same way 03.2/03.3 documented their
+own omitted sections. **History** is real but modest: `discovery.opportunities` has no
+per-opportunity change log of its own, so it shows the opportunity's genuine own
+timestamps (created/last evaluated/last updated) plus the prospect's real score history
+(`prospect_scores`, already tracked) rather than inventing an audit trail this module
+doesn't actually keep -- labeled "Prospect score history" specifically so it doesn't
+overclaim to be the opportunity's own event log.
+
+New route `.../products/[productId]/opportunities/[opportunityId]/page.tsx` fetches the
+opportunity (guarding it belongs to this workspace) plus its prospect, signals (05.3),
+research/evidence (06.1), research brief (06.2), buyer intelligence (06.3, reduced to its
+own strongest real candidate via `computeBuyerFitScores`, the same selection 07.2's
+dashboard row already uses for "Contact" -- one "who's the primary contact" rule, not
+two), and ten most-recent prospect scores. New `OpportunityDetail` component renders all
+nine real sections plus a grouped "Actions" block at the top ("actions must be clearly
+grouped," doc's own words) holding the one action this view owns directly: a manual
+status override via the previously-unwired `setOpportunityStatus` (05.1). Deliberately
+excluded `sent_to_crm` from the status picker's own options -- that transition is Epic
+08's own "Offering-Aware CRM Handoff" (08.1), which defines the actual payload (account,
+contact, score, why them/now, research brief, signals, recommended action, discovery
+definition -- 08.1's own literal list) a real handoff needs to carry; a bare status flip
+here would let an opportunity claim `sent_to_crm` with none of that context ever actually
+sent, so the picker's own helper text points at the prospect page's existing "Send to
+CRM" button instead (the real handoff path today, pending 08.1's own offering-aware
+rework).
+
+Closed the loop with 07.2: the dashboard's own Company link previously pointed at the
+prospect's detail page specifically because no opportunity detail page existed yet ("a
+dead link otherwise") -- now that this story adds one, repointed both the mobile-card and
+desktop-table links at the new `/opportunities/[opportunityId]` route, since that is now
+the more directly relevant destination for a dashboard row about *this specific
+opportunity*. The opportunity detail view still cross-links back to the prospect page
+(company name heading, "view full buyer intelligence," "generate one on the prospect
+page") for anything this view intentionally didn't duplicate.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- caught and fixed
+one real mismatch: a `<form action={...}>` prop needs a void-returning server action per
+Next.js's own typing, not one returning `{error}|{success}`, so
+`updateOpportunityStatusAction` matches `updateProspectStatusAction`'s own existing
+void-returning shape instead of inventing a second convention), `lint:boundaries` (1038
+files, no violations), `lint:migrations` (112 migrations, no violations -- no schema
+change this story), `npm run lint` (0 errors, 1 pre-existing unrelated warning), `npm run
+test -w @cofounderai/module-discovery` (87/87, unchanged -- composition/UI only, no new
+pure logic to test), and a clean `next build` (confirmed both the list and detail
+`/opportunities` routes build and appear in the route list). Same
+live-browser-walkthrough constraint noted in every prior story this run -- particularly
+relevant here since, per 07.2's own note, `discovery.opportunities` still has no live
+rows in this dev environment (the signal-matching pipeline that creates them is Phase E),
+so this view's populated-data rendering is exercised only by typecheck/build against the
+real schema, not by an actual click-through with a real row on screen.
+
+**Status**: 22 of 68 in-scope stories done -- **Phase C complete**. Next: Phase D, 08.1
+Offering-Aware CRM Handoff.
