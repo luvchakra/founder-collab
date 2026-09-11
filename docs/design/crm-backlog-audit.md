@@ -291,6 +291,29 @@ cards-only layout, with the row's own inline status-change form as its edit affo
 Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
 module-crm's vitest suite, and the CRM RLS test suite.
 
+## CRM-04.2 (2026-09-11)
+
+Adds the Opportunity Pipeline: `ensureDefaultStages()` lazily provisions the backlog's
+default pipeline (new -> qualification -> discovery -> proposal -> negotiation ->
+won/lost) the first time a business opens Opportunities -- idempotent (a business with
+stages already is left alone), and safe under a race since `crm.opportunity_stage`'s own
+`unique (business_id, key)` constraint (CRM-01.2) already prevents duplicates even if two
+requests raced. `updateOpportunityStage()` is the drag/drop endpoint: writes
+`core.audit_log` (new `crm_opportunity.stage_changed` labels) and publishes
+`crm.opportunity.stage_changed` (+ `won`/`lost` on a terminal transition) -- satisfying
+"drag/drop stage change with audit event" for real, not just a UI gesture with no
+record. Dropping onto a `is_won`/`is_lost` stage also flips the opportunity's own
+`status` so it's never `open` while sitting in a terminal column.
+
+UI: a new Opportunities route with Kanban (default) and List views toggled via `?view=`
+(mirroring module-fsm's own day/week toggle). Kanban drag-and-drop uses native HTML5
+drag events -- no new dependency, mirroring module-fsm's schedule-calendar.tsx exactly.
+List view follows the same real-table-on-desktop/cards-below-`md` pattern as the Leads
+page. New "Opportunities" nav entry alongside Leads under Sales.
+
+Verified with full monorepo typecheck, a clean `next build`, `lint:boundaries`,
+module-crm's vitest suite, and the CRM RLS test suite.
+
 ## No unrelated module changed
 
 Every story above touches only `docs/design/`, this audit note, `supabase/migrations/`

@@ -163,7 +163,10 @@ export const moduleRegistry: ModuleManifest[] = [
       { heading: "Overview", items: [{ label: "Inbox", slug: "", icon: "Inbox" }] },
       {
         heading: "Sales",
-        items: [{ label: "Leads", slug: "leads", icon: "Users" }],
+        items: [
+          { label: "Leads", slug: "leads", icon: "Users" },
+          { label: "Opportunities", slug: "opportunities", icon: "Target" },
+        ],
       },
       {
         heading: "Administration",
@@ -173,7 +176,7 @@ export const moduleRegistry: ModuleManifest[] = [
         ],
       },
     ],
-    features: ["Unified inbox across channels", "Channel connections", "Automated routing rules", "Lead lifecycle tracking"],
+    features: ["Unified inbox across channels", "Channel connections", "Automated routing rules", "Lead lifecycle tracking", "Opportunity pipeline"],
     permissions: ["crm.access"],
     optionalPeers: ["discovery", "fsm", "inventory", "gst"],
   },
