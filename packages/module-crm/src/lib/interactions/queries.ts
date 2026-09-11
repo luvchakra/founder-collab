@@ -1,5 +1,6 @@
 import { createClient } from "../../db/server";
 import type { Interaction } from "./types";
+import type { Conversation, ConversationDetail, ConversationParticipant } from "../conversations/types";
 
 /** CRM-01.3's `getOpenCommercialInteractions()` contract operation -- CRM-09's own Lost
  * Opportunity Engine (intent classification, SLA, the "Potential Lost Business" queue
@@ -35,8 +36,11 @@ export async function listInteractionsForParty(businessId: string, partyId: stri
   return data as Interaction[];
 }
 
-/** CRM-01.3's `getConversation()` contract operation. */
-export async function getConversationById(businessId: string, conversationId: string) {
+/** CRM-01.3's `getConversation()` contract operation. Explicitly typed (not left to the
+ * untyped crm-schema client's own inference) so callers -- like CRM-06.2's inbox --
+ * get real `Interaction[]`/`ConversationParticipant[]` types on the result instead of
+ * `any` collapsing the whole object. */
+export async function getConversationById(businessId: string, conversationId: string): Promise<ConversationDetail | null> {
   const supabase = await createClient();
   const { data: conversation, error: conversationError } = await supabase
     .from("conversation")
@@ -60,5 +64,9 @@ export async function getConversationById(businessId: string, conversationId: st
     .order("occurred_at", { ascending: true });
   if (interactionsError) throw interactionsError;
 
-  return { ...conversation, participants: participants ?? [], interactions: (interactions ?? []) as Interaction[] };
+  return {
+    ...(conversation as Conversation),
+    participants: (participants ?? []) as ConversationParticipant[],
+    interactions: (interactions ?? []) as Interaction[],
+  };
 }
