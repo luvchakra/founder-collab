@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyMetaSignature, verifyMetaSubscription } from "@cofounderai/module-crm/lib/webhooks/verify-meta-signature";
-import { ingestInboundCrmMessage } from "@cofounderai/module-crm/lib/tickets/ingest-inbound-message";
+import { ingestInboundSocialMessage } from "@cofounderai/module-crm/lib/social/ingest-inbound-message";
 
 /**
  * Combined Instagram DM + Facebook Page Messenger webhook (docs/design/
@@ -8,6 +8,12 @@ import { ingestInboundCrmMessage } from "@cofounderai/module-crm/lib/tickets/ing
  * Graph API and app review process, so one integration with two provider values, not
  * two separate builds). Point the Meta App dashboard's Instagram *and* Messenger
  * webhook subscriptions at this same URL.
+ *
+ * CRM-08.2/08.3: the ingest call below moved from `ingestInboundCrmMessage()` (the old
+ * ticket model) to `ingestInboundSocialMessage()` (the new interaction/conversation
+ * model) -- everything else in this route (signature verification, the subscription
+ * handshake, the payload shape it parses) is unchanged, reused as-is per
+ * docs/design/crm-backlog-audit.md's retirement table.
  */
 
 /** Meta's one-time webhook-registration handshake -- see verify-meta-signature.ts. */
@@ -60,7 +66,7 @@ export async function POST(request: Request) {
       const text = messagingEvent.message?.text;
       if (!senderHandle || !text) continue;
 
-      const result = await ingestInboundCrmMessage({ provider, externalAccountId, senderHandle, text });
+      const result = await ingestInboundSocialMessage({ provider, externalAccountId, senderHandle, text });
       results.push(result);
     }
   }

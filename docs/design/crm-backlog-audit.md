@@ -1448,3 +1448,78 @@ epic). The remaining five (14.1, 14.3-14.6) are P1, next in Section 7's sequence
 
 **All P0 stories are now complete** (46 of 46, seq #1-46). The P1 run begins next at
 seq #47 (CRM-08.2, Facebook Messenger Inbound).
+
+## CRM-08.2 + CRM-08.3 (2026-09-11)
+
+"Facebook Messenger Inbound" / "Instagram Messaging Inbound" -- both combined here for
+the same reason `api/webhooks/crm-meta/route.ts`'s own doc comment already gives:
+Instagram DM and Facebook Page Messenger are reached through the identical Meta Graph API
+webhook shape, one route with two `provider` values, not two separate builds. Acceptance
+criteria (both stories, effectively identical): receive eligible page conversations, map
+to `interaction` + `conversation`, reuse party matching, add `requires_response` as
+needed.
+
+**CRM-08.1 ("Social Provider Abstraction") is not in Section 7's own sequence** -- it
+defines a `connect/receiveEvent/listInteractions/sendReply/getThread` interface, the
+social analog of CRM-07.1's `WhatsAppProviderAdapter`, but Section 7 jumps straight from
+seq #46 to seq #47 (CRM-08.2), skipping it. No full adapter interface was built here
+either, matching the sequence's own omission -- this story's actual acceptance criteria
+(receive + map, nothing about `sendReply`/`getThread`) don't need one yet, and building
+the full CRM-08.1 interface ahead of any story that actually calls its other four methods
+would be exactly the "speculative functionality" CLAUDE.md rule 7 rules out.
+
+**The real design decision: which table resolves the webhook's tenant.** `crm-meta`'s
+existing webhook (built for the pre-backlog ticket model) already resolves "which
+business owns this Page/Instagram account" via `crm.channel_accounts` -- a real, working,
+already-connected-in-practice table with its own admin UI (`/crm/channels`, still live,
+unretired). No story in the required sequence charters a *new* `channel_connection`-based
+connect flow for Instagram/Facebook (unlike WhatsApp, where CRM-07.2 explicitly did
+exactly that) -- CRM-08.2/08.3's own acceptance criteria only ask for the inbound
+*mapping*, not a new connection mechanism. Per the retirement table's own discipline
+("each old piece is retired by the specific story chartered to rebuild its function"),
+`crm.channel_accounts`'s connection-resolution role for these two providers is therefore
+*not* retired by this story -- only its *ingest destination* changes.
+
+**What actually changed**: a new `lib/social/ingest-inbound-message.ts#ingestInboundSocialMessage()`
+replaces `lib/tickets/ingest-inbound-message.ts#ingestInboundCrmMessage()` as
+`api/webhooks/crm-meta/route.ts`'s POST handler's ingest call -- signature verification,
+the GET subscription handshake, and the payload parsing are all reused as-is. The new
+function: looks up the connection via the existing (unretired)
+`getConnectedChannelAccountByExternalId()`, then calls `recordInteraction()` with
+`channel: "instagram" | "facebook_messenger"` -- which by itself satisfies all three
+remaining acceptance criteria for free, since `recordInteraction()` already does CRM-06.4
+party matching (falls through to the party-less "unresolved sender" path here, same as an
+unmatched WhatsApp sender, since neither social provider has a phone/email to match on)
+and CRM-09.1's `requires_response` rules engine (correctly evaluates to `false` for both
+providers today -- neither is in `SUPPORTED_RESPONSE_CHANNELS` yet, since no send-reply
+story for either exists in the required sequence; that list's own doc comment already
+names "CRM-08.x social" as a future extension point).
+
+**Deliberately dropped, not carried forward**: the old ingest function's
+`instant_reply_mode` auto-reply (`instant_ack_then_human`, `draft_approve`) and its
+auto-routing-rule assignment on ticket creation. Neither is asked for by CRM-08.2/08.3's
+own acceptance criteria, and an unconditional automatic reply on first contact runs
+against the platform's post-CRM-09 human-in-the-loop direction (CRM-09.6's own "draft
+only, no auto-send"; backlog rule #11) rather than merely being an unbuilt nice-to-have.
+Auto-routing-on-ingest is the same already-accepted gap CRM-07.3/07.4 left open for
+WhatsApp (CRM-06.3's "Conversation Assignment" is manual/audited, not rule-based-on-
+ingest) -- not a new omission specific to social.
+
+`lib/tickets/ingest-inbound-message.ts#ingestInboundCrmMessage()` itself is now fully
+unused (WhatsApp's own call site was already removed by CRM-07.3; this was its last real
+caller) -- left in place rather than deleted, per this whole session's "retire by
+building the replacement, not by deleting the old piece" discipline; an explicit decision
+to actually remove it is a separate, smaller cleanup someone can make later.
+
+No new migration (channel already accepts `instagram`/`facebook_messenger` as
+`crm.interaction.channel` values, CRM-01.2's own baseline). No new RLS-harness cases --
+`recordInteraction()`'s party-matching/conversation-creation logic for these exact two
+channel values is already proven by CRM-01.5's own coverage ("an email interaction and an
+Instagram interaction both fit the one crm.interaction table"), and
+`getConnectedChannelAccountByExternalId()` is unchanged, already-relied-upon code, not
+new logic this story introduces. Verified with full monorepo typecheck, `lint:boundaries`,
+module-crm's vitest suite (98/98, unchanged), both CRM RLS suites (re-run clean,
+unchanged), and a clean `next build`.
+
+**Epic CRM-08 status**: 2 of 6 in-scope stories done. Next: CRM-08.4 (Instagram Comment /
+Private Reply Recovery, seq #49).
