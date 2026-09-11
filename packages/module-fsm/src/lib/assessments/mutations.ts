@@ -1,6 +1,16 @@
 import { createClient } from "../../db/server";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import type { Assessment, CreateAssessmentInput } from "./types";
+import { requireModule } from "@cofounderai/core/licensing/queries";
+import type { Assessment, AssessmentOutcome, CreateAssessmentInput } from "./types";
+
+export const ASSESSMENT_OUTCOME_LABEL: Record<AssessmentOutcome, string> = {
+  scope_confirmed: "Scope confirmed",
+  scope_changed: "Scope changed",
+  additional_work_identified: "Additional work identified",
+  not_feasible: "Not feasible",
+  customer_unavailable: "Customer unavailable",
+  follow_up_required: "Follow-up required",
+};
 
 /**
  * INT-04.2's own creation path. "Duplicate assessment creation prevented" is enforced
@@ -40,6 +50,36 @@ export async function createAssessment(businessId: string, input: CreateAssessme
       source: "crm",
       source_reference: input.crmOpportunityId || null,
     })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Assessment;
+}
+
+/**
+ * INT-04.3's "Assessment Outcome -> CRM Opportunity" -- FSM remains authoritative for
+ * the visit/assessment itself, so this is a plain FSM-internal mutation (not part of
+ * `contract/index.ts` -- that's the CRM-facing boundary; FSM's own staff record the
+ * outcome from FSM's own assessment page, CRM never writes it). Sets `status` from the
+ * outcome recorded (`not_feasible` maps to the matching status, everything else means
+ * the visit happened and is now `completed`) -- one human action updates both fields
+ * together rather than leaving them to drift out of sync.
+ */
+export async function recordAssessmentOutcome(businessId: string, assessmentId: string, outcome: AssessmentOutcome, outcomeNotes: string | null): Promise<Assessment> {
+  await requireModule(businessId, "fsm");
+  await requirePermission(businessId, "assessments.manage");
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("assessments")
+    .update({
+      outcome,
+      outcome_notes: outcomeNotes,
+      status: outcome === "not_feasible" ? "not_feasible" : "completed",
+      completed_at: new Date().toISOString(),
+    })
+    .eq("id", assessmentId)
+    .eq("business_id", businessId)
     .select("*")
     .single();
   if (error) throw error;

@@ -1,6 +1,12 @@
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import { createFsmQuoteFromCrmOpportunity, acceptFsmQuoteAndCreateJob, getFsmQuoteStatus, createFsmAssessmentFromCrmOpportunity } from "@cofounderai/module-fsm/contract/index";
+import {
+  createFsmQuoteFromCrmOpportunity,
+  acceptFsmQuoteAndCreateJob,
+  getFsmQuoteStatus,
+  createFsmAssessmentFromCrmOpportunity,
+  getAssessmentStatus,
+} from "@cofounderai/module-fsm/contract/index";
 import { createFulfillmentRequest } from "@cofounderai/module-inventory/contract/index";
 import { getProspectSummaryForParty } from "@cofounderai/module-discovery/contract/index";
 import { getPrimaryAddress } from "@cofounderai/core/addresses/queries";
@@ -147,12 +153,21 @@ export async function createFsmQuoteForOpportunity(businessId: string, opportuni
 
   const { data: opportunity, error: opportunityError } = await supabase
     .from("opportunity")
-    .select("id, party_id, fsm_opportunity_id")
+    .select("id, party_id, fsm_opportunity_id, assessment_requirement, assessment_request_id")
     .eq("id", opportunityId)
     .eq("business_id", businessId)
     .single();
   if (opportunityError) throw opportunityError;
   if (opportunity.fsm_opportunity_id) throw new Error("An FSM quote already exists for this opportunity.");
+
+  const requirement = opportunity.assessment_requirement as AssessmentRequirement | null;
+  if (requirement && requirement !== "none") {
+    if (!opportunity.assessment_request_id) throw new Error("Complete the required assessment before creating an FSM quote.");
+    const assessmentStatus = await getAssessmentStatus(businessId, opportunity.assessment_request_id);
+    if (!assessmentStatus.ok || !assessmentStatus.data.outcome) {
+      throw new Error("The required assessment hasn't been completed yet.");
+    }
+  }
 
   const products = await listOpportunityProducts(businessId, opportunityId);
   if (products.length === 0) throw new Error("Add at least one product before creating an FSM quote.");

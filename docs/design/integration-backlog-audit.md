@@ -32,7 +32,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 03.5 | Parts Returned / Unused -> Inventory | Done |
 | INT-04 (P0) | 04.1 | Opportunity Requires Assessment | Done |
 | | 04.2 | Create FSM Assessment Request | Done |
-| | 04.3 | Assessment Outcome -> CRM Opportunity | Not started |
+| | 04.3 | Assessment Outcome -> CRM Opportunity | Done |
 | | 04.4 | Assessment -> Quote Continuation | Not started |
 | INT-05 (P1) | 05.1 | Partial Availability Decision | Not started |
 | | 05.2 | Inventory Substitution Recommendation | Not started |
@@ -48,7 +48,7 @@ entry below is the source of truth; this table is the at-a-glance summary of it)
 | | 08.2 | Unified Journey Timeline | Not started |
 | | 08.3 | Context-Preserving Navigation | Not started |
 
-**P0 (INT-01 through INT-04): 14/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 14/29 (48%).**
+**P0 (INT-01 through INT-04): 15/16 done. P1 (INT-05 through INT-08): 0/13 done. Overall: 15/29 (52%).**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -284,3 +284,15 @@ New contract functions `createFsmAssessmentFromCrmOpportunity()`/`getAssessmentS
 Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries` (955 files, no violations), `lint:migrations` (91 migrations, no violations), module-crm's vitest suite (152/152, unchanged), live migration applications to the dev Supabase project (the table, the two missing indexes, the CRM pointer column, the permission seed) followed by `get_advisors` for both `security` and `performance` (clean after the index fix, otherwise identical pre-existing findings only), and a clean `next build`.
 
 **Status**: 14 of 29 in-scope stories done. Next: INT-04.3, Assessment Outcome -> CRM Opportunity.
+
+### INT-04.3 — Assessment Outcome -> CRM Opportunity (2026-09-11)
+
+The outcome vocabulary itself (`scope_confirmed`/`scope_changed`/`additional_work_identified`/`not_feasible`/`customer_unavailable`/`follow_up_required`) and its storage (`fsm.assessments.outcome`/`outcome_notes`) already existed from INT-04.2's own schema; what was missing was a way to actually *set* it and something for the founder to *do* once it's set. New `recordAssessmentOutcome()` (`lib/assessments/mutations.ts`) is deliberately **not** part of `contract/index.ts` -- "FSM remains authoritative for visit/assessment" means FSM's own staff record it from FSM's own page, CRM never writes it, so this stays a plain FSM-internal mutation the same way `resolveJobPartsShortage()`/`recordJobPartsConsumption()` are. Sets `status` alongside `outcome` in the same write (`not_feasible` -> matching status, everything else -> `completed`) so the two fields can't drift out of sync.
+
+New minimal FSM page, `/fsm/assessments/[assessmentId]` -- no list page or new sidebar entry (not asked for by this story; reachable via the CRM opportunity page's own new "Open in FSM" link, itself a small down payment on INT-08.3's future cross-module navigation, not a redesign of it). Shows assessment details (resolving contact/address from `core`'s own already-existing `listContactsForParty()`/`listAddressesForParty()` -- no new core query needed) and the outcome-recording form, gated on `assessments.manage` and only while status is `requested`/`scheduled`.
+
+"User can create/update quote only after required assessment conditions are satisfied": `createFsmQuoteForOpportunity()` (CRM) now checks -- if `assessment_requirement` is set to anything other than `none`, quote creation is blocked until `assessment_request_id` exists **and** `getAssessmentStatus()` (already built, INT-04.2) reports a non-null outcome. Reuses the existing contract read, no new mechanism. UI mirrors INT-01.2's own "disabled actions must explain missing prerequisites" rule: the "Create FSM quote" button is disabled with an inline hint rather than only failing after a click.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces, after fixing one `??`/`||` mixed-operator error TypeScript's own parser rejects), `lint:boundaries` (957 files, no violations), module-crm's vitest suite (152/152, unchanged), and a clean `next build` (confirmed the new `/fsm/assessments/[assessmentId]` route is actually built). No migration -- purely additive TypeScript/UI over columns INT-04.2 already created.
+
+**Status**: 15 of 29 in-scope stories done. Next: INT-04.4, Assessment -> Quote Continuation.

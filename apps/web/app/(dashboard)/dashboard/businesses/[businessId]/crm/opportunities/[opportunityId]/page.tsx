@@ -112,6 +112,9 @@ export default async function OpportunityDetailPage({
   const journeyHistory = await listOpportunityJourneyHistory(businessId, opportunityId);
   const fulfillmentCommitment = deriveFulfillmentCommitmentState(fulfillmentStatus?.status ?? "draft");
   const crossModuleAction = journey ? resolveNextCrossModuleAction(journey) : null;
+  // INT-04.3: "User can create/update quote only after required assessment conditions
+  // are satisfied" -- blocked until the required assessment reaches a recorded outcome.
+  const assessmentBlocksQuote = Boolean(opportunity.assessment_requirement) && opportunity.assessment_requirement !== "none" && !assessmentStatus?.outcome;
   const stage = stages.find((s) => s.id === opportunity.stage_id);
   const nextAction = opportunity.next_action_id ? await getActivity(businessId, opportunity.next_action_id) : null;
   const ownerName = (ownerId: string | null) => employees.find((e) => e.id === ownerId)?.full_name ?? null;
@@ -463,15 +466,20 @@ export default async function OpportunityDetailPage({
                 {!serviceAddress ? <p className="text-xs text-muted-foreground">No service address on file for this customer yet.</p> : null}
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge variant="outline" className="capitalize">
-                  {assessmentStatus?.status ?? "requested"}
-                </Badge>
-                {assessmentStatus?.outcome ? (
-                  <Badge variant="secondary" className="capitalize">
-                    {assessmentStatus.outcome.replace(/_/g, " ")}
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <Badge variant="outline" className="capitalize">
+                    {assessmentStatus?.status ?? "requested"}
                   </Badge>
-                ) : null}
+                  {assessmentStatus?.outcome ? (
+                    <Badge variant="secondary" className="capitalize">
+                      {assessmentStatus.outcome.replace(/_/g, " ")}
+                    </Badge>
+                  ) : null}
+                </div>
+                <Link href={`/dashboard/businesses/${businessId}/fsm/assessments/${opportunity.assessment_request_id}`} className="text-sm text-primary underline w-fit">
+                  Open in FSM
+                </Link>
               </div>
             )}
           </CardContent>
@@ -488,12 +496,15 @@ export default async function OpportunityDetailPage({
               <div className="flex flex-col gap-3">
                 <EmptyState icon={Wrench} message="No FSM quote created for this opportunity yet." />
                 <form action={createFsmQuoteAction.bind(null, businessId, opportunityId)}>
-                  <SubmitButton pendingText="Creating..." disabled={products.length === 0}>
+                  <SubmitButton pendingText="Creating..." disabled={products.length === 0 || assessmentBlocksQuote}>
                     Create FSM quote
                   </SubmitButton>
                 </form>
                 {products.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Add at least one product above before creating a quote.</p>
+                ) : null}
+                {assessmentBlocksQuote ? (
+                  <p className="text-xs text-muted-foreground">Record the assessment outcome above before creating a quote.</p>
                 ) : null}
               </div>
             ) : (
