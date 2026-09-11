@@ -174,7 +174,7 @@ export const moduleRegistry: ModuleManifest[] = [
         heading: "Sales",
         items: [
           { label: "Leads", slug: "leads", icon: "Users" },
-          { label: "Opportunities", slug: "opportunities", icon: "Target" },
+          { label: "Sales Opportunities", slug: "opportunities", icon: "Target" },
           { label: "Follow-ups", slug: "follow-ups", icon: "ListTodo" },
         ],
       },

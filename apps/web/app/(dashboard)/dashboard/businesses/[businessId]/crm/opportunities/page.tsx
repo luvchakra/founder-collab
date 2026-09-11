@@ -80,7 +80,7 @@ export default async function CrmOpportunitiesPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Opportunities</h1>
+          <h1 className="text-xl font-semibold">Sales Opportunities</h1>
           <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s pipeline of open deals.</p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border border-border p-1">
