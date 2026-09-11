@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
-import { sendWhatsAppReply, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
+import { sendWhatsAppReply, sendWhatsAppMedia, sendWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/messaging";
 import { checkResponseQuality, type ResponseQualityFlag } from "@cofounderai/module-crm/lib/conversations/response-quality";
 import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/interactions/mutations";
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
@@ -106,6 +106,22 @@ export async function sendWhatsAppReplyAction(businessId: string, conversationId
   if (!text) return { error: "Enter a message to send." };
 
   const result = await sendWhatsAppReply(businessId, conversationId, text);
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);
+  return null;
+}
+
+export type SendWhatsAppMediaActionState = { error: string } | null;
+
+/** Row 77's "CRM-07.6 media expansion": same window-gated shape as the text reply
+ * action above, just for `sendWhatsAppMedia()`. */
+export async function sendWhatsAppMediaAction(businessId: string, conversationId: string, _prevState: SendWhatsAppMediaActionState, formData: FormData): Promise<SendWhatsAppMediaActionState> {
+  const mediaUrl = String(formData.get("mediaUrl") || "").trim();
+  if (!mediaUrl) return { error: "Enter an image URL to send." };
+  const caption = String(formData.get("caption") || "").trim() || null;
+
+  const result = await sendWhatsAppMedia(businessId, conversationId, mediaUrl, caption);
   if (!result.ok) return { error: result.error };
 
   revalidatePath(`/dashboard/businesses/${businessId}/crm/conversations`);

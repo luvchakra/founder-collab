@@ -138,6 +138,71 @@ export async function sendWhatsAppReply(businessId: string, conversationId: stri
 }
 
 /**
+ * Row 77's "CRM-07.6 media expansion" -- the free-form composer's sibling send path for
+ * an image, reusing `whatsAppCloudApiAdapter.sendMedia()` (already built alongside
+ * `sendText()`/`sendTemplate()`, CRM-07.1, but never called from anywhere until now).
+ * Same window-gated, record-before-send, idempotent shape as `sendWhatsAppReply()`
+ * above -- an image send is a free-form message like any other, so CRM-07.7's 24-hour
+ * window applies identically. `mediaUrl` must already be a public URL (Meta's Cloud API
+ * `image.link` field fetches it directly); this story doesn't add a file-upload/hosting
+ * step of its own, since a founder pasting a link to media already hosted somewhere
+ * (product photos, a shared drive) is the simplest real version of "send media" without
+ * building new storage infrastructure this story doesn't otherwise need.
+ */
+export async function sendWhatsAppMedia(businessId: string, conversationId: string, mediaUrl: string, caption: string | null): Promise<SendWhatsAppReplyResult> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "crm_messages.send");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const context = await resolveOutboundContext(supabase, businessId, conversationId);
+  if (!context.ok) return context;
+
+  const windowStatus = computeWhatsAppWindowStatus(context.lastInboundOccurredAt, new Date());
+  if (!windowStatus.withinWindow) {
+    return {
+      ok: false,
+      error: "This conversation's 24-hour WhatsApp customer service window has closed -- send a template message instead.",
+      requiresTemplate: true,
+    };
+  }
+
+  const interaction = await recordInteraction(businessId, {
+    conversationId,
+    channel: "whatsapp",
+    externalActorId: context.recipientPhone,
+    direction: "outbound",
+    contentExcerpt: caption ?? "[Image]",
+    mediaReference: mediaUrl,
+    clientDedupeKey: crypto.randomUUID(),
+  });
+
+  const sendResult = await whatsAppCloudApiAdapter.sendMedia({ phoneNumberId: context.phoneNumberId, accessToken: context.accessToken }, context.recipientPhone, mediaUrl, caption ?? undefined);
+  if (!sendResult.ok) {
+    await markInteractionFailed(businessId, interaction.id, sendResult.error);
+    await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: false, statusCode: sendResult.statusCode });
+    return { ok: false, error: sendResult.error };
+  }
+  if (sendResult.providerMessageId) {
+    await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId);
+  }
+  await applyChannelConnectionHealthResult(businessId, context.connectionId, { ok: true });
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_interaction.sent",
+    entityType: "crm_interaction",
+    entityId: interaction.id,
+    after: { conversationId, channel: "whatsapp", kind: "media" },
+  });
+
+  return { ok: true, interactionId: interaction.id };
+}
+
+/**
  * CRM-07.8's other half: sending a catalog template is the one outbound path that still
  * works once CRM-07.7's 24-hour window has closed (that's the whole reason Meta requires
  * pre-approved templates for it) -- so this deliberately never calls

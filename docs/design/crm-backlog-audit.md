@@ -2815,3 +2815,52 @@ sections, unchanged since CRM-01.6 itself, still pass clean):
 CRM-07.9 "Rich messaging" and CRM-07.10 "Acquisition entrypoint" -- two P1 rows placed
 in the sequence table after the P2 automation block (CRM-13.x, out of scope), easy to
 miss on a linear read but still in this backlog run's 74-story scope.
+
+---
+
+## Seq #77 -- CRM-07.6 media expansion + CRM-07.9 (2026-09-11)
+
+**CRM-07.6 media expansion**: the free-form WhatsApp composer could only send text.
+`whatsAppCloudApiAdapter.sendMedia()` (Meta Graph API `image` message type) already
+existed from CRM-07.1's adapter build-out but was never called from anywhere. Added
+`sendWhatsAppMedia()` in `module-crm/src/lib/whatsapp/messaging.ts`, a thin sibling of
+the existing `sendWhatsAppReply()`: same 24-hour customer-service-window gate
+(`computeWhatsAppWindowStatus`), same record-before-send idempotency shape
+(`recordInteraction()` with a fresh `clientDedupeKey` -> `attachOutboundMessageId()` on
+success / `markInteractionFailed()` on failure), same channel-health and audit-log
+side effects. `mediaUrl` must already be a public URL -- Meta's `image.link` field
+fetches it directly, so this story doesn't add file upload/hosting infrastructure; a
+founder pastes a link to an already-hosted image (product photo, shared drive link).
+
+New server action `sendWhatsAppMediaAction` in `conversations/actions.ts` (same
+`useActionState` error-surfacing pattern as the text-reply action). New client
+component `WhatsAppMediaSendForm` (`conversations/media-send-form.tsx`) -- collapsed
+behind an "Attach image" toggle by default so it doesn't compete with the plain-text
+composer for the conversation's normal case; image URL + optional caption fields.
+Wired into `conversations/page.tsx` alongside the existing `WhatsAppReplyForm`, inside
+the same `withinWindow` conditional (closed-window state already routes to the
+template-only path for both).
+
+**CRM-07.9 "Rich messaging"/status tracking**: investigation found the backend already
+complete -- `ingest-inbound-message.ts`'s `status` event branch (added incidentally
+during CRM-07.x) already persists Meta's pushed sent/delivered/read/failed status onto
+`crm.interaction.metadata.providerStatus` (or the interaction's own `status='failed'`),
+looked up by `external_message_id`. Nothing existed to surface it. Added a
+`deliveryStatus` computation in `conversations/page.tsx`'s interaction-list render (for
+outbound WhatsApp interactions only) reading `status='failed'` first, then
+`metadata.providerStatus`, rendered as a small `Badge` (destructive variant for
+"Failed", outline otherwise) next to the interaction's timestamp.
+
+No new imports crossed the client/server boundary the wrong way this time -- both new
+UI pieces only take a server action's exported state type and plain strings, avoiding
+the CRM-12.4 pitfall documented earlier in this file.
+
+Verified with full monorepo typecheck (clean, all 9 workspaces), `lint:boundaries` (936
+files, no violations -- the one new file, `media-send-form.tsx`), module-crm's vitest
+suite (119/119, unchanged -- no new test-covered logic, `sendWhatsAppMedia()` is a
+straight-line composition of already-tested primitives matching `sendWhatsAppReply()`'s
+own untested shape), and a clean `next build`. No database change -- no migration, no
+RLS harness run needed.
+
+**Status**: 73 of 74 in-scope stories done. Next: seq #78, CRM-07.10 "WhatsApp
+click-to-chat link" -- the last story in this backlog run's 74-story scope.

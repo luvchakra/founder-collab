@@ -41,11 +41,13 @@ import {
   generateConversationSummaryAction,
   markInteractionNotActionableAction,
   removeConversationProductAction,
+  sendWhatsAppMediaAction,
   sendWhatsAppReplyAction,
   sendWhatsAppTemplateAction,
 } from "./actions";
 import { ConversationSummaryCard } from "./conversation-summary-card";
 import { WhatsAppReplyForm } from "./reply-form";
+import { WhatsAppMediaSendForm } from "./media-send-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "resolved"];
@@ -369,6 +371,16 @@ export default async function CrmConversationsPage({
           ) : (
             selected.interactions.map((interaction) => {
               const isHighIntentComment = interaction.interaction_type === "comment" && isHighCommercialIntent(interaction.intent as MessageIntent | null);
+              // Row 77's "CRM-07.9" -- ingest-inbound-message.ts already persists Meta's
+              // pushed sent/delivered/read/failed status onto metadata.providerStatus
+              // (or the interaction's own `status='failed'`) whenever WhatsApp supplies
+              // it; this is that data finally surfaced, not new backend logic.
+              const deliveryStatus =
+                interaction.direction === "outbound" && interaction.channel === "whatsapp"
+                  ? interaction.status === "failed"
+                    ? "Failed"
+                    : ((interaction.metadata as { providerStatus?: string } | null)?.providerStatus ?? null)
+                  : null;
               return (
                 <div key={interaction.id} className={`flex flex-col gap-1 rounded-lg border border-border p-2 text-sm ${interaction.direction === "outbound" ? "ml-6" : "mr-6"}`}>
                   <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -376,7 +388,14 @@ export default async function CrmConversationsPage({
                       {interaction.direction} -- {interaction.channel}
                       {interaction.interaction_type === "comment" ? " comment" : ""}
                     </span>
-                    <span>{formatDateTime(interaction.occurred_at)}</span>
+                    <div className="flex items-center gap-2">
+                      {deliveryStatus ? (
+                        <Badge variant={deliveryStatus === "Failed" ? "destructive" : "outline"} className="capitalize">
+                          {deliveryStatus}
+                        </Badge>
+                      ) : null}
+                      <span>{formatDateTime(interaction.occurred_at)}</span>
+                    </div>
                   </div>
                   <p>{interaction.content_excerpt ?? "(no preview)"}</p>
                   {interaction.requires_response && !interaction.responded_at ? (
@@ -421,13 +440,16 @@ export default async function CrmConversationsPage({
 
         {selected.primary_channel === "whatsapp" ? (
           whatsAppWindow?.withinWindow ? (
-            <WhatsAppReplyForm
-              key={selected.interactions.length}
-              action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)}
-              checkAction={checkResponseQualityAction.bind(null, businessId, selected.id)}
-              suggestedDraft={suggestedReply?.draft || null}
-              suggestedDraftSources={suggestedReply?.sources}
-            />
+            <>
+              <WhatsAppReplyForm
+                key={selected.interactions.length}
+                action={sendWhatsAppReplyAction.bind(null, businessId, selected.id)}
+                checkAction={checkResponseQualityAction.bind(null, businessId, selected.id)}
+                suggestedDraft={suggestedReply?.draft || null}
+                suggestedDraftSources={suggestedReply?.sources}
+              />
+              <WhatsAppMediaSendForm key={`media-${selected.interactions.length}`} action={sendWhatsAppMediaAction.bind(null, businessId, selected.id)} />
+            </>
           ) : (
             <div className="flex flex-col gap-3 border-t border-border pt-3">
               <p className="text-sm text-muted-foreground">
