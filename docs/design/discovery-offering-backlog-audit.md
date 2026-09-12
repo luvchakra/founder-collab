@@ -55,7 +55,7 @@ only genuine architectural/key decisions are raised.
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Done |
 | | 12.2 | External Opportunity Research | Done |
-| | 13.1 | Structured Stage Outputs | Not started |
+| | 13.1 | Structured Stage Outputs | Done |
 | | 14.1 | Discovery Run History | Not started |
 | | 14.2 | Versioned Stage Results | Not started |
 | | 15.1 | Final Human Action Gate | Not started |
@@ -2482,3 +2482,119 @@ environment).
 
 **Status**: 37 of 68 in-scope stories done -- Phase E continuing. Next: 13.1, Structured
 Stage Outputs.
+
+### 13.1 — Structured Stage Outputs (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading either (same as 10.2) -- just
+three worked examples (ICP, signal intelligence, research) and one closing line: "The UI
+must render these structures as editable fields." Treated it as an audit-and-close-gaps
+story against those three examples specifically, not a license to touch every stage:
+checked each example's own field list against what this module already persists and
+renders before writing anything, per this run's own "don't build what already exists"
+discipline.
+
+**Signal intelligence** (`signals[]`/`correlations[]`/`opportunity_hypotheses[]`) is
+already fully real: `discovery.signals` (05.3) and `discovery.signal_correlations` (05.3)
+are exactly `signals[]`/`correlations[]`, and a correlation's own `rationale` field *is*
+the doc's "opportunity hypothesis" (its own doc comment already says so -- "New CISO + 12
+IAM openings + Identity modernization activity = High-confidence IAM opportunity" is a
+hypothesis, not a raw fact list). Confirmed it's genuinely rendered, not just persisted:
+`getOpportunityDashboardRows` (07.2) already surfaces `correlation.rationale` as
+`topSignal`, and `opportunities-dashboard.tsx` renders it in both the desktop table and
+mobile cards. No gap, no code change -- documenting the mapping here since the doc's
+example vocabulary (`opportunity_hypotheses[]`) doesn't literally appear anywhere in the
+codebase and a future story could otherwise mistake this for missing.
+
+**Research** (`company_summary`/`offering_fit`/`why_them`/`why_now`/`buyer`/`evidence[]`/
+`confidence`) is also already fully real and rendered, spread across four existing
+concepts rather than one: `company_summary` = `ProspectResearch.summary` (06.1, rendered
+on the prospect detail page, `apps/web/.../prospects/[prospectId]/page.tsx`);
+`offering_fit` = `ResearchBrief.offering_fit` (06.2); `why_them`/`why_now` = `Opportunity`
+fields (05.1/05.4); `buyer` = `BuyerPersonIntelligence` (06.3); `evidence[]` =
+`ProspectResearch.evidence` (06.1, extended by 12.2); `confidence` appears on both
+`ResearchBrief.confidence` and `Opportunity.confidence`/`why_now_confidence`. Every one of
+these is rendered on either the prospect detail page or the Opportunity Detail page
+(07.3) -- confirmed by reading both files directly, not just grepping `module-discovery`'s
+own `src/components` (which has no research UI of its own; both live consumers are
+`apps/web` route files, the same shape 06.1's own audit entry already flagged once
+before). No gap, no code change.
+
+**ICP** (`industries[]`/`company_size`/`geographies[]`/`technologies[]`/`pain_points[]`/
+`buyer_roles[]`/`disqualifiers[]`/`confidence`/`evidence[]`) is where the real, genuine gap
+was: every list field already exists on `discovery.icp_profiles` under its own name
+(`industries`/`company_sizes`/`geographies`/`technology`/`pain_points`/`roles`/
+`exclusions`, all rendered as editable `IcpField`s since 02.2/11.1) -- but `confidence` and
+`evidence` did not exist anywhere on the ICP at all. Closed that gap:
+
+- Migration (`20260912090000_discovery_icp_confidence_evidence.sql`): adds
+  `confidence numeric check (0-1)` (nullable, no default -- NOT `not null default 0` like
+  `website_onboarding_offering_candidates.confidence`'s own precedent, because that
+  column is being retrofitted onto rows that may predate this story; a bare `0` would
+  misread as "computed, and found maximally unconfident" rather than the true "never
+  computed," the same "absence of evidence isn't evidence of absence" precision
+  05.2/05.5 already established) and `evidence text[] not null default '{}'` (a plain
+  array of short quotes/paraphrases from the product profile, matching every sibling
+  column already on this table -- deliberately NOT the richer `EvidenceItem` object shape
+  `lib/research/types.ts` uses for prospect research/buyer intelligence, since that
+  shape's `source_url`/`observed_at`/`supporting_signal`/`source_type` fields exist to
+  distinguish multiple, dated, first-party-vs-external sources gathered across several
+  calls -- a single-call synthesis over one already-approved `ProductProfile` has none of
+  that to distinguish, and forcing the fuller shape would only produce nulled-out noise).
+- `IcpProfileSchema` (`lib/ai/schemas.ts`) gained matching `confidence`/`evidence` fields.
+  New `prompts/icp/generate_icp_v2.ts` (v1 left untouched and unimported, same
+  "new version file, old one kept for provenance" convention `research_prospect_v3.ts`
+  already established over `v2`) adds explicit prompt guidance for both, mirroring
+  `understand_product_v1.ts`'s own explicit "set confidence lower/higher" instruction
+  rather than relying on the Zod `.describe()` text alone. `generateIcp` now writes both
+  fields from the AI draft.
+- `updateIcpProfile` (manual "Save changes") now also resets `confidence`/`evidence` to
+  `null`/`[]`, not just `status` to `draft`: both describe how well the *pre-edit* claims
+  were grounded in the product profile, and once a founder hand-edits any field that
+  assessment no longer honestly describes what's now on the row -- the same "don't let a
+  stale AI judgment linger over content a human has since changed" reasoning the existing
+  `status` reset already applies, not a new precedent.
+- `cloneIcpProfileToWorkspace` deliberately does NOT copy `source.confidence`/
+  `source.evidence` onto the cloned row (unlike every other field, which it does copy) --
+  a genuine judgment call, flagged here rather than silently applied: the source ICP's
+  evidence quotes trace to the *source offering's own* product profile, and carrying them
+  onto a different offering's ICP would misrepresent evidence about one product as
+  support for another's. Left `null`/`[]`, same as any offering whose ICP has never been
+  (re)generated, until this offering's own `generateIcp` call computes real values.
+- UI (`icp/page.tsx`): a small read-only block (rounded border, matching the page's own
+  existing section style) renders `confidence` as a rounded percentage (same
+  "Confidence: NN%" plain-text pattern `product-overview-shell.tsx` already uses for
+  `ProductProfile.confidence`, not the `low`/`medium`/`high` `ConfidenceBadge` used
+  elsewhere in this module for a different, enum-shaped confidence) and `evidence` as a
+  plain bulleted list, shown only when either has a value -- absent entirely for an ICP
+  never regenerated since this story, or right after a manual edit clears them, rather
+  than showing a misleading "0%"/empty list. Read-only by design, not wired into the
+  editable form: `confidence`/`evidence` are the AI's own provenance judgment about the
+  *other* fields, not domain content a founder types -- the same read-only treatment this
+  module already gives `Opportunity.confidence`/`ResearchBrief.confidence`/
+  `ProductProfile.confidence`, none of which are manually editable either, despite ICP's
+  own list fields being fully editable since 02.2. Confirmed no other consumer needed
+  updating: `icpFieldsToRow`/`IcpFieldsInput` (the manual-edit path) and
+  `listCloneableIcpSourcesForBusiness` (a `name`/`workspace_id`-only projection) don't
+  touch these columns at all.
+
+No new table -- checked the entity-ownership map (`docs/plan/00-MASTER-PLAN.md` §5)
+first, which lists `discovery` as an existing module with no separate "ICP evidence"
+concept, confirming `icp_profiles` (already the canonical ICP row) is the right place for
+these two columns rather than a parallel table.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1167 files, no violations),
+`lint:migrations` (131 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (178/178, unchanged -- `generate-icp.ts`/`icp/mutations.ts` are
+DB/AI-composing functions with no unit tests of their own, per this run's established
+precedent for `generateIcp`/`understand-product.ts`, and no new pure logic was added), a
+live migration apply + `get_advisors` for both `security`/`performance` (same baseline
+findings as every prior story -- 5 pre-existing `rls_enabled_no_policy` and 1 pre-existing
+`auth_leaked_password_protection` on unrelated tables, ~155 pre-existing `unused_index`
+INFO findings across unrelated tables, no new findings of any kind), and a clean `next
+build` (confirmed the ICP route, which now renders the new confidence/evidence block,
+still builds with no errors). Same live-browser-walkthrough constraint noted in every
+prior UI-touching story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 38 of 68 in-scope stories done -- Phase E continuing. Next: 14.1, Discovery
+Run History.

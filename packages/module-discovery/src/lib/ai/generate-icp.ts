@@ -6,7 +6,7 @@ import type { IcpProfile } from "../icp/types";
 import {
   generateIcpPrompt,
   GENERATE_ICP_PROMPT_VERSION,
-} from "../../prompts/icp/generate_icp_v1";
+} from "../../prompts/icp/generate_icp_v2";
 import { hashInput } from "./hash";
 import { IcpProfileSchema, type IcpProfileDraft } from "./schemas";
 import { recordAiRun } from "./usage";
@@ -116,6 +116,8 @@ export async function generateIcp(
         technology: draft.technology,
         growth_stage: draft.growth_stage,
         existing_tools: draft.existing_tools,
+        confidence: draft.confidence,
+        evidence: draft.evidence,
         status: "draft",
       },
       { onConflict: "workspace_id" },
