@@ -4,6 +4,7 @@ import { getFirstWorkspaceForBusiness, getProduct, getWorkspace, listProducts, l
 import { createProspect } from "../lib/prospects/mutations";
 import { getProspectResearch } from "../lib/research/queries";
 import { listOpportunitiesForProspect } from "../lib/opportunities/queries";
+import { effectiveRecommendedAction } from "../lib/opportunities/next-best-action";
 import { NEXT_BEST_ACTION_LABEL } from "../lib/opportunities/types";
 import { getDiscoveryDefinition } from "../lib/discovery-definitions/queries";
 import { getResearchBrief } from "../lib/research-briefs/queries";
@@ -184,8 +185,19 @@ async function getLatestOpportunitySummary(prospectId: string): Promise<Contract
     status: opportunity.status,
     whyThem: opportunity.why_them,
     whyNow: opportunity.why_now,
-    recommendedAction: opportunity.recommended_action ? NEXT_BEST_ACTION_LABEL[opportunity.recommended_action] : null,
-    recommendedActionReason: opportunity.recommended_action_reason,
+    // DISC-OFFER-P0-15.1: reads through `effectiveRecommendedAction` -- a founder's own
+    // override (set from either the Opportunity Detail page or the Overview page's "Top
+    // Opportunity" gate) must be what CRM sees too, not the stale computed value the
+    // override was specifically meant to replace (§25's own "must NOT silently
+    // overwrite user-approved values" -- silently *ignoring* one in a live cross-module
+    // read is the same failure by another name).
+    recommendedAction: (() => {
+      const action = effectiveRecommendedAction(opportunity);
+      return action ? NEXT_BEST_ACTION_LABEL[action] : null;
+    })(),
+    // The AI's own reason describes its own computed guess -- once a founder has
+    // overridden it, that reason no longer describes what CRM is now shown.
+    recommendedActionReason: opportunity.recommended_action_override ? null : opportunity.recommended_action_reason,
     researchBriefSummary: brief?.offering_fit ?? null,
     discoveryDefinitionName: definition?.name ?? null,
   };

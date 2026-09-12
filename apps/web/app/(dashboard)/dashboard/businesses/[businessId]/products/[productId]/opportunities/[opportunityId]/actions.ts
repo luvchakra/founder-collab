@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { setOpportunityStatus, recordOpportunityHandoffFailure } from "@cofounderai/module-discovery/lib/opportunities/mutations";
-import type { OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
+import { setOpportunityStatus, recordOpportunityHandoffFailure, setRecommendedActionOverride } from "@cofounderai/module-discovery/lib/opportunities/mutations";
+import type { NextBestAction, OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
 import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
 
 function opportunityPath(businessId: string, productId: string, opportunityId: string) {
@@ -26,6 +26,25 @@ export async function updateOpportunityStatusAction(
   await setOpportunityStatus(opportunityId, status);
   revalidatePath(opportunityPath(businessId, productId, opportunityId));
   revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+}
+
+/**
+ * DISC-OFFER-P0-15.1's own "[Edit Recommendation]" -- sets or clears a founder's manual
+ * override of the recommended next step, independent of `computeNextBestAction`'s own
+ * freely-recomputed guess (`setRecommendedActionOverride`'s own doc comment). An empty
+ * `override` value clears back to that computed value rather than being rejected.
+ */
+export async function updateRecommendedActionAction(
+  businessId: string,
+  productId: string,
+  opportunityId: string,
+  formData: FormData,
+): Promise<void> {
+  const raw = String(formData.get("override") ?? "");
+  await setRecommendedActionOverride(opportunityId, raw ? (raw as NextBestAction) : null);
+  revalidatePath(opportunityPath(businessId, productId, opportunityId));
+  revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+  revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}`);
 }
 
 /**

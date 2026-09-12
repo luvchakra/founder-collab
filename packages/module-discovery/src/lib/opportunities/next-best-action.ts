@@ -110,3 +110,24 @@ export function computeNextBestAction(input: NextBestActionInput): NextBestActio
     reason: "No urgent action right now -- outreach is already in motion.",
   };
 }
+
+/**
+ * DISC-OFFER-P0-15.1: "Final Human Action Gate" -- the doc's own "[Edit Recommendation]"
+ * button implies a founder can pick a different next step than the one
+ * `computeNextBestAction` above computed, without that manual choice being silently lost
+ * the next time this opportunity's evidence changes and recomputation runs again (§25's
+ * own explicit "must NOT... silently overwrite user-approved values"). `recommended_action`
+ * stays exactly what it's always been -- the AI/deterministic system's own current best
+ * guess, recomputed freely -- while `recommended_action_override` is a separate column a
+ * human write only, never touched by `computeNextBestAction`'s own callers. This is the
+ * one place that reconciles the two into "what should actually be shown/acted on,"
+ * so every UI surface reads through this instead of `opportunity.recommended_action`
+ * directly and risking one surface honoring a founder's override while another still
+ * shows the stale computed value.
+ */
+export function effectiveRecommendedAction(opportunity: {
+  recommended_action: NextBestAction | null;
+  recommended_action_override: NextBestAction | null;
+}): NextBestAction | null {
+  return opportunity.recommended_action_override ?? opportunity.recommended_action;
+}

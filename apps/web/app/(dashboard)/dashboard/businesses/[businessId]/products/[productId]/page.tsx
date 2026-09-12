@@ -10,7 +10,12 @@ import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/q
 import { ProductOverviewShell } from "@cofounderai/module-discovery/components/tenancy/product-overview-shell";
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
 import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
+import { TopOpportunityGate } from "@cofounderai/module-discovery/components/opportunities/top-opportunity-gate";
 import { listPipelineStages } from "@cofounderai/module-discovery/lib/pipeline/queries";
+import { getTopGateOpportunity } from "@cofounderai/module-discovery/lib/opportunities/dashboard-queries";
+import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
+import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
+import { classifyExistingRelationship } from "@cofounderai/module-crm/contract/index";
 import {
   addFileSourceAction,
   addTextSourceAction,
@@ -19,6 +24,8 @@ import {
   updateProductDescriptionAction,
   updateProductWebsiteAction,
   updateSourceAction,
+  sendTopOpportunityToCrmAction,
+  updateTopOpportunityStatusAction,
 } from "./actions";
 
 function icpPath(businessId: string, productId: string) {
@@ -51,9 +58,55 @@ export default async function ProductPage({
     : [null, [], null];
   const pipelineStages = await listPipelineStages(workspace.id);
 
+  // DISC-OFFER-P0-15.1: "Final Human Action Gate" -- only fetched once there's real
+  // opportunity data to gate on at all (same profile-gated condition as the summary
+  // below); a fresh offering with no opportunities yet has nothing here to decide on.
+  const topGateRow = prospectCounts ? await getTopGateOpportunity(workspace.id) : null;
+  const topGateContext = topGateRow
+    ? await (async () => {
+        const buyerIntelligence = await getBuyerIntelligenceForProspect(workspace.id, topGateRow.prospect.id);
+        const { primaryContactId } = computeBuyerFitScores(buyerIntelligence);
+        const primaryContact = buyerIntelligence.find((person) => person.contact.id === primaryContactId) ?? buyerIntelligence[0] ?? null;
+        // DISC-OFFER-P0-08.2: a degraded null (CRM not licensed) reads as "no warning to
+        // show" -- the same ADR-10 normal-result handling the Opportunity Detail route
+        // already applies to this exact call.
+        const relationshipResult = await classifyExistingRelationship(businessId, {
+          companyName: topGateRow.prospect.company_name,
+          excludePartyId: topGateRow.prospect.party_id,
+          contactEmail: primaryContact?.contact.email ?? null,
+        });
+        return {
+          contactName: primaryContact?.name ?? null,
+          hasParty: Boolean(topGateRow.prospect.party_id),
+          relationship: relationshipResult.ok ? relationshipResult.data : null,
+        };
+      })()
+    : null;
+
   return (
     <div className="flex flex-col gap-8">
       <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
+      {topGateRow && topGateContext ? (
+        <TopOpportunityGate
+          businessId={businessId}
+          productId={productId}
+          opportunity={topGateRow.opportunity}
+          prospect={topGateRow.prospect}
+          contactName={topGateContext.contactName}
+          hasParty={topGateContext.hasParty}
+          relationship={topGateContext.relationship}
+          watchAction={updateTopOpportunityStatusAction.bind(null, businessId, productId, topGateRow.opportunity.id, "watching")}
+          dismissAction={updateTopOpportunityStatusAction.bind(null, businessId, productId, topGateRow.opportunity.id, "dismissed")}
+          sendToCrmAction={sendTopOpportunityToCrmAction.bind(
+            null,
+            businessId,
+            productId,
+            topGateRow.opportunity.id,
+            topGateRow.prospect.id,
+            topGateRow.prospect.party_id ?? "",
+          )}
+        />
+      ) : null}
       {product.product_profile && prospectCounts ? (
         <OfferingOverviewSummary businessId={businessId} offering={product} icp={icp} personas={personas} prospectCounts={prospectCounts} />
       ) : null}

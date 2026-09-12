@@ -58,7 +58,7 @@ only genuine architectural/key decisions are raised.
 | | 13.1 | Structured Stage Outputs | Done |
 | | 14.1 | Discovery Run History | Done |
 | | 14.2 | Versioned Stage Results | Done |
-| | 15.1 | Final Human Action Gate | Not started |
+| | 15.1 | Final Human Action Gate | Done |
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Not started |
 | | P1-01.2 | Incremental Re-Run | Not started |
 | | P1-02.1 | Review Required Indicators | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**40 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**41 of 68 in-scope stories done -- Phase E complete.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2880,3 +2880,131 @@ story this run (no seeded demo user/`.env.local` in this environment).
 
 **Status**: 40 of 68 in-scope stories done -- Phase E continuing. Next: 15.1, Final Human
 Action Gate (the last story in Phase E).
+
+### 15.1 — Final Human Action Gate (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading either (same as 10.2/13.1/14.1)
+-- a worked example (Top Opportunity / Acme Corp / Score / Why Now / Contact /
+Recommended Action / Confidence, with `[Edit Recommendation] [Send to CRM] [Watch]
+[Dismiss]`), plus two explicit lines: "No outbound communication may be sent
+automatically" and "CRM handoff must preserve the Business Offering and Discovery
+evidence."
+
+**Checked what already held before building anything, per this run's own "inspect before
+changing" discipline** -- the first line turned out to already be fully, structurally
+true: `runCrmHandoffStage` (the pipeline's own last technical stage, DISC-OFFER-P0-10.1)
+only ever *counts* how many open opportunities are ready for handoff and never calls
+`promoteProspectToCrm`, and its own existing code comment already names this exact story
+("DISC-OFFER-P0-15.1 / §25: 'must NOT send outbound communication... without user
+approval'") -- confirmed by reading the route handler directly, not just trusting the
+comment. The CRM-preservation line was also already true: `ContractOpportunitySummary`
+(DISC-OFFER-P0-08.1) already carries score/why-them/why-now/research-brief-summary/
+discovery-definition-name, and `ContractProspectSummary.productName` already names the
+Business Offering -- both already flow live into CRM's own Customer 360 "Opportunity"
+block. No code needed for either line; both are called out here as verified, not silently
+assumed.
+
+**The genuine gap was the doc's own UI**: nothing in the module presented a single "the
+one thing to decide on right now" card the way the mockup shows -- Today's Opportunities
+(07.2) is a full list, Opportunity Detail (07.3) is a full ten-section page for one
+already-chosen opportunity, and neither is "the moment automation hands off to a human."
+Built exactly that as a new **Top Opportunity gate card** on the offering Overview page,
+right where `RunAiDiscoveryPanel` (10.1) already sits -- the doc's own §13 diagram places
+"Human Approval" right before CRM Handoff, and this is that moment made visible.
+
+**New pure selection logic** (`lib/opportunities/gate.ts`, `selectTopGateOpportunity`):
+picks exactly one candidate -- the highest-scored opportunity still in a genuinely
+*pending* status (`new`/`reviewing`/`action_required`), oldest first on a score tie.
+Deliberately excludes `watching` (unlike `next-best-action.ts`'s own broader
+`ACTIONABLE_STATUSES`) -- a founder already decided to watch an opportunity, so it's no
+longer "the one thing to decide on right now" -- and excludes an unscored opportunity
+entirely rather than sorting it to the bottom (05.2's own "no false precision": a null
+score isn't the lowest possible score, it's "not yet evaluated"). 5 new vitest cases:
+empty list, every resolved/watched status excluded, an unscored candidate excluded even
+when nothing else qualifies, highest score wins, and the tie-break. New
+`getTopGateOpportunity(workspaceId)` (`lib/opportunities/dashboard-queries.ts`) reuses
+`getOpportunityDashboardRows` (07.2) wholesale rather than a second parallel query -- the
+gate needs exactly the same enriched row shape (contact name, top signal), just reduced
+to one pick.
+
+**"[Edit Recommendation]" had no equivalent anywhere** -- `recommended_action` (07.1) is
+purely a system-computed value, freely overwritten every time `computeNextBestAction`
+reruns, with no way for a founder to pick a different next step that then *stays* picked.
+That gap is exactly §25's own "must NOT... silently overwrite user-approved values."
+Closed it with a new, separate `recommended_action_override` column
+(`20260912240000_discovery_opportunity_recommended_action_override.sql`) -- same closed
+seven-value vocabulary as `recommended_action` itself, nullable, never touched by
+`computeNextBestAction`'s own callers -- rather than repurposing `recommended_action`,
+the same "which column is non-null says which one produced it, no separate flag to drift
+out of sync" pattern DISC-OFFER-P0-14.2 already established for the ICP's own `source`
+distinction. New `effectiveRecommendedAction()` (`next-best-action.ts`, 3 new vitest
+cases) is the one place every UI surface (dashboard rows, Opportunity Detail, the gate
+card) and the CRM contract read now go through instead of `recommended_action` directly
+-- confirmed and fixed a real, easy-to-miss instance of exactly the failure this function
+exists to prevent: `contract/index.ts`'s own `getProspectSummaryForParty` was still
+reading `opportunity.recommended_action` raw, which would have silently shown CRM the
+*stale* computed recommendation even after a founder explicitly overrode it in
+Discovery -- "silently ignoring a user-approved value in a live cross-module read" being
+the same failure as "silently overwriting" one, just by another name. New
+`setRecommendedActionOverride(opportunityId, override)` mutation (plain DB-composing
+wrapper, no test, same precedent as `setOpportunityStatus`).
+
+**UI wiring**: `OpportunityDetail`'s own "Recommended Action" section (07.3) now shows
+the effective action with a "(founder override)" tag when one is set, plus a small
+inline form (a `NativeSelect` over the same seven-value vocabulary, empty = "clear
+override") calling new `updateRecommendedActionAction` -- this is the one real edit
+surface; the AI's own `recommended_action_reason` is hidden once overridden (it describes
+a suggestion no longer in effect, the same restraint 13.1's own confidence/evidence reset
+already applied to stale AI judgments). `opportunities-dashboard.tsx`'s own two row
+renderers (desktop table, mobile cards) now share one `RecommendedActionCell` reading
+through `effectiveRecommendedAction` instead of duplicating the same fix twice.
+
+New `TopOpportunityGate` component (`components/opportunities/top-opportunity-gate.tsx`)
+renders the doc's own exact field list. Three of the four buttons reuse real,
+already-existing mechanisms unchanged: `Send to CRM` is the identical `SendToCrmButton`
+(08.1) the Opportunity Detail page already uses (same relationship-check/confirmation
+dialog, now also computed for the gate's own top pick on the Overview page); `Watch`/
+`Dismiss` are one-click forms over `setOpportunityStatus` (05.1). **A flagged scope
+call**: `Edit Recommendation` is a link to the Opportunity Detail page's own
+`#recommended-action` section rather than a second, duplicate inline override editor on
+the gate card itself -- the same "the real page is the way to act on the rest" restraint
+this run has applied repeatedly (DISC-OFFER-P0-01.3's long descriptions, 10.3's
+underlying-stage links). Three of four gate actions are genuinely one-click on the card
+itself; the fourth is one click away on the page that already owns editing it -- noted
+here as a deliberate choice, not a gap.
+
+New `updateTopOpportunityStatusAction`/`sendTopOpportunityToCrmAction`
+(`products/[productId]/actions.ts`) duplicate `setOpportunityStatus`/
+`promoteProspectToCrm` wiring already present in the Opportunity Detail route's own
+`actions.ts`, rather than importing across route files -- the same "each route directory
+keeps its own actions.ts wrapping the same underlying module mutations" convention
+`icp/actions.ts` and this same file already follow for their own concerns, just
+revalidating the Overview page instead. The Overview page itself only fetches buyer
+intelligence/relationship-classification for the one gate opportunity's own prospect when
+`getTopGateOpportunity` actually returns one -- a fresh offering with nothing yet to gate
+on does none of that extra work.
+
+No compact-card table treatment needed (CLAUDE.md non-negotiable #12 doesn't bite -- the
+gate is a single decision card, not a table of rows).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1175 files, no
+violations -- the new Overview-page `classifyExistingRelationship` call stayed at the
+`apps/web` layer, the same placement DISC-OFFER-P0-08.2 already established, not a new
+module-crm dependency inside module-discovery itself), `lint:migrations` (134 migrations,
+no violations), `npx vitest run --root packages/module-discovery` (186/186, +8 new -- 5
+for `selectTopGateOpportunity`, 3 for `effectiveRecommendedAction`), a live migration
+apply + `get_advisors` for both `security`/`performance` against the dev project
+(`jazdtomcgqjxjueedmck`) -- no new findings of any kind, security or performance (this
+migration adds one column with an inline check constraint, no new index), and a clean
+`next build` (confirmed the Overview page, which now conditionally renders the gate card,
+and the Opportunity Detail route, which now renders the override form, both build with no
+errors). Same live-browser-walkthrough constraint noted in every prior UI-touching story
+this run (no seeded demo user/`.env.local` in this environment) -- particularly relevant
+here given the gate card's own conditional rendering (nothing to show until a real,
+scored, pending opportunity exists) and the two-button-per-form patterns on both the gate
+card and the override form.
+
+**Status**: 41 of 68 in-scope stories done -- **Phase E complete** (all sixteen
+09.1-15.1 stories done). Next: Phase F (P1), starting with DISC-OFFER-P1-01.1, Scheduled
+Offering Re-Discovery.
