@@ -9,6 +9,13 @@ export type EwayBillCredentialsStatus = {
   auth_url: string;
   generate_url: string;
   cancel_url: string;
+  /** COMPLY-P0-06.3 (E-Way Adapter): nullable -- a business already using the existing
+   * generate/cancel workflow isn't forced to configure these before that keeps working;
+   * `createGspEwayBillAdapter`'s own `updateVehicle()`/`extend()`/`status()` throw a
+   * clear error when unset. */
+  vehicle_update_url: string | null;
+  extend_url: string | null;
+  status_url: string | null;
   updated_at: string;
 };
 
