@@ -77,21 +77,19 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 09.3 | Reminder Engine | Done |
 | | 09.4 | Overdue Detection | Done |
 | | 09.5 | Risk Dashboard | Done |
-| P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
+| P0-10 | 10.1 | Evidence Repository | Done |
+| | 10.2–10.5 | Evidence & Audit (remaining) | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**48 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**49 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done** -- Generic Tax Framework,
-Existing-Data Integration, India GST, India E-Invoice, India E-Way Bill, India Returns,
-India Reconciliation & IMS, and now Compliance Calendar & Risk (Filing/Payment Calendar,
-Reminder Engine, Overdue Detection, Risk Dashboard). Next: COMPLY-P0-10 (Evidence &
-Audit), starting with COMPLY-P0-10.1 (Evidence Repository).
+**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1 (Evidence
+Repository) is done too. Next: COMPLY-P0-10.2 (Government Response Store).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5088,3 +5086,102 @@ own terse spec).
 Payment Calendar, Reminder Engine, Overdue Detection, and now a real, multi-epic-spanning
 Risk Dashboard. This completes COMPLY-P0-02 through COMPLY-P0-09 in full. Next:
 COMPLY-P0-10 (Evidence & Audit).
+
+## Epic 10 -- Evidence & Audit
+
+### 10.1 -- Evidence Repository (2026-09-12)
+
+The first story of Epic 10. Lets a business record a real piece of compliance evidence
+(a filed return's acknowledgment, a government notice, a payment challan) against a
+specific compliance object, or as general business-level evidence.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 first (backlog rule 1 / CLAUDE.md
+non-negotiable #5) -- the single most important finding of this story**: "Attachments" is
+already `core`-owned (`core.attachments`, listed for "all modules"), and it turned out to
+be a FULLY BUILT generic file-storage mechanism already (`@cofounderai/core/attachments/*`
+-- `uploadAttachment`, `listAttachmentsForEntity`, `getAttachmentSignedUrl`,
+`deleteAttachment`, its own private Storage bucket, its own RLS). This story does NOT
+duplicate any of that -- the actual FILE lives in `core.attachments`/Storage, exactly as
+any other module's attachment already does. What `core.attachments` genuinely lacks, and
+what this backlog's own §5 explicitly lists as Compliance-owned ("evidence"), is a
+compliance-specific categorization layer: what KIND of evidence this is, and which
+specific compliance object it supports -- `gst.compliance_evidence` is that thin layer on
+top of one `core.attachments` row, never a second copy of file metadata.
+
+**A real, previously-undetected RLS gap in the reused mechanism, named rather than
+silently worked around**: `core.attachments`' own RLS is tenant-only (`business_id in
+user_business_ids()`), with NO license check at all -- correct for a cross-module-shared
+table, but it means a business member without an active `gst` license could still call
+`uploadAttachment()` directly with a `gst_*`-prefixed `entity_type` and it would succeed at
+the `core.attachments` level. `gst.compliance_evidence`'s OWN RLS is the actual `tenant AND
+licensed` gate this backlog's non-negotiable #2 requires for anything COMPLIANCE
+considers evidence -- but the underlying raw file row can still be created unlicensed
+through the generic path. Flagged here as a real, if narrow, gap in `core.attachments`
+itself (out of this workstream's own scope -- `core` is shared platform-wide, not a
+`module-gst` file), not silently assumed closed.
+
+**A second real, previously-undetected gap, also named rather than silently accepted**:
+`attachment_id references core.attachments (id) on delete cascade` means the generic,
+cross-module `deleteAttachment()` function -- built for an ordinary attachment, with no
+awareness that a `gst.compliance_evidence` row might reference it -- would silently cascade
+away a piece of evidence this whole epic exists to keep permanent. The correct fix (a
+delete-guard on `core.attachments` itself, or a trigger blocking deletion of a referenced
+row) is a `core`-schema change genuinely out of this workstream's scope; documented in the
+migration's own top comment as a concrete follow-up.
+
+**Cross-reference guard, same precedent as COMPLY-P0-08.4's `gst.ims_actions`**: verifies
+`attachment_id`'s own `business_id` actually matches the evidence row's `business_id`
+(the one polymorphic-adjacent reference this table CAN cheaply verify) -- confirmed live
+as a real rejection, not theoretical, via the RLS harness below. `related_entity_type`/
+`related_entity_id` (which SPECIFIC return period/e-invoice/etc. this evidence supports)
+is NOT cross-reference-checked, matching `core.attachments`'/`core.taggings`' own already-
+documented limitation for the identical polymorphic-reference shape (a real, honest,
+consistent-with-precedent gap, not an inconsistency introduced here).
+
+**What was built**:
+- `supabase/migrations/20260912200000_gst_compliance_evidence.sql` -- `gst
+  .compliance_evidence` (bounded `evidence_type` check constraint, nullable
+  `related_entity_type`/`related_entity_id` with a "both or neither" check constraint,
+  `unique(attachment_id)`), the cross-reference guard trigger, RLS behind a new
+  `gst.manage_evidence` permission (owner/admin), no update/delete policy.
+- `lib/evidence/types.ts` -- `EvidenceType`, `RelatedEntityType`, `ComplianceEvidence`,
+  `ComplianceEvidenceWithAttachment` (joined with its own `core.attachments` row in
+  application code, not a database join across schemas).
+- `lib/evidence/queries.ts` -- `listComplianceEvidence(businessId, filter?)`,
+  `getComplianceEvidenceById`.
+- `lib/evidence/mutations.ts` -- `recordComplianceEvidence` (calls
+  `@cofounderai/core/attachments#uploadAttachment` first, then records the categorization
+  row), `validateRelatedEntityPair` (pure, extracted for testing).
+- 4 new vitest cases in `mutations.test.ts` for `validateRelatedEntityPair`.
+- `scripts/test-gst-compliance-evidence-rls.mjs` -- new real-Postgres RLS harness (added
+  to `package.json`'s `test:db` chain): permission gating, the `evidence_type` and
+  both-or-neither check constraints, `unique(attachment_id)`, THE CROSS-REFERENCE GUARD (a
+  same-business caller rejected for referencing a different business's own attachment --
+  confirmed as a genuine Postgres rejection, and confirmed it doesn't over-block), tenant
+  isolation on read, no update/delete policy.
+
+**What was deliberately left out**: fixing `core.attachments`' own missing license check or
+missing delete-guard (both named above -- genuine `core`-schema changes, out of this
+workstream's scope); any UI (COMPLY-P0-11); a `retention_until` column (COMPLY-P0-10.5's
+own job -- adding it now, before that story's own versioned retention rule exists, would
+mean guessing a number this story has no rule to compute it from); cross-reference
+verification of `related_entity_id` itself (see above).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1317 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 162 migration files, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 451 tests passing (447 prior + 4 new).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (security): identical finding set
+  before/after (same 5 pre-existing `rls_enabled_no_policy` infos, 1 pre-existing
+  `auth_leaked_password_protection` warning) -- no new finding.
+- **Local Postgres RLS harness actually run this story**: `scripts/test-gst-compliance
+  -evidence-rls.mjs`, all assertions passing, most notably the cross-reference guard
+  (a genuine Postgres exception, confirmed non-over-blocking).
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
