@@ -50,7 +50,7 @@ only genuine architectural/key decisions are raised.
 | | 10.1 | Run AI Discovery CTA | Done |
 | | 10.2 | Persistent Pipeline Stage Model | Done |
 | | 10.3 | Pipeline Progress UI | Done |
-| | 11.1 | Editable Pipeline Stages | Not started |
+| | 11.1 | Editable Pipeline Stages | Done |
 | | 11.2 | Run From This Stage | Done |
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**34 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**35 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2295,3 +2295,63 @@ build`.
 
 **Status**: 34 of 68 in-scope stories done -- Phase E continuing. Next: 11.1, Editable
 Pipeline Stages (wiring this mechanism onto the ICP page, the doc's own worked example).
+
+### 11.1 — Editable Pipeline Stages (2026-09-12)
+
+Checked what was already editable before building anything, per the doc's own "every
+meaningful stage must be editable" -- most of this was already true by construction from
+earlier stories: the ICP (DISC-OFFER-P0-02.2), buyer personas (02.3), discovery
+definitions (04.1), and the offering profile (01.3/02.1) each already have a real edit
+surface with a Save action. The genuine, story-specific gap the doc's own worked example
+names directly is the doc's literal "[Save] [Save & Run Downstream]" pair -- none of
+those four surfaces had the second option, only a plain Save.
+
+Built the doc's own exact ICP worked example (the only one the doc actually shows) end
+to end: new `updateIcpAndRunDownstreamAction` (`icp/actions.ts`) saves the ICP exactly
+like the existing `updateIcpAction`, then calls DISC-OFFER-P0-11.3's own
+`invalidateDownstreamStages(workspace.id, "icp")` and redirects to the offering Overview
+page with `?autorun=1` -- DISC-OFFER-P0-11.2's own auto-resume effect picks it up from
+there and the pipeline visibly continues immediately, so "save" and "rerun what depends
+on it" read as one action to the founder. New `SaveAndRunDownstreamButton`
+(`components/pipeline/`) -- a second submit button in the same `<form>` using the
+standard HTML `formAction` override (one form, two possible server actions depending on
+which button was clicked), with a native `confirm()` naming exactly which founder-facing
+groups (`downstreamGroupLabels("icp")`, 11.2) will be reset before the submission is
+allowed through -- the doc's own explicit "user receives a clear warning before
+downstream results are replaced." Built as a reusable component rather than inline JSX
+on the ICP page specifically, so buyer personas/discovery strategy/offering profile can
+adopt the exact same pattern in a natural follow-up once each of *their* own downstream
+edges is worth invalidating (offering profile and buyer personas are both currently
+either upstream of everything or a dead-end branch per DISC-OFFER-P0-11.3's own graph --
+wiring the same button onto them today would either invalidate the entire pipeline from
+the very top or invalidate nothing at all, neither an especially useful addition yet).
+
+Scoped deliberately to the ICP alone, not all five editable surfaces, matching the doc's
+own single worked example rather than retrofitting every surface speculatively in one
+story (CLAUDE.md dev principle #7) -- flagged explicitly rather than silently narrowed.
+"Downstream stages can be rerun" and "user edits are distinguishable/auditable where
+appropriate" both already hold structurally: reruns already produce a fresh version with
+the prior attempt preserved in `pipeline_stage_runs` (DISC-OFFER-P0-10.2), and a manual
+ICP edit is already a plain, ordinary database write through the same `updateIcpProfile`
+every other edit uses -- nothing about this pipeline overwrites it without the founder's
+own explicit "Save & Run Downstream" click.
+
+No migration this story.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1165 files, no violations),
+`npx vitest run --root packages/module-discovery` (178/178, unchanged -- no new pure
+logic this story, only UI/action wiring over 11.2/11.3's already-tested mechanism), and a
+clean `next build` (confirmed the ICP page, which now renders the second submit button,
+still builds with no errors). Same live-browser-walkthrough constraint noted in every
+prior UI-touching story this run (no seeded demo user/`.env.local` in this environment)
+-- particularly relevant here given the two-submit-button `formAction` pattern and the
+`confirm()`/redirect/`?autorun=1` round trip are the kind of interaction a real browser
+check would most directly validate.
+
+**Status**: 35 of 68 in-scope stories done -- Phase E continuing (§29 lists sixteen
+stories under this phase, 09.1-15.1; eleven are now done -- 09.1-09.4, 10.1-10.3,
+11.1-11.3 -- with 12.1/12.2 (offering-specific and external research prioritization),
+13.1 (structured stage output contracts), 14.1/14.2 (run history and versioned results),
+and 15.1 (the final human action gate) still ahead). Next: 12.1, Offering-Specific
+Website Research.

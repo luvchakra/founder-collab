@@ -13,9 +13,12 @@ import { CloneIcpButton } from "@cofounderai/module-discovery/components/icp/clo
 import { AutoPopulateStepBanner } from "@cofounderai/module-discovery/components/tenancy/auto-populate-step-banner";
 import { PersonaSection } from "@cofounderai/module-discovery/components/personas/persona-section";
 import { listBuyerPersonas } from "@cofounderai/module-discovery/lib/personas/queries";
+import { SaveAndRunDownstreamButton } from "@cofounderai/module-discovery/components/pipeline/save-and-run-downstream-button";
+import { downstreamGroupLabels } from "@cofounderai/module-discovery/lib/pipeline/display-groups";
 import {
   generateIcpAction,
   updateIcpAction,
+  updateIcpAndRunDownstreamAction,
   approveIcpAction,
   cloneIcpAction,
   autoPopulateIcpAction,
@@ -193,9 +196,15 @@ export default async function IcpPage({
           />
         </div>
         <p className="text-xs text-muted-foreground">One item per line.</p>
-        <SubmitButton size="sm" className="self-start" pendingText="Saving...">
-          Save changes
-        </SubmitButton>
+        <div className="flex flex-wrap gap-2">
+          <SubmitButton size="sm" pendingText="Saving...">
+            Save changes
+          </SubmitButton>
+          <SaveAndRunDownstreamButton
+            formAction={updateIcpAndRunDownstreamAction.bind(null, businessId, productId, icp.id)}
+            affectedLabels={downstreamGroupLabels("icp")}
+          />
+        </div>
       </form>
 
       {personaSection}
