@@ -322,3 +322,67 @@ export const OfferingProfileSuggestionSchema = z.object({
 });
 
 export type OfferingProfileSuggestion = z.infer<typeof OfferingProfileSuggestionSchema>;
+
+/**
+ * DISC-OFFER-P0-09.1 "Website URL Business Onboarding" -- unlike BusinessProfileSchema
+ * above (which only ever populated name/description for the existing "create business
+ * from website" flow), this is the doc's own full field list for a founder's first,
+ * URL-only onboarding step: every one of the backlog's own seventeen extracted items,
+ * each carrying its own provenance rather than a single blanket confidence number.
+ *
+ * The story's own explicit acceptance criterion -- "Every extracted item must
+ * distinguish: Explicitly stated / AI interpretation / Unknown" -- is a per-field
+ * property, not a per-profile one (a website can state its name plainly while saying
+ * nothing at all about pricing), so every field is one of the two small wrapper shapes
+ * below rather than a single top-level confidence score. "Unknown" always means an empty
+ * value (null / []), never a guess -- sanitizeWebsiteProfile() (lib/website-onboarding/
+ * sanitize.ts) enforces that in code after generation, not just in the prompt, exactly
+ * the same "structural enforcement, not just prompt wording" discipline
+ * `matchBuyingCommittee()`/`computeBuyerIntelligence()` (06.2/06.3) already established
+ * for "do not invent people or roles."
+ */
+export const WEBSITE_FIELD_STATUS_VALUES = ["explicit", "inferred", "unknown"] as const;
+export type WebsiteFieldStatus = (typeof WEBSITE_FIELD_STATUS_VALUES)[number];
+
+export const WebsiteTextFieldSchema = z.object({
+  status: z.enum(WEBSITE_FIELD_STATUS_VALUES),
+  value: z
+    .string()
+    .nullable()
+    .describe("The extracted text, or null when status is 'unknown' -- never a guess."),
+});
+export type WebsiteTextField = z.infer<typeof WebsiteTextFieldSchema>;
+
+export const WebsiteListFieldSchema = z.object({
+  status: z.enum(WEBSITE_FIELD_STATUS_VALUES),
+  items: z
+    .array(z.string())
+    .describe("The extracted items, or an empty array when status is 'unknown' -- never invented examples."),
+});
+export type WebsiteListField = z.infer<typeof WebsiteListFieldSchema>;
+
+export const WebsiteBusinessProfileSchema = z.object({
+  business_name: WebsiteTextFieldSchema,
+  description: WebsiteTextFieldSchema,
+  products_or_services: WebsiteListFieldSchema,
+  offering_categories: WebsiteListFieldSchema,
+  industries_served: WebsiteListFieldSchema,
+  customer_types: WebsiteListFieldSchema,
+  geographies: WebsiteListFieldSchema,
+  value_propositions: WebsiteListFieldSchema,
+  use_cases: WebsiteListFieldSchema,
+  problems_solved: WebsiteListFieldSchema,
+  pricing_hints: WebsiteListFieldSchema,
+  case_studies: WebsiteListFieldSchema,
+  testimonials: WebsiteListFieldSchema,
+  customer_logos: WebsiteListFieldSchema,
+  technology_platform: WebsiteListFieldSchema,
+  faqs: WebsiteListFieldSchema,
+  contact_information: WebsiteTextFieldSchema,
+  // Candidate pages for DISC-OFFER-P0-09.2's own crawl to visit next -- "Label — url"
+  // strings taken from the links researchWebsite()'s direct-fetch path already preserves
+  // inline on the one page fetched this story (no multi-page crawl exists yet, so this
+  // is "pages this page links to," not "pages we've visited").
+  relevant_pages: WebsiteListFieldSchema,
+});
+export type WebsiteBusinessProfile = z.infer<typeof WebsiteBusinessProfileSchema>;

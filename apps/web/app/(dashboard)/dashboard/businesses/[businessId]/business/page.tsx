@@ -7,6 +7,7 @@ import {
   listProducts,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
+import { getLatestWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
 import {
   renameBusinessAction,
   updateBusinessDescriptionAction,
@@ -19,6 +20,8 @@ import {
   suggestOfferingProfileAction,
   setOfferingStatusAction,
   duplicateOfferingAction,
+  retryWebsiteOnboardingAction,
+  applyWebsiteOnboardingProfileAction,
 } from "../actions";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
@@ -26,6 +29,7 @@ import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/br
 import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
 import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
 import { OfferingsTable, type OfferingRow } from "@cofounderai/module-discovery/components/offerings/offerings-table";
+import { WebsiteOnboardingPanel } from "@cofounderai/module-discovery/components/website-onboarding/website-onboarding-panel";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 async function loadOfferingRow(product: Product): Promise<OfferingRow> {
@@ -51,6 +55,7 @@ export default async function BusinessDetailPage({
 
   const products = await listProducts(business.id);
   const rows = await Promise.all(products.map(loadOfferingRow));
+  const websiteOnboardingRun = await getLatestWebsiteOnboardingRun(business.id);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
@@ -98,6 +103,15 @@ export default async function BusinessDetailPage({
           />
         </div>
       </div>
+
+      {websiteOnboardingRun ? (
+        <WebsiteOnboardingPanel
+          businessId={business.id}
+          initialRun={websiteOnboardingRun}
+          retryAction={retryWebsiteOnboardingAction.bind(null, business.id)}
+          applyAction={applyWebsiteOnboardingProfileAction.bind(null, business.id)}
+        />
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <div className="flex justify-end">

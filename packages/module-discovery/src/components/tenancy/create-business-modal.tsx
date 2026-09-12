@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
@@ -8,6 +8,12 @@ import { Label } from "@cofounderai/core/ui/label";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
+
+/** Structurally identical to apps/web's own `CreateBusinessFromWebsiteState` -- declared
+ * locally rather than imported, the same "no cross-module/app internals import"
+ * discipline `PromoteResult`/`RelationshipMatch` already follow in this codebase (a
+ * component under `packages/` never imports from `apps/web`). */
+type CreateBusinessFromWebsiteState = { error: string } | null;
 
 /**
  * "+ Create New Business" flow (CoFounderAI Header & Business Selector Enhancement doc
@@ -27,11 +33,18 @@ export function CreateBusinessModal({
   onClose,
 }: {
   action: (formData: FormData) => Promise<void>;
-  fromWebsiteAction: (formData: FormData) => Promise<void>;
+  fromWebsiteAction: (
+    prevState: CreateBusinessFromWebsiteState,
+    formData: FormData,
+  ) => Promise<CreateBusinessFromWebsiteState>;
   onClose: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [websiteState, websiteFormAction] = useActionState<CreateBusinessFromWebsiteState, FormData>(
+    fromWebsiteAction,
+    null,
+  );
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
@@ -86,9 +99,9 @@ export function CreateBusinessModal({
           </TabsList>
 
           <TabsContent value="website" className="mt-4">
-            <form action={fromWebsiteAction} className="flex flex-col gap-4">
+            <form action={websiteFormAction} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="create-business-website">Website</Label>
+                <Label htmlFor="create-business-website">Your Business Website</Label>
                 <Input
                   ref={inputRef}
                   id="create-business-website"
@@ -96,19 +109,26 @@ export function CreateBusinessModal({
                   type="text"
                   placeholder="https://example.com"
                   required
+                  aria-invalid={websiteState && "error" in websiteState ? true : undefined}
                 />
                 <p className="text-xs text-muted-foreground">
-                  AI reads the site and fills in the business name and description --
-                  you can review and edit everything right after.
+                  We&apos;ll create the business right away, then read the site in the
+                  background and show you what we found on its own page -- you review and
+                  approve everything before it changes anything.
                 </p>
+                {websiteState && "error" in websiteState ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    {websiteState.error}
+                  </p>
+                ) : null}
               </div>
               <div className="mt-2 flex justify-end gap-3">
                 <Button type="button" variant="ghost" onClick={onClose}>
                   Cancel
                 </Button>
-                <SubmitButton pendingText="Researching...">
+                <SubmitButton pendingText="Creating...">
                   <Sparkles className="size-4" aria-hidden="true" />
-                  Create &amp; auto-populate
+                  Understand My Business
                 </SubmitButton>
               </div>
             </form>

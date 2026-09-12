@@ -5,6 +5,7 @@ import type { AiQualityTier } from "./model-registry";
 // itself -- the router (router.ts) is what turns "operation" into "provider + model".
 export type AiOperation =
   | "understand_business"
+  | "understand_business_website"
   | "understand_product"
   | "discover_products"
   | "generate_icp"
@@ -34,6 +35,12 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // product -- researches the business's own website via the provider-executed search
   // tool, then structures a short name/description from those findings.
   understand_business: { qualityTier: "reasoning", requiresWebSearch: true },
+  // DISC-OFFER-P0-09.1's own "Website URL Business Onboarding" -- same research shape as
+  // understand_business above (reasoning + web search for the research step; the
+  // structuring step itself still runs at modelAtTier("fast"), same as every other
+  // operation here), just a much richer structured output (WebsiteBusinessProfileSchema)
+  // with per-field explicit/inferred/unknown provenance instead of a plain name/description.
+  understand_business_website: { qualityTier: "reasoning", requiresWebSearch: true },
   // Reasoning + web search: understandProduct() researches the product's own website
   // via the provider-executed search tool before structuring a profile, same shape as
   // research_prospect below -- not just "balanced" text extraction from static sources

@@ -25,6 +25,10 @@ import {
   type ProductImportPreviewResult,
 } from "@cofounderai/module-discovery/lib/tenancy/parse-products-import";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
+import { getBusiness } from "@cofounderai/module-discovery/lib/tenancy/queries";
+import { getLatestWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
+import { createWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
+import type { WebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/types";
 
 export async function renameBusinessAction(
   businessId: string,
@@ -276,6 +280,65 @@ export async function duplicateOfferingAction(
   } catch (error) {
     unstable_rethrow(error);
     return { error: error instanceof Error ? error.message : "Could not duplicate this offering." };
+  }
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true };
+}
+
+/**
+ * DISC-OFFER-P0-09.1's own "Errors are recoverable" -- a failed website onboarding run
+ * gets a fresh `pending` row for the same business/website rather than reusing (and
+ * losing) the failed one, the same append-style precedent this backlog already
+ * established for ai_runs/prospect_scores. The panel picks the new row up immediately
+ * (getLatestWebsiteOnboardingRun always returns the most recent) and starts driving it
+ * the same way it drove the first one.
+ */
+export async function retryWebsiteOnboardingAction(
+  businessId: string,
+): Promise<{ error: string } | { success: true; run: WebsiteOnboardingRun }> {
+  try {
+    const business = await getBusiness(businessId);
+    if (!business) return { error: "Business not found." };
+    if (!business.website) return { error: "This business has no website on file to retry." };
+    const run = await createWebsiteOnboardingRun(businessId, business.website);
+    return { success: true, run };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not start a new onboarding run." };
+  }
+}
+
+/**
+ * The one write DISC-OFFER-P0-09.1's review panel offers: applying the run's own
+ * business_name/description onto the real business row -- explicit, founder-triggered,
+ * never automatic, per this backlog's own established "AI suggestions are always
+ * editable proposals, never silently auto-saved as fact" discipline (the *old*
+ * createBusinessFromWebsiteAction did overwrite these silently; this replaces that with
+ * a real review step). Every other field this run extracted (products/services,
+ * industries, pricing hints, etc.) has nowhere to be "applied" yet -- turning them into
+ * real Offering/ICP rows is DISC-OFFER-P0-09.3/09.4's own job, not this story's.
+ */
+export async function applyWebsiteOnboardingProfileAction(
+  businessId: string,
+): Promise<{ error: string } | { success: true }> {
+  const run = await getLatestWebsiteOnboardingRun(businessId);
+  if (!run || run.status !== "succeeded" || !run.profile) {
+    return { error: "No completed onboarding profile to apply yet." };
+  }
+
+  const { business_name, description } = run.profile;
+  const patch: { name?: string; description?: string } = {};
+  if (business_name.status !== "unknown" && business_name.value) patch.name = business_name.value;
+  if (description.status !== "unknown" && description.value) patch.description = description.value;
+  if (Object.keys(patch).length === 0) {
+    return { error: "Nothing usable to apply from this profile." };
+  }
+
+  try {
+    await updateBusiness(businessId, patch);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not update the business." };
   }
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };
