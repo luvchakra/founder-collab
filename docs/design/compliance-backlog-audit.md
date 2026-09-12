@@ -66,13 +66,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.5 | Return Review Workflow | Done |
 | | 07.6 | Return Lock | Done |
 | | 07.7 | Filing/Payment Status | Done |
-| P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
+| P0-08 | 08.1 | GSTR-2B Fetch/Import | Done |
+| | 08.2–08.6 | Purchase-to-2B Matching, Match Explanation, IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**37 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**38 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -80,9 +81,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
-Bill), and now COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-07.7
-(Filing/Payment Status) is the last completed story. Next: COMPLY-P0-08 (India
-Reconciliation & IMS), starting with COMPLY-P0-08.1 (GSTR-2B Fetch/Import).
+Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
+Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import) is done.
+Next: COMPLY-P0-08.2 (Purchase-to-2B Matching).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4055,5 +4056,192 @@ database-level lock on approved/filed content, and filing/payment status recordi
   still holding on every new column (Carol, a same-business viewer, can read the recorded
   ARN; Bob, a different business's owner, sees nothing at all). All passing.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.1 — GSTR-2B Fetch/Import (2026-09-12)
+
+Starts COMPLY-P0-08 (India Reconciliation & IMS), the epic this run's own instructions
+flagged as needing its own research pass and likely a new GSP credential table -- treated
+as its own multi-part effort the same way E-Invoice needed six stories, not compressed
+into one.
+
+**Research, not assumption, and an honest limit stated plainly (backlog rule 6)**:
+`docs.gst.gov.in`, `developer.sandbox.co.in` (the GST API sandbox this run specifically
+tried to fetch), and `cleartax.in` were all unreachable from this environment (network
+egress proxy blocks them) -- `WebFetch` failed with `EGRESS_BLOCKED` against all three.
+Fell back to `WebSearch`, which surfaced enough cross-referenced, independently-confirmed
+detail to proceed responsibly rather than inventing a shape from memory:
+- GSTR-2B is a **static**, auto-generated ITC statement GSTN produces on the 14th of each
+  month, sourced from suppliers' own GSTR-1/IFF filings, downloadable from the GST Portal
+  in Excel or JSON format -- confirmed via ClearTax's and the official
+  `tutorial.gst.gov.in` FAQ's own descriptions.
+- The JSON is grouped by section (`b2b`, `cdnr`, plus `impg`/ISD sections this story
+  deliberately excludes -- see below) and nested by supplier GSTIN, each invoice a
+  separate entry -- confirmed via Zoho Books' and Bizeract's own GSTR-2B
+  reconciliation/converter documentation.
+- Field abbreviations -- `fp` (filing period, `MMYYYY`), `gstin`, `ctin` (counterparty/
+  supplier GSTIN), `trdnm` (trade name), `supprd`/`supfildt` (supplier's own filing
+  period/date), `inum`/`idt`/`val`/`pos`/`txval` (invoice number/date/value/place-of-
+  supply/taxable value), `itms` (item breakup, not used here -- see scope note below) --
+  confirmed via `WebSearch` against `tutorial.gst.gov.in`'s own "Returns Offline Tool FAQs
+  and User Manual" PDF, cross-referenced consistently by TallyPrime's, ERPNext's,
+  swildesk's, and Bizeract's own independent GSTR-1/2A/2B JSON documentation/converters --
+  the same abbreviations recur across the whole GSTR-1/2A/2B family, not invented per-form.
+  `itc_elg` (per-invoice ITC-eligible flag) confirmed via the same search results
+  describing GSTR-2B's own JSON section structure.
+- The two REAL ITC-not-available reasons GSTN's own advisory documents (per
+  `tutorial.gst.gov.in`, via IndiaFilings' summary of it, searched this story): recipient
+  not entitled under **Section 16(4)** (the return-filing time bar), and supplier GSTIN +
+  place of supply in the same State while the recipient is in a different State --
+  Table 4, Part A of the real GSTR-2B form. Both stored verbatim in `ineligibility_reason`
+  when present, never re-derived by this platform's own code (backlog rule 12 -- distinguish
+  regulatory fact from software rule).
+- IMS (Invoice Management System) itself -- accept/reject/pending, deemed acceptance on
+  inaction, "pending" excluded from both 2B and 3B until resolved -- confirmed via
+  ClearTax's and TaxGuru's own IMS guides, useful context for COMPLY-P0-08.4 (not this
+  story's own scope, which only imports the statement).
+
+**Checked existing code first (backlog rule 1)**: `gst.eway_bill_credentials`/
+`gst.einvoice_credentials` (`20260907150000_gst_credentials_schema.sql`,
+`20260909010000_gst_credentials_encrypt_secrets.sql`) are the established "a business's
+own configured GSP" pattern -- reused verbatim (no SELECT grant to `authenticated` at
+all, `encrypted_gsp_password`/`encrypted_client_secret` AES-256-GCM ciphertext, a
+SECURITY DEFINER `_status()` RPC that never selects the secrets) for a new
+`gst.gstr2b_credentials` table, created with the encrypted-from-the-start column names
+this time (learning COMPLY-P0-07.6/07.7's own "apply the lesson, don't repeat the
+mistake" discipline -- no separate rename-and-encrypt follow-up migration needed).
+`docs/plan/00-MASTER-PLAN.md` §5 has no existing row for a GSTN returns/reconciliation
+credential or statement, and this backlog's own §5 explicitly lists "reconciliations" as
+Compliance-owned -- confirmed `gst` is the correct schema before creating anything, per
+backlog rule 5.
+
+**Design decision -- three new tables, not one, and a real GSP-fetch adapter that is
+explicitly optional**: `gst.gstr2b_credentials` (the OPTIONAL fetch-adapter config --
+most real GSPs' own Returns API additionally needs a short-lived OTP-session-token step
+this platform does not model, documented plainly in the migration rather than glossed
+over); `gst.gstr2b_statements` (one row per business/return-period, `raw jsonb not null`
+preserving the complete original JSON verbatim per backlog rule 13 -- "preserve historical
+filing/evidence state" -- regardless of how the normalized columns turn out); and
+`gst.gstr2b_documents` (one row per B2B invoice or CDNR credit/debit note, normalized for
+COMPLY-P0-08.2's own matching to query directly rather than re-parsing JSON on every
+read). The REALISTIC universal import path is manual JSON upload -- the GST Portal itself
+only ever serves 2B to an interactively-logged-in session, so `lib/gstr2b/mutations.ts`'s
+own `importGstr2bStatement` never depends on the credentials table at all;
+`fetchAndImportGstr2bStatement` is the adapter-based path for a business whose configured
+GSP does expose a non-interactive fetch, sharing the exact same parse/persist code so
+both paths behave identically once JSON is in hand.
+
+**Scope, deliberately narrowed (backlog rule 5)**: only `b2b` and `cdnr` sections are
+modeled -- domestic purchases from registered suppliers, which is all COMPLY-P0-08.2's own
+purchase-to-2B matching needs (it will only ever compare against
+`core.documents.doc_type = 'purchase_order'`, itself sourced from registered domestic
+suppliers via `core.tax_identities`, per `lib/filing/queries.ts`'s own
+`getPurchaseRegister`, read as this story's reconnaissance). `b2ba`/`cdnra` (amendments),
+`impg`/`impgsez` (import of goods via ICEGATE), and ISD credit sections are out of scope --
+this platform has no import/customs `doc_type` and no ISD concept anywhere in `core`
+today; a future story that needs them extends `section`'s own check constraint and the
+matcher, not a second statement table. Per-line HSN item breakup (`itms`) is also not
+modeled -- GSTR-2B's own header/invoice-level `txval`/tax amounts are what the search
+results describe as present directly on each invoice (unlike GSTR-1's own item-level
+breakup, needed there for HSN-wise outward-supply reporting this platform doesn't need
+from a purchase-side ITC statement).
+
+**A real bug caught by the type checker, not left to a design review**: `lib/returns/
+lifecycle/queries.ts` deliberately does NOT wrap its own reads in React's `cache()` (its
+own file has no such wrapper) because `mutations.ts` reads a period back immediately
+after writing it within the same request -- a memoized stale read would silently return
+pre-write data. The first draft of `lib/gstr2b/queries.ts` copied `lib/filing/
+queries.ts`'s own `cache()`-wrapped convention instead (the wrong precedent to copy,
+since filing's own registers are pure display reads with no interleaved write in the same
+request) -- caught by re-reading the return-periods precedent specifically before
+finalizing, not by running into the bug live; fixed by dropping `cache()` entirely from
+`lib/gstr2b/queries.ts` and documenting why, so a future contributor doesn't mis-copy it
+back in.
+
+**What was built**:
+- `supabase/migrations/20260912130000_gst_gstr2b_credentials.sql` -- the optional
+  fetch-credentials table (encrypted secrets from creation).
+- `supabase/migrations/20260912140000_gst_gstr2b_statements.sql` -- `gst.gstr2b_statements`
+  + `gst.gstr2b_documents`, RLS (read open to any business member, write behind a new
+  `gst.manage_reconciliation` permission distinct from `gst.file_returns`), no UPDATE
+  policy on `gstr2b_documents` at all (a document row is replaced wholesale on re-import,
+  never edited in place).
+- `supabase/migrations/20260912150000_gst_gstr2b_documents_business_id_index.sql` -- a
+  same-session follow-up after `get_advisors` flagged `gstr2b_documents.business_id`
+  (every RLS policy's own filter column) as an unindexed foreign key immediately after
+  applying the previous migration.
+- `lib/gstr2b/types.ts` -- `Gstr2bStatement`/`Gstr2bDocument`/`RawGstr2bJson` and friends.
+- `lib/gstr2b/parse.ts` -- pure, no-I/O `parseGstr2bJson()`: normalizes the raw JSON into
+  this platform's own column shape, converting GSTN's `DD-MM-YYYY`/`MMYYYY` conventions,
+  defaulting missing numerics to 0 rather than throwing, and collecting a
+  `Gstr2bParseWarning[]` for anything it had to skip (no counterparty GSTIN, no invoice/
+  note number, an unrecognized note type) instead of failing the whole import over one bad
+  row -- a government export is not a shape this platform controls.
+- `lib/gstr2b/queries.ts` / `lib/gstr2b/mutations.ts` -- `importGstr2bStatement`
+  (upsert-by-natural-key, delete-then-reinsert documents on re-import, `requireModule`/
+  `requirePermission('gst.manage_reconciliation')` backing up RLS) and
+  `fetchAndImportGstr2bStatement` (the adapter path).
+- `lib/gstr2b/credentials.ts` -- `upsertGstr2bCredentials`/`getGstr2bFetchCredentials`,
+  same shape as `einvoicing/mutations.ts`'s own credential functions.
+- `lib/gstr2b-adapter/types.ts` + `gsp-adapter.ts` -- `Gstr2bFetchAdapter`, the backlog's
+  own "government integrations must be adapter-based" rule (7) applied here, mirroring
+  `IrpAdapter`/`EwayBillAdapter`; `buildGstr2bFetchUrl` converts this platform's `YYYY-MM`
+  back to GSTN's `MMYYYY` query convention.
+- 18 new vitest cases across `lib/gstr2b/parse.test.ts` and
+  `lib/gstr2b-adapter/gsp-adapter.test.ts` covering: period/date format conversion both
+  directions, ITC-eligible/ineligible with reason preserved verbatim, default-eligible
+  when the flag is absent, credit vs. debit note discrimination by `ntty`, unrecognized
+  note type warned-and-defaulted rather than thrown, missing-GSTIN/missing-invoice-number
+  skip-with-warning, numeric defaulting to 0, multi-supplier/multi-invoice parsing, and the
+  fetch adapter's URL-building plus its rejection of an invalid period before ever calling
+  `fetch`.
+- `scripts/test-gst-gstr2b-rls.mjs` -- new real-Postgres RLS harness (added to
+  `package.json`'s `test:db` chain), covering: no-SELECT-at-all on credentials (same
+  pattern as `test-gst-credentials-rls.mjs`), the non-secret status RPC, tenant isolation
+  and `gst.manage_reconciliation` gating on both statements and documents, the
+  `return_period` format check, `unique(business_id, return_period)`,
+  `unique(statement_id, section, document_type, supplier_gstin, document_number)`, the
+  `section` check constraint (b2b/cdnr only), NO update policy on `gstr2b_documents`
+  (verified as a real rejection, not a no-op), and cascade delete from a statement to its
+  documents.
+
+**What was deliberately left out**: purchase-to-2B matching itself (COMPLY-P0-08.2's own
+job -- this story only gets a statement's content into queryable rows); any IMS
+accept/reject/pending action (COMPLY-P0-08.4); any UI (this whole epic follows the
+established "lib first, UI later" pattern, COMPLY-P0-11 is the dedicated UI epic);
+`b2ba`/`cdnra`/`impg`/`impgsez`/ISD sections (see scope note above); a live exercise
+against a real GSTN sandbox or GSP (none reachable this session -- same honest limit
+already applied to the IRP/e-way-bill adapters, now stated for this one too, with a
+concrete recommendation to validate `parse.ts` against a real downloaded 2B JSON before
+this ships to a real business).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1231 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 148
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 336 tests passing (318 prior + 18 new
+  parser/adapter tests).
+- All three migrations applied live to the **dev** Supabase project
+  (`jazdtomcgqjxjueedmck`) via `mcp__Supabase__apply_migration`. `mcp__Supabase__
+  get_advisors` (security): identical finding set before and after (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning) -- no new security finding from this story's three new tables. Performance: a
+  real, new `unindexed_foreign_keys` finding on `gstr2b_documents.business_id` appeared
+  immediately after the second migration -- fixed in the same session via the third
+  migration (a dedicated index), re-checked afterward and confirmed resolved (the finding
+  disappeared; the new index itself shows up as "unused," expected and benign in a
+  traffic-free dev project, same as every other RLS-covering index in this schema).
+- **Local Postgres RLS harness actually run this story** (this session's cluster was
+  startable again -- started, used; left running rather than stopped, since this run
+  expects to continue into further COMPLY-P0-08 stories in the same session):
+  `scripts/test-gst-gstr2b-rls.mjs`, all assertions listed above passing, including the
+  cross-tenant and no-update-policy checks that only a real database (not a
+  reasoning-on-paper review) can actually prove.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
