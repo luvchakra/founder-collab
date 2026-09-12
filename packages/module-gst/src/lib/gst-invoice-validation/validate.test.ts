@@ -170,6 +170,49 @@ describe("validateGstInvoiceFields", () => {
     expect(result.issues.filter((i) => i.code === "tax_split_mismatch")).toHaveLength(0);
   });
 
+  it("does not flag a line whose GST rate is one of the currently known slabs", () => {
+    const result = validateGstInvoiceFields({
+      document: makeDocument({ lines: [makeLine({ taxRate: 18 })] }),
+      lineItemKinds: new Map([["item-1", "good"]]),
+      placeOfSupply: "intra_state",
+      knownRateSlabsPercent: [0, 5, 18, 40],
+    });
+    expect(result).toEqual({ valid: true, issues: [] });
+  });
+
+  it("warns (does not block) when a line's GST rate isn't one of the currently known slabs", () => {
+    const result = validateGstInvoiceFields({
+      document: makeDocument({ lines: [makeLine({ taxRate: 12 })] }),
+      lineItemKinds: new Map([["item-1", "good"]]),
+      placeOfSupply: "intra_state",
+      knownRateSlabsPercent: [0, 5, 18, 40],
+    });
+    expect(result.valid).toBe(true);
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ code: "line_tax_rate_not_a_known_slab", severity: "warning", lineId: "line-1" }),
+    );
+  });
+
+  it("skips the rate-slab check entirely when no slab rule could be resolved for this date", () => {
+    const result = validateGstInvoiceFields({
+      document: makeDocument({ lines: [makeLine({ taxRate: 15 })] }),
+      lineItemKinds: new Map([["item-1", "good"]]),
+      placeOfSupply: "intra_state",
+      // knownRateSlabsPercent intentionally omitted -- "no rule content for this date."
+    });
+    expect(result.issues.filter((i) => i.code === "line_tax_rate_not_a_known_slab")).toHaveLength(0);
+  });
+
+  it("skips the rate-slab check for a non-taxable line", () => {
+    const result = validateGstInvoiceFields({
+      document: makeDocument({ lines: [makeLine({ taxable: false, taxRate: 15 })] }),
+      lineItemKinds: new Map([["item-1", "good"]]),
+      placeOfSupply: "intra_state",
+      knownRateSlabsPercent: [0, 5, 18, 40],
+    });
+    expect(result.issues.filter((i) => i.code === "line_tax_rate_not_a_known_slab")).toHaveLength(0);
+  });
+
   it("accumulates multiple independent issues at once", () => {
     const result = validateGstInvoiceFields({
       document: makeDocument({ number: null, docDate: null as unknown as string }),

@@ -2,6 +2,7 @@ import { validateHsnSacCode } from "../inventory-tax-context/hsn-sac";
 import type { ItemKind } from "../inventory-tax-context/types";
 import type { DocumentContext } from "../core-transactions/types";
 import type { PlaceOfSupplyTreatment } from "../place-of-supply/types";
+import { isKnownGstRateSlab } from "../tax-rules/india-rate-slabs";
 import type { GstInvoiceIssue, GstInvoiceValidationResult } from "./types";
 
 /**
@@ -22,6 +23,17 @@ import type { GstInvoiceIssue, GstInvoiceValidationResult } from "./types";
  * address changing after an invoice was issued would trigger this warning without the
  * original invoice having been wrong at the time, so it is surfaced for a human to look
  * at, never treated as a hard validation failure on its own.
+ *
+ * COMPLY-P0-04.7 (GST Rule Versioning): the line-level rate-slab check is also a WARNING,
+ * never an error -- it flags a line whose snapshotted `taxRate` isn't one of the GST
+ * ad-valorem slabs *currently* recognized as of the invoice date (per
+ * `gst.tax_rules`'s own versioned `standard_rate_slabs` lineage,
+ * `lib/tax-rules/india-rate-slabs.ts`), which is exactly the kind of fact worth a human's
+ * attention rather than a hard block: a business may have a genuine negotiated/legacy
+ * rate, or the rule content itself may simply not have a version for this exact date.
+ * `knownRateSlabsPercent` is undefined when the caller couldn't resolve any rule for this
+ * date at all (`queries.ts`'s own orchestrator) -- in that case the check is skipped
+ * entirely rather than treating "we don't have rule content" as itself a finding.
  */
 export function validateGstInvoiceFields(input: {
   document: DocumentContext;
@@ -30,6 +42,11 @@ export function validateGstInvoiceFields(input: {
    * function can't know what code family would even apply. */
   lineItemKinds: Map<string, ItemKind>;
   placeOfSupply: PlaceOfSupplyTreatment;
+  /** The GST rate slabs (e.g. `[0, 5, 18, 40]`) recognized as of this document's own
+   * invoice date, from `gst.tax_rules`'s versioned `standard_rate_slabs` lineage --
+   * `undefined` when no rule content could be resolved for that date, which skips the
+   * rate-slab check rather than treating the absence of rule content as a finding. */
+  knownRateSlabsPercent?: number[];
 }): GstInvoiceValidationResult {
   const issues: GstInvoiceIssue[] = [];
   const { document } = input;
@@ -60,22 +77,38 @@ export function validateGstInvoiceFields(input: {
 
   for (const line of document.lines) {
     if (!line.taxable) continue;
-    const kind = input.lineItemKinds.get(line.itemId);
-    if (!kind) continue;
 
-    const result = validateHsnSacCode(kind, line.hsnCode);
-    if (result.status === "missing") {
+    const kind = input.lineItemKinds.get(line.itemId);
+    if (kind) {
+      const result = validateHsnSacCode(kind, line.hsnCode);
+      if (result.status === "missing") {
+        issues.push({
+          code: "line_hsn_sac_missing",
+          severity: "error",
+          message: result.reason ?? "Missing HSN/SAC code.",
+          lineId: line.id,
+        });
+      } else if (result.status === "invalid") {
+        issues.push({
+          code: "line_hsn_sac_invalid",
+          severity: "error",
+          message: result.reason ?? "Invalid HSN/SAC code.",
+          lineId: line.id,
+        });
+      }
+    }
+
+    if (
+      input.knownRateSlabsPercent &&
+      input.knownRateSlabsPercent.length > 0 &&
+      !isKnownGstRateSlab(line.taxRate, input.knownRateSlabsPercent)
+    ) {
       issues.push({
-        code: "line_hsn_sac_missing",
-        severity: "error",
-        message: result.reason ?? "Missing HSN/SAC code.",
-        lineId: line.id,
-      });
-    } else if (result.status === "invalid") {
-      issues.push({
-        code: "line_hsn_sac_invalid",
-        severity: "error",
-        message: result.reason ?? "Invalid HSN/SAC code.",
+        code: "line_tax_rate_not_a_known_slab",
+        severity: "warning",
+        message: `This line's GST rate (${line.taxRate}%) is not one of the GST rate slabs currently in effect (${input.knownRateSlabsPercent
+          .map((slab) => `${slab}%`)
+          .join(", ")}). Confirm this rate is correct.`,
         lineId: line.id,
       });
     }
