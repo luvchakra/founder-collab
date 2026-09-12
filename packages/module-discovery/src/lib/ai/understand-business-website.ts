@@ -10,6 +10,8 @@ import { WebsiteBusinessProfileSchema, type WebsiteBusinessProfile } from "./sch
 import { resolveAiModelForAccount, toAiProviderError } from "./router";
 import { crawlWebsite, type CrawledPage } from "./website-crawl";
 import { sanitizeWebsiteProfile } from "../website-onboarding/sanitize";
+import { extractBusinessOfferings } from "./extract-business-offerings";
+import type { WebsiteOfferingCandidate } from "./schemas";
 
 const OPERATION = "understand_business_website";
 
@@ -20,22 +22,36 @@ export type UnderstandBusinessWebsiteResult = {
    * "store source URL and retrieval timestamp" holds as a real, reloadable record, not
    * just a one-time stream event. */
   pages: CrawledPage[];
+  /** DISC-OFFER-P0-09.3's own proposed Business Offerings, extracted from the same
+   * crawl's combined findings (no second crawl). Empty when the site's findings don't
+   * support identifying any real commercial offering. */
+  offerings: WebsiteOfferingCandidate[];
 };
 
 /**
- * DISC-OFFER-P0-09.1/09.2's own AI step: crawls the business's own website
+ * DISC-OFFER-P0-09.1/09.2/09.3's own AI step: crawls the business's own website
  * (lib/ai/website-crawl.ts's crawlWebsite() -- the homepage plus a bounded, same-domain,
  * robots-respecting, priority-ordered set of internal pages, DISC-OFFER-P0-09.2's own
- * addition on top of 09.1's single-page fetch) and structures the full
- * WebsiteBusinessProfileSchema out of the combined findings, then runs it through
+ * addition on top of 09.1's single-page fetch), structures the full
+ * WebsiteBusinessProfileSchema out of the combined findings (through
  * sanitizeWebsiteProfile() so "unknown never carries a value" holds regardless of what the
- * model returned.
+ * model returned), then extracts the site's own distinct Business Offerings from that
+ * SAME combined findings (DISC-OFFER-P0-09.3's own extractBusinessOfferings() -- no
+ * second crawl).
  *
  * Same business_id-scoped ai_runs logging as understandBusiness() (see that file's own
  * doc comment for why: this runs before any workspace exists to key discovery's own
- * workspace-scoped ai_runs/usage-limit machinery off) -- one row per call, its
- * input/output token counts summing every page's own research call plus the final
- * structuring call, not one row per page.
+ * workspace-scoped ai_runs/usage-limit machinery off) -- one row per call for THIS
+ * function's own operation, its input/output token counts summing every page's own
+ * research call plus the profile structuring call, not one row per page. Offering
+ * extraction logs its own separate `extract_business_offerings` row (see that file's own
+ * doc comment for why it's kept separate rather than folded in here).
+ *
+ * If offering extraction fails after a successful crawl and profile structuring, the
+ * whole run fails rather than completing with a profile but no offerings -- the same
+ * "one run, one outcome" simplicity 09.1/09.2 already chose over partially decoupling the
+ * run's own steps (see 09.2's own audit-log scope note on page persistence for the same
+ * reasoning applied to a different step).
  *
  * Deliberately takes no `force`/freshness-caching parameter the way understandProduct()
  * does: a website onboarding run is a one-shot, explicitly founder-triggered action (the
@@ -58,6 +74,10 @@ export async function understandBusinessWebsite(
    * caller show "Crawling: About page..." progress for DISC-OFFER-P0-09.2's own "Crawl
    * progress is visible" acceptance criterion. */
   onPageCrawled?: (page: CrawledPage) => void,
+  /** DISC-OFFER-P0-09.3's own progress callback for the offering-extraction step, kept
+   * distinct from `onProgress` above (which only ever reports the business-profile
+   * structuring step) for the same reason `onPageCrawled` is its own parameter. */
+  onOfferingsProgress?: (partial: Record<string, unknown>) => void,
 ): Promise<UnderstandBusinessWebsiteResult> {
   const { provider, modelId, model, modelAtTier } = await resolveAiModelForAccount(accountId, OPERATION);
 
@@ -101,7 +121,19 @@ export async function understandBusinessWebsite(
       durationMs: Date.now() - startedAt,
     });
 
-    return { profile, pages: crawl.pages };
+    // DISC-OFFER-P0-09.3: same combined findings, no second crawl -- only pages that
+    // actually succeeded have real content worth citing as an offering's source.
+    const succeededPageUrls = crawl.pages.filter((page) => page.status === "succeeded").map((page) => page.url);
+    const offerings = await extractBusinessOfferings(
+      businessId,
+      accountId,
+      website,
+      crawl.combinedFindings,
+      succeededPageUrls,
+      onOfferingsProgress,
+    );
+
+    return { profile, pages: crawl.pages, offerings };
   } catch (error) {
     const aiError = toAiProviderError(error, provider);
     await recordCoreAiRun({

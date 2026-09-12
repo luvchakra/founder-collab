@@ -6,10 +6,16 @@ import { CheckCircle2, Loader2, RefreshCw, Sparkles, XCircle } from "lucide-reac
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { toast } from "@cofounderai/core/ui/sonner";
-import type { WebsiteBusinessProfile, WebsiteFieldStatus } from "../../lib/ai/schemas";
+import type { WebsiteBusinessProfile, WebsiteFieldStatus, WebsiteOfferingCandidate } from "../../lib/ai/schemas";
 import type { CrawledPage } from "../../lib/ai/website-crawl";
+import { OFFERING_TYPE_LABEL, type OfferingType } from "../../lib/offerings/types";
 import { WEBSITE_PAGE_CATEGORY_LABEL, type WebsitePageCategory } from "../../lib/website-onboarding/crawl-plan";
-import type { WebsiteOnboardingPage, WebsiteOnboardingRun, WebsiteOnboardingStatus } from "../../lib/website-onboarding/types";
+import type {
+  WebsiteOnboardingOfferingCandidate,
+  WebsiteOnboardingPage,
+  WebsiteOnboardingRun,
+  WebsiteOnboardingStatus,
+} from "../../lib/website-onboarding/types";
 import { WEBSITE_FIELD_STATUS_LABEL, WEBSITE_LIST_FIELDS, WEBSITE_TEXT_FIELDS } from "./field-labels";
 
 type RetryResult = { error: string } | { success: true; run: WebsiteOnboardingRun };
@@ -18,7 +24,8 @@ type ApplyResult = { error: string } | { success: true };
 type StreamEvent =
   | { type: "progress"; profile: Record<string, unknown> }
   | { type: "page"; page: CrawledPage }
-  | { type: "done"; profile: WebsiteBusinessProfile }
+  | { type: "offerings-progress"; offerings: Record<string, unknown> }
+  | { type: "done"; profile: WebsiteBusinessProfile; offerings: WebsiteOfferingCandidate[] }
   | { type: "error"; error: string }
   | { type: "noop"; status: WebsiteOnboardingStatus };
 
@@ -33,6 +40,53 @@ function fromInitialPage(page: WebsiteOnboardingPage): CrawledPageView {
 }
 function fromStreamedPage(page: CrawledPage): CrawledPageView {
   return { url: page.url, category: page.category, status: page.status, error: page.error };
+}
+
+/** A proposed offering as tracked client-side, whether loaded from the DB on page render
+ * (snake_case, matches WebsiteOnboardingOfferingCandidate) or received in the stream's
+ * final "done" event (camelCase, matches WebsiteOfferingCandidate) -- normalized to one
+ * shape for the same reason CrawledPageView is above. DISC-OFFER-P0-09.3 only ever shows
+ * these read-only; edit/merge/remove/"Create Offerings" is DISC-OFFER-P0-09.4's own scope. */
+type OfferingCandidateView = {
+  name: string;
+  description: string;
+  offeringType: OfferingType | null;
+  problemSolved: string | null;
+  targetCustomer: string | null;
+  targetIndustry: string | null;
+  valueProposition: string | null;
+  evidence: string;
+  confidence: number;
+  sourcePages: string[];
+};
+
+function fromInitialOffering(offering: WebsiteOnboardingOfferingCandidate): OfferingCandidateView {
+  return {
+    name: offering.name,
+    description: offering.description,
+    offeringType: offering.offering_type,
+    problemSolved: offering.problem_solved,
+    targetCustomer: offering.target_customer,
+    targetIndustry: offering.target_industry,
+    valueProposition: offering.value_proposition,
+    evidence: offering.evidence,
+    confidence: offering.confidence,
+    sourcePages: offering.source_pages,
+  };
+}
+function fromStreamedOffering(offering: WebsiteOfferingCandidate): OfferingCandidateView {
+  return {
+    name: offering.name,
+    description: offering.description,
+    offeringType: offering.offeringType as OfferingType | null,
+    problemSolved: offering.problemSolved,
+    targetCustomer: offering.targetCustomer,
+    targetIndustry: offering.targetIndustry,
+    valueProposition: offering.valueProposition,
+    evidence: offering.evidence,
+    confidence: offering.confidence,
+    sourcePages: offering.sourcePages,
+  };
 }
 
 /**
@@ -54,6 +108,7 @@ export function WebsiteOnboardingPanel({
   businessId,
   initialRun,
   initialPages = [],
+  initialOfferings = [],
   retryAction,
   applyAction,
 }: {
@@ -63,6 +118,11 @@ export function WebsiteOnboardingPanel({
    * discovery.website_onboarding_pages -- empty for a `pending` run that hasn't crawled
    * anything yet. */
   initialPages?: WebsiteOnboardingPage[];
+  /** The prior run's own proposed offerings (DISC-OFFER-P0-09.3), loaded from
+   * discovery.website_onboarding_offering_candidates -- empty for a `pending` run or one
+   * whose extraction hasn't completed yet. Read-only here: DISC-OFFER-P0-09.4 is what
+   * turns these into editable, activatable rows. */
+  initialOfferings?: WebsiteOnboardingOfferingCandidate[];
   retryAction: () => Promise<RetryResult>;
   applyAction: () => Promise<ApplyResult>;
 }) {
@@ -70,7 +130,9 @@ export function WebsiteOnboardingPanel({
   const [run, setRun] = useState(initialRun);
   const [streaming, setStreaming] = useState(false);
   const [progressFieldCount, setProgressFieldCount] = useState(0);
+  const [progressOfferingCount, setProgressOfferingCount] = useState(0);
   const [pages, setPages] = useState<CrawledPageView[]>(initialPages.map(fromInitialPage));
+  const [offerings, setOfferings] = useState<OfferingCandidateView[]>(initialOfferings.map(fromInitialOffering));
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const startedRunIds = useRef(new Set<string>());
@@ -80,7 +142,9 @@ export function WebsiteOnboardingPanel({
     startedRunIds.current.add(runId);
     setStreaming(true);
     setProgressFieldCount(0);
+    setProgressOfferingCount(0);
     setPages([]);
+    setOfferings([]);
 
     try {
       const response = await fetch(`/dashboard/businesses/${businessId}/website-onboarding`, {
@@ -106,8 +170,11 @@ export function WebsiteOnboardingPanel({
             setProgressFieldCount(Object.keys(event.profile).length);
           } else if (event.type === "page") {
             setPages((prev) => [...prev, fromStreamedPage(event.page)]);
+          } else if (event.type === "offerings-progress") {
+            setProgressOfferingCount(Array.isArray(event.offerings.offerings) ? event.offerings.offerings.length : 0);
           } else if (event.type === "done") {
             setRun((r) => ({ ...r, status: "succeeded", profile: event.profile, error: null }));
+            setOfferings(event.offerings.map(fromStreamedOffering));
           } else if (event.type === "error") {
             setRun((r) => ({ ...r, status: "failed", error: event.error }));
           } else if (event.type === "noop") {
@@ -137,6 +204,7 @@ export function WebsiteOnboardingPanel({
     }
     setApplied(false);
     setPages([]);
+    setOfferings([]);
     setRun(result.run);
   }
 
@@ -161,8 +229,12 @@ export function WebsiteOnboardingPanel({
           <span>
             {pages.length === 0
               ? `Reading ${run.website}...`
-              : `Crawled ${pages.length} page${pages.length === 1 ? "" : "s"} on ${run.website} so far, building your business profile...`}
-            {progressFieldCount > 0 ? ` (${progressFieldCount} of ${WEBSITE_TEXT_FIELDS.length + WEBSITE_LIST_FIELDS.length} fields so far)` : ""}
+              : progressOfferingCount > 0
+                ? `Found ${progressOfferingCount} offering${progressOfferingCount === 1 ? "" : "s"} on ${run.website} so far...`
+                : `Crawled ${pages.length} page${pages.length === 1 ? "" : "s"} on ${run.website} so far, building your business profile...`}
+            {progressFieldCount > 0 && progressOfferingCount === 0
+              ? ` (${progressFieldCount} of ${WEBSITE_TEXT_FIELDS.length + WEBSITE_LIST_FIELDS.length} fields so far)`
+              : ""}
           </span>
         </div>
         {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
@@ -227,6 +299,8 @@ export function WebsiteOnboardingPanel({
 
         {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
 
+        {offerings.length > 0 ? <OfferingCandidateList offerings={offerings} /> : null}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {WEBSITE_TEXT_FIELDS.map(({ key, label }) => (
             <FieldCard key={key} label={label} status={profile[key].status}>
@@ -277,6 +351,78 @@ function CrawledPageList({ pages }: { pages: CrawledPageView[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * DISC-OFFER-P0-09.3's own "multiple offerings can be identified" / "evidence and
+ * confidence are shown" -- one card per proposed commercial Offering, read-only. Reuses
+ * this file's own FieldCard visual language (bordered card, badge for a per-item status)
+ * rather than inventing a second style, per this platform's own "preserve consistency"
+ * design rule. Deliberately has no Edit/Merge/Remove/"Create Offerings" action here --
+ * that is DISC-OFFER-P0-09.4's own "Offering Review Before Activation" scope; this is the
+ * extraction result, not yet the review screen.
+ */
+function OfferingCandidateList({ offerings }: { offerings: OfferingCandidateView[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-semibold">
+        We found {offerings.length} Business Offering{offerings.length === 1 ? "" : "s"}
+      </p>
+      <div className="flex flex-col gap-2">
+        {offerings.map((offering, i) => (
+          <div key={`${offering.name}-${i}`} className="flex flex-col gap-1.5 rounded-lg border border-border/60 p-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-medium">{offering.name}</span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {offering.offeringType ? <Badge variant="outline">{OFFERING_TYPE_LABEL[offering.offeringType]}</Badge> : null}
+                <Badge variant="secondary">{Math.round(offering.confidence * 100)}% confidence</Badge>
+              </div>
+            </div>
+            <p className="text-muted-foreground">{offering.description}</p>
+            <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+              {offering.problemSolved ? (
+                <div>
+                  <dt className="font-medium text-foreground">Problem solved</dt>
+                  <dd className="text-muted-foreground">{offering.problemSolved}</dd>
+                </div>
+              ) : null}
+              {offering.targetCustomer ? (
+                <div>
+                  <dt className="font-medium text-foreground">Target customer</dt>
+                  <dd className="text-muted-foreground">{offering.targetCustomer}</dd>
+                </div>
+              ) : null}
+              {offering.targetIndustry ? (
+                <div>
+                  <dt className="font-medium text-foreground">Target industry</dt>
+                  <dd className="text-muted-foreground">{offering.targetIndustry}</dd>
+                </div>
+              ) : null}
+              {offering.valueProposition ? (
+                <div>
+                  <dt className="font-medium text-foreground">Value proposition</dt>
+                  <dd className="text-muted-foreground">{offering.valueProposition}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {offering.evidence ? (
+              <p className="border-l-2 border-border pl-2 text-xs italic text-muted-foreground">&ldquo;{offering.evidence}&rdquo;</p>
+            ) : null}
+            {offering.sourcePages.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span>Source{offering.sourcePages.length === 1 ? "" : "s"}:</span>
+                {offering.sourcePages.map((url) => (
+                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary underline-offset-2 hover:underline">
+                    {url}
+                  </a>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

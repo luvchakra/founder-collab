@@ -7,9 +7,11 @@ import {
   completeWebsiteOnboardingRun,
   failWebsiteOnboardingRun,
   recordWebsiteOnboardingPages,
+  recordWebsiteOnboardingOfferingCandidates,
 } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
 import { understandBusinessWebsite } from "@cofounderai/module-discovery/lib/ai/understand-business-website";
 import type { CrawledPage } from "@cofounderai/module-discovery/lib/ai/website-crawl";
+import type { WebsiteOfferingCandidate } from "@cofounderai/module-discovery/lib/ai/schemas";
 
 /**
  * Streaming counterpart to the WebsiteOnboardingPanel (business/page.tsx) -- same
@@ -35,7 +37,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ bu
         event:
           | { type: "progress"; profile: Record<string, unknown> }
           | { type: "page"; page: CrawledPage }
-          | { type: "done"; profile: unknown }
+          | { type: "offerings-progress"; offerings: Record<string, unknown> }
+          | { type: "done"; profile: unknown; offerings: WebsiteOfferingCandidate[] }
           | { type: "error"; error: string }
           | { type: "noop"; status: string },
       ) => {
@@ -66,17 +69,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ bu
 
         await markWebsiteOnboardingRunRunning(runId);
 
-        const { profile, pages } = await understandBusinessWebsite(
+        const { profile, pages, offerings } = await understandBusinessWebsite(
           businessId,
           business.account_id,
           run.website,
           (partial) => send({ type: "progress", profile: partial }),
           (page) => send({ type: "page", page }),
+          (partial) => send({ type: "offerings-progress", offerings: partial }),
         );
 
         await completeWebsiteOnboardingRun(runId, profile);
         await recordWebsiteOnboardingPages(runId, pages).catch(() => {});
-        send({ type: "done", profile });
+        await recordWebsiteOnboardingOfferingCandidates(runId, offerings).catch(() => {});
+        send({ type: "done", profile, offerings });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Something went wrong.";
         if (runId) {
