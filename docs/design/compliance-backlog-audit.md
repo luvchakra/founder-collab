@@ -57,7 +57,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 05.6 | E-Invoice Status | Done |
 | P0-06 | 06.1 | Eligibility Engine | Done |
 | | 06.2 | Movement Data | Done |
-| | 06.3–06.4 | India E-Way Bill (remaining) | Not started |
+| | 06.3 | E-Way Adapter | Done |
+| | 06.4 | Document Link | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
@@ -65,7 +66,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**28 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**29 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -73,8 +74,8 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), and COMPLY-P0-05 (India E-Invoice) are all fully done.**
-COMPLY-P0-06.2 (Movement Data, India E-Way Bill) is the last completed story. Next:
-COMPLY-P0-06.3 (E-Way Adapter), continuing epic 06.
+COMPLY-P0-06.3 (E-Way Adapter, India E-Way Bill) is the last completed story. Next:
+COMPLY-P0-06.4 (Document Link), the last story in epic 06.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2796,12 +2797,183 @@ scope, flagged for a future dedicated fix).
   chain edit -- adding this story's own script -- didn't break the lint scripts' own
   self-tests).
 - No `apps/web` change, so `next build` was not re-run -- another pure-library story,
-  matching COMPLY-P0-06.1 and every COMPLY-P0-05.x story before it. (A full-monorepo
-  `npm run typecheck` was attempted and found pre-existing, unrelated failures entirely in
-  `module-discovery` and `apps/web`'s Discovery/Platform-Admin-Portal routes -- concurrent
-  workstreams' own in-progress work already merged into `main` before this session started,
-  confirmed by path alone: none of the failing files are under `module-gst` or `/gst`
-  routes. `module-gst`'s own `tsc --noEmit` above is clean, which is this story's actual
-  verification scope per the run's own per-story workflow.)
+  matching COMPLY-P0-06.1 and every COMPLY-P0-05.x story before it. A full-monorepo
+  `npm run typecheck` was attempted and found failures in `module-discovery` and `apps/web`'s
+  Discovery/Platform-Admin-Portal routes; `module-gst`'s own `tsc --noEmit` was clean.
+  **Correction, added during COMPLY-P0-06.3 (see that story's own log entry for the full
+  finding): this diagnosis of "pre-existing, unrelated, concurrent-workstream" failures was
+  WRONG.** This worktree had no `node_modules` of its own at all at this point in the
+  session (not "already installed from the prior session" as originally, incorrectly,
+  written here) -- every `@cofounderai/*` package import resolved by walking up to the
+  PRIMARY checkout's own `node_modules/@cofounderai/*` symlinks (`/home/user/founder-collab/
+  node_modules`), which point at the primary checkout's own `packages/*` on whatever branch
+  it happened to have checked out (`feature/platform-admin-portal` at the time), not this
+  worktree's own `comply-backlog` content. Once COMPLY-P0-06.3 ran `npm install` inside this
+  worktree (restoring correct, isolated resolution), the exact same full-monorepo
+  `npm run typecheck` came back 100% clean across every workspace, `apps/web` included --
+  confirming both that this story's own code was never actually wrong, and that the
+  Discovery/Platform files were never actually broken either; the whole "failure" was this
+  environment artifact, not a real cross-workstream problem. Left uncorrected-in-place
+  (rather than silently rewritten) so the audit trail stays honest about what was actually
+  checked and when -- this repo's own established discipline (see, e.g., every prior
+  story's own "no node_modules, ran npm install" environment notes).
 - No live browser walkthrough -- moot, this story shipped no UI.
-- No lockfile drift (`node_modules` already installed from the prior session).
+- No lockfile drift beyond the pre-existing, already-flagged `module-crm`/`zod` line (see
+  COMPLY-P0-01.1's own note) -- reverted before committing, same as every prior story.
+
+### 06.3 — E-Way Adapter (2026-09-12)
+
+"Generate/update/extend/cancel/status" -- the backlog's own universal rule 7 ("government
+integrations must be adapter-based") applied to India's e-way bill system, the exact same
+shape of work COMPLY-P0-05.3 already did for e-invoicing's own IRP.
+
+**Environment finding, corrects COMPLY-P0-06.2's own log entry above -- read this before
+trusting any of that story's `npm run typecheck` commentary**: this worktree had NO
+`node_modules` of its own for this entire run up through the end of COMPLY-P0-06.2 (not
+"already installed from the prior session" as that story's own log incorrectly claimed).
+Every `@cofounderai/*` import resolved by Node's own directory-walking module resolution
+up to the PRIMARY checkout's `node_modules/@cofounderai/*` symlinks
+(`/home/user/founder-collab/node_modules`, since this worktree lives nested under that same
+path), which point at the PRIMARY checkout's own `packages/*` on whatever branch it
+happened to have checked out (`feature/platform-admin-portal`), not this worktree's own
+`comply-backlog` content. This was discovered when `apps/web`'s own `tsc --noEmit` (needed
+this story, since it touches `apps/web`) reported a real-looking type error
+(`EwayBillCredentialsInput` missing `vehicle_update_url`) that made no sense against this
+worktree's own, already-edited source -- tracing it led straight to the primary checkout's
+stale symlink target. Running `npm install` inside this worktree (restoring correct,
+isolated `node_modules`) fixed it immediately, and a full `npm run typecheck` afterward came
+back 100% clean across every workspace, `apps/web` included -- so COMPLY-P0-06.2's own
+"pre-existing, unrelated, concurrent-workstream failures in module-discovery/apps/web" was
+an incorrect diagnosis, corrected in that story's own log entry above rather than silently
+rewritten. This does NOT put any actual shipped code in doubt (module-gst's own code
+typechecks clean either way, and every RLS/lint script this whole backlog has run is either
+pure Postgres/`psql` or Supabase-MCP-based, neither of which goes through Node package
+resolution at all) -- it only means this run's own `npm run typecheck` commentary before
+this point should be read with that caveat. Flagged here, once, for whoever resumes this
+workstream next: if a worktree ever again reports a `tsc` error that doesn't match what's
+actually on disk, check `readlink -f node_modules/@cofounderai/<pkg>` before trusting the
+error.
+
+**Checked existing code first** (backlog rule 1): `lib/eway-bill/mutations.ts`'s
+`generateEwayBill`/`cancelEwayBill` called `lib/gsp-client.ts`'s own `callGsp` directly,
+inline, with no formal interface -- exactly `generateEinvoice`/`cancelEinvoice`'s own
+pre-COMPLY-P0-05.3 shape. `gst.eway_bill_credentials` only ever stored
+`generate_url`/`cancel_url`, the same gap `gst.einvoice_credentials` had before that
+story's own migration.
+
+**Research, not assumption** (same discipline as every prior story): used `WebSearch`
+against the official NIC e-Way Bill API documentation (`docs.ewaybillgst.gov.in`, mirrored
+consistently by independent GSP integrators -- MasterGST's own reference PDF, Vayana,
+ClearTax, GSTRobo) to confirm the real field names for two genuinely new operations this
+module never had:
+- **VEHEWB** ("Update Vehicle Number"/Part-B update): `ewbNo`, `vehicleNo`, `fromPlace`,
+  `fromState`, `reasonCode`/`reasonRem`, plus optional `transDocNo`/`transDocDate`/
+  `transMode`/`vehicleType`.
+- **ExtendEWB** ("Extend Validity"): `ewbNo`, `remainingDistance`, `extnRsnCode`/
+  `extnRemarks`, plus the same optional vehicle/place/transport-document fields, returning
+  the e-way bill number, an updated date, and a `validUpto` timestamp.
+Direct `WebFetch` of the official NIC docs pages was not attempted this time (COMPLY-P0-06.1/
+06.2 already established those specific NIC/CBIC domains are blocked by this environment's
+egress policy) -- `WebSearch`'s own synthesized, multiply-sourced answers were used
+directly, same fallback as those two prior stories.
+
+**What was built**:
+- `supabase/migrations/20260912080000_gst_eway_bill_credentials_update_extend_status_urls.sql`
+  -- adds `vehicle_update_url`/`extend_url`/`status_url` (all nullable, same reasoning as
+  COMPLY-P0-05.3's own `status_url`/`fetch_url` addition to `gst.einvoice_credentials`) to
+  `gst.eway_bill_credentials`, and extends `gst.eway_bill_credentials_status()`'s own
+  return shape to surface them (drop-and-recreate, since Postgres won't let
+  `returns table(...)` change in place). No RLS/grant change -- nullable columns don't
+  change who can write which rows, and the table's own "no SELECT grant to `authenticated`
+  at all" secret-lockdown is untouched.
+- `packages/module-gst/src/lib/eway-bill-adapter/` -- the new `EwayBillAdapter` interface
+  (`generate`/`updateVehicle`/`extend`/`cancel`/`status`), mirroring `IrpAdapter`'s own
+  shape exactly:
+  - `types.ts` -- every request/response type, with the real NIC field names above.
+    `EwayBillGenerateRequest`/`EwayBillCancelRequest` are the same simplified shapes
+    `generateEwayBill`/`cancelEwayBill` already used (docNo/docDate/totalValue;
+    ewbNo/cancelRsnCode/cancelRmrk) -- not widened this story (see below).
+    `EwayBillUpdateVehicleResponse`/`EwayBillStatusResponse` stay loose passthroughs where
+    this session's research didn't turn up a confidently-normalizable response shape,
+    same "unknown, don't invent a field name" posture `IrpStatusResponse`/`IrpFetchResponse`
+    already established.
+  - `gsp-adapter.ts` (+ 20 test cases) -- `createGspEwayBillAdapter`, its own pure
+    `buildGeneratePayload`/`parseGenerateResponse`/`buildUpdateVehiclePayload`/
+    `buildExtendPayload`/`parseExtendResponse`/`buildCancelPayload`/`buildEwbNoUrl`
+    builders/parsers, and the adapter factory itself (`updateVehicle()`/`extend()`/
+    `status()` each throw a clear "not configured" error when their URL is unset, same
+    posture `createGspIrpAdapter`'s own `status()`/`fetch()` already established).
+- `lib/eway-bill/mutations.ts`: `generateEwayBill`/`cancelEwayBill` refactored to build a
+  `createGspEwayBillAdapter` (via a new shared `loadEwayBillAdapter()` helper) and call
+  `generate`/`cancel` on it instead of `callGsp` directly -- same external behavior/
+  signatures, now genuinely adapter-based. Three new exported functions, the first real
+  callers of the adapter's own new capabilities:
+  - `updateEwayBillVehicle` -- calls `updateVehicle()`. Deliberately does NOT also update
+    `gst.eway_bill_movements.vehicle_number` (COMPLY-P0-06.2's own table) to mirror the new
+    vehicle -- reconciling this adapter's government-facing actions with that separate
+    table's own draft data is COMPLY-P0-06.4's ("Document Link") job, not this one's.
+  - `extendEwayBill` -- calls `extend()`, and DOES persist the one directly-relevant result
+    (`validUpto`) back onto `gst.eway_bills.valid_until`, the same column/table
+    `generateEwayBill` itself already populates (a minimal, non-speculative continuation of
+    what this file already owns, not a new cross-table sync decision) -- only when the
+    government response actually included a new value.
+  - `getEwayBillNicStatus` -- calls `status()`, deliberately read-only and NOT persisted
+    anywhere, same posture `getEinvoiceIrpStatus` (COMPLY-P0-05.3) already established:
+    deciding how a live status answer should update `gst.eway_bills`' own `status` column
+    is a future story's job.
+  Two new precondition helpers: `requireEwayBillNumber` (bare "has an e-way bill number on
+  record, active or cancelled" check -- used by `status`, since checking a government
+  system's own live status is meaningful even for an already-cancelled bill) and
+  `requireActiveEwayBill` (also refuses a cancelled bill -- used by `updateVehicle`/
+  `extend`, since a real GSP would itself reject those against a cancelled e-way bill).
+- `lib/eway-bill/types.ts`/`components/eway-bill/eway-bill-form.tsx`/
+  `apps/web/.../gst/eway-bill/actions.ts`: the three new optional URL fields threaded
+  through the credentials form and its server action, matching exactly how COMPLY-P0-05.3
+  extended `einvoicing-form.tsx`/its own `actions.ts` for `status_url`/`fetch_url`.
+
+**What was deliberately left out**: wiring COMPLY-P0-06.1's own eligibility determination
+or COMPLY-P0-06.2's own movement data into `generateEwayBill`'s payload, or gating
+generation on eligibility -- both real decisions, deliberately deferred to COMPLY-P0-06.4
+("Document Link"), the story that ties eligibility + movement data + this adapter + the
+source document together (matching how COMPLY-P0-05.3 itself didn't wire COMPLY-P0-05.1's
+eligibility check into `generateEinvoice` either); any UI button/action to actually trigger
+`updateEwayBillVehicle`/`extendEwayBill`/`getEwayBillNicStatus` from a real page (matches
+this whole epic's "lib first, UI later" pattern -- COMPLY-P0-05.3's own `status()`/`fetch()`
+shipped with zero UI trigger too, only the credentials-form fields their URLs needed); the
+inward-movement e-way-bill vocabulary (not this story's concern at all); and reconciling
+`updateEwayBillVehicle`'s real vehicle change with `gst.eway_bill_movements`' own stored
+`vehicle_number` (flagged above, COMPLY-P0-06.4's job).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo, AFTER fixing the `node_modules` environment issue
+  above) -- 100% clean across all 8 workspaces, `apps/web` included.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1077 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 118 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 118 migration files scanned, 0
+  violations.
+- `npx vitest run` in `module-gst` -- 28 files / 234 tests passed (212 pre-existing + 22
+  new in `eway-bill-adapter/gsp-adapter.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story -- a nullable-column `alter table`
+  plus a drop-and-recreate function introduces nothing new to flag.
+- `node scripts/test-gst-credentials-rls.mjs` -- run against this environment's real local
+  Postgres (see COMPLY-P0-06.2's own environment note) and passed in full, confirming the
+  credentials table's tenant/license/permission gating and secret-column lockdown are
+  untouched by the three new nullable columns.
+- `cd apps/web && npm run build` -- clean production build (this story touched
+  `apps/web`'s eway-bill credentials form/action, so, unlike every COMPLY-P0-06.1/06.2/
+  05.x story before it, this one needed a real build, not just a library typecheck).
+  Grepped the build output for `error`/`failed` -- none found; `/gst/eway-bill` appears in
+  the route manifest as before.
+- No live browser walkthrough -- see the limitation note at the top of this document.
+- Lockfile drift: only the same pre-existing, already-flagged `module-crm`/`zod` line (see
+  COMPLY-P0-01.1's own note) -- reverted via `git checkout -- package-lock.json` before
+  committing. `node_modules` itself stays installed and untracked/gitignored, same as every
+  prior story that needed a fresh install.
+
+**COMPLY-P0-06 (India E-Way Bill) now has one story left: COMPLY-P0-06.4 (Document
+Link).**
