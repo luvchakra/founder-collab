@@ -1,6 +1,8 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { createClient } from "../../db/server";
+import { isEwayBillGenerated } from "../eway-bill-document-link/link";
+import { getEwayBillForDocument } from "../eway-bill/queries";
 import { subSupplyTypes, transactionTypes, transportModes, vehicleTypes } from "./catalog";
 import type { EwayBillMovementInput } from "./types";
 
@@ -28,6 +30,14 @@ import type { EwayBillMovementInput } from "./types";
  * an explicit `null` means "clear this field" -- built by only including keys the caller
  * actually passed in the upsert payload, so an omitted key never overwrites an existing
  * value on update (and simply takes its column default on a first insert).
+ *
+ * COMPLY-P0-06.4 (Document Link): refuses to edit movement data once a real (non-
+ * cancelled) e-way bill has actually been generated for this document
+ * (`isEwayBillGenerated`) -- the point at which this data becomes LINKED to that
+ * generated e-way bill and preserving what it said at generation time matters more than
+ * letting it keep changing (backlog rule 13, "preserve historical filing/evidence
+ * state"). Cancelling the e-way bill (`cancelEwayBill`) unlocks it again, since a
+ * cancelled bill's own movement facts are no longer binding on anything real.
  */
 export async function upsertEwayBillMovement(
   businessId: string,
@@ -36,6 +46,13 @@ export async function upsertEwayBillMovement(
 ): Promise<void> {
   await requireModule(businessId, "gst");
   await requirePermission(businessId, "gst.generate");
+
+  const existingEwayBill = await getEwayBillForDocument(businessId, documentId);
+  if (isEwayBillGenerated(existingEwayBill)) {
+    throw new Error(
+      `An e-Way Bill (${existingEwayBill?.eway_bill_number ?? "unknown number"}) has already been generated for this document -- movement data is locked. Cancel the e-Way Bill first if these details need to change.`,
+    );
+  }
 
   if (input.transactionType !== undefined && !transactionTypes.isSupported(input.transactionType)) {
     throw new Error(`"${input.transactionType}" isn't a recognized e-way bill transaction type.`);
