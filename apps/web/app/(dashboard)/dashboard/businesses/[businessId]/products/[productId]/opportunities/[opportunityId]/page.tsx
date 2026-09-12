@@ -9,7 +9,8 @@ import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/l
 import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { OpportunityDetail } from "@cofounderai/module-discovery/components/opportunities/opportunity-detail";
-import { classifyExistingRelationship } from "@cofounderai/module-crm/contract/index";
+import { computeHandoffStatus } from "@cofounderai/module-discovery/lib/opportunities/handoff";
+import { classifyExistingRelationship, getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index";
 import { sendOpportunityToCrmAction, updateOpportunityStatusAction } from "./actions";
 
 export default async function OpportunityDetailPage({
@@ -50,6 +51,18 @@ export default async function OpportunityDetailPage({
   });
   const relationship = relationshipResult.ok ? relationshipResult.data : null;
 
+  // DISC-OFFER-P0-08.3: "Handoff Status" -- a degraded null (CRM not licensed) reads as
+  // "no existing lead found," same ADR-10 normal-result handling as relationshipResult
+  // above; computeHandoffStatus is deterministic and doesn't need to distinguish "CRM
+  // unlicensed" from "no lead exists yet" since neither implies this opportunity's own
+  // handoff has failed or succeeded.
+  const handoffLeadResult = await getDiscoveryHandoffLead(businessId, prospect.id);
+  const handoffStatus = computeHandoffStatus({
+    opportunityStatus: opportunity.status,
+    handoffFailedAt: opportunity.handoff_failed_at,
+    hasExistingCrmLead: handoffLeadResult.ok && handoffLeadResult.data !== null,
+  });
+
   return (
     <OpportunityDetail
       businessId={businessId}
@@ -63,6 +76,7 @@ export default async function OpportunityDetailPage({
       scoreHistory={scoreHistory}
       hasParty={Boolean(prospect.party_id)}
       relationship={relationship}
+      handoffStatus={handoffStatus}
       updateStatusAction={updateOpportunityStatusAction.bind(null, businessId, productId, opportunity.id)}
       sendToCrmAction={sendOpportunityToCrmAction.bind(null, businessId, productId, opportunity.id, prospect.id, prospect.party_id ?? "")}
     />

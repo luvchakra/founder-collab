@@ -84,4 +84,10 @@ export type Opportunity = {
    * quality specifically) -- see `computeWhyNow` in why-now.ts. */
   timing_strength: OpportunityConfidence | null;
   why_now_confidence: OpportunityConfidence;
+  /** DISC-OFFER-P0-08.3's own "Handoff Status" -- set by `recordOpportunityHandoffFailure`
+   * when a "Send to CRM" attempt throws, cleared by `setOpportunityStatus` on any
+   * subsequent status change (a fresh status write means whatever caused the failure no
+   * longer blocks this opportunity). See `handoff.ts`'s own `computeHandoffStatus`. */
+  handoff_failed_at: string | null;
+  handoff_error: string | null;
 };

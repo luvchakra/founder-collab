@@ -42,7 +42,7 @@ only genuine architectural/key decisions are raised.
 | | 07.3 | Opportunity Detail | Done |
 | D | 08.1 | Offering-Aware CRM Handoff | Done |
 | | 08.2 | Existing Relationship Detection | Done |
-| | 08.3 | Handoff Status | Not started |
+| | 08.3 | Handoff Status | Done |
 | E | 09.1 | Website URL Business Onboarding | Not started |
 | | 09.2 | Website Crawl & Content Discovery | Not started |
 | | 09.3 | AI Offering Extraction | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**24 of 68 in-scope stories done.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**25 of 68 in-scope stories done -- Phase D complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1450,3 +1450,54 @@ errors). Same live-browser-walkthrough constraint noted in every prior story thi
 
 **Status**: 24 of 68 in-scope stories done -- Phase D continuing. Next: 08.3, Handoff
 Status.
+
+### 08.3 — Handoff Status (2026-09-12)
+
+The doc's own exact four states -- "Not Sent / Sent to CRM / Already in CRM / Handoff
+Failed" -- deliberately distinct from `OpportunityStatus`'s own `sent_to_crm` value: this
+is specifically about the *handoff mechanics themselves* (has it been sent, did the
+attempt fail, does the account already have a CRM footprint from elsewhere), not the
+opportunity's broader lifecycle. New pure `computeHandoffStatus()` (`lib/opportunities/handoff.ts`,
+deterministic, no AI call -- CLAUDE.md dev principle #4/#5) with a clear priority order:
+this opportunity's own `sent_to_crm` status is the most authoritative signal; a recorded
+failure outranks a same-account CRM footprint found elsewhere (retry is only ever offered
+for a failure *this* attempt produced, not inferred from someone else's success);
+otherwise an existing lead under this same prospect reference means the account is
+already in CRM even though this opportunity's own status hasn't caught up. Five new
+vitest cases cover the full priority ladder.
+
+"Not Sent" and "Sent to CRM" were already derivable from `opportunities.status` (05.1);
+"Already in CRM" needed a new read -- `getDiscoveryHandoffLead` (module-crm's own
+contract, backed by a new `getLeadBySourceReference` query reusing the exact
+`(business_id, source_module, source_reference)` shape `promoteProspectToLead`'s own
+idempotency check already established) -- rather than a new table, since this is exactly
+the same lookup already used to prevent a duplicate lead, just exposed as a plain read so
+the opportunity page can show it *before* a founder clicks Send, not only discover it
+from the mutation's own `alreadyPromoted` flag afterward. "Handoff Failed" was the one
+genuinely new fact nothing recorded anywhere: two new nullable columns on
+`discovery.opportunities` (`handoff_failed_at`, `handoff_error`), written by a new
+`recordOpportunityHandoffFailure()` when `sendOpportunityToCrmAction` (08.1) catches an
+unexpected thrown exception (distinct from the `ok:false`/`MODULE_NOT_LICENSED` results
+that flow are already normal ADR-10 outcomes) -- persisted so it survives a page reload
+rather than only a transient toast, and a founder can see it and retry. `setOpportunityStatus`
+(05.1) now clears both columns on any subsequent status write, including a successful
+retry, so a stale failure never keeps misrepresenting the opportunity's current state.
+
+UI: a `Badge` next to the existing `SendToCrmButton` (08.1) on the Opportunity Detail page
+(07.3) showing the computed status (destructive styling for "Handoff Failed," secondary
+for "Sent to CRM"/"Already in CRM," outline for "Not Sent"), plus the recorded error
+message and a "click Send to CRM to retry" hint when failed -- the button itself needed no
+new state, since clicking Send again already re-runs the same action that would clear the
+failure on success.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1045 files, no violations), `lint:migrations` (113 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (92/92, +5 new) and `npm run test -w @cofounderai/module-crm`
+(164/164, unchanged), a live migration apply + `get_advisors` for both
+`security`/`performance` (no new findings), and a clean `next build` (confirmed the
+opportunity detail route builds with no errors). Same live-browser-walkthrough constraint
+noted in every prior story this run.
+
+**Status**: 25 of 68 in-scope stories done -- **Phase D complete**. Next: Phase E, 09.1
+Website URL Business Onboarding (the autonomous website-to-offering pipeline).

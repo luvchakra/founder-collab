@@ -24,6 +24,7 @@ import {
   type Opportunity,
   type OpportunityStatus,
 } from "../../lib/opportunities/types";
+import { HANDOFF_STATUS_LABEL, type HandoffStatus } from "../../lib/opportunities/handoff";
 import { SendToCrmButton, type RelationshipMatch } from "./send-to-crm-button";
 
 type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolean } } | { ok: false; error: string };
@@ -66,6 +67,7 @@ export function OpportunityDetail({
   scoreHistory,
   hasParty,
   relationship,
+  handoffStatus,
   updateStatusAction,
   sendToCrmAction,
 }: {
@@ -85,6 +87,9 @@ export function OpportunityDetail({
   /** DISC-OFFER-P0-08.2's "before handoff classify" check, or `null` when it couldn't
    * run (CRM not licensed, or no party to check against yet). */
   relationship: RelationshipMatch | null;
+  /** DISC-OFFER-P0-08.3: the doc's own "Not Sent / Sent to CRM / Already in CRM /
+   * Handoff Failed" states, deterministically computed server-side. */
+  handoffStatus: HandoffStatus;
   updateStatusAction: (formData: FormData) => Promise<void>;
   sendToCrmAction: () => Promise<PromoteResult>;
 }) {
@@ -116,8 +121,14 @@ export function OpportunityDetail({
         <h2 className="font-medium">Actions</h2>
         <div className="flex flex-wrap items-center gap-2">
           <SendToCrmButton hasParty={hasParty} relationship={relationship} sendAction={sendToCrmAction} />
+          <Badge variant={handoffStatus === "handoff_failed" ? "destructive" : handoffStatus === "sent_to_crm" || handoffStatus === "already_in_crm" ? "secondary" : "outline"}>
+            {HANDOFF_STATUS_LABEL[handoffStatus]}
+          </Badge>
           <span className="text-xs text-muted-foreground">Score, why-them/now, research brief, and recommended action travel with it.</span>
         </div>
+        {handoffStatus === "handoff_failed" && opportunity.handoff_error ? (
+          <p className="text-xs text-destructive">{opportunity.handoff_error} -- click Send to CRM to retry.</p>
+        ) : null}
         <form action={updateStatusAction} className="flex flex-wrap items-center gap-2">
           <NativeSelect name="status" defaultValue={opportunity.status} className="w-auto">
             {STATUS_OPTIONS.map((s) => (

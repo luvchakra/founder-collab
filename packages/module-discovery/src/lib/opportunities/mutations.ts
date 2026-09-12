@@ -142,9 +142,38 @@ export async function setOpportunityWhyNow(opportunityId: string, correlation: S
   });
 }
 
+/** DISC-OFFER-P0-08.3: also clears any recorded handoff failure -- a fresh status
+ * write (including the "Send to CRM" success path setting `sent_to_crm`) means
+ * whatever caused a prior failure no longer blocks this opportunity; leaving a stale
+ * `handoff_failed_at` standing after a real status change would misrepresent its
+ * current state. */
 export async function setOpportunityStatus(opportunityId: string, status: OpportunityStatus): Promise<Opportunity> {
   const supabase = await createClient();
-  const { data, error } = await supabase.from("opportunities").update({ status }).eq("id", opportunityId).select().single();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .update({ status, handoff_failed_at: null, handoff_error: null })
+    .eq("id", opportunityId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * DISC-OFFER-P0-08.3: "Handoff Status" -- records an unexpected "Send to CRM" failure
+ * (a thrown exception, not an `ok:false` `MODULE_NOT_LICENSED` degraded result, which
+ * is a normal ADR-10 outcome, not a failure) so it survives a page reload and a founder
+ * can see it and retry, rather than only a transient toast. `setOpportunityStatus`
+ * above clears this the next time any status is written, including a successful retry.
+ */
+export async function recordOpportunityHandoffFailure(opportunityId: string, message: string): Promise<Opportunity> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .update({ handoff_failed_at: new Date().toISOString(), handoff_error: message })
+    .eq("id", opportunityId)
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

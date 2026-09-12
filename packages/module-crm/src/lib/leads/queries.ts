@@ -25,6 +25,24 @@ export async function getLead(businessId: string, leadId: string): Promise<Lead 
   return data as Lead | null;
 }
 
+/** DISC-OFFER-P0-08.3: "Handoff Status" -- the same `(business_id, source_module,
+ * source_reference)` lookup `promoteProspectToLead`'s own idempotency check already
+ * does, exposed as a plain read so a Discovery opportunity page can show "Already in
+ * CRM" *before* a founder even clicks "Send to CRM," not just discover it from the
+ * mutation's own `alreadyPromoted` flag after the fact. */
+export async function getLeadBySourceReference(businessId: string, sourceModule: string, sourceReference: string): Promise<Lead | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("lead")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("source_module", sourceModule)
+    .eq("source_reference", sourceReference)
+    .maybeSingle();
+  if (error) throw error;
+  return data as Lead | null;
+}
+
 /** CRM-02.4: "Analytics can aggregate by source." A count-by-source breakdown is the
  * minimal proof that `crm.lead.source` (set at creation, CRM-01.2) supports aggregation
  * today -- the actual reporting UI is CRM-14.x's own story ("Discovery -> CRM Funnel",
