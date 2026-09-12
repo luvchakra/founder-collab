@@ -120,7 +120,17 @@ export type Gstr1CreditDebitNoteRow = {
 };
 
 /** Table 12 -- HSN-wise summary of outward supplies, across every included document
- * (B2B + B2CL + B2C Others + CDNR/CDNUR, net of credit/debit notes). */
+ * (B2B + B2CL + B2C Others + CDNR/CDNUR, net of credit/debit notes).
+ *
+ * COMPLY-P0-07.4 (Return Drill-Down): `documentIds` names every document that
+ * contributed at least one LINE with this HSN code -- real, findable source transactions,
+ * per that story's own "traceable to source transactions" requirement. **Not** a
+ * whole-document net-reconciliation set the way `Gstr1B2csRow.documentIds` is: a single
+ * document can span multiple HSN codes, so summing these documents' own WHOLE-document
+ * totals will not generally reproduce this row's own (per-line) `taxableValue`/tax
+ * figures -- `getReturnRowSourceDocuments` still returns the real documents for lookup,
+ * but `reconcileReturnRow` (`../drilldown/reconcile.ts`) is deliberately not applied to
+ * this row shape; see that module's own docstring. */
 export type Gstr1HsnRow = {
   hsnCode: string;
   totalQuantity: number;
@@ -129,6 +139,7 @@ export type Gstr1HsnRow = {
   cgstAmount: number;
   sgstAmount: number;
   igstAmount: number;
+  documentIds: string[];
 };
 
 export type Gstr1Return = {

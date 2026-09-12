@@ -118,12 +118,27 @@ export type Gstr9Return = {
     sgstAmount: number;
     igstAmount: number;
     reconciledWithGstr2b: false;
+    /** COMPLY-P0-07.4 (Return Drill-Down): every purchase-order document behind this
+     * whole-financial-year total -- same `getPurchaseRegister`-sourced `poIds` list
+     * `Gstr3bItcSummary.documentIds` carries, over the full year instead of one period. */
+    documentIds: string[];
   };
-  /** Table 17 -- HSN-wise summary of OUTWARD supplies for the financial year. */
+  /** Table 17 -- HSN-wise summary of OUTWARD supplies for the financial year. Reused
+   * directly from `aggregateGstr1`'s own `hsnSummary` (see `queries.ts`), so each row's own
+   * `documentIds` (COMPLY-P0-07.4) is already present -- see `Gstr1HsnRow`'s own docstring
+   * for exactly what that list does and does not guarantee. */
   hsnSummaryOutward: Gstr9HsnRow[];
   /** Table 18 -- HSN-wise summary of INWARD supplies for the financial year, from this
    * platform's own pre-existing purchase register (`lib/filing/queries.ts`'s
-   * `getPurchaseRegister`) -- same provisional, own-books caveat as `itcAvailed` above. */
+   * `getPurchaseRegister`) -- same provisional, own-books caveat as `itcAvailed` above.
+   * **COMPLY-P0-07.4 documented gap**: unlike the outward HSN summary, this row shape
+   * (`HsnRegisterRow`, `lib/filing/types.ts`) carries no `documentIds` of its own -- adding
+   * per-HSN purchase-order traceability would mean extending `getPurchaseRegister`'s
+   * `byHsn` map, which also backs the pre-existing GST Filing UI page
+   * (`gst-filing-view.tsx`) and `lib/dashboard/queries.ts`; left as a follow-up rather than
+   * widening this story's blast radius into that separately-owned feature. The bucket's own
+   * WHOLE-total is still traceable via `itcAvailed.documentIds` above (the same source
+   * documents, just not split per HSN code here). */
   hsnSummaryInward: { hsn: string; taxableValue: number; tax: number }[];
   /** Documents excluded from Table 4 entirely because their place of supply couldn't be
    * resolved -- same convention as COMPLY-P0-07.1/07.2's own excluded lists. */

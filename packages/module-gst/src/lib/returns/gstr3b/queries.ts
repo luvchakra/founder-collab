@@ -70,6 +70,7 @@ export async function getGstr3bReturn(businessId: string, periodStart: string, p
       eligibleItcSgstAmount: purchaseRegister.sgst,
       eligibleItcIgstAmount: purchaseRegister.igst,
       reconciledWithGstr2b: false,
+      documentIds: purchaseRegister.poIds,
     },
     excludedUnknownPlaceOfSupply: outward.excludedUnknownPlaceOfSupply,
     notModeled: NOT_MODELED_TABLES,

@@ -21,6 +21,13 @@ export type HsnRegisterRow = { hsn: string; taxableValue: number; tax: number };
 
 export type PurchaseRegister = {
   poCount: number;
+  /** COMPLY-P0-07.4 (Return Drill-Down): every purchase-order document id behind
+   * `taxableValue`/`cgst`/`sgst`/`igst` above -- added so GSTR-3B/GSTR-9's own ITC section
+   * (`lib/returns/gstr3b`, `lib/returns/gstr9`) can trace its own provisional, own-books
+   * ITC total back to real source transactions, per that story's own requirement. Additive
+   * only -- every existing consumer of `PurchaseRegister` (`gst-filing-view.tsx`,
+   * `lib/dashboard/queries.ts`) is unaffected. */
+  poIds: string[];
   taxableValue: number;
   cgst: number;
   sgst: number;

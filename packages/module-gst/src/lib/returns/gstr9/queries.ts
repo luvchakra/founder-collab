@@ -80,6 +80,7 @@ export async function getGstr9Return(businessId: string, fyStart: string, fyEnd:
       sgstAmount: purchaseRegister.sgst,
       igstAmount: purchaseRegister.igst,
       reconciledWithGstr2b: false,
+      documentIds: purchaseRegister.poIds,
     },
     hsnSummaryOutward: gstr1Aggregation.hsnSummary,
     hsnSummaryInward: purchaseRegister.byHsn,

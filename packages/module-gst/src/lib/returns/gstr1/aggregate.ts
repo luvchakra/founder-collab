@@ -43,7 +43,7 @@ export function aggregateGstr1(documents: Gstr1SourceDocument[], b2cLargeThresho
   const creditDebitNotes: Gstr1CreditDebitNoteRow[] = [];
   const excluded: Gstr1Aggregation["excluded"] = [];
   const b2cOthersByState = new Map<string, Gstr1B2csRow>();
-  const hsnByCode = new Map<string, Gstr1HsnRow>();
+  const hsnByCode = new Map<string, Omit<Gstr1HsnRow, "documentIds"> & { documentIds: Set<string> }>();
   const totals = { taxableValue: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0 };
 
   for (const doc of documents) {
@@ -89,6 +89,7 @@ export function aggregateGstr1(documents: Gstr1SourceDocument[], b2cLargeThresho
         cgstAmount: 0,
         sgstAmount: 0,
         igstAmount: 0,
+        documentIds: new Set<string>(),
       };
       entry.totalQuantity += sign * line.quantity;
       entry.taxableValue += sign * line.taxableValue;
@@ -96,6 +97,7 @@ export function aggregateGstr1(documents: Gstr1SourceDocument[], b2cLargeThresho
       entry.sgstAmount += sign * line.sgstAmount;
       entry.igstAmount += sign * line.igstAmount;
       entry.totalValue += sign * (line.taxableValue + line.cgstAmount + line.sgstAmount + line.igstAmount);
+      entry.documentIds.add(doc.documentId);
       hsnByCode.set(hsn, entry);
     }
 
@@ -169,7 +171,9 @@ export function aggregateGstr1(documents: Gstr1SourceDocument[], b2cLargeThresho
     b2cLarge,
     b2cOthers: [...b2cOthersByState.values()].sort((a, b) => a.buyerStateCode.localeCompare(b.buyerStateCode)),
     creditDebitNotes,
-    hsnSummary: [...hsnByCode.values()].sort((a, b) => a.hsnCode.localeCompare(b.hsnCode)),
+    hsnSummary: [...hsnByCode.values()]
+      .map((entry) => ({ ...entry, documentIds: [...entry.documentIds].sort() }))
+      .sort((a, b) => a.hsnCode.localeCompare(b.hsnCode)),
     totals,
     excluded,
   };
