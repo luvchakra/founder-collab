@@ -72,12 +72,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 08.4 | IMS Accept/Reject/Pending | Done |
 | | 08.5 | ITC Availability View | Done |
 | | 08.6 | Exception Queue | Done |
-| P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
+| P0-09 | 09.1 | Filing Calendar | Done |
+| | 09.2 | Payment Calendar | Done |
+| | 09.3 | Reminder Engine | Done |
+| | 09.4 | Overdue Detection | Done |
+| | 09.5 | Risk Dashboard | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**43 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**47 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -85,9 +89,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 through COMPLY-P0-08 are all now fully done** -- Generic Tax Framework,
 Existing-Data Integration, India GST, India E-Invoice, India E-Way Bill, India Returns,
-and now India Reconciliation & IMS (COMPLY-P0-08.1 GSTR-2B Fetch/Import through 08.6
-Exception Queue). Next: COMPLY-P0-09 (Compliance Calendar & Risk), starting with
-COMPLY-P0-09.1 (Filing Calendar), per §8's own recommended delivery order (P0 Release 3).
+and India Reconciliation & IMS. **COMPLY-P0-09.1 through 09.4 (Filing Calendar, Payment
+Calendar, Reminder Engine, Overdue Detection) are now done too** -- see the story log
+below. Next: COMPLY-P0-09.5 (Risk Dashboard), the last story of Epic 09.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4724,3 +4728,259 @@ now a genuine, persisted, resolvable exception queue tying the whole epic togeth
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+## Epic 09 -- Compliance Calendar & Risk
+
+### 09.1 -- Filing Calendar (2026-09-12)
+
+The first story of Epic 09. Computes real GSTR-1/3B/9 due dates for a business, schema-free
+(same "compute on demand" philosophy every `lib/returns/*` preparer already established),
+correlated with whatever `gst.return_periods` lifecycle row already exists for that period.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §4/§5 first (backlog rule
+1/5)**: `ComplianceDeadline` is named as a future Compliance-owned entity, but nothing
+about "compute a due date" implies persisting a deadline TABLE -- the actual due date is a
+pure function of (return type, period, registration frequency/jurisdiction, a versioned
+rule), not new state to store. No table created for this story.
+
+**Research, not assumption (backlog rule 6)**: WebSearched GSTR-1/3B/9 due dates before
+writing anything -- dmifinance.in, gimbooks.com, pkcindia.com, taxaj.com, sahajapp.in
+(GSTR-1: 11th monthly / 13th QRMP quarterly; GSTR-3B: 20th monthly / 22nd or 24th QRMP
+quarterly depending on state category), and a follow-up search for the actual Category
+X/Y state lists (confirmed: X = the southern/western states+UTs, Y = the
+northern/eastern/central ones) and the QRMP scheme's own commencement (CBIC Notification
+No. 84/2020-Central Tax, effective 01-Jan-2021) and GSTR-9's own "31 December following the
+FY" rule (dmifinance.in/cleartax.in/incorpx.io, confirmed CBIC has not extended it since FY
+2020-21). All of this is seeded as three new versioned `gst.tax_rules` rows
+(`gstr1_filing_due_dates`, `gstr3b_filing_due_dates`, `gstr9_filing_due_date`) --
+CLAUDE.md's "never hard-code country-specific tax rates/rules" applied to due DATES, not
+just rates, matching every other seeded rule this module has ever added.
+
+**Single-registration simplification, inherited and made explicit, not invented here**:
+`lib/returns/{gstr1,gstr3b,gstr9}` already only compute ONE return per business/period,
+not one per GSTIN, even though `gst.tax_registrations` supports several -- the calendar
+follows the exact same simplification (reads only the business's PRIMARY India/GST
+registration) rather than inventing a per-registration calendar this module's own return
+preparers don't support.
+
+**A real, previously-undetermined regulatory fact needed for the QRMP GSTR-3B due date**:
+the Category X/Y split is by the REGISTERED PLACE OF SUPPLY STATE, which this platform
+already has on `gst.tax_registrations.jurisdiction` -- `classifyQrmpState()` resolves it,
+and when the jurisdiction can't be classified (missing, or a value not on either list),
+`gstr3bDueDate()` deliberately falls back to the LATER Category Y due day rather than
+guessing the earlier one -- backlog rule 11 ("never understate an obligation"), tested
+explicitly.
+
+**What was built**:
+- `supabase/migrations/20260912180000_gst_tax_rules_filing_due_dates_seed.sql` -- the three
+  versioned rule rows described above.
+- `lib/calendar/types.ts` -- `FilingObligation`, `PaymentObligation` (COMPLY-P0-09.2's own
+  shape, defined alongside since both calendars share this folder), `QrmpStateCategory`.
+- `lib/calendar/periods.ts` -- pure calendar-period generation: `monthPeriod`,
+  `generateMonthlyPeriods`, `qrmpQuarterContaining` (QRMP quarters follow India's Apr-Mar
+  financial year, NOT calendar-year quarters), `generateQrmpQuarters`,
+  `financialYearContaining`, `generateFinancialYears`.
+- `lib/calendar/due-dates.ts` -- pure due-date arithmetic over a rule's own value:
+  `gstr1DueDate`, `gstr3bDueDate`, `classifyQrmpState`, `gstr9DueDate`.
+- `lib/calendar/queries.ts` -- `getFilingCalendar(businessId, options)`: assembles the
+  business's primary registration + effective rules + existing `gst.return_periods` rows
+  into a sorted list of `FilingObligation`s. Returns `[]` (not an error) when the business
+  has no primary India/GST registration yet -- COMPLY-P0-09.5's own job to flag that as a
+  risk, not this query's.
+- 60 new vitest cases across `periods.test.ts`/`due-dates.test.ts` covering every period
+  boundary (leap years, year rollovers, the Jan-Mar QRMP quarter starting in the FOLLOWING
+  calendar year relative to its own FY's start) and every due-date rule (monthly/quarterly
+  for both GSTR-1/3B, Category X vs Y, the unclassified-jurisdiction fallback, GSTR-9's own
+  FY-end-year arithmetic).
+
+**What was deliberately left out**: any UI (COMPLY-P0-11); a per-registration (rather than
+per-business) calendar (see above); modeling GSTR-1's own pre-2021 due-day history (this
+session's own research did not turn up a precisely-dated notification for it, and this
+platform has no return period predating 2021 to apply an earlier version to anyway --
+flagged in the migration's own comment rather than silently implying false precision).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- clean, no violations.
+- `node scripts/lint-migration-schema.mjs` -- clean, no violations.
+- `npx vitest run --root packages/module-gst` -- all passing (46 new this story).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration` (data-only insert, no new table/policy). `get_advisors`
+  (security): identical finding set before/after (same 5 pre-existing
+  `rls_enabled_no_policy` infos, 1 pre-existing `auth_leaked_password_protection` warning).
+- No local Postgres RLS harness needed this story -- no new table/policy; re-ran an
+  existing harness (`test-gst-reconciliation-exceptions-rls.mjs`) to confirm the full
+  migration timeline (now including the new seed) still applies cleanly.
+- `cd apps/web && npm run build` -- not run for this story alone (no route/UI change);
+  covered by the combined build run at the end of 09.3 below.
+- No live browser walkthrough -- moot, this story shipped no UI.
+
+### 09.2 -- Payment Calendar (2026-09-12)
+
+Built alongside 09.1 in the same `lib/calendar/` folder (the two share period generation
+and due-date rules, and the backlog itself groups them under one epic) -- distinct from a
+return FILING obligation: WHEN a tax PAYMENT is actually due, which for a QRMP quarterly
+filer is not the same date as the quarterly GSTR-3B filing itself.
+
+**Research, not assumption (backlog rule 6)**: the same QRMP sources cited in 09.1 confirm
+QRMP quarterly filers pay tax monthly via PMT-06, due the 25th of the first two months of
+the quarter, settling the balance with the quarter's own GSTR-3B. Seeded as
+`qrmpInstallmentDueDay: 25` inside the same `gstr3b_filing_due_dates` rule row (09.1's own
+migration) rather than a fourth rule -- one regulatory fact family, one rule lineage.
+
+**Deliberately carries NO payment amount anywhere** (backlog rule 11): this module has no
+real self-assessed-liability or 35%-of-last-quarter computation for a PMT-06 installment
+anywhere, and a GSTR-3B's own "amount payable" depends on the full return computation
+(`lib/returns/gstr3b`), which this calendar does not re-run just to answer "what's due" --
+documented explicitly in `queries.ts`'s own top docstring rather than silently guessing a
+number.
+
+**What was built**:
+- `lib/calendar/due-dates.ts` -- `gstr3bQrmpInstallmentDueDates(periodStart, rule)`,
+  returning the two PMT-06 due dates for a quarter.
+- `lib/calendar/queries.ts` -- `getPaymentCalendar(businessId, options)`: one
+  `"settlement"` `PaymentObligation` per period (same due date as that period's own GSTR-3B
+  filing, reusing `gst.return_periods.payment_status`/`payment_date` -- COMPLY-P0-07.7's
+  own columns, not duplicated), plus two `"installment"` obligations per QRMP quarter (no
+  persisted status at all -- see above).
+- Covered by the same `due-dates.test.ts` cases (the installment-due-date function) as
+  09.1 -- no separate test file, since `queries.ts`'s own orchestration for both calendars
+  shares one file and one set of underlying pure functions.
+
+**What was deliberately left out**: any payment AMOUNT (see above); any UI.
+
+**How verified**: same commands as 09.1 (built and verified together) -- see 09.1's own
+"How verified" list; the installment-due-date test cases are included in that story's "46
+new" test count.
+
+### 09.3 -- Reminder Engine (2026-09-12)
+
+A real email reminder that a filing obligation (09.1) is coming due, sent before the due
+date -- not just a computed calendar a human has to remember to check.
+
+**Checked the existing implementation first (backlog rule 1)**: `module-fsm`'s own
+`sendDueReminders()` (`lib/reminders/mutations.ts`) already solves this exact shape for
+FSM appointment reminders -- a cron entry point, admin clients throughout (no signed-in
+user in a cron invocation), Resend email, idempotent via a persisted "already sent"
+marker, module-license-gated per business, one business's own failure never aborting the
+rest of the run. Reused that SHAPE exactly rather than inventing a different reminder
+mechanism for Compliance.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 first (backlog rule 1/5)**: no existing table
+records "has a reminder already gone out for this specific obligation" -- needed, since
+09.1's own Filing Calendar is deliberately schema-free (recomputed live on every call) and
+a reminder must never re-fire for the same obligation just because the calendar was
+recomputed on the next cron run.
+
+**Deliberately does NOT reuse `lib/calendar/queries.ts#getFilingCalendar` for the actual
+scan** -- that orchestrator's `createClient()` is the request-scoped, cookie-based client
+(RLS as whichever user is signed in), meaningless for a cron that must scan EVERY licensed
+business's own obligations at once. The actual due-date MATH (`lib/calendar/periods.ts`,
+`lib/calendar/due-dates.ts`) is fully reused; only the admin-client "which businesses"
+orchestration is written fresh in `lib/reminders/mutations.ts`, matching
+`sendDueReminders()`'s own precedent of not forcing one code path to serve both a request
+and a cron.
+
+**Scope, deliberately narrowed to FILING obligations only (backlog rule 5)**: 09.2's own
+PAYMENT obligations are not separately reminded -- a monthly filer's payment IS its GSTR-3B
+filing (same due date, already covered), and a QRMP installment reminder is a real,
+plausible future addition (it would need its own natural-key shape, since an installment
+has no `return_type`) deliberately left out rather than guessed at here.
+
+**Recipients: `owner`/`admin`/`accountant` business members**, not just `owner`/`admin`
+the way FSM's own internal-reminder recipients are scoped -- `accountant` is a real
+`core.business_members.role` value and unambiguously the compliance-relevant one for a GST
+filing reminder.
+
+**What was built**:
+- `supabase/migrations/20260912190000_gst_filing_reminders_sent.sql` --
+  `gst.filing_reminders_sent` (one row per (business, return_type, period_end, lead_days)
+  ever sent -- the unique constraint IS the idempotency mechanism), RLS licensed-membership
+  only for INSERT (no extra permission -- recording a sent reminder is an automatic system
+  byproduct, same reasoning `gst.tax_determinations` already established), no
+  update/delete policy.
+- `lib/reminders/schedule.ts` -- `pendingReminderLeadDays(dueDate, asOf,
+  alreadySentLeadDays, configuredLeadDays)` (pure): which of the default 7-day/1-day lead
+  thresholds should fire right now, never re-firing an already-sent one, never firing once
+  an obligation is already overdue (COMPLY-P0-09.4's own job).
+- `lib/reminders/mutations.ts` -- `sendDueComplianceReminders()`, the cron entry point:
+  scans every business with a primary, active India/GST registration, checks
+  `core.has_module`, skips a period already `"filed"`, resolves recipients via
+  `core.business_members`/`core.user_profiles`, sends via Resend, records the sent marker.
+- `apps/web/app/api/cron/send-compliance-reminders/route.ts` -- same `CRON_SECRET`
+  bearer-auth shape as every other cron route in this platform.
+- `apps/web/vercel.json` -- new daily cron entry.
+- 10 new vitest cases in `schedule.test.ts` covering threshold firing/non-firing, multiple
+  thresholds firing at once (a cron catching up), already-sent suppression, the
+  already-overdue exclusion, and a custom lead-day list.
+- `scripts/test-gst-filing-reminders-sent-rls.mjs` -- new real-Postgres RLS harness (added
+  to `package.json`'s `test:db` chain): permission/license gating, both check constraints,
+  the natural-key unique constraint (idempotency), no update/delete policy, tenant
+  isolation.
+
+**What was deliberately left out**: QRMP installment reminders (see above); a
+per-employee/per-role notification-preference setting (FSM's own PRD explicitly asked for
+one for internal reminders; nothing in this backlog's own terse spec asks for it here, and
+inventing it would be speculative -- backlog rule 5); SMS/push channels (Resend email only,
+matching every other reminder in this platform).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` and `apps/web` -- both clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- clean, no violations.
+- `node scripts/lint-migration-schema.mjs` -- clean, no violations.
+- `npx vitest run --root packages/module-gst` -- 430 tests passing total (374 prior + 56
+  new across 09.1/09.2/09.3/09.4).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (security): identical finding set
+  before/after (same 5 pre-existing `rls_enabled_no_policy` infos, 1 pre-existing
+  `auth_leaked_password_protection` warning) -- no new finding. Performance: only the
+  expected, benign "unused index" listing for the new `filing_reminders_sent_business_id_idx`
+  in this traffic-free dev project.
+- **Local Postgres RLS harness actually run this story** (cluster started fresh this
+  session, confirmed working): `scripts/test-gst-filing-reminders-sent-rls.mjs`, all
+  assertions passing, confirming the full migration timeline (161 files) applies cleanly.
+- `cd apps/web && npm run build` -- ran once, covering 09.1/09.2/09.3/09.4 together: clean
+  build, the new `/api/cron/send-compliance-reminders` route appears in the route manifest
+  alongside every other cron route.
+- No live browser walkthrough -- moot, none of 09.1-09.4 shipped UI; the reminder email
+  itself was never sent to a real inbox in this session (no `RESEND_API_KEY` configured in
+  this environment, same documented gap FSM's own reminder mutation already has).
+
+### 09.4 -- Overdue Detection (2026-09-12)
+
+Pure comparison of an already-computed due date (09.1/09.2) against today and the
+obligation's own already-recorded status -- deliberately the LAST piece built in this
+epic's own natural dependency order (needs a due date to compare against), even though the
+backlog numbers it before 09.5.
+
+**A genuine three-way result, not a boolean, because one real case cannot be answered
+true/false**: a QRMP `"installment"` payment has no persisted status anywhere in this
+platform (09.2's own documented gap) -- claiming "not overdue" once its due date passed
+would be an unverified compliance claim in one direction, claiming "overdue" an unverified
+claim in the other. `OverdueStatus` is `"overdue" | "not_overdue" | "unknown"`, and
+`isPaymentOverdue()` returns `"unknown"` for exactly this case rather than guessing either
+way (backlog rule 11).
+
+**What was built**:
+- `lib/calendar/overdue.ts` -- `isFilingOverdue(obligation, asOf)`: overdue once the due
+  date has passed and `status` has not reached `"filed"` (any earlier stage, including
+  never started, counts). `isPaymentOverdue(obligation, asOf)`: same shape for a
+  `"settlement"`, `"unknown"` for an `"installment"` once past due.
+- 11 new vitest cases in `overdue.test.ts` covering: before/on/after the due date for both
+  filing and payment, every lifecycle stage past due, the never-overdue-once-filed/paid
+  case, and the installment `"unknown"` case specifically.
+
+**What was deliberately left out**: any persisted "overdue" flag or notification (this is
+a pure, on-demand comparison -- COMPLY-P0-09.5's own Risk Dashboard is the first consumer
+that surfaces it to a human); an overdue-specific reminder/escalation (09.3's own reminder
+engine only fires BEFORE a due date, never after -- a distinct, plausible future need
+flagged rather than built here).
+
+**How verified**: same combined verification run as 09.3 above (the "430 tests passing"
+total and the single `apps/web` build cover 09.1 through 09.4 together).
