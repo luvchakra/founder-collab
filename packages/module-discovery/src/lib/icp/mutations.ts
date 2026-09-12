@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import type { IcpProfile } from "./types";
+import type { IcpProfile, IcpProfileVersionSource } from "./types";
 
 type IcpFieldsInput = {
   name: string;
@@ -40,6 +40,42 @@ function icpFieldsToRow(input: IcpFieldsInput) {
 }
 
 /**
+ * DISC-OFFER-P0-14.2: snapshots an ICP's own current content as its own immutable
+ * version row -- called by every mutation below right after it writes new content, with
+ * the just-written row (so the snapshot always matches exactly what the live row now
+ * holds) and which of the two things that can produce new ICP content did it. Exported
+ * so `generateIcp` (`lib/ai/generate-icp.ts`, a different file -- the AI-generation path
+ * lives there, not here) can call it too rather than duplicating the insert.
+ */
+export async function recordIcpProfileVersion(icp: IcpProfile, source: IcpProfileVersionSource): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("icp_profile_versions").insert({
+    workspace_id: icp.workspace_id,
+    icp_id: icp.id,
+    version: icp.version,
+    source,
+    name: icp.name,
+    description: icp.description,
+    industries: icp.industries,
+    company_sizes: icp.company_sizes,
+    geographies: icp.geographies,
+    roles: icp.roles,
+    pain_points: icp.pain_points,
+    buying_signals: icp.buying_signals,
+    exclusions: icp.exclusions,
+    revenue: icp.revenue,
+    business_model: icp.business_model,
+    technology: icp.technology,
+    growth_stage: icp.growth_stage,
+    existing_tools: icp.existing_tools,
+    confidence: icp.confidence,
+    evidence: icp.evidence,
+    status: icp.status,
+  });
+  if (error) throw error;
+}
+
+/**
  * Any manual edit resets status to draft -- it must be explicitly re-approved.
  *
  * DISC-OFFER-P0-13.1: also clears `confidence`/`evidence` -- both describe how well the
@@ -47,16 +83,32 @@ function icpFieldsToRow(input: IcpFieldsInput) {
  * field, that assessment no longer honestly describes what's now on the row. Same "don't
  * let a stale AI judgment linger over content a human has since changed" call as the
  * `status` reset just above, not a new precedent.
+ *
+ * DISC-OFFER-P0-14.2: also bumps `version` and records a `user_edit` snapshot of the
+ * result -- a manual Save is one of exactly two things that ever overwrite ICP content
+ * (the other, AI regeneration, is versioned in `generateIcp` instead). Reads the row's
+ * current version first (a plain read-then-write, not an atomic increment -- the same
+ * single-flight assumption `markPipelineStageRunning`, DISC-OFFER-P0-10.2, already
+ * accepts for its own version bump: nothing in this module lets two saves of the same
+ * ICP race each other).
  */
 export async function updateIcpProfile(icpId: string, input: IcpFieldsInput): Promise<IcpProfile> {
   const supabase = await createClient();
+  const { data: current, error: currentError } = await supabase
+    .from("icp_profiles")
+    .select("version")
+    .eq("id", icpId)
+    .single();
+  if (currentError) throw currentError;
+
   const { data, error } = await supabase
     .from("icp_profiles")
-    .update({ ...icpFieldsToRow(input), status: "draft", confidence: null, evidence: [] })
+    .update({ ...icpFieldsToRow(input), status: "draft", confidence: null, evidence: [], version: current.version + 1 })
     .eq("id", icpId)
     .select()
     .single();
   if (error) throw error;
+  await recordIcpProfileVersion(data, "user_edit");
   return data;
 }
 
@@ -67,11 +119,25 @@ export async function updateIcpProfile(icpId: string, input: IcpFieldsInput): Pr
  * with the source's values, not a second row. Reset to `draft` either way -- a cloned
  * ICP still needs the founder's own review/approval for its new offering, the same as
  * any other edit.
+ *
+ * DISC-OFFER-P0-14.2: a clone overwrites the *target* workspace's own existing ICP
+ * content exactly like a manual edit does, so it versions the same way -- bumps the
+ * target's own version (0 if this workspace never had an ICP at all yet) and records a
+ * `user_edit` snapshot: a clone is a human clicking "Clone", not a new AI generation, so
+ * it reads as the human side of this story's own closed two-value vocabulary rather than
+ * a third value the doc never asked for (flagged in this story's own audit-log entry).
  */
 export async function cloneIcpProfileToWorkspace(sourceIcpId: string, targetWorkspaceId: string): Promise<IcpProfile> {
   const supabase = await createClient();
   const { data: source, error: sourceError } = await supabase.from("icp_profiles").select("*").eq("id", sourceIcpId).single();
   if (sourceError) throw sourceError;
+
+  const { data: existingTarget, error: existingTargetError } = await supabase
+    .from("icp_profiles")
+    .select("version")
+    .eq("workspace_id", targetWorkspaceId)
+    .maybeSingle();
+  if (existingTargetError) throw existingTargetError;
 
   const row = {
     workspace_id: targetWorkspaceId,
@@ -98,10 +164,12 @@ export async function cloneIcpProfileToWorkspace(sourceIcpId: string, targetWork
     confidence: null,
     evidence: [],
     status: "draft" as const,
+    version: (existingTarget?.version ?? 0) + 1,
   };
 
   const { data, error } = await supabase.from("icp_profiles").upsert(row, { onConflict: "workspace_id" }).select().single();
   if (error) throw error;
+  await recordIcpProfileVersion(data, "user_edit");
   return data;
 }
 

@@ -2,6 +2,7 @@ import { generateObject } from "ai";
 import { createClient } from "../../db/server";
 import { getProduct, getWorkspaceForProduct } from "../tenancy/queries";
 import { getIcpProfile } from "../icp/queries";
+import { recordIcpProfileVersion } from "../icp/mutations";
 import type { IcpProfile } from "../icp/types";
 import {
   generateIcpPrompt,
@@ -119,6 +120,9 @@ export async function generateIcp(
         confidence: draft.confidence,
         evidence: draft.evidence,
         status: "draft",
+        // DISC-OFFER-P0-14.2: "existing" (fetched above) is this workspace's ICP as it
+        // stood before this AI write -- 0/undefined for a workspace with none yet.
+        version: (existing?.version ?? 0) + 1,
       },
       { onConflict: "workspace_id" },
     )
@@ -126,5 +130,6 @@ export async function generateIcp(
     .single();
   if (upsertError) throw upsertError;
 
+  await recordIcpProfileVersion(data, "ai_generated");
   return data;
 }

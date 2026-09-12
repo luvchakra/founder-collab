@@ -57,7 +57,7 @@ only genuine architectural/key decisions are raised.
 | | 12.2 | External Opportunity Research | Done |
 | | 13.1 | Structured Stage Outputs | Done |
 | | 14.1 | Discovery Run History | Done |
-| | 14.2 | Versioned Stage Results | Not started |
+| | 14.2 | Versioned Stage Results | Done |
 | | 15.1 | Final Human Action Gate | Not started |
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Not started |
 | | P1-01.2 | Incremental Re-Run | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**39 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**40 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2742,3 +2742,141 @@ seeded demo user/`.env.local` in this environment).
 
 **Status**: 39 of 68 in-scope stories done -- Phase E continuing. Next: 14.2, Versioned
 Stage Results.
+
+### 14.2 — Versioned Stage Results (2026-09-12)
+
+Verified starting state first, per this run's own standing instruction: `git fetch origin
+main disc-offering-backlog && git log origin/main..origin/disc-offering-backlog --oneline`
+was empty (39/68 fully merged already), but this worktree's own checked-out HEAD was
+found sitting on a stray scratch branch (`worktree-agent-a55bc6d6f4dcb5035`, a merge of
+`origin/comply-backlog` into a `scratch-main-canada` branch some other session had pushed
+straight to `origin/main` via this run's own documented scratch-branch fallback) --
+confirmed harmless (the working tree was clean and that commit *is* `origin/main`'s real
+tip, `388655f`, itself an ancestor check away from containing `disc-offering-backlog`
+cleanly) rather than a sign of contamination, then fixed with a plain
+`git branch -f disc-offering-backlog origin/disc-offering-backlog && git checkout
+disc-offering-backlog` onto the real tracked tip (`eb7f829`, 14.1) -- the same
+worktree-reuse artifact 09.4/10.1's own log entries already documented, not a new problem.
+
+The doc gives this story no "Acceptance criteria" heading either (same as 10.2/13.1/14.1)
+-- just the field list and the one worked example (`ICP v1`/`v2`/`v3`, "current version
+clearly identified", "user edits and AI-generated changes should be distinguishable").
+Checked DISC-OFFER-P0-10.2's own migration comment first, per this story's own explicit
+anticipation there ("14.2 owns snapshotting a stage's actual output *content*... without
+this table needing to change shape again") -- confirmed `pipeline_stages.version`
+(10.2) is a distinct, narrower concept (an execution-attempt counter for the "icp"
+*pipeline stage*, bumped only when `runIcpStage` runs via the AI Discovery pipeline) from
+this story's own concern: a founder's manual "Save changes" (`updateIcpProfile`) and a
+manual "Regenerate" (`generateIcp`, callable straight from the ICP page's own button,
+outside the pipeline entirely) both silently overwrite the ICP row's content in place
+today, and neither write path touches `pipeline_stages` at all. This needed its own
+content-version counter on `icp_profiles` itself, not a reuse of the pipeline stage's own
+`version` column.
+
+**Scoped to the ICP alone, matching the doc's own single worked example** -- the same
+"scope to the doc's one worked example, flag the rest explicitly" call DISC-OFFER-P0-11.1
+already made for "Editable Pipeline Stages" (a near-identical problem shape: several
+stages are theoretically in scope, the doc shows exactly one worked example, prior
+precedent narrows to it and flags the rest). Offering Profile, Buyer Personas and
+Discovery Strategy all have their own real-or-notional overwrite exposure too (an
+offering-profile "Regenerate" replaces `products.product_profile` in place with zero
+history), but extending this same versioning to them is left for a future story to build
+on this migration's own pattern rather than implied by this one's scope (CLAUDE.md dev
+principle #7 -- no speculative functionality). Buyer personas and discovery strategy are
+actually lower-risk already: `seedBuyerPersonasFromIcp`/`seedDiscoveryDefinitionFromIcp`
+(DISC-OFFER-P0-10.1) only ever add or skip, never overwrite existing content, so neither
+one actually loses data today the way ICP regeneration/manual-save do.
+
+**Migration** (`20260912230000_discovery_icp_profile_versions.sql`): adds
+`icp_profiles.version` (integer, default 0 -- 0 for any row that predates this story and
+hasn't been written to since, a genuinely different fact from "this is version 1"; the
+live row's own `version` column *is* "current version is clearly identified", with no
+separate `is_current` flag to ever drift out of sync with it) and a new append-only
+`discovery.icp_profile_versions` table -- one immutable snapshot per version, mirroring
+every one of `icp_profiles`' own content columns exactly (not a jsonb blob) so a past
+version can be rendered with the same field-by-field layout the live ICP form already
+uses. Same "current value on the live row, full history on its own append-only table"
+pattern `discovery.pipeline_stage_runs` (10.2) already established. `source` is a closed
+two-value check constraint (`ai_generated`/`user_edit`), the doc's own explicit
+"distinguishable" requirement -- not open-ended free text, the same closed-enum
+discipline `pipeline_runs.trigger` (14.1) already established for a comparable field.
+`unique (workspace_id, version)` (parallel to `pipeline_stage_runs`' own `(workspace_id,
+stage_key, version)`) plus a separate index on `icp_id` (not covered by that unique
+constraint's own leftmost prefix, unlike `pipeline_stage_runs`) -- both FKs indexed from
+the start. RLS: select/insert only, tenant AND licensed via `discovery.user_workspace_ids()`,
+same pattern as every sibling table.
+
+**Wiring** (`lib/icp/mutations.ts`, `lib/ai/generate-icp.ts`): new exported
+`recordIcpProfileVersion(icp, source)` (in `mutations.ts`, since `generateIcp` in a
+different file needs to call it too) inserts one snapshot from a row's own just-written
+fields. Three call sites, each a read-current-version-then-write (a plain read-then-write,
+not an atomic SQL increment -- the same single-flight assumption `markPipelineStageRunning`,
+10.2, already accepts, since nothing in this module lets two saves of the same ICP race
+each other):
+- `generateIcp` (AI path) -- bumps from the `existing` row it already fetches earlier in
+  the function, records `ai_generated`. Covers both the ICP page's own "Generate"/
+  "Regenerate" buttons and the AI Discovery pipeline's own "icp" stage (`runIcpStage`
+  calls this exact function) -- one version bump either way, since both are the same "the
+  AI wrote fresh content" fact regardless of which surface triggered it.
+- `updateIcpProfile` (manual Save) -- bumps from a new read of the row by `icpId`,
+  records `user_edit`.
+- `cloneIcpProfileToWorkspace` -- bumps from the *target* workspace's own existing
+  version (0 if it never had an ICP at all), records `user_edit`. **A flagged judgment
+  call**: a clone is a human clicking "Clone", not a new AI generation, so it reads as the
+  human side of this story's own closed binary rather than a third value the doc never
+  asked for -- noted here rather than silently decided.
+- `approveIcpProfile` deliberately does **not** bump the version or record a snapshot --
+  it only ever changes `status`, never a field this table snapshots, so nothing about
+  approval is at risk of being "silently overwritten" (the same restraint 13.1's own
+  `confidence`/`evidence` reset already applied to approval: it doesn't touch those
+  either).
+
+New `listIcpProfileVersions(icpId)` query (`lib/icp/queries.ts`), most-recent-first --
+not `cache()`-wrapped, matching the sibling `listPipelineStageRuns`/`listPipelineRuns`
+history queries in `lib/pipeline/queries.ts` (a plain read, no same-request staleness risk
+to guard against, unlike `getIcpProfile`'s own two-callers-per-render reason for caching).
+
+**UI** (ICP page, `icp/page.tsx` + new `IcpVersionHistory` component,
+`components/icp/icp-version-history.tsx`): a small "v{n}" badge next to the existing
+Approved/Draft badge (shown only once an ICP has a real version, i.e. `version > 0` --
+absent for a never-yet-versioned pre-existing row, the same "no false precision" restraint
+13.1's own confidence block already applies), and a new "Version history" section below
+the edit form listing every past version, most recent first, each behind a native
+`<details>` disclosure (no new dependency -- CLAUDE.md dev principle #2) showing its own
+source badge, timestamp, and a summarized field snapshot (industries/company
+sizes/roles/pain points/buying signals/exclusions/description/confidence -- not literally
+every one of the dozen list fields on the live form, which would make each expanded
+version as long as the edit form itself for little skimming benefit). The top entry is
+explicitly labeled "(current)" -- the doc's own literal "current version is clearly
+identified" line, not left to be inferred from list order alone. Deliberately read-only,
+no restore/rollback action: the doc's own acceptance line never asks for reverting to a
+past version, only for the trail to exist and be readable, and building a restore flow
+now would be scope creep past what this story needs (CLAUDE.md dev principle #7) -- flagged
+here rather than silently assumed out of scope. No compact-card table treatment needed
+(CLAUDE.md non-negotiable #12 doesn't bite -- this is a list of expandable cards, not a
+table of rows, the same reasoning 10.3's grouped checklist and 14.1's own stage-run list
+already established).
+
+No new pure domain logic: the version-bump itself is a one-line `current + 1` embedded in
+each DB-composing mutation, the same "no unit test for a DB-composing function" precedent
+`markPipelineStageRunning`'s own comparable version bump (10.2) already established --
+extracting a dedicated `nextVersion()` for a bare increment would be ceremony, not real
+logic worth its own test.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1172 files, no
+violations), `lint:migrations` (133 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (178/178, unchanged -- no new pure logic, per the note above),
+a live migration apply + `get_advisors` for both `security`/`performance` against the dev
+project (`jazdtomcgqjxjueedmck`) -- no new security findings of any kind (same 6
+pre-existing `rls_enabled_no_policy` + 1 pre-existing `auth_leaked_password_protection`,
+all on unrelated tables), and exactly one new performance finding -- this story's own new
+`icp_profile_versions_icp_id_idx`, correctly flagged `unused_index` on an empty dev
+database, the same benign pattern every prior migration-adding story in this run has
+produced -- and a clean `next build` (confirmed the ICP route, which now renders the
+version badge and history section, still builds with no errors and appears in the route
+manifest). Same live-browser-walkthrough constraint noted in every prior UI-touching
+story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 40 of 68 in-scope stories done -- Phase E continuing. Next: 15.1, Final Human
+Action Gate (the last story in Phase E).

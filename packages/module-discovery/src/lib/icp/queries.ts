@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
-import type { IcpProfile } from "./types";
+import type { IcpProfile, IcpProfileVersion } from "./types";
 
 /** cache()-wrapped: the product layout (ProductNav completion checkmark) and the ICP
  * tab's own page both call this with the same workspaceId in the same request --
@@ -15,6 +15,22 @@ export const getIcpProfile = cache(async (workspaceId: string): Promise<IcpProfi
   if (error) throw error;
   return data;
 });
+
+/** DISC-OFFER-P0-14.2: "ICP v1/v2/v3" -- every past content snapshot for one ICP, most
+ * recent first (so "current version is clearly identified" as the first entry, matching
+ * `icp_profiles.version` on the live row). Not `cache()`-wrapped, matching the sibling
+ * `listPipelineStageRuns`/`listPipelineRuns` history queries in `lib/pipeline/queries.ts`
+ * -- a plain read with no same-request re-read risk to guard against. */
+export async function listIcpProfileVersions(icpId: string): Promise<IcpProfileVersion[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("icp_profile_versions")
+    .select("*")
+    .eq("icp_id", icpId)
+    .order("version", { ascending: false });
+  if (error) throw error;
+  return data;
+}
 
 export type CloneableIcpSource = { icpId: string; icpName: string; productId: string; productName: string };
 
