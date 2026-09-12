@@ -88,3 +88,19 @@ export async function listItemTaxContexts(businessId: string, itemIds: string[])
   if (error) throw error;
   return data.map(mapItemTaxContext);
 }
+
+/** Every ACTIVE item's current tax classification for a business -- COMPLY-P0-09.5 (Risk
+ * Dashboard)'s own "Invalid classification" signal needs the whole active catalog, not
+ * just the items already referenced on a specific document's lines (`listItemTaxContexts`
+ * above). `status = 'active'` only -- an archived/discontinued item's own stale
+ * classification is not a live compliance risk worth surfacing on an ongoing dashboard. */
+export async function listAllItemTaxContexts(businessId: string): Promise<ItemTaxContext[]> {
+  const core = await coreClient();
+  const { data, error } = await core
+    .from("items")
+    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status")
+    .eq("business_id", businessId)
+    .eq("status", "active");
+  if (error) throw error;
+  return data.map(mapItemTaxContext);
+}

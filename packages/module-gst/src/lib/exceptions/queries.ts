@@ -51,6 +51,16 @@ export async function listReconciliationExceptions(businessId: string, returnPer
   return data.map(mapRow);
 }
 
+/** Every OPEN exception across every return period for a business -- COMPLY-P0-09.5's
+ * (Risk Dashboard) own "Unmatched ITC" signal needs the whole open triage queue, not one
+ * period at a time the way `listReconciliationExceptions` above requires. */
+export async function listOpenReconciliationExceptions(businessId: string): Promise<ReconciliationException[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("reconciliation_exceptions").select(EXCEPTION_COLUMNS).eq("business_id", businessId).eq("status", "open").order("created_at");
+  if (error) throw error;
+  return data.map(mapRow);
+}
+
 export async function getReconciliationExceptionById(businessId: string, exceptionId: string): Promise<ReconciliationException | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from("reconciliation_exceptions").select(EXCEPTION_COLUMNS).eq("business_id", businessId).eq("id", exceptionId).maybeSingle();
