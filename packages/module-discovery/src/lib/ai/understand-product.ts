@@ -14,7 +14,7 @@ import { assertWithinUsageLimit } from "../usage/limits";
 import { hasRecentSuccess } from "./dedup";
 import { resolveAiModel, toAiProviderError } from "./router";
 import { createUrlContextTools } from "@cofounderai/core/ai/provider-factory";
-import { researchWebsite } from "./research-website";
+import { crawlWebsite } from "./website-crawl";
 
 const OPERATION = "understand_product";
 
@@ -87,22 +87,33 @@ export async function understandProduct(
   let profile: ProductProfile;
   const startedAt = Date.now();
   try {
-    const research = await researchWebsite(
+    // DISC-OFFER-P0-12.1: "Offering-Specific Website Research" -- a multi-page crawl
+    // (DISC-OFFER-P0-09.2's own `crawlWebsite`, previously only used for whole-business
+    // onboarding) instead of a single-page fetch, so an offering whose own details are
+    // spread across e.g. /services, /pricing, /case-studies is actually read in full, not
+    // just its root URL. Every page -- home and every crawled page alike -- is asked
+    // about *this offering by name* (`researchProductWebsitePrompt`, unchanged from
+    // before this story) rather than the crawl's own generic "what does this business do"
+    // default, so a site describing several different offerings gets read with this one
+    // in mind. "Do not repeatedly process irrelevant pages" is `crawlWebsite`'s own
+    // already-built dedup/cap/category machinery, inherited for free.
+    const research = await crawlWebsite(
+      product.website,
       model,
       createUrlContextTools(provider),
-      researchPrompt,
-      product.website,
       provider,
+      undefined,
+      undefined,
+      (url) => researchProductWebsitePrompt({ productName: product.name, website: url }),
     );
     console.log(
-      `[ai/understand-product] findings for ${product.website} (${research.findings.length} chars):`,
-      research.findings.slice(0, 2000),
+      `[ai/understand-product] crawled ${research.pages.length} page(s) for ${product.website} (${research.combinedFindings.length} chars combined)`,
     );
 
     const structurePrompt = understandProductPrompt({
       productName: product.name,
       sources: [
-        { sourceType: "website", sourceName: product.website, content: research.findings },
+        { sourceType: "website", sourceName: product.website, content: research.combinedFindings },
         ...(product.description
           ? [{ sourceType: "manual", sourceName: "Product info", content: `Description: ${product.description}` }]
           : []),
@@ -127,9 +138,9 @@ export async function understandProduct(
       model: modelId,
       promptVersion: RESEARCH_PRODUCT_WEBSITE_PROMPT_VERSION,
       inputHash,
-      inputTokens: research.inputTokens + (structureResponse.usage.inputTokens ?? 0),
-      outputTokens: research.outputTokens + (structureResponse.usage.outputTokens ?? 0),
-      searchCount: research.searchCount,
+      inputTokens: research.usage.inputTokens + (structureResponse.usage.inputTokens ?? 0),
+      outputTokens: research.usage.outputTokens + (structureResponse.usage.outputTokens ?? 0),
+      searchCount: research.usage.searchCount,
       status: "succeeded",
       accountId,
       provider,
