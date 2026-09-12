@@ -68,13 +68,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.7 | Filing/Payment Status | Done |
 | P0-08 | 08.1 | GSTR-2B Fetch/Import | Done |
 | | 08.2 | Purchase-to-2B Matching | Done |
-| | 08.3–08.6 | Match Explanation, IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
+| | 08.3 | Match Explanation | Done |
+| | 08.4–08.6 | IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**39 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**40 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -83,9 +84,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
 Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
-Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import) and
-COMPLY-P0-08.2 (Purchase-to-2B Matching) are done. Next: COMPLY-P0-08.3 (Match
-Explanation).
+Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import),
+COMPLY-P0-08.2 (Purchase-to-2B Matching) and COMPLY-P0-08.3 (Match Explanation) are done.
+Next: COMPLY-P0-08.4 (IMS Accept/Reject/Pending).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4350,6 +4351,86 @@ statement reachable this session -- same honest-limit pattern as COMPLY-P0-08.1)
 - No local Postgres RLS harness needed -- no new table, no new RLS policy; the reads this
   story composes (`getPurchaseRegister`, `getGstr2bStatementWithDocuments`) are already
   covered by `test-core-documents-rls.mjs` and `test-gst-gstr2b-rls.mjs` respectively.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.3 — Match Explanation (2026-09-12)
+
+Explains WHY a supplier's own COMPLY-P0-08.2 reconciliation status is what it is, and
+lets a human drill into the real invoice-/note-level line items on both sides.
+
+**Deterministic, never an LLM call (CLAUDE.md principle 4, backlog rule 12)**: "explain
+this mismatch" sounds AI-shaped, but the actual requirement is a small, fixed set of
+REAL, well-documented GST reconciliation causes -- a lookup table, not a generative
+task. `lib/reconciliation/explain.ts`'s `possibleCausesFor()` returns one of three fixed
+candidate-cause lists keyed by status (`matched` gets an empty list -- there is nothing
+to explain). Minimizing LLM calls (principle 5) is trivially satisfied here: zero.
+
+**Research, not assumption (backlog rule 6)**: each cause string is grounded in real GST
+reconciliation practice, `WebSearch`ed this story -- busy.in's "GSTR-2B and Rule 37A"
+explainer, precisa.in's "Reconcile ITC Mismatches Between GSTR-2B and GSTR-3B," and
+caclubindia.com's own "GSTR-2B Mismatch and ITC Protection: The Complete 2026 Playbook,"
+all independently converging on the same small set of real causes: a supplier not yet
+having filed GSTR-1/IFF, filing after the 2B cut-off, a wrong GSTIN/period on the
+supplier's own filing (for `missing_in_2b`); an unrecorded purchase, a supplier
+duplicating or mis-periodizing an invoice (for `missing_in_books`); rounding, invoice
+amendments, partial reporting, or an incorrect tax rate/place of supply (for
+`mismatched`). Presented explicitly as CANDIDATE possibilities a human should check, never
+as a diagnosis -- backlog rule 11 ("never claim compliant/diagnosed just because a
+calculation ran") applies just as much to "here's definitely why this is wrong" as it
+does to "this is definitely compliant."
+
+**Drill-down reuses COMPLY-P0-07.4's own design philosophy, not its code** (that epic's
+own `lib/returns/drilldown` resolves `core.documents` ids behind a RETURN row; this
+story resolves the real purchase-register line items AND GSTR-2B document rows behind a
+RECONCILIATION row -- a different source pair, so a new, small function rather than a
+forced reuse): `getSupplierMatchDrilldown(businessId, returnPeriod, gstin)` returns the
+row's own possible causes plus `bookLines` (filtered straight from
+`PurchaseRegister.csvRows`, already computed by `getPurchaseReconciliation`'s own
+`getPurchaseRegister` call) and `gstr2bLines` (filtered `gst.gstr2b_documents` rows for
+that GSTIN) -- both real, already-persisted rows, not a synthetic pairing. A GSTIN with
+nothing on either side (never purchased from, never in 2B) returns a real, valid,
+non-null result with an empty `row`/empty line lists, distinguished from "no GSTR-2B
+statement imported for this period at all" (`null`) -- the same "a real absence is not an
+error" discipline `getPurchaseReconciliation` itself already established.
+
+**Refactored `getPurchaseReconciliation`/`getSupplierMatchDrilldown` to share one
+`loadReconciliationInputs()` helper** rather than each independently calling
+`getPurchaseRegister`/`getGstr2bStatementWithDocuments` -- a page that shows both a
+reconciliation summary and one supplier's own drill-down in the same request (the
+realistic COMPLY-P0-11 UI shape) would otherwise trigger those underlying reads twice.
+
+**What was built**:
+- `lib/reconciliation/explain.ts` -- `possibleCausesFor(status)`, `explainSupplierMatch(row)`.
+- `lib/reconciliation/types.ts` -- `SupplierBookLine`, `SupplierMatchDrilldown`.
+- `lib/reconciliation/queries.ts` -- `loadReconciliationInputs` (shared helper),
+  `getSupplierMatchDrilldown`.
+- 6 new vitest cases in `explain.test.ts` covering: empty causes for `matched`, non-empty
+  and DISTINCT cause lists per unmatched status, a real-practice sanity check (the
+  `missing_in_2b` causes actually mention "GSTR-1"), and `explainSupplierMatch` pairing
+  each status with its own list correctly.
+
+**What was deliberately left out**: any UI (COMPLY-P0-11); any persisted "explanation
+accepted/dismissed" state (that's an exception-queue-shaped concept, COMPLY-P0-08.6's own
+job); any AI-generated free-text explanation layered on top of the deterministic causes
+(a real, plausible future enhancement -- COMPLY-P1-10's own "Explain a Mismatch" AI
+assistant story is the right home for that, not this one, which stays firmly on the
+"deterministic software rule" side of backlog rule 12's own fact/rule/result/AI-explanation
+distinction).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1238 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 148 migration files, 0 violations (no new
+  migration this story).
+- `npx vitest run --root packages/module-gst` -- 355 tests passing (349 prior + 6 new).
+- No Supabase migration, no `get_advisors` re-check, no local Postgres RLS harness --
+  no new schema, no new table, no new RLS policy this story; the underlying reads are
+  already covered by existing RLS tests.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
