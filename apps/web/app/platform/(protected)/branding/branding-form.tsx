@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
@@ -9,8 +10,7 @@ import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import type { PlatformBranding } from "@cofounderai/core/admin/platform-branding";
-import { formatDateTime } from "@cofounderai/core/lib/format";
+import type { PlatformBrandingValues } from "@cofounderai/core/admin/platform-branding";
 import { saveBrandingAction, type BrandingFormState } from "./actions";
 
 // The vendored Input/Textarea/Label read the site's shared light-theme tokens
@@ -119,14 +119,26 @@ const BACKGROUND_VALUE_HELP: Record<string, string> = {
   image: "An image URL. Leave blank to keep the current default.",
 };
 
-export function BrandingForm({ branding }: { branding: PlatformBranding }) {
+/**
+ * PLATFORM-P0-03.5: `values` pre-fills from the pending draft when one exists, or from the
+ * live published record otherwise (`getPlatformBrandingDraft()` -- see its own docstring).
+ * Saving this form now writes a *draft* (`saveBrandingDraft()`), never the live columns --
+ * `router.refresh()` on success re-renders the server-fetched draft banner
+ * (`publish-controls.tsx`) above this form so it picks up the just-saved draft without a
+ * full page reload.
+ */
+export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
   const [state, formAction] = useActionState<BrandingFormState, FormData>(saveBrandingAction, null);
   const fieldErrors = state?.status === "error" ? state.fieldErrors : {};
-  const [backgroundStyle, setBackgroundStyle] = useState(branding.loginBackgroundStyle);
+  const [backgroundStyle, setBackgroundStyle] = useState(values.loginBackgroundStyle);
+  const router = useRouter();
 
   useEffect(() => {
-    if (state?.status === "success") toast.success("Branding saved.");
-  }, [state]);
+    if (state?.status === "success") {
+      toast.success("Draft saved -- not live yet. Preview and publish when ready.");
+      router.refresh();
+    }
+  }, [state, router]);
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -139,7 +151,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="platformName"
             name="platformName"
             label="Platform name"
-            defaultValue={branding.platformName}
+            defaultValue={values.platformName}
             error={fieldErrors.platformName}
           />
           <Field
@@ -147,7 +159,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             name="supportEmail"
             label="Support email"
             type="email"
-            defaultValue={branding.supportEmail ?? ""}
+            defaultValue={values.supportEmail ?? ""}
             placeholder="support@wonderarc.com"
             error={fieldErrors.supportEmail}
           />
@@ -155,7 +167,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="supportUrl"
             name="supportUrl"
             label="Support URL"
-            defaultValue={branding.supportUrl ?? ""}
+            defaultValue={values.supportUrl ?? ""}
             placeholder="https://support.wonderarc.com"
             error={fieldErrors.supportUrl}
           />
@@ -171,7 +183,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="logoUrl"
             name="logoUrl"
             label="Logo URL"
-            defaultValue={branding.logoUrl ?? ""}
+            defaultValue={values.logoUrl ?? ""}
             placeholder="https://…/logo.svg"
             error={fieldErrors.logoUrl}
           />
@@ -179,7 +191,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="faviconUrl"
             name="faviconUrl"
             label="Favicon URL"
-            defaultValue={branding.faviconUrl ?? ""}
+            defaultValue={values.faviconUrl ?? ""}
             placeholder="https://…/favicon.ico"
             error={fieldErrors.faviconUrl}
           />
@@ -195,21 +207,21 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="primaryColor"
             name="primaryColor"
             label="Primary brand"
-            defaultValue={branding.primaryColor}
+            defaultValue={values.primaryColor}
             error={fieldErrors.primaryColor}
           />
           <ColorField
             id="secondaryColor"
             name="secondaryColor"
             label="Secondary brand"
-            defaultValue={branding.secondaryColor ?? ""}
+            defaultValue={values.secondaryColor ?? ""}
             error={fieldErrors.secondaryColor}
           />
           <ColorField
             id="accentColor"
             name="accentColor"
             label="Accent color"
-            defaultValue={branding.accentColor ?? ""}
+            defaultValue={values.accentColor ?? ""}
             error={fieldErrors.accentColor}
           />
         </CardContent>
@@ -224,7 +236,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="loginHeadline"
             name="loginHeadline"
             label="Headline"
-            defaultValue={branding.loginHeadline ?? ""}
+            defaultValue={values.loginHeadline ?? ""}
             placeholder="Run your whole business from one place"
             error={fieldErrors.loginHeadline}
           />
@@ -235,7 +247,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             <Textarea
               id="loginSupportText"
               name="loginSupportText"
-              defaultValue={branding.loginSupportText ?? ""}
+              defaultValue={values.loginSupportText ?? ""}
               className={FIELD_CLASS}
               rows={2}
             />
@@ -276,7 +288,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             <Input
               id="loginBackgroundValue"
               name="loginBackgroundValue"
-              defaultValue={branding.loginBackgroundValue ?? ""}
+              defaultValue={values.loginBackgroundValue ?? ""}
               placeholder={BACKGROUND_VALUE_PLACEHOLDER[backgroundStyle]}
               className={FIELD_CLASS}
               aria-invalid={Boolean(fieldErrors.loginBackgroundValue)}
@@ -300,7 +312,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="loginTermsUrl"
             name="loginTermsUrl"
             label="Terms of service URL"
-            defaultValue={branding.loginTermsUrl ?? ""}
+            defaultValue={values.loginTermsUrl ?? ""}
             placeholder="https://wonderarc.com/terms"
             error={fieldErrors.loginTermsUrl}
           />
@@ -308,7 +320,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="loginPrivacyUrl"
             name="loginPrivacyUrl"
             label="Privacy policy URL"
-            defaultValue={branding.loginPrivacyUrl ?? ""}
+            defaultValue={values.loginPrivacyUrl ?? ""}
             placeholder="https://wonderarc.com/privacy"
             error={fieldErrors.loginPrivacyUrl}
           />
@@ -324,7 +336,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             id="emailFromName"
             name="emailFromName"
             label="From name"
-            defaultValue={branding.emailFromName ?? ""}
+            defaultValue={values.emailFromName ?? ""}
             placeholder="WonderArc"
             error={fieldErrors.emailFromName}
           />
@@ -343,7 +355,7 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
             <Textarea
               id="footerText"
               name="footerText"
-              defaultValue={branding.footerText ?? ""}
+              defaultValue={values.footerText ?? ""}
               className={FIELD_CLASS}
               rows={2}
             />
@@ -358,9 +370,9 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
 
       <div className="flex flex-col items-start gap-3 border-t border-zinc-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-zinc-500">
-          Last updated {formatDateTime(branding.updatedAt)}
+          Saving does not go live -- Preview and Publish separately below.
         </p>
-        <SubmitButton pendingText="Saving…">Save changes</SubmitButton>
+        <SubmitButton pendingText="Saving…">Save draft</SubmitButton>
       </div>
     </form>
   );

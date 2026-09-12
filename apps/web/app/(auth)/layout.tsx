@@ -1,6 +1,7 @@
 import Link from "next/link";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
+import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 
 // Every page under `(auth)` was previously a static-prerendering candidate (no dynamic
@@ -26,18 +27,11 @@ export const dynamic = "force-dynamic";
  * marketing/auth identity unchanged by default, while making it configurable, which is
  * what this story asks for -- not a conflict with that note, since nothing changes unless
  * a superadmin opts in.
+ *
+ * PLATFORM-P0-03.5: `backgroundStyleFor()` moved to `@/lib/login-branding` so the new
+ * branding preview page (`/platform/branding/preview`) can apply the exact same treatment
+ * to a *draft* value without duplicating this logic.
  */
-function backgroundStyleFor(style: string, value: string | null): CSSProperties | undefined {
-  if (!value) return undefined;
-  if (style === "image") return { backgroundImage: `url(${value})`, backgroundSize: "cover", backgroundPosition: "center" };
-  if (style === "solid") return { backgroundColor: value };
-  if (style === "gradient") {
-    const [from, to] = value.split(",");
-    if (from && to) return { backgroundImage: `linear-gradient(160deg, ${from}, ${to})` };
-  }
-  return undefined;
-}
-
 export default async function AuthLayout({ children }: { children: ReactNode }) {
   const branding = await getPublicLoginBranding();
   const backgroundStyle = backgroundStyleFor(branding.loginBackgroundStyle, branding.loginBackgroundValue);

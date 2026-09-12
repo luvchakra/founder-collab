@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { platformBrandingInputSchema } from "./platform-branding";
+import { platformBrandingInputSchema, toInputFromBranding, type PlatformBranding } from "./platform-branding";
 
 const validInput = {
   platformName: "WonderArc",
@@ -146,6 +146,59 @@ describe("platformBrandingInputSchema login background (PLATFORM-P0-03.3)", () =
     if (result.success) {
       expect(result.data.loginTermsUrl).toBeNull();
       expect(result.data.loginPrivacyUrl).toBeNull();
+    }
+  });
+});
+
+describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
+  const liveBranding: PlatformBranding = {
+    platformName: "WonderArc",
+    logoUrl: "https://cdn.example.com/logo.svg",
+    faviconUrl: null,
+    primaryColor: "#2563eb",
+    secondaryColor: null,
+    accentColor: "#f97316",
+    loginHeadline: "Run your whole business from one place",
+    loginSupportText: null,
+    emailFromName: null,
+    footerText: "© WonderArc",
+    supportEmail: "support@wonderarc.com",
+    supportUrl: null,
+    loginBackgroundStyle: "gradient",
+    loginBackgroundValue: "#0f172a,#312e81",
+    loginTermsUrl: null,
+    loginPrivacyUrl: null,
+    updatedAt: "2026-09-11T00:00:00.000Z",
+    updatedBy: "11111111-1111-1111-1111-111111111111",
+  };
+
+  it("carries required fields through unchanged", () => {
+    const input = toInputFromBranding(liveBranding);
+    expect(input.platformName).toBe("WonderArc");
+    expect(input.primaryColor).toBe("#2563eb");
+    expect(input.loginBackgroundStyle).toBe("gradient");
+    expect(input.loginBackgroundValue).toBe("#0f172a,#312e81");
+  });
+
+  it("turns every null optional field into an empty string, not the literal string 'null'", () => {
+    const input = toInputFromBranding(liveBranding);
+    expect(input.faviconUrl).toBe("");
+    expect(input.secondaryColor).toBe("");
+    expect(input.loginSupportText).toBe("");
+    expect(input.emailFromName).toBe("");
+    expect(input.supportUrl).toBe("");
+    expect(input.loginTermsUrl).toBe("");
+    expect(input.loginPrivacyUrl).toBe("");
+  });
+
+  it("round-trips cleanly back through platformBrandingInputSchema (the Edit form's fallback pre-fill is always valid input)", () => {
+    const input = toInputFromBranding(liveBranding);
+    const result = platformBrandingInputSchema.safeParse(input);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.faviconUrl).toBeNull();
+      expect(result.data.accentColor).toBe("#f97316");
+      expect(result.data.footerText).toBe("© WonderArc");
     }
   });
 });

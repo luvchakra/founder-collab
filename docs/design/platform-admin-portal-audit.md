@@ -31,14 +31,14 @@ verification in full regardless of which mode was in effect when it landed.
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
-| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 not started -- see log |
+| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
 | | 17 | Configuration Versioning | Not started |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 2 full sections done (01, 02), plus 18.1 and 03.1/03.3/03.4. P1: 0/9 done.**
+**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -811,7 +811,175 @@ once by actually executing `scripts/test-platform-branding-rls.mjs` against a re
 Postgres database -- not merely asserted from reading policy SQL, which is the standard
 this log is raising for every future `platform.*` authorization change from here on.
 
-**Status**: PLATFORM-P0-03.4 done. PLATFORM-P0-03.5 (Preview Before Publish) is next in
-section order, finishing §7 Branding, per this run's auto-continue assignment -- but per
-this run's own wrap-up instruction, stopping here after merge rather than continuing to
-it.
+**Status**: PLATFORM-P0-03.4 done. PLATFORM-P0-03.5 (Preview Before Publish) picked up next
+in section order, finishing §7 Branding -- see its own entry below.
+
+### PLATFORM-P0-03.5 — Preview Before Publish (2026-09-12)
+
+**What this story asks, read literally**: "Provide Edit / Preview / Publish. Global
+branding changes should not become active merely because a field was edited." Every prior
+§7 sub-story (03.1/03.3/03.4) wrote straight to `platform.branding`'s live columns on
+save -- exactly the "becomes active merely because a field was edited" behavior this story
+forbids. This is a real, user-visible behavior change to the existing branding form, not
+an additive field.
+
+**A real design fork, resolved rather than deferred**: §22 ("Configuration Versioning",
+PLATFORM-P0-17) is a later, general Draft/Published/Archived + rollback mechanism for
+*all* important platform configuration, and its own example list literally names
+"Branding v7" -- so there's real conceptual overlap with this story. Building that general
+mechanism now would be exactly the kind of ahead-of-turn scope creep this backlog's own
+03.1 entry already declined for its "configuration version history (PLATFORM-P0-17)" note.
+This story is scoped to branding's own Edit/Preview/Publish, matching the doc's own
+per-story granularity (the same pattern 03.3 followed when it scoped "legal links" down
+from PLATFORM-P1-09.3's fuller future version) -- §22, when it lands, is expected to
+generalize this one table's ad hoc `draft_data` column into whatever cross-cutting
+mechanism it designs, not the other way around.
+
+**What was built**: migration `20260912020000_platform_branding_draft.sql` adds one
+`draft_data jsonb` column to the existing singleton `platform.branding` row (plus
+`draft_updated_by`/`draft_updated_at` for the same "minimal accountability" scope
+`updated_by`/`updated_at` already established in 03.1), not ~16 mirrored `draft_*`
+columns -- the draft is always written after passing through the exact same
+`platformBrandingInputSchema` Zod validation the live columns' own writer uses, so
+per-column Postgres CHECK constraints on the draft would be redundant defense for a value
+the app never lets through unvalidated (unlike the live columns, which keep their own
+CHECKs as defense against a write that bypasses the app entirely). No new RLS policy
+needed -- `platform.branding`'s existing policies are row-level, re-confirmed (not just
+re-read) by re-running `scripts/test-platform-branding-rls.mjs` against the full migration
+timeline including this story's own files: all 10 assertions still pass, proving a
+business admin still gets 0 rows / a no-op update against the *whole* row, new draft
+columns included, not just the columns that existed when that script was first written.
+
+**A real advisor finding, found and fixed the way PLATFORM-P0-03.4 set the bar for**:
+`mcp__Supabase__get_advisors` (performance) flagged `branding_draft_updated_by_fkey` as an
+unindexed foreign key immediately after the draft migration was applied live -- the exact
+same class of gap `branding_updated_by_idx` (03.1) already covers for `updated_by`, just
+missed for the new `draft_updated_by` column when that migration was written. Fixed with a
+follow-up migration, `20260912021000_platform_branding_draft_index.sql`
+(`create index branding_draft_updated_by_idx on platform.branding (draft_updated_by)`),
+applied live and re-confirmed via a second `get_advisors` call: the unindexed-FK finding
+is gone, and the new index appears only as an "unused index" info-level note -- the same
+benign class every sibling FK index on this table already carries in this empty dev
+database.
+
+**Application layer** (`packages/core/src/admin/platform-branding.ts`): `updatePlatformBranding()`
+is removed (its only caller was the branding form's save action) and replaced with four
+functions:
+- `saveBrandingDraft(input)` -- the Edit step. Same validation as the old function, but
+  writes only `draft_data`/`draft_updated_by`/`draft_updated_at`; the live columns (and
+  everything that reads them, e.g. `getPublicLoginBranding()`) are untouched.
+- `getPlatformBrandingDraft()` -- what the Edit form and Preview page pre-fill with: the
+  pending draft's values if one exists, otherwise the live published values mapped back
+  into form-input shape via a new pure, exported, unit-tested `toInputFromBranding()`
+  (the exact inverse of the existing `toBranding()`) -- so "Edit" always starts from
+  something real, live or drafted, never blank fields.
+- `publishBrandingDraft()` -- the Publish step. Copies the current draft onto the live
+  columns and clears it. Deliberately does **not** re-run `platformBrandingInputSchema` on
+  the stored draft: `draft_data` is always the schema's own *output* (optional fields
+  already turned into `null`), and re-parsing that output as fresh *input* would fail --
+  the schema's optional-field branches accept a string on the way in but produce `null` on
+  the way out, so a previously-produced `null` fed back in throws a type/shape error, not
+  a validation pass. This was caught before it shipped: an earlier draft of this
+  implementation did call `.safeParse()` again at publish time and would have made every
+  real-world publish with any optional field set fail, since a real draft almost always
+  has at least one `null` optional field by the time it's saved. The stored draft is
+  already exactly as trustworthy as the live columns it's about to become -- it can only
+  have been written by this same `requireSuperadmin()`-gated, RLS-protected function.
+- `discardBrandingDraft()` -- abandons a pending draft without publishing it. Not
+  explicitly named by the story's three-step "Edit / Preview / Publish" list, but added as
+  a minimal, directly-necessary usability affordance rather than a separate feature: without
+  it, a superadmin who saves a draft they no longer want has no way back to a clean slate
+  except manually retyping every live value as a "correcting" draft.
+
+Two new, distinct exported types make the shape distinction explicit rather than
+overloading one type across both directions: `PlatformBrandingInput` (`z.input` -- what
+the form submits, optional fields as plain strings) and `PlatformBrandingValues`
+(`z.output` -- what validation produces and `draft_data` stores, optional fields as
+`string | null`).
+
+**UI**: `branding-form.tsx`'s save button is relabeled "Save draft" (was "Save changes"),
+its caption now reads "Saving does not go live -- Preview and Publish separately below",
+and its success toast changed from "Branding saved." to "Draft saved -- not live yet.
+Preview and publish when ready." A new shared client component,
+`branding/publish-controls.tsx`, renders the draft-pending banner (with a link to
+Preview) plus Publish/Discard buttons behind `AlertDialog` confirmations -- mirroring the
+existing `promote-to-crm-button.tsx` confirm-dialog pattern rather than inventing a new
+shape, since Publish taking every draft change live for every WonderArc customer
+immediately is exactly the kind of deliberate, confirmed action that pattern exists for.
+`branding/page.tsx` (Edit) now reads both `getPlatformBranding()` (for a "Last published"
+caption) and `getPlatformBrandingDraft()` (for the form's pre-fill and the draft banner).
+A new `branding/preview/page.tsx` renders what the draft (or, with no draft pending, the
+live values) would look like on the real `/login` page -- deliberately a **static visual
+mock**, not the real `AuthForm`/`login` server action: this page is reached by an
+authenticated SUPERADMIN, and wiring the actual interactive login form into an admin
+preview screen would let a signed-in session accidentally trigger a real auth action from
+inside a "just looking" preview, a footgun this story doesn't need to accept. Below the
+mock, a summary card lists the rest of the draft (name, colors, footer, email-from-name)
+explicitly labeled as fields with no live surface yet (03.1's own long-standing scope
+note), so a superadmin can see the whole draft without being misled into thinking those
+fields appear in the mock above. `backgroundStyleFor()` (previously inlined in
+`(auth)/layout.tsx`) moved to a new shared, pure `apps/web/lib/login-branding.ts` so both
+the real auth layout and this new preview page apply the identical background-treatment
+logic without duplicating it -- unit-tested directly (6 new cases covering all three
+styles, the "no value" case, and a malformed-gradient case) in a new
+`apps/web/tests/login-branding.test.ts`, this workspace's second test file.
+
+**Deliberately not built this story**: no confirmation-dialog "impact estimate" (§21's
+"Safe Global Change Workflow" -- e.g. "This affects 2,840 active businesses" -- is its own
+separate, later doc section, and nothing in `core` prices what publishing a brand color
+change actually affects the way a plan/entitlement change would); no version history or
+rollback (that is §22's PLATFORM-P0-17, not this story, per the design-fork reasoning
+above); no change to `platformBrandingInputSchema` itself -- 03.5 is a workflow story, not
+a new field.
+
+**Verification**: this worktree needed its own `npm install` first (no local
+`node_modules` in a fresh worktree -- same cross-checkout symlink issue every prior
+worktree-run entry in this log has documented). Full monorepo `npm run typecheck` --
+clean across every workspace. `npm run lint` -- 0 errors after fixing one
+unescaped-apostrophe catch in `preview/page.tsx`'s own copy (the same class of lint 03.1
+also hit and fixed), 1 pre-existing unrelated warning (`Package` unused import in a CRM
+conversations page, untouched by this story, same as every prior entry). `node
+scripts/lint-import-boundaries.mjs` -- 1157 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 132 migrations (126 -> 132; +2 this story's own
+files, +4 other workstreams' concurrent merges into `main` since 03.4's own entry), no
+violations. `npx vitest run --root packages/core` -- 57 tests (54 -> 57, this story's 3
+new `toInputFromBranding` cases), all passing. `apps/web`'s own `vitest run
+--passWithNoTests` -- 47 tests (41 -> 47, this story's 6 new `backgroundStyleFor` cases),
+all passing. Both migrations applied live via `mcp__Supabase__apply_migration` against the
+**dev** project (`jazdtomcgqjxjueedmck`) only. `mcp__Supabase__get_advisors` (security) --
+zero new findings, same 5 pre-existing `rls_enabled_no_policy` tables and the pre-existing
+leaked-password-protection warning every prior entry has already logged.
+`mcp__Supabase__get_advisors` (performance) -- one **new, real** finding (the unindexed
+`draft_updated_by` FK, described above), fixed with a follow-up migration and
+re-confirmed gone on a second advisor call; every other finding is the same pre-existing
+"unused index" class this empty dev database already carries everywhere. Directly executed
+(not just described) a draft/publish/discard round trip against the live dev row via
+`execute_sql`: wrote a fake draft (`platform_name = 'WonderArc Draft'`), confirmed the
+*live* `platform_name`/`primary_color` columns stayed exactly `'WonderArc'`/`'#2563eb'`
+while the draft was pending (the story's literal acceptance bar -- "should not become
+active merely because a field was edited"), then applied the same copy-and-clear the real
+`publishBrandingDraft()` performs and confirmed the live columns picked up the drafted
+values, then restored the row to its original seeded defaults afterward so the shared dev
+database is left clean. Re-ran `scripts/test-platform-branding-rls.mjs` (starting
+`postgresql@16`, stopped in this container -- restarted it via `pg_ctlcluster` rather than
+assuming it would already be running) against the full, current migration timeline (132
+files): all 10 pre-existing assertions still pass, confirming the new draft columns are
+still covered by the same row-level policies a business admin cannot get past. `cd
+apps/web && npm run build` -- clean; `/platform/branding` and `/platform/branding/preview`
+both list `ƒ` (dynamic), correctly inheriting the outer layout's existing `force-dynamic`
+with no per-route opt-in needed.
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no
+seeded demo superadmin user in this sandboxed environment, so a live authenticated browser
+walkthrough of actually clicking Save draft, then Preview, then Publish in the real UI was
+**not** performed and is **not** claimed here. This entry's functional claim about the
+draft/publish behavior itself (live columns stay untouched while a draft is pending; a
+publish copies the draft and clears it) was verified for real against the live dev
+database via direct SQL exercising the same read/write sequence the application code
+performs, not merely asserted from reading the code -- narrower than a full UI
+walkthrough, but a real behavioral proof rather than an inspection-only claim, matching
+the standard PLATFORM-P0-03.4's own entry set for this workstream going forward.
+
+**Status**: PLATFORM-P0-03.5 done. §7 Branding & Look and Feel is now finished (03.1 done,
+03.2 deliberately deferred, 03.3/03.4/03.5 done). Continuing to §8 Subscription / Pricing
+Plans (PLATFORM-P0-04) next, per this run's auto-continue assignment.

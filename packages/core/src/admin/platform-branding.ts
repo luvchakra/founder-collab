@@ -43,6 +43,18 @@ import { requireSuperadmin } from "../rbac/platform-admin";
  * business-level branding, it must live in its own `core`- or business-schema-owned
  * table, gated by ordinary business RLS (`tenant AND licensed`) -- never by reusing this
  * table, this route, or `platform.is_superadmin()`.
+ *
+ * PLATFORM-P0-03.5 ("Preview Before Publish"): "Global branding changes should not become
+ * active merely because a field was edited." `updatePlatformBranding()` (03.1) wrote
+ * straight to the live columns -- exactly what this story forbids. It's replaced by three
+ * functions that split Edit from Publish via one extra `draft_data` JSONB column on the
+ * same singleton row (see the migration's own docstring for why one JSONB column, not ~16
+ * mirrored `draft_*` columns): `saveBrandingDraft()` (Edit -- writes only the draft, live
+ * columns untouched), `publishBrandingDraft()` (Publish -- copies the current draft into
+ * the live columns and clears it), and `discardBrandingDraft()` (abandon a pending draft
+ * without publishing it). `getPublicLoginBranding()` above already only ever reads the
+ * live columns, so this story needed no change there -- an unpublished draft was already
+ * structurally invisible to it before this file even had a name for "draft".
  */
 
 export type PlatformBranding = {
@@ -88,6 +100,9 @@ type BrandingRow = {
   login_privacy_url: string | null;
   updated_at: string;
   updated_by: string | null;
+  draft_data: PlatformBrandingValues | null;
+  draft_updated_by: string | null;
+  draft_updated_at: string | null;
 };
 
 function toBranding(row: BrandingRow): PlatformBranding {
@@ -113,10 +128,40 @@ function toBranding(row: BrandingRow): PlatformBranding {
   };
 }
 
-/** Reads the one branding row. `requireSuperadmin()` first -- this is called directly
- * from the `/platform/branding` page, which already sits under the layout's own gate, but
- * a data-access function shouldn't rely on its caller alone (same reasoning every other
- * `requireModule()`-guarded query in this codebase follows). */
+/** PLATFORM-P0-03.5: the pure inverse of `toBranding()` -- turns the live, published
+ * record back into the same shape the edit form's fields submit (`PlatformBrandingInput`).
+ * Used only as the Edit form's pre-fill fallback when there is no pending draft yet (so
+ * "Edit" always starts from *something* real rather than blank fields); once a draft
+ * exists, the form pre-fills from the draft itself instead (`getPlatformBrandingDraft()`
+ * below), since that's the whole point of a draft surviving between visits. Kept as its
+ * own pure, exported function (no I/O) so it's unit-testable on its own rather than only
+ * indirectly through a live read. */
+export function toInputFromBranding(branding: PlatformBranding): PlatformBrandingInput {
+  return {
+    platformName: branding.platformName,
+    logoUrl: branding.logoUrl ?? "",
+    faviconUrl: branding.faviconUrl ?? "",
+    primaryColor: branding.primaryColor,
+    secondaryColor: branding.secondaryColor ?? "",
+    accentColor: branding.accentColor ?? "",
+    loginHeadline: branding.loginHeadline ?? "",
+    loginSupportText: branding.loginSupportText ?? "",
+    emailFromName: branding.emailFromName ?? "",
+    footerText: branding.footerText ?? "",
+    supportEmail: branding.supportEmail ?? "",
+    supportUrl: branding.supportUrl ?? "",
+    loginBackgroundStyle: branding.loginBackgroundStyle,
+    loginBackgroundValue: branding.loginBackgroundValue ?? "",
+    loginTermsUrl: branding.loginTermsUrl ?? "",
+    loginPrivacyUrl: branding.loginPrivacyUrl ?? "",
+  };
+}
+
+/** Reads the one branding row -- the live, *published* values only (never the pending
+ * draft; see `getPlatformBrandingDraft()` for that). `requireSuperadmin()` first -- this
+ * is called directly from the `/platform/branding` page, which already sits under the
+ * layout's own gate, but a data-access function shouldn't rely on its caller alone (same
+ * reasoning every other `requireModule()`-guarded query in this codebase follows). */
 export async function getPlatformBranding(): Promise<PlatformBranding> {
   await requireSuperadmin();
   const supabase = await createClient({ schema: "platform" });
@@ -203,28 +248,139 @@ export const platformBrandingInputSchema = z
     }
   });
 
+/** What the edit form submits: every optional field is a plain string ("" clears it). */
 export type PlatformBrandingInput = z.input<typeof platformBrandingInputSchema>;
 
-/** Validates then writes every field in one call (03.1 has no draft/publish state yet --
- * that's PLATFORM-P0-03.5, a separate later story -- so a save takes effect immediately).
- * Returns per-field errors on failure so the form can show them next to the right input,
- * rather than one opaque top-level error string. */
-export async function updatePlatformBranding(
+/** What comes out of validation (and what `draft_data` stores): "" has already become
+ * `null` for optional fields. Distinct from `PlatformBrandingInput` because re-running
+ * `platformBrandingInputSchema` on its own *output* would fail -- the schema's optional
+ * fields only accept a string on the way in, not the `null` they produce on the way out.
+ * `saveBrandingDraft()` stores this shape directly rather than round-tripping it back
+ * through the schema a second time at publish time (see `publishBrandingDraft()`). */
+export type PlatformBrandingValues = z.output<typeof platformBrandingInputSchema>;
+
+function fieldErrorsFrom(error: z.ZodError): Record<string, string> {
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const key = issue.path[0];
+    if (typeof key === "string" && !(key in fieldErrors)) fieldErrors[key] = issue.message;
+  }
+  return fieldErrors;
+}
+
+/** Maps a validated `PlatformBrandingValues` onto the live columns' update payload. Shared
+ * by `publishBrandingDraft()` below -- the only place that ever writes to the live
+ * columns now that PLATFORM-P0-03.5 requires Edit and Publish to be separate steps
+ * (`saveBrandingDraft()` writes `draft_data` only, never these). */
+function toRowUpdate(input: PlatformBrandingValues) {
+  return {
+    platform_name: input.platformName,
+    logo_url: input.logoUrl,
+    favicon_url: input.faviconUrl,
+    primary_color: input.primaryColor,
+    secondary_color: input.secondaryColor,
+    accent_color: input.accentColor,
+    login_headline: input.loginHeadline,
+    login_support_text: input.loginSupportText,
+    email_from_name: input.emailFromName,
+    footer_text: input.footerText,
+    support_email: input.supportEmail,
+    support_url: input.supportUrl,
+    login_background_style: input.loginBackgroundStyle,
+    login_background_value: input.loginBackgroundValue,
+    login_terms_url: input.loginTermsUrl,
+    login_privacy_url: input.loginPrivacyUrl,
+  };
+}
+
+/** PLATFORM-P0-03.5 ("Preview Before Publish"): the Edit step. Validates the form input
+ * exactly like the old `updatePlatformBranding()` did, but writes only `draft_data` --
+ * the live columns (and everything every consuming surface, e.g. `getPublicLoginBranding()`,
+ * reads) are untouched. Returns per-field errors on failure so the form can show them next
+ * to the right input, rather than one opaque top-level error string. */
+export async function saveBrandingDraft(
   input: PlatformBrandingInput,
-): Promise<{ ok: true; branding: PlatformBranding } | { ok: false; fieldErrors: Record<string, string> }> {
+): Promise<{ ok: true; draftUpdatedAt: string } | { ok: false; fieldErrors: Record<string, string> }> {
   await requireSuperadmin();
 
   const parsed = platformBrandingInputSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      const key = issue.path[0];
-      if (typeof key === "string" && !(key in fieldErrors)) fieldErrors[key] = issue.message;
-    }
-    return { ok: false, fieldErrors };
+    return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
   }
 
   const supabase = await createClient({ schema: "platform" });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const draftUpdatedAt = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("branding")
+    .update({
+      draft_data: parsed.data,
+      draft_updated_by: user?.id ?? null,
+      draft_updated_at: draftUpdatedAt,
+    })
+    .eq("id", true);
+  if (error) throw error;
+
+  return { ok: true, draftUpdatedAt };
+}
+
+/** PLATFORM-P0-03.5: reads the one branding row's *draft* state -- what the Edit form and
+ * Preview page should show. When a draft is pending, its saved values are returned as-is
+ * (it already passed `platformBrandingInputSchema` when `saveBrandingDraft()` wrote it).
+ * When there is no draft, falls back to the live, published values via
+ * `toInputFromBranding()` -- so "Edit" always starts from the real current state of the
+ * world, live or drafted, never blank fields. */
+export async function getPlatformBrandingDraft(): Promise<{
+  hasDraft: boolean;
+  values: PlatformBrandingValues;
+  draftUpdatedAt: string | null;
+}> {
+  await requireSuperadmin();
+  const supabase = await createClient({ schema: "platform" });
+  const { data, error } = await supabase.from("branding").select("*").eq("id", true).single();
+  if (error) throw error;
+  const row = data as BrandingRow;
+
+  if (row.draft_data) {
+    return { hasDraft: true, values: row.draft_data, draftUpdatedAt: row.draft_updated_at };
+  }
+  return { hasDraft: false, values: toInputFromBranding(toBranding(row)), draftUpdatedAt: null };
+}
+
+/** PLATFORM-P0-03.5: the Publish step -- copies the current draft onto the live columns
+ * (so every consuming surface, e.g. the public login page via `getPublicLoginBranding()`,
+ * now sees it) and clears the draft. Refuses with a plain error rather than throwing when
+ * there's nothing pending, since "Publish" with no draft is a normal (if pointless) UI
+ * state to land on, not an exceptional one.
+ *
+ * Does not re-run `platformBrandingInputSchema` on the stored draft: `draft_data` is
+ * always the schema's own *output* (`saveBrandingDraft()` only ever stores
+ * `parsed.data`), and re-parsing that output as if it were fresh form input would fail --
+ * the schema's optional-field branches accept a string on the way in but produce `null` on
+ * the way out, so feeding a previously-produced `null` back in as "input" throws a type
+ * error, not a validation pass. The stored draft is already exactly as trustworthy as the
+ * live columns it's about to become: it can only have been written by this same
+ * `requireSuperadmin()`-gated, RLS-protected function in the first place. */
+export async function publishBrandingDraft(): Promise<
+  { ok: true; branding: PlatformBranding } | { ok: false; error: string }
+> {
+  await requireSuperadmin();
+  const supabase = await createClient({ schema: "platform" });
+
+  const { data: existing, error: readError } = await supabase
+    .from("branding")
+    .select("draft_data")
+    .eq("id", true)
+    .single();
+  if (readError) throw readError;
+  const draft = (existing as { draft_data: PlatformBrandingValues | null }).draft_data;
+  if (!draft) {
+    return { ok: false, error: "There is no pending draft to publish." };
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -232,24 +388,12 @@ export async function updatePlatformBranding(
   const { data, error } = await supabase
     .from("branding")
     .update({
-      platform_name: parsed.data.platformName,
-      logo_url: parsed.data.logoUrl,
-      favicon_url: parsed.data.faviconUrl,
-      primary_color: parsed.data.primaryColor,
-      secondary_color: parsed.data.secondaryColor,
-      accent_color: parsed.data.accentColor,
-      login_headline: parsed.data.loginHeadline,
-      login_support_text: parsed.data.loginSupportText,
-      email_from_name: parsed.data.emailFromName,
-      footer_text: parsed.data.footerText,
-      support_email: parsed.data.supportEmail,
-      support_url: parsed.data.supportUrl,
-      login_background_style: parsed.data.loginBackgroundStyle,
-      login_background_value: parsed.data.loginBackgroundValue,
-      login_terms_url: parsed.data.loginTermsUrl,
-      login_privacy_url: parsed.data.loginPrivacyUrl,
+      ...toRowUpdate(draft),
       updated_by: user?.id ?? null,
       updated_at: new Date().toISOString(),
+      draft_data: null,
+      draft_updated_by: null,
+      draft_updated_at: null,
     })
     .eq("id", true)
     .select("*")
@@ -257,6 +401,20 @@ export async function updatePlatformBranding(
   if (error) throw error;
 
   return { ok: true, branding: toBranding(data as BrandingRow) };
+}
+
+/** PLATFORM-P0-03.5: abandons a pending draft without publishing it -- the Edit form's
+ * escape hatch back to the live values (a superadmin who saved a draft they no longer want
+ * would otherwise have to manually retype every live value as a "correcting" draft just to
+ * get back to a clean slate). A no-op, not an error, when there is no draft to discard. */
+export async function discardBrandingDraft(): Promise<void> {
+  await requireSuperadmin();
+  const supabase = await createClient({ schema: "platform" });
+  const { error } = await supabase
+    .from("branding")
+    .update({ draft_data: null, draft_updated_by: null, draft_updated_at: null })
+    .eq("id", true);
+  if (error) throw error;
 }
 
 /** PLATFORM-P0-03.3: the subset of `platform.branding` safe to show on the public,
