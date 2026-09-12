@@ -1,3 +1,5 @@
+import type { Gstr2bDocument } from "../gstr2b/types";
+
 /**
  * COMPLY-P0-08.2 (Purchase-to-2B Matching): compares this business's own purchase
  * register (`lib/filing/queries.ts`'s own `getPurchaseRegister`, reused rather than
@@ -86,4 +88,34 @@ export type PurchaseReconciliationResult = {
    * is a more natural home for actually acting on this, this story only reports the
    * total. */
   excludedNoGstinTaxableValue: number;
+};
+
+/** COMPLY-P0-08.3 (Match Explanation): one of THIS BUSINESS's own purchase-order line
+ * items behind a supplier's own reconciliation row -- straight from
+ * `PurchaseRegister.csvRows` (`lib/filing/types.ts`), filtered to one GSTIN. Named
+ * separately here rather than reusing `csvRows`' own inline type so this module's own
+ * public surface doesn't leak `lib/filing`'s internal CSV-export shape. */
+export type SupplierBookLine = {
+  poNumber: string;
+  orderDate: string;
+  taxableValue: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+};
+
+/** COMPLY-P0-08.3: the invoice-/note-level detail behind a `missing_in_2b`/`mismatched`/
+ * `missing_in_books` supplier row, for a human to compare by eye -- see
+ * `types.ts`'s own top-of-file docstring for why this platform cannot do that pairing
+ * automatically yet. `null` `row` means this GSTIN appears in neither side's totals for
+ * this period (a caller asked about a GSTIN that was never part of this reconciliation
+ * at all). */
+export type SupplierMatchDrilldown = {
+  businessId: string;
+  returnPeriod: string;
+  gstin: string;
+  row: SupplierReconciliationRow | null;
+  possibleCauses: string[];
+  bookLines: SupplierBookLine[];
+  gstr2bLines: Gstr2bDocument[];
 };
