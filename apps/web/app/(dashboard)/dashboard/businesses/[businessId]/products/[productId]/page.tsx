@@ -9,6 +9,8 @@ import { listBuyerPersonas } from "@cofounderai/module-discovery/lib/personas/qu
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { ProductOverviewShell } from "@cofounderai/module-discovery/components/tenancy/product-overview-shell";
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
+import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
+import { listPipelineStages } from "@cofounderai/module-discovery/lib/pipeline/queries";
 import {
   addFileSourceAction,
   addTextSourceAction,
@@ -47,9 +49,11 @@ export default async function ProductPage({
   const [icp, personas, prospectCounts] = product.product_profile
     ? await Promise.all([getIcpProfile(workspace.id), listBuyerPersonas(workspace.id), getProspectCounts(workspace.id)])
     : [null, [], null];
+  const pipelineStages = await listPipelineStages(workspace.id);
 
   return (
     <div className="flex flex-col gap-8">
+      <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
       {product.product_profile && prospectCounts ? (
         <OfferingOverviewSummary businessId={businessId} offering={product} icp={icp} personas={personas} prospectCounts={prospectCounts} />
       ) : null}

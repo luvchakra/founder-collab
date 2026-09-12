@@ -47,7 +47,7 @@ only genuine architectural/key decisions are raised.
 | | 09.2 | Website Crawl & Content Discovery | Done |
 | | 09.3 | AI Offering Extraction | Done |
 | | 09.4 | Offering Review Before Activation | Done |
-| | 10.1 | Run AI Discovery CTA | Not started |
+| | 10.1 | Run AI Discovery CTA | Done |
 | | 10.2 | Persistent Pipeline Stage Model | Not started |
 | | 10.3 | Pipeline Progress UI | Not started |
 | | 11.1 | Editable Pipeline Stages | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**29 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**30 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1874,3 +1874,189 @@ because it changed anything about what was built.
 
 **Status**: 29 of 68 in-scope stories done -- Phase E continuing. Next: 10.1, Run AI
 Discovery CTA.
+
+### 10.1 — Run AI Discovery CTA (2026-09-12)
+
+New sub-epic ("One-Click Autonomous Offering Discovery", §14 of the doc, folded into
+Phase E per §29's own sequence) -- read §13/§14/§25/§29 in full before writing any code,
+per the dispatch instructions. Re-verified branch state first: this worktree's HEAD was
+found sitting on `worktree-agent-afe67e8fbdcfe6ede` (a compliance-workstream commit,
+`a95ae42`), not `disc-offering-backlog` -- the same worktree-reuse artifact 09.4's own log
+already documented once. Fixed the same way: working tree was already clean (nothing to
+stash), so this was a plain `git checkout disc-offering-backlog` onto its real
+origin-tracked tip (`a569a34`) rather than a stash/reapply. Confirmed via
+`git log origin/main..origin/disc-offering-backlog --oneline` being empty (every prior
+story's merge-to-main had already landed) before writing anything.
+
+Inspected the existing implementation before designing anything, per the doc's own
+"Claude Code must inspect the actual current implementation... this document is the
+target-state backlog, not permission to rebuild from scratch": Phases A-D already built
+real, tested, deterministic logic for every stage this pipeline needs to run (ICP
+generation, signal correlation, scoring, why-now, buyer intelligence, next-best-action,
+handoff status) but **nothing anywhere in the codebase had ever wired them together
+end-to-end for a real prospect** -- confirmed by grepping for every call site of
+`setOpportunityScoreComponents`/`createOpportunity`/`attachSignalCorrelation`/etc. across
+`src/actions`/`src/components` and finding none. This story is genuinely the first place
+Discovery computes a real opportunity from research to recommendation, not a re-wiring of
+something that already worked; the "no existing pipeline" finding shaped the entire
+design below.
+
+**Schema**: new `discovery.pipeline_stages` -- one row per `(workspace_id, stage_key)`,
+the doc's own exact fourteen-stage list and exact six-status vocabulary (10.2's own
+field list), deliberately *without* 10.2's `version`/`input_version`/`output_version`
+columns -- 10.1's own acceptance criteria only ever says "retried", never "versioned",
+and 10.2's own title ("Persistent Pipeline Stage Model") plus its explicit "Reruns create
+new versions rather than silently destroying history" is a distinct, separable
+follow-on story, not implied by 10.1's own criteria. Same four-policy
+`discovery.user_workspace_ids()` RLS pattern (tenant AND licensed) every other
+workspace-scoped table in this schema uses; no delete policy (a stage row is reset in
+place, never removed). Both FKs indexed from the start.
+
+**The architecture decision that shaped everything else**: initially planned one long
+streamed request running all fourteen stages in sequence (the same shape
+`website-onboarding/route.ts`, 09.1, uses for its own two-step call) -- caught before
+writing it that this was unsafe here specifically: several stages call *existing*,
+independently-designed AI functions (`understandProduct`, `generateIcp`,
+`discoverProspects`, `researchProspect`, `generateResearchBrief`) that each read
+product/ICP/prospect state through this app's own React `cache()`-wrapped query
+functions (`getProduct`, `getIcpProfile`, etc.). Chaining several of them inside one
+shared request risks an early stage's DB write (e.g. a freshly-generated
+`product_profile`) being invisible to a later stage's own *internal* cached read of that
+same row within the same request/cache scope -- e.g. `generateIcp()`'s own
+`getProduct(productId)` call could return a stale pre-profile snapshot immediately after
+`understandProduct()` had just written one, moments earlier in the same request,
+incorrectly throwing "Generate a product profile before defining an ICP." Resolved by
+running **one stage per HTTP request** instead: the client-side panel drives a loop,
+POSTing one `stageKey` at a time and awaiting each response before firing the next. Every
+stage this way gets its own fresh request and fresh cache scope -- identical to how every
+other single-AI-action call in this module already runs today -- which eliminates the
+staleness risk entirely rather than working around it. This also turned out to make
+"leave and return" and "progress is visible" more honest, not less: every stage
+transition is a real, complete, separately-committed HTTP round trip, not buried inside
+one long-lived stream that a closed tab could sever mid-stage.
+
+**Fourteen stage handlers** (`lib/pipeline/handlers.ts`), each reusing an already-built
+function rather than inventing new intelligence:
+
+- `website_understanding` + `offering_profile`: `understandProduct()` (already existing)
+  does the live website research AND the profile-structuring AI call together as one
+  operation; `website_understanding` runs it (with its own existing freshness/dedup
+  checks -- CLAUDE.md dev principle #5), `offering_profile` just confirms the resulting
+  profile exists. Kept as two stage rows rather than one because 10.2's own stage-key
+  list names them separately and DISC-OFFER-P0-11.x's "Run From This Stage" will want to
+  attach a rerun affordance to the *profile* independent of re-researching the site.
+- `icp`: `generateIcp()` then `approveIcpProfile()` -- automation runs through to a human
+  decision point near the *end* of the pipeline (§13's own diagram places "Human
+  Approval" right before CRM Handoff, not at every intermediate step), and every
+  downstream function already hard-requires an approved ICP to do anything
+  (`discoverProspects`, `detectNegativeSignals`). A founder can still edit/re-approve it
+  by hand afterward exactly as before.
+- `buyer_personas`: new `deriveBuyerPersonasFromIcp()` (`lib/personas/derive.ts`) --
+  **deterministic, not an AI call** (CLAUDE.md dev principle #4): one persona per the
+  ICP's own already-approved `roles`, classified into the doc's six-value committee-role
+  vocabulary by whole-word keyword match (title text is proposing structure over a fact
+  already approved, not inventing new people). Caught a real bug via its own new test:
+  a naive `.includes()` substring match classified "Director of IT" as `executive_buyer`
+  because the literal substring "cto" appears inside "dire-**cto**-r" -- fixed by
+  tokenizing the title into words and matching short markers (`cto`/`vp`/`cio`/etc.)
+  against whole words only, keeping substring matching only for genuine multi-word
+  phrases ("vice president", "head of"). 7 new vitest cases, including this exact
+  regression. New `seedBuyerPersonasFromIcp()` mutation only ever adds (dedupes
+  case-insensitively against existing titles, whether founder- or AI-created), never
+  edits/removes -- a founder's own manual edits are never silently overwritten (§25).
+- `discovery_strategy`: new `seedDiscoveryDefinitionFromIcp()` -- deterministic field
+  mapping from the ICP's own industries/geographies/roles/buying_signals/exclusions onto
+  `createDiscoveryDefinition()`'s existing input shape. Only creates when the workspace
+  has *no* discovery definition yet at all (whether founder- or AI-created) -- never
+  touches an existing one, same "don't silently overwrite" discipline as personas.
+- `account_discovery`: `discoverProspects()` (already returns enriched fields per
+  candidate, so no separate "enrichment" call exists to make), then **automatically**
+  `approveProspectSuggestions()` for everything found -- unlike the founder-facing manual
+  "Discover" page, where a human reviews each suggestion first, this autonomous run needs
+  real prospect rows for every downstream stage to act on. Flagged as a deliberate
+  decision, not an oversight: §25 permits automation to "create/update Discovery
+  records" (an internal record, nothing external), duplicates are already excluded by
+  `discoverProspects`' own `findDuplicateProspect` check, and the doc's own §13 diagram
+  shows Accounts flowing straight through with no review gate before Signals.
+- `signals`: a stable, resumable selector (`prospectsPendingOpportunity` -- prospects
+  under the active definition with no Opportunity yet, capped at 10) rather than an
+  in-memory "this run's accounts" list threaded across the now-separate per-stage
+  requests. For each: `researchProspect()` (real AI call) ->
+  `syncSignalsFromResearch()` -> `syncNegativeSignalsForProspect()` -> `createOpportunity()`
+  (DISC-OFFER-P0-05.1's own model: an opportunity is inherently a prospect+definition
+  pairing, first established here). One account's research failing doesn't fail the
+  whole stage -- partial success, the same precedent 09.2's crawl already established.
+- `signal_correlation`: `correlateSignalsForProspect()` + `attachSignalCorrelation()`
+  (both already existing, 05.3) for every open opportunity still lacking a correlation.
+- `opportunity_scoring`: **deliberately a checkpoint/reporting stage, not new
+  computation** -- 05.2's own `computeOpportunityScore` already recomputes automatically
+  every time `attachSignalCorrelation`/`setOpportunityWhyNow`/
+  `setOpportunityBuyerIntelligence` write a component. No new scoring dimension invented
+  for `icp_fit`/`buyer_fit`(pre-contact)/`need_fit` -- 05.2's own "no false precision"
+  rule already correctly leaves an unpopulated component out of the average rather than
+  zero-filling it, and inventing a new heuristic for those now would be scope creep into
+  an already-closed, already-tested story (CLAUDE.md dev principle #7).
+- `why_now`: `computeWhyNow()` (05.4, already existing), fed a freshly-recomputed
+  correlation (deterministic given the same persisted signals, so this is not a second
+  AI call) for every opportunity still missing a `why_now`.
+- `research`: `generateResearchBrief()` (06.2, already existing -- and, as a documented
+  side effect, already computes and writes buyer intelligence too, 06.3) for the
+  **top three** open opportunities by score lacking research -- "Research Top
+  Opportunities," read literally, not every account this run touched.
+- `buyer_intelligence`: covers the remainder `research` doesn't reach -- any open
+  opportunity with real contacts on file (e.g. from a manual add or CSV import) that
+  wasn't one of the top-three research picks. Purely deterministic
+  (`computeBuyerIntelligence`, no AI call); an opportunity with zero contacts on file is
+  correctly left alone -- automation must not invent a person (§25).
+- `recommended_action`: `computeNextBestAction()` (07.1, already existing, deterministic)
+  fed exactly the narrow input it needs from data every earlier stage already produced.
+- `crm_handoff`: **read-only, no persistence** -- handoff readiness is already a live,
+  computed-on-read value everywhere else it's shown (Opportunity Detail). This stage
+  counts how many open opportunities are ready for a founder to review and send, and
+  sends nothing itself (DISC-OFFER-P0-15.1 / §25: automation must not send outbound
+  communication without approval). Implemented in the **route handler**, not inside
+  `module-discovery`'s own `lib/pipeline/handlers.ts` -- every existing cross-module
+  Discovery/CRM read in this codebase (the Opportunity Detail page) already calls
+  `@cofounderai/module-crm/contract` from the `apps/web` layer rather than from inside
+  module-discovery's own package, and this follows that same established placement
+  rather than being the first to add a module-crm dependency to module-discovery itself.
+
+**Route** (`products/[productId]/run-ai-discovery/route.ts`): `POST { stageKey }` runs
+exactly that one stage, persists the resulting status via the new
+`markPipelineStageRunning`/`Completed`/`Failed`/`Skipped` mutations, and returns the
+updated row; `GET` returns the full current stage list (for a client that wants to
+refresh against another tab's progress). A `skipped` outcome (e.g. "no new accounts
+found") is a distinct, honest status from `failed` -- nothing went wrong, there was
+simply nothing new to do -- the same "don't collapse two true things into one status"
+discipline 05.5's own `insufficient_evidence` vs. `no_relevant_problem` split already
+established.
+
+**UI**: `RunAiDiscoveryPanel` (offering Overview page, above the existing 03.2 summary --
+shown unconditionally, unlike 03.2's own profile-gated dashboard, since this *is* the
+entry point that can create the profile in the first place) -- the doc's own exact button
+copy ("Run AI Discovery" / "Automatically research this offering, build its ICP,
+identify buyers and signals, find opportunities, and prepare recommended actions"), a
+plain ordered checklist of all fourteen stages with a status icon each
+(check/spinner/circle/x), and a per-stage Retry action once failed. Deliberately not
+DISC-OFFER-P0-10.3's own polished non-technical mockup (that visual pass is its own
+explicit next story) -- this is the minimum real, working progress view 10.1's own
+"Progress is visible" criterion needs. No compact-card treatment needed (CLAUDE.md
+non-negotiable #12 doesn't bite -- this is a checklist, not a table of rows, the same
+reasoning 02.3's persona cards already established).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1161 files, no violations -- confirmed the new `crm_handoff` cross-module read stayed at
+the `apps/web` layer, not inside `module-discovery`), `npm run lint` (0 errors, 1
+pre-existing unrelated warning), `lint:migrations` (130 migrations, no violations), `npx
+vitest run --root packages/module-discovery` (163/163, +7 new -- including the
+"Director of IT" misclassification regression caught and fixed during this story, not
+after), a live migration apply + `get_advisors` for both `security`/`performance` (no new
+findings -- the pre-existing `rls_enabled_no_policy` findings are unrelated tables from
+other workstreams; the new table's own three policies are exactly the established
+pattern), and a clean `next build` (confirmed both the rewritten offering Overview page
+and the new `run-ai-discovery` route handler build with no errors, and appear in the
+route list). Same live-browser-walkthrough constraint noted in every prior UI-touching
+story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 30 of 68 in-scope stories done -- Phase E continuing. Next: 10.2, Persistent
+Pipeline Stage Model.
