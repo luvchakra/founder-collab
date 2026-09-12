@@ -1,4 +1,6 @@
 import { createClient } from "../../db/server";
+import { listDiscoveryDefinitions } from "./queries";
+import type { IcpProfile } from "../icp/types";
 import type { DiscoveryDefinition, MonitoringFrequency } from "./types";
 
 type DefinitionFieldsInput = {
@@ -74,6 +76,40 @@ export async function deleteDiscoveryDefinition(definitionId: string): Promise<v
   const supabase = await createClient();
   const { error } = await supabase.from("discovery_definitions").delete().eq("id", definitionId);
   if (error) throw error;
+}
+
+/** DISC-OFFER-P0-10.1's own "Build Discovery Strategy" pipeline stage -- deterministic,
+ * no AI call (CLAUDE.md dev principle #4/#5): the approved ICP's own industries/
+ * geographies/roles/buying_signals/exclusions already say who and what to watch for, so
+ * turning them into a starting monitoring strategy is field mapping, not a judgment call
+ * an LLM would need to make. Only ever creates -- never touches an existing definition,
+ * whether founder-authored or from a prior run (§25's own "must NOT silently overwrite
+ * user-approved values", and DISC-OFFER-P0-04.2's own play presets already establish that
+ * a definition is something a founder curates, not a singleton the system owns). Returns
+ * `null` when the workspace already has at least one definition -- nothing to seed,
+ * a normal and honest outcome on every rerun after the first. Left `is_enabled: true` and
+ * `monitoring_frequency: "manual"` (the same default `createDiscoveryDefinition`'s own
+ * dialog form defaults to) -- this pipeline only runs on an explicit click today
+ * (DISC-OFFER-P1-01.1 "Scheduled Offering Re-Discovery" is the story that would ever
+ * change that default). */
+export async function seedDiscoveryDefinitionFromIcp(
+  workspaceId: string,
+  icp: Pick<IcpProfile, "industries" | "geographies" | "roles" | "buying_signals" | "exclusions">,
+): Promise<DiscoveryDefinition | null> {
+  const existing = await listDiscoveryDefinitions(workspaceId);
+  if (existing.length > 0) return null;
+
+  return createDiscoveryDefinition(workspaceId, {
+    name: "AI Discovery",
+    targetGeographies: icp.geographies,
+    targetIndustries: icp.industries,
+    buyerRoles: icp.roles,
+    desiredSignals: icp.buying_signals,
+    excludedSignals: [],
+    disqualifiers: icp.exclusions,
+    minimumScore: null,
+    monitoringFrequency: "manual",
+  });
 }
 
 /** Parses one list-field textarea (one item per line) into a clean string array -- same
