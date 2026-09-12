@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDisplayGroups, PIPELINE_DISPLAY_GROUPS } from "./display-groups";
+import { computeDisplayGroups, downstreamGroupLabels, PIPELINE_DISPLAY_GROUPS } from "./display-groups";
 import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey, type PipelineStageStatus } from "./types";
 
 function stagesWith(overrides: Partial<Record<PipelineStageKey, PipelineStageStatus>>): PipelineStage[] {
@@ -94,5 +94,23 @@ describe("computeDisplayGroups", () => {
     const allCompleted = Object.fromEntries(PIPELINE_STAGE_KEYS.map((k) => [k, "completed" as const]));
     const groups = computeDisplayGroups(stagesWith(allCompleted));
     expect(groups.every((g) => g.status === "completed")).toBe(true);
+  });
+});
+
+describe("downstreamGroupLabels", () => {
+  it("names every founder-facing group downstream of ICP, deduped, without the ICP group itself", () => {
+    const labels = downstreamGroupLabels("icp");
+    expect(labels).toEqual([
+      "Buyer Personas",
+      "Discovery Strategy",
+      "Signal Intelligence",
+      "Opportunity Scoring",
+      "Research",
+      "Recommended Action",
+    ]);
+  });
+
+  it("returns nothing for the very last stage", () => {
+    expect(downstreamGroupLabels("crm_handoff")).toEqual([]);
   });
 });
