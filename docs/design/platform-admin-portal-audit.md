@@ -21,7 +21,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 02 | Platform Dashboard | Done |
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
-| P0 Phase 2 | 04 | Subscription / Pricing Plans | Not started |
+| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7's lifecycle status folded in); 04.2/04.3/04.4/04.5/04.6 not started -- see log |
 | | 05 | Entitlement Engine | Not started |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
@@ -38,7 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1. P1: 0/9 done.**
+**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1 and 04.1.
+P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -982,4 +983,171 @@ the standard PLATFORM-P0-03.4's own entry set for this workstream going forward.
 
 **Status**: PLATFORM-P0-03.5 done. §7 Branding & Look and Feel is now finished (03.1 done,
 03.2 deliberately deferred, 03.3/03.4/03.5 done). Continuing to §8 Subscription / Pricing
-Plans (PLATFORM-P0-04) next, per this run's auto-continue assignment.
+Plans (PLATFORM-P0-04) next -- see its own entry below.
+
+### PLATFORM-P0-04.1 — Plan Management (2026-09-12)
+
+**Entity-ownership map checked first (Rule 1)**: `docs/plan/00-MASTER-PLAN.md` §5 lists
+"License / entitlement" as `core.modules`/`core.licenses`/`core.license_events` -- no
+"plan" concept anywhere in that table. This story's own audit trail already flagged the
+nearest-looking existing thing: PLATFORM-P0-03.1's own entry above notes
+"`core.business_settings.plan` is a free-text label, not a billing entity." Confirmed
+directly (not assumed) via `execute_sql` against the live dev project's `information_schema.columns`
+that `core.business_settings.plan` is indeed a plain `text` column with no foreign key,
+check constraint, or lookup table behind it. So `platform.plans` is genuinely new, not a
+duplicate -- and it lives in `platform`, not `core`, since it is platform-operator-authored
+catalog data (what plans exist and what they cost), matching CLAUDE.md non-negotiable #1's
+`platform` carve-out, not a business's own tenant-scoped row.
+
+**Scope decision, stated up front**: §8 has seven sub-stories (04.1-04.7) that are all
+facets of the same one table plus its future entitlement/limit children. This entry builds
+only 04.1's own field list (name, description, price, billing interval, currency, status,
+display order, marketing visibility) plus the `key` identity column every future
+entitlement table will reference -- **not** 04.2 (Plan Entitlements, the composite view of
+04.3+04.4+04.5 once those exist), 04.3 (Module Entitlements), 04.4 (Feature-Level
+Entitlements), or 04.5/04.6 (Quantity Limits / Unlimited Support). Building those now, with
+`platform.plans` not yet existing for them to reference, would be exactly the "speculative
+functionality ahead of its own turn" this backlog's own 03.1/03.3 entries already declined
+for their own future-scope items. 04.7 ("Plan Lifecycle") **is** folded in, but only for
+what it names about the `status` column 04.1's own field list already requires -- the
+`draft`/`active`/`deprecated`/`archived` four-value enum -- since a plan record with no
+real lifecycle values would be an incomplete column, not deferred scope. 04.7's other rule
+("do not delete plans that have historical subscribers") has no real subject yet -- nothing
+references `platform.plans` from `core.licenses` until PLATFORM-P0-05.4 wires the
+entitlement engine to it -- so it's satisfied the simplest possible way: the migration
+grants no DELETE to `authenticated` at all, the same "no delete through the app, ever"
+pattern `platform.branding`'s singleton row already established, rather than building a
+subscriber-count check against a foreign key that doesn't exist yet.
+
+**What was built**: migration `20260912030000_platform_plans.sql` -- `platform.plans`
+(uuid primary key, not a singleton like `platform.branding`: there are several plans by
+design). `key` (a stable, immutable, lowercase-slug identity column, e.g. `'pro'`,
+unique-constrained) is separate from `name` (the display label) specifically so renaming
+"Pro" to "Growth" later never breaks a future entitlement table's foreign key to it --
+mirroring `core.modules.key`'s own role for module identity, confirmed by reading that
+column's own definition rather than assumed. `price numeric(14, 2)` (not integer cents)
+matches this repo's own established money-column convention across
+`core.payments`/`core.documents`/`core.items` (checked via `grep -rn "numeric(14, 2)"
+supabase/migrations/`), not a fresh convention invented for this table.
+`billing_interval` (`month`/`year`), `currency` (a 3-letter code, defaulting `'INR'` per
+`core.business_settings.currency`'s own established default), `status` (the four-value
+lifecycle above), `display_order`, `marketing_visible`, and the same
+`updated_at`/`updated_by` "minimal accountability, not full history" columns
+`platform.branding` already established while PLATFORM-P0-16/17's own future audit/version
+history is still unbuilt. Seeded with the story's own named `Free`/`Pro`/`Max` plans, all
+`status = 'active'` (not `draft`) -- an empty or all-draft plans table would itself be
+exactly the kind of "unconfigured platform surface" PLATFORM-P0-02's own Configuration
+Health widget already watches for, not a deliberately blank slate.
+
+RLS mirrors `platform.branding`'s shape (`platform.is_superadmin()`, the same SECURITY
+DEFINER function) with `select`/`insert`/`update` policies and **no delete policy or grant
+at all** -- the simplest correct expression of 04.7's "never delete a plan" rule, enforced
+at the same layer (RLS/grants) this backlog's own §5 architecture principle names as
+authoritative, not merely a missing "delete" button in the UI.
+
+**Application layer** (`packages/core/src/admin/platform-plans.ts`): `listPlatformPlans()`,
+`getPlatformPlan(id)`, `createPlatformPlan(input)`, `updatePlatformPlan(id, input)` -- no
+delete function exported at all, matching the migration's own grants. Two Zod schemas,
+`createPlatformPlanSchema` (includes `key`) and `updatePlatformPlanSchema` (`.omit({key:
+true})` from the same base schema, so the two can never silently drift apart in their
+shared fields) -- a plan's `key` is submittable only at creation. 13 new unit tests in
+`platform-plans.test.ts` cover the real validation logic (key slug format, name
+non-empty, negative-price rejection, billing-interval/status enum membership including
+every one of the four lifecycle values by name, non-integer display-order rejection, and
+that the update schema genuinely has no `key` field at all -- checked via `"key" in
+result.data`, not just a type-level assumption).
+
+**UI**: new `apps/web/app/platform/(protected)/plans/` (page.tsx, actions.ts,
+plan-dialog.tsx) -- desktop table / mobile card split per CLAUDE.md development principle
+#12 and `docs/design/claude-ui-design-rules.md` rule 5, mirroring
+`(dashboard)/.../crm/leads/page.tsx`'s own established `<ul className="divide-y
+md:hidden">` / `<Table className="hidden md:table">` pattern, with the same explicit
+zinc-* overrides every other `/platform` page needs since the vendored `Table`'s default
+tokens resolve against the site's light theme. One shared `PlanDialog` component handles
+both Add and Edit (mirroring `edit-value-dialog.tsx`'s existing "a dialog, not a separate
+page" pattern per design-rules rule 4) -- Edit disables the `key` field entirely rather
+than merely omitting it from the update payload, so a superadmin can never even attempt to
+change it through the UI. `apps/web/app/platform/layout.tsx` gains a third nav entry,
+"Plans".
+
+**A real lint issue found and fixed, not routed around**: the first draft of
+`plan-dialog.tsx` used `useActionState` + a `useEffect` that called `setOpen(false)` on a
+successful result -- the exact same shape `packages/module-fsm/src/components/schedule/create-event-dialog.tsx`
+already uses elsewhere in this codebase. `npm run lint` correctly flagged it as
+`react-hooks/set-state-in-effect` ("calling setState() directly within an effect").
+Investigated rather than suppressed: `module-fsm` turns out to have **no lint script or
+config at all** (confirmed via `cat packages/module-fsm/package.json` showing no `"lint"`
+entry, and `npx eslint .` from inside that package failing with "couldn't find an
+eslint.config" ), so that pre-existing file's identical pattern has simply never been
+linted by anything, in or out of CI -- not this story's to fix (CLAUDE.md development
+principle #10, "do not refactor unrelated code"), but also not a precedent to copy into a
+package that *is* linted. Rewrote `plan-dialog.tsx` to submit via a plain `onSubmit` +
+`useTransition` instead (the same shape `publish-controls.tsx`, written earlier this run,
+already uses successfully) -- closing the dialog is now a direct branch on the awaited
+result inside the submit handler itself, never inside an effect. `npm run lint` is clean
+across the whole monorepo (including this file) as a result.
+
+**Deliberately not built this story**: no delete UI or function (04.7, see above); no
+module/feature entitlement or limit tables (04.2-04.6, each its own later sub-story); no
+public/customer-facing pricing page reading `marketing_visible` plans (no such page exists
+anywhere in this codebase yet, and building one now would be speculative ahead of its own
+future story); no wiring from `core.licenses`/`core.business_settings.plan` to this new
+table (PLATFORM-P0-05.4, Entitlement Engine, is explicitly that integration's own future
+job, not this one's).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint` -- 0 errors after the `react-hooks/set-state-in-effect` fix described above (1
+pre-existing unrelated warning, unchanged). `node scripts/lint-import-boundaries.mjs` --
+1162 files, no violations. `node scripts/lint-migration-schema.mjs` -- 133 migrations (132
+-> 133, this story's own file), no violations. `npx vitest run --root packages/core` -- 70
+tests (57 -> 70, this story's 13 new plan-schema cases), all passing. `apps/web`'s own
+`vitest run --passWithNoTests` -- 47 tests, unchanged (no new apps/web-level pure logic
+this story -- the dialog's own submit branching is exercised by the schema tests plus a
+manual build check, not a new unit test, matching this codebase's own bar for a thin UI
+wrapper). `cd apps/web && npm run build` -- clean; `/platform/plans` lists `ƒ` (dynamic).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the seeded catalog is
+exactly Free/Pro/Max with the documented prices/currency/status. Directly role-switched
+(not just read the policy SQL) as a real non-superadmin user id against the live dev
+project: `select count(*) from platform.plans` returns `0` cleanly (not a "permission
+denied for schema" error), proving this brand-new table is already covered by
+PLATFORM-P0-03.4's own schema-grant fix rather than silently repeating that same bug for a
+second table. `mcp__Supabase__get_advisors` (security) -- zero new findings, the same 5
+pre-existing `rls_enabled_no_policy` tables and the pre-existing leaked-password-protection
+warning every prior entry has already logged. `mcp__Supabase__get_advisors` (performance)
+-- zero new findings this time (both new indexes, `plans_status_display_order_idx` and
+`plans_updated_by_idx`, were added in the same migration as their columns, so neither
+tripped the "unindexed foreign key" check that caught PLATFORM-P0-03.5's own gap; both show
+up only as the same benign "unused index" info-level note every sibling FK index already
+carries in this empty dev database).
+
+**A second RLS test script, following PLATFORM-P0-03.4's own standard**: new
+`scripts/test-platform-plans-rls.mjs`, wired into `package.json`'s `test:db` composite
+script after `test-platform-branding-rls.mjs`. Seeds the same Alice (business admin, not a
+superadmin)/Zoe (real `platform.admins` superadmin) pair and asserts, against a real local
+Postgres 16 database: Alice gets 0 rows on SELECT (proving the schema-level grant is
+present, the exact class of bug PLATFORM-P0-03.4 found, not merely that RLS denies her);
+her INSERT is rejected outright by the `WITH CHECK` clause; her UPDATE silently affects
+zero rows; Zoe can SELECT/INSERT/UPDATE freely; **nobody, superadmin included, can DELETE a
+plan** (04.7's own rule, proven live, not just asserted from the migration's grant list);
+and the `key` uniqueness constraint holds even for a superadmin. **All 11 assertions
+passed** on the first run against the full current migration timeline (133 files). Also
+started this sandbox's own local Postgres 16 cluster before running it (`pg_ctlcluster 16
+main start` -- it was not already running in this fresh worktree, unlike PLATFORM-P0-03.4's
+own environment where it apparently was), confirmed via `pg_lsclusters`, rather than
+assuming a prior story's environment state still held.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening `/platform/plans`, adding a plan through the
+dialog, and seeing it appear in the table was **not** performed and is **not** claimed
+here. This story's authorization-critical claims (schema grant present; RLS denies a
+non-superadmin; a superadmin can create/update but never delete) were verified for real
+against both the live dev Supabase project and a real local Postgres database, per the
+higher bar PLATFORM-P0-03.4 set for every `platform.*` table.
+
+**Status**: PLATFORM-P0-04.1 done. PLATFORM-P0-04.2-04.7 remain open for their own later
+turns. Given this run's usage is approaching its practical limit for one sitting, stopping
+here after merge rather than starting another new story -- see the final status message
+for the full summary of what this run covered.

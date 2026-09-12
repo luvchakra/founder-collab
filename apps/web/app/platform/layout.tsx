@@ -41,6 +41,8 @@ const NAV_LINKS = [
   // business's (no such business-level branding page exists anywhere in the app to
   // confuse it with today, but the label shouldn't rely on that always being true).
   { href: "/platform/branding", label: "Platform Branding" },
+  // PLATFORM-P0-04.1: the subscription/pricing catalog admin screen.
+  { href: "/platform/plans", label: "Plans" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
