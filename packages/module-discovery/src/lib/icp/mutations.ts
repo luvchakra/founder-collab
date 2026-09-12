@@ -39,12 +39,20 @@ function icpFieldsToRow(input: IcpFieldsInput) {
   };
 }
 
-/** Any manual edit resets status to draft -- it must be explicitly re-approved. */
+/**
+ * Any manual edit resets status to draft -- it must be explicitly re-approved.
+ *
+ * DISC-OFFER-P0-13.1: also clears `confidence`/`evidence` -- both describe how well the
+ * *pre-edit* claims were grounded in the product profile; once a founder hand-edits any
+ * field, that assessment no longer honestly describes what's now on the row. Same "don't
+ * let a stale AI judgment linger over content a human has since changed" call as the
+ * `status` reset just above, not a new precedent.
+ */
 export async function updateIcpProfile(icpId: string, input: IcpFieldsInput): Promise<IcpProfile> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("icp_profiles")
-    .update({ ...icpFieldsToRow(input), status: "draft" })
+    .update({ ...icpFieldsToRow(input), status: "draft", confidence: null, evidence: [] })
     .eq("id", icpId)
     .select()
     .single();
@@ -81,6 +89,14 @@ export async function cloneIcpProfileToWorkspace(sourceIcpId: string, targetWork
     technology: source.technology,
     growth_stage: source.growth_stage,
     existing_tools: source.existing_tools,
+    /** DISC-OFFER-P0-13.1: deliberately NOT `source.confidence`/`source.evidence` --
+     * those describe how well the *source* ICP is grounded in the *source* offering's
+     * own product profile; carrying them onto a different workspace/offering would
+     * misrepresent evidence quoted from one product's profile as support for another's
+     * ICP. Left null/empty, same as any other never-yet-(re)generated ICP, until this
+     * offering's own `generateIcp` call computes real values for it. */
+    confidence: null,
+    evidence: [],
     status: "draft" as const,
   };
 

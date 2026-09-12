@@ -6,9 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { computeDisplayGroups, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
-import { PIPELINE_STAGE_KEYS, PIPELINE_STAGE_LABEL, type PipelineStage, type PipelineStageKey } from "../../lib/pipeline/types";
+import {
+  PIPELINE_STAGE_KEYS,
+  PIPELINE_STAGE_LABEL,
+  type PipelineRun,
+  type PipelineRunTrigger,
+  type PipelineStage,
+  type PipelineStageKey,
+} from "../../lib/pipeline/types";
 
 type StageResponse = { ok: true; stage: PipelineStage; detail: string } | { ok: false; stage: PipelineStage; error: string };
+type StartRunResponse = { ok: true; run: PipelineRun } | { ok: false; error: string };
 
 function firstIncompleteIndex(stages: PipelineStage[]): number {
   const index = PIPELINE_STAGE_KEYS.findIndex((key) => {
@@ -88,7 +96,7 @@ export function RunAiDiscoveryPanel({
     if (searchParams.get("autorun") === "1" && !autoRunStarted.current) {
       autoRunStarted.current = true;
       router.replace(basePath);
-      void runFrom();
+      void runFrom(undefined, "save_and_run_downstream");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -97,13 +105,13 @@ export function RunAiDiscoveryPanel({
     return stages.find((s) => s.stage_key === key) ?? null;
   }
 
-  async function runOneStage(key: PipelineStageKey): Promise<boolean> {
+  async function runOneStage(key: PipelineStageKey, runId: string | null): Promise<boolean> {
     setRunningKey(key);
     try {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stageKey: key }),
+        body: JSON.stringify({ stageKey: key, runId }),
       });
       const result = (await response.json()) as StageResponse;
       setStages((prev) => prev.map((s) => (s.stage_key === key ? result.stage : s)));
@@ -115,13 +123,33 @@ export function RunAiDiscoveryPanel({
     }
   }
 
-  async function runFrom(startKey?: PipelineStageKey) {
+  /** DISC-OFFER-P0-14.1: opens one Discovery Run History row for this whole walk before
+   * the first stage in it runs, so every per-stage request below can attach to it --
+   * best-effort (a failed/unreachable "start run" call still lets the pipeline itself run
+   * normally with `runId: null`, same "never let logging break the real result"
+   * discipline `recordAiRun` already established for `ai_runs`). */
+  async function runFrom(startKey: PipelineStageKey | undefined, trigger: PipelineRunTrigger) {
     if (autoRunning) return;
+    const startIndex = startKey ? PIPELINE_STAGE_KEYS.indexOf(startKey) : firstIncompleteIndex(stages);
+    if (startIndex >= PIPELINE_STAGE_KEYS.length) return;
+
     setAutoRunning(true);
     try {
-      const startIndex = startKey ? PIPELINE_STAGE_KEYS.indexOf(startKey) : firstIncompleteIndex(stages);
+      let runId: string | null = null;
+      try {
+        const startResponse = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "start_run", trigger, startingStage: PIPELINE_STAGE_KEYS[startIndex] }),
+        });
+        const startResult = (await startResponse.json()) as StartRunResponse;
+        runId = startResult.ok ? startResult.run.id : null;
+      } catch {
+        runId = null;
+      }
+
       for (let i = startIndex; i < PIPELINE_STAGE_KEYS.length; i += 1) {
-        const ok = await runOneStage(PIPELINE_STAGE_KEYS[i]!);
+        const ok = await runOneStage(PIPELINE_STAGE_KEYS[i]!, runId);
         if (!ok) break;
       }
     } finally {
@@ -152,7 +180,7 @@ export function RunAiDiscoveryPanel({
             recommended actions.
           </p>
         </div>
-        <Button onClick={() => runFrom()} disabled={autoRunning} className="shrink-0">
+        <Button onClick={() => runFrom(undefined, "run_ai_discovery_cta")} disabled={autoRunning} className="shrink-0">
           {autoRunning ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           {allDone ? "Run AI Discovery Again" : hasStarted ? "Resume AI Discovery" : "Run AI Discovery"}
         </Button>
@@ -196,7 +224,7 @@ export function RunAiDiscoveryPanel({
                     className="ml-auto h-7 gap-1 px-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (group.activeStageKey) void runFrom(group.activeStageKey);
+                      if (group.activeStageKey) void runFrom(group.activeStageKey, "retry_failed_stage");
                     }}
                     disabled={autoRunning}
                   >

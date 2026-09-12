@@ -1,5 +1,11 @@
 import { moduleRegistry } from "@cofounderai/module-registry";
-import { hasModule as hasModuleLicense, hasModuleWrite } from "../licensing/queries";
+import {
+  defaultPlatformBlockedMessage,
+  defaultPlatformReadOnlyMessage,
+  getPlatformModuleStatus,
+  hasModule as hasModuleLicense,
+  hasModuleWrite,
+} from "../licensing/queries";
 import type { EntitlementDecision } from "./types";
 
 /**
@@ -20,9 +26,21 @@ import type { EntitlementDecision } from "./types";
  *   `licensing/queries.ts` wrappers, per PLATFORM-P0-05.4's "integrate with the existing
  *   licensing model rather than creating a competing licensing system" -- it is not a
  *   second source of truth, only a richer view onto the same one).
- * - **Platform Global** (a platform-wide kill switch per module) -- **not composed**:
- *   PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") is listed "Not started" in this
- *   backlog's own progress table; there is no `platform.*` row this layer could read yet.
+ * - **Platform Global** (a platform-wide kill switch per module) -- **composed as of
+ *   PLATFORM-P0-07.2**, and checked *first*, before the license layer: `platform.modules
+ *   .enabled` (PLATFORM-P0-07.1) is read via `isModuleEnabledPlatformWide()` (a plain,
+ *   non-admin-gated read -- `platform.modules`' own RLS already opens SELECT to any
+ *   authenticated user), and a disabled module short-circuits straight to
+ *   `buildPlatformDisabledDecision()` without ever touching `core.licenses` at all -- a
+ *   platform-wide kill switch is a fact about the module, not about this business's own
+ *   license, so there is nothing for the license layer to add once it applies. Not
+ *   composed into `core.has_module()`/`has_module_write()` themselves (RLS's own
+ *   authoritative check) -- doing so would mean changing every module table's own RLS
+ *   policy, a genuine architecture change requiring explicit approval, the identical
+ *   reasoning the very next paragraph already gives for why `platform.plan_modules` isn't
+ *   composed into RLS either. `requireModule()`/the `middleware.ts` route guard (the
+ *   other two enforcement layers CLAUDE.md's architecture section names) check the same
+ *   flag independently, for the same reason.
  * - **Plan** (whether the business's current *subscription plan* -- `platform.plans` /
  *   `platform.plan_modules`, PLATFORM-P0-04.1/04.3 -- entitles this module at all) --
  *   **still not composed here, now by deliberate choice rather than missing data**. The
@@ -60,18 +78,65 @@ import type { EntitlementDecision } from "./types";
  *   entitlement check would conflate two independent axes this codebase already keeps
  *   separate, not close a real gap.
  *
- * `source` is therefore always `"license"` today -- accurate, not a placeholder -- and
- * will start reflecting the other layers only once each one has a real data source to
- * read, story by story, the same way `platform.plan_modules`' own `enabled` column
- * (PLATFORM-P0-04.3) exists today with nothing yet reading it for a real authorization
- * decision.
+ * `source` is `"platform_global"` when a superadmin has disabled the module platform-wide
+ * (or put it in maintenance, or made it platform-wide read-only), `"license"` otherwise --
+ * the other three layers still have no real data source to read yet, story by story, the
+ * same way `platform.plan_modules`' own `enabled` column (PLATFORM-P0-04.3) still exists
+ * today with nothing yet reading it for a real authorization decision.
+ *
+ * PLATFORM-P0-07.3 extends the platform-global layer from a plain on/off kill switch to
+ * the full `available`/`read_only`/`maintenance`/`disabled` status (decisions #1-#3 in
+ * this backlog's own audit log): `maintenance` and `disabled` are the exact same full
+ * block (decision #3 -- no distinct access level, only different default copy) and
+ * short-circuit to `buildPlatformDisabledDecision()` exactly as the old boolean kill
+ * switch already did; `read_only` (decision #2) does NOT short-circuit -- it forces
+ * `writeAllowed` to `false` regardless of the business's own license, then lets
+ * `buildModuleEntitlementDecision()` pick the right reason the same way it already does
+ * for a business's own license grace period, reusing that existing read/write
+ * distinction rather than inventing a new one.
  */
 export async function hasModule(businessId: string, moduleKey: string): Promise<EntitlementDecision> {
-  const [readAllowed, writeAllowed] = await Promise.all([
+  const platform = await getPlatformModuleStatus(moduleKey);
+  if (platform.status === "disabled" || platform.status === "maintenance") {
+    return buildPlatformDisabledDecision(moduleKey, platform.status, platform.message);
+  }
+  const [readAllowed, writeAllowedByLicense] = await Promise.all([
     hasModuleLicense(businessId, moduleKey),
     hasModuleWrite(businessId, moduleKey),
   ]);
-  return buildModuleEntitlementDecision(moduleKey, readAllowed, writeAllowed);
+  const writeAllowed = writeAllowedByLicense && platform.status !== "read_only";
+  return buildModuleEntitlementDecision(
+    moduleKey,
+    readAllowed,
+    writeAllowed,
+    platform.status === "read_only",
+    platform.message,
+  );
+}
+
+/** PLATFORM-P0-07.2/07.3 -- the pure decision shape for a fully platform-blocked module
+ * (`disabled` or `maintenance` -- decision #3's own "the exact same full block"), factored
+ * out the same way `buildModuleEntitlementDecision()` below is, so it is unit-testable
+ * without a database. Always `allowed: false`: neither status has any degraded "partial
+ * access" the way `read_only` or a license's grace period does (decision #3 -- no
+ * superadmin-only bypass, no partial access). `message` is the superadmin-set
+ * `customer_facing_message` override, when set (decision #4) -- falls back to
+ * `defaultPlatformBlockedMessage()`'s status-specific copy otherwise (the ONLY thing that
+ * differs between `maintenance` and `disabled`, per decision #3). */
+export function buildPlatformDisabledDecision(
+  moduleKey: string,
+  status: "disabled" | "maintenance",
+  message: string | null = null,
+): EntitlementDecision {
+  const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
+  return {
+    allowed: false,
+    reason: message ?? defaultPlatformBlockedMessage(moduleName, status),
+    source: "platform_global",
+    limit: null,
+    usage: null,
+    remaining: null,
+  };
 }
 
 /**
@@ -85,24 +150,63 @@ export async function hasModule(businessId: string, moduleKey: string): Promise<
  * asking "can this be used," not "is this merely still readable while winding down" --
  * that read-only-grace nuance is preserved as its own distinct `reason` under
  * `allowed: false`, not collapsed into an unqualified `true`.
+ *
+ * `platformReadOnly` (PLATFORM-P0-07.3, decision #2) is `true` when `hasModule()`'s own
+ * platform-wide status is `read_only` -- when combined with `readAllowed`, this means the
+ * business's own license would otherwise permit the write, but a platform-wide read-only
+ * status forces it denied anyway, so the reason names the platform-wide cause (the actual
+ * reason the write failed) rather than the business's own (fine) license. When
+ * `readAllowed` is `false`, the business isn't even licensed at all -- that is still the
+ * more specific, more helpful reason to surface, so `platformReadOnly` is not consulted in
+ * that branch. `platformMessage` is the superadmin-set `customer_facing_message`
+ * override (decision #4), used only in the `platformReadOnly` branch -- falls back to
+ * `defaultPlatformReadOnlyMessage()` otherwise.
  */
 export function buildModuleEntitlementDecision(
   moduleKey: string,
   readAllowed: boolean,
   writeAllowed: boolean,
+  platformReadOnly = false,
+  platformMessage: string | null = null,
 ): EntitlementDecision {
   const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
-  const base = { source: "license" as const, limit: null, usage: null, remaining: null };
 
   if (writeAllowed) {
-    return { ...base, allowed: true, reason: `${moduleName} is licensed and active.` };
+    return {
+      allowed: true,
+      reason: `${moduleName} is licensed and active.`,
+      source: "license",
+      limit: null,
+      usage: null,
+      remaining: null,
+    };
+  }
+  if (readAllowed && platformReadOnly) {
+    return {
+      allowed: false,
+      reason: platformMessage ?? defaultPlatformReadOnlyMessage(moduleName),
+      source: "platform_global",
+      limit: null,
+      usage: null,
+      remaining: null,
+    };
   }
   if (readAllowed) {
     return {
-      ...base,
       allowed: false,
       reason: `${moduleName}'s license is in its read-only grace period.`,
+      source: "license",
+      limit: null,
+      usage: null,
+      remaining: null,
     };
   }
-  return { ...base, allowed: false, reason: `${moduleName} is not licensed for this business.` };
+  return {
+    allowed: false,
+    reason: `${moduleName} is not licensed for this business.`,
+    source: "license",
+    limit: null,
+    usage: null,
+    remaining: null,
+  };
 }

@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import type { PipelineStage, PipelineStageKey } from "./types";
+import type { PipelineRun, PipelineRunStatus, PipelineRunTrigger, PipelineStage, PipelineStageKey } from "./types";
 
 async function updateStage(
   workspaceId: string,
@@ -32,6 +32,7 @@ async function recordPipelineStageRun(
   startedAt: string | null,
   completedAt: string,
   error: string | null,
+  runId: string | null,
 ): Promise<void> {
   const supabase = await createClient();
   const { error: insertError } = await supabase.from("pipeline_stage_runs").insert({
@@ -42,6 +43,7 @@ async function recordPipelineStageRun(
     started_at: startedAt ?? completedAt,
     completed_at: completedAt,
     error,
+    run_id: runId,
   });
   if (insertError) throw insertError;
 }
@@ -77,6 +79,7 @@ export async function markPipelineStageCompleted(
   workspaceId: string,
   stageKey: PipelineStageKey,
   lastAiRunId?: string | null,
+  runId?: string | null,
 ): Promise<PipelineStage> {
   const completedAt = new Date().toISOString();
   const stage = await updateStage(workspaceId, stageKey, {
@@ -84,18 +87,23 @@ export async function markPipelineStageCompleted(
     completed_at: completedAt,
     ...(lastAiRunId !== undefined ? { last_ai_run_id: lastAiRunId } : {}),
   });
-  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "completed", stage.started_at, completedAt, null);
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "completed", stage.started_at, completedAt, null, runId ?? null);
   return stage;
 }
 
-export async function markPipelineStageFailed(workspaceId: string, stageKey: PipelineStageKey, message: string): Promise<PipelineStage> {
+export async function markPipelineStageFailed(
+  workspaceId: string,
+  stageKey: PipelineStageKey,
+  message: string,
+  runId?: string | null,
+): Promise<PipelineStage> {
   const failedAt = new Date().toISOString();
   const stage = await updateStage(workspaceId, stageKey, {
     status: "failed",
     failed_at: failedAt,
     error: message,
   });
-  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "failed", stage.started_at, failedAt, message);
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "failed", stage.started_at, failedAt, message, runId ?? null);
   return stage;
 }
 
@@ -104,13 +112,17 @@ export async function markPipelineStageFailed(workspaceId: string, stageKey: Pip
  * e.g. re-running with no fresh accounts discovered). Same "don't collapse two different
  * true things into one status" discipline DISC-OFFER-P0-05.5's own
  * `insufficient_evidence` vs. `no_relevant_problem` split already established. */
-export async function markPipelineStageSkipped(workspaceId: string, stageKey: PipelineStageKey): Promise<PipelineStage> {
+export async function markPipelineStageSkipped(
+  workspaceId: string,
+  stageKey: PipelineStageKey,
+  runId?: string | null,
+): Promise<PipelineStage> {
   const completedAt = new Date().toISOString();
   const stage = await updateStage(workspaceId, stageKey, {
     status: "skipped",
     completed_at: completedAt,
   });
-  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "skipped", stage.started_at, completedAt, null);
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "skipped", stage.started_at, completedAt, null, runId ?? null);
   return stage;
 }
 
@@ -130,4 +142,45 @@ export async function resetPipelineStageToNotStarted(workspaceId: string, stageK
     failed_at: null,
     error: null,
   });
+}
+
+/** DISC-OFFER-P0-14.1: opens one "Discovery Run History" row for a client-driven walk
+ * through the pipeline, before the first stage in that walk actually starts -- called
+ * once per `runFrom()` invocation (`run-ai-discovery-panel.tsx`), not once per technical
+ * stage. `startingStage` is this walk's own first stage, whichever of the three trigger
+ * points (see `PipelineRunTrigger`'s own comment) determined it. */
+export async function startPipelineRun(
+  workspaceId: string,
+  trigger: PipelineRunTrigger,
+  startingStage: PipelineStageKey,
+): Promise<PipelineRun> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_runs")
+    .insert({ workspace_id: workspaceId, trigger, starting_stage: startingStage })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Closes a run once the client's own walk stops -- either every stage it attempted
+ * through to `crm_handoff` succeeded (`completed`), or one of them didn't and the
+ * client's own loop broke (`failed`, with that stage's own error message). Scoped by
+ * `workspaceId` as well as `id`, same defense-in-depth double filter `updateStage` above
+ * already applies to every stage mutation, even though `id` alone would already be
+ * enough to select at most one row. */
+export async function completePipelineRun(
+  workspaceId: string,
+  runId: string,
+  status: Exclude<PipelineRunStatus, "running">,
+  error: string | null,
+): Promise<void> {
+  const supabase = await createClient();
+  const { error: updateError } = await supabase
+    .from("pipeline_runs")
+    .update({ status, completed_at: new Date().toISOString(), error })
+    .eq("workspace_id", workspaceId)
+    .eq("id", runId);
+  if (updateError) throw updateError;
 }

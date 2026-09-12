@@ -65,3 +65,40 @@ describe("setPlanLimitSchema (PLATFORM-P0-04.6 tri-state)", () => {
     expect(result.success).toBe(false);
   });
 });
+
+describe("setPlanLimitSchema limitType (PLATFORM-P0-06.5 decision #2)", () => {
+  it("defaults limitType to 'hard' when state=limited and no limitType is given -- today's already-shipped denial semantics are the unchanged default", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "limited", limitValue: "5" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.limitType).toBe("hard");
+  });
+
+  it("accepts an explicit limitType='soft' for state=limited", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "limited", limitValue: "5", limitType: "soft" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.limitType).toBe("soft");
+  });
+
+  it("accepts an explicit limitType='hard' for state=limited", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "limited", limitValue: "5", limitType: "hard" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.limitType).toBe("hard");
+  });
+
+  it("normalizes limitType to null when state=unlimited, regardless of what was passed in", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "unlimited", limitValue: "", limitType: "soft" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.limitType).toBeNull();
+  });
+
+  it("normalizes limitType to null when state=disabled, regardless of what was passed in", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "disabled", limitType: "hard" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.limitType).toBeNull();
+  });
+
+  it("rejects an unrecognized limitType value", () => {
+    const result = setPlanLimitSchema.safeParse({ state: "limited", limitValue: "5", limitType: "bogus" });
+    expect(result.success).toBe(false);
+  });
+});

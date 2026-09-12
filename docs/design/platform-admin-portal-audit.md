@@ -23,10 +23,10 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
-| | 06 | Usage & Limits | 06.1-06.4 done (counters, dashboard, atomic enforcement, graceful copy/UI); 06.5 (Soft vs Hard Limits) **stopped -- genuine architectural ambiguity the doc doesn't resolve, see log entry for the exact open questions** |
-| | 07 | Module Administration | Not started |
-| | 08 | Feature Flags | Not started |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
+| | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
+| | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
+| | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.4 done (registry, secure key storage, routing policy, feature policies -- all config-only, no runtime wiring); 09.5 remaining |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 4 full sections done (01, 02, 03 -- 03.2 deferred by design, 04), plus 18.1.
-P1: 0/9 done.**
+**P0: 8 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08),
+plus 18.1. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -2578,3 +2578,1923 @@ precedent PLATFORM-P0-05.1's own entry above set (stop, document precisely, wait
 user's own decision, resume from exactly this point once it's given). This run's own
 usage-tracking note: well under the 80% stop threshold -- this is a natural, doc-mandated
 stopping point for this one story, not a usage cutoff.
+
+### PLATFORM-P0-06.5 (resumed) — Soft vs Hard Limits, Warning Threshold (2026-09-12)
+
+**Worktree-reuse hazard checked before writing anything (per this workstream's own standing
+instruction)**: this run's worktree `HEAD` was `6334596` ("Merge remote-tracking branch
+'origin/comply-backlog'"), checked out under a `worktree-agent-*` branch name --
+`feature/platform-admin-portal` was a real, up-to-date local branch
+(`git log origin/main..origin/feature/platform-admin-portal` was empty, matching the
+dispatch's own pre-flight check) but not what this worktree had checked out. Working tree
+was clean, so no stash was needed -- fixed with a plain `git checkout
+feature/platform-admin-portal`, then re-verified `git rev-parse HEAD` matched
+`origin/feature/platform-admin-portal` (`1a4ef4e`, this section's own stop-and-report entry
+above) before touching any file.
+
+**Resuming exactly where the previous entry stopped**: the three open questions that entry
+raised have been answered directly by the user (not derived or guessed by this run) as part
+of this run's own dispatch. Implemented exactly as given -- no re-litigation, no broader
+scope:
+
+1. **Soft-limit behavior**: a soft limit never blocks. `getLimit()`/`canConsume()` keep
+   allowing exactly as today for an ordinary `limited` state at/under its cap; once usage is
+   at or over the limit for a `soft`-typed resource, the action is still `allowed: true`,
+   with `reason` saying the business is over its plan's *guideline* rather than denying it.
+   No overage ceiling of any kind (the "billing overage" option was explicitly rejected).
+2. **Schema shape**: a new, independent `limit_type` column on `platform.plan_limits`
+   (`'soft' | 'hard'`), meaningful only when `state = 'limited'`, defaulting every
+   pre-existing and newly-`limited` row to `'hard'` -- `state`'s own three existing values
+   are untouched.
+3. **Warning Threshold**: UI-only, computed on the fly from `getLimit()`'s own real
+   `usage`/`limit`, no schema change, no per-plan configurability, no notification/email
+   wiring (PLATFORM-P0-11 stays out of scope). `DEFAULT_WARNING_THRESHOLD_PERCENT = 80`.
+
+**What was built, decision #2 (schema)**: migration
+`20260912110000_platform_plan_limits_soft_hard.sql` -- `platform.plan_limits.limit_type`
+(nullable `text`), backfilled to `'hard'` for any pre-existing `limited` row (none exist in
+dev today -- confirmed live via `execute_sql` before writing the migration, same as every
+prior plan-limits story's own "check live data first" discipline), with a new row-level
+CHECK, `plan_limits_type_matches_state`, requiring `limit_type in ('soft','hard')` exactly
+when `state = 'limited'` and `null` otherwise -- the identical "companion column gated on
+`state`" shape `plan_limits_value_matches_state` already established for `limit_value`
+itself. No RLS policy change (row-level, not column-level; the existing superadmin-write/
+any-authenticated-read policies from PLATFORM-P0-04.5/04.6 and PLATFORM-P0-05.2 already
+cover every column on the row).
+
+**A real bug found by the local RLS test, not by reading the SQL, and fixed before this
+story's first commit**: the first draft of `plan_limits_type_matches_state` was
+`(state = 'limited' and limit_type in ('soft','hard')) or (state in ('unlimited','disabled')
+and limit_type is null)` -- the exact same *shape* `plan_limits_value_matches_state` uses,
+but with one load-bearing difference: `limit_type in (...)` on a NULL column evaluates to
+SQL `NULL`, not `false` (`NULL IN (...)` is `NULL`), and Postgres treats a NULL CHECK result
+as *satisfied*, not violated. The result: inserting a `limited` row with no `limit_type` at
+all silently succeeded instead of being rejected -- a real, live defect in decision #2's own
+"required exactly when state='limited'" rule, caught by
+`scripts/test-platform-plan-limits-rls.mjs`'s very first run of its own new assertion
+("limited with no limit_type at all is rejected"), which failed with "expected an error,
+none was thrown." `plan_limits_value_matches_state` (the sibling constraint, written a
+migration ago) avoids this exact trap by using `is not null`/`is null` throughout rather
+than `in`; this migration's own constraint didn't, initially, and this is exactly why the
+higher bar this workstream holds itself to requires an actually-executed local-Postgres test
+per new column/constraint rather than a read of the SQL -- reading this constraint's text
+alone would not have caught it. Fixed in the same migration file (never committed with the
+bug) to `(state = 'limited' and limit_type is not null and limit_type in ('soft','hard'))
+or (state in ('unlimited','disabled') and limit_type is null)` -- confirmed correct by
+re-running the same local test to green. The live dev project, which had already received
+the buggy version via `apply_migration`, was fixed with one corrective `alter table ...
+drop constraint ... ; alter table ... add constraint ...` (not a second migration file --
+the single committed migration already carries the corrected text) and reconfirmed via
+`pg_get_constraintdef`.
+
+**What was built, decision #1 (soft-limit enforcement)**: migration
+`20260912120000_core_try_consume_usage_counter_soft_limits.sql` drops and recreates
+`core.try_consume_usage_counter()` (PLATFORM-P0-06.3) -- Postgres cannot `CREATE OR REPLACE`
+a function whose `RETURNS TABLE` shape changes, and this adds one output column,
+`limit_type` (mirrors the table's own column). No argument/signature change, so the one
+existing caller (`canConsume()`) is unaffected. Body change is a single new branch: when
+`state = 'limited' and limit_type = 'soft'`, the function now unconditionally grants and
+increments (same as the `unlimited`/`unrestricted` branches), instead of checking
+`v_before + p_quantity > v_limit` the way the `hard` branch (unchanged) still does. The
+row-level lock (`select ... for update`) that makes the whole function atomic is untouched
+and now guards both branches identically -- removing the *denial* for soft does not remove
+the *lock*.
+
+`getLimit()`/`buildLimitEntitlementDecision()` and `canConsume()`/
+`buildConsumeEntitlementDecision()` (`packages/core/src/entitlements/limit-entitlement.ts`)
+both thread `limit_type` through (the `platform_limits` select and the RPC call each now
+read/return it) and both grow one new branch, checked before the existing hard-limit logic:
+a `limited` row/attempt whose `limit_type` is `'soft'` (defaulting to `'hard'` when the
+field is absent, so every existing call site and every pre-06.5 unit test that never passed
+`limit_type` keeps its exact prior behavior) is always `allowed: true`; the `reason` text
+says "usage ... is within the ... plan's limit ..." while under the guideline (identical
+wording to the hard case) and "usage ... is over your ... plan's guideline of ..." once at
+or over it, rather than claiming a false "within the limit." `limit`/`usage`/`remaining` are
+still the real numbers either way (`remaining` still clamped to a minimum of 0, same as the
+hard case) -- a soft limit changes what "allowed" and the copy mean, not what the numbers
+are.
+
+**What was built, decision #3 (Warning Threshold)**: new
+`packages/core/src/entitlements/limit-warning-messaging.ts` -- `isApproachingLimit(usage,
+limit, thresholdPercent = DEFAULT_WARNING_THRESHOLD_PERCENT)` (pure; `false` whenever
+`limit`/`usage` is `null`, `limit <= 0` avoids a division by zero, and once `usage >= limit`
+-- that is `describeLimitReached()`'s own case, or a soft-limit allowance's, not a warning's)
+and `describeLimitWarning(decision, resourceLabel, planKey, thresholdPercent?)` (mirrors
+`describeLimitReached()`'s own "raw decision in, copy out" split, but returns `null` instead
+of throwing when there's nothing to warn about, since a caller checking on every render
+needs a cheap "should I show anything" answer rather than a try/catch). No schema change, no
+per-plan configurability, no notification wiring -- exactly as scoped. New
+`packages/core/src/components/limits/limit-warning-notice.tsx` -- `LimitWarningNotice`, a
+sibling of `LimitReachedNotice` (PLATFORM-P0-06.4) rather than a `variant` prop added to it:
+the two are built from different decision states (a denial vs. an approaching-but-still-
+allowed one) and keeping them as separate, small, single-purpose components avoids a prop
+that would let a caller pass the wrong kind of decision into the wrong copy-shaping
+function. Same default (non-destructive) `Alert`, an `AlertTriangle` icon (already used
+elsewhere in this codebase, e.g. `dashboard/page.tsx`, `crm/lost-business/page.tsx`) instead
+of `LimitReachedNotice`'s `Gauge`, and no "Upgrade" button -- a warning is a heads-up on an
+action that already succeeded, not the dead end a denial is, so "View usage" is the one
+button that reliably makes sense here. Like its sibling, `usageHref` is optional and
+independent (never a dead link when omitted), and **no page renders this component yet** --
+same boundary PLATFORM-P0-06.4's own entry drew for `LimitReachedNotice`: a real caller
+needs a real trigger (a module reading `getLimit()`) and a real "View usage" destination,
+neither of which exists yet; wiring either in now would be inventing a future module's own
+integration work.
+
+**UI (admin side)**: `quantity-limits-section.tsx` (the "Limited" row's own controls, §8's
+entitlements page) gains a Hard/Soft `NativeSelect` shown only alongside the numeric value
+(same "two related fields, one Save" reasoning already governing that row), defaulting to
+Hard for a fresh row and remembering a soft row's own already-configured type when editing
+it. The state badge for a configured `limited` row now appends a small `(soft)` qualifier
+when applicable -- an ordinary hard limit (today's default, and every pre-06.5 configured
+row) renders exactly as before, unchanged pixel-for-pixel. The section's own header copy and
+file-level docstring both gained one sentence naming the Hard/Soft distinction plainly.
+
+**Deliberately not built this story, and why -- staying exactly inside the three decisions
+given, no broader scope**:
+- No overage billing ceiling, no per-attempt override/dismiss flow for a hard limit -- both
+  were named candidate meanings for "soft limit" in the previous entry's own stop-and-report
+  and both were explicitly rejected by decision #1's own wording ("there is no ceiling on a
+  soft limit," "this decision explicitly rejected the 'billing overage ceiling' option").
+- No new column or table for the warning threshold, no per-plan/per-resource configurable
+  percentage, no notification or email wiring for crossing it -- all three explicitly
+  declined by decision #3, `PLATFORM-P0-11` (Global Email/Notification Configuration) stays
+  "Not started."
+- No page renders `LimitWarningNotice` (see above) and no module's own mutating action calls
+  `getLimit()`/`canConsume()` to trigger either notice -- the same "each module's own future
+  integration work" boundary PLATFORM-P0-06.1/06.3/06.4 already drew, unchanged by this
+  story.
+- `platform.plan_features`/`plan_modules` untouched -- decision #1 is explicit that this
+  only affects the limits/counters path.
+
+**Verification**: this worktree needed its own `npm install` first (fresh worktree, no
+local `node_modules` -- same cross-checkout symlink issue every prior worktree-run entry in
+this log has documented; confirmed `readlink -f node_modules/@cofounderai/core` resolves to
+this worktree's own `packages/core`). Full monorepo `npm run typecheck` -- clean across
+every workspace. `npm run lint --workspaces --if-present` -- 0 errors, the same 1
+pre-existing unrelated warning (`Package` unused import in a CRM conversations page,
+untouched by this story) every prior entry has logged. `node
+scripts/lint-import-boundaries.mjs` -- 1194 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 142 migrations, no violations (this branch's own
+prior-story count was 140; +2, this story's own two files). `npx vitest run --root
+packages/core` -- 18 files / 156 tests passed (127 -> 156, +29 new: 6 `platform-plan-
+limits.test.ts` limit_type cases, 7 `limit-entitlement.test.ts` soft/hard cases across both
+`buildLimitEntitlementDecision`/`buildConsumeEntitlementDecision`, 16
+`limit-warning-messaging.test.ts` cases for `isApproachingLimit`/`describeLimitWarning`).
+`apps/web`'s own `vitest run --passWithNoTests` -- 47 tests, unchanged (no new apps/web test
+file this story). `cd apps/web && rm -rf .next && npm run build` -- clean; the route
+listing is unchanged from PLATFORM-P0-04.3's own entry (`/platform/plans/[id]/entitlements`
+still lists `ƒ` dynamic; `LimitWarningNotice` is a component, not a route, same as
+`LimitReachedNotice`).
+
+Both migrations applied live via `mcp__Supabase__apply_migration` against the **dev**
+project (`jazdtomcgqjxjueedmck`) only -- confirmed via `execute_sql` that
+`platform.plan_limits` was empty before either migration (so the backfill touched zero
+rows, matching PLATFORM-P0-04.5's own "starts empty" stance), and via `pg_get_constraintdef`
+that the corrected (post-bugfix) constraint text is exactly right. `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and
+the pre-existing leaked-password-protection warning every prior entry has logged (a new
+column + CHECK, and a dropped/recreated function, add no new RLS surface).
+`mcp__Supabase__get_advisors` (performance) -- zero new findings (no new table, no new
+index; the function drop/recreate adds nothing for either advisor to flag).
+
+**Role-switched live proof against dev's own real data (not a synthetic seed), the standard
+this workstream has held itself to since PLATFORM-P0-03.4**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`) and one of their real businesses (`Meridian
+HomeTech Solutions`, on the real `free` plan) PLATFORM-P0-06.3's own entry already used --
+temporarily seeded `contacts = limited/soft(1)` and `prospects = limited/hard(1)` on the
+free plan, then, role-switched as that authenticated user (`set local role authenticated;
+set local request.jwt.claim.sub = '<their id>'`): `try_consume_usage_counter(<their
+business>, 'contacts', 5, 'current')` returned `{state: limited, limit_value: 1, limit_type:
+soft, usage_before: 0, usage_after: 5, granted: true}` -- a soft limit of 1, asked to
+consume 5, granted in full, no ceiling, exactly as decision #1 specifies; the equivalent
+call against `prospects` (`hard`, same limit of 1, same quantity of 5) returned `{...,
+usage_after: 0, granted: false}` -- the hard branch denies exactly as PLATFORM-P0-06.3 left
+it, proving this story changed no hard-limit behavior at all. Both temporary `plan_limits`
+rows and both resulting `usage_counters` rows were deleted immediately afterward, reconfirmed
+via a direct count query (`0` rows) -- dev is left exactly as it was found, no residue.
+
+**The dedicated local-Postgres re-verification this workstream's own higher bar requires for
+a modified `try_consume_usage_counter()`** (not just a read of the updated SQL): extended
+the existing `scripts/test-core-try-consume-usage-counter-rls.mjs` (PLATFORM-P0-06.3's own
+script) rather than writing a new one -- this is the same access pattern/function, not a new
+one, so following that script's own precedent of extending
+`test-platform-plan-limits-rls.mjs`/`test-core-plan-entitlement-lookup.mjs` in place for a
+column addition rather than forking a parallel file. Every pre-existing `limited` seed row
+in that script now explicitly carries `limit_type = 'hard'` (the migration's own backfill
+default), so every one of PLATFORM-P0-06.3's own original assertions is re-verified against
+the *current*, modified function with no behavior change. New assertions (seeded against a
+fresh `contacts = limited/soft(2)` row): a soft limit grants normally under its guideline
+(identical to a hard grant); grants exactly at the guideline; **grants past the guideline**
+(the one behavior that actually differs from hard); grants a large single over-the-guideline
+quantity request in full, atomically. **The concurrency re-verification this story's own
+task brief specifically asked for**: 10 concurrent callers against a soft limit already well
+past its own guideline are *all* granted (proving a soft limit never denies, even under
+real concurrent load) with the final counter landing at exactly `13 + 10 = 23` -- proving
+the same `for update` row lock that PLATFORM-P0-06.3's own two hard-limit concurrency tests
+(re-run here, still passing, still exactly 2 and exactly 3) already proved race-free
+continues to serialize correctly for the soft branch too, with zero lost updates, even
+though that branch's own decision logic no longer has a denial path to protect. **All 26
+assertions passed** (17 pre-existing + 9 new) against the full current migration timeline
+(142 files, including both this story's own files). `scripts/test-platform-plan-limits-rls.mjs`
+extended with 6 new assertions proving the corrected `plan_limits_type_matches_state`
+CHECK constraint (both the bug and the fix, described above, were proven by actually running
+this script, not by reading the constraint's text) plus a real hard-to-soft flip by a
+superadmin -- **all 15 assertions passed**. `scripts/test-core-plan-entitlement-lookup.mjs`
+extended to also read back `limit_type` through the same non-superadmin join chain it
+already proves -- **all 7 assertions passed**. Local Postgres 16 was already running in this
+environment (`pg_lsclusters` showed it online).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening `/platform/plans/[id]/entitlements`, setting a
+resource to Soft, and later seeing `LimitWarningNotice`/a soft-limit "over guideline" message
+render in a real product surface was **not** performed and is **not** claimed here (no
+surface renders either yet, by design -- see "deliberately not built" above). This entry's
+functional and authorization-critical claims (soft-limit enforcement grants past the
+guideline with no ceiling; hard-limit enforcement is unchanged; the new CHECK constraint
+holds, including the real bug this story's own local test caught before it ever reached a
+commit) were verified for real against both the live dev Supabase project (role-switched, as
+a real user, against real business data, residue cleaned up afterward) and a real local
+Postgres database running every relevant RLS/behavior test to completion -- not merely
+asserted from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-06.5 done. §10 (Usage & Limits) is now fully complete: 06.1-06.5 all
+done and merged to `main`. Continuing in doc order, per this run's own task brief: §11
+(Module Administration, PLATFORM-P0-07) next.
+
+### PLATFORM-P0-07.1 — Module Registry (2026-09-12)
+
+**Worktree-reuse hazard checked before writing anything (per this workstream's own standing
+instruction)**: this run's worktree `HEAD` was `6854f7c` ("Merge branch
+'feature/platform-admin-portal' into scratch-plat-06-5"), checked out under a
+`worktree-agent-*` branch name -- the same class of artifact this log has already
+documented and fixed twice. Working tree was clean, so no stash was needed -- fixed with
+`git checkout -B feature/platform-admin-portal origin/feature/platform-admin-portal`, then
+re-verified `git rev-parse HEAD` matched `origin/feature/platform-admin-portal` (`17db0b8`,
+PLATFORM-P0-06.5's own tip) before touching any file. `npm install` run fresh (this
+worktree had no `node_modules`), confirmed via `readlink -f node_modules/@cofounderai/core`
+resolving to this worktree's own `packages/core`.
+
+**Scope, read against §11's own three sub-stories before writing anything**: §11 lists
+07.1 (Module Registry: "Manage: enabled, visible, licensed, minimum_plan, status,
+version"), 07.2 (Platform-Wide Module Kill Switch: "reason, impact confirmation, explicit
+confirmation, audit record" -- explicitly a dangerous operation), and 07.3 (Module
+Maintenance Mode: Available/Read-only/Maintenance/Disabled + optional message). This entry
+is 07.1 only.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: `core.modules` (Epic 2, C-3) is
+the licensing catalog -- `key`/`name`/`description`, the FK target every
+`core.licenses.module_key` and `platform.plan_modules.module_key` already points at.
+`packages/module-registry` is a separate, compile-time, static manifest for nav/routes
+(00-MASTER-PLAN.md §6). Neither is a superadmin's *operational control* over a module
+platform-wide (kill switch, maintenance mode) -- genuinely new control-plane data, hence
+`platform` schema (CLAUDE.md non-negotiable #1's carve-out), one row per `core.modules.key`
+(cross-schema FK into `core`, never a parallel module-identity list) -- the exact shape
+`platform.plan_modules` already established for the same relationship.
+
+**A genuine data-modeling judgment call, decided and documented rather than stopped on
+(non-security, per this run's own task brief)**: of §11's six named fields, two --
+`licensed` and `minimum_plan` -- are deliberately **not** stored columns.
+- `licensed` would be `true` for every row here by construction: every `core.modules` row
+  is, by definition, a licensable module (`core.licenses.module_key` already FKs into it).
+  A stored boolean that is always true today with no independent write path is exactly the
+  speculative-column shape CLAUDE.md development principle #7 rules out -- computed as a
+  literal `true` in `platform-modules.ts` instead.
+- `minimum_plan` is fully derivable from `platform.plan_modules` (PLATFORM-P0-04.3, already
+  the canonical "which plan includes this module" relationship) joined against
+  `platform.plans.display_order`/`status`. Storing it a second time would create exactly
+  the two-independently-writable-sources-of-truth problem CLAUDE.md non-negotiable #5 ("if
+  the concept is already listed, use the canonical table") warns against -- a superadmin
+  could set `minimum_plan = 'pro'` here while `plan_modules` still says Free includes it,
+  and nothing would ever reconcile the two. Computed at read time instead
+  (`computeMinimumPlans()`, the lowest-`display_order` **active** plan whose
+  `plan_modules.enabled = true` row covers the module -- a `draft`/`deprecated`/`archived`
+  plan is never a real "minimum plan" a customer can actually buy today), unit-tested
+  directly (5 cases: lowest-order pick, a disabled row at a lower order correctly ignored,
+  a non-active plan correctly ignored, no active plan at all, multiple modules kept
+  independent).
+
+**What was built**: migration `20260912140000_platform_modules.sql` -- `platform.modules`
+(`module_key` PK/FK into `core.modules`, `enabled` boolean default `true`, `visible`
+boolean default `true`, `status` text default `'available'`, `version` text nullable,
+`created_at`/`updated_at`/`updated_by`). Seeded one row per existing `core.modules` key, all
+defaults. RLS: SELECT open to any authenticated user from the start (not superadmin-only
+then widened later -- this table's own route-guard/`requireModule()` consumer, added in
+PLATFORM-P0-07.2, runs as the signed-in business member, the same reason
+PLATFORM-P0-05.2/05.3's `20260912080000_platform_catalog_authenticated_read.sql` widened
+every sibling plan-catalog table's own SELECT policy), INSERT/UPDATE superadmin-only, no
+DELETE policy or grant at all (every module key this table will ever hold arrives via the
+same migration that adds it to `core.modules`, seeded the same way this migration's own
+insert does -- there is no "remove a module from the registry" operation for the app layer
+to need).
+
+`status`'s four-value CHECK (`available`/`read_only`/`maintenance`/`disabled`) folds in
+PLATFORM-P0-07.3's own enum values now, the same "no placeholder lifecycle column"
+precedent PLATFORM-P0-04.1's own migration already used for `platform.plans.status`
+(04.7's enum folded into 04.1's single migration rather than left as a stub) -- 07.3's own
+remaining scope is the optional customer-facing message column plus real request-time
+behavior for `read_only`/`maintenance`/`disabled`, not this column's existence. `version`
+is a superadmin-set free-text label, not read from any `package.json`: every module
+workspace package (`packages/module-{discovery,inventory,fsm,crm,gst}`) is pinned at the
+placeholder `0.0.0` (confirmed live, not assumed), since ADR-1/ADR-2 make this one
+deployable with modules as packages, not independently released services -- there is no
+real per-module release version anywhere in this monorepo to read from instead. Nullable
+with no default, so an unset module shows nothing rather than a fabricated number (this
+backlog's own repeated "no fabricated data" stance, e.g. PLATFORM-P0-02.1's honest MRR/ARR
+"--").
+
+`packages/core/src/admin/platform-modules.ts` -- `listModuleRegistry()` (joins
+`core.modules` + `platform.modules` + the derived `licensed`/`minimumPlan`),
+`setModuleVisible()` and `setModuleMeta()` (status + version together, one superadmin
+write). **No `setModuleEnabled` export exists in this file, on purpose** -- `enabled` is
+PLATFORM-P0-07.2's own kill switch, and that story's "reason + impact confirmation +
+explicit confirmation + audit record" flow is real, additional scope this file must not
+pre-empt by exposing a plain, confirmation-free toggle for the same column. The UI
+(`/platform/modules`, new nav link in `platform/layout.tsx`) mirrors this exactly:
+`enabled` renders as a read-only badge, never a switch; `visible` is a plain instant-flip
+`Switch` (mirrors `module-entitlements-section.tsx`'s "single boolean, no separate save
+step" shape -- it only affects a not-yet-built marketing/module-picker surface, never
+access, so no confirmation is needed); `status`/`version` are edited together with one Save
+button (mirrors `quantity-limits-section.tsx`'s "two related fields, one Save" shape).
+Desktop table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, following `plans/page.tsx`'s own established
+split exactly.
+
+**Deliberately not built this story, and why**:
+- No real enforcement anywhere: `enabled`/`visible`/`status` are stored and viewable but
+  nothing yet reads them for an actual authorization or UX decision (RLS, `requireModule()`,
+  the middleware route guard, `entitlements/module-entitlement.ts::hasModule()`, or
+  `packages/module-registry`'s own nav-building all remain exactly as they were). This
+  mirrors `platform.plan_modules.enabled`'s own history exactly (PLATFORM-P0-04.3 built the
+  column with zero consumers; PLATFORM-P0-05.x wired it in, deliberately not, three stories
+  later, once the entitlement engine existed to wire it into) -- and
+  `entitlements/module-entitlement.ts`'s own docstring already named PLATFORM-P0-07.2 as
+  exactly the future story that would compose a platform-global kill switch into
+  `hasModule()`'s decision. That wiring -- into `hasModule()`/`requireModule()`/the route
+  guard, explicitly **not** into `core.has_module()`/RLS (a genuine, larger architecture
+  change touching every module table's own policy, which this run's task assignment
+  requires explicit approval for, per CLAUDE.md non-negotiable #10 -- the identical
+  reasoning `module-entitlement.ts`'s own docstring already used for why
+  `platform.plan_modules` isn't composed into RLS either) -- is PLATFORM-P0-07.2's own job.
+- No `setModuleEnabled`/kill-switch mutation, no reason/confirmation/audit-record flow, no
+  new audit table -- all of PLATFORM-P0-07.2's own explicit scope.
+- No maintenance-mode customer-facing message column, no read-only/maintenance/disabled
+  *behavioral* enforcement -- PLATFORM-P0-07.3's own explicit scope (the status enum's
+  *values* are folded in now, per the 04.1/04.7 precedent above, but not their behavior).
+- No wiring into `packages/module-registry`'s own nav-building or any customer-facing
+  module picker for `visible` -- that package is a separate, static, compile-time manifest;
+  wiring a DB-backed flag into it is real integration work this story doesn't need to do to
+  satisfy "manage" (view/set the flag), the same "no consumer yet" boundary this backlog's
+  Usage & Limits stories (06.1/06.4/06.5) drew repeatedly for their own not-yet-wired
+  fields/components.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+(`Package` unused import in a CRM conversations page, untouched by this story). `node
+scripts/lint-import-boundaries.mjs` -- 1198 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 143 migrations (142 -> 143, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 161 tests (156 -> 161,
++5 new `platform-modules.test.ts` cases for `computeMinimumPlans()`, the only genuinely new
+pure logic this story adds). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests,
+unchanged (no new apps/web test file this story -- this story's own logic is
+authorization/RLS + a pure derivation function, covered by the new RLS script and the new
+`packages/core` unit tests respectively). `cd apps/web && rm -rf .next && npm run build` --
+clean; `/platform/modules` lists `ƒ` (dynamic), correctly inheriting the outer layout's
+existing `force-dynamic` with no per-route opt-in needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the seed is exactly right
+(5 rows, one per `core.modules` key, `enabled`/`visible` both `true`, `status = 'available'`
+, `version` null on every row -- no fabricated data). `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and
+the pre-existing leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- zero new findings beyond the same benign
+"unused index" info-level note every sibling FK index already carries in this low-traffic
+dev database (this migration's own `modules_updated_by_idx` included).
+
+**Role-switched live proof against dev's own real data (not a synthetic seed), the standard
+this workstream has held itself to since PLATFORM-P0-03.4**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched
+(`set local role authenticated; set local request.jwt.claim(s)...`) `select count(*) from
+platform.modules` returned `5` (the open-SELECT catalog policy working exactly as intended
+for an ordinary business member, the same shape every sibling plan-catalog table already
+has), and `update platform.modules set visible = false where module_key = 'gst' returning
+module_key` returned **zero rows** (`RETURNING` is the unambiguous proof of rows actually
+written, not just a query response) -- reconfirmed immediately after via a plain
+`service_role` read that `gst.visible` was still `true`, so this real user's write attempt
+against a real row was rejected by RLS with no residue to clean up (nothing was ever
+actually written).
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires for a new
+`platform.*` table**: new `scripts/test-platform-modules-rls.mjs`, wired into
+`package.json`'s `test:db` composite script after
+`test-core-try-consume-usage-counter-rls.mjs`. Same Alice (business admin, not a
+superadmin)/Zoe (real platform superadmin) pair every sibling script in this backlog uses.
+One test-design correction made before it passed: the first draft used `assertThrows` on
+Alice's `UPDATE`, which failed with "expected an error, none was thrown" -- an `UPDATE`
+whose `USING` clause hides every row from a caller does not raise a Postgres error, it
+silently affects zero rows (only a rejected `INSERT`'s `WITH CHECK` genuinely throws) --
+corrected to `assertEqual` against a `service_role` read of the untouched row afterward,
+the same shape `test-platform-plan-modules-rls.mjs` (this table's own closest sibling) had
+already gotten right the first time; this script's own first draft simply copied the wrong
+half of that precedent. **All 15 assertions passed**: the migration's own seed (5 rows, all
+defaults, no fabricated version); the `status` CHECK constraint rejects an unknown value;
+Alice can read all 5 rows but her UPDATE/INSERT attempts are silently rejected by RLS with
+zero residue; Zoe can toggle `visible` and set `status`+`version` together; nobody --
+including Zoe -- can `DELETE` a row (no delete grant exists at all). Local Postgres 16 was
+already running in this environment (`pg_lsclusters` showed it online after a `pg_ctlcluster
+16 main start`, having been stopped between sessions).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "Zoe can" half of the RLS proof above is
+verified for real only against local Postgres (not live dev), and no live browser
+walkthrough of `/platform/modules` was performed. The "Alice cannot" half, and the table's
+own seed/shape, were verified for real against both the live dev Supabase project
+(role-switched, as a real user, against real business data, `RETURNING`-proven zero-row
+write, no residue) and a real local Postgres database running every assertion to
+completion -- not merely asserted from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-07.1 done. Continuing in §11's own story order: PLATFORM-P0-07.2
+(Platform-Wide Module Kill Switch) next.
+
+### PLATFORM-P0-07.2 — Platform-Wide Module Kill Switch (2026-09-12)
+
+**Scope**: §11's own ask -- "Allow authorized platform operators to disable a module
+globally. This is a dangerous operation and must require: reason, impact confirmation,
+explicit confirmation, audit record." `platform.modules.enabled` (PLATFORM-P0-07.1) already
+exists as the flag; this story is the real mutation path plus real enforcement.
+
+**A genuine architecture judgment call, decided and documented per this run's own task
+brief (non-security data-flow choice, not an authorization gray area)**: where should the
+kill switch actually take effect? `entitlements/module-entitlement.ts::hasModule()`'s own
+docstring (written in PLATFORM-P0-05.1, before this story existed) already answered this
+exact question in advance: "Platform Global... not composed: PLATFORM-P0-07.2... is listed
+'Not started'... there is no `platform.*` row this layer could read yet" -- naming this
+story, this layer, and this precedence position (checked *before* the license layer) as
+the intended extension point. That docstring also already ruled out composing it into
+`core.has_module()`/`has_module_write()` (RLS itself) for the identical reason
+`platform.plan_modules` isn't composed into RLS either: doing so means changing every
+module table's own RLS policy, a genuine architecture change CLAUDE.md non-negotiable #10
+requires explicit approval for, not something to fold into a §11 story unreviewed. So this
+story wires the flag into the three layers that were always meant to compose it --
+`hasModule()` (the entitlement service), `requireModule()` (the server-action
+defense-in-depth layer CLAUDE.md's architecture section names), and the `middleware.ts`
+route guard (that section's other named layer) -- and explicitly not into RLS. This
+mirrors, rather than invents, the precedent already on record.
+
+**What was built, the data layer**: migration `20260912150000_platform_module_kill_switch.sql`
+-- `platform.module_kill_switch_events` (append-only audit trail: `module_key`, `enabled`,
+`reason` with a `btrim(reason) <> ''` CHECK, `performed_by`, `performed_at`) and
+`platform.set_module_enabled(p_module_key, p_enabled, p_reason)`, a `SECURITY DEFINER`
+`plpgsql` function that flips `platform.modules.enabled` AND inserts the audit row in one
+atomic statement -- mirrors `core.write_audit_log()`'s own "one function owns every write,
+no direct client insert policy" shape (Epic 3, D-10) exactly, adapted for platform-wide
+(not business-scoped) data, and deliberately one function rather than two separate client
+calls: for an operation this doc itself calls "dangerous," a superadmin's own read of
+`enabled` must never be able to disagree with what the audit trail says happened, even
+under a partial failure. The function re-checks `platform.is_superadmin()` itself (`
+SECURITY DEFINER` bypasses the table's own RLS, so the function is the actual boundary
+here) and rejects a `null`/empty/whitespace-only reason -- both checked and proven by the
+new local-Postgres test below, not just asserted from reading the function body.
+`platform.module_kill_switch_events`' own RLS is superadmin-only SELECT (unlike
+`platform.modules`' open-catalog read) -- this is sensitive operational history, not
+merchandising-style catalog data -- and no INSERT/UPDATE/DELETE grant to `authenticated`
+at all; the only path to a row is the function above.
+
+**What was built, real enforcement (the actual point of a "kill switch")**:
+- `packages/core/src/licensing/queries.ts` gains `isModuleEnabledPlatformWide(moduleKey)`
+  -- a plain, non-admin-gated read of `platform.modules.enabled` (safe without
+  `requireSuperadmin()` because that table's own RLS already opens SELECT to any
+  authenticated user, the same "public catalog fact" trust level `core.modules`' own read
+  policy already established) -- defaults to `true` when a row is somehow missing, so a
+  data gap can never silently disable a module. `requireModule()` now calls this first,
+  before the existing license check, and throws a distinct message ("...has been
+  temporarily disabled platform-wide by WonderArc") so a caller surfacing this error never
+  tells a business owner to go check their own license for a problem their license has
+  nothing to do with. This is the layer with by far the largest real blast radius: ~70
+  mutation call sites across every module already call `requireModule()`
+  (`docs/testing/EXECUTION-2026-09-08.md` finding 4's own rollout), so this one change adds
+  real, working defense-in-depth for the kill switch to every one of them, with zero
+  changes to any of those call sites themselves.
+- `packages/core/src/db/middleware.ts` (the route guard, CLAUDE.md's second named
+  enforcement layer): refactored `findUnlicensedModuleForRoute()`'s own route-matching
+  logic out into a shared, unexported `moduleForRoute()` helper (behavior-preserving --
+  `middleware.test.ts`'s existing cases for the exported function are untouched and still
+  pass), then added a sibling `findPlatformDisabledModuleForRoute()` built on the same
+  helper. `updateSession()` now also reads `platform.modules` (one more small query
+  alongside the existing `core.licenses` read, both already parallelized with
+  `Promise.all`) and checks the platform-disabled case *first* -- it is the more universal
+  fact, blocking every business regardless of that business's own license state. A new
+  `reason=platform_disabled` rewrites to the same `not-licensed` page, which gets a fourth
+  branch in `describeReason()` with copy that explicitly says this is not the business's
+  own licensing problem (its data/license are unaffected) -- and its CTA button is
+  swapped from "Go to Settings → Licenses" (misleading here -- reactivating a license
+  fixes nothing) to "Back to Dashboard" for this one reason only, every other reason
+  unchanged.
+- `entitlements/module-entitlement.ts::hasModule()` now checks the same flag first and
+  short-circuits to a new pure `buildPlatformDisabledDecision()` (mirrors
+  `buildModuleEntitlementDecision()`'s own "pure helper beside the IO-touching function"
+  split) with `source: "platform_global"` -- the exact value `EntitlementSource`
+  (PLATFORM-P0-05.1's own type) already declared in full anticipation of this story. Always
+  `allowed: false` with no degraded/read-only nuance -- §11 names none for the kill switch,
+  and PLATFORM-P0-07.3 (Maintenance Mode) is the section that will introduce a real
+  `read_only` state, not this one.
+
+**What was built, the admin UI**: `packages/core/src/admin/platform-modules.ts` gains
+`getModuleImpact(moduleKey)` (the real, live count of businesses with an `active`/`grace`
+license for the module -- §11's own "impact confirmation," never fabricated or omitted;
+deliberately uses `createAdminClient()`, not the request-scoped client every other
+function in this file uses, since `core.licenses`' own RLS scopes a read to the caller's
+own businesses and a superadmin is not necessarily a member of any -- the identical
+cross-tenant-by-design reasoning `platform-dashboard-queries.ts`'s own docstring already
+gives for its own use of the service-role client) and `setModuleEnabled()` (calls the RPC
+above; no plain `.update()` on `enabled` exists anywhere in this file). New
+`kill-switch-dialog.tsx` (`KillSwitchDialog`, a client component) replaces the plain
+read-only "Enabled" badge from PLATFORM-P0-07.1: clicking it opens a dialog requiring a
+non-empty reason (`Textarea`, mirrors the RPC's own server-side check -- genuine UX, not
+the only enforcement), showing the live impact count (fetched fresh every time the dialog
+opens, never cached), and a separate acknowledgement `Checkbox` -- the confirm button stays
+disabled until both are satisfied. Disabling and re-enabling share the same dialog (only
+copy/button color changes) since both are real state changes worth a reason and a
+confirmation, not just the "disable" direction. `module-registry-table.tsx`'s own local
+row state updates via a new `onChanged` callback passed to the dialog (the same
+"local optimistic state" pattern its `visible`/`status` controls already use, since a
+child dialog component can't reach into its parent's `useState` directly).
+
+**Deliberately not built this story, and why**:
+- No wiring into RLS/`core.has_module()`/`has_module_write()` -- see the architecture
+  judgment call above; a genuine, larger architecture change requiring explicit approval,
+  not this story's to make unreviewed.
+- No maintenance-mode message, no `read_only`/`maintenance`/`disabled` *behavioral*
+  enforcement -- PLATFORM-P0-07.3's own explicit scope. This story's kill switch is a pure
+  on/off; the four-value `status` column PLATFORM-P0-07.1 already folded in stays exactly
+  as inert as that story left it.
+- No email/notification when a module is disabled (`PLATFORM-P0-11`, Global Email/
+  Notification Configuration, stays "Not started") -- the audit trail is the only record.
+- No UI surface for browsing `platform.module_kill_switch_events` as its own history page
+  -- §16 (Platform Audit) is that future, broader story; this one only needed the table to
+  exist and be queryable, which the local test below already proves.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning.
+`node scripts/lint-import-boundaries.mjs` -- 1200 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 144 migrations (143 -> 144, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 167 tests (161 -> 167,
++6: 4 new `middleware.test.ts` cases for `findPlatformDisabledModuleForRoute()`, 2 new
+`module-entitlement.test.ts` cases for `buildPlatformDisabledDecision()`). `apps/web`'s own
+`vitest run --passWithNoTests` -- 47 tests, unchanged. `cd apps/web && rm -rf .next && npm
+run build` -- clean; route listing unchanged in shape (`/platform/modules` still `ƒ`
+dynamic; no new route this story, only new logic inside `middleware.ts`/existing pages).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only. `mcp__Supabase__get_advisors` (security) -- zero new
+findings, the same 5 pre-existing `rls_enabled_no_policy` tables and the pre-existing
+leaked-password-protection warning every prior entry has logged (no `function search path
+mutable` warning either -- `set search_path = platform` on the new function was set from
+the start, not added after a finding). `mcp__Supabase__get_advisors` (performance) -- zero
+new findings beyond the same benign "unused index" info-level note every sibling FK index
+already carries (this migration's own two new indexes included).
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, not a superadmin) this backlog's own prior entries
+have repeatedly used, role-switched `select * from platform.set_module_enabled('fsm',
+false, 'live dev test - should be rejected')` returned a real Postgres error --
+`P0001: Forbidden: only a SUPERADMIN can change a module's platform-wide enabled state.`
+-- raised by the function's own internal check, not a generic RLS denial (there is no RLS
+on a function call at all; this is the function's own authorization boundary working
+exactly as designed). Reconfirmed immediately after via a plain read that every module in
+`platform.modules` was still `enabled = true` and `platform.module_kill_switch_events` had
+`0` rows -- this real user's attempt left zero residue, nothing to clean up. As with every
+prior story in this log, there is no seeded demo superadmin user in this environment, so
+the "a real superadmin CAN" half of this proof is verified for real only against local
+Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-module-kill-switch-rls.mjs`, wired into
+`package.json`'s `test:db` composite script after `test-platform-modules-rls.mjs`. Same
+Alice (business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. One formatting slip caught by actually running it, not by reading the SQL:
+the first draft asserted `enabled::text` renders as `"f"` (matching Postgres's own `boolean
+out` short form used elsewhere in `psql`'s default output), but a `select ...::text`
+expression in a plain query actually renders the SQL-standard `"true"`/`"false"` spelling
+-- corrected once, then green. **All 15 assertions passed**: Alice's call is rejected by
+the function's own check with zero state change and zero audit rows written; a genuine
+superadmin (Zoe) can disable a module, with exactly one atomic audit row carrying the real
+`enabled` value, reason, and performer; an empty or whitespace-only reason is rejected even
+for Zoe, writing nothing; an unknown module key is rejected; Zoe can re-enable the module,
+adding a second, distinct audit event; the audit trail's own SELECT is superadmin-only
+(Alice gets zero rows, unlike the open `platform.modules` read); and nobody -- including
+Zoe -- can bypass the function with a direct `INSERT` into the audit table (no such grant
+exists at all). Local Postgres 16 was already running in this environment.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully disables/
+re-enables a module" half of the live-dev proof, and any live browser walkthrough of the
+new `KillSwitchDialog` (opening it, seeing a real impact count render, actually clicking
+through the confirmation), were **not** performed against dev and are not claimed here.
+That half was verified for real only against local Postgres (all 15 assertions above,
+including the atomic audit-row proof) -- the "a non-superadmin is rejected, with zero
+residue" half, and the underlying schema/function/RLS shape, were verified for real against
+both the live dev Supabase project (role-switched, as a real user, a real Postgres error
+raised by the function's own check) and local Postgres, not merely asserted from reading
+the code or the SQL.
+
+**Status**: PLATFORM-P0-07.2 done. Continuing in §11's own story order: PLATFORM-P0-07.3
+(Module Maintenance Mode) next.
+
+### PLATFORM-P0-07.3 — Module Maintenance Mode (2026-09-12, stopped -- see below)
+
+The doc's own entire text for this story, in full:
+
+```text
+## PLATFORM-P0-07.3 — Module Maintenance Mode
+
+Set:
+
+Available
+Read-only
+Maintenance
+Disabled
+
+with optional customer-facing message.
+```
+
+Four state names and "optional customer-facing message" -- no worked example, no defined
+behavior for what each state actually restricts, the same shape PLATFORM-P0-06.5's own
+stop-and-report entry above already found and was resumed from once the user answered
+directly. `platform.modules.status` (the column itself, with this exact four-value CHECK)
+already exists, folded into PLATFORM-P0-07.1's own migration per that story's own "no
+placeholder lifecycle column" precedent -- what remains is real behavioral meaning, not
+schema.
+
+**This run's own task brief is explicit that this is exactly the situation to stop on**:
+"Any story whose correct behavior depends on a security/authorization judgment call the
+doc doesn't fully specify is a genuine architectural decision -- stop and report rather
+than guess-and-merge." This status column, once wired to real enforcement, is squarely
+"real entitlement/license enforcement" -- the same class of already-live control
+PLATFORM-P0-07.2's own kill switch just became. Guessing its behavior would mean inventing,
+unreviewed, a second way to fully block a module -- one that could either duplicate or
+silently bypass the reason-required, audited kill switch this run just built.
+
+**The specific questions this doc does not answer, stated precisely**:
+
+1. **Does `Disabled` (a value of this `status` column) mean the same thing as
+   `platform.modules.enabled = false` (PLATFORM-P0-07.2's own kill switch), or something
+   distinct?** Both are named, independently, as ways to fully block a module platform-
+   wide -- §11 never says how they relate. If they mean the same end state, then setting
+   `status = 'disabled'` needs the *same* safeguards §11 mandates for the kill switch
+   (reason, impact confirmation, explicit confirmation, audit record) -- shipping a plain,
+   unaudited `NativeSelect` option that produces an identical real-world effect (every
+   business loses access) without any of those four requirements would be a genuine
+   security regression: an unaudited back door around a control this run just built with
+   exactly those four requirements enforced. If instead `Disabled` (this column) is meant
+   to be a *lighter*, reason-free, unaudited day-to-day switch and the kill switch
+   (`enabled`) is reserved for a separate, more severe "kill" action, that is an equally
+   real design this run has no basis to assume -- it would mean two independently-toggled
+   flags can each independently produce "fully blocked," which the UI and any future
+   caller of `hasModule()`/`requireModule()` would need to reconcile (which reason string
+   does a blocked business see when both are true? does re-enabling one automatically
+   matter if the other is still set?).
+2. **What does `Read-only` restrict, precisely?** This run's own best guess -- mirroring
+   `core.has_module()`/`has_module_write()`'s already-live "read allowed, write denied"
+   grace-period shape exactly -- is plausible and would be the *minimal*, most consistent
+   answer, but the doc never confirms it. A different, equally plausible reading: `Read-
+   only` blocks the module's own UI entirely (like `Maintenance`) but still allows other
+   modules'/`core`'s own reads *of* that module's data (e.g. `core.documents` rows a
+   cancelled GST module's own invoices still live in) -- a materially different, harder-to-
+   scope behavior touching cross-module reads this run cannot verify without guessing.
+3. **Is `Maintenance` behaviorally identical to `Disabled` (both a full block, differing
+   only in customer-facing copy -- "temporary, we'll be back" vs. an indefinite disable),
+   or does `Maintenance` carry its own distinct access level** (e.g. read-only, or
+   superadmin-only access for verification before flipping back to `Available`)? Nothing
+   in this doc or `00-MASTER-PLAN.md` distinguishes the two beyond their names.
+4. **Does the optional customer-facing message require any safeguard of its own** (length
+   limit aside, already a `Zod` concern) -- e.g. should changing it be audited the same way
+   PLATFORM-P0-07.2's `reason` is, given it is text a superadmin writes that every affected
+   business will see? The doc names no requirement here, unlike §11's own explicit list of
+   four requirements for the kill switch specifically.
+
+**Not implementing any of the above.** Guessing question 1 in particular risks exactly the
+outcome this run's own "higher security bar... never weaken a security gate" instruction
+warns against: an unaudited path that reaches the identical real-world effect (every
+business blocked from a module) as a control this run just built with mandatory reason,
+impact confirmation, explicit confirmation, and an audit record. Shipping a plain
+`NativeSelect` for `status` today, before that relationship is resolved, would either
+duplicate the kill switch pointlessly or quietly undermine it -- not a call this run is
+free to make itself. PLATFORM-P0-05.1's and PLATFORM-P0-06.5's own precedent (stop, ask
+precisely, resume once the user answers) is the model repeated here.
+
+**What is NOT blocked by this**: §11's first two stories (07.1 Module Registry, 07.2
+Platform-Wide Module Kill Switch) are both real, complete, verified, and merged to `main`
+regardless of how 07.3 is eventually answered -- neither assumed or hard-coded any
+particular maintenance-mode design (07.1's own `status` column exists with its four values
+already correctly named, but nothing yet reads it for a behavioral decision, the same
+"table now, real enforcement later" sequencing this backlog has used repeatedly, e.g.
+`platform.plan_modules.enabled` between PLATFORM-P0-04.3 and PLATFORM-P0-05.x). Once
+resumed, 07.3 need only add whatever the answers require (a message column, and/or an
+enforcement branch alongside the kill switch's own, and/or an audit requirement) without
+revisiting anything already shipped.
+
+**Status**: PLATFORM-P0-07.3 **stopped, not built** -- a genuine architectural/security
+ambiguity the doc does not resolve, per this run's own task brief. §11 (Module
+Administration) is otherwise complete: 07.1-07.2 done, both merged to `main`. **Stopping
+here, not guessing past it**, per this run's own task brief's explicit instruction for
+exactly this situation. This run's own usage-tracking note: well under the 80% stop
+threshold -- this is a natural, doc-mandated stopping point for this one story, not a
+usage cutoff.
+
+### PLATFORM-P0-07.3 — Module Maintenance Mode, resumed and completed (2026-09-12)
+
+The user answered all four open questions this story's own stop-and-report entry above
+raised, as an explicit, exact-scope authorization for this run to implement (not to
+re-derive or re-litigate). Restated briefly, since they drive every design choice below:
+(1) `status='disabled'` means the same real-world effect as the kill switch and MUST go
+through the same audited mechanism, not a second unaudited path; (2) `read_only` mirrors
+the existing grace-period shape exactly (read allowed, write denied), reusing
+`hasModule()`/`requireModule()`'s existing read/write distinction; (3) `maintenance` is
+the exact same full block as `disabled`, differing only in customer-facing copy, never a
+distinct access level; (4) the optional customer-facing message must be audited the same
+way the kill switch's `reason` already is.
+
+**The reconciliation itself (decision #1), and the direction chosen**: the user offered
+two directions and asked for whichever "requires the least duplicated state." `status`
+was made the single source of truth: `platform.modules.enabled` is now a Postgres
+`generated always as (status in ('available', 'read_only')) stored` column, not an
+independently-writable boolean. This is not merely "less" duplicated state than a
+trigger-based sync -- it is *zero*: the database itself makes it structurally impossible
+for `status` and `enabled` to ever disagree, which is the stronger property a trigger (or
+disciplined application code) can only approximate. Every enforcement point that used to
+read the old boolean `enabled` (three of them -- `requireModule()`, `hasModule()`,
+`middleware.ts`'s route guard, CLAUDE.md's own three named layers) was rewritten to read
+`status` directly instead, since `status` alone now carries the read_only/maintenance
+distinction `enabled` never could.
+
+**Decisions #1 and #3 together, mechanically**: `platform.set_module_status(p_module_key,
+p_status, p_message, p_reason)` (new migration
+`20260912220000_platform_module_status_reconciliation.sql`) is the ONE SECURITY DEFINER
+function that owns every status transition, for all four values, in both directions. It
+requires a non-empty `reason` unconditionally (not only when the target is
+disabled/maintenance) -- the same bar PLATFORM-P0-07.2's own kill switch already set for
+BOTH directions of its boolean flip, extended uniformly rather than special-cased, which
+keeps the function's own contract simple and auditable: every superadmin-initiated status
+change leaves a trace, full stop. `platform.set_module_enabled(p_module_key, p_enabled,
+p_reason)` (PLATFORM-P0-07.2's own RPC) is kept, not dropped -- redefined as a thin `sql`
+wrapper delegating to `set_module_status()` (`enabled=true` -> `status='available'`,
+`enabled=false` -> `status='disabled'`, current `customer_facing_message` passed through
+unchanged). This is deliberately "a thin wrapper around the same audited mechanism," per
+the user's own phrasing -- one real mutation path, two equally-valid entry points, never
+two independent ways to reach "every business blocked." The app layer's own
+`platform-modules.ts` does NOT re-expose a `setModuleEnabled()` TypeScript wrapper of its
+own, though: the new `setModuleStatus()` export covers all four statuses including
+`disabled`, so keeping a second, parallel app-layer path to the exact same status would
+reintroduce the very "two independently-toggled controls reaching one blocked reality"
+risk decision #1 warns against, this time in the UI rather than the database. The
+`module-registry-table.tsx` UI accordingly lost its standalone "Enabled" badge/dialog
+column entirely, replaced by one "Status" control (`ModuleStatusDialog`) covering all four
+values -- `enabled` is now shown only as a small derived, read-only label ("Reachable" /
+"Blocked platform-wide") beside the status badge, never its own clickable control.
+
+**Decision #2, mechanically**: `read_only` does NOT short-circuit the way
+`disabled`/`maintenance` do. `licensing/queries.ts` gained `getPlatformModuleStatus()`
+(replacing PLATFORM-P0-07.2's own boolean `isModuleEnabledPlatformWide()`, which could no
+longer represent four states), returning `{status, message}`. `requireModule()` now
+checks platform status in three tiers: `disabled`/`maintenance` throw immediately (before
+even checking the business's own license, since a full block is the more universal fact,
+unchanged from PLATFORM-P0-07.2's own precedent); then the business's own
+`hasModuleWrite()` check runs exactly as before (so a business's own genuine grace/expired
+reason still surfaces first when it's the actual blocker); only then, if the business's
+own license would otherwise permit the write, does a platform-wide `read_only` status
+throw its own distinct message. This ordering was a deliberate choice, not incidental: it
+means the most specific, most helpful reason always wins, mirroring how
+`buildModuleEntitlementDecision()` (see below) resolves the identical question for
+`hasModule()`'s own decision shape. `hasModule()` itself forces `writeAllowed =
+writeAllowedByLicense && platform.status !== "read_only"` before calling
+`buildModuleEntitlementDecision(moduleKey, readAllowed, writeAllowed, platformReadOnly)` --
+a new fourth parameter that, combined with `readAllowed=true`, produces a
+`source: "platform_global"` reason instead of the license-grace one, reusing the exact
+read/write distinction that function already used for a business's own grace period
+(literally: `if (readAllowed && platformReadOnly) { ... }` sits directly beside the
+pre-existing `if (readAllowed) { ...grace... }` branch) rather than inventing a new
+mechanism. `middleware.ts`'s route guard deliberately does NOT include `read_only` in its
+blocked-module set -- mirroring how a license's own `grace` status never blocks the route
+either, only writes -- so a `read_only` module's pages still load normally; only
+`requireModule()`/`hasModule()` deny the write.
+
+**Decision #4, mechanically**: `platform.module_kill_switch_events`
+(PLATFORM-P0-07.2) is renamed to `platform.module_status_events` (a fresh `create table` +
+`drop table`, not `like ... including all`, which was tried first and found not to copy
+foreign keys, RLS enablement, or policies -- confirmed by reading Postgre's own actual
+`LIKE` semantics rather than assuming, then rewritten explicit) and gains
+`previous_status`/`new_status`/`previous_message`/`new_message` (replacing the old boolean
+`enabled` column, now fully redundant with `new_status`). Every call to
+`set_module_status()` -- whether it changes `status`, `customer_facing_message`, or both
+-- writes one row capturing a full before/after snapshot of both fields together, so a
+superadmin editing only the message (status held constant) is audited exactly the same way
+a status-only change is, and a combined status+message change is one atomic row rather
+than two separate audit entries a partial failure could split. Renamed rather than left as
+`module_kill_switch_events` because, going forward, it also audits
+`read_only`<->`available` transitions, which are not a "kill switch" in any sense --
+keeping the old name would misdescribe its own contents from this migration onward. Zero
+rows existed in the dev project's own `module_kill_switch_events` table before this
+migration (confirmed live via `execute_sql` before writing it), so nothing was lost in the
+rename.
+
+**A real Postgres semantics correction found while writing the migration**: the first
+draft used `create table platform.module_status_events (like
+platform.module_kill_switch_events including all)`, reading "including all" as "copies
+everything, full stop." It does not -- per Postgres's own documented `LIKE` semantics,
+`INCLUDING ALL` covers constraints (CHECK only, not FOREIGN KEY), defaults, generated
+columns, identity, indexes, statistics, storage, and comments -- never foreign keys, never
+RLS enablement, never policies. Caught before applying anything (not discovered live
+against dev) by re-reading Postgres's own documentation rather than trusting the
+plausible-sounding name; the migration was rewritten to an explicit `create table` with
+every column, FK, index, `enable row level security`, and policy spelled out in full,
+which is also more readable for the next person than a `LIKE` clause would have been.
+
+**Deliberately not built, and why (no invented access levels or scope beyond the four
+decisions)**: no superadmin-only bypass or partial-access mode for `maintenance` (decision
+#3 explicitly rules this out -- it is behaviorally identical to `disabled`); no distinct
+UI ceremony for `read_only` beyond a reason field (decision #2 names no impact-confirmation
+or acknowledgement requirement for it, unlike `disabled`/`maintenance` -- the
+`ModuleStatusDialog`'s live-impact-count Alert and acknowledgement Checkbox render only
+when the transition enters or leaves a fully-blocked status, in either direction, mirroring
+PLATFORM-P0-07.2's own dialog already requiring the same ceremony for re-enabling, not only
+disabling); no cross-module-read carve-out for `read_only` (the stop-and-report entry's own
+question 2 raised this as a *rejected* alternative reading, not a real requirement -- the
+user's decision #2 confirmed the plain grace-period mirror, which has no such carve-out
+today either); no email/notification when a module's status changes (`PLATFORM-P0-11`,
+still "Not started"); no UI history page for `platform.module_status_events` (§16, Platform
+Audit, remains that future story).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace,
+including the module registry's own package. `npm run lint --workspaces --if-present` --
+0 errors, the same 1 pre-existing unrelated warning every prior entry in this log has
+logged (`Package` unused import in a CRM conversations page, untouched by this story).
+`node scripts/lint-import-boundaries.mjs` -- 1200 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 145 migrations (144 -> 145, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 172 tests (167 -> 172,
++5 new `module-entitlement.test.ts` cases for the `read_only`/`maintenance` decision
+branches and the customer-facing-message override, plus the existing
+`buildPlatformDisabledDecision`/`buildModuleEntitlementDecision` cases updated for their
+new signatures). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests, unchanged
+(no new `apps/web` test file this story -- its own logic is authorization/RLS +
+pure-decision composition, covered by the two new local-Postgres RLS scripts and the
+`packages/core` unit tests respectively).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that every module row is
+unchanged post-migration (`enabled=true`, `status='available'`, `customer_facing_message`
+null on all 5 rows) -- the reconciliation did not silently alter any existing state.
+`mcp__Supabase__get_advisors` (security) -- zero new findings: the same 5 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning
+every prior entry has logged (`module_kill_switch_events` no longer appears at all, having
+been dropped; its replacement `module_status_events` has a real SELECT policy from the
+start, so it was never flagged). `mcp__Supabase__get_advisors` (performance) -- the only
+new findings are the same benign "unused index" info-level class every sibling FK index
+already carries in this low-traffic dev database, this time for
+`module_status_events_module_key_idx`/`module_status_events_performed_by_idx`.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used, role-switched `select *
+from platform.set_module_status('gst', 'disabled', 'test message', 'live dev test -
+should be rejected')` returned a real Postgres error -- `P0001: Forbidden: only a
+SUPERADMIN can change a module's platform-wide status.` -- raised by the function's own
+internal check, not a generic RLS denial (there is no RLS on a function call itself; this
+is the function's own authorization boundary working exactly as designed, the same shape
+PLATFORM-P0-07.2's own boolean RPC already proved). Reconfirmed immediately after via a
+plain read that `gst` was still `status='available'`, `enabled=true`,
+`customer_facing_message` null, and that `platform.module_status_events` had `0` rows --
+this real user's attempt left zero residue, nothing to clean up. As with every prior story
+in this log, there is no seeded demo superadmin user in this environment, so the "a real
+superadmin CAN" half of this proof is verified for real only against local Postgres
+(below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior tests this workstream's own higher bar
+requires -- two scripts, per this story's own instruction that reconciling two
+previously-independent full-block mechanisms into one needs a real concurrency/
+consistency re-verification, not just a read of the updated SQL**:
+
+- `scripts/test-platform-module-kill-switch-rls.mjs` (PLATFORM-P0-07.2's own script,
+  rewritten rather than left broken by the rename) now exercises
+  `platform.set_module_enabled()` specifically as a backward-compatibility entry point --
+  confirming it still rejects a non-superadmin with zero residue, still requires a
+  non-empty reason in both directions, still rejects an unknown module key, and that a
+  disable/re-enable pair correctly maps to `status='disabled'`/`status='available'` (and
+  the derived `enabled` column agrees) while writing to the renamed
+  `platform.module_status_events` table. **All 18 assertions passed.**
+- `scripts/test-platform-module-status-rls.mjs` (new) is the real reconciliation-specific
+  test: cycling `gst` through all four statuses and asserting the derived `enabled` value
+  at each step (decision #1); a direct `update platform.modules set enabled = true`
+  attempt rejected even for `service_role`, since `enabled` is `GENERATED ALWAYS` and
+  cannot be assigned directly by anyone, proving the "structurally impossible to
+  desynchronize" claim rather than merely asserting it; `maintenance` and `disabled`
+  producing an identical `enabled=false` (decision #3); a non-superadmin rejected with zero
+  state change; an empty/whitespace reason rejected for a `read_only` and even a
+  same-value `available` transition, not only a disabling one; an unknown status value
+  rejected by the function's own friendlier check (not a raw CHECK-constraint error); a
+  message-only change (status held constant) still producing exactly one new audit row
+  with the real previous/new message values and `previous_status = new_status` (decision
+  #4); a combined status+message change captured as one atomic row; an empty-string
+  message normalizing to `null` rather than being stored literally; the audit trail
+  staying superadmin-only SELECT with no INSERT grant to `authenticated` at all (same
+  "one function owns every write" shape as its predecessor); and a same-module sequential
+  concurrency check (`disabled` then `read_only` on the same row) confirming the final
+  state is always self-consistent (`read_only` implies `enabled=true`, never a stale
+  `false` left over from the intermediate `disabled` state). **All 24 assertions passed.**
+
+Both scripts were run against a real, throwaway local Postgres 16 database (this sandbox's
+own cluster, already online via `pg_lsclusters` -- no restart needed this time) applying
+every migration in the current timeline (145 files) before asserting, and both are now
+wired into `package.json`'s `test:db` composite script.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully changes a
+module's status" half of the live-dev proof, and any live browser walkthrough of the new
+`ModuleStatusDialog` (opening it, seeing a real impact count render, actually clicking
+through the confirmation for a maintenance/disabled transition), were **not** performed
+against dev and are not claimed here. That half was verified for real only against local
+Postgres (all 24 assertions above, including the atomic message-audit proof and the
+concurrency/consistency check) -- the "a non-superadmin is rejected, with zero residue"
+half, and the underlying schema/function/RLS/generated-column shape, were verified for
+real against both the live dev Supabase project (role-switched, as a real user, a real
+Postgres error raised by the function's own check) and local Postgres, not merely asserted
+from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-07.3 done. §11 (Module Administration) is now fully complete
+(07.1-07.3). This run's own usage-tracking note: well under the 80% stop threshold --
+continuing per the auto-merge-to-main policy and the remaining backlog order.
+
+### PLATFORM-P0-08.1/08.2/08.3/08.4 — Feature Flags (2026-09-12)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at `origin/main`'s tip
+(after other workstreams' merges), not at `feature/platform-admin-portal`'s own tip.
+Working tree was clean (no stash needed) -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing at `46fcc52`
+(PLATFORM-P0-07.3's own commit), then re-verified `git log --oneline -3` matched before
+touching any file. `npm install` run fresh (no `node_modules` in this worktree), confirmed
+via `readlink -f node_modules/@cofounderai/core` resolving to this worktree's own
+`packages/core`.
+
+**Read first, per this run's own task brief**: this whole audit log's "Progress" table and
+"Pre-implementation reconnaissance" section, plus every §11 (07.1-07.3) entry above in
+full -- the module-registry/kill-switch/status-reconciliation precedent this story mirrors
+most closely -- and `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §12 (08.1-08.4) in
+full, plus PLATFORM-P0-04.4's own migration and audit-log entry for
+`platform.features`/`platform.plan_features`, since that story's own docstring had already
+named this exact future table and pre-emptively distinguished it.
+
+**Confirmed genuinely distinct from `platform.features`/`platform.plan_features`
+(PLATFORM-P0-04.4)**: that table is a *commercial* packaging fact (what a paying plan
+entitles a customer to use at all); `platform.feature_flags` (this story) is an
+*operational* on/off control for reliability, staged rollout, and emergency kill switches
+-- §12.3's own named examples (AI research, outbound messaging, WhatsApp integration,
+government submission, expensive external APIs) are all infrastructure/safety concerns,
+not pricing-tier concerns. Neither table touches or extends the other. Entity-ownership
+check against `docs/plan/00-MASTER-PLAN.md` §5 also passed: no "feature flag" concept
+listed there at all -- genuinely new.
+
+**This run's own workstream-boundary check, done before writing anything**: the task
+assignment explicitly flagged §12 in advance as "introducing kill-switch-style wiring
+across several subsystems (AI research, outbound messaging, WhatsApp, government
+submission) -- read carefully before assuming scope," and separately forbids touching
+`module-discovery`, `module-gst`, or any other workstream's files. Read against §12's own
+literal text, 08.1-08.4 ask only for the flag catalog (key/description/enabled/effective
+window), Global/Plan/Module/Country scope, and an audit trail -- never for real
+enforcement wired into any specific subsystem, and no PLATFORM-P0-08.5 "wire kill switches
+into AI/WhatsApp/government-submission code" story exists anywhere in this backlog. This
+mirrors the same "table now, real enforcement in a later, separate story" sequencing
+`platform.plan_modules.enabled` (04.3) and `platform.modules.enabled`/`status`
+(07.1/07.2/07.3) each went through. Even if the doc had asked for it, this run's own
+file-scope restriction would forbid building it here regardless, since every one of
+§12.3's named subsystems lives inside another workstream's module packages -- not a
+security-authorization ambiguity to stop and report on, a plain scope boundary already
+settled by this run's own task assignment. So this story builds the catalog, scope, and
+audit trail only, and the application layer's own docstring says so explicitly.
+
+**A non-security data-modeling judgment call, decided per this run's own task brief**:
+§12.2 names four scope kinds but not how one flag row expresses one. Modeled as a single
+`scope_type` discriminator (`global`/`plan`/`module`/`country`) plus three nullable
+scope-value columns, with a CHECK enforcing exactly the one matching column is set --
+verified directly (not just read from the constraint) for all three non-global scopes,
+plus the "global must have no scope value" direction, in the new RLS script below.
+`scope_country_code` is a plain ISO-3166-1-alpha-2-shaped text column, not an FK -- no
+country/compliance-pack registry table exists yet (§17 is still "Not started"). Business/
+user-level scope is explicitly named "P1" by §12.2 itself, so no
+`scope_business_id`/`scope_user_id` column exists at all.
+
+**Why every mutation goes through a SECURITY DEFINER function, unlike PLATFORM-P0-07.1's
+plain `visible`/`version` columns**: §12.4 requires *every* change (not only a kill-switch
+flip) to be audited with who/what/old value/new value/reason/timestamp -- a stricter,
+first-class requirement from 08.1 onward, not something layered on after the fact the way
+07.2 added it for `platform.modules.enabled` alone. So `platform.feature_flags` gets no
+direct INSERT/UPDATE/DELETE grant to `authenticated` at all; `platform.create_feature_flag()`/
+`update_feature_flag()`/`delete_feature_flag()` (migration
+`20260912270000_platform_feature_flags.sql`) are the only paths to a row, each requiring a
+non-empty `reason` unconditionally and writing one atomic `platform.feature_flag_events`
+row per call -- mirroring `platform.set_module_status()`'s own shape. Unlike
+`platform.module_status_events`' explicit `previous_status`/`new_status` columns (only two
+mutable fields there), this audit table stores full `previous_value`/`new_value` JSONB
+snapshots, since `platform.feature_flags` has five mutable-or-identity fields worth
+capturing on create/delete and four on update -- `feature_key` is denormalized onto the
+event row so history stays readable by key after a flag is deleted (`flag_id` is `on
+delete set null`, deliberately not `cascade`, so the deletion's own audit row survives the
+deletion it records).
+
+**Scope and `feature_key` are immutable after creation** -- `update_feature_flag()` only
+ever touches `description`/`enabled`/`effective_from`/`effective_to`, the same "no edit
+path for identity fields, delete-and-recreate instead" reasoning PLATFORM-P0-04.4 already
+used for `platform.features.key`.
+
+**RLS read policy**: SELECT open to any authenticated user from the start (the same
+reasoning PLATFORM-P0-07.1's `platform.modules` migration used in advance, avoiding a
+second widening migration later) -- a kill-switch-style flag is meaningless unless
+ordinary request-time application code, running as `authenticated`, can eventually read
+it. `platform.feature_flag_events` stays superadmin-only SELECT, matching
+`platform.module_status_events`' own sensitive-history trust level.
+
+**Application layer** (`packages/core/src/admin/platform-feature-flags.ts`):
+`listFeatureFlags()` (joins in plan/module display names), `listFeatureFlagScopeOptions()`
+(for the UI's own scope dropdowns), `createFeatureFlag()`/`updateFeatureFlag()`/
+`deleteFeatureFlag()` (each Zod-validated, each calling its one RPC, never a plain
+`.insert()`/`.update()`/`.delete()`), and `isFeatureFlagActive()` -- a pure, unit-tested
+derivation of a flag's *current* effective state from its own `enabled`/
+`effectiveFrom`/`effectiveTo` fields, used only by this story's own admin UI status badge
+(Active/Scheduled/Expired/Disabled). 21 new unit tests (Zod schema edge cases -- scope
+requiredness per scope type, country-code shape, effective-window ordering, reason
+requiredness -- plus 6 `isFeatureFlagActive()` cases).
+
+**UI**: new `/platform/feature-flags` route (added to the platform nav). One combined
+Add/Edit dialog (`FeatureFlagDialog`, mirrors `plan-dialog.tsx`'s established pattern) --
+scope is editable only at creation (read-only text in Edit mode), and a reason `Textarea`
+is required for every submission, create or edit, with the confirm button disabled until
+it's non-empty. A separate `DeleteFlagDialog` (`AlertDialog` + its own required reason)
+mirrors `feature-entitlements-section.tsx`'s own delete-confirmation pattern. Desktop
+table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, mirroring `plans/page.tsx`'s own established
+split.
+
+**Deliberately not built this story**: no real kill-switch wiring into any subsystem
+(AI research, outbound messaging, WhatsApp, government submission, or any other module) --
+see the workstream-boundary reasoning above; no business/user-level scope (§12.2's own
+explicit P1); no dedicated audit-browsing UI for `platform.feature_flag_events` (§16,
+Platform Audit, remains that future, broader story, the same deferral 07.2/07.3 already
+made for `platform.module_status_events`); no scope-editing after creation (see the
+immutability reasoning above); no automatic enable/disable at `effective_from`/
+`effective_to` boundaries -- `isFeatureFlagActive()` is a pure read-time derivation for
+display only, not a scheduled job, since nothing in §12 asks for one and no consumer reads
+it outside this story's own status badge.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated
+warning every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1206
+files, no violations. `node scripts/lint-migration-schema.mjs` -- 146 migrations (145 ->
+146, this story's own file). `npx vitest run --root packages/core` -- 20 files / 193 tests
+(172 -> 193, +21 this story's own). `apps/web`'s own `vitest run --passWithNoTests` -- 47
+tests, unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean;
+`/platform/feature-flags` lists `ƒ` (dynamic), correctly inheriting the outer layout's
+existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` the catalog and audit trail
+both start empty (0 rows each) -- no fabricated seed. `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables
+and the pre-existing leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- only the same benign "unused index"
+info-level class every sibling FK index already carries in this low-traffic dev database,
+this migration's own five new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched
+`select count(*) from platform.feature_flags` returned `0` cleanly (the open-SELECT
+catalog policy working as intended for an ordinary business member), and role-switched
+`select platform.create_feature_flag('live_dev_test', ..., 'live dev test - should be
+rejected')` returned a real Postgres error -- `P0001: Forbidden: only a SUPERADMIN can
+create a feature flag.` -- raised by the function's own internal check, not a generic RLS
+denial. Reconfirmed immediately after via a plain read that both `platform.feature_flags`
+and `platform.feature_flag_events` still had `0` rows -- this real user's attempt left
+zero residue. As with every prior story in this log, there is no seeded demo superadmin
+user in this environment, so the "a real superadmin CAN" half of this proof is verified
+for real only against local Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-feature-flags-rls.mjs`, wired into `package.json`'s
+`test:db` composite script after `test-platform-module-status-rls.mjs`. Same Alice
+(business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. **All 35 assertions passed on the first run** against the full current
+migration timeline (146 files): the catalog and audit trail both start empty; Alice can
+read the (empty) catalog but every one of her create/update/delete attempts is rejected by
+the functions' own internal checks with zero residue in either table; a genuine superadmin
+can create global/plan/module/country-scoped flags, each storing its scope value
+correctly; `feature_key` uniqueness holds even for a superadmin; the scope CHECK
+constraint rejects all three "missing scope value for this scope_type" mistakes plus the
+"global with a stray scope value" mistake; the effective-window CHECK rejects
+`effective_to` at or before `effective_from`; an empty or whitespace-only reason is
+rejected by all three functions with no partial writes; `update_feature_flag()` provably
+touches only `description`/`enabled`/`effective_from`/`effective_to` (scope untouched,
+matching the function's own signature having no scope parameters at all); a create/update/
+delete each write exactly one atomic audit event with a real JSONB before/after snapshot;
+deleting a flag nulls the audit row's own `flag_id` (via `on delete set null`) while
+`feature_key`/`previous_value` survive intact; the audit trail's own SELECT is
+superadmin-only, unlike the open `platform.feature_flags` catalog; and nobody -- including
+a superadmin -- can bypass any of the three functions with a direct INSERT/UPDATE/DELETE
+on either table. Local Postgres 16 was already installed in this environment; started via
+`pg_ctlcluster 16 main start` (it had stopped between sessions, confirmed via
+`pg_lsclusters` both before and after).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully creates/edits/
+deletes a feature flag" half of the live-dev proof, and any live browser walkthrough of
+the new `/platform/feature-flags` page (opening the Add dialog, picking a scope, seeing
+the Active/Scheduled/Expired/Disabled badge render, deleting a flag), were **not**
+performed against dev and are not claimed here. That half was verified for real only
+against local Postgres (all 35 assertions above) -- the "a non-superadmin is rejected,
+with zero residue" half, and the underlying schema/function/RLS shape, were verified for
+real against both the live dev Supabase project (role-switched, as a real user, a real
+Postgres error raised by the function's own check) and local Postgres, not merely asserted
+from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-08.1/08.2/08.3/08.4 done -- §12 (Feature Flags) is now fully
+complete. This run's own usage-tracking note: well under the 80% stop threshold. Moving to
+the next doc section in order: §13 Internal AI Provider & Keys (PLATFORM-P0-09).
+
+### PLATFORM-P0-09.1/09.2 — Internal AI Provider Registry / Secure API Key Storage (2026-09-12)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at `origin/main`'s tip
+(itself already fast-forwarded to `feature/platform-admin-portal`'s own tip, `b2a0123`, by
+a prior scratch-branch merge) rather than the feature branch itself. Working tree was
+clean -- fixed with `git checkout -B feature/platform-admin-portal
+origin/feature/platform-admin-portal`, landing exactly on `b2a0123`
+(PLATFORM-P0-08.1-08.4's own commit), then re-verified `git log --oneline -3` before
+touching any file. `npm install` run fresh (no `node_modules` in this worktree), confirmed
+via `readlink -f node_modules/@cofounderai/core` resolving to this worktree's own
+`packages/core`.
+
+**Read first, per this run's own task brief**: this whole audit log's "Progress" table,
+every §11/§12 entry above (the module-registry/feature-flag precedent this story mirrors
+most closely for "fixed catalog" and "every mutation is a SECURITY DEFINER function"
+respectively), and `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §13 (09.1-09.5) in
+full. Also read, per this run's own explicit instruction to check for an existing,
+proven-safe secret-storage pattern before inventing one: `packages/core/src/crypto/
+api-key.ts` (the shared AES-256-GCM module, built for BYOK and already reused by
+`module-gst`'s GSP credentials), `packages/core/src/ai/business-router.ts` and
+`module-discovery/lib/ai-providers/mutations.ts` (how BYOK actually calls that module and
+tests a key before saving it), and `supabase/migrations/20260909010000_gst_credentials_
+encrypt_secrets.sql` / `20260907150000_gst_credentials_schema.sql` (the "no SELECT grant
+to `authenticated` at all" lockdown pattern this story's own higher bar ends up following
+instead of BYOK's own weaker one).
+
+**Not a genuine architectural ambiguity to stop and report on, despite the task brief's own
+warning to watch for one here**: the task brief flagged "if the doc is ambiguous about
+WHERE/HOW a real provider API key should be encrypted or stored... and the codebase
+doesn't already have an established, reusable pattern... stop and report." It does,
+though: `packages/core/src/crypto/api-key.ts`'s own file header already documents itself
+as generic, reusable infrastructure ("any caller with its own text column can reuse it as-
+is, sharing the same `API_KEY_ENCRYPTION_SECRET`"), and it has already been reused once
+outside its original BYOK caller (`module-gst`'s GSP credentials, 2026-09-09). Reusing it a
+third time for a platform-level key is exactly "a consistent, already-proven-safe pattern
+... reused rather than invented fresh," not a case where the doc and codebase leave a real
+choice open. The one genuine judgment call this story does make -- going further than
+BYOK's own row-level SELECT grant to match `gst`'s stricter zero-grant lockdown instead --
+is a security *tightening*, decided in the direction the task brief's own higher bar for
+this section points, not a case of picking between two equally-defensible storage
+mechanisms.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: no "AI provider" or "AI provider
+key" concept is listed in `docs/plan/00-MASTER-PLAN.md` §5 at all. The two existing
+near-neighbors -- `discovery.ai_provider_credentials` and `core.ai_provider_credentials`
+-- are BYOK (Bring Your Own Key): one business's own connected key, tenant-scoped,
+covering only that business's own AI calls. PLATFORM-P0-02.2's own dashboard entry
+(PLATFORM-P0-02, 2026-09-11) already named this exact distinction in advance: "the one
+category with a narrower real signal (per-business BYOK `ai_provider_credentials`)...
+explicitly labeled as *not* the platform-wide provider registry PLATFORM-P0-09 will add."
+This story is that platform-wide registry -- WonderArc's own provider configuration and
+its own platform-level credential, used as the fallback the platform itself bills when a
+business has no BYOK key connected (the existing `getPlatformCredential()`/
+`PLATFORM_AI_API_KEY` env-var fallback in `business-router.ts`/`module-discovery`'s own
+router is the *current*, deployment-wide, single-credential version of exactly this need)
+-- never a business's data, never gated by `core.licenses`, hence `platform` schema.
+
+**Migration**: `supabase/migrations/20260912280000_platform_ai_providers.sql` -- three
+tables, all with full reasoning in the migration's own header comment (not repeated here
+in full):
+
+- `platform.ai_providers` -- a **fixed, seeded catalog**, not an open create/delete
+  surface, mirroring `platform.modules`' own precedent (PLATFORM-P0-07.1): `AiProvider`
+  (`packages/core/src/ai/model-registry.ts`) is a closed TS union
+  (`"openai" | "anthropic" | "google"`) with no fourth-provider code (model registry
+  entry, provider-factory branch, test-connection endpoint) anywhere in this codebase, so
+  accepting an arbitrary provider string would let a SUPERADMIN configure a "provider"
+  nothing could ever route to. §13's own "Other future providers" text is aspirational,
+  not a request to build an open-ended registry now (CLAUDE.md development principle #7).
+  Three rows seeded at migration time (openai/anthropic/google), all `enabled = false`
+  (unlike `platform.modules`' own `enabled default true` -- there is no existing behavior
+  to preserve for a never-before-configured provider, so defaulting to "on" would be a
+  fabricated state). Columns: `enabled`, `models text[]`, `default_model`/`fallback_model`
+  (each CHECK-constrained to be a member of `models` or null), and two deliberately opaque
+  `rate_limits`/`cost_controls` JSONB columns -- §13's own text names both with no units,
+  fields, or granularity, and no consumer enforces either yet (PLATFORM-P0-10, "AI Safety /
+  Cost Controls," is the later, separate story that gives platform-wide budget enforcement
+  a real shape). Same reasoning `gst.tax_rules.value` already used for its own
+  under-specified config ("opaque jsonb... next story's job to give some of that jsonb
+  shape a name, not this one's to guess ahead of time").
+- `platform.ai_provider_keys` -- the secret table, one row per provider, present only once
+  a SUPERADMIN has actually configured a key. **Lockdown goes further than BYOK's own two
+  tables, matching `gst`'s own stricter fix instead**: `core.ai_provider_credentials`/
+  `discovery.ai_provider_credentials` grant `authenticated` a SELECT policy on the whole
+  row (safe there only because the reader is the same tenant the key belongs to, and no
+  query in this codebase ever actually selects that column back to a browser).
+  `gst.eway_bill_credentials`/`einvoice_credentials` went further after
+  `docs/testing/EXECUTION-2026-09-08.md` finding 3: zero SELECT grant to `authenticated`
+  at all, with a separate SECURITY DEFINER status function that never selects the secret
+  column. Given this run's own explicitly higher bar for this section and the fact that a
+  platform-level key protects every tenant at once (not one tenant's own data),
+  `platform.ai_provider_keys` follows `gst`'s stricter shape: **zero SELECT grant to
+  `authenticated`, not even for a genuine SUPERADMIN** -- verified directly below, both
+  live against dev and against local Postgres, not merely asserted from the grant
+  statements. The only read path is `platform.ai_provider_key_status()`, a SECURITY
+  DEFINER function that never selects `encrypted_api_key`. No `status`/`last_error`
+  columns (unlike BYOK's own credential tables) -- the application layer only ever calls
+  `set_ai_provider_key()` after `testProviderConnection()` succeeds, so a stored "error"
+  state that no code would ever write would be exactly the speculative column CLAUDE.md
+  development principle #7 rules out.
+- `platform.ai_provider_events` -- append-only audit trail for both tables above, same
+  `previous_value`/`new_value` JSONB-snapshot shape `platform.feature_flag_events`
+  established. **The audit trail never carries key material, not even ciphertext**: a key
+  mutation's snapshots are hand-built with `jsonb_build_object('key_fingerprint', ...)`,
+  never `to_jsonb(row)` -- verified directly below (a `bool_or(... like '%ciphertext%')`
+  check across every event row). Config-only mutations (`update_ai_provider_config`) touch
+  no secret column, so `to_jsonb(row)` is safe there.
+
+**Why every mutation goes through a SECURITY DEFINER function, including the registry's
+own non-secret config**: PLATFORM-P0-16.2 explicitly names "AI key changes" as a mandatory
+high-risk audit item. This run extends that same audited-write discipline to the
+registry's own config (enabled/models/rate limits/cost controls) too, not only the key
+material -- matching `platform.feature_flags`' own "every change," not `platform.modules`'
+narrower, not-yet-audited plain columns -- since this config directly controls real spend
+and which third party a platform-wide credential is sent to. Four functions:
+`update_ai_provider_config()`, `set_ai_provider_key()` (upserts -- sets or rotates),
+`remove_ai_provider_key()`, and `ai_provider_key_status()` (the one masked read path).
+Every mutation function requires a non-empty `reason` unconditionally and writes one
+atomic audit event.
+
+**A real bug this story's own dedicated RLS script caught, not merely a read of the SQL**:
+`set_ai_provider_key()`'s first draft reused PL/pgSQL's `FOUND` special variable twice --
+once immediately after the `SELECT ... FOR UPDATE` (to decide `key_set` vs.
+`key_rotated`), and again later when building the audit event's `previous_value`. `FOUND`
+is overwritten by *every* subsequent statement that can set it, including the upsert in
+between -- an `INSERT ... ON CONFLICT DO UPDATE` always affects a row, so by the time the
+audit insert ran, `FOUND` had silently flipped to `true` regardless of whether the key was
+actually new. The local RLS script's very first key-set assertion
+("`(previous_value is null)::text`" should be `true` for a brand-new key) failed
+immediately with `got "false"`, catching this on the first run. Fixed by capturing
+`v_existed := found;` into its own variable right after the SELECT, before anything else
+could clobber it -- re-verified with the same assertion, now passing, plus a follow-up
+rotation assertion that the *next* call's `previous_value` correctly carries the *first*
+key's own fingerprint. Both the live-dev copy and the local-Postgres copy of this migration
+were dropped and re-applied clean after the fix (dev's copy briefly held the buggy version
+for the few minutes between the two `apply_migration` calls in this same session -- no
+other agent or user touched `platform.ai_provider_keys` in that window, confirmed by its
+row count staying `0` throughout).
+
+**Application layer** (`packages/core/src/admin/platform-ai-providers.ts`):
+`listAiProviders()` (joins the open `platform.ai_providers` read with
+`ai_provider_key_status()`'s masked join, never selecting `encrypted_api_key`),
+`updateAiProviderConfig()`, `setAiProviderKey()` (calls the same shared
+`testProviderConnection()` BYOK's own `connectAiProvider()` uses, encrypts and
+fingerprints the key itself via `encryptApiKey()`/`fingerprintApiKey()`, and -- matching
+BYOK's own "a rejected key is never persisted" -- never calls the RPC at all if the test
+fails), and `removeAiProviderKey()`. There is no `getAiProviderKey()`/
+`revealAiProviderKey()` function anywhere in this file or this codebase's `platform.*`
+surface. A comma-separated model-list input and two free-form JSON-object inputs
+(`rateLimits`/`costControls`, validated as parseable JSON objects, empty string
+normalizing to `{}`) back the config form; a Zod `superRefine` enforces default/fallback
+model membership client-side too (the DB's own CHECK constraint is still the authoritative
+enforcement, verified directly in the RLS script). 17 new unit tests (config-schema edge
+cases -- model dedup/trim, default/fallback-must-be-in-models, JSON-object validation,
+unknown provider, empty reason -- plus key-schema and remove-schema edge cases). No
+`platform-ai-providers.ts` code ever logs `apiKey` -- checked by inspection, since there is
+no automated way to assert the absence of a log call.
+
+**UI**: new `/platform/ai-providers` route (added to the platform nav), always exactly
+three rows (no add/remove-provider affordance, matching the fixed-catalog schema).
+`ProviderConfigDialog` (enabled/models/default/fallback/rate-limits/cost-controls, a
+required reason) and `ProviderKeyDialog` (the one place a plaintext key is ever typed --
+always opens blank, never pre-filled, whether setting or rotating) mirror
+`feature-flag-dialog.tsx`'s established pattern; `RemoveKeyDialog` mirrors
+`DeleteFlagDialog`'s `AlertDialog` + required-reason shape. The key dialog's placeholder
+text shows only `••••••••••••{fingerprint}` when a key is already configured -- the same
+12-dot-plus-fingerprint mask `apps/web/components/settings/ai-section.tsx` (BYOK's own
+settings UI) already established, reused rather than inventing new masking copy. Desktop
+table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, mirroring `feature-flags/page.tsx`'s own
+established split.
+
+**Deliberately not built this story**: no real AI-calling router wiring (no code anywhere
+reads `platform.ai_provider_keys`/`platform.ai_providers` to actually make a request yet)
+-- PLATFORM-P0-09.3 (Provider Routing) is the next, separate story in this doc's own
+section order, and `business-router.ts`'s existing `PLATFORM_AI_API_KEY` env-var fallback
+is untouched; no fourth ("other") provider support -- see the entity-ownership/fixed-
+catalog reasoning above; no key re-validation/"test connection" flow after the initial
+set (no stored `status`/`last_error`, see the migration's own reasoning); no specific
+rate-limit/cost-control fields or enforcement -- deliberately opaque JSONB, real shape and
+enforcement is PLATFORM-P0-10's own later, separate story; no AI feature policies
+(enabled/allowed providers/allowed models/max tokens/max run cost/daily platform budget --
+PLATFORM-P0-09.4, next in this doc's own section order); no AI usage dashboard
+(PLATFORM-P0-09.5); no dedicated audit-browsing UI for `platform.ai_provider_events` (§16,
+Platform Audit, remains that future, broader story, the same deferral 07.2/07.3/08.1-08.4
+already made for their own audit tables).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1213 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 147 migrations (146 -> 147, this
+story's own file). `npx vitest run --root packages/core` -- 21 files / 210 tests (193 ->
+210, +17 this story's own). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests,
+unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-providers`
+lists `ƒ` (dynamic), correctly inheriting the outer layout's existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only -- twice, once before the `FOUND`-variable bug was caught
+and fixed, and once after: the first apply's three tables/four functions were dropped
+(`drop table`/`drop function`, cascade-free since nothing else yet references them) and
+its `supabase_migrations.schema_migrations` row deleted before the corrected file was
+re-applied clean, so dev's own migration history has exactly one row for
+`platform_ai_providers`, matching the corrected file on disk. Confirmed via `execute_sql`
+after the final apply that the catalog seeded exactly the three known providers, all
+`enabled = false`, no models -- no fabricated "on" state -- and that both
+`platform.ai_provider_keys`/`platform.ai_provider_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- one new, fully expected finding:
+`platform.ai_provider_keys` joins the same `rls_enabled_no_policy` INFO-level class
+`gst.eway_bill_credentials`/`einvoice_credentials` already carry (RLS enabled, zero
+policies, by design -- the entire point of the table), alongside the same 5 pre-existing
+findings and the pre-existing leaked-password-protection warning every prior entry has
+logged. `mcp__Supabase__get_advisors` (performance) -- only the same benign "unused index"
+info-level class every sibling FK index already carries in this low-traffic dev database,
+this migration's own five new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used --
+role-switched `select count(*) from platform.ai_providers` returned `3` cleanly (the open-
+SELECT catalog policy working as intended), role-switched `select * from platform.
+ai_provider_key_status()` returned zero rows (the function's own internal
+`is_superadmin()` filter, not an error), and role-switched `select * from platform.
+ai_provider_keys` returned a real Postgres **permission-denied** error (`42501:
+permission denied for table ai_provider_keys`) -- not an RLS-filtered empty result, a
+genuine grant-level refusal, confirming the "zero SELECT grant, not even RLS-filtered"
+design holds for a real non-superadmin against the real dev database. All three mutation
+RPCs (`update_ai_provider_config`/`set_ai_provider_key`/`remove_ai_provider_key`) each
+returned a real `P0001: Forbidden` error raised by the function's own internal check.
+Reconfirmed immediately after via a plain read that every provider was still `enabled =
+false` and both `platform.ai_provider_keys`/`platform.ai_provider_events` still had `0`
+rows -- this real user's attempts left zero residue. As with every prior story in this
+log, there is no seeded demo superadmin user in this environment, so the "a real
+superadmin CAN" half of this proof, including the "even a superadmin cannot read
+`platform.ai_provider_keys` directly" half, is verified for real only against local
+Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-providers-rls.mjs`, wired into `package.json`'s
+`test:db` composite script after `test-platform-feature-flags-rls.mjs`. Same Alice
+(business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. **All 40 assertions passed** (after the `FOUND`-variable fix above) against
+the full current migration timeline (147 files): the catalog seeds exactly three
+providers, disabled, no models, no keys, no events; Alice can read the open catalog but
+gets a genuine permission-denied error selecting `platform.ai_provider_keys` directly (not
+an empty RLS-filtered result) and zero rows (not an error) from
+`ai_provider_key_status()`; every one of Alice's config/key mutation attempts is rejected
+by the functions' own internal checks with zero residue across all three tables; a genuine
+superadmin can update a provider's config, with the default/fallback-model-in-models CHECK
+constraint enforced even for her; an unknown provider key and an empty/whitespace reason
+are rejected by every mutation function; a genuine superadmin can set a key (one `key_set`
+event, no `previous_value`, correct fingerprint), then rotate it (one `key_rotated` event
+whose `previous_value`/`new_value` carry only the two fingerprints -- confirmed via a
+`bool_or(... like '%ciphertext%')` sweep across every event row, finding none), with the
+underlying table always holding exactly one row per provider (the upsert never
+duplicates); **even Zoe, a genuine superadmin, gets a permission-denied error selecting
+`platform.ai_provider_keys` directly** -- the standout assertion this story's higher bar
+demanded; removing a key writes one `key_removed` event capturing the last fingerprint,
+and removing an already-absent key is rejected; the audit trail's own SELECT is
+superadmin-only (Alice gets zero rows, RLS-filtered, not an error); and nobody -- including
+a superadmin -- can bypass any of the three functions with a direct INSERT/UPDATE/DELETE
+on any of the three tables. Local Postgres 16 was already running in this environment
+(confirmed via `pg_lsclusters` both before and after).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures/
+sets/rotates/removes a key" half of the live-dev proof, and any live browser walkthrough
+of the new `/platform/ai-providers` page (opening the config dialog, setting a key against
+a real provider's own API, seeing the "Configured" badge and masked fingerprint render,
+removing a key), were **not** performed against dev and are not claimed here. That half
+was verified for real only against local Postgres (all 40 assertions above) -- the "a
+non-superadmin is rejected, with zero residue, including a genuine permission-denied error
+on the secret table" half, and the underlying schema/function/RLS/grant shape, were
+verified for real against both the live dev Supabase project (role-switched, as a real
+user, real Postgres errors raised by both the grant system and the functions' own checks)
+and local Postgres, not merely asserted from reading the code or the SQL. Separately: since
+`testProviderConnection()` makes a real outbound HTTPS call to whichever provider's own API,
+no automated test in this story exercises `setAiProviderKey()` end-to-end against an actual
+live provider (that would require a real, working third-party API key committed to test
+fixtures, which CLAUDE.md's environment rules already forbid regardless) -- the local RLS
+script instead calls `platform.set_ai_provider_key()` directly with a fabricated
+already-encrypted string, which is exactly what the function receives after
+`testProviderConnection()` has already succeeded in the real application-layer flow, so
+the database-layer behavior this script proves is unaffected by that gap.
+
+**Status**: PLATFORM-P0-09.1/09.2 done. Continuing in §13's own story order:
+PLATFORM-P0-09.3 (Provider Routing) next.
+
+---
+
+### PLATFORM-P0-09.3 — Provider Routing (2026-09-12) — STOP AND REPORT
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at a stale scratch merge
+commit (`8f138b1`, "Merge branch 'feature/platform-admin-portal' into scratch-plat-09-
+merge") one commit *ahead of* `feature/platform-admin-portal`'s own real tip rather than
+sitting on the feature branch itself. Working tree was clean -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing exactly on
+`772d61e` (PLATFORM-P0-09.1/09.2's own commit), then re-verified `git log --oneline -3`
+before touching any file. `npm install` run fresh (no `node_modules` in this worktree; 679
+packages added, clean).
+
+**Read first**: `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §13 in full (again, for
+09.3's own text this time), §3 ("Critical Architecture Principle"), §40 ("Architectural
+Constraints for Claude Code"), and this audit log's own PLATFORM-P0-09.1/09.2 entry above
+in full (its own explicit "Deliberately not built this story: no real AI-calling router
+wiring... PLATFORM-P0-09.3 (Provider Routing) is the next, separate story" note is exactly
+the seam this story picks up from). Also read, to establish what routing infrastructure
+already exists and what a "Provider Routing" story would have to change:
+`packages/core/src/ai/business-router.ts` (the actual runtime provider-resolution path
+every `business_id`-scoped module currently calls through), `packages/core/src/ai/
+operation-registry.ts` and `model-registry.ts` (the existing `AiOperation` ->
+qualityTier -> provider -> modelId resolution chain), and `packages/module-registry/
+src/index.ts` (confirms a clean, closed `ModuleKey` union -- `"discovery" | "inventory" |
+"fsm" | "crm" | "gst"` -- already exists, so "which modules can be routing targets" is not
+itself an open question).
+
+**This is a genuine architectural ambiguity to stop and report on -- matching this run's
+own task brief almost verbatim ("If 'Provider Routing' turns out to require real AI-calling
+infrastructure... and the doc doesn't specify the routing algorithm precisely, that is
+exactly the kind of thing to stop and report on rather than invent")**, not a case with an
+existing, reusable, already-proven pattern to follow the way 09.1/09.2's own secret-storage
+question turned out to be.
+
+§13's own text for 09.3 is four configuration field names and a three-line example:
+
+```text
+default provider
+default model
+module-specific provider
+fallback provider
+
+Discovery -> Gemini
+CRM -> OpenAI
+Compliance -> OpenAI
+```
+
+That is exhaustive -- there is no other mention of "routing," "failover," or a per-module
+provider concept anywhere else in this doc (checked: the doc's only other "routing" hits are
+`crm`'s unrelated `routing_rules` ticket-routing table and one throwaway ADR-1 aside about
+extracting a module into its own deployment "later" being "a routing change, not a rewrite"
+-- neither is this feature). Two readings of "Provider Routing" are both consistent with
+that text, and this codebase's actual AI call chain makes the gap between them a real one,
+not a cosmetic one:
+
+1. **Config-only reading** (same shape as 09.1 itself): a new, audited `platform.*`
+   config surface -- a fixed-shape routing table (a platform-wide default provider/model,
+   a `ModuleKey -> AiProvider` override map, a platform-wide fallback provider) -- that a
+   SUPERADMIN can set and see, with no runtime code path reading it yet. This mirrors
+   09.1/09.2's own explicit deferral pattern exactly ("no real AI-calling router wiring...
+   next story's job").
+2. **Wiring reading**: actually change `business-router.ts` (and, by the doc's own
+   Discovery/CRM/Compliance example, `module-discovery`'s separate `lib/ai/router.ts` too)
+   so a real AI call's provider selection is actually governed by this configuration
+   instead of the current hardcoded `getPlatformCredential()` (`provider: "anthropic"`,
+   read from the single `PLATFORM_AI_API_KEY` env var, no per-module distinction at all).
+
+Reading 1 alone would just be 09.1 again with different columns -- plausible, but if 09.3's
+whole point is that the *next* story is the one that makes the registry actually do
+something (as 09.1/09.2's own entry implied), a config-only 09.3 defers the real work
+indefinitely under a title that specifically says "Routing." Reading 2 is what "Provider
+Routing" most naturally means, and is squarely in "real AI-calling infrastructure" territory
+-- and the doc gives no algorithm for it. Concretely, all of the following are genuine,
+consequential unknowns a correct implementation would have to invent from nothing:
+
+- **Precedence with BYOK**: `resolveBusinessAiModel()` currently tries the business's own
+  connected key (`core.ai_provider_credentials`) *first*, falling back to the platform
+  credential only if none exists. Does "module-specific provider" ever override a
+  business's own BYOK provider choice (e.g. force CRM calls through OpenAI even for a
+  business that connected its own Anthropic key), or does it only decide which provider the
+  *platform's own* fallback credential uses when there is no BYOK key at all? The doc's
+  Discovery/CRM/Compliance example reads as an absolute per-module rule, which would mean
+  overriding a tenant's own explicit BYOK choice -- a materially different (and more
+  surprising) behavior than "only governs the platform's own fallback," and CLAUDE.md's own
+  AI section documents BYOK as the established, tenant-controlled path without ever
+  mentioning platform routing overriding it.
+- **Fallback semantics**: is "fallback provider" a static secondary choice substituted at
+  resolution time only when the primary provider has no configured key or is disabled
+  (`platform.ai_providers.enabled = false`), or live mid-request failover -- retry a failed
+  call against a different provider after it fails? If the latter, which of
+  `business-router.ts`'s own existing `AiErrorCode` classifications
+  (`rate_limited`/`provider_unavailable`/`timeout`/`invalid_key`/...) should trigger
+  failover and which shouldn't (retrying `invalid_key` against a different provider makes
+  sense; retrying `invalid_response` -- a schema-validation failure of the model's own
+  output -- against a different provider is a different kind of fix entirely)? None of this
+  is in the doc, and inventing a specific retry/error-classification policy here is exactly
+  the kind of unstated algorithm the task brief calls out.
+- **Granularity -- module vs. operation**: the doc's example is per-module (Discovery, CRM,
+  Compliance), but the *existing* resolution chain is per-`AiOperation`
+  (`operation-registry.ts`'s 19 operations, each with its own quality tier), and
+  `business-router.ts`/discovery's own router take no "module" parameter at all today --
+  there is no place in the current call chain that even knows which `ModuleKey` a given
+  call belongs to. Wiring module-specific routing would mean threading a new `ModuleKey`
+  argument through every current and future caller of `resolveBusinessAiModel()`
+  (`crm` today; `fsm`/`inventory`/`gst` whenever each first calls an LLM) and through
+  discovery's own separate router -- a cross-cutting signature change to shared
+  infrastructure, not a self-contained addition, and the doc doesn't say whether operation-
+  level quality-tier selection and module-level provider selection are meant to compose (an
+  operation still picks a quality tier; the module picks which provider's model at that
+  tier) or whether module routing is meant to *replace* today's tier-based selection.
+- **"default model" vs. `platform.ai_providers.default_model`**: 09.1 already gave each
+  provider row its own `default_model`/`fallback_model` columns (`platform.ai_providers`,
+  this run's own prior story). 09.3 lists "default model" again as a routing-level field.
+  Is this the same value read from a different table (redundant), a platform-wide override
+  independent of any single provider's own default (used when no module-specific route
+  matches), or a per-module model override on top of a per-module provider override? The
+  doc's flat field list doesn't distinguish.
+- **Missing-key behavior**: if a module is routed to a provider that has no
+  `platform.ai_provider_keys` row configured (or `platform.ai_providers.enabled = false`
+  for it), does resolution fall through to the "fallback provider," to the platform's
+  historical single-credential behavior, or fail outright with a new error code? Each is a
+  different user-facing behavior for a real outage, not a stylistic choice.
+
+None of these are layout, naming, or "which existing pattern to reuse" calls -- they are
+exactly "how a module's own AI call chooses platform-key-vs-BYOK, retry/failover semantics"
+per this run's own task brief, and getting any one of them wrong ships either a silent
+tenant-BYOK-override regression or unwanted retry behavior against a real, billed third-
+party API. Per this workstream's own established pattern (five prior successful stop-and-
+report cycles this session: PLATFORM-P0-06.5, PLATFORM-P0-07.3, and others referenced
+above), this story stops here rather than guessing.
+
+**Nothing was built or changed this story** -- no migration, no application code, no UI.
+This audit-log entry and the Progress-table update above are the only changes.
+
+**Recommendation, not a decision**: the narrowest, lowest-risk path once the user answers
+the above would likely be Reading 1 (config-only: a `platform.ai_provider_routing` table --
+platform-wide default provider/model plus a `ModuleKey -> AiProvider` override map plus a
+platform-wide fallback provider, audited the same way as 09.1/09.2, no runtime wiring),
+deferring Reading 2's actual call-chain wiring to a follow-up story once its own algorithm
+questions (precedence with BYOK, failover semantics, granularity) are separately answered --
+mirroring exactly how 09.1/09.2 itself deferred all routing to this story. But that is this
+agent's own suggestion for how to *sequence* the work, not a substitute for the user
+answering the open questions above; implementing even the config-only reading without
+confirming it's what's wanted risks building the wrong table shape (e.g. omitting the
+per-operation dimension if that turns out to be required).
+
+**Status**: PLATFORM-P0-09.3 stopped, open questions written above. Resume once the user
+decides. §13's other stories (09.4 AI Feature Policies, 09.5 AI Usage) do not obviously
+depend on 09.3's own resolution and remain candidates to pick up first if the user prefers,
+but per this run's own task brief ("Then continue to 09.4..., 09.5..." in §13's own stated
+order) this run stops here to report rather than skip ahead on its own judgment.
+
+---
+
+### PLATFORM-P0-09.3 — Provider Routing, CONFIG-ONLY (2026-09-12) — RESUMED AND BUILT
+
+**Worktree hazard hit again, fixed with the established pattern**: this run's worktree
+`HEAD` started on branch `worktree-agent-a2cb7c907300c14f6`, sitting on `3dbcdc7` ("Merge
+branch 'feature/platform-admin-portal' into scratch-plat-09-3-merge") -- a stray scratch
+commit from a prior run's own auto-merge-to-main procedure that had folded in unrelated
+concurrent work from `main` (comply-backlog's US 1099 story, discovery-offering-backlog's
+website-onboarding/pipeline work -- 325 files, +29894/-169 relative to
+`feature/platform-admin-portal`'s real tip), not the feature branch's own clean history.
+Not caught before the first commit this time (the implementation work above was already
+done and committed as `79e95be` before this was noticed) -- fixed after the fact rather
+than before, per the same pattern the log's own hazard note describes: `git status`
+confirmed a clean tree, then `git checkout -B feature/platform-admin-portal
+origin/feature/platform-admin-portal` (landing exactly on `5c24b69`, the real tip) followed
+by `git cherry-pick 79e95be` to replay this story's own changes onto the correct base. One
+conflict, in `package.json`'s `test:db` script list (the scratch commit's version included
+several other workstreams' own script entries this branch's real history doesn't have) --
+resolved by keeping this branch's own real list and appending only this story's one new
+entry, the same "keep both sides' entries" resolution this workstream's task brief itself
+prescribes for that exact file. `git log --oneline -3` reconfirmed `HEAD` on
+`feature/platform-admin-portal` at the replayed commit (`c09194a`) after the fix, before any
+further work. The full verification pipeline below was run (and, where a stale `.next`
+build-artifact from the wrong-branch build briefly broke `tsc` with phantom route-module
+errors, re-run after `rm -rf apps/web/.next`) entirely on this corrected branch, not the
+scratch one -- the numbers reported below (1218 boundary files, 148 migrations) are this
+branch's own real counts, distinct from an intermediate, discarded run's own (1444 files,
+188 migrations) taken while still on the stray scratch commit. `npm install` run fresh (no
+`node_modules` in this worktree; 679 packages added, clean).
+
+**The user's decision, verbatim intent**: build the routing *configuration data only, with
+NO runtime wiring* -- exactly Reading 1 from the prior stopped entry's own analysis, and
+exactly that entry's own "Recommendation" section. This entry documents that the config-only
+scope was a given (the user's explicit decision, relayed in this run's own task brief, not
+this agent's own judgment call) -- what *was* this agent's own call, and is documented
+below, is the table's exact shape, the audit-events design, and the UI's placement.
+
+**What was deliberately NOT touched, matching the decision's own explicit boundary**:
+`packages/core/src/ai/business-router.ts`, `operation-registry.ts`, `model-registry.ts`'s
+resolution logic, and `packages/module-discovery`'s own separate router -- zero lines
+changed in any of the four. No function in the new `platform-ai-provider-routing.ts` is
+called from any of them, and none of them import from it. Grepped after finishing to
+confirm: `grep -rl "ai_provider_routing" packages/core/src/ai packages/module-discovery/src`
+returns nothing. The BYOK-precedence/failover-semantics/module-vs-operation-granularity/
+missing-key-fallback questions the prior entry raised remain fully open and unanswered --
+this story builds no code path that would need to answer them, so none needed answering.
+
+**New migration**: `supabase/migrations/20260912370000_platform_ai_provider_routing.sql` --
+`platform.ai_provider_routing` (singleton, boolean-PK-fixed-to-true, same trick
+`platform.branding` established) with `default_provider`/`fallback_provider` (nullable,
+each FK-referencing `platform.ai_providers.provider`), `default_model` (free text, no
+cross-table containment check), and `module_overrides` (a single `jsonb` `ModuleKey ->
+AiProvider` map, validated key-by-key and value-by-value inside the mutation function
+against `core.modules`/`platform.ai_providers` respectively, since a table CHECK cannot
+express a cross-table lookup) -- plus a dedicated `platform.ai_provider_routing_events`
+audit table. See the migration's own extensive docstring for the full reasoning on each of
+these calls; the two most consequential ones, summarized:
+
+- **Nullable `default_provider`/`fallback_provider`, not seeded to a real provider** --
+  mirrors PLATFORM-P0-09.1's own "every provider seeded `enabled = false`, not a fabricated
+  'on' state" stance. Seeding a non-null "the platform's default AI provider is X" the
+  moment this table starts existing, before any SUPERADMIN has actually decided that, would
+  be exactly the fabricated state that story avoided.
+- **A dedicated `ai_provider_routing_events` table, not a reuse of `platform.
+  ai_provider_events`** -- considered and rejected: that table's `provider` column is `not
+  null` and its `action` CHECK enumerates four per-provider actions; a routing-policy change
+  touches `default_provider`, `fallback_provider`, and potentially several
+  `module_overrides` entries (each naming a different provider) in one atomic write, so
+  forcing it into that table would need either a fabricated sentinel `provider` value or
+  widening that table's own CHECK/nullability for a genuinely different kind of event. The
+  new table also has no `action` column at all (unlike its sibling) -- there is exactly one
+  kind of event this table will ever record, so a column that could only ever hold one value
+  would be speculative structure (CLAUDE.md development principle #7), not deferred scope.
+
+Audited-mutation pattern mirrored exactly from `platform.ai_providers`/`platform.
+feature_flags`: no INSERT/UPDATE/DELETE grant to `authenticated` on either table at all;
+every change goes through `platform.update_ai_provider_routing()`, which requires a genuine
+SUPERADMIN (`platform.is_superadmin()`) and a non-empty `reason`, validates every provider/
+module-key reference, and writes one atomic before/after audit snapshot. SELECT on the
+policy row is open to any authenticated user (same "avoid a second widening migration
+later" reasoning `platform.ai_providers`/`platform.modules` already used -- a future routing
+consumer will most likely run as an ordinary signed-in business member, not exclusively a
+SUPERADMIN); SELECT on the audit trail is SUPERADMIN-only, matching every sibling audit
+table in this backlog.
+
+**New application code**: `packages/core/src/admin/platform-ai-provider-routing.ts` --
+`getAiProviderRouting()` (the singleton row joined with `core.modules` names for display),
+`listAiProviderRoutingOptions()` (provider/module dropdown options for the form), and
+`updateAiProviderRoutingSchema`/`updateAiProviderRouting()` (Zod validation -- empty string
+normalizes to `null`/`[]`, an unrecognized provider or a duplicate module override is
+rejected client-side before the RPC call, matching the friendlier-error-before-DB-constraint
+pattern `platform-ai-providers.ts` already established). `requireSuperadmin()` guards every
+exported function, defense-in-depth matching every sibling admin file, since `SECURITY
+DEFINER` bypasses RLS.
+
+**New UI**: `/platform/ai-routing` (`apps/web/app/platform/(protected)/ai-routing/`) --
+a single settings surface, not a list of rows: there is exactly one routing policy, so
+there is no table/mobile-card split to make (CLAUDE.md development principle #12 targets a
+page whose *primary* content is a table of many rows; the up-to-five module overrides here
+are already shown as stacked labeled rows, narrow-screen-safe without a table at all,
+consulting `docs/design/claude-ui-design-rules.md` before writing markup per rule #13). One
+`RoutingConfigDialog` edits the whole singleton policy at once (default provider/model,
+fallback provider, and a `<select>` per module) -- a single form matches the data shape more
+directly than per-row dialogs the way `platform.ai_providers`' own fixed three-row catalog
+needed per-row ones. Added to `/platform`'s nav strip (`layout.tsx`) as "AI Routing",
+directly after "AI Providers".
+
+**Deliberately not built this story**: no runtime wiring of any kind (see above -- this is
+this story's entire point, not an oversight); no per-operation routing dimension (the
+doc's own field list is per-module, and the prior entry's own granularity question -- module
+vs. operation, and whether they're meant to compose -- remains unanswered and unneeded here);
+no dedicated audit-browsing UI for `platform.ai_provider_routing_events` (§16, Platform
+Audit, remains that future, broader story, the same deferral every sibling audit table in
+this backlog has already made); no cross-table containment check between `default_model`
+and `default_provider`'s own configured `models` array (this column is a platform-wide
+override independent of any single provider's own model list, and the referenced provider
+may legitimately have zero models configured yet -- config describing intent, not a
+live-readiness check, matching this story's own explicit brief not to require a configured
+key/enabled state either).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace
+(`web`, `@cofounderai/core`, `module-crm`, `module-discovery`, `module-fsm`, `module-gst`,
+`module-inventory`, `module-registry`). `npm run lint --workspaces --if-present` -- 0
+errors, the same 1 pre-existing unrelated warning every prior entry has logged
+(`Package` unused in an unrelated CRM conversations page). `node scripts/
+lint-import-boundaries.mjs` -- 1218 files, no violations. `node scripts/
+lint-migration-schema.mjs` -- 148 migrations (147 -> 148, this story's own file). `npx
+vitest run --root packages/core` -- 22 files / 218 tests (210 -> 218, +8 this story's own).
+`cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-routing` lists `ƒ`
+(dynamic), correctly inheriting the outer layout's existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` after apply that the singleton row seeded with `default_provider`,
+`default_model`, and `fallback_provider` all `null` and `module_overrides = '{}'` -- no
+fabricated state -- and that `platform.ai_provider_routing_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- no new finding: the same 6 pre-existing
+`rls_enabled_no_policy` INFO-level rows (including `platform.ai_provider_keys`, already
+known/by-design) and the same pre-existing leaked-password-protection warning every prior
+entry has logged; nothing new from this migration, since both new tables have real RLS
+policies. `mcp__Supabase__get_advisors` (performance) -- two new, genuinely new-shaped but
+benign INFO findings: `unindexed_foreign_keys` on `ai_provider_routing`'s own
+`default_provider`/`fallback_provider` FKs. Considered and left as-is: this is a singleton
+table with exactly one row, ever -- an index exists to speed lookups/cascade-checks across
+many referencing rows, and "many" here is structurally capped at 1, so adding one would be
+the same kind of speculative structure this backlog's own development-principle-#7
+reasoning already rules out elsewhere; also present are the same "unused index" info-level
+findings every sibling FK index already carries in this low-traffic dev database
+(including this migration's own two new indexes), unchanged in kind from every prior entry.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.ai_provider_routing` returned `1` cleanly (the open-SELECT policy
+row working as intended), and role-switched `select platform.update_ai_provider_routing(...)`
+returned a real Postgres `P0001: Forbidden: only a SUPERADMIN can change the AI provider
+routing policy` error -- a genuine function-level rejection, not a silently-ignored RLS
+filter. Reconfirmed immediately after that the singleton row was still untouched
+(`default_provider`/`fallback_provider` still null, `module_overrides` still `{}`) and
+`platform.ai_provider_routing_events` still had `0` rows -- this real user's attempt left
+zero residue. As with every prior story in this log, there is no seeded demo superadmin
+user in this environment, so the "a real superadmin CAN set the policy" half of the live-dev
+proof was **not** performed against dev and is not claimed here -- verified for real only
+against local Postgres (below), the same limitation every prior entry has stated.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-provider-routing-rls.mjs`, wired into
+`package.json`'s `test:db` composite script immediately after
+`test-platform-ai-providers-rls.mjs`. Same Alice (business admin, not a superadmin)/Zoe
+(real platform superadmin) pair every sibling script uses. **All 30 assertions passed**
+against the full current migration timeline (148 files, on the corrected branch, re-run
+after the worktree-branch fix above): the singleton row starts seeded
+with no provider/model set and an empty override map; Alice can read the open policy row
+but her mutation attempt is rejected by the function's own internal check with zero
+residue; a genuine superadmin can set the full policy (default provider/model, fallback
+provider, two module overrides), writing exactly one atomic audit event with a real
+before/after snapshot; an unknown default/fallback provider and an unknown module key or
+unknown provider inside `module_overrides` are each rejected, with zero residue; a
+non-object `module_overrides` value (a JSON array, a JSON scalar) is rejected; an
+empty/whitespace reason is rejected; clearing the policy back to an all-null/empty state
+is accepted as a valid, honest state (and is itself audited); the audit trail's own SELECT
+is superadmin-only (Alice gets zero rows, RLS-filtered, not an error); and nobody --
+including a superadmin -- can bypass `update_ai_provider_routing()` with a direct
+INSERT/UPDATE/DELETE on either table (the boolean PK also structurally blocks a second
+singleton row). Local Postgres 16 was already running in this environment (confirmed via
+`pg_lsclusters`).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures the
+routing policy" half of the live-dev proof, and any live browser walkthrough of the new
+`/platform/ai-routing` page (opening the config dialog, setting a default/fallback provider
+and a module override, seeing them render), were **not** performed against dev and are not
+claimed here. That half was verified for real only against local Postgres (all 30
+assertions above) -- the "a non-superadmin is rejected, with zero residue" half, and the
+underlying schema/function/RLS/grant shape, were verified for real against both the live
+dev Supabase project (role-switched, as a real user, a real Postgres error raised by the
+function's own check) and local Postgres, not merely asserted from reading the code or the
+SQL.
+
+**Status**: PLATFORM-P0-09.3 (Provider Routing, config-only) done. Committed and merged to
+`main`. Continuing in §13's own story order: PLATFORM-P0-09.4 (AI Feature Policies) next.
+
+---
+
+### PLATFORM-P0-09.4 — AI Feature Policies (2026-09-12)
+
+**Worktree hazard checked first**: `git log --oneline -3` confirmed `HEAD` genuinely on
+`feature/platform-admin-portal`'s real tip (`db5034a`, this session's own prior
+worktree-branch fix) before writing any code -- no repeat of the earlier hazard this
+session.
+
+**Scoped as config-only, matching 09.3's own explicit decision and 09.1/09.2's own
+precedent -- not a fresh stop-and-report**: §13's own text for 09.4 is six flat fields ("AI
+enabled / allowed providers / allowed models / maximum tokens / maximum run cost / daily
+platform budget") with no worked example implying a specific enforcement algorithm, unlike
+09.3's own Discovery/CRM/Compliance routing example that drove that story's genuine
+ambiguity. Every field here is a plain, single-meaning settable value (a boolean, two lists
+against a known/free-text catalog, three positive numbers) -- there is no BYOK-precedence,
+failover-semantics, or module-vs-operation-granularity question analogous to 09.3's. Real
+enforcement is explicitly PLATFORM-P0-10.1/10.2's own later, separate section (§14, "AI
+Safety / Cost Controls": "Pause AI... and notify SUPERADMIN" when a threshold is exceeded)
+-- this story only lays the policy down, the same "table now, enforcement in a later,
+separate story" sequencing `platform.ai_providers.rate_limits`/`cost_controls` and
+`platform.modules.enabled` (wired two stories later by 07.2) already used in this exact
+backlog.
+
+**New migration**: `supabase/migrations/20260912380000_platform_ai_feature_policies.sql` --
+`platform.ai_feature_policies` (singleton, same boolean-PK-fixed-to-true trick) with
+`ai_enabled` (default `true`, preserving today's actual behavior -- there is no existing
+global AI kill switch anywhere in this codebase to turn off by surprise), `allowed_providers`
+(text array, each entry validated inside the mutation function against `platform.
+ai_providers.provider`; empty means "no restriction configured," not "block everything"),
+`allowed_models` (text array, deliberately unvalidated against any catalog -- `platform.
+ai_providers.models` is itself just free text with no cross-provider validation of its own,
+so there is no narrower list for this column to check against either), and
+`max_tokens_per_run`/`max_run_cost_usd`/`daily_platform_budget_usd` (all nullable, each
+CHECKed positive-when-set, `null` meaning "no ceiling configured" -- not a fabricated
+default cap). The two money columns are denominated in USD, not `platform.plans.currency`'s
+own per-plan currency (which defaults to INR) -- documented reasoning: every one of the
+three real AI providers bills WonderArc itself in USD regardless of which currency a
+customer's own plan is priced in, so USD is the only unit that maps onto a real invoice, not
+an assumption about customer-facing pricing. A dedicated `platform.ai_feature_policy_events`
+audit table, same "a policy-wide change doesn't belong in a per-provider audit table, and
+there is exactly one kind of event so no `action` column" reasoning `platform.
+ai_provider_routing_events` already established. Audited-mutation pattern identical to
+09.1-09.3: no INSERT/UPDATE/DELETE grant to `authenticated` on either table; every change
+goes through `platform.update_ai_feature_policies()` (SUPERADMIN + non-empty `reason`
+required, validates every `allowed_providers` entry, writes one atomic before/after
+snapshot). SELECT on the policy is open to any authenticated user (same "avoid a second
+widening migration later" reasoning, since a future PLATFORM-P0-10.x enforcement consumer
+will most likely run as an ordinary signed-in business member); SELECT on the audit trail is
+SUPERADMIN-only.
+
+**New application code**: `packages/core/src/admin/platform-ai-feature-policies.ts` --
+`getAiFeaturePolicy()`, `listAiFeaturePolicyProviderOptions()`, and
+`updateAiFeaturePolicySchema`/`updateAiFeaturePolicy()` (empty numeric-field strings
+normalize to `null`; a non-positive or non-numeric value is rejected client-side before the
+RPC call). Postgres `numeric` columns come back from `@supabase/ssr` as strings (avoiding
+float precision loss on the wire) -- converted to `number` in `toAiFeaturePolicy()` since
+neither value is ever used for exact-money arithmetic in this file, only display and
+round-trip into the edit form.
+
+**New UI**: `/platform/ai-feature-policies` -- a single settings surface (one singleton
+row), no table/mobile-card split needed, same reasoning `/platform/ai-routing` already
+documented. One `FeaturePolicyDialog` edits the whole policy at once (an AI-enabled
+checkbox, a checkbox per known provider, a comma-separated allowed-models field, and three
+numeric ceiling fields). Added to `/platform`'s nav strip as "AI Feature Policies," directly
+after "AI Routing."
+
+**Deliberately not built this story**: no runtime enforcement of any kind (this story's
+entire point, not an oversight -- see above); no AI usage dashboard (PLATFORM-P0-09.5,
+next); no per-module/per-plan scoping of the policy (the doc's own field list is flat and
+platform-wide, matching `platform.ai_provider_routing`'s own singleton shape, not a list
+scoped by module or plan); no re-validation that `allowed_models` entries are real,
+existing model IDs for any provider (same "opaque, no consumer enforces it yet" treatment
+`platform.ai_providers.models` itself already uses, and there is no per-provider model
+catalog this column could even be scoped against without inventing a `provider ->
+model` pairing the doc's own flat field list doesn't ask for).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1223 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 149 migrations (148 -> 149, this
+story's own file). `npx vitest run --root packages/core` -- 23 files / 226 tests (218 ->
+226, +8 this story's own). `cd apps/web && rm -rf .next && npm run build` -- clean;
+`/platform/ai-feature-policies` lists `ƒ` (dynamic).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` after apply that the singleton row seeded with `ai_enabled = true`,
+`allowed_providers = {}`, `allowed_models = {}`, and all three ceiling columns `null` -- no
+fabricated lockdown -- and that `platform.ai_feature_policy_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- no new finding: the same 6 pre-existing
+`rls_enabled_no_policy` INFO-level rows and the same pre-existing leaked-password-protection
+warning every prior entry has logged; nothing new from this migration, since both new tables
+have real RLS policies.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.ai_feature_policies` returned `1` cleanly, and role-switched `select
+platform.update_ai_feature_policies(...)` returned a real Postgres `P0001: Forbidden: only
+a SUPERADMIN can change the AI feature policy` error -- a genuine function-level rejection.
+As with every prior story in this log, there is no seeded demo superadmin user in this
+environment, so the "a real superadmin CAN set the policy" half of the live-dev proof was
+**not** performed against dev and is not claimed here -- verified for real only against
+local Postgres (below).
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-feature-policies-rls.mjs`, wired into
+`package.json`'s `test:db` composite script immediately after
+`test-platform-ai-provider-routing-rls.mjs`. Same Alice/Zoe pair every sibling script uses.
+**All 24 assertions passed**, first run clean, against the full current migration timeline
+(149 files): the singleton row starts seeded AI-enabled with no restriction/ceiling; Alice
+can read the open policy row but her mutation attempt is rejected with zero residue; a
+genuine superadmin can set the full policy (providers, models, all three ceilings), writing
+exactly one atomic audit event; an unknown provider inside `allowed_providers` is rejected
+with zero residue; a zero/negative token count, run cost, or daily budget is rejected by the
+table's own CHECK constraints; an empty/whitespace reason is rejected; clearing the policy
+back to disabled/no-restriction/no-ceiling is accepted as a valid, honest state (and is
+itself audited); the audit trail's own SELECT is superadmin-only; and nobody -- including a
+superadmin -- can bypass `update_ai_feature_policies()` with a direct
+INSERT/UPDATE/DELETE on either table. Local Postgres 16 was already running in this
+environment.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures the
+feature policy" half of the live-dev proof, and any live browser walkthrough of the new
+`/platform/ai-feature-policies` page, were **not** performed against dev and are not
+claimed here. That half was verified for real only against local Postgres (all 24
+assertions above).
+
+**Status**: PLATFORM-P0-09.4 (AI Feature Policies, config-only) done. Committed and merged
+to `main`. Continuing in §13's own story order: PLATFORM-P0-09.5 (AI Usage) next.

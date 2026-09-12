@@ -55,8 +55,8 @@ only genuine architectural/key decisions are raised.
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Done |
 | | 12.2 | External Opportunity Research | Done |
-| | 13.1 | Structured Stage Outputs | Not started |
-| | 14.1 | Discovery Run History | Not started |
+| | 13.1 | Structured Stage Outputs | Done |
+| | 14.1 | Discovery Run History | Done |
 | | 14.2 | Versioned Stage Results | Not started |
 | | 15.1 | Final Human Action Gate | Not started |
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**37 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**39 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2482,3 +2482,263 @@ environment).
 
 **Status**: 37 of 68 in-scope stories done -- Phase E continuing. Next: 13.1, Structured
 Stage Outputs.
+
+### 13.1 — Structured Stage Outputs (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading either (same as 10.2) -- just
+three worked examples (ICP, signal intelligence, research) and one closing line: "The UI
+must render these structures as editable fields." Treated it as an audit-and-close-gaps
+story against those three examples specifically, not a license to touch every stage:
+checked each example's own field list against what this module already persists and
+renders before writing anything, per this run's own "don't build what already exists"
+discipline.
+
+**Signal intelligence** (`signals[]`/`correlations[]`/`opportunity_hypotheses[]`) is
+already fully real: `discovery.signals` (05.3) and `discovery.signal_correlations` (05.3)
+are exactly `signals[]`/`correlations[]`, and a correlation's own `rationale` field *is*
+the doc's "opportunity hypothesis" (its own doc comment already says so -- "New CISO + 12
+IAM openings + Identity modernization activity = High-confidence IAM opportunity" is a
+hypothesis, not a raw fact list). Confirmed it's genuinely rendered, not just persisted:
+`getOpportunityDashboardRows` (07.2) already surfaces `correlation.rationale` as
+`topSignal`, and `opportunities-dashboard.tsx` renders it in both the desktop table and
+mobile cards. No gap, no code change -- documenting the mapping here since the doc's
+example vocabulary (`opportunity_hypotheses[]`) doesn't literally appear anywhere in the
+codebase and a future story could otherwise mistake this for missing.
+
+**Research** (`company_summary`/`offering_fit`/`why_them`/`why_now`/`buyer`/`evidence[]`/
+`confidence`) is also already fully real and rendered, spread across four existing
+concepts rather than one: `company_summary` = `ProspectResearch.summary` (06.1, rendered
+on the prospect detail page, `apps/web/.../prospects/[prospectId]/page.tsx`);
+`offering_fit` = `ResearchBrief.offering_fit` (06.2); `why_them`/`why_now` = `Opportunity`
+fields (05.1/05.4); `buyer` = `BuyerPersonIntelligence` (06.3); `evidence[]` =
+`ProspectResearch.evidence` (06.1, extended by 12.2); `confidence` appears on both
+`ResearchBrief.confidence` and `Opportunity.confidence`/`why_now_confidence`. Every one of
+these is rendered on either the prospect detail page or the Opportunity Detail page
+(07.3) -- confirmed by reading both files directly, not just grepping `module-discovery`'s
+own `src/components` (which has no research UI of its own; both live consumers are
+`apps/web` route files, the same shape 06.1's own audit entry already flagged once
+before). No gap, no code change.
+
+**ICP** (`industries[]`/`company_size`/`geographies[]`/`technologies[]`/`pain_points[]`/
+`buyer_roles[]`/`disqualifiers[]`/`confidence`/`evidence[]`) is where the real, genuine gap
+was: every list field already exists on `discovery.icp_profiles` under its own name
+(`industries`/`company_sizes`/`geographies`/`technology`/`pain_points`/`roles`/
+`exclusions`, all rendered as editable `IcpField`s since 02.2/11.1) -- but `confidence` and
+`evidence` did not exist anywhere on the ICP at all. Closed that gap:
+
+- Migration (`20260912090000_discovery_icp_confidence_evidence.sql`): adds
+  `confidence numeric check (0-1)` (nullable, no default -- NOT `not null default 0` like
+  `website_onboarding_offering_candidates.confidence`'s own precedent, because that
+  column is being retrofitted onto rows that may predate this story; a bare `0` would
+  misread as "computed, and found maximally unconfident" rather than the true "never
+  computed," the same "absence of evidence isn't evidence of absence" precision
+  05.2/05.5 already established) and `evidence text[] not null default '{}'` (a plain
+  array of short quotes/paraphrases from the product profile, matching every sibling
+  column already on this table -- deliberately NOT the richer `EvidenceItem` object shape
+  `lib/research/types.ts` uses for prospect research/buyer intelligence, since that
+  shape's `source_url`/`observed_at`/`supporting_signal`/`source_type` fields exist to
+  distinguish multiple, dated, first-party-vs-external sources gathered across several
+  calls -- a single-call synthesis over one already-approved `ProductProfile` has none of
+  that to distinguish, and forcing the fuller shape would only produce nulled-out noise).
+- `IcpProfileSchema` (`lib/ai/schemas.ts`) gained matching `confidence`/`evidence` fields.
+  New `prompts/icp/generate_icp_v2.ts` (v1 left untouched and unimported, same
+  "new version file, old one kept for provenance" convention `research_prospect_v3.ts`
+  already established over `v2`) adds explicit prompt guidance for both, mirroring
+  `understand_product_v1.ts`'s own explicit "set confidence lower/higher" instruction
+  rather than relying on the Zod `.describe()` text alone. `generateIcp` now writes both
+  fields from the AI draft.
+- `updateIcpProfile` (manual "Save changes") now also resets `confidence`/`evidence` to
+  `null`/`[]`, not just `status` to `draft`: both describe how well the *pre-edit* claims
+  were grounded in the product profile, and once a founder hand-edits any field that
+  assessment no longer honestly describes what's now on the row -- the same "don't let a
+  stale AI judgment linger over content a human has since changed" reasoning the existing
+  `status` reset already applies, not a new precedent.
+- `cloneIcpProfileToWorkspace` deliberately does NOT copy `source.confidence`/
+  `source.evidence` onto the cloned row (unlike every other field, which it does copy) --
+  a genuine judgment call, flagged here rather than silently applied: the source ICP's
+  evidence quotes trace to the *source offering's own* product profile, and carrying them
+  onto a different offering's ICP would misrepresent evidence about one product as
+  support for another's. Left `null`/`[]`, same as any offering whose ICP has never been
+  (re)generated, until this offering's own `generateIcp` call computes real values.
+- UI (`icp/page.tsx`): a small read-only block (rounded border, matching the page's own
+  existing section style) renders `confidence` as a rounded percentage (same
+  "Confidence: NN%" plain-text pattern `product-overview-shell.tsx` already uses for
+  `ProductProfile.confidence`, not the `low`/`medium`/`high` `ConfidenceBadge` used
+  elsewhere in this module for a different, enum-shaped confidence) and `evidence` as a
+  plain bulleted list, shown only when either has a value -- absent entirely for an ICP
+  never regenerated since this story, or right after a manual edit clears them, rather
+  than showing a misleading "0%"/empty list. Read-only by design, not wired into the
+  editable form: `confidence`/`evidence` are the AI's own provenance judgment about the
+  *other* fields, not domain content a founder types -- the same read-only treatment this
+  module already gives `Opportunity.confidence`/`ResearchBrief.confidence`/
+  `ProductProfile.confidence`, none of which are manually editable either, despite ICP's
+  own list fields being fully editable since 02.2. Confirmed no other consumer needed
+  updating: `icpFieldsToRow`/`IcpFieldsInput` (the manual-edit path) and
+  `listCloneableIcpSourcesForBusiness` (a `name`/`workspace_id`-only projection) don't
+  touch these columns at all.
+
+No new table -- checked the entity-ownership map (`docs/plan/00-MASTER-PLAN.md` §5)
+first, which lists `discovery` as an existing module with no separate "ICP evidence"
+concept, confirming `icp_profiles` (already the canonical ICP row) is the right place for
+these two columns rather than a parallel table.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1167 files, no violations),
+`lint:migrations` (131 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (178/178, unchanged -- `generate-icp.ts`/`icp/mutations.ts` are
+DB/AI-composing functions with no unit tests of their own, per this run's established
+precedent for `generateIcp`/`understand-product.ts`, and no new pure logic was added), a
+live migration apply + `get_advisors` for both `security`/`performance` (same baseline
+findings as every prior story -- 5 pre-existing `rls_enabled_no_policy` and 1 pre-existing
+`auth_leaked_password_protection` on unrelated tables, ~155 pre-existing `unused_index`
+INFO findings across unrelated tables, no new findings of any kind), and a clean `next
+build` (confirmed the ICP route, which now renders the new confidence/evidence block,
+still builds with no errors). Same live-browser-walkthrough constraint noted in every
+prior UI-touching story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 38 of 68 in-scope stories done -- Phase E continuing. Next: 14.1, Discovery
+Run History.
+
+### 14.1 — Discovery Run History (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading either (same as 10.2) -- just
+the field list (`run_id`/`offering_id`/`started_at`/`completed_at`/`trigger`/
+`starting_stage`/`status`/"AI provider/model where applicable"/"stages executed"/
+`errors`/"user edits") and "Reuse existing Core AI run/audit mechanisms where
+appropriate."
+
+**Checked the entity-ownership map and this schema's own existing tables first, per this
+story's own explicit instruction to check `pipeline_stage_runs` before creating anything
+new.** `discovery.pipeline_stages` (10.1) is *current* per-stage state and
+`discovery.pipeline_stage_runs` (10.2) is an append-only log of every individual
+*technical-stage* attempt -- neither is "run history" in this story's sense, and 10.2's own
+migration comment already says so explicitly ("not a run-history log (that's
+DISC-OFFER-P0-14.1's own 'Discovery Run History' table)"), confirming this is genuinely
+new rather than a parallel of something already listed, and that it was anticipated
+rather than accidentally duplicated. A "run" here is one client-driven walk through some
+contiguous suffix of the fourteen technical stages (`run-ai-discovery-panel.tsx`'s own
+`runFrom()`, one HTTP request per stage -- see that route's own comment for why), not one
+row per technical stage attempt.
+
+New migration (`20260912100000_discovery_pipeline_runs.sql`): `discovery.pipeline_runs`
+(`workspace_id`/`trigger`/`starting_stage`/`status`/`started_at`/`completed_at`/`error`),
+select/insert/update RLS against `discovery.user_workspace_ids()` (tenant AND licensed,
+same pattern as every sibling table), plus a nullable `run_id` FK added onto
+`discovery.pipeline_stage_runs`. `offering_id` in the doc's own field list is
+`workspace_id` here -- `discovery.workspaces` is 1:1 with `products` (the offering,
+01.1) via `workspaces.product_id`, and `workspace_id` is this module's own tenant key
+(ADR-4's discovery exception), not a separate concept, the same mapping 10.2's own
+migration already established.
+
+**"AI provider/model where applicable" and "stages executed" are deliberately not columns
+on `pipeline_runs`** -- both are derived at read time rather than duplicated:
+- "Stages executed" is `list pipeline_stage_runs where run_id = this run's id`
+  (`listPipelineStageRunsForRun`) -- every technical stage attempt made during a run is
+  already its own permanent `pipeline_stage_runs` row (10.2); a second, redundant record
+  of the same fact would only be one more place for the two to drift.
+- "AI provider/model" comes from `discovery.ai_runs`, this module's own existing
+  usage/cost ledger (10.1's own precedent already logs every AI call there) -- new
+  `listAiRunsInWindow(workspaceId, from, to)` (`lib/ai/usage.ts`) reads every `ai_runs`
+  row for this workspace whose `created_at` falls inside `[started_at, completed_at]`,
+  deduplicated to distinct `(operation, model, provider, status)` combinations (a run's
+  own "Collect Signals" stage can call this once per account researched; a founder
+  reviewing history wants "which models did this run use," not one row per account).
+  This is a genuine, flagged judgment call: `pipeline_stages.last_ai_run_id` (10.2's own
+  named field) exists but turned out to be dead -- grepped every caller of
+  `markPipelineStageCompleted` and found none ever actually passes a `lastAiRunId`, since
+  doing so would require every underlying AI function (`understandProduct`, `generateIcp`,
+  `discoverProspects`, `researchProspect`, `generateResearchBrief`) to start returning
+  its own `ai_runs` row id, and every one of those functions is also called from several
+  *non-pipeline* manual UI actions elsewhere in this module (manual "Regenerate" buttons,
+  onboarding, prospect actions) -- widening their return shape for this one story would be
+  exactly the "refactor unrelated code" CLAUDE.md dev principle #10 warns against, for a
+  benefit (an exact FK instead of a time-windowed derivation) this story doesn't actually
+  need. Left `last_ai_run_id` itself untouched (still unpopulated, a pre-existing gap
+  outside this story's own scope) and used the time-window derivation instead, which
+  needs no changes to any AI-calling function at all. Flagging this rather than silently
+  wiring it up or silently ignoring the doc's own "AI provider/model" field.
+- "User edits" likewise isn't a separate log: `trigger = 'save_and_run_downstream'`
+  already *is* "a user edit initiated this run" (11.1/11.2's own worked example), distinct
+  from an automation-initiated run. The deeper "distinguish a user's edited field values
+  from the AI's own generated ones" is DISC-OFFER-P0-14.2's own explicit, later
+  "Versioned Stage Results" concern (its own acceptance line: "User edits and AI-generated
+  changes should be distinguishable"), not this story's -- not built here.
+
+**Trigger vocabulary** (`PipelineRunTrigger`, a closed three-value check constraint, not
+open-ended free text): read `run-ai-discovery-panel.tsx` end to end to find every real
+call site of the walk it drives, rather than inventing a vocabulary from the doc's own
+prose alone -- `run_ai_discovery_cta` (the main "Run AI Discovery"/"Resume AI
+Discovery"/"Run AI Discovery Again" button, 10.1), `retry_failed_stage` (a failed group's
+own "Retry" button, 10.3), `save_and_run_downstream` (the `?autorun=1` auto-resume after
+"Save & Run Downstream" on an edited stage, 11.1/11.2). All three already existed as
+distinct call sites of `runFrom()`; this story only added a `trigger` parameter to that
+function and threaded a value through from each one, changing no existing behavior.
+
+**Tenant-safety of a client-supplied `runId`** (CLAUDE.md dev principle #8): the panel
+must send its own newly-created `runId` back on every subsequent per-stage request across
+several separate HTTP round trips, which means the server has to accept a value that
+*originated* from the client, not read purely server-side. Rather than trusting a bare FK
+existence check (which would accept a syntactically valid id belonging to a *different*
+workspace's run, since a Postgres FK only checks the referenced row exists, not who it
+belongs to), the route looks the run up scoped by the caller's *own* workspace
+(`getPipelineRun(workspaceId, runId)`) before ever using it, and silently treats a
+miss (wrong tenant, or gone) as "no run" rather than failing the stage's own real work
+over a bookkeeping detail -- the same "never let a logging failure break the caller's
+actual result" discipline `recordAiRun` already established for `ai_runs`.
+
+**Route/client wiring**: `run-ai-discovery/route.ts`'s POST gained a second body shape
+(`{ action: "start_run", trigger, startingStage }`, returning the new run row) alongside
+its existing per-stage shape (now `{ stageKey, runId }`); the same handler finalizes the
+run itself the moment it can tell the client's walk has stopped -- a stage failing (the
+client's own loop always breaks on the first failure) or the very last technical stage
+(`crm_handoff`) succeeding. `run-ai-discovery-panel.tsx`'s `runFrom()` now opens a run
+before its loop (best-effort -- a failed "start run" call still lets the pipeline run
+normally with `runId: null`) and passes it through `runOneStage`.
+
+**UI, a flagged scope call**: the doc gives this story no explicit "the UI must render
+this" line (unlike DISC-OFFER-P0-13.1's own explicit one), which is the same shape as
+10.2's own schema-only story -- but 10.2 had an immediate sibling (10.3, "Pipeline
+Progress UI") built the very next story in the same session to surface it, and nothing in
+the remaining Phase E/F sequence plays that role for this data (14.2 is "Versioned Stage
+Results," 15.1 is "Final Human Action Gate," and no Phase F P1 story is "Run History
+UI" either) -- unlike 10.2, building this story as schema-only would leave "Track... run
+history" data no user could ever actually see anywhere in the currently planned backlog.
+Judged that "Track" a specific field list, named "History" as if for a person to review,
+warrants a minimal read-only UI even without an explicit "must render" line, and built
+one: a new "History" tab in the ongoing offering nav bar (`product-nav.tsx`, same "no dead
+links" rule Discovery/Opportunities were added under), a list page
+(`history/page.tsx` + `RunHistoryList`, desktop table / mobile cards per CLAUDE.md
+non-negotiable #12, each row linking out rather than expanding inline -- the same "the
+real page is the way to see the rest" call 10.3 already made), and a detail page
+(`history/[runId]/page.tsx` + `RunHistoryDetail`) rendering the full field list: trigger,
+starting stage, timing, terminal error, the derived AI-models-used list, and every stage
+attempt executed during that run with its own status/timing/error. Flagging this as a
+scope judgment call rather than a settled fact -- if a future story turns out to cover
+this ground differently, this UI should be reconciled with it rather than duplicated.
+
+No changes to `pipeline_stages`/`pipeline_stage_runs`'s own existing columns or behavior
+beyond the additive `run_id` FK; every existing mutation call site that doesn't pass a
+`runId` (there are none left after this story's own route update, but the parameter is
+optional or existing tests never touch the pipeline mutations at all) continues to write
+`run_id: null`, matching the "nullable because a stage can still run with no enclosing
+run" reasoning in the migration itself.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1171 files, no violations),
+`lint:migrations` (132 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (178/178, unchanged -- every new function here is either a
+DB-composing mutation/query, per this run's own established "no unit test for a
+DB-composing function" precedent, or presentation-only formatting inside a UI component,
+not new pure domain logic needing its own test), a live migration apply +
+`get_advisors` for both `security`/`performance` against the dev project
+(`jazdtomcgqjxjueedmck`) -- same baseline findings as every prior story (5 pre-existing
+`rls_enabled_no_policy` and 1 pre-existing `auth_leaked_password_protection` on unrelated
+tables, the same ~157 pre-existing `unused_index` INFO findings plus this story's own two
+brand-new indexes now also (correctly) flagged unused on an empty dev database, no new
+findings of any other kind), and a clean `next build` (confirmed both new routes --
+`history` and `history/[runId]` -- build and appear in the route manifest). Same
+live-browser-walkthrough constraint noted in every prior UI-touching story this run (no
+seeded demo user/`.env.local` in this environment).
+
+**Status**: 39 of 68 in-scope stories done -- Phase E continuing. Next: 14.2, Versioned
+Stage Results.

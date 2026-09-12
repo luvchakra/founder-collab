@@ -48,6 +48,13 @@ function coreClient() {
  * PLATFORM-P0-03.3's login-branding override is opt-in and defaults to today's look for
  * the identical reason. A *configured* `disabled` state (an explicit superadmin decision)
  * still denies outright, exactly as its own tri-state design intends.
+ *
+ * PLATFORM-P0-06.5 decision #1 (Soft vs Hard Limits): a `limited` row's own `limit_type`
+ * ('soft' | 'hard', PLATFORM-P0-06.5's own new column) changes what happens once usage is
+ * at or over `limit_value` -- a 'hard' limit (the default) denies exactly as before; a
+ * 'soft' one still reports `allowed: true`, with `reason` saying the business is over its
+ * plan's guideline rather than claiming it fits within a limit it plainly doesn't. See
+ * `buildLimitEntitlementDecision()` below for the exact branch.
  */
 export async function getLimit(businessId: string, resourceKey: ResourceKey): Promise<EntitlementDecision> {
   const plan = await getBusinessPlan(businessId);
@@ -65,7 +72,7 @@ export async function getLimit(businessId: string, resourceKey: ResourceKey): Pr
   const platform = await platformClient();
   const { data: row, error } = await platform
     .from("plan_limits")
-    .select("state, limit_value")
+    .select("state, limit_value, limit_type")
     .eq("plan_id", plan.planId)
     .eq("resource_key", resourceKey)
     .maybeSingle();
@@ -89,7 +96,7 @@ export async function getLimit(businessId: string, resourceKey: ResourceKey): Pr
 export function buildLimitEntitlementDecision(
   resourceKey: ResourceKey,
   planKey: string,
-  row: { state: "limited" | "unlimited" | "disabled"; limit_value: number | null } | null,
+  row: { state: "limited" | "unlimited" | "disabled"; limit_value: number | null; limit_type?: "soft" | "hard" | null } | null,
   usage = 0,
 ): EntitlementDecision {
   if (!row) {
@@ -123,8 +130,27 @@ export function buildLimitEntitlementDecision(
     };
   }
   const limit = row.limit_value as number;
+  const limitType = row.limit_type ?? "hard";
   const remaining = Math.max(limit - usage, 0);
-  const allowed = usage < limit;
+  const atOrOverLimit = usage >= limit;
+
+  if (limitType === "soft") {
+    // Decision #1: a soft limit never blocks. Below its guideline it reads exactly like a
+    // hard limit's own "within" case; at or over, the action is still allowed -- only the
+    // reason text changes, from denial copy to a guideline notice.
+    return {
+      allowed: true,
+      reason: atOrOverLimit
+        ? `${resourceKey} usage (${usage}) is over your ${planKey} plan's guideline of ${limit}.`
+        : `${resourceKey} usage (${usage}) is within the ${planKey} plan's limit of ${limit}.`,
+      source: "plan",
+      limit,
+      usage,
+      remaining,
+    };
+  }
+
+  const allowed = !atOrOverLimit;
   return {
     allowed,
     reason: allowed
@@ -140,6 +166,7 @@ export function buildLimitEntitlementDecision(
 type ConsumeAttempt = {
   state: "limited" | "unlimited" | "disabled" | "unrestricted";
   limit_value: number | null;
+  limit_type?: "soft" | "hard" | null;
   usage_before: number;
   usage_after: number;
   granted: boolean;
@@ -171,6 +198,11 @@ type ConsumeAttempt = {
  * counter is left exactly as it was (the whole point of doing the check and the write in
  * one atomic step). Callers that only want to inspect current standing without consuming
  * anything should call `getLimit()` instead.
+ *
+ * PLATFORM-P0-06.5 decision #1: a `limited` resource whose `limit_type` is 'soft' is
+ * always granted by `core.try_consume_usage_counter()` itself now, with no ceiling --
+ * see `buildConsumeEntitlementDecision()` below for how that shows up in the decision's
+ * own `reason` text once usage lands at or over the (still-real, still-reported) guideline.
  */
 export async function canConsume(businessId: string, resourceKey: ResourceKey, quantity = 1): Promise<EntitlementDecision> {
   const plan = await getBusinessPlan(businessId);
@@ -252,6 +284,25 @@ export function buildConsumeEntitlementDecision(
   }
 
   const limit = attempt.limit_value as number;
+  const limitType = attempt.limit_type ?? "hard";
+
+  if (limitType === "soft") {
+    // Decision #1: a soft limit never blocks -- `core.try_consume_usage_counter()` itself
+    // always grants this branch. Only the reason text distinguishes "still under the
+    // guideline" from "over it"; both are `allowed: true`.
+    const overGuideline = attempt.usage_after >= limit;
+    return {
+      allowed: true,
+      reason: overGuideline
+        ? `Consuming ${quantity} ${resourceKey} takes usage (${attempt.usage_after}) over the ${planKey} plan's guideline of ${limit}.`
+        : `Consuming ${quantity} ${resourceKey} keeps usage (${attempt.usage_after}) within the ${planKey} plan's limit of ${limit}.`,
+      source: "plan",
+      limit,
+      usage: attempt.usage_after,
+      remaining: Math.max(limit - attempt.usage_after, 0),
+    };
+  }
+
   if (attempt.granted) {
     return {
       allowed: true,

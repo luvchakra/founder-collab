@@ -77,6 +77,23 @@ export const IcpProfileSchema = z.object({
   technology: z.array(z.string()).describe("Technologies/platforms a good-fit company is likely already using"),
   growth_stage: z.array(z.string()).describe("e.g. 'Seed', 'Series A-B', 'Growth', 'Enterprise/mature'"),
   existing_tools: z.array(z.string()).describe("Categories of tool a good-fit company likely already has, that this offering complements or replaces"),
+  /** DISC-OFFER-P0-13.1: the doc's own worked ICP example names these two alongside the
+   * list fields above. Deliberately a plain `string[]` for evidence, not the richer
+   * `EvidenceItemSchema` below -- see the migration's own comment for why that shape
+   * (built for multiple, dated, first-party-vs-external sources gathered across several
+   * calls) doesn't fit a single-call synthesis over one already-approved product profile. */
+  confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .describe(
+      "0-1. How well-supported this ICP is by the product profile -- lower if the profile is thin or generic, higher if it gives specific, detailed signal to derive an ICP from.",
+    ),
+  evidence: z
+    .array(z.string())
+    .describe(
+      "Short quotes or close paraphrases from the product profile that ground this ICP's key claims (industries, pain points, roles, exclusions, etc.). Do not invent claims the profile doesn't support -- an empty array is a valid answer if the profile gives nothing concrete to quote.",
+    ),
 });
 
 export type IcpProfileDraft = z.infer<typeof IcpProfileSchema>;

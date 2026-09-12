@@ -7112,3 +7112,13 @@ and other zero-rated/exempt domestic supplies are a real, plausible future need)
 03.5 CRA Filing Adapter).** Continuing to COMPLY-P1-04 (Singapore) in this same session, per
 this backlog's own §8 delivery order (EU -> US -> Canada -> Singapore), usage/time
 permitting.
+
+**Note on a resolved cross-session collision**: a different concurrent session
+independently started COMPLY-P1-03.1 around the same time, found this session's own
+twenty already-live `gst.tax_rules` rows for `country = 'CA'` on the shared dev database
+with no git history yet to explain them, correctly judged that committing a second,
+incompatible `rule_key` scheme on top would double-book the same regulatory facts, rolled
+back its own eight inserted rows, and stopped to report rather than guess -- exactly the
+right call under genuine uncertainty. That investigation is superseded by this entry: the
+rows it found are this session's own COMPLY-P1-03 implementation, now fully committed,
+tested, and merged above.

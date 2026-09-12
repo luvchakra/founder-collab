@@ -5,9 +5,11 @@ import {
   markPipelineStageCompleted,
   markPipelineStageFailed,
   markPipelineStageSkipped,
+  startPipelineRun,
+  completePipelineRun,
 } from "@cofounderai/module-discovery/lib/pipeline/mutations";
-import { listPipelineStages } from "@cofounderai/module-discovery/lib/pipeline/queries";
-import { PIPELINE_STAGE_KEYS, type PipelineStageKey } from "@cofounderai/module-discovery/lib/pipeline/types";
+import { listPipelineStages, getPipelineRun } from "@cofounderai/module-discovery/lib/pipeline/queries";
+import { PIPELINE_RUN_TRIGGERS, PIPELINE_STAGE_KEYS, type PipelineRunTrigger, type PipelineStageKey } from "@cofounderai/module-discovery/lib/pipeline/types";
 import {
   runWebsiteUnderstandingStage,
   runOfferingProfileStage,
@@ -58,15 +60,22 @@ import { getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index"
  * inside module-discovery's own `lib/`, and this stage follows that same established
  * placement rather than being the first to import module-crm into module-discovery's own
  * package.
+ *
+ * DISC-OFFER-P0-14.1: "Discovery Run History". A "run" is the client's own `runFrom()`
+ * walk across several of these per-stage requests, not a single request -- so this route
+ * gains a second POST shape (`{ action: "start_run" }`) the panel calls once before that
+ * walk begins, returning a `runId` the panel then attaches to every per-stage request in
+ * that same walk (`{ stageKey, runId }`). This handler finalizes the run itself the
+ * moment it can tell the walk has stopped: a stage failing (the client's own loop always
+ * breaks on the first failure), or the very last technical stage (`crm_handoff`)
+ * succeeding.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ businessId: string; productId: string }> }) {
   const { businessId, productId } = await params;
-  const body = (await request.json().catch(() => null)) as { stageKey?: string } | null;
-  const stageKey = body?.stageKey;
-
-  if (!stageKey || !PIPELINE_STAGE_KEYS.includes(stageKey as PipelineStageKey)) {
-    return NextResponse.json({ ok: false, error: "Unknown pipeline stage." }, { status: 400 });
-  }
+  const body = (await request.json().catch(() => null)) as
+    | { action: "start_run"; trigger?: string; startingStage?: string }
+    | { stageKey?: string; runId?: string | null }
+    | null;
 
   const product = await getProduct(productId);
   if (!product || product.business_id !== businessId) {
@@ -77,8 +86,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
     return NextResponse.json({ ok: false, error: "Offering not found." }, { status: 404 });
   }
 
+  if (body && "action" in body && body.action === "start_run") {
+    const { trigger, startingStage } = body;
+    if (!trigger || !PIPELINE_RUN_TRIGGERS.includes(trigger as PipelineRunTrigger)) {
+      return NextResponse.json({ ok: false, error: "Unknown run trigger." }, { status: 400 });
+    }
+    if (!startingStage || !PIPELINE_STAGE_KEYS.includes(startingStage as PipelineStageKey)) {
+      return NextResponse.json({ ok: false, error: "Unknown starting stage." }, { status: 400 });
+    }
+    const run = await startPipelineRun(workspace.id, trigger as PipelineRunTrigger, startingStage as PipelineStageKey);
+    return NextResponse.json({ ok: true, run });
+  }
+
+  const stageKey = body && "stageKey" in body ? body.stageKey : undefined;
+  if (!stageKey || !PIPELINE_STAGE_KEYS.includes(stageKey as PipelineStageKey)) {
+    return NextResponse.json({ ok: false, error: "Unknown pipeline stage." }, { status: 400 });
+  }
+
+  // A client-supplied runId is only ever trusted once it's confirmed to belong to this
+  // same workspace (CLAUDE.md dev principle #8) -- a stale/foreign id is treated as no
+  // run at all rather than rejecting the stage's own real work over a bookkeeping detail.
+  const requestedRunId = body && "runId" in body ? (body.runId ?? null) : null;
+  const run = requestedRunId ? await getPipelineRun(workspace.id, requestedRunId) : null;
+  const runId = run?.id ?? null;
+
   const key = stageKey as PipelineStageKey;
   const ctx: StageContext = { workspaceId: workspace.id, productId: product.id };
+  const isLastStage = key === PIPELINE_STAGE_KEYS[PIPELINE_STAGE_KEYS.length - 1];
 
   await markPipelineStageRunning(workspace.id, key);
 
@@ -86,12 +120,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
     const result = await runStage(key, ctx, businessId);
     const stage =
       result.outcome === "skipped"
-        ? await markPipelineStageSkipped(workspace.id, key)
-        : await markPipelineStageCompleted(workspace.id, key);
+        ? await markPipelineStageSkipped(workspace.id, key, runId)
+        : await markPipelineStageCompleted(workspace.id, key, undefined, runId);
+    if (runId && isLastStage) {
+      await completePipelineRun(workspace.id, runId, "completed", null);
+    }
     return NextResponse.json({ ok: true, stage, detail: result.detail });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Something went wrong.";
-    const stage = await markPipelineStageFailed(workspace.id, key, message);
+    const stage = await markPipelineStageFailed(workspace.id, key, message, runId);
+    if (runId) {
+      await completePipelineRun(workspace.id, runId, "failed", message);
+    }
     return NextResponse.json({ ok: false, stage, error: message });
   }
 }

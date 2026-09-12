@@ -43,6 +43,18 @@ const NAV_LINKS = [
   { href: "/platform/branding", label: "Platform Branding" },
   // PLATFORM-P0-04.1: the subscription/pricing catalog admin screen.
   { href: "/platform/plans", label: "Plans" },
+  // PLATFORM-P0-07.1: the module registry / administration screen.
+  { href: "/platform/modules", label: "Modules" },
+  // PLATFORM-P0-08.1: the operational feature-flag catalog.
+  { href: "/platform/feature-flags", label: "Feature Flags" },
+  // PLATFORM-P0-09.1/09.2: the platform-wide AI provider registry and key storage.
+  { href: "/platform/ai-providers", label: "AI Providers" },
+  // PLATFORM-P0-09.3: the platform-wide AI routing policy -- config-only, no runtime
+  // wiring (see the migration's own docstring).
+  { href: "/platform/ai-routing", label: "AI Routing" },
+  // PLATFORM-P0-09.4: the platform-wide AI feature/usage-ceiling policy -- config-only,
+  // no runtime enforcement (see the migration's own docstring).
+  { href: "/platform/ai-feature-policies", label: "AI Feature Policies" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
