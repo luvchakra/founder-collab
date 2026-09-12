@@ -79,7 +79,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 09.5 | Risk Dashboard | Done |
 | P0-10 | 10.1 | Evidence Repository | Done |
 | | 10.2 | Government Response Store | Done |
-| | 10.3–10.5 | Evidence & Audit (remaining) | Not started |
+| | 10.3 | Audit Trail | Done |
+| | 10.4–10.5 | Evidence & Audit (remaining) | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
@@ -92,9 +93,9 @@ used an approximate "~50" denominator that only ever accounted for Epics 01-09 (
 49) -- corrected here to the real full-backlog total (Epics 01-11, 60 stories minus the
 one absorbed into 01.2 = 59) now that Epic 10 is underway.
 
-**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1/10.2
-(Evidence Repository, Government Response Store) are done too. Next: COMPLY-P0-10.3
-(Audit Trail).
+**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1/10.2/10.3
+(Evidence Repository, Government Response Store, Audit Trail) are done too. Next:
+COMPLY-P0-10.4 (Source Traceability).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5263,6 +5264,96 @@ adapter interface change, a different story's job); folding in GSTR-2B statement
 - Re-ran the existing `scripts/test-gst-generation-history-rls.mjs` harness locally to
   confirm the full migration timeline (163 files, including this story's own ALTER)
   applies cleanly and `gst.eway_bills`' own existing RLS/constraints are unaffected.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 10.3 -- Audit Trail (2026-09-12)
+
+Checked the existing implementation first (backlog rule 1) -- `core.write_audit_log()`
+and `core.audit_log` (Epic 3, story D-10) were already built platform-wide, with D-10's
+own migration comment saying explicitly "every future module's own state transitions ...
+call the same `write_audit_log()` helper from their own triggers as those tables get
+built -- this story's job is the shared mechanism, not every future caller."
+`module-inventory`/`module-fsm`/`module-crm` had already each done exactly this for their
+own state transitions -- confirmed, by grepping every migration for `write_audit_log`,
+that NO `gst.*` table had ever done so, despite this whole backlog having several
+genuinely meaningful state transitions already built. This story is `module-gst`'s own
+turn, nothing more.
+
+**Scope, deliberately the four already-built state changes that are actually
+compliance-meaningful (backlog rule 5)**: `gst.return_periods` (`status` -- the review
+pipeline -- and `payment_status`, each independently), `gst.ims_actions` (every
+accept/reject/pending decision, insert or update, since COMPLY-P0-08.4's own
+`recordImsAction` is an upsert-by-document), `gst.reconciliation_exceptions` (`status`,
+open -> resolved/dismissed), `gst.tax_registrations` (`registration_status`, a
+GSTIN going inactive affects every downstream determination). Every OTHER `gst` table
+write (e-invoice/e-way-bill generation, GSTR-2B import, filing reminders) already has its
+own append-only historical row as its own audit trail -- an ADDITIONAL `core.audit_log`
+entry for those would be a second, redundant record of the same fact, not a new one.
+
+**Pure DB triggers, mirroring `core.log_document_status_change()`'s exact shape** (checked
+that function, plus `inventory.log_stock_adjustment()`, before writing anything): `security
+definer`, `set search_path`, a plain `is distinct from` guard, one `perform
+core.write_audit_log(...)` call per meaningful field. `actor_id` is `auth.uid()` -- every
+one of these four tables' own writes goes through the request-scoped, RLS-authenticated
+client (none of COMPLY-P0-07.5/08.4/08.6/04.1's own mutations use the admin client), so
+this is always a real signed-in user in practice for these specific tables.
+
+**Deliberately did NOT touch `packages/core/src/audit/format.ts`'s own `ACTION_LABEL`/
+`ENTITY_TYPE_LABEL` maps**, even though `module-crm`/`module-fsm` have each already added
+their own entries there (confirmed -- `crm_lead.status_changed`, `job.parts_shortage_
+resolved`, etc. are already registered by those modules) and it would make these four new
+actions render with a friendly label instead of the raw action string once a UI reads
+them. This run's own scope is explicitly `packages/module-gst` (plus `apps/web` routes
+when a story's UI needs it) -- `packages/core` is out of bounds for this workstream by
+that instruction, and the four raw action strings (`return_period.status_changed`,
+`ims_action.recorded`, `reconciliation_exception.status_changed`,
+`tax_registration.status_changed`) are still self-describing enough to be usable without
+a label. Flagged here as a concrete, easy follow-up for whichever future
+session/workstream is authorized to touch `packages/core` (most naturally COMPLY-P0-11,
+the UI epic, if that story's own scope permits it, or a dedicated small core-touching
+change otherwise).
+
+**What was built**:
+- `supabase/migrations/20260912220000_gst_audit_trail.sql` -- four trigger functions
+  (`gst.log_return_period_status_change`, `gst.log_ims_action`,
+  `gst.log_reconciliation_exception_status_change`,
+  `gst.log_tax_registration_status_change`) and their triggers.
+- `scripts/test-gst-audit-trail.mjs` -- new real-Postgres test (added to `package.json`'s
+  `test:db` chain, since a DB trigger cannot be verified any other way): all four
+  triggers actually write a real `core.audit_log` row on the transition each is meant to
+  catch, that changing an UNRELATED field writes nothing, and that `gst.ims_actions`'
+  insert-then-update-your-mind produces two separate, distinct log entries for the same
+  row.
+
+**What was deliberately left out**: the `packages/core` label-map registration (see
+above); audit entries for every other `gst.*` write (see the scope note above -- most
+already have their own append-only history); any UI (COMPLY-P0-11, though
+`@cofounderai/core/audit/queries#listAuditLogForBusiness` and
+`@cofounderai/core/components/audit-log/audit-log-view` are ALREADY fully generic and
+reusable as-is by a future Compliance audit-log page -- no new gst-specific query/
+component needed, confirmed by reading both before deciding this).
+
+**How verified**:
+- `npm run typecheck` (full monorepo) -- clean across all workspaces (no `.ts` source
+  changed this story besides the new test script, which is plain Node, not part of any
+  workspace's own `tsc` project).
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1321 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 164 migration files, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 454 tests passing, unchanged (this story
+  added no application code, only a migration and a real-Postgres test script).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (security): identical finding set
+  before/after -- no new finding (four `security definer` trigger functions, no new
+  table, no new RLS policy).
+- **Local Postgres RLS/trigger harness actually run this story**: `scripts/test-gst-audit
+  -trail.mjs`, all 7 assertions passing -- each of the four triggers verified to fire a
+  real `core.audit_log` insert on its own real transition, the no-op-field-change
+  negative case, and the IMS insert-then-update-mind producing two distinct entries.
+  Confirms the full migration timeline (164 files) still applies cleanly.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
