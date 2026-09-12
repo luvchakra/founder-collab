@@ -60,7 +60,7 @@ only genuine architectural/key decisions are raised.
 | | 14.2 | Versioned Stage Results | Done |
 | | 15.1 | Final Human Action Gate | Done |
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Done |
-| | P1-01.2 | Incremental Re-Run | Not started |
+| | P1-01.2 | Incremental Re-Run | Done |
 | | P1-02.1 | Review Required Indicators | Not started |
 | | P1-02.2 | Rerun Impact Confirmation | Not started |
 | | P1-03.1 | Offering Definition Quality | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**42 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**43 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3102,3 +3102,86 @@ environment).
 
 **Status**: 42 of 68 in-scope stories done -- Phase F underway. Next: P1-01.2,
 Incremental Re-Run.
+
+### P1-01.2 — Incremental Re-Run (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading either -- just one line ("When
+a new signal arrives, do not rerun the whole pipeline") and a three-step worked example
+("New signal → Re-score affected opportunity → Recalculate Why Now → Update recommended
+action").
+
+**Found a real, concrete gap, not a hypothetical one** -- traced every pipeline stage
+handler in `handlers.ts` (DISC-OFFER-P0-10.1) and confirmed each one filters strictly on
+"never yet computed" (`!o.signal_correlation_id`, `!o.why_now`, `!o.recommended_action`):
+by design, so a rerun of "AI Discovery" never redoes already-done work. The real
+consequence: once an opportunity has its first correlation/why-now/recommendation,
+*nothing in this module ever revisits it again* -- not even the pipeline's own rerun,
+since `prospectsPendingOpportunity` (10.1) already excludes any prospect that already has
+one. The one place fresh evidence for an *existing* opportunity actually does arrive
+today is a founder manually clicking "Research" again on the Prospect Detail page
+(`researchProspectAction` → `researchProspect()`) -- and that path updates
+`ProspectResearch` only; it never calls `syncSignalsFromResearch` at all (that function is
+only ever invoked from the pipeline's own `signals` stage), so a re-research today
+produces fresher evidence with zero downstream effect. That silent no-op is exactly what
+"do not rerun the whole pipeline [for a new signal], but do *something*" is asking to fix.
+
+**New `applyIncrementalSignalUpdate(workspaceId, prospectId)`** (`lib/pipeline/
+incremental.ts`) -- the doc's own three-step example, scoped to *this one prospect's*
+own open opportunities only (never touches any other opportunity in the workspace, the
+literal "do not rerun the whole pipeline"): syncs signals and negative signals once
+(prospect-level facts, not opportunity-level), then for each open opportunity
+re-correlates, reattaches (recomputing `score`/`signal_strength_score` -- 05.2's own
+auto-recompute-on-write already happens inside `attachSignalCorrelation`), recalculates
+Why Now (`setOpportunityWhyNow`), and updates the recommended action
+(`setOpportunityNextBestAction`) -- unconditionally, unlike the pipeline stage handlers'
+own "only if missing" filters, since fresh evidence is precisely the trigger this
+function exists to react to. A prospect with no open opportunity (brand new, or every one
+already resolved) is a no-op -- correctly nothing for fresh evidence to update yet.
+
+Extracted `buildNextBestActionInput(workspaceId, opportunity)` out of
+`runRecommendedActionStage` (10.1) into its own exported function in `handlers.ts`, so
+both the stage handler and the new incremental path build the exact same
+`NextBestActionInput` shape from one place rather than two copies that could drift apart
+-- a direct, in-scope extraction this story's own reuse need requires, not an unrelated
+refactor (CLAUDE.md dev principle #10). Trades one extra `personas`/`icp` fetch per
+opportunity (previously fetched once per batch in the stage's own loop) for that single
+shared implementation -- a deliberate, noted tradeoff given typical open-opportunity
+counts are small.
+
+**Wiring**: `researchProspectAction` (`prospects/[prospectId]/actions.ts`) now calls
+`applyIncrementalSignalUpdate` right after a successful `researchProspect()`, wrapped in
+its own try/catch -- a founder's fresh research is already saved and worth showing
+regardless of whether the follow-on incremental recompute hits something unexpected,
+the same "never let a secondary effect's failure mask the primary success" restraint
+this run has applied elsewhere (`recordAiRun`'s own logging-failure isolation,
+DISC-OFFER-P0-14.1). No other call site of `researchProspect()` needed the same wiring --
+the pipeline's own `runSignalsStage` only ever calls it for a prospect *without* an
+opportunity yet (its own `prospectsPendingOpportunity` selector), so
+`applyIncrementalSignalUpdate` would always find zero open opportunities there and
+correctly no-op even if it were added -- left out to avoid a pointless extra call rather
+than for correctness.
+
+No migration this story -- pure code over already-existing tables/columns. No new pure
+domain logic worth its own unit test either: `applyIncrementalSignalUpdate`'s own
+`RESOLVED_STATUSES` filter mirrors `activeOpportunities`' own equivalent filter (10.1,
+never separately tested), and the rest is DB-composing orchestration over already-tested
+mutations (`attachSignalCorrelation`/`setOpportunityWhyNow`/`setOpportunityNextBestAction`
+each already covered by their own underlying pure functions' tests) -- this run's own "no
+unit test for a DB-composing function" precedent.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1179 files, no
+violations), `lint:migrations` (135 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (193/193, unchanged -- confirmed the
+`buildNextBestActionInput` extraction changed no behavior, same count as before this
+story), and a clean `next build` (confirmed the prospect detail route, which now calls
+the incremental update after research, builds with no errors). Same
+live-browser-walkthrough constraint noted in every prior UI-touching story this run (no
+seeded demo user/`.env.local` in this environment) -- particularly relevant here since
+this story's own real effect (an already-scored opportunity's correlation/why-now/
+recommendation actually changing after a second "Research" click) has no UI element of
+its own to visually confirm beyond the existing Opportunity Detail page already
+re-rendering those same fields.
+
+**Status**: 43 of 68 in-scope stories done -- Phase F underway. Next: P1-02.1, Review
+Required Indicators.
