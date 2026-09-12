@@ -3,7 +3,8 @@ import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { createClient } from "../../db/server";
 import { createAdminClient } from "../../db/admin";
-import { callGsp, decryptGspSecrets } from "../gsp-client";
+import { decryptGspSecrets } from "../gsp-client";
+import { createGspIrpAdapter } from "../irp-adapter/gsp-adapter";
 import type { Einvoice } from "./types";
 
 export type EinvoiceCredentialsInput = {
@@ -11,6 +12,11 @@ export type EinvoiceCredentialsInput = {
   auth_url: string;
   generate_url: string;
   cancel_url: string;
+  /** COMPLY-P0-05.3 (IRP Adapter): optional -- a business already using the existing
+   * generate/cancel workflow isn't forced to configure these before that keeps working;
+   * `createGspIrpAdapter`'s own `status()`/`fetch()` throw a clear error when unset. */
+  status_url?: string | null;
+  fetch_url?: string | null;
   gsp_username?: string | null;
   gsp_password?: string | null;
   client_id?: string | null;
@@ -33,6 +39,8 @@ export async function upsertEinvoiceCredentials(
     auth_url: input.auth_url,
     generate_url: input.generate_url,
     cancel_url: input.cancel_url,
+    status_url: input.status_url || null,
+    fetch_url: input.fetch_url || null,
     gsp_username: input.gsp_username || null,
     encrypted_gsp_password: input.gsp_password ? encryptApiKey(input.gsp_password) : null,
     client_id: input.client_id || null,
@@ -85,7 +93,7 @@ export async function generateEinvoice(businessId: string, documentId: string): 
 
   const { data: credentials, error: credentialsError } = await admin
     .from("einvoice_credentials")
-    .select("generate_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
+    .select("generate_url, cancel_url, status_url, fetch_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
@@ -100,15 +108,18 @@ export async function generateEinvoice(businessId: string, documentId: string): 
     .single();
   if (documentError) throw documentError;
 
-  const response = await callGsp(credentials.generate_url, decryptGspSecrets(credentials), {
-    DocDtls: { No: document.number, Dt: document.doc_date },
-    ValDtls: {
-      AssVal: document.subtotal,
-      CgstVal: document.cgst_amount,
-      SgstVal: document.sgst_amount,
-      IgstVal: document.igst_amount,
-      TotInvVal: document.total_amount,
-    },
+  const adapter = createGspIrpAdapter(
+    { generateUrl: credentials.generate_url, cancelUrl: credentials.cancel_url, statusUrl: credentials.status_url, fetchUrl: credentials.fetch_url },
+    decryptGspSecrets(credentials),
+  );
+  const response = await adapter.submit({
+    docNumber: document.number,
+    docDate: document.doc_date,
+    assessableValue: document.subtotal,
+    cgstValue: document.cgst_amount,
+    sgstValue: document.sgst_amount,
+    igstValue: document.igst_amount,
+    totalValue: document.total_amount,
   });
 
   const { data: row, error: insertError } = await admin
@@ -116,10 +127,10 @@ export async function generateEinvoice(businessId: string, documentId: string): 
     .insert({
       business_id: businessId,
       document_id: documentId,
-      irn: (response.Irn as string | undefined) ?? null,
-      ack_no: (response.AckNo as string | undefined) ?? null,
-      ack_date: (response.AckDt as string | undefined) ?? null,
-      qr_code: (response.SignedQRCode as string | undefined) ?? null,
+      irn: response.irn,
+      ack_no: response.ackNo,
+      ack_date: response.ackDate,
+      qr_code: response.qrCode,
     })
     .select()
     .single();
@@ -146,17 +157,18 @@ export async function cancelEinvoice(businessId: string, documentId: string, rea
 
   const { data: credentials, error: credentialsError } = await admin
     .from("einvoice_credentials")
-    .select("cancel_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
+    .select("generate_url, cancel_url, status_url, fetch_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
     .eq("business_id", businessId)
     .maybeSingle();
   if (credentialsError) throw credentialsError;
   if (!credentials) throw new Error("No e-Invoicing credentials configured for this business.");
 
-  await callGsp(credentials.cancel_url, decryptGspSecrets(credentials), {
-    Irn: existing.irn,
-    CnlRsn: "1",
-    CnlRem: reason || "Cancelled",
-  });
+  const adapter = createGspIrpAdapter(
+    { generateUrl: credentials.generate_url, cancelUrl: credentials.cancel_url, statusUrl: credentials.status_url, fetchUrl: credentials.fetch_url },
+    decryptGspSecrets(credentials),
+  );
+  if (!existing.irn) throw new Error("This e-Invoice has no IRN on record to cancel.");
+  await adapter.cancel({ irn: existing.irn, reasonCode: "1", remarks: reason || "Cancelled" });
 
   const { data: row, error: updateError } = await admin
     .from("einvoices")
@@ -166,4 +178,44 @@ export async function cancelEinvoice(businessId: string, documentId: string, rea
     .single();
   if (updateError) throw updateError;
   return row;
+}
+
+/**
+ * COMPLY-P0-05.3 (IRP Adapter): the first real caller of the adapter's own `status()`
+ * method -- a genuinely new capability this module never had a way to invoke before
+ * (`gst.einvoice_credentials` had no `status_url` column until this story's own
+ * migration). Deliberately read-only and NOT persisted anywhere -- deciding how a live
+ * IRP status answer should update `gst.einvoices`' own `status` column (or a fuller
+ * state machine) is COMPLY-P0-05.6's own "E-Invoice Status" job, not this story's; this
+ * function only proves the adapter's `status` method is real and callable end to end.
+ *
+ * Throws the adapter's own "no status URL configured" error when the business hasn't set
+ * one, and "No e-Invoice exists for this document" when there's no IRN to check at all --
+ * both are real, actionable failures, not swallowed into a `null`.
+ */
+export async function getEinvoiceIrpStatus(businessId: string, documentId: string) {
+  const admin = createAdminClient();
+
+  const { data: existing, error: existingError } = await admin
+    .from("einvoices")
+    .select("irn")
+    .eq("business_id", businessId)
+    .eq("document_id", documentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing || !existing.irn) throw new Error("No e-Invoice exists for this document.");
+
+  const { data: credentials, error: credentialsError } = await admin
+    .from("einvoice_credentials")
+    .select("generate_url, cancel_url, status_url, fetch_url, gsp_username, encrypted_gsp_password, client_id, encrypted_client_secret")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (credentialsError) throw credentialsError;
+  if (!credentials) throw new Error("No e-Invoicing credentials configured for this business.");
+
+  const adapter = createGspIrpAdapter(
+    { generateUrl: credentials.generate_url, cancelUrl: credentials.cancel_url, statusUrl: credentials.status_url, fetchUrl: credentials.fetch_url },
+    decryptGspSecrets(credentials),
+  );
+  return adapter.status({ irn: existing.irn });
 }

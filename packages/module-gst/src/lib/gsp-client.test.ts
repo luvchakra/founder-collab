@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
-import { callGsp, decryptGspSecrets, type GspCredentials } from "./gsp-client";
+import { callGsp, callGspGet, decryptGspSecrets, type GspCredentials } from "./gsp-client";
 
 beforeAll(() => {
   process.env.API_KEY_ENCRYPTION_SECRET = randomBytes(32).toString("base64");
@@ -92,6 +92,36 @@ describe("callGsp", () => {
     );
     await expect(callGsp(GSP_URL, CREDENTIALS, {})).rejects.toThrow(
       "The configured GST service provider returned an unexpected response. Try again, or contact its support if this keeps happening.",
+    );
+  });
+});
+
+// COMPLY-P0-05.3 (IRP Adapter): callGspGet shares callGsp's own response-handling
+// (extracted into handleGspResponse) -- these tests only cover the GET-specific request
+// shape (method, no body, auth headers still sent) plus one shared-failure smoke test,
+// since the full success/401/500/network/malformed-JSON matrix is already exercised
+// above against the identical underlying logic.
+describe("callGspGet", () => {
+  const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    consoleErrorSpy.mockClear();
+  });
+
+  it("sends a GET request with no body and returns the parsed JSON", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ Irn: "abc123", Status: "ACT" }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callGspGet(`${GSP_URL}/irn/abc123`, CREDENTIALS)).resolves.toEqual({ Irn: "abc123", Status: "ACT" });
+    expect(fetchMock).toHaveBeenCalledWith(`${GSP_URL}/irn/abc123`, expect.objectContaining({ method: "GET" }));
+    expect(fetchMock.mock.calls[0]?.[1]).not.toHaveProperty("body");
+  });
+
+  it("sanitizes a failure the same way callGsp does", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 401, statusText: "Unauthorized" }));
+    await expect(callGspGet(GSP_URL, CREDENTIALS)).rejects.toThrow(
+      "The configured GST service provider rejected these credentials -- check the GSP username/password or client ID/secret and try again.",
     );
   });
 });
