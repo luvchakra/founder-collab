@@ -1,4 +1,6 @@
 import { createClient } from "../../db/server";
+import { getWorkspace } from "../tenancy/queries";
+import { computeNextDiscoveryAt } from "../tenancy/rediscovery";
 import type { PipelineRun, PipelineRunStatus, PipelineRunTrigger, PipelineStage, PipelineStageKey } from "./types";
 
 async function updateStage(
@@ -183,4 +185,23 @@ export async function completePipelineRun(
     .eq("workspace_id", workspaceId)
     .eq("id", runId);
   if (updateError) throw updateError;
+
+  // DISC-OFFER-P1-01.1: "Scheduled Offering Re-Discovery" -- only a genuinely
+  // *completed* run rolls the schedule forward; a failed run leaves `next_discovery_at`
+  // exactly where it was so an already-scheduled offering stays visibly (over)due
+  // rather than this failure silently buying it another full interval before anyone
+  // notices nothing actually ran. Reads the workspace's own current interval fresh
+  // rather than threading it through every caller -- this is the one place in the
+  // module a completed run and the schedule it might advance actually meet.
+  if (status === "completed") {
+    const workspace = await getWorkspace(workspaceId, supabase);
+    if (workspace && workspace.rediscovery_interval !== "off") {
+      const nextDiscoveryAt = computeNextDiscoveryAt(workspace.rediscovery_interval, new Date());
+      const { error: scheduleError } = await supabase
+        .from("workspaces")
+        .update({ next_discovery_at: nextDiscoveryAt ? nextDiscoveryAt.toISOString() : null })
+        .eq("id", workspaceId);
+      if (scheduleError) throw scheduleError;
+    }
+  }
 }
