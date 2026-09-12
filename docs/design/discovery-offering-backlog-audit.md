@@ -59,7 +59,7 @@ only genuine architectural/key decisions are raised.
 | | 14.1 | Discovery Run History | Done |
 | | 14.2 | Versioned Stage Results | Done |
 | | 15.1 | Final Human Action Gate | Done |
-| F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Not started |
+| F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Done |
 | | P1-01.2 | Incremental Re-Run | Not started |
 | | P1-02.1 | Review Required Indicators | Not started |
 | | P1-02.2 | Rerun Impact Confirmation | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**41 of 68 in-scope stories done -- Phase E complete.** (11.3 and 11.2 were both built
+**42 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3008,3 +3008,97 @@ card and the override form.
 **Status**: 41 of 68 in-scope stories done -- **Phase E complete** (all sixteen
 09.1-15.1 stories done). Next: Phase F (P1), starting with DISC-OFFER-P1-01.1, Scheduled
 Offering Re-Discovery.
+
+### P1-01.1 — Scheduled Offering Re-Discovery (2026-09-12)
+
+Phase F begins -- first P1 story after all sixteen P0 Phase E stories. The doc gives this
+story no "Acceptance criteria" heading either (same shape as several P0 stories this run
+already treated as schema-plus-minimal-UI) -- a worked example ("Last discovery: Today,
+10:30 / Next discovery: Tomorrow / [Run Now]") and one line: "Only meaningful changes
+should create new opportunities."
+
+**"Only meaningful changes should create new opportunities" was checked first and found
+already true** -- re-reading `runSignalsStage`'s own `prospectsPendingOpportunity`
+selector (DISC-OFFER-P0-10.1): it already filters to prospects under the active
+definition with *no opportunity yet*, so re-running the pipeline a second time only ever
+creates opportunities for genuinely new accounts discovered since the last run, never a
+second opportunity for one already covered. Combined with `discoverProspects`' own
+`findDuplicateProspect` check (also already existing), a full pipeline rerun is already
+naturally incremental at the opportunity-creation level. No code change needed for this
+line -- verified and documented here, the same "check what already holds before building
+something to re-guarantee it" discipline DISC-OFFER-P0-15.1 just applied to its own two
+acceptance lines.
+
+**The genuine, hard architectural question this story raised**: whether the doc's own
+"on a schedule" implies the system should *unattended*, without a founder present,
+actually re-run the pipeline once due. Investigated this before writing any code, since
+it's a real architecture question (CLAUDE.md dev principle #14: don't change architecture
+without approval) rather than a UI detail. Found: every function the fourteen-stage
+pipeline depends on (`understandProduct`, `generateIcp`, `discoverProspects`,
+`researchProspect`, `generateResearchBrief`, and every mutation/query between them) is
+built exclusively around the per-request, RLS-scoped, signed-in-user Supabase client
+(`db/server.ts`) -- unlike `module-fsm`'s own `sendDueReminders`/`core`'s own
+`drainDomainEvents`, which are cron-native functions built from the start around an
+admin (service-role) client precisely because "a cron invocation has no signed-in user"
+(both functions' own doc comments say so explicitly). `module-discovery` has no admin
+client of its own at all (`module-fsm`/`core` each do, `db/admin.ts`) and nothing in this
+pipeline was built to accept one. Retrofitting every AI-calling function and its
+downstream mutations to support an injectable admin client so an unattended cron could
+drive them is a cross-cutting, module-wide architecture change -- not something this one
+story's own two-line spec implies building, and exactly the kind of change CLAUDE.md dev
+principle #10 ("do not refactor unrelated code") and #14 warn against doing as a side
+effect of a single P1 story. Re-reading the doc's own mockup with this in mind: it shows
+only a due-date display and a manual `[Run Now]` override -- nothing promising silent
+background execution -- so the literal, honestly-buildable reading is "compute and show
+when a rerun is due, let a founder trigger it (early or on time) themselves," not "the
+system reruns itself while nobody is watching." Built exactly that, and flagged the
+larger question explicitly rather than either quietly building a fake automation or
+quietly declining the whole story.
+
+**Schema** (`20260912250000_discovery_workspaces_rediscovery_schedule.sql`): two columns
+on `discovery.workspaces` (1:1 with an offering, so no new table -- checked the entity
+ownership map first, no "schedule"/"recurrence" concept listed) -- `rediscovery_interval`
+(`off`/`daily`/`weekly`, closed vocabulary default `off`, the same closed-enum discipline
+`pipeline_runs.trigger`/`icp_profile_versions.source` already established) and
+`next_discovery_at` (nullable, null exactly when off -- "no false precision"). "Last
+discovery" is deliberately **not** a column -- derived from `discovery.pipeline_runs`
+(DISC-OFFER-P0-14.1, already the authoritative completed-run record) via new
+`getLastCompletedPipelineRun`, the same "don't store what's already derivable"
+discipline 14.1's own migration already applied to "AI provider/model"/"stages
+executed".
+
+**Logic**: new `lib/tenancy/rediscovery.ts` -- `computeNextDiscoveryAt(interval, from)`
+(pure date arithmetic, off→null/daily→+1 day/weekly→+7 days) and `isRediscoveryDue`
+(pure comparison), both genuinely new domain logic and both unit-tested (7 cases: each
+interval's own math, and due/not-yet-due/exactly-due boundary checks) -- this run's own
+"new pure domain logic gets a test" convention, unlike the trivial `version + 1` bumps in
+DISC-OFFER-P0-10.2/14.2 that stayed untested as thin DB-composing arithmetic. New
+`setRediscoveryInterval` (`lib/tenancy/mutations.ts`) recomputes `next_discovery_at` from
+*now* whenever a founder changes the cadence (switching to "Daily" starts today, not from
+whatever a stale prior setting left behind). `completePipelineRun` (10.2/14.1's own
+mutation) now also advances `next_discovery_at` on a **completed** run only, reading the
+workspace's own current interval fresh -- a failed run leaves the schedule exactly where
+it was rather than silently buying another full interval before anyone notices nothing
+actually ran.
+
+**UI**: new `RediscoverySchedule` component (`components/pipeline/`) on the offering
+Overview page, directly above `RunAiDiscoveryPanel` -- the doc's own Last/Next-discovery
+display plus an interval selector. **Deliberately renders no second "Run Now" button of
+its own** -- `RunAiDiscoveryPanel`'s existing "Run AI Discovery Again" immediately below
+already is that action; a second button here doing the identical thing would read as two
+different controls for one action rather than one clear entry point. Flagged as a scope/
+placement call, not an omission.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1178 files, no
+violations), `lint:migrations` (135 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (193/193, +7 new for `rediscovery.ts`), a live migration apply
++ `get_advisors` for both `security`/`performance` against the dev project
+(`jazdtomcgqjxjueedmck`) -- no new findings of any kind (two plain columns, no new
+index), and a clean `next build` (confirmed the Overview page, which now renders the
+schedule widget, builds with no errors). Same live-browser-walkthrough constraint noted
+in every prior UI-touching story this run (no seeded demo user/`.env.local` in this
+environment).
+
+**Status**: 42 of 68 in-scope stories done -- Phase F underway. Next: P1-01.2,
+Incremental Re-Run.

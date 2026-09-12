@@ -2,7 +2,8 @@ import { createClient } from "../../db/server";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { seedDefaultLicenses } from "@cofounderai/core/licensing/lifecycle";
 import { upsertItem } from "@cofounderai/module-inventory/contract/index";
-import type { Business, Product } from "./types";
+import { computeNextDiscoveryAt, type RediscoveryInterval } from "./rediscovery";
+import type { Business, Product, Workspace } from "./types";
 
 /** accounts/businesses live in the `core` schema (Epic 2's C-1). */
 function coreClient() {
@@ -280,6 +281,27 @@ export async function updateProduct(
     .from("products")
     .update(patch)
     .eq("id", productId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * DISC-OFFER-P1-01.1: "Scheduled Offering Re-Discovery" -- a founder picking a new
+ * cadence recomputes `next_discovery_at` immediately from *now* (not from whenever the
+ * offering last actually ran) -- switching to "Daily" should mean "starting today," not
+ * silently reuse whatever stale schedule an earlier setting left behind. Turning
+ * scheduling `off` clears `next_discovery_at` back to null -- "no false precision": a
+ * workspace with scheduling off has nothing genuinely "next" to show.
+ */
+export async function setRediscoveryInterval(workspaceId: string, interval: RediscoveryInterval): Promise<Workspace> {
+  const supabase = await createClient();
+  const nextDiscoveryAt = computeNextDiscoveryAt(interval, new Date());
+  const { data, error } = await supabase
+    .from("workspaces")
+    .update({ rediscovery_interval: interval, next_discovery_at: nextDiscoveryAt ? nextDiscoveryAt.toISOString() : null })
+    .eq("id", workspaceId)
     .select()
     .single();
   if (error) throw error;

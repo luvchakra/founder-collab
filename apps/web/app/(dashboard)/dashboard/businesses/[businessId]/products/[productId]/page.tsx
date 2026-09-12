@@ -10,8 +10,9 @@ import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/q
 import { ProductOverviewShell } from "@cofounderai/module-discovery/components/tenancy/product-overview-shell";
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
 import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
+import { RediscoverySchedule } from "@cofounderai/module-discovery/components/pipeline/rediscovery-schedule";
 import { TopOpportunityGate } from "@cofounderai/module-discovery/components/opportunities/top-opportunity-gate";
-import { listPipelineStages } from "@cofounderai/module-discovery/lib/pipeline/queries";
+import { listPipelineStages, getLastCompletedPipelineRun } from "@cofounderai/module-discovery/lib/pipeline/queries";
 import { getTopGateOpportunity } from "@cofounderai/module-discovery/lib/opportunities/dashboard-queries";
 import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
 import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
@@ -26,6 +27,7 @@ import {
   updateSourceAction,
   sendTopOpportunityToCrmAction,
   updateTopOpportunityStatusAction,
+  updateRediscoveryIntervalAction,
 } from "./actions";
 
 function icpPath(businessId: string, productId: string) {
@@ -57,6 +59,7 @@ export default async function ProductPage({
     ? await Promise.all([getIcpProfile(workspace.id), listBuyerPersonas(workspace.id), getProspectCounts(workspace.id)])
     : [null, [], null];
   const pipelineStages = await listPipelineStages(workspace.id);
+  const lastRun = await getLastCompletedPipelineRun(workspace.id);
 
   // DISC-OFFER-P0-15.1: "Final Human Action Gate" -- only fetched once there's real
   // opportunity data to gate on at all (same profile-gated condition as the summary
@@ -85,6 +88,12 @@ export default async function ProductPage({
 
   return (
     <div className="flex flex-col gap-8">
+      <RediscoverySchedule
+        interval={workspace.rediscovery_interval}
+        nextDiscoveryAt={workspace.next_discovery_at}
+        lastDiscoveryAt={lastRun?.completed_at ?? null}
+        updateIntervalAction={updateRediscoveryIntervalAction.bind(null, businessId, productId, workspace.id)}
+      />
       <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
       {topGateRow && topGateContext ? (
         <TopOpportunityGate
