@@ -54,6 +54,23 @@ export async function failWebsiteOnboardingRun(runId: string, errorMessage: stri
 }
 
 /**
+ * DISC-OFFER-P0-09.4's own "the user explicitly activates the final offering list" --
+ * called once, right after the real `discovery.products` rows are created from this
+ * run's (possibly edited/merged) proposed offerings, so a reload or a second click can
+ * never activate the same run twice (the caller checks `activated_at` is still null
+ * before creating anything, but this is what makes that check meaningful on the next
+ * request).
+ */
+export async function markWebsiteOnboardingRunActivated(runId: string): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("website_onboarding_runs")
+    .update({ activated_at: new Date().toISOString() })
+    .eq("id", runId);
+  if (error) throw error;
+}
+
+/**
  * DISC-OFFER-P0-09.2's own "store source URL and retrieval timestamp." Bulk-inserted once
  * the crawl finishes (whether the overall run succeeded or the homepage fetch itself
  * failed with nothing crawled at all -- an empty `pages` array is a safe no-op insert

@@ -46,7 +46,7 @@ only genuine architectural/key decisions are raised.
 | E | 09.1 | Website URL Business Onboarding | Done |
 | | 09.2 | Website Crawl & Content Discovery | Done |
 | | 09.3 | AI Offering Extraction | Done |
-| | 09.4 | Offering Review Before Activation | Not started |
+| | 09.4 | Offering Review Before Activation | Done |
 | | 10.1 | Run AI Discovery CTA | Not started |
 | | 10.2 | Persistent Pipeline Stage Model | Not started |
 | | 10.3 | Pipeline Progress UI | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**28 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**29 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1783,3 +1783,94 @@ entire point of this story.
 
 **Status**: 28 of 68 in-scope stories done -- Phase E continuing. Next: 09.4, Offering
 Review Before Activation.
+
+### 09.4 — Offering Review Before Activation (2026-09-12)
+
+Turns 09.3's read-only `OfferingCandidateList` into the doc's own literal mockup ("We
+found N Business Offerings" + checkmarks + [Edit] [Merge] [Remove] + [Create Offerings]):
+the founder now explicitly reviews, edits, merges, or removes proposed offerings before
+any real `discovery.products` row is created -- "AI suggestions are always editable
+proposals, never silently auto-saved as fact" now holds for offerings the same way it
+already held for the business profile (`applyWebsiteOnboardingProfileAction`, 09.1).
+
+New pure, unit-tested `lib/website-onboarding/offering-review.ts` (CLAUDE.md dev principle
+#4 -- merge is field consolidation, not a judgment call, so no LLM involved):
+`mergeOfferingCandidates()` combines two or more selected proposals into one ("[Merge]"),
+first-candidate-wins for most fields but a later candidate fills a gap the first left
+null, descriptions joined (deduplicated) rather than one side's silently discarded, source
+pages unioned. `offeringInputFromCandidate()` maps a reviewed candidate onto
+`createOffering()`'s own shape -- the Offering row's single flat `target_market` field
+gets `targetCustomer`/`targetIndustry` combined ("customer — industry") rather than
+discarding one of the candidate's two separate fields. 15 new vitest cases cover every
+merge rule and every target-market combination independently.
+
+New `activated_at timestamptz` column on `website_onboarding_runs`
+(`20260912060000_discovery_website_onboarding_runs_activated_at.sql`, no new RLS --
+the existing update policy from 09.1's own migration already covers writing it) -- "the
+user explicitly activates the final offering list" needs a durable guard against
+activating the same run's offerings twice (a reload racing a slow request, a
+double-click), the same reason `applied`-style ephemeral-only state elsewhere in this
+panel would not have been safe to reuse here: unlike re-applying a name/description
+(idempotent), clicking "Create Offerings" twice would create duplicate `discovery.products`
+rows without a server-side guard. New `markWebsiteOnboardingRunActivated()` mutation, set
+only after every offering in the batch is created.
+
+New server action `createOfferingsFromWebsiteOnboardingAction` (apps/web's own
+`actions.ts`) -- re-checks the run's own `activated_at` server-side before creating
+anything (never trusts the client alone), then calls the existing `createOffering()`
+(`lib/offerings/mutations.ts`, DISC-OFFER-P0-01.3's own manual "Create" path) once per
+surviving reviewed offering, so every side effect that function already has (the
+workspace/inventory-mirror trigger) happens identically here -- no parallel creation path
+invented for this flow. Flagged rather than silently assumed: this loops one
+`createOffering()` call per offering rather than a single bulk insert, so a failure
+partway through a multi-offering batch could leave some offerings created and the run
+still unactivated (a retry would then risk duplicating the ones that already landed) --
+accepted for now since `createOffering()` itself already does two sequential writes
+(insert + profile update) per call, so a truly atomic bulk path would be a larger change
+than this story's own scope asks for, and a mid-batch DB failure here is no likelier than
+in the existing manual "Create" dialog's own single-offering path.
+
+Panel (`WebsiteOnboardingPanel`) gained a new `activateOfferingsAction` prop and a new
+`offeringsActivated` boolean (seeded from `initialRun.activated_at`, so a page reload
+after a real activation shows the confirmation banner immediately rather than the review
+list again). `OfferingCandidateView` gained a stable `id` (the real DB row id once
+persisted, a generated one for a still-streaming candidate) so the review UI can track
+per-row include/merge-select/editing state. The former read-only `OfferingCandidateList`
+is now `OfferingActivationReview` + `OfferingReviewCard`: every offering starts included
+(checkbox), an inline "Edit" toggles the card into editable inputs for every field
+`createOffering()` accepts (name, description, offering type, problem solved, target
+customer/industry, value proposition) -- per this platform's own "inline editing over a
+separate page" design rule -- a "Merge" checkbox per card plus a "Merge N selected" button
+once two or more are checked, "Remove" drops a card from the list entirely (not a DB
+delete -- there is still no delete policy on the candidates table, matching 09.3's own
+scope note), and a bottom "Create N Offerings" button calls the new action with exactly
+the currently-included, possibly-edited-or-merged set. On success the panel switches to a
+plain confirmation banner (the OfferingsTable already below it shows the real created
+rows via `router.refresh()`) rather than re-rendering the review list.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1151 files, no violations), `lint:migrations` (128 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npx vitest run --root
+packages/module-discovery` (156/156, +15 new), a live migration apply + `get_advisors` for
+both `security`/`performance` (no new findings -- a single `alter table ... add column`
+adds no new index/RLS surface), and a clean `next build` (confirmed both
+`/dashboard/businesses/[businessId]/business` and the `/website-onboarding` route handler
+still build with no errors). Same live-browser-walkthrough constraint noted in every prior
+story this run (no seeded demo user/`.env.local` in this environment).
+
+**Note on this session's own git state**: this worktree's HEAD was found, at the start of
+this story, sitting on a commit belonging to the concurrent Platform Admin Portal
+workstream's own scratch-merge branch (`c5a3674`, ancestor of `origin/main` but not of
+`origin/disc-offering-backlog`) rather than this branch's own tip -- an environment/
+worktree-reuse artifact, not anything this session did. Caught before committing (a
+`git log --oneline -3` sanity check showed a platform-branded merge commit where
+`disc-offering-backlog`'s own 09.2 commit was expected). Fixed by stashing the
+already-written 09.3 changes, creating a fresh local branch from `origin/disc-offering-
+backlog`'s actual tip, reapplying the stash there, and re-running the full verification
+suite before committing -- no platform-admin-portal or compliance file was ever touched by
+either story's diff (confirmed via `git status`/`git diff` before every commit this
+session). Flagging this here since it affects how this run's own git history reads, not
+because it changed anything about what was built.
+
+**Status**: 29 of 68 in-scope stories done -- Phase E continuing. Next: 10.1, Run AI
+Discovery CTA.
