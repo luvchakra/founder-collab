@@ -21,7 +21,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 02 | Platform Dashboard | Done |
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
-| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7 folded in); 04.3 done; 04.5/04.6 done; 04.2/04.4 not started -- see log |
+| P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | Not started |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1, 04.1, 04.3,
-04.5, 04.6. P1: 0/9 done.**
+**P0: 4 full sections done (01, 02, 03 -- 03.2 deferred by design, 04), plus 18.1.
+P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -1467,3 +1467,132 @@ every `platform.*` table.
 **Status**: PLATFORM-P0-04.5/04.6 done. PLATFORM-P0-04.4 (Feature-Level Entitlements) is
 the one remaining table before PLATFORM-P0-04.2's own composite page can be built --
 picked up next.
+
+### PLATFORM-P0-04.4 + PLATFORM-P0-04.2 — Feature-Level Entitlements + Plan Entitlements (2026-09-12)
+
+**Why one story entry, not two**: 04.4 is the last of the three prerequisite tables
+PLATFORM-P0-04.1's own migration named ("module entitlements, feature-level entitlements,
+quantity limits") before 04.2's own composite page could be built. With 04.4's tables now
+landing here, all three exist, so this same commit both builds 04.4 and completes 04.2 by
+adding its third and final section to the entitlements page already under construction
+since PLATFORM-P0-04.3 -- not a coincidence of timing, the direct consequence of the
+sequencing this run's own PLATFORM-P0-04.3 entry already committed to and explained. §8
+(Subscription / Pricing Plans, 04.1-04.7) is now fully done.
+
+**Two tables, and why they are not PLATFORM-P0-08's future `feature_flags`**: migration
+`20260912060000_platform_plan_features.sql` -- `platform.features` (the catalog: id,
+`module_key` FK into `core.modules`, `key`/`name`/`description`, unique per
+(module_key, key)) and `platform.plan_features` (plan_id + feature_id, `enabled` boolean,
+defaulting false). Read closely against §12's own PLATFORM-P0-08.1 ("Global Feature
+Flags": feature_key/description/enabled/effective_from/effective_to, with a Global/Plan/
+Module/Country *scope* and its own kill-switch semantics, §8.3's examples being
+operational concerns like "AI research" as an emergency disable) -- that is a genuinely
+different axis (is the platform currently letting *anyone* use this, for reliability/
+safety reasons) from this story's own commercial packaging axis (does *this plan* entitle
+a customer to use it at all). Both could describe a similarly-named capability
+("AI Research") for entirely different reasons; conflating them into one table now, before
+either PLATFORM-P0-08 or PLATFORM-P0-05 (Entitlement Engine) actually needs the
+distinction, would tie two different concerns together speculatively. `platform.features`
+is scoped to this story's commercial-entitlement purpose only, named and documented as
+such in the migration itself so a future PLATFORM-P0-08 implementer does not mistake one
+for the other.
+
+**Not seeded**: the doc's own §8.4 per-module feature lists (Discovery: AI Research,
+Website Understanding, ...; CRM: WhatsApp, Social Inbox, ...) are labelled "Example:", the
+same illustrative-not-literal wording PLATFORM-P0-04.3's own entry already flagged for
+§8.2/§8.3's module-inclusion example -- inventing a specific feature catalog here would
+fabricate product decisions nothing in this backlog actually makes. `platform.features`
+starts empty; a superadmin defines real features through the new UI this story adds.
+
+**A real design asymmetry, deliberate, not an inconsistency**: `platform.features` gets
+full CRUD (including DELETE) for a superadmin, while `platform.plan_features` gets only
+select/insert/update, matching `platform.plan_modules`' own no-delete stance (04.3) for the
+same reason -- a plan_features row's mere absence already means "not entitled," the same
+honest default an explicit `enabled = false` row expresses, so nothing needs removing to
+revert to that state. A *feature definition* with no plan entitling it, though, is dead
+catalog data a superadmin should be able to delete outright -- `on delete cascade` on
+`plan_features.feature_id` cleans up every plan's now-orphaned entitlement row in the same
+statement, verified directly (not just read from the FK definition) in this story's own
+RLS test script.
+
+**Application layer** (`packages/core/src/admin/platform-plan-features.ts`):
+`listFeatures()`, `createFeature()` (Zod-validated: module key required, `key` a
+lowercase slug matching `platform.plans.key`'s own regex, name required, description
+normalized empty-to-null -- 7 new unit test cases in `platform-plan-features.test.ts`,
+the same bar `createPlatformPlanSchema`'s own tests already set), `deleteFeature()`,
+`listPlanFeatureEntitlements(planId)` (every catalog feature, `enabled: false` when no
+`plan_features` row exists -- never fabricated `true`), and `setPlanFeatureEnabled()`
+(upsert). No `updateFeature()` -- editing a feature's own name/description/key was not
+asked for by this story and a superadmin who wants a different feature can delete and
+re-add one cheaply while the catalog is this small; adding an edit path with nothing
+requesting it would be exactly the kind of speculative functionality CLAUDE.md's
+development principle #7 rules out.
+
+**UI**: `plans/[id]/entitlements/feature-entitlements-section.tsx` -- the third and final
+section of the now-complete `PlanEntitlementsPage` (04.2). Features grouped by module, one
+instant-toggle checkbox per feature for the current plan (same "single boolean needs no
+save step" reasoning as 04.3's switches). A small "Add a feature" dialog (module select --
+populated from the page's own already-fetched module list, not a separate hardcoded
+constant -- key, name, optional description) creates a new *global* catalog entry, and each
+feature gets a delete affordance behind an `AlertDialog` confirmation whose copy explicitly
+warns the deletion removes the feature "from the catalog and every plan that entitles it --
+not just this one," mirroring `publish-controls.tsx`'s own "deliberate, confirmed,
+hard-to-undo action" pattern (03.5) rather than a bare confirm with no context. `page.tsx`'s
+own docstring is updated to state plainly that PLATFORM-P0-04.2 is now complete -- three
+sections, one per underlying table, not a fourth table of its own, exactly as
+PLATFORM-P0-04.1's original migration comment described it would be.
+
+**Deliberately not built this story**: no `updateFeature()`/edit-feature UI (see above); no
+wiring of `plan_features` into any real entitlement/authorization check anywhere in the app
+(PLATFORM-P0-05, Entitlement Engine, "Not started," is that integration's own future job,
+matching every sibling `platform.*` table's current stance); no business/country/plan-scope
+targeting on feature flags (that is PLATFORM-P0-08's own, entirely separate, future
+concern, not this story's).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint` -- 0 errors, the same 1 pre-existing unrelated warning every prior entry has
+logged. `node scripts/lint-import-boundaries.mjs` -- 1173 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 136 migrations on this branch (135 -> 136, this
+story's own file). `npx vitest run --root packages/core` -- 88 tests (81 -> 88, this
+story's 7 new feature-schema cases), all passing. `cd apps/web && npm run build` -- clean;
+`/platform/plans/[id]/entitlements` still lists `ƒ` (dynamic).
+
+Both tables applied live in one migration via `mcp__Supabase__apply_migration` against the
+**dev** project (`jazdtomcgqjxjueedmck`) only. Role-switched (not just policy-read)
+`execute_sql` as a synthetic non-superadmin user id: a combined `select count(*) from
+platform.features, platform.plan_features` returns `0` cleanly (no "permission denied for
+schema" error), confirming both brand-new tables are already covered by
+PLATFORM-P0-03.4's own schema-grant fix. `mcp__Supabase__get_advisors` (security) -- zero
+new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and the pre-existing
+leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- the four new indexes
+(`features_module_key_idx`, `features_updated_by_idx`, `plan_features_feature_id_idx`,
+`plan_features_updated_by_idx`) show up only as the same benign "unused index" class every
+sibling FK index already carries in this empty dev database; one unrelated new finding
+(`pipeline_stages_last_ai_run_id_idx` on `discovery.pipeline_stages`) confirmed to be
+another workstream's own concurrent migration, not this story's.
+
+**A fifth RLS test script, following the established standard**: new `scripts/test-
+platform-plan-features-rls.mjs`, wired into `package.json`'s `test:db` composite script.
+Same Alice/Zoe pair. **All 13 assertions passed** on the first run against the full current
+migration timeline (136 files) -- both catalogs starting empty, a business admin denied on
+both tables (schema-grant-covered, not just RLS-denied), a superadmin's full CRUD on
+`platform.features`, the "no plan_features row = not entitled" default proven directly (not
+assumed) by checking a specific feature has zero rows for the Free plan after being
+entitled only for Pro, the `(module_key, key)` uniqueness constraint holding even for a
+superadmin, and -- the story's own real cascade-integrity claim -- deleting a feature that
+Pro had entitled and confirming via a service-role read that its `plan_features` row was
+cascade-deleted, not left orphaned.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening the entitlements page, adding a feature
+through the dialog, toggling it, and deleting it was **not** performed and is **not**
+claimed here. This story's authorization- and cascade-integrity claims were verified for
+real against both the live dev Supabase project and a real local Postgres database, per
+the standard PLATFORM-P0-03.4 set for every `platform.*` table.
+
+**Status**: PLATFORM-P0-04.4 done, and PLATFORM-P0-04.2 done alongside it -- §8
+(Subscription / Pricing Plans) is now fully complete (04.1-04.7, with 04.7 folded into 04.1
+per that story's own entry). Moving to the next doc section in order: §9 Entitlement
+Engine (PLATFORM-P0-05).
