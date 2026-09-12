@@ -23,7 +23,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
-| | 06 | Usage & Limits | 06.1/06.2 done (counters + dashboard); 06.3 done (`canConsume()`/`try_consume_usage_counter()`, atomic server-side enforcement); 06.4/06.5 next |
+| | 06 | Usage & Limits | 06.1/06.2 done (counters + dashboard); 06.3 done (`canConsume()`/`try_consume_usage_counter()`, atomic server-side enforcement); 06.4 done (copy + reusable notice component, not wired into any page yet -- see log); 06.5 next |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -2383,3 +2383,100 @@ this same section, not folded in here.
 **Status**: PLATFORM-P0-06.3 done -- all four of PLATFORM-P0-05.1's named entitlement
 functions (`hasModule`, `hasFeature`, `getLimit`, `canConsume`) now exist. Continuing in
 doc order: PLATFORM-P0-06.4 (Graceful Limit UX).
+
+### PLATFORM-P0-06.4 — Graceful Limit UX (2026-09-12)
+
+**Scope**: the doc's own worked example is a specific piece of copy plus a specific pair
+of actions:
+
+```text
+You've reached your Pro plan limit of 100 active opportunities.
+[Upgrade]
+[View Usage]
+```
+
+Before writing anything, checked live (per this run's own task brief and the standing
+"read the design rules before touching UI" rule, CLAUDE.md principle 13) whether either
+destination -- a plan-upgrade flow or a tenant-facing usage page tied to this backlog's own
+`platform.plans`/`core.usage_counters` system -- already exists to link to. It does not:
+`apps/web/app/(dashboard)/dashboard/settings/usage`,
+`.../businesses/[businessId]/usage`, and `.../settings/billing` are all `module-discovery`'s
+own pre-existing AI-credits ledger (`getWorkspaceUsage`/`getBusinessUsage`/
+`getCreditBalance`, its own older, unrelated system predating this backlog entirely, and
+explicitly a different workstream's files this run must not touch) -- not the
+`RESOURCE_KEYS`/`platform.plan_limits` system PLATFORM-P0-04-06 built. `usage/dashboard.ts`'s
+own docstring (PLATFORM-P0-06.2, this same section) already anticipated this exact gap:
+"PLATFORM-P0-06.4's own worked example, '[View Usage],' reads as a business's own button,
+not a superadmin one" -- i.e. wiring a real destination is a *module's* own future
+integration work, the same boundary 06.1-06.3 each already drew. PLATFORM-P1-04.1 ("Plan
+Change Rules") is explicit, deliberately-deferred P1 scope for the "Upgrade" side.
+
+**What was built, matching 06.2's own "build the real, decidable part; don't invent the
+part someone else's story owns" precedent**:
+
+- `describeLimitReached(decision, resourceLabel, planKey)`
+  (`packages/core/src/entitlements/limit-reached-messaging.ts`) -- a pure function turning
+  a denied `EntitlementDecision` (from `getLimit()`/`canConsume()`) into the doc's own
+  `{title, description}` copy shape, the same "raw decision in, user-facing copy out" split
+  `apps/web/.../not-licensed/page.tsx`'s own `describeReason()` already established for the
+  sibling "denied by licensing" case. A numeric `limit` produces the doc's own exact
+  sentence shape; a `null` limit (the resource is `disabled` on the plan, or the business
+  has no resolvable plan at all) falls back to the decision's own already-precise `reason`
+  text under a distinct title, rather than fabricating a number that doesn't exist --
+  CLAUDE.md principle 4/5's "never fabricate data," the same stance every prior
+  `plan_limits`-reading story in this section already holds to. Deliberately does *not*
+  lowercase the resource label for mid-sentence placement (an earlier draft did, and its
+  own test caught the bug immediately): `RESOURCE_LABELS`
+  (`packages/core/src/admin/platform-limits-constants.ts`) includes acronyms and a brand
+  name -- "AI runs", "API calls", "WhatsApp conversations" -- and naively lowercasing the
+  first character would mangle every one of them ("aI runs", "aPI calls", "whatsApp
+  conversations"); a capitalized resource name mid-sentence reads fine and is never
+  actually wrong, which a lowercasing heuristic here can't promise.
+- `LimitReachedNotice` (`packages/core/src/components/limits/limit-reached-notice.tsx`,
+  new `./limits/*` package export) -- the shared presentational rendering of that copy on
+  the existing `Alert`/`Button` primitives, mirroring
+  `packages/core/src/components/errors/error-notice.tsx`'s own shape (a small,
+  self-contained, reusable component, not a page). `upgradeHref`/`usageHref` are both
+  optional and independent: a caller with nowhere real to send one of them simply omits
+  that prop and the corresponding button doesn't render at all -- never a dead link, per
+  `docs/design/claude-ui-design-rules.md`'s "every visual element should have a purpose."
+  A future module page that adds either destination passes its own real route in; this
+  component has no opinion on what those routes are.
+
+**Deliberately not built this story, and why -- the same boundary as every prior story in
+this section**: no page renders `LimitReachedNotice` yet. That requires a real trigger (a
+module's mutating action calling `canConsume()` and receiving a real denial) and a real
+place for "Upgrade"/"View Usage" to point, neither of which exists yet -- wiring either one
+in ahead of time would mean inventing scope that belongs to a future module story or to
+PLATFORM-P1-04.1, exactly the kind of unreviewed invention this run's own task brief says
+to avoid. This is a UI *component*, not a page, so it carries no route of its own to
+verify via `next build`'s own route listing -- `next build` was still re-run clean after
+adding it (below), the same as every other change this story made.
+
+**Verification**:
+- `npx tsc --noEmit` clean across the full monorepo.
+- `npm run lint --workspaces --if-present` -- 0 errors (same 1 pre-existing, unrelated
+  warning as every prior entry this session).
+- `node scripts/lint-import-boundaries.mjs` -- 1191 files, no violations (the new
+  component only imports from `packages/core` itself -- `../ui/alert`, `../ui/button`,
+  `../../entitlements/limit-reached-messaging` -- and `next/link`/`lucide-react`, both
+  already dependencies of `packages/core` and already used the same way by sibling
+  components, e.g. `components/shell/module-selector.tsx`'s own `next/link` import).
+- `npx vitest run --root packages/core` -- 17 files / 127 tests passed (122 -> 127, +5 new
+  `describeLimitReached()` cases: the doc's own worked-example shape, the
+  acronym/brand-name-safety regression case above, the disabled-resource fallback, the
+  no-resolvable-plan fallback, and the "throws for an allowed decision -- this copy only
+  makes sense for a denial" guard). No test file for `LimitReachedNotice` itself -- this
+  codebase's own established convention for a presentational component with no branching
+  logic of its own (`error-notice.tsx`/the `not-licensed` page have none either); verified
+  instead by the clean `next build` below.
+- Clean `npm run build --workspace apps/web` (`next build`) -- full route listing
+  unchanged from before this story (the new component has no route, and nothing yet
+  imports it), no new build errors or warnings.
+- No migration this story -- nothing to apply/verify against the dev Supabase project or
+  the local-Postgres RLS harness; this story is pure application code (a formatting
+  function and a presentational component), touching no table, no RLS policy, and no new
+  SQL function.
+
+**Status**: PLATFORM-P0-06.4 done. Continuing in doc order: PLATFORM-P0-06.5 (Soft vs Hard
+Limits).
