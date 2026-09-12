@@ -43,7 +43,8 @@
     "./theme/*": "./src/components/theme/*.tsx",
     "./navigation/*": "./src/components/navigation/*.tsx",
     "./errors/*": "./src/components/errors/*.tsx",
-    "./api-keys/*": "./src/components/api-keys/*.tsx"
+    "./api-keys/*": "./src/components/api-keys/*.tsx",
+    "./limits/*": "./src/components/limits/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
