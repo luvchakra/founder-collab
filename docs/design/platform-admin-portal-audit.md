@@ -22,7 +22,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
-| | 05 | Entitlement Engine | Not started |
+| | 05 | Entitlement Engine | 05.1 partial (module-level `hasModule()` built); 05.2/05.3's Plan/Business-Override layers, and 05.4's `hasFeature`/`getLimit`/`canConsume`, blocked on an unresolved architecture question -- see log, stopped for user input |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
@@ -1596,3 +1596,187 @@ the standard PLATFORM-P0-03.4 set for every `platform.*` table.
 (Subscription / Pricing Plans) is now fully complete (04.1-04.7, with 04.7 folded into 04.1
 per that story's own entry). Moving to the next doc section in order: §9 Entitlement
 Engine (PLATFORM-P0-05).
+
+### PLATFORM-P0-05.1 — Central Entitlement Service (partial; 05.2-05.4 blocked, 2026-09-12)
+
+**Worktree-reuse hazard checked before writing anything (per this run's own standing
+instruction)**: `git log --oneline -3` on entry showed `HEAD` at `acb51e3`, a Discovery
+workstream merge commit, under a `worktree-agent-*` branch name -- `feature/platform-admin-portal`
+itself was a real, up-to-date local branch (`b9574c8`, matching `origin` exactly) but not
+what this worktree had checked out. Working tree was clean, so no stash was needed --
+fixed with a plain `git checkout feature/platform-admin-portal` (the branch already
+existed and tracked `origin/feature/platform-admin-portal` correctly; no `-B` reset was
+needed this time, unlike the PLATFORM-P0-04.3 entry's own occurrence of the same class of
+issue), then re-verified `git rev-parse HEAD` matched `origin/feature/platform-admin-portal`
+before touching any file.
+
+**Reconnaissance, done before any code (Rule 1)**: read `docs/plan/09-...md` §9 in full
+(PLATFORM-P0-05.1-05.4), then read every piece of the codebase that any of the four named
+functions (`hasFeature`/`hasModule`/`getLimit`/`canConsume`) would need to actually
+compose, not just the doc's own four-line pseudocode:
+
+- `core.licenses`/`core.has_module()`/`core.has_module_write()`
+  (`supabase/migrations/20260906096000_core_licensing.sql`,
+  `packages/core/src/licensing/{types,queries,lifecycle}.ts`) -- the one entitlement
+  signal that is real, live, and already authoritative today.
+- `platform.plans`/`plan_modules`/`plan_features`/`plan_limits` (§8, PLATFORM-P0-04,
+  all built this run) -- real catalog/configuration tables, but **nothing in the
+  codebase links a `core.businesses` row to any of them**. Confirmed directly (not
+  assumed) via `information_schema.columns`/`table_constraints` against the live dev
+  project: `core.business_settings.plan` is a plain `text` column, default `'starter'`,
+  no FK, no check constraint, no matching value in the seeded Free/Pro/Max catalog's own
+  `key`s -- exactly what PLATFORM-P0-04.1's own audit entry already flagged, re-confirmed
+  here rather than taken on faith.
+- `docs/plan/00-MASTER-PLAN.md` §7's own original licensing sketch (written before Epic 2
+  actually implemented `core.licenses`) *did* once include a `plan_tier` column on
+  `core.licenses` itself, plus a `core.module_usage` table explicitly annotated
+  "-- seat/usage billing later". Neither shipped: the live `core.licenses` migration has
+  no `plan_tier`, and no `core.module_usage`-equivalent exists anywhere. Per CLAUDE.md's
+  own "live source of truth, not frozen spec" rule, the live schema wins -- this is a real,
+  live gap, not a stale doc this run failed to read carefully enough.
+- `docs/plan/09-...md` §10 (PLATFORM-P0-06, "Usage & Limits," including "06.1 Usage
+  Counters") is listed **"Not started"** in this very log's own progress table --
+  confirmed still true (no `core.*`/`platform.*` usage-counter table anywhere in
+  `supabase/migrations/`, no `packages/core/src/usage/`-equivalent directory).
+- §24 (PLATFORM-P1-02.1, "Business Override": *"Business A / Plan: Pro / Temporary
+  Discovery limit: 500 / Expires: 30 days / Reason: Enterprise pilot"*) and §26
+  (PLATFORM-P1-04.1, "Plan Change Rules": upgrade/downgrade/proration/effective date) are
+  both explicit, named **P1** scope -- the doc itself, not this run, defers exactly the
+  two mechanisms (assigning/overriding a business's plan) that PLATFORM-P0-05.2's
+  precedence chain would need a live data source for.
+- §11 (PLATFORM-P0-07.2, "Platform-Wide Module Kill Switch") is listed **"Not started"**
+  -- there is no `platform.*` row a "Platform Global" layer could read yet either.
+- `core.has_permission()`/`requirePermission()`
+  (`packages/core/src/rbac/require-permission.ts`) -- the "User Permission" layer already
+  exists and is already enforced, independently, at each mutating action's own call site.
+
+**The judgment call this story stops on, stated precisely**: PLATFORM-P0-05.2's
+recommended precedence is `Platform Global -> Plan -> Business Override -> User
+Permission`. Of those four layers, **two have no data source in this codebase at all**
+(Platform Global's kill switch, and Plan's business<->`platform.plans` link -- the latter
+is not merely "not yet built," it is not *specified* anywhere in this P0 doc; the only
+place plan-assignment mechanics are named at all is PLATFORM-P1-04.1, explicit P1 scope),
+and a third (Business Override) is explicit, named P1 scope. Building `hasFeature()`/
+`getLimit()`/`canConsume()` as PLATFORM-P0-05.1/05.3 literally ask -- returning a real
+`limit`/`usage`/`remaining` -- would require **inventing**, un-reviewed, in application
+code: (a) how a business is assigned a plan (there is no "obvious" default: matching
+`business_settings.plan`'s existing `'starter'` value against `platform.plans.key` fails
+outright, since no seeded plan is keyed `starter`), and (b) where `usage` comes from, with
+PLATFORM-P0-06 (Usage Counters) itself not started -- meaning any non-null `usage`/
+`remaining` value returned today would be a fabricated number, exactly what CLAUDE.md's
+"never implement speculative functionality" and this backlog's own repeated "no fabricated
+data" stance (PLATFORM-P0-02.1's honest MRR/ARR "--", PLATFORM-P0-04.5's empty
+`plan_limits` seed) already rule out. This is precisely the class of call this run's own
+task assignment names explicitly: *"Any story whose correct behavior depends on a
+security/authorization judgment call the doc doesn't fully specify is a genuine
+architectural decision -- stop and report rather than guess-and-merge."* Deciding the
+business<->plan assignment mechanism is exactly that kind of call -- it determines what
+every future module's real enforcement will key off of -- so it is flagged here, not
+decided in this commit.
+
+**What was built instead, deliberately scoped to the one layer that is real and
+unambiguous today**: `packages/core/src/entitlements/` (new directory, new
+`./entitlements/*` package export added to `packages/core/package.json`, mirroring the
+existing `./licensing/*` entry) --
+
+- `types.ts`: `EntitlementSource` (the full five-member union naming every precedence
+  layer PLATFORM-P0-05.2 lists, plus `license` for the one that predates this section --
+  declared in full now so every future `switch` on `decision.source` is exhaustive from
+  day one, even though only `"license"` is ever actually produced yet) and
+  `EntitlementDecision` (PLATFORM-P0-05.3's own literal `{allowed, reason, source, limit,
+  usage, remaining}` shape; `limit`/`usage`/`remaining` are `null`, never `0`, for a
+  decision with no numeric quantity behind it -- the same "never a fake number" discipline
+  PLATFORM-P0-04.5/04.6's tri-state `plan_limits` design already established for
+  "unlimited").
+- `module-entitlement.ts`: `hasModule(businessId, moduleKey): Promise<EntitlementDecision>`
+  -- reads the exact same `core.has_module()`/`core.has_module_write()` RPCs
+  `licensing/queries.ts` already wraps as booleans (via those same wrapper functions, not
+  a second, parallel Supabase call -- PLATFORM-P0-05.4's "integrate with the existing
+  licensing model rather than creating a competing licensing system," read literally: this
+  is a richer *view* onto the one existing source, never a second source of truth), and
+  composes them into the decision shape via a separately exported, pure
+  `buildModuleEntitlementDecision(moduleKey, readAllowed, writeAllowed)` -- the same
+  "pure helper split out for direct unit testing" shape `platform-branding.ts`'s own
+  `toBranding()`/`toInputFromBranding()` already established, so the branching logic is
+  tested with no database at all. `allowed` mirrors `has_module_write()`'s stricter
+  "fully licensed, not degraded" meaning (matching what `requireModule()` already
+  enforces for writes) rather than collapsing the read-only-grace state into an
+  unqualified `true` -- grace gets its own distinct `reason` under `allowed: false`
+  instead. `source` is always `"license"` today, documented in the function's own
+  docstring as accurate (not a placeholder) given everything above -- it will start
+  reflecting the other layers only once each has a real data source, the same
+  "configuration exists before anything reads it for a real decision" stance
+  `platform.plan_modules`/`plan_features`/`plan_limits` themselves already sit in today.
+- `module-entitlement.test.ts`: 6 new cases on `buildModuleEntitlementDecision` covering
+  every read/write combination, the registry-name lookup (module-registry's own display
+  names -- `"Service"` for `fsm`, not `core.modules`' `"Field Service"` -- confirmed by
+  reading `module-registry/src/index.ts` directly rather than assumed, matching what
+  `requireModule()`'s own existing error message already uses), the fallback to a raw key
+  for an unknown module, and that `limit`/`usage`/`remaining` are always `null`.
+
+**Deliberately not built this story, and why each is blocked rather than skipped**:
+- `hasFeature(business, feature)` / `getLimit(business, resource)` /
+  `canConsume(business, resource, quantity)` -- blocked on the business<->plan assignment
+  question above (all three need to know a business's plan to consult
+  `platform.plan_features`/`plan_limits` at all) and, for `getLimit`/`canConsume`
+  specifically, also blocked on PLATFORM-P0-06 (Usage Counters, "Not started") for their
+  own `usage`/`remaining` fields.
+- Consulting `platform.plan_modules` inside `hasModule()` itself -- same blocker: without
+  a business<->plan link, there is no row to look up, and defaulting to "every module
+  enabled" (04.3's own seed default) for every business would silently create a second,
+  redundant "yes" that changes nothing today but reads as if the Plan layer were real when
+  it is not.
+- A "Platform Global" module kill-switch check -- PLATFORM-P0-07.2's own, separate,
+  "Not started" table.
+- Any change to `requireModule()`, `core.has_module()`/`has_module_write()`, RLS policies,
+  or any existing module's call sites -- this story adds a new, additive read path
+  alongside the existing one; nothing that already enforces licensing today was touched,
+  narrowed, or bypassed (CLAUDE.md non-negotiable #2/#3's "RLS is authoritative" is
+  unaffected either way, since this function never runs with elevated privilege and never
+  produces a *more* permissive answer than the RPCs it wraps already would).
+- Retrofitting any existing module's own logic to call `hasModule()` -- "All customer
+  modules must use this service" (05.1's own closing line) is real future work once the
+  service is actually complete enough to be worth adopting everywhere; adopting a
+  known-partial service now, only to change every call site again once 05.2-05.4's real
+  blockers resolve, would be premature churn CLAUDE.md's own "do not refactor unrelated
+  code" principle argues against.
+
+**Verification**: this worktree needed its own `npm install` first (fresh worktree, no
+local `node_modules` -- confirmed via `readlink -f node_modules/@cofounderai/core`
+resolving to this worktree's own `packages/core`, and `git diff --stat -- package-lock.json`
+showing no diff). Full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint` -- 0 errors, the same 1 pre-existing unrelated warning every prior entry has
+logged. `node scripts/lint-import-boundaries.mjs` -- 1176 files, no violations (the new
+`entitlements/` directory only imports `@cofounderai/module-registry` and this same
+package's own `../licensing/queries`, both already-allowed dependencies for
+`packages/core`). `node scripts/lint-migration-schema.mjs` -- 136 migrations, unchanged
+(no migration this story -- no new table, no business<->plan link invented). `npx vitest
+run --root packages/core` -- 94 tests (88 -> 94, this story's 6 new cases), all passing.
+`apps/web`'s own `vitest run --passWithNoTests` -- 47 tests, unchanged (no `apps/web` file
+touched this story). No `next build` run -- no route or page touched, matching this
+pipeline's own "if UI/routes touched" condition. No migration applied to the dev project,
+no new RLS test script -- neither applies; no new table exists.
+
+**Limitation, stated plainly**: unlike every prior `platform.*`-table story in this log,
+this entry's "not performed" note is not about a missing browser session -- it is that
+the two remaining, most consequential pieces of this section (which layer actually decides
+what a business is entitled to beyond its raw per-module license, and where usage numbers
+would come from) are genuinely undecided by the doc this backlog was built from, and this
+run is stopping rather than deciding them unreviewed.
+
+**Status**: PLATFORM-P0-05.1 partially done (module-level `hasModule()` shipped and
+merged). **Stopping here, not auto-continuing**, per this run's own task assignment:
+completing PLATFORM-P0-05.2/05.3's Plan and Business-Override layers, PLATFORM-P0-05.4's
+remaining `hasFeature`/`getLimit`/`canConsume`, and by extension all of §10 (Usage &
+Limits, PLATFORM-P0-06, which the doc's own section order would reach next) all require an
+explicit answer to: **how does a business get assigned to a `platform.plans` row, and
+where should PLATFORM-P0-06's usage counters live?** Neither question is decided by
+`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`, `docs/plan/00-MASTER-PLAN.md`, or any ADR
+-- real, user-facing product/architecture decisions (e.g.: does every business get a
+default plan at signup? does an existing business with no plan behave as the most
+permissive plan, the least, or "unrestricted until assigned"? does `core.business_settings.plan`
+become that link, or does a new column/table carry it?) that this run declines to guess
+into `main`. This run's own usage-tracking note: well under the 80% stop threshold: this
+is a natural, doc-mandated stopping point (a genuine architectural ambiguity), not a usage
+cutoff -- the same "stop early at a clean boundary rather than starting something
+unfinishable in one sitting" allowance this run's own instructions call out explicitly.
