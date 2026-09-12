@@ -48,7 +48,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.4 | Place of Supply | Done |
 | | 04.5 | GST Tax Determination | Done |
 | | 04.6 | GST Invoice Validation | Done |
-| | 04.7 | GST Rule Versioning | Not started |
+| | 04.7 | GST Rule Versioning | Done |
 | P0-05 | 05.1–05.6 | India E-Invoice | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
@@ -58,15 +58,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**19 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**20 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.6 (GST Invoice Validation) is the last completed
-story; COMPLY-P0-04.7 (GST Rule Versioning) is next, and finishes epic 04.
+**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and now
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-04.7 (GST Rule Versioning) is the
+last completed story, finishing epic 04. Next: COMPLY-P0-05 (India E-Invoice), the start of
+P0 Release 2.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1819,3 +1820,141 @@ found.
 - No migration to apply, no `get_advisors` re-check, no `apps/web` change -- another
   pure-library story, same convention as 04.5.
 - No live browser walkthrough -- moot, no UI shipped.
+
+### 04.7 — GST Rule Versioning (2026-09-12)
+
+"Rates/treatments never hard-coded permanently" -- the story `gst.tax_rules`' own
+COMPLY-P0-02.3 migration comment reserved by name ("India's own rate/treatment content
+(COMPLY-P0-04.5/04.7) will populate later -- this story only builds the generic, empty
+table") and `lib/tax-rules/admin-mutations.ts`'s own docstring named directly ("a future
+admin tool or seed script, COMPLY-P0-04.7's own job to build the India-specific caller
+for"). Every prior story in this epic (04.1-04.6) built real India-GST *logic* --
+registrations, profile, HSN/SAC, place of supply, tax determination, invoice validation --
+but none of it ever put actual India rate/treatment CONTENT into the versioned rule store
+COMPLY-P0-02.3 built for exactly that purpose; `getGstLineTaxDetermination` (04.5) still
+reads `core.items.tax_rate` -- a live, unversioned number -- with no rule-backed record of
+which rates were ever actually valid on which date. This story is that missing content,
+plus the first real consumer that checks a document's own rates against it.
+
+**Research, not assumption**: rather than inventing rate-slab content, used `WebSearch` to
+verify the exact facts before writing them into a versioned, source-cited row (backlog rule
+6, "country rules must be versioned and source-referenced" -- the same discipline this
+module has followed since COMPLY-P0-02.3's own migration comment). Confirmed: the GST
+Council's 56th Meeting (03-Sep-2025) approved a two-slab rate rationalization (5%/18%
+replacing 12%/28%, plus a 40% special/de-merit rate for select luxury/sin goods), CBIC
+Notification No. 9/2025-Central Tax (Rate) (dated 17-Sep-2025) implemented it, effective
+22-Sep-2025 -- i.e. a real, already-in-effect regime change as of this session's own
+"today" (2026-09-12), not a P1/future scenario. This makes the versioning mechanism
+genuinely exercisable with two real historical/current rows rather than one synthetic
+placeholder: a document dated before 22-Sep-2025 must keep validating against the original
+0/5/12/18/28% slabs, one dated on/after that date against 0/5/18/40%.
+
+**What was built**:
+- `supabase/migrations/20260912000000_gst_tax_rules_india_rate_slabs_seed.sql` -- a
+  data-only migration (no DDL) seeding `gst.tax_rules` with a two-version
+  `standard_rate_slabs` lineage (`country: IN`, `regime: GST`, `jurisdiction: null`,
+  `treatment: null` -- deliberately null on both rows, since this rule is a rate-slab
+  catalogue, not a treatment classification, matching that column's own documented
+  meaning): version 1 (`0/5/12/18/28`, `effective_from 2017-07-01`, closed at
+  `effective_to 2025-09-22`, sourced to the CGST Act 2017 + original CBIC rate
+  notifications) and version 2 (`0/5/18/40`, `effective_from 2025-09-22`, still open,
+  sourced to the GST Council 56th Meeting decision + CBIC Notification No. 9/2025-Central
+  Tax (Rate)). Both rows' own `source` text carries an explicit "verify against the
+  current, authoritative CBIC notification before relying on this for a production filing
+  decision -- this is reference content, not tax advice" caveat (backlog rule 11/12).
+  Follows the exact "seed a reference catalogue via a plain migration INSERT" precedent
+  `core.tax_rates`'s own 5-row seed already established
+  (`20260906103000_core_items.sql`) -- not built via `publishTaxRule`/`supersedeTaxRule`
+  at runtime, since this is one-time reference content shipped with the platform, not a
+  business's own settings input or an ongoing admin workflow yet.
+- `packages/module-gst/src/lib/tax-rules/india-rate-slabs.ts` (+ its own `.test.ts`):
+  `INDIA_GST_RATE_SLABS_RULE` (the lineage constant, so no caller re-types the
+  `"standard_rate_slabs"` string by hand), `parseRateSlabValue` (defensive parse of the
+  opaque `value` jsonb -- `null` for anything malformed, treated the same as "no rule
+  found," never a guess), `isKnownGstRateSlab` (pure membership check, comparing to two
+  decimal places since both source columns are `numeric(5,2)`), and
+  `getEffectiveIndiaGstRateSlabs(asOf?)` (the orchestrator wrapping COMPLY-P0-02.3's own
+  `getEffectiveTaxRule`, so a caller gets the right slab list for whichever version was
+  live on any given date, including a historical one before the 2025 rationalization).
+  10 new test cases across the two pure functions; no test for the DB-calling orchestrator
+  itself, matching this module's established "thin wrapper, no test file needed"
+  convention.
+- Wired into COMPLY-P0-04.6's own `gst-invoice-validation`, the natural place a "does this
+  document's own rate match a currently-recognized slab" check belongs (the same kind of
+  backward-compatible extension COMPLY-P0-04.5 already made to COMPLY-P0-04.4's own
+  `place-of-supply/queries.ts`): a new `line_tax_rate_not_a_known_slab` issue code, always
+  `severity: "warning"` (never an error, matching the existing `tax_split_mismatch`
+  precedent's own reasoning -- a business may have a genuine negotiated/legacy rate, or the
+  rule content may simply have no version for an unusual date; this is a fact worth a
+  human's attention, never a hard block). `getGstInvoiceValidation` (`queries.ts`) now also
+  resolves `getEffectiveIndiaGstRateSlabs(document.docDate)` -- the document's OWN invoice
+  date, not "today," so an old invoice keeps validating against the slabs that were
+  actually in effect when it was issued -- and passes `slabsPercent` through as
+  `knownRateSlabsPercent`, `undefined` when no rule covers that date at all (skips the
+  check entirely, never treats missing rule content as its own finding). 4 new test cases
+  in the existing `validate.test.ts`: a rate that matches a known slab (no issue), a rate
+  that doesn't (warning, still `valid: true`), the check skipped entirely when no slab list
+  is supplied, and skipped for a non-taxable line.
+
+**What was deliberately left out**:
+- A commodity-level HSN-to-rate mapping (which specific goods sit in which slab) --
+  explicitly out of scope, same reasoning COMPLY-P0-04.3 already gave for not shipping a
+  full HSN/SAC master catalogue: a government-maintained list this run has no way to source
+  completely and keep current, and fabricating one would be worse than not having it. This
+  story ships the top-line PERCENTAGE list only (backlog's own "no false precision"
+  discipline, established since 04.1-04.6).
+- Any admin UI for publishing/superseding rules -- `publishTaxRule`/`supersedeTaxRule`
+  (COMPLY-P0-02.3) remain callable but still have no request-scoped caller; this story's
+  own content was seeded directly via migration (matching `core.tax_rates`'s own
+  precedent), not through those functions, since it is one-time platform-shipped reference
+  content rather than a business's or an admin's own ongoing input. Building a real "rule
+  content admin" surface is a future story's job if one is ever needed, not implied here.
+- Treatment-level rule content (e.g. a versioned mapping of which HSN prefixes are
+  zero-rated/exempt) -- COMPLY-P0-02.4 built the vocabulary and the column; populating it
+  with real India content is a separate decision from this story's own "rate slabs" scope,
+  left for whenever a real consumer needs it (this module's `treatment` classification
+  today comes from `determineGstLineTax`'s own line-level logic -- export/reverse-charge/
+  zero-rated-by-0%-item-rate/standard -- not from a `gst.tax_rules` lookup).
+- Any change to `determineGstLineTax`/`getGstLineTaxDetermination` (04.5) itself to make
+  the ACTUAL tax computation consult `gst.tax_rules` instead of `core.items.tax_rate` --
+  that would be a bigger behavior change (the platform's live inventory/FSM invoicing still
+  computes GST from the item's own rate directly, `core/lib/gst.ts`'s `computeLineGst`, a
+  cross-module dependency out of this run's scope to alter) than this story's own "give the
+  rate list a versioned, checkable home" scope. This story adds the CHECK (is the rate a
+  recognized slab), not a new SOURCE for the computation itself.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1115 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 122 migration files checked, 0 violations
+  (the new migration is INSERT-only, no `create`/`alter table`, so it registers no schema
+  touch at all to this linter).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 122 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 15 files / 118 tests passed (104
+  pre-existing + 10 new in `india-rate-slabs.test.ts` + 4 new in `validate.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning, and the same unused-index info list, `tax_rules_lookup_idx` already present from
+  COMPLY-P0-02.3) -- a plain data-only `insert` into an existing table introduces no new
+  schema object to flag, as expected.
+- No `apps/web` change -- `getGstInvoiceValidation` still has no live caller anywhere in
+  `apps/web` (confirmed via grep, unchanged from COMPLY-P0-04.6's own state), so `next
+  build` was not re-run this story, matching every prior lib-only story's own convention.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`npm install` was run once this session since this worktree had no
+  `node_modules` at session start; `git diff` against `package-lock.json` showed no changes
+  at all this time, so nothing to revert).
+
+**COMPLY-P0-04 (India GST) is now fully done** -- all seven stories (GSTIN Management, GST
+Profile, HSN/SAC, Place of Supply, GST Tax Determination, GST Invoice Validation, GST Rule
+Versioning) implemented, closing out P0 Release 1
+(`docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md` §8) in full: COMPLY-P0-01 (Compliance
+Shell & Country Switch) → COMPLY-P0-02 (Generic Tax Framework) → COMPLY-P0-03
+(Existing-Data Integration) → COMPLY-P0-04 (India GST). Next: COMPLY-P0-05 (India
+E-Invoice), the start of P0 Release 2, per §8's own delivery order.

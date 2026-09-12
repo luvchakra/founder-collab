@@ -15,7 +15,8 @@ export type GstInvoiceIssueCode =
   | "line_hsn_sac_missing"
   | "line_hsn_sac_invalid"
   | "place_of_supply_unknown"
-  | "tax_split_mismatch";
+  | "tax_split_mismatch"
+  | "line_tax_rate_not_a_known_slab";
 
 export type GstInvoiceIssueSeverity = "error" | "warning";
 
