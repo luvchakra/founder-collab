@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/c
 import { Input } from "@cofounderai/core/ui/input";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { Label } from "@cofounderai/core/ui/label";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import type { PlatformBranding } from "@cofounderai/core/admin/platform-branding";
 import { formatDateTime } from "@cofounderai/core/lib/format";
@@ -106,9 +107,22 @@ function ColorField({
   );
 }
 
+const BACKGROUND_VALUE_PLACEHOLDER: Record<string, string> = {
+  gradient: "#0f172a,#312e81",
+  solid: "#0f172a",
+  image: "https://…/login-background.jpg",
+};
+
+const BACKGROUND_VALUE_HELP: Record<string, string> = {
+  gradient: "Two hex colors, comma-separated (from,to). Leave blank to keep the current default.",
+  solid: "One hex color. Leave blank to keep the current default.",
+  image: "An image URL. Leave blank to keep the current default.",
+};
+
 export function BrandingForm({ branding }: { branding: PlatformBranding }) {
   const [state, formAction] = useActionState<BrandingFormState, FormData>(saveBrandingAction, null);
   const fieldErrors = state?.status === "error" ? state.fieldErrors : {};
+  const [backgroundStyle, setBackgroundStyle] = useState(branding.loginBackgroundStyle);
 
   useEffect(() => {
     if (state?.status === "success") toast.success("Branding saved.");
@@ -231,6 +245,73 @@ export function BrandingForm({ branding }: { branding: PlatformBranding }) {
               </p>
             ) : null}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800 bg-zinc-900 text-zinc-50">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold text-zinc-200">Login page background</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="loginBackgroundStyle" className={LABEL_CLASS}>
+              Treatment
+            </Label>
+            <NativeSelect
+              id="loginBackgroundStyle"
+              name="loginBackgroundStyle"
+              value={backgroundStyle}
+              onChange={(e) => setBackgroundStyle(e.target.value as typeof backgroundStyle)}
+              className={FIELD_CLASS}
+            >
+              <option value="gradient">Gradient</option>
+              <option value="solid">Solid color</option>
+              <option value="image">Image</option>
+            </NativeSelect>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="loginBackgroundValue" className={LABEL_CLASS}>
+              Value
+            </Label>
+            <Input
+              id="loginBackgroundValue"
+              name="loginBackgroundValue"
+              defaultValue={branding.loginBackgroundValue ?? ""}
+              placeholder={BACKGROUND_VALUE_PLACEHOLDER[backgroundStyle]}
+              className={FIELD_CLASS}
+              aria-invalid={Boolean(fieldErrors.loginBackgroundValue)}
+            />
+            <p className="text-xs text-zinc-500">{BACKGROUND_VALUE_HELP[backgroundStyle]}</p>
+            {fieldErrors.loginBackgroundValue ? (
+              <p role="alert" className="text-xs text-red-400">
+                {fieldErrors.loginBackgroundValue}
+              </p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-zinc-800 bg-zinc-900 text-zinc-50">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold text-zinc-200">Legal links (login page)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <Field
+            id="loginTermsUrl"
+            name="loginTermsUrl"
+            label="Terms of service URL"
+            defaultValue={branding.loginTermsUrl ?? ""}
+            placeholder="https://wonderarc.com/terms"
+            error={fieldErrors.loginTermsUrl}
+          />
+          <Field
+            id="loginPrivacyUrl"
+            name="loginPrivacyUrl"
+            label="Privacy policy URL"
+            defaultValue={branding.loginPrivacyUrl ?? ""}
+            placeholder="https://wonderarc.com/privacy"
+            error={fieldErrors.loginPrivacyUrl}
+          />
         </CardContent>
       </Card>
 

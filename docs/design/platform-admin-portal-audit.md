@@ -31,7 +31,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
-| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2/03.3/03.4/03.5 not started -- see log |
+| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4/03.5 not started -- see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
 | | 17 | Configuration Versioning | Not started |
@@ -506,3 +506,163 @@ end-to-end UI verification.
 sub-story). Continuing to the next story in section order per this run's auto-continue
 assignment (distinct from this doc's own normal "stop after one story" §39 workflow, which
 governed every prior entry above).
+
+### PLATFORM-P0-03.2 — Global Design Tokens (2026-09-12, deferred, not built)
+
+**Deferred, not implemented.** PLATFORM-P0-03.2 asks for admin-configurable primary/accent
+color, border radius, button style, font family, and spacing density for the platform
+shell. This directly conflicts with `CLAUDE.md`'s locked, non-negotiable design system
+(#7: "CoFounderAI's own UI/UX design takes precedence over any vendored default... every
+module's screens share this one design system; a module never brings its own look") and
+development principle #10 ("do not modify architecture without explicit user approval").
+Storing admin-configurable values for the shell's own radius/spacing/font with no wiring
+would be speculative functionality with no legitimate purpose except eventually restyling
+the locked shell (CLAUDE.md development principle #7, "never implement speculative
+functionality"); actually wiring them would erode a locked non-negotiable without
+approval. This assessment was made explicit in this run's own task assignment (not a
+judgment call made ad hoc here) -- skipped per that assignment's instruction, recorded here
+rather than silently passed over, and not re-litigated. No code, no migration, no UI for
+this sub-story. Moving on to PLATFORM-P0-03.3.
+
+### PLATFORM-P0-03.3 — Platform Login Branding (2026-09-12)
+
+**What this story is, distinct from 03.1**: 03.1 built `platform.branding` and its own
+settings page but deliberately did not wire any of its login-related fields
+(`login_headline`, `login_support_text`) into the actual public login page -- that page-
+level treatment was explicitly left to this sub-story. 03.3 adds the two remaining §7
+"Platform Login Branding" items (background treatment, legal links) as new columns, and
+-- unlike 03.1's own choice not to touch live customer-facing surfaces -- actually wires
+logo/headline/support-text/background/legal-links into the real, public
+`apps/web/app/(auth)/layout.tsx` and `.../login/page.tsx`. This is not a contradiction of
+03.1's own reasoning: 03.1 avoided live-wiring specifically because the *dashboard shell's*
+colors are locked to `docs/DESIGN.md` per CLAUDE.md non-negotiable #7 -- a lock that
+doesn't extend to the pre-login auth pages' own *content*. Storing these fields with no
+consumer would itself have been the kind of speculative, dead configuration this backlog's
+own PLATFORM-P0-03.2 entry above was just deferred for -- so wiring them in is what makes
+this sub-story real rather than another deferral.
+
+**A recorded decision this story had to reconcile**: `apps/web/app/globals.css`'s own
+docstring on `.landing-theme` states the dark-violet marketing/auth identity is "kept as
+its own scoped token namespace... means keeping unchanged here" per an explicit platform-
+owner decision. Read closely, not skipped past: that note is about the auth pages' *visual
+identity/color theme* (the violet `--landing-accent` etc.), not a freeze on the login
+page's copy or a ban on ever making it admin-configurable. This story reconciles the two by
+making every new field an **opt-in override that defaults to exactly today's look**: the
+background style column defaults to `'gradient'` with a `null` value (which resolves to no
+inline style override at all, so the existing `bg-landing-bg` class renders unchanged), and
+the headline/support-text/logo/legal-link fields all default to `null` (rendering today's
+hardcoded copy/wordmark, showing no legal-link footer). Nothing about the recorded decision
+is violated by a field that, unconfigured, changes nothing; a superadmin who explicitly
+sets one of these fields is making a new platform decision of their own, which is exactly
+what "Platform Login Branding" as an admin capability means.
+
+**What was built**: migration `20260911020000_platform_login_branding.sql` adds four
+columns to the existing singleton `platform.branding` row: `login_background_style` (text,
+closed vocabulary `gradient|solid|image`, not free CSS -- PLATFORM-P0-03.2's own "do not
+allow arbitrary CSS injection" instruction applies here too even though 03.2 itself is
+deferred), `login_background_value` (text, nullable, interpreted per style -- a URL for
+`image`, one hex color for `solid`, two comma-separated hex colors for `gradient`), and
+`login_terms_url`/`login_privacy_url` (text, nullable, http(s)-only). A row-level check
+constraint validates the value against its own style in the same row (e.g. `image` requires
+an http(s) URL) -- defense in depth under the database itself, mirrored by a
+`.superRefine()` on the Zod schema so the app rejects the same malformed pairings with a
+field-level error rather than a raw Postgres error. "Legal links" is deliberately scoped to
+Terms + Privacy (the two nearly every login screen shows) rather than a fully dynamic,
+arbitrary-length link list -- PLATFORM-P1-09.3 ("Legal Link Management") is the later, P1
+story that generalizes this into Terms/Privacy/Cookie Policy/DPA/Support with version
+tracking; building that general mechanism now for a P0 story that only asks for "legal
+links" on one screen would be speculative ahead of its own turn. No new RLS policy needed
+-- the existing `platform.branding` `select`/`update` policies already cover new columns on
+an existing row (RLS is row-level, not column-level).
+
+**The one deliberate exception to "RLS is authoritative" in this file**:
+`packages/core/src/admin/platform-branding.ts` gains `getPublicLoginBranding()`, which uses
+`createAdminClient()` (service-role, RLS-bypassing) rather than the cookie-authenticated
+client every other function in this file uses. This is necessary, not a shortcut: the
+consumer is an anonymous visitor on `/login`, who by definition cannot pass
+`platform.branding`'s own RLS policy (`select` gated on `platform.is_superadmin()`) or
+`requireSuperadmin()`. Safe to do because every field this function returns is display copy
+the login page needs to show *someone not yet signed in* anyway -- no keys, no credentials,
+no per-business data. The RLS policy's job is keeping this row *editable* by superadmins
+only, not keeping its *display content* secret. The function returns only a narrow
+`PublicLoginBranding` projection (platform name, logo, headline, support text, background
+style/value, terms/privacy URLs) -- never the full row, never `updated_by`.
+
+**UI (admin side)**: `apps/web/app/platform/(protected)/branding/branding-form.tsx` gets
+two new `Card` sections between "Login branding" and "Email branding" -- "Login page
+background" (a `NativeSelect` for the closed-vocabulary style plus a value `Input`, with
+placeholder/help text that changes with the selected style, and a small controlled
+`backgroundStyle` state so the help text updates live without a page reload) and "Legal
+links (login page)" (two plain URL fields). `NativeSelect` (not the Radix `Select`) is used
+because this whole page is one plain form submitted through a Server Action, matching how
+every other field on this page already works -- a Radix Select can't participate in a
+native form submission without extra client-side wiring to sync a hidden input.
+
+**UI (public side)**: `apps/web/app/(auth)/layout.tsx` (now `async`, reading
+`getPublicLoginBranding()` once since it wraps every auth page -- login, signup,
+forgot-password, reset-password, which all share this one background) applies the
+background override via an inline `style` (inline style beats the `bg-landing-bg`
+utility class's own specificity, so this needs no new CSS) and renders a superadmin-
+configured logo `<img>` in place of the hardcoded "CoFounderAI" wordmark when `logoUrl` is
+set (plain `<img>`, not `next/image`, since the URL is runtime-configured superadmin input,
+not a build-time-known asset `next/image` could allowlist a domain for).
+`apps/web/app/(auth)/login/page.tsx` reads the same function again (a second, independent
+read -- accepted as the simplest option per CLAUDE.md development principle #1 rather than
+threading branding down through the shared layout's props for one page) to override its
+headline/support-text copy when set, and renders a small Terms/Privacy footer line only
+when at least one legal link is configured -- both entirely absent from an unconfigured
+platform. Signup/forgot-password/reset-password pages get the shared background/logo only,
+not the headline/support-text/legal-link overrides -- matching the backlog's own title,
+"Platform *Login* Branding", literally.
+
+**Build-time trap, same class as PLATFORM-P0-02's**: `next build` failed prerendering
+`/forgot-password` with `supabaseUrl is required` -- the newly-async `(auth)/layout.tsx`
+was executing `getPublicLoginBranding()`'s service-role client construction at build time
+in an environment with no `.env.local`, since every page under `(auth)` had previously been
+a static-prerendering candidate (no dynamic API used) and Next attempted exactly that.
+Fixed the same way PLATFORM-P0-02 fixed the equivalent `/platform` failure: `export const
+dynamic = "force-dynamic"` on `(auth)/layout.tsx`. Every auth page is now `ƒ` (dynamic) in
+the build output, which is correct regardless of this bug -- these pages render live,
+per-request platform configuration now, never a static-generation candidate.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace (this
+worktree again needed its own `npm install` first, same `node_modules` symlink issue
+PLATFORM-P0-03.1's own entry documented for a fresh worktree). `npm run lint` -- 0 errors
+(one `eslint-disable-next-line` comment initially placed one line too early, above two
+explanatory comment lines instead of directly above the `<img>` it targeted, so the
+directive covered the wrong line and produced both an "unused directive" warning and the
+`no-img-element` warning it was meant to suppress -- fixed by moving the directive
+immediately above the `<img>`), 1 pre-existing unrelated warning (`Package` unused import in
+a CRM conversations page, untouched by this story). `node scripts/lint-import-
+boundaries.mjs` -- 1113 files, no violations. `node scripts/lint-migration-schema.mjs` --
+122 migrations (up from 108 at 03.1's own entry -- the difference is other workstreams'
+concurrent merges into `main` since then, not anything untracked by this story), no
+violations. `npx vitest run --root packages/core` -- 54 tests (54 -- up from 45 at 03.1,
+this story's 9 new background/legal-link validation cases), all passing. `apps/web`'s own
+`vitest run --passWithNoTests` -- 41 tests (up from 40 -- a pre-existing route test file
+gained an assertion from another workstream's own concurrent merge, unrelated to this
+story; confirmed via `git diff` that this story touched no `apps/web` test files at all).
+Live migration applied via `mcp__Supabase__apply_migration` against the
+**dev** project (`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the
+singleton row now carries the four new columns with their documented defaults
+(`login_background_style = 'gradient'`, the rest `null`). `mcp__Supabase__get_advisors` for
+both `security` and `performance` afterward showed **zero new findings** -- every listed
+finding (five pre-existing `rls_enabled_no_policy` tables unrelated to this migration, the
+pre-existing leaked-password-protection warning, and 130+ pre-existing "unused index"
+entries across every schema in this empty dev database) was already present before this
+migration; this migration added no new index and no new RLS policy, so there was nothing
+new for either advisor to flag. `cd apps/web && npm run build` -- clean after the
+`force-dynamic` fix; `/login`, `/signup`, `/forgot-password`, `/reset-password` and
+`/forgot-password/check-email`/`/signup/check-email` all list `ƒ` (dynamic).
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no seeded
+demo superadmin user or live Supabase session reachable in this sandboxed environment, so a
+live authenticated browser walkthrough of actually editing these fields on
+`/platform/branding` and then loading `/login` to see the override rendered was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness and a direct read of the applied schema and RLS policies against the live dev
+database, not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-03.2 deferred (recorded above, not built), PLATFORM-P0-03.3 done.
+Continuing to PLATFORM-P0-03.4 (Customer-Facing Branding Scope) next, per this run's
+auto-continue assignment.
