@@ -94,7 +94,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.3 | Physical Nexus Inputs | Done |
 | | 02.4 | Sales Tax Registration Obligations | Done |
 | | 02.5 | Product/Service Taxability | Done (clothing + groceries seeded across the 10-state focus list; prepared_food/digital_goods/saas/services are catalog-only) |
-| | 02.6 | Exemption Certificates | Not started |
+| | 02.6 | Exemption Certificates | Done |
 | | 02.7 | Sales Tax Returns/Remittance | Not started |
 | | 02.8 | 1099 Information Returns | Not started |
 | P1-03 … P1-12 | — | (Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
@@ -6485,3 +6485,150 @@ still has no local-rate concept at all, the same gap COMPLY-P1-02.1 already flag
   story, matching every prior lib-only story's own verification convention.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed at the start of this session).
+
+### 02.6 -- Exemption Certificates (2026-09-12)
+
+"Resale/exemption certificate tracking per customer/registration." The mirror image of
+02.5: that story tracks what a business SELLS and how it's taxed; this one tracks what a
+CUSTOMER has told the business to justify NOT collecting tax on a sale to them.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 first** (backlog rule 1/5): "Party (any external
+company or person) | `core.parties` + `core.party_roles`" is already the canonical home for
+a customer -- this story references `core.parties` directly (the same reuse COMPLY-P0-03.4's
+own `getPartyTaxContext` already established), never a parallel customer record. "Attachment
+| `core.attachments`" is likewise the canonical home for the certificate SCAN. **Checked the
+closest existing precedent before creating a new table**: COMPLY-P0-10.1's own
+`gst.compliance_evidence` (a gst-owned categorization layer over a `core.attachments` row)
+was the obvious first candidate to reuse -- inspected it and confirmed it's the wrong fit:
+its own `related_entity_type` enum names GOVERNMENT-facing evidence kinds (return
+acknowledgment, payment challan, government notice) with no customer/certificate concept at
+all, and this story's own real business rules (a validity window, a revoked status, a
+jurisdiction scope) are genuinely different from "categorize an already-filed government
+interaction" -- reusing it would mean bolting an unrelated lifecycle onto a table whose own
+docstring already commits it to a narrower purpose. A new table,
+`gst.exemption_certificates`, is genuinely the right scope.
+
+**Design decision -- `attachment_id` nullable + `on delete set null`, a deliberate departure
+from `gst.compliance_evidence`'s own `not null` + `on delete cascade`, not an
+inconsistency**: there, the whole row exists only to categorize an attachment, so losing the
+file legitimately means losing the row. Here, the certificate's own legal facts (issuer,
+type, number, validity window) are the actual record that justifies not collecting tax --
+they stand on their own regardless of whether a scan is attached, and a business must be
+able to record "we have a resale certificate on file, #12345, valid through 2027" before (or
+without ever) uploading a scan. Both confused-deputy triggers (`party_id` and
+`attachment_id`, the same class of gap `core.items.supplier_party_id`'s own trigger and
+`gst.compliance_evidence`'s own trigger each separately closed) verified live (see below).
+
+**Design decision -- `jurisdiction` a nullable SINGLE state code, not a list, named as a
+real simplification**: a genuine "Multi-Jurisdiction Uniform Sales & Use Tax Certificate" or
+Streamlined Sales Tax exemption certificate can cover several states with one physical
+document, but this table models one row per (business, party, jurisdiction) scope -- `null`
+means "covers every state" (the honest answer until a real many-state association is
+needed), or a business records several rows, one per state that matters to it today. No
+uniqueness constraint on `certificate_number` -- deliberately not repeating the documented
+NULL-in-a-unique-index gap a sibling table (`gst.tax_rules`) already carries by adding a
+second nullable-column uniqueness constraint with the same shape; a customer's own renewed
+certificate may reuse its old number anyway, so uniqueness wouldn't even be correct.
+
+**Design decision -- `status` (active/revoked) is a distinct fact from date-based expiry,
+never precomputed**: a certificate a business explicitly learns is no longer valid (the
+state revoked the customer's own exemption) must be markable invalid immediately,
+independent of its own `expires_at`. `lib/exemption-certificates/validity.ts`'s own pure
+`isExemptionCertificateValid` is the actual combiner (not revoked AND issued-date-has-arrived
+AND not-yet-expired, `expiresAt` treated as INCLUSIVE -- "valid THROUGH" this date, matching
+how a real certificate's own stated expiry reads) -- the table stores only the underlying
+facts, never a boolean that could silently go stale. No hard DELETE, only `revoked` (backlog
+rule 13, the same precedent `gst.tax_registrations.registration_status`/
+`gst.us_physical_nexus_facts.ended_at` already set).
+
+**Design decision -- a new, dedicated `gst.manage_exemption_certificates` permission, not
+the broader `settings.manage`**: followed `gst.compliance_evidence`'s own precedent (a
+scoped permission per compliance-adjacent write surface) rather than
+`gst.tax_registrations`/`gst.us_physical_nexus_facts`/`gst.item_category_tax_classifications`'s
+own broader `settings.manage` -- both patterns already coexist in this schema; a
+customer-paperwork-handling function reads as closer to evidence management than to a
+business-wide tax-settings decision.
+
+**Research, not assumption** (backlog rule 6): `WebSearch` 2026-09-12 (Numeral, Bennett
+Thrasher, TaxConnex, PCMethods, all independently naming the same handful of categories)
+confirmed the real-practice exemption certificate taxonomy: resale (the most common --
+buyer will resell, tax collected later from their own end customer), manufacturing/industrial
+processing, agricultural, government, and nonprofit/exempt-organization -- seeded as a closed
+six-code catalog (`lib/exemption-certificates/types.ts`, the sixth being `other`), the same
+"small closed vocabulary" shape `lib/compliance/treatments.ts`/`lib/us-product-taxability/
+categories.ts` already established.
+
+**What was built**:
+- `supabase/migrations/20260912320000_gst_exemption_certificates.sql` -- the table
+  described above, both confused-deputy triggers, tenant/licensed RLS (SELECT open to any
+  member, INSERT/UPDATE gated by the new permission, no DELETE), the new
+  `gst.manage_exemption_certificates` permission (owner/admin);
+  `20260912330000_..._attachment_id_index.sql` (a same-session advisor-driven follow-up, see
+  below).
+- `lib/exemption-certificates/types.ts` -- the six-code catalog + `ExemptionCertificate`
+  type. (+ 4 test cases)
+- `lib/exemption-certificates/validity.ts` (+ 13 test cases) -- the pure
+  `isExemptionCertificateValid`/`exemptionCertificateCoversState` described above,
+  DB-independent.
+- `lib/exemption-certificates/queries.ts` -- `listExemptionCertificatesForParty`/
+  `getExemptionCertificate`/`getValidExemptionCertificateForParty(businessId, partyId,
+  stateCode, asOf?)` -- the one real question a future sale-time determination would ask
+  ("does this business have a currently-valid certificate on file for this customer covering
+  this state"), returning the certificate itself for traceability. No test file (thin
+  orchestrator over already-tested pure pieces).
+- `lib/exemption-certificates/mutations.ts` -- `recordExemptionCertificate`/
+  `attachExemptionCertificateFile`/`revokeExemptionCertificate`, each guarded by
+  `requireModule`/`requirePermission("gst.manage_exemption_certificates")`, validating
+  `certificateType` against the catalog and `jurisdiction` against
+  `lib/compliance/jurisdictions.ts` in application code (not DB enums), matching every other
+  free-text classification column in this schema.
+
+**A real advisor finding caught and fixed in the same story** (the same pattern
+COMPLY-P1-02.5 and COMPLY-P0-07.6 already established): `mcp__Supabase__get_advisors`
+(performance) flagged `attachment_id` as an unindexed foreign key immediately after applying
+the table migration -- fixed via an immediate follow-up migration, kept as its own file.
+
+**What was deliberately left out**: multi-state association on a single certificate (named
+above, a real simplification); wiring `getValidExemptionCertificateForParty` into
+COMPLY-P1-02.5's own product-taxability determination or into any real sale-time
+orchestrator -- no such combining story exists yet in this backlog's own §7 US section (02.5
+and 02.6 are listed as separate, standalone stories; a future "determine tax for this sale"
+orchestrator, if one is ever added, is the natural place to combine them, the same "don't
+guess ahead at a future story's own design" discipline this whole module has followed); any
+UI (no Compliance UI epic exists for P1 yet); an upload flow for the certificate scan itself
+(mutations take an already-uploaded `attachmentId`, the same "record the fact, don't
+re-implement file upload" convention `gst.compliance_evidence` already established).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1402 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 175
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 78 files / 607 tests passed (594
+  pre-existing + 13 new: 4 in `types.test.ts`, 9 in `validity.test.ts`).
+- Both migrations applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): identical
+  finding set to immediately before this story (same 5 pre-existing infos, 1 pre-existing
+  warning). Performance: one new finding (the unindexed `attachment_id` FK) caught and fixed
+  in the same story; the re-check afterward showed no new `unindexed_foreign_keys` finding,
+  only the expected new "unused index" entries for this table's own three indexes.
+- **Local Postgres RLS harness actually run this story** (new
+  `scripts/test-gst-exemption-certificates-rls.mjs`, added to `package.json`'s `test:db`
+  chain): tenant isolation, permission gating (Carol cannot record; Alice can), BOTH
+  confused-deputy guards (party_id and attachment_id each rejected when pointed at Bob's own
+  rows), the `expires_at >= issued_date` check, the `status` enum check, the `jurisdiction`
+  format check, attaching a scan after the fact to a certificate recorded without one,
+  revoking (status update, never delete), no DELETE policy at all, and the corrected
+  cross-tenant-UPDATE assertion pattern (COMPLY-P0-07.5's own documented "RLS's `USING`
+  clause hides the row entirely, Postgres matches zero rows and returns successfully" shape)
+  for Carol's own attempted update -- all passing on the first run.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched this
+  story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
+
+**COMPLY-P1-02 (United States) is now fully done except 02.7 (Sales Tax Returns/Remittance)
+and 02.8 (1099 Information Returns), both continuing in this same session.**
