@@ -82,7 +82,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 10.3 | Audit Trail | Done |
 | | 10.4 | Source Traceability | Done |
 | | 10.5 | Retention Rules | Done |
-| P0-11 | 11.1–11.5 | Compliance UI | Not started |
+| P0-11 | 11.1–11.5 | Compliance UI | Done |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
@@ -94,10 +94,10 @@ used an approximate "~50" denominator that only ever accounted for Epics 01-09 (
 49) -- corrected here to the real full-backlog total (Epics 01-11, 60 stories minus the
 one absorbed into 01.2 = 59) now that Epic 10 is underway.
 
-**COMPLY-P0-02 through COMPLY-P0-10 are all now fully done** -- Epic 10 (Evidence &
-Audit) is complete: Evidence Repository, Government Response Store, Audit Trail, Source
-Traceability, and now Retention Rules. Next: COMPLY-P0-11 (Compliance UI), the last epic
-of P0, starting with COMPLY-P0-11.1 (Overview Dashboard).
+**ALL OF P0 (COMPLY-P0-01 through COMPLY-P0-11) IS NOW DONE.** Epic 11 (Compliance UI)
+completes the backlog -- see its own story-log entry below for exactly what shipped and
+what was deliberately scoped out. P1 (§7 of the backlog, EU VAT/US/Canada/Singapore/etc.)
+has not been started.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5520,3 +5520,143 @@ compliance reason to ever delete evidence automatically).
 Response Store, Audit Trail, Source Traceability, and Retention Rules. This completes
 COMPLY-P0-02 through COMPLY-P0-10 in full. Next: COMPLY-P0-11 (Compliance UI), the last
 epic of P0.
+
+## Epic 11 -- Compliance UI (2026-09-12)
+
+The last epic of P0. Read `docs/design/claude-ui-design-rules.md` in full before writing
+any markup, per CLAUDE.md's own rule 13 (and this run's own explicit instruction) --
+notably its "table on desktop, cards on mobile, row actions where they naturally belong,
+never rely on color alone, borders only where they clarify structure" rules, all applied
+below. Built as ONE cohesive delivery across all five story numbers (11.1-11.5), the same
+way this backlog's own one-line story titles for this epic read as facets of a single
+"build the UI right" requirement rather than five separate screens -- matching the
+09.1-09.4 precedent of logging a tightly-coupled group together.
+
+**Checked the existing implementation first (backlog rule 1)**: `/gst/dashboard` already
+existed (an earlier slice, S-2/Epic 6, a month-snapshot KPI dashboard) -- COMPLY-P0-11.1
+("Overview Dashboard") EXTENDS it with the two cross-epic views this whole backlog's own
+Epic 09/10 work exists to surface, rather than building a second, competing dashboard
+page. `@cofounderai/core/components/audit-log/audit-log-view` (already fully generic,
+already used by `module-inventory`'s own audit-log page) is reused verbatim for
+COMPLY-P0-10.3's own UI, not rebuilt.
+
+**A real, previously-unaddressed gap closed as part of this epic, not just the backlog's
+literal five titles**: COMPLY-P0-08 (Reconciliation & IMS) and COMPLY-P0-10.1 (Evidence
+Repository) each shipped substantial real backend work across this run's own prior
+sessions with ZERO user-facing surface -- every story in both epics explicitly deferred
+"a real UI" to "COMPLY-P0-11, the dedicated UI epic" in its own log entry. Since this
+epic's own job is exactly "Compliance UI," and the run's own instructions frame this epic
+as reading "from the real state Epics 04-08 already built, not invented data," two
+additional real pages were built beyond the five literal story titles: `/gst/evidence`
+(upload + list, COMPLY-P0-10.1) and `/gst/reconciliation` (the exception queue with real
+Resolve/Dismiss row actions, COMPLY-P0-08.6) -- without these, a large fraction of this
+run's own prior work would remain permanently unreachable by an actual user.
+
+**Shared components, one severity/status model applied consistently (COMPLY-P0-11.5,
+"never rely on color alone")**: `components/risk/severity-badge.tsx` (`SeverityBadge`,
+icon + text + color for every risk signal) and matching icon+text+color badges built the
+same way for filing status (`FilingStatusBadge`, `upcoming-filings-list.tsx`) and
+exception status (`StatusBadge`, `exceptions-list.tsx`) -- three call sites, one visual
+language, not three independently invented ones.
+
+**Every list is one responsive component, not a desktop version and a separate mobile
+version (COMPLY-P0-11.2/11.3)**: `<ul className="divide-y md:hidden">` for compact cards
+below `md`, `<Table className="hidden md:table">` for the desktop table above it -- the
+EXACT existing convention already established by `module-inventory`'s own
+`suppliers-list.tsx` (checked and copied, not reinvented) -- applied to
+`RiskSignalsList`, `UpcomingFilingsList`, `EvidenceList`, `ExceptionsList`.
+
+**Row-level actions, real destinations only (COMPLY-P0-11.4)**: a risk signal's own
+`[Review]` action links to whichever already-built page actually addresses that signal's
+own kind (Filing, e-Invoicing, Reconciliation, Registrations) -- `"invalid_classification"`
+gets NO action button rather than a broken or cross-module link, since the item it names
+lives in `module-inventory`'s own product page, out of this workstream's `module-gst`-only
+scope to deep-link into (the design rules' own "no action is better than a wrong one," not
+an oversight). A reconciliation exception's own `[Resolve] [Dismiss]` matches the backlog's
+own worked example shape exactly, and only ever renders for a still-`"open"` row -- this
+module's own terminal-once-decided lifecycle rule means neither action is legal past that,
+so no button is shown that would just fail.
+
+**A real, deliberate, scope-respecting gap named again (first flagged in COMPLY-P0-10.3,
+now doubly relevant since the UI actually exists)**: `packages/core/src/audit/format.ts`'s
+own `ACTION_LABEL`/`ENTITY_TYPE_LABEL` maps were NOT extended with this module's four new
+audit actions (`return_period.status_changed`, `ims_action.recorded`,
+`reconciliation_exception.status_changed`, `tax_registration.status_changed`) or entity
+types -- `packages/core` is outside this workstream's own explicit `module-gst`-only scope
+(plus `apps/web` routes). Checked `AuditLogView`'s own fallback behavior before accepting
+this: `ACTION_LABEL[row.action] ?? row.action` and `ENTITY_TYPE_LABEL[row.entity_type] ??
+row.entity_type` both degrade gracefully to the raw (still self-describing) action/entity
+strings -- a real but minor polish gap, not a broken page. The one place this is more than
+cosmetic: the "Entity" filter dropdown's own option list is built from
+`Object.keys(ENTITY_TYPE_LABEL)`, so these four new entity types don't appear as
+SELECTABLE filter options (though rows of that type still display in the unfiltered, or a
+manually-URL-filtered, list). Flagged as a concrete follow-up for whichever future
+session/workstream is authorized to touch `packages/core`.
+
+**What was built**:
+- `packages/module-gst/src/components/risk/severity-badge.tsx` -- `SeverityBadge`.
+- `packages/module-gst/src/components/risk/risk-signals-list.tsx` -- `RiskSignalsList`
+  (responsive, with `reviewHref()` mapping each `RiskSignalKind` to its real destination).
+- `packages/module-gst/src/components/calendar/upcoming-filings-list.tsx` --
+  `UpcomingFilingsList`, `FilingStatusBadge` (reuses COMPLY-P0-09.4's own
+  `isFilingOverdue`).
+- `packages/module-gst/src/components/evidence/evidence-upload-form.tsx` --
+  `EvidenceUploadForm` (a plain inline form, not a modal -- no existing row to edit here,
+  so the modal machinery `RegistrationModal` needs would be unnecessary weight).
+- `packages/module-gst/src/components/evidence/evidence-list.tsx` -- `EvidenceList`
+  (responsive, with a real signed download link per row, COMPLY-P0-10.1's own
+  `getAttachmentSignedUrl`).
+- `packages/module-gst/src/components/reconciliation/exceptions-list.tsx` --
+  `ExceptionsList`, `StatusBadge`, `RowActions` (responsive, real Resolve/Dismiss forms).
+- `apps/web/.../gst/dashboard/page.tsx` -- extended with the Risk and Upcoming Filings
+  cards (reusing `getRiskDashboard`/`getFilingCalendar` directly, no new query).
+- `apps/web/.../gst/evidence/{page,actions,loading}.tsx` -- new route.
+- `apps/web/.../gst/reconciliation/{page,actions,loading}.tsx` -- new route (the
+  `?period=YYYY-MM` GET-form convention copied from `gst/filing/page.tsx`).
+- `apps/web/.../gst/audit-log/{page,loading}.tsx` -- new route (copied verbatim from
+  `module-inventory`'s own audit-log page, swapping only the module-specific imports).
+- `packages/module-registry/src/index.ts` -- three new nav entries for `gst`
+  ("Reconciliation" under the existing "GST" heading; "Evidence"/"Audit Log" under a new
+  "Records" heading, since they're cross-cutting record-keeping, not GST-return
+  mechanics).
+
+**What was deliberately left out**: the `packages/core` label-map registration (see
+above); a dedicated page for COMPLY-P0-10.2's own Government Response Store
+(`listGovernmentResponses` -- its own natural home is a per-document detail panel on the
+e-Invoicing/e-Way Bill pages, which don't currently have a per-document drill-down view
+at all; adding one is a real, plausible enhancement to those EXISTING pages, not a new
+top-level page, and out of scope for this already-large epic to also redesign); an "attach
+evidence to a specific return period/e-invoice/etc." panel on those objects' own pages
+(this epic's own Evidence page only records business-level evidence, matching
+`recordComplianceEvidence`'s own documented `("gst_business", businessId)` fallback --
+COMPLY-P0-10.5's own `financialYearEndDate` input and per-object evidence linking both
+need real context only an object's own detail page can supply, not built speculatively
+here); bulk/multi-select row actions anywhere (every row action list is short enough in
+practice that one-at-a-time actions are not a real usability problem yet).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` and `apps/web` -- both clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1342 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- not re-run; no new migration this story.
+- `npx vitest run --root packages/module-gst` -- 458 tests passing, unchanged (this epic
+  is UI/presentation over already-tested query/mutation functions -- no new business
+  logic to unit-test; row-level action wiring is exercised by the real underlying
+  mutations' own existing test coverage, e.g. `test-gst-reconciliation-exceptions-rls.mjs`
+  for resolve/dismiss).
+- `cd apps/web && npm run build` -- clean production build; all three new routes
+  (`/gst/audit-log`, `/gst/evidence`, `/gst/reconciliation`) appear in the route manifest
+  alongside every existing Compliance page.
+- No Supabase migration, no `get_advisors` re-check -- no schema change this epic.
+- No live browser walkthrough -- same documented limitation as every prior UI story in
+  this log (no seeded demo user/`apps/web/.env.local` in this environment); verification
+  is typecheck, lint, a clean production build (which type-checks and prerenders every
+  route), and manual reading of the rendered JSX against
+  `docs/design/claude-ui-design-rules.md`'s own seven rules, checked point by point above.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+**This completes ALL of P0 (COMPLY-P0-01 through COMPLY-P0-11).** The next work, if this
+run has room for it, is P1 (§7 of the backlog) per §8's "P1 Release 1" ordering: EU VAT,
+US, Canada, Singapore.
