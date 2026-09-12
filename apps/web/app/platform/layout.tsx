@@ -61,6 +61,8 @@ const NAV_LINKS = [
   // PLATFORM-P0-11.1: the platform-wide email provider config -- config-only, no runtime
   // wiring (see the migration's own docstring).
   { href: "/platform/email-provider", label: "Email Provider" },
+  // PLATFORM-P0-11.2: the fixed, seven-purpose system email template catalog -- config-only.
+  { href: "/platform/email-templates", label: "Email Templates" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
