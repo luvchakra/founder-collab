@@ -29,7 +29,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
 | | 11 | Global Email / Notification Configuration | All of §15 done (11.1-11.3, all config-only) -- see log |
-| | 12 | Global Integrations | Not started |
+| | 12 | Global Integrations | All of §16 done (12.1-12.4) -- see log |
 | | 13 | Country / Compliance Pack Administration | Not started |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Not started |
@@ -5348,3 +5348,293 @@ half proven only against local Postgres), not an end-to-end UI verification.
 **Status**: PLATFORM-P0-11.3 done. §15 (Global Email / Notification Configuration) is now
 finished (11.1/11.2/11.3 all done). Committing and merging to `main`, then continuing to
 §16 (Global Integrations, PLATFORM-P0-12) next, per this doc's own section order.
+
+### PLATFORM-P0-12.1-12.4 — Global Integrations (2026-09-12)
+
+**§16's own text in full**:
+- 12.1 Integration Registry -- "Central list: AI, Email, WhatsApp, Payments, Government,
+  Analytics, Storage."
+- 12.2 Integration Status -- "Show: Connected, Disconnected, Error, Needs
+  Reauthorization, Disabled."
+- 12.3 Integration Kill Switch -- "Allow emergency disabling."
+- 12.4 Credential Separation -- "Customer-owned credentials and WonderArc-owned platform
+  credentials must be separate."
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5), done first as this run's own task
+brief required**: checked `docs/plan/00-MASTER-PLAN.md` §5 and grepped the codebase for
+every existing "integration"/credential concept before assuming §16 is a clean, novel
+table. It is not clean at all -- this is the third time this workstream has found a
+"global/platform-level" section overlapping something already built elsewhere (after
+03.1/11.1's `email_from_name` and 09.1's BYOK-vs-platform-key distinction), and this time
+the check surfaced a genuine, material mistake mid-story that had to be corrected before
+merging -- documented in full below rather than smoothed over.
+
+First pass, scoped (mistakenly) to `packages/` + `supabase/migrations/` only:
+- **AI** -- `platform.ai_providers`/`platform.ai_provider_keys` (PLATFORM-P0-09.1/09.2,
+  platform-owned) AND `discovery.ai_provider_credentials` (BYOK, customer-owned --
+  master-plan §5's own `core.ai_provider_credentials` line is stale; the live schema is
+  discovery-scoped, confirmed by grep, per CLAUDE.md's "live source wins").
+- **Email** -- `platform.email_provider` (PLATFORM-P0-11.1, platform-owned only; no
+  customer-facing BYOK email/SMTP concept exists anywhere).
+- **WhatsApp** -- `crm.channel_accounts` (customer-owned; a business connects its own
+  WhatsApp Business/Instagram/Facebook/Google Business Messages account, AES-256-GCM
+  encrypted per row). No platform-level Meta App credential exists -- `connectChannel
+  Account()` takes an already-obtained access token straight from the business's own OAuth
+  exchange.
+- **Government** -- `gst.eway_bill_credentials`/`gst.einvoice_credentials`/
+  `gst.gstr2b_credentials` (customer-owned; each business supplies its own GSP client-id/
+  secret or username/password, same AES-256-GCM helper). No platform-level GSP app
+  credential exists.
+- **Payments, Analytics, Storage** -- this narrower grep found nothing for any of the
+  three, and the first draft of this migration said so in its own header comment.
+
+**That first-pass conclusion for Payments and Storage was wrong, and was caught before
+merging, by widening the grep to the whole repo** (not only `packages/`+
+`supabase/migrations/`) after noticing `next build`'s own route listing included
+`/api/billing/razorpay/create-order`, `/api/billing/razorpay/verify`, and
+`/api/webhooks/razorpay` -- routes a schema/migration-scoped grep can never surface, since
+neither of these two integrations happens to have a database table at all:
+- **Payments IS already built**, and is platform-owned, not customer-owned:
+  `packages/core/src/billing/razorpay.ts` calls Razorpay directly using WonderArc's OWN
+  merchant credentials (`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`
+  env vars) to charge a *business* for its own subscription plan and AI-credit top-ups
+  (`apps/web/app/api/billing/razorpay/*`, `core.ai_credit_purchases`) -- money flows FROM
+  a business TO WonderArc, the exact reverse of a customer-owned integration. Confirmed no
+  per-business "connect your own gateway to collect from your own customers" feature
+  exists anywhere (no `payment_link`/business-scoped Razorpay credential of any kind) --
+  that would be this category's customer-owned dimension, and it simply isn't built.
+- **Storage is also already built**, and is platform-owned: `core.attachments`
+  (`packages/core/src/attachments/mutations.ts`) already uploads to this same Supabase
+  project's own Storage bucket (`supabase.storage.from("attachments")`) for every job
+  photo/product image/signed PDF/knowledge file across every module -- master-plan §5's own
+  "Attachment... (Supabase Storage)" line names exactly this. There is no separate
+  "credential" for it (it rides the same Supabase session/service-role auth every other
+  query already uses) and no per-business "connect your own S3/Google Drive" feature
+  exists.
+- **Analytics remains genuinely unbuilt** even under the wider, whole-repo grep -- no
+  product analytics/telemetry provider for WonderArc's own use, and no per-business
+  "connect your own GA/Meta Pixel" feature, exist anywhere.
+
+This is the same class of finding as PLATFORM-P0-03.1's schema-grant bug earlier in this
+log ("a real bug found while investigating," not merely confirming what was assumed) --
+the lesson recorded here for future stories: **an entity-ownership grep for a global,
+platform-wide concept must not be scoped to `packages/`+`supabase/migrations/` by
+default** -- a real integration can live entirely in `apps/web/app/api/` (a route handler
+calling a third-party API directly, reading only `process.env`) with no database footprint
+to find at all. The migration below was corrected (docstring and seed data both) before it
+was ever applied a second time to dev -- see "What was built" and "A mistake made and
+fixed mid-story" further down for exactly what changed and how it was re-verified.
+
+**Not a stop-and-report case, once the (corrected) facts were in hand**: every one of
+12.1-12.4's four requirements resolves cleanly against those facts without inventing any
+unstated runtime algorithm (unlike 09.3/10.1/10.2's own routing/budget/circuit-breaker
+questions) -- see the two design decisions below for the two genuine judgment calls this
+story did require, both decided and documented rather than deferred.
+
+**Design decision #1 -- a REGISTRY, not a second credential store**: §16 is not asking for
+a second, competing place to store any of the six categories' real credentials -- doing
+that would be exactly the "parallel table for an already-listed concept" CLAUDE.md
+non-negotiable #5 forbids, and would also violate 12.4 itself by merging customer-owned and
+platform-owned credentials into one place. What §16 asks for -- and what nothing above
+already provides -- is a superadmin-facing REGISTRY: one row per integration *category*
+(not per credential, not per business) recording which ownership model applies and the
+category's own platform-wide operational status/kill switch, mirroring `platform.modules`
+(PLATFORM-P0-07.1) doing the same job one level up for whole modules. The new
+`platform.integrations` table holds **zero credential columns** -- no key, token, secret,
+or client-id of any kind -- by construction, which is itself the concrete enforcement of
+12.4: the six real credential homes named above keep being the only place any actual secret
+lives, each already scoped exactly as CLAUDE.md non-negotiable #2 requires (or
+superadmin-only/zero-select, for the platform-owned ones); this table only ever describes
+them from a distance. Verified structurally, not just asserted -- see the dedicated RLS
+test's own `information_schema.columns` assertion below.
+
+**Design decision #2 -- a dedicated `status`/`enabled` pair on this new table, not new rows
+in the already-built `platform.feature_flags` (PLATFORM-P0-08.1-08.4)**: a real, deliberate
+judgment call, not an oversight -- 08.3's own text even names some of the same subsystems
+("AI research", "WhatsApp integration", "government submission") as flag-based
+kill-switch candidates. Decided in favor of a dedicated column, for two reasons, both
+written into the migration's own header comment: (1) **granularity mismatch** -- 08.3's
+list is a list of operational *behaviors* (outbound messaging, expensive external APIs,
+new experimental features, ...), not 12.1's list of integration *categories* (Email,
+Payments, Analytics, Storage have no corresponding flag at all) -- force-fitting seven
+category rows onto flag rows of a different shape would need lossy, partial mappings for
+most of them; (2) this codebase **already treats "coarse, dedicated kill switch" and
+"fine-grained feature flag" as two legitimate, coexisting granularities, not duplicates of
+each other** -- `platform.modules.status`/`enabled` (kill an entire module) already
+coexists deliberately alongside `platform.feature_flags` (kill one specific behavior), per
+that reconciliation migration's own docstring; `platform.integrations.status`/`enabled`
+(kill one entire integration category) is the same pattern one layer over. No runtime
+enforcement is wired into any actual integration call site by this story (no
+PLATFORM-P0-12.5 "wire the kill switch into crm/gst code" story exists in this doc, and
+this run's own file-scope boundary forbids touching `module-crm`/`module-gst`/
+`module-discovery` regardless) -- config/registry now, same "table now, real enforcement
+later" sequencing this whole backlog has used repeatedly (07.1→07.2/07.3,
+08.1-08.4→ungated).
+
+**What was built**: migration `20260912430000_platform_integrations.sql` --
+`platform.integrations` (`integration_key` text PK, `display_name`, `credential_ownership`
+enum `platform_owned`/`customer_owned`/`both`, `status` enum `connected`/`disconnected`/
+`error`/`needs_reauthorization`/`disabled` per 12.2's own vocabulary, `enabled` a
+`GENERATED ALWAYS AS (status <> 'disabled')` column -- derived from day one, deliberately
+avoiding the separate reconciliation migration `platform.modules` needed later for the
+exact same shape -- `notes`, `updated_at`/`updated_by`). Seeded with exactly the seven
+12.1 categories, ownership and status computed/decided from the corrected facts above: `ai`
+= `both` (`connected` iff `platform.ai_provider_keys` has a row -- computed, not
+hardcoded), `email` = `platform_owned` (`connected` iff `platform.email_provider.provider`
+is set -- computed), `whatsapp`/`government` = `customer_owned`/`connected` (real, working
+features today via `crm.channel_accounts`/the gst credential tables), `payments`/`storage`
+= `platform_owned`/`connected` (real, working features today via WonderArc's own Razorpay
+billing / Supabase Storage), `analytics` = `customer_owned`/`disconnected` (genuinely
+nothing built). `platform.integration_status_events` -- append-only audit trail, identical
+shape to `platform.module_status_events`/`platform.feature_flag_events`.
+`platform.set_integration_status(p_integration_key, p_status, p_notes, p_reason)` -- the
+ONE mutation path (12.2 status changes AND 12.3's kill switch together), SECURITY DEFINER,
+requires `platform.is_superadmin()` and a non-empty `reason` unconditionally (every
+direction, not only disabling), writes one atomic audit row. RLS: open `SELECT` to any
+`authenticated` user on `platform.integrations` (no credential data on this table at all,
+so an open read creates no exposure beyond "which categories exist and their status" --
+exactly what 12.1/12.2 ask to "show"); superadmin-only `SELECT` on
+`platform.integration_status_events`; **no INSERT/UPDATE/DELETE grant to `authenticated`
+on either table** -- `set_integration_status()` is the only path, and the seven-row catalog
+is fixed (no add/remove operation 12.1 asks for).
+
+App layer: `packages/core/src/admin/platform-integrations.ts`
+(`listIntegrationRegistry()`, `setIntegrationStatus()`, Zod-validated, `requireSuperadmin()`
+defense-in-depth on the one write path) + `platform-integrations.test.ts` (8 schema
+validation tests). UI: `apps/web/app/platform/(protected)/integrations/` (`page.tsx`,
+`integration-registry-table.tsx`, `integration-status-dialog.tsx`, `actions.ts`) -- desktop
+table / mobile card split per CLAUDE.md development principle #12 and
+`docs/design/claude-ui-design-rules.md`, mirroring `modules/page.tsx`'s own established
+split exactly. The kill-switch dialog deliberately does **not** show a live per-business
+impact count the way `ModuleStatusDialog` (07.2) does -- 12.3's own text is only "allow
+emergency disabling," with no "impact confirmation" requirement of its own (unlike §11's
+explicit four-part list for the module kill switch), and building one would mean this
+`packages/core` admin surface directly querying `crm.channel_accounts`/the gst credential
+tables cross-tenant, which this run's own file-scope boundary and CLAUDE.md development
+principle #7 (no speculative functionality) both argue against for a requirement §16 never
+actually asked for. An explicit acknowledgement checkbox, required only for the
+into/out-of-`disabled` transition, stands in as this dialog's own "emergency" ceremony.
+Added `{ href: "/platform/integrations", label: "Integrations" }` to `layout.tsx`'s nav.
+
+**A mistake made and fixed mid-story, documented rather than silently corrected**: the
+first version of this migration (applied to dev, then found wrong before this story was
+considered done) seeded `payments`/`storage` as `customer_owned`/`disconnected` and
+asserted in its own header comment that "nothing exists anywhere in this codebase" for
+either -- both false, per the whole-repo grep above. Caught by noticing `next build`'s own
+route listing named `/api/billing/razorpay/*` routes that a `packages/`+
+`supabase/migrations/`-scoped grep had missed entirely. Fixed by: (1) rewriting the
+migration's header comment and seed `INSERT` (`payments`/`storage` now `platform_owned`/
+`connected`) in the same, not-yet-committed file -- no separate reconciliation migration
+needed, since nothing had consumed the wrong data yet; (2) on dev, dropping the three
+objects this migration had created (`set_integration_status()`, both tables) and the
+`supabase_migrations.schema_migrations` tracking row, then reapplying the corrected SQL
+under the same migration name via `mcp__Supabase__apply_migration`, so dev's schema history
+stays a clean, accurate record of what actually shipped rather than carrying a since-fixed
+mistake forward; (3) re-running every verification step below against the corrected state.
+Recorded here at the same level of honesty this log's PLATFORM-P0-03.1 entry set for its
+own schema-grant bug -- a real gap found by widening the check, not by trusting the first
+pass.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, 1 pre-existing unrelated warning (`Package`
+unused import in a CRM conversations page, untouched by this story). `node
+scripts/lint-import-boundaries.mjs` -- 1491 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 198 migrations, no violations. `npx vitest run`
+(`packages/core`) -- 28 files / 256 tests (27/248 -> 28/256, +8 new), all passing. `apps/web`'s
+own `vitest run --passWithNoTests` -- 50 tests, unchanged (this story touched no
+`apps/web` test file). `cd apps/web && npm run build` (`next build`) -- clean; full route
+listing includes `ƒ /platform/integrations` (dynamic, inheriting the outer `/platform`
+layout's existing `force-dynamic`, no change needed) -- this same build is what surfaced
+the Razorpay routes that led to the mid-story correction above.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only -- first attempt (the since-corrected version) applied clean,
+then dropped and reapplied clean a second time with the corrected content (see "A mistake
+made and fixed mid-story" above). Confirmed via `execute_sql` that the final seeded state
+matches: `ai`/`email` both `disconnected` (accurately -- no key/provider configured in this
+dev project), `whatsapp`/`government`/`payments`/`storage` all `connected`,
+`analytics` `disconnected`, `enabled` correctly `true` for all seven.
+`mcp__Supabase__get_advisors` (security and performance) -- **zero new findings** both
+times: the same 6 pre-existing `rls_enabled_no_policy` INFO rows and the pre-existing
+leaked-password-protection warning (security); the two new indexes on this story's own
+tables appear only as the same benign "unused index" INFO class every sibling table's own
+index already carries in this near-empty dev database (performance).
+
+**Role-switched live proof against dev's own real data**: no seeded superadmin exists in
+this dev project (same limitation every prior story in this log has recorded), so the
+positive "a real superadmin can flip the kill switch" path is proven only against local
+Postgres (below) -- but the negative/open-read paths ARE proven live against dev, in full,
+using a synthetic non-superadmin `request.jwt.claim.sub` (the same technique this log's
+prior entries have used): (1) as `anon` -- `select count(*) from platform.integrations`
+correctly fails `ERROR 42501: permission denied for schema platform` (no schema-level grant
+to `anon` at all, matching the `platform` schema's existing grant scope, not a repeat of
+PLATFORM-P0-03.1's own missing-grant bug); (2) as `authenticated` (synthetic
+non-superadmin) -- `select count(*) from platform.integrations` returns `7` (open read
+works, 12.1/12.2's own "show" requirement), `select count(*) from
+platform.integration_status_events` returns `0` (superadmin-only, correctly empty for a
+non-superadmin), and calling `platform.set_integration_status('whatsapp', 'disabled',
+'malicious', 'trying to kill it')` is rejected with `P0001: Forbidden: only a SUPERADMIN
+can change an integration's platform-wide status` -- the kill switch is not reachable by a
+non-superadmin, live, against real dev infrastructure.
+
+**The dedicated local-Postgres RLS test**: new `scripts/test-platform-integrations-rls.mjs`
+(added to `package.json`'s `test:db` composite script, after
+`test-platform-notification-policies-rls.mjs`) -- seeds a real business admin (Alice, not a
+superadmin) and a real superadmin (Zoe), replaying the full current migration timeline (199
+files). Asserts: the registry seeds exactly the seven categories; Alice (not a superadmin)
+can read all 7 rows; `enabled` is a true `GENERATED ALWAYS` column for every one of the five
+status values, and cannot be assigned directly even by `service_role`; Alice's kill-switch
+attempt is rejected and changes nothing; an empty/whitespace reason is rejected in every
+direction, not only disabling; an unknown status or unknown integration key is rejected
+with a clear error; **Zoe (a real superadmin) CAN flip the emergency kill switch**, and it
+is captured as exactly one atomic audit row with the real previous/new status AND
+previous/new notes together; an empty-string notes value normalizes to null; the registry
+table has zero columns (other than its own key and the 12.4 ownership-metadata enum) that
+even resemble a credential column -- the structural proof behind design decision #1's own
+"zero credential columns" claim; Alice gets zero rows on the audit trail regardless of real
+event count; nobody, including Zoe, can bypass `set_integration_status()` with a direct
+`INSERT` on the audit table, nor `INSERT`/`DELETE`/`UPDATE` `platform.integrations`
+directly (no such grant exists to `authenticated` at all -- the seven-row catalog is fixed,
+matching 12.1's own "central list" framing with no add/remove operation). One authoring
+mistake caught and fixed before the final run: an initial "no credential-like column"
+`information_schema.columns` regex flagged this table's own `integration_key`/
+`credential_ownership` columns as false positives (both contain the substring "key"/
+"credential" as *identifiers*, not because they store a secret) -- excluded explicitly by
+name, with a comment explaining why, rather than loosening the regex in a way that could
+miss a real future credential column. **All 21 assertions passed** on the corrected run.
+
+**Deliberately not built this story**:
+- **No runtime enforcement of the kill switch into any actual integration call site**
+  (`crm.channel_accounts` message sending, the gst GSP client, the Razorpay billing routes,
+  the AI provider router, Resend). §16 never asks for this (no PLATFORM-P0-12.5 exists),
+  and this run's own file-scope boundary forbids touching `module-crm`/`module-gst`/
+  `module-discovery` regardless -- config/registry only, matching every "table now, real
+  wiring later" precedent this backlog has used repeatedly.
+- **No live health-check/monitoring that could compute `error`/`needs_reauthorization`
+  automatically.** No such infrastructure exists anywhere in this codebase; building one
+  now would be exactly the speculative work CLAUDE.md development principle #7 rules out
+  for a story that only asks to "show" status. Every status transition is a superadmin's
+  own manual, audited call, the same "manually-operated status" shape `platform.modules`
+  already established.
+- **No live per-business impact count in the kill-switch dialog** -- see "What was built"
+  above for why (12.3's own text doesn't ask for one, unlike §11's module kill switch).
+- **No add/remove-a-category operation** -- the seven rows are a fixed catalog seeded once
+  by this migration; 12.1's own "central list" framing never asks for a management UI to
+  grow or shrink it.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed dev environment, so a live browser walkthrough of
+`/platform/integrations` actually flipping the kill switch through the real UI was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness, a direct read/reject proof against the live dev database for every
+non-superadmin path (including the one real bug-hunting detour that corrected two of the
+seven seeded rows before merge), and the full positive-and-negative matrix against local
+Postgres -- not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-12.1/12.2/12.3/12.4 done. §16 (Global Integrations) is now
+finished. No genuine architecture/security ambiguity requiring stop-and-report surfaced
+this story (both judgment calls -- registry-not-credential-store, dedicated column-not-
+feature-flag-reuse -- resolved cleanly against precedent already established elsewhere in
+this backlog, per the two design decisions above). Committing and merging to `main`, then
+continuing to §17 (Country / Compliance Pack Administration, PLATFORM-P0-13) next, per this
+doc's own section order.
