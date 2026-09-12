@@ -22,7 +22,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
-| | 05 | Entitlement Engine | 05.1 partial (module-level `hasModule()` built); 05.2/05.3's Plan/Business-Override layers, and 05.4's `hasFeature`/`getLimit`/`canConsume`, blocked on an unresolved architecture question -- see log, stopped for user input |
+| | 05 | Entitlement Engine | 05.1 partial (module-level `hasModule()` built); business&lt;-&gt;plan link shipped (schema foundation story, 2026-09-12) unblocking 05.2 onward -- 05.2/05.3/05.4 next |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
@@ -1780,3 +1780,164 @@ into `main`. This run's own usage-tracking note: well under the 80% stop thresho
 is a natural, doc-mandated stopping point (a genuine architectural ambiguity), not a usage
 cutoff -- the same "stop early at a clean boundary rather than starting something
 unfinishable in one sitting" allowance this run's own instructions call out explicitly.
+
+### Business<->Plan Link — schema foundation for PLATFORM-P0-05.2 onward (2026-09-12)
+
+**Not a doc-numbered sub-story** -- this is the schema foundation the previous entry
+stopped and asked for user input on. The user has since answered all three open questions
+directly (not a decision this run made on its own):
+
+1. Every business gets a default plan. New businesses are assigned a plan at creation
+   (default: `free`). Existing businesses are backfilled -- never left unassigned.
+2. `core.business_settings.plan` becomes a real foreign key into `platform.plans.key`,
+   replacing its previous free-text nature (default `'starter'`, matching no real seeded
+   plan).
+3. Usage counters live in a new shared `core.usage_counters` table (deferred to this
+   section's own PLATFORM-P0-06.1 turn, per the doc's own section order -- not built in
+   this story; see that story's own future entry).
+
+This story implements decisions #1/#2 only, as its own focused commit before resuming the
+doc's own PLATFORM-P0-05.2 (Entitlement Precedence) -- per this run's task assignment,
+which named this exact split.
+
+**Live-data check performed first, per this run's own instruction and CLAUDE.md's "live
+source of truth" rule**: queried the **dev** project (`jazdtomcgqjxjueedmck`) before writing
+any backfill logic. Found 5 `core.businesses` rows but only **1** `core.business_settings`
+row (`plan = 'growth'`, itself matching no seeded `platform.plans.key`) -- confirming the
+gap was worse than the previous entry's own audit already flagged: `core.business_settings`
+has always been created *lazily* (on a module's first write -- see
+`module-gst`/`module-inventory`'s own "no default row per business" comments), so most
+businesses had no settings row at all, not just a wrong plan value in one that existed.
+
+**What shipped** (`supabase/migrations/20260912070000_core_business_settings_plan_fk.sql`):
+1. `core.business_settings.plan`'s column default changed from `'starter'` to `'free'`.
+2. Backfill: every existing `plan` value not matching a real `platform.plans.key` is
+   normalized to `'free'` (preserving any that already match, e.g. a future `'pro'`/`'max'`
+   row) -- `update ... set plan = 'free' where plan not in (select key from platform.plans)`.
+   Then, every `core.businesses` row with no `core.business_settings` row at all gets one
+   inserted (using the new `'free'` default) -- closing the "most businesses have no row"
+   gap directly, not just the one pre-existing row's bad value.
+3. The FK itself: `core.business_settings.plan references platform.plans (key)`, plus a
+   covering index (`business_settings_plan_idx`) -- added only after the backfill guarantees
+   every existing value is valid. No `on delete`/`on update` action needed: `platform.plans`
+   rows are never deleted (no delete policy/grant exists on that table, PLATFORM-P0-04.1's
+   own migration) and `key` is immutable after creation (`updatePlatformPlanSchema` omits
+   it, per `platform-plans.ts`'s own docstring) -- there is no real update/delete path this
+   FK would ever need to react to.
+4. Default-plan-at-creation going forward: a new `core.handle_new_business()` trigger
+   (`after insert on core.businesses`), the exact auto-provisioning pattern
+   `core.handle_new_user()` already established for accounts/account_members on signup --
+   not a change to any module's own business-creation code. This was a deliberate choice:
+   `createBusiness()` lives in `module-discovery` (a different, concurrently-running
+   workstream's own territory this run must never touch), and a DB-level trigger guarantees
+   every future business gets a settings row no matter which module or code path ever
+   creates one, not just today's one caller. `on conflict (business_id) do nothing` makes it
+   safe against a caller that inserts its own row in the same transaction.
+
+This is a `core`-schema change made in service of a platform feature -- the one legitimate
+case CLAUDE.md's own module-boundary rule allows a platform-workstream story to touch
+`core`, since the FK target is `platform.plans` and the whole point is linking the two (this
+story's own task brief is explicit on this point). The migration touches `core` + `platform`
+only (one non-core schema), satisfying `scripts/lint-migration-schema.mjs`'s own rule.
+
+**Existing tests fixed as a direct, necessary consequence of the new auto-provisioning
+trigger** (not unrelated refactoring -- each one asserted on the exact "no settings row
+until first write" behavior this migration intentionally changes):
+- `scripts/test-discovery-rls.mjs`: the C-2 seeding step's plain `insert into
+  core.business_settings` became an upsert (`on conflict (business_id) do update`), since a
+  row already exists by the time that line runs; and the "Bob sees none of Alice's business
+  settings" assertion (previously true only because Bob's business had *no* row at all) was
+  corrected to assert real tenant isolation instead -- Bob now legitimately has exactly 1
+  row (his own, auto-created), never Alice's.
+- `scripts/test-core-audit-log.mjs`: removed the now-redundant explicit
+  `insert into core.business_settings (business_id) values (...)` (the row already exists
+  the moment the business itself is created) -- a plain insert would now fail on the
+  `business_id` primary key.
+- `scripts/test-inventory-compat-views.mjs`: `inventory.organizations`' own "the view reads
+  sane defaults before business_settings exists" assertion updated from `plan = 'starter'`
+  to `plan = 'free'`, since every business now has a real settings row (with a real plan)
+  from the moment it's created, not the view's own hardcoded `coalesce(..., 'starter')`
+  fallback (that view lives in `module-inventory`'s own migration and was not touched --
+  its fallback is simply unreachable for any future business now, which is harmless).
+- Also found, via a from-scratch migration replay unrelated to this story's own change (a
+  concurrently-developed permission catalogue growing, not anything this migration touches):
+  `scripts/test-discovery-rls.mjs`'s own hardcoded `core.permissions` row-count assertion
+  (`"43"`) was already stale against this branch's own current migration timeline before
+  this story touched anything (confirmed by replaying every existing migration *without*
+  this story's own new file and getting `53` back, matching the failure) -- 9 new `crm.*`
+  permissions and 1 new `fsm.assessments.manage` permission had landed from other,
+  concurrently-merged workstream stories since that assertion was last updated. Bumped to
+  `"53"` with an accurate updated breakdown in the same assertion's own message, since a
+  correct `npm run test:db` run for this story's own verification requires it and the fix
+  is a one-line numeric correction, not a design decision about any other module's own
+  permission catalogue.
+
+**New test**: `scripts/test-core-business-settings-plan-fk.mjs` (wired into `test:db`) --
+13 assertions: a freshly created business is assigned `'free'` at creation (not lazily);
+the trigger fires for every business, not just the first; the FK rejects an unrecognized
+plan value and leaves the real value untouched; a valid plan change (`'pro'`) succeeds; the
+column default is confirmed to be `'free'` via `information_schema.columns`; the
+auto-provisioning insert's `on conflict do nothing` is confirmed genuinely conflict-safe
+(a redundant insert doesn't clobber an already-changed plan); and tenant isolation still
+holds (each business sees only its own settings row, including its own auto-assigned
+plan). This is `core`-tenant data, not a `platform.*` superadmin table, so -- per this run's
+own task brief -- it follows `core`'s own tenant-RLS-test convention (Alice/Bob, no
+superadmin dimension), not the `platform.*` superadmin-only pattern the sibling
+`test-platform-plan-*-rls.mjs` scripts use.
+
+**Verification**: live-data check against the dev project performed first (above). Applied
+live via `mcp__Supabase__apply_migration` (plus one immediate follow-up migration adding
+the covering index once `mcp__Supabase__get_advisors` performance flagged the new FK as
+unindexed -- fixed in the same story, and folded into this migration's own file for the
+git history). Confirmed post-migration on the dev project directly: all 5 businesses now
+have a settings row, all backfilled to `plan = 'free'` (the one pre-existing `'growth'` row
+included), the FK constraint exists (`FOREIGN KEY (plan) REFERENCES platform.plans(key)`),
+and `has_table_privilege` confirms `authenticated`'s existing select/insert/update grants on
+`core.business_settings` are unaffected (this table already existed; only a column
+default/constraint changed, not its grants). `mcp__Supabase__get_advisors` (security) --
+zero new findings, same 5 pre-existing `rls_enabled_no_policy` tables (none touched by this
+story) and the pre-existing leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- the one new finding (unindexed FK) was fixed
+within the same story; re-ran advisors after and confirmed it's gone, leaving only the same
+benign "unused index" class every sibling FK index already carries in this empty dev
+database. Full monorepo `npm run typecheck --workspaces --if-present` -- clean across every
+workspace. `npm run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing
+unrelated warning every prior entry has logged. `node scripts/lint-import-boundaries.mjs` --
+1176 files, no violations (no package import touched). `node scripts/lint-migration-schema.mjs`
+-- 137 migrations (136 -> 137, this story's own file), no violations. `npx vitest run --root
+packages/core` -- 94 tests, unchanged (no `packages/core` TypeScript file touched -- this
+story is migration + test-script only). `apps/web`'s own `vitest run --passWithNoTests` --
+47 tests, unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean (run despite no
+route/page being touched, given this story changes a column every module reads, to confirm
+nothing broke at build time).
+
+`npm run test:db` (the full composite) itself fails, but on a **pre-existing, unrelated,
+out-of-scope failure**, confirmed via a from-scratch migration replay with this story's own
+migration file physically removed and re-added: `scripts/test-gst-compliance-profile-rls.mjs`
+(and, checked individually afterward, `test-gst-tax-registrations-rls.mjs` and
+`test-gst-tax-rules-rls.mjs` too) fail an `assertThrows` -- Bob is able to UPDATE a row on
+Alice's business when the test expects RLS to reject it. This reproduces identically with
+this story's migration file removed entirely, proving it predates and is unrelated to this
+story (a GST-module RLS gap, not a business_settings/entitlement one). `module-gst` is
+explicit, named out-of-scope territory for this workstream ("Never touch... packages/module-gst")
+-- not fixed here. **Flagging it for whichever workstream owns GST/Compliance**: this looks
+like a real, live tenant-isolation bug across at least three `gst.*` tables' UPDATE
+policies, the same class of finding this run's own task brief calls out
+(PLATFORM-P0-03.4's own precedent) -- but the fix belongs to that module's own workstream,
+not this one. Individually re-ran every script downstream of that break point in the
+composite chain to confirm this story's own migration didn't regress anything reachable:
+`test-platform-plans-rls.mjs`, `test-platform-plan-modules-rls.mjs`,
+`test-platform-plan-limits-rls.mjs`, `test-platform-plan-features-rls.mjs`,
+`test-fsm-rls.mjs`, `test-fsm-workflow.mjs`, `test-crm-rls.mjs`,
+`test-crm-backlog-rls.mjs`, `test-sales-returns-workflow.mjs`, and this story's own new
+`test-core-business-settings-plan-fk.mjs` -- all pass. Everything *before* the break point
+in the composite chain (including `test-discovery-rls.mjs`, `test-core-audit-log.mjs`,
+`test-inventory-compat-views.mjs`, all three edited by this story) already ran to completion
+inside the one `npm run test:db` invocation and passed.
+
+**Deliberately not built in this story**: decision #3 (`core.usage_counters`) -- explicitly
+deferred to this section's own PLATFORM-P0-06.1 turn later, per the doc's own section order
+and this run's own task assignment, which named that split explicitly.
+
+**Status**: done. Resuming the doc's own sequence: PLATFORM-P0-05.2 (Entitlement
+Precedence) next.

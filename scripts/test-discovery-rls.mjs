@@ -69,8 +69,13 @@ async function main() {
       psqlAsAlice(`
         insert into core.business_members (business_id, user_id, role)
         select id, '${ALICE}', 'owner' from core.businesses where name = 'Alice Co';
+        -- core.handle_new_business() (PLATFORM-P0-05.2's own plan-link migration) already
+        -- created a business_settings row the moment the business itself was inserted
+        -- above, so this is an upsert (set the GSTIN on the existing row), not a fresh
+        -- insert -- a plain insert would now fail on the business_id primary key.
         insert into core.business_settings (business_id, gstin)
-        select id, 'ALICE_GSTIN' from core.businesses where name = 'Alice Co';
+        select id, 'ALICE_GSTIN' from core.businesses where name = 'Alice Co'
+        on conflict (business_id) do update set gstin = excluded.gstin;
         insert into core.employees (business_id, user_id, job_title)
         select id, '${ALICE}', 'Owner' from core.businesses where name = 'Alice Co';
       `);
@@ -97,7 +102,13 @@ async function main() {
       assertEqual(psqlAsAlice("select count(*) from core.business_members"), "1", "Alice sees only her own business's membership");
       assertEqual(psqlAsBob("select count(*) from core.business_members"), "0", "Bob sees none of Alice's business membership");
       assertEqual(psqlAsAlice("select gstin from core.business_settings"), "ALICE_GSTIN", "Alice sees her own business settings");
-      assertEqual(psqlAsBob("select count(*) from core.business_settings"), "0", "Bob sees none of Alice's business settings");
+      // core.handle_new_business() (PLATFORM-P0-05.2's own plan-link migration) now
+      // auto-creates a business_settings row for every business at creation time -- so Bob
+      // has exactly 1 row (his own business's, auto-created with no gstin), never Alice's;
+      // this asserts tenant isolation directly (Bob's own row, not Alice's data) rather
+      // than the old, now-stale "Bob has zero rows at all" shape.
+      assertEqual(psqlAsBob("select count(*) from core.business_settings"), "1", "Bob sees exactly one business_settings row -- his own, auto-created");
+      assertEqual(psqlAsBob("select gstin from core.business_settings"), "", "Bob's own row has no gstin, and it is not Alice's ALICE_GSTIN");
       assertEqual(psqlAsAlice("select count(*) from core.employees"), "1", "Alice sees her own business's employees");
       assertEqual(psqlAsBob("select count(*) from core.employees"), "0", "Bob sees none of Alice's employees");
       const aliceBusiness = psql(`select id from core.businesses where name = 'Alice Co'`);
@@ -131,7 +142,13 @@ async function main() {
       `);
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.view')`), "t", "warehouse_operator has inventory.view");
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.delete')`), "f", "warehouse_operator lacks inventory.delete");
-      assertEqual(psqlAsBob("select count(*) from core.permissions"), "43", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b + 4 sales_returns.* from the sales-returns workflow migration + 1 opportunities.edit from F-2 + 1 estimates.edit from F-3 + 2 jobs.edit/jobs.reopen from F-5 + 2 schedule.manage/schedule.print_work_orders from F-6 + 3 time_entries.edit/expenses.edit/notes.edit from F-7 + 1 messages.manage from F-11 + 1 gst.generate from S-2)");
+      // 53, not the previous 43 -- this count grows as other, concurrently-developed
+      // modules (fsm/crm here) seed their own permission rows into the one shared
+      // core.permissions catalogue; re-verified directly against a from-scratch
+      // migration replay (unrelated to this story's own plan-link migration, which
+      // touches no permission data at all) before bumping this assertion, per this
+      // story's own commit note in docs/design/platform-admin-portal-audit.md.
+      assertEqual(psqlAsBob("select count(*) from core.permissions"), "53", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b + 4 sales_returns.* from the sales-returns workflow migration + 1 opportunities.edit from F-2 + 1 estimates.edit from F-3 + 2 jobs.edit/jobs.reopen from F-5 + 2 schedule.manage/schedule.print_work_orders from F-6 + 3 time_entries.edit/expenses.edit/notes.edit from F-7 + 1 messages.manage from F-11 + 1 gst.generate from S-2 + 1 assessments.manage from a later fsm story + 9 crm.*/activities.manage/analytics.view/channel_connections.manage/crm_messages.send/crm_opportunities.manage/crm_settings.manage/leads.manage/reviews.publish from the CRM backlog)");
 
       console.log("Verifying tenant isolation on licenses (C-3)...");
       assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");
