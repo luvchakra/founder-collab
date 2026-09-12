@@ -10,6 +10,7 @@ import { Switch } from "@cofounderai/core/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import type { ModuleRegistryEntry, ModuleStatus } from "@cofounderai/core/admin/platform-modules";
 import { setModuleMetaAction, setModuleVisibleAction } from "./actions";
+import { KillSwitchDialog } from "./kill-switch-dialog";
 
 const FIELD_CLASS = "border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500";
 
@@ -25,13 +26,13 @@ type MetaDraft = { status: ModuleStatus; version: string };
 /**
  * PLATFORM-P0-07.1 ("Module Registry", §11) -- one row per licensable module.
  *
- * `enabled` is shown as a read-only badge, not a switch: it is PLATFORM-P0-07.2's own
- * "Platform-Wide Module Kill Switch", which that story's own docstring requires a reason,
- * an impact confirmation, an explicit confirmation, and an audit record for -- a plain
- * instant-flip switch here would implement the dangerous mutation without any of its
- * required safeguards. `licensed` is likewise read-only (always "Yes" -- computed, see
- * `platform-modules.ts`'s own docstring for why). `minimumPlan` is read-only, derived
- * display data (PLATFORM-P0-04.3's `plan_modules` is the actual entitlement source).
+ * `enabled` (PLATFORM-P0-07.2's own "Platform-Wide Module Kill Switch") is never a plain
+ * instant-flip switch -- clicking its badge opens `KillSwitchDialog`, which requires a
+ * reason, shows the real live impact count, and requires an explicit acknowledgement
+ * before the change is submitted (see that component's own docstring). `licensed` is
+ * read-only (always "Yes" -- computed, see `platform-modules.ts`'s own docstring for why).
+ * `minimumPlan` is read-only, derived display data (PLATFORM-P0-04.3's `plan_modules` is
+ * the actual entitlement source).
  *
  * `visible` is a plain instant-flip switch (no confirmation needed -- it only affects a
  * not-yet-built marketing/module-picker surface, never access) mirroring
@@ -49,6 +50,10 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
 
   function updateDraft(key: string, next: Partial<MetaDraft>) {
     setDrafts((d) => ({ ...d, [key]: { ...d[key], ...next } }));
+  }
+
+  function onKillSwitchChanged(moduleKey: string, nextEnabled: boolean) {
+    setRows((r) => r.map((row) => (row.moduleKey === moduleKey ? { ...row, enabled: nextEnabled } : row)));
   }
 
   function toggleVisible(moduleKey: string, next: boolean) {
@@ -127,8 +132,8 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
       <div className="border-b border-zinc-800 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-100">Module registry</h2>
         <p className="text-xs text-zinc-500">
-          Every licensable module&apos;s platform-wide operational state. The kill switch (Enabled) and maintenance
-          mode messaging are managed from their own dedicated flows, not this table.
+          Every licensable module&apos;s platform-wide operational state. Click Enabled/Disabled to use the kill
+          switch -- it requires a reason and confirmation. Maintenance-mode messaging is a separate, later flow.
         </p>
       </div>
 
@@ -142,8 +147,13 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
               </div>
               <StatusBadge status={m.status} />
             </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
-              <span>{m.enabled ? "Enabled" : "Disabled platform-wide"}</span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
+              <KillSwitchDialog
+                moduleKey={m.moduleKey}
+                moduleName={m.moduleName}
+                enabled={m.enabled}
+                onChanged={(next) => onKillSwitchChanged(m.moduleKey, next)}
+              />
               <span>Licensed</span>
               <span>Min. plan: {m.minimumPlan ? m.minimumPlan.name : "None"}</span>
               {m.version ? <span>v{m.version}</span> : null}
@@ -183,7 +193,12 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
                 <p className="text-xs text-zinc-500">{m.moduleKey}</p>
               </TableCell>
               <TableCell>
-                <Badge variant={m.enabled ? "default" : "destructive"}>{m.enabled ? "Enabled" : "Disabled"}</Badge>
+                <KillSwitchDialog
+                  moduleKey={m.moduleKey}
+                  moduleName={m.moduleName}
+                  enabled={m.enabled}
+                  onChanged={(next) => onKillSwitchChanged(m.moduleKey, next)}
+                />
               </TableCell>
               <TableCell>
                 <Switch

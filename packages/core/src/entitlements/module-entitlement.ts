@@ -1,5 +1,9 @@
 import { moduleRegistry } from "@cofounderai/module-registry";
-import { hasModule as hasModuleLicense, hasModuleWrite } from "../licensing/queries";
+import {
+  hasModule as hasModuleLicense,
+  hasModuleWrite,
+  isModuleEnabledPlatformWide,
+} from "../licensing/queries";
 import type { EntitlementDecision } from "./types";
 
 /**
@@ -20,9 +24,21 @@ import type { EntitlementDecision } from "./types";
  *   `licensing/queries.ts` wrappers, per PLATFORM-P0-05.4's "integrate with the existing
  *   licensing model rather than creating a competing licensing system" -- it is not a
  *   second source of truth, only a richer view onto the same one).
- * - **Platform Global** (a platform-wide kill switch per module) -- **not composed**:
- *   PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") is listed "Not started" in this
- *   backlog's own progress table; there is no `platform.*` row this layer could read yet.
+ * - **Platform Global** (a platform-wide kill switch per module) -- **composed as of
+ *   PLATFORM-P0-07.2**, and checked *first*, before the license layer: `platform.modules
+ *   .enabled` (PLATFORM-P0-07.1) is read via `isModuleEnabledPlatformWide()` (a plain,
+ *   non-admin-gated read -- `platform.modules`' own RLS already opens SELECT to any
+ *   authenticated user), and a disabled module short-circuits straight to
+ *   `buildPlatformDisabledDecision()` without ever touching `core.licenses` at all -- a
+ *   platform-wide kill switch is a fact about the module, not about this business's own
+ *   license, so there is nothing for the license layer to add once it applies. Not
+ *   composed into `core.has_module()`/`has_module_write()` themselves (RLS's own
+ *   authoritative check) -- doing so would mean changing every module table's own RLS
+ *   policy, a genuine architecture change requiring explicit approval, the identical
+ *   reasoning the very next paragraph already gives for why `platform.plan_modules` isn't
+ *   composed into RLS either. `requireModule()`/the `middleware.ts` route guard (the
+ *   other two enforcement layers CLAUDE.md's architecture section names) check the same
+ *   flag independently, for the same reason.
  * - **Plan** (whether the business's current *subscription plan* -- `platform.plans` /
  *   `platform.plan_modules`, PLATFORM-P0-04.1/04.3 -- entitles this module at all) --
  *   **still not composed here, now by deliberate choice rather than missing data**. The
@@ -60,18 +76,40 @@ import type { EntitlementDecision } from "./types";
  *   entitlement check would conflate two independent axes this codebase already keeps
  *   separate, not close a real gap.
  *
- * `source` is therefore always `"license"` today -- accurate, not a placeholder -- and
- * will start reflecting the other layers only once each one has a real data source to
- * read, story by story, the same way `platform.plan_modules`' own `enabled` column
- * (PLATFORM-P0-04.3) exists today with nothing yet reading it for a real authorization
- * decision.
+ * `source` is `"platform_global"` when a superadmin has disabled the module platform-wide,
+ * `"license"` otherwise -- the other three layers still have no real data source to read
+ * yet, story by story, the same way `platform.plan_modules`' own `enabled` column
+ * (PLATFORM-P0-04.3) still exists today with nothing yet reading it for a real
+ * authorization decision.
  */
 export async function hasModule(businessId: string, moduleKey: string): Promise<EntitlementDecision> {
+  const platformEnabled = await isModuleEnabledPlatformWide(moduleKey);
+  if (!platformEnabled) {
+    return buildPlatformDisabledDecision(moduleKey);
+  }
   const [readAllowed, writeAllowed] = await Promise.all([
     hasModuleLicense(businessId, moduleKey),
     hasModuleWrite(businessId, moduleKey),
   ]);
   return buildModuleEntitlementDecision(moduleKey, readAllowed, writeAllowed);
+}
+
+/** PLATFORM-P0-07.2 -- the pure decision shape for a platform-wide-disabled module,
+ * factored out the same way `buildModuleEntitlementDecision()` below is, so it is
+ * unit-testable without a database. Always `allowed: false`: a platform-wide kill switch
+ * has no degraded "read-only" state the way a license's grace period does -- §11 names no
+ * such nuance, and PLATFORM-P0-07.3 (Maintenance Mode) is the section that will introduce
+ * a `read_only` state, not this one. */
+export function buildPlatformDisabledDecision(moduleKey: string): EntitlementDecision {
+  const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
+  return {
+    allowed: false,
+    reason: `${moduleName} has been temporarily disabled platform-wide by WonderArc.`,
+    source: "platform_global",
+    limit: null,
+    usage: null,
+    remaining: null,
+  };
 }
 
 /**

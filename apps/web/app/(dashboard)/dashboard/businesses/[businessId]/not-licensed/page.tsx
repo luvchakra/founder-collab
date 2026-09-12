@@ -28,12 +28,17 @@ export default async function NotLicensedPage({
   searchParams: Promise<{ module?: string; reason?: string; graceEndsAt?: string }>;
 }) {
   const { module: moduleKey, reason, graceEndsAt } = await searchParams;
-  const licensesHref = "/dashboard/settings/licenses";
 
   const matchedModule = moduleRegistry.find((m) => m.key === moduleKey);
   const moduleName = matchedModule?.name ?? "This module";
 
   const { title, description } = describeReason(moduleName, reason, graceEndsAt);
+  // PLATFORM-P0-07.2: a platform-wide kill switch is not a licensing problem this
+  // business can fix, so its CTA points back at the dashboard rather than a "Licenses"
+  // page that would imply reactivating something fixes it.
+  const isPlatformDisabled = reason === "platform_disabled";
+  const ctaHref = isPlatformDisabled ? "/dashboard" : "/dashboard/settings/licenses";
+  const ctaLabel = isPlatformDisabled ? "Back to Dashboard" : "Go to Settings → Licenses";
 
   return (
     <div className="mx-auto flex max-w-xl flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
@@ -48,7 +53,7 @@ export default async function NotLicensedPage({
         <AlertDescription>{description}</AlertDescription>
       </Alert>
       <Button asChild>
-        <Link href={licensesHref}>Go to Settings → Licenses</Link>
+        <Link href={ctaHref}>{ctaLabel}</Link>
       </Button>
     </div>
   );
@@ -70,6 +75,17 @@ function describeReason(
     return {
       title: `${moduleName} isn't licensed yet`,
       description: `${moduleName}'s license grace period has ended, so access is fully denied for now. Your data is retained, not deleted -- reactivate the license any time to restore full access immediately, exactly as it was.`,
+    };
+  }
+  if (reason === "platform_disabled") {
+    // PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") -- distinct from every other
+    // reason above: this business's own license is fine, WonderArc has temporarily
+    // disabled the module for every business. Reactivating a license (the CTA every other
+    // reason points at) would not help here, so the copy says so plainly rather than
+    // implying a fix the business itself can make.
+    return {
+      title: `${moduleName} is temporarily unavailable`,
+      description: `${moduleName} has been temporarily disabled platform-wide by WonderArc. This is not a licensing issue on your account -- your license and data are unaffected, and access will return automatically once the module is re-enabled.`,
     };
   }
   return {

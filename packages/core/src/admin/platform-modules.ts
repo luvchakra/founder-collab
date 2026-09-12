@@ -1,24 +1,31 @@
 import { z } from "zod";
+import { createAdminClient } from "../db/admin";
 import { createClient } from "../db/server";
 import { requireSuperadmin } from "../rbac/platform-admin";
 import type { ModuleKey } from "../licensing/types";
 
 /**
- * PLATFORM-P0-07.1 ("Module Registry", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §11).
- * `platform.modules` -- see the migration's own docstring for why this is genuinely new
- * (not a duplicate of `core.modules` or `packages/module-registry`) and why `licensed`/
- * `minimum_plan` are computed here rather than stored columns.
+ * PLATFORM-P0-07.1 ("Module Registry", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §11)
+ * and PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch"). `platform.modules` -- see the
+ * migration's own docstring for why this is genuinely new (not a duplicate of
+ * `core.modules` or `packages/module-registry`) and why `licensed`/`minimum_plan` are
+ * computed here rather than stored columns.
  *
  * Same authorization shape as every other `platform.*` admin data-access module in this
  * backlog: the request-scoped, cookie-authenticated client (not `createAdminClient`), so
  * `platform.modules`' own RLS (`platform.is_superadmin()` for writes, open SELECT for any
  * authenticated user) is the authoritative enforcement layer -- `requireSuperadmin()` here
- * is defense-in-depth on the two write paths, matching every sibling file.
+ * is defense-in-depth on every write path, matching every sibling file. The one exception
+ * is `getModuleImpact()` below, which deliberately uses `createAdminClient()` -- see its
+ * own docstring for why a cross-tenant count needs the service-role client the same way
+ * `platform-dashboard-queries.ts` already does.
  *
- * `enabled` (the PLATFORM-P0-07.2 kill switch) is deliberately read-only from this file:
- * no `setModuleEnabled` export exists here. That story's own "reason + impact confirmation
- * + explicit confirmation + audit record" flow is real, additional scope this file must not
- * pre-empt by exposing a plain, confirmation-free toggle for the same column.
+ * `setModuleEnabled()` is the PLATFORM-P0-07.2 kill switch -- it calls
+ * `platform.set_module_enabled()`, the one atomic, SECURITY DEFINER path to flipping
+ * `enabled` AND writing `platform.module_kill_switch_events` together (see that
+ * migration's own docstring for why this is one RPC, not two separate client calls). No
+ * plain `.update()` on `enabled` exists anywhere in this file -- the RPC's own mandatory
+ * `reason` argument is the only way to change it.
  */
 
 export type ModuleStatus = "available" | "read_only" | "maintenance" | "disabled";
@@ -183,6 +190,62 @@ export async function setModuleMeta(
       updated_at: new Date().toISOString(),
     })
     .eq("module_key", parsed.data.moduleKey);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/** PLATFORM-P0-07.2's own "impact confirmation" -- the real, live count of businesses
+ * that currently have this module licensed (`active` or `grace`, the same two statuses
+ * `core.has_module()`'s own read gate treats as "has access") -- shown to a superadmin
+ * before they confirm disabling it, never a fabricated or omitted number. Deliberately
+ * uses `createAdminClient()`, not the request-scoped client every other function in this
+ * file uses: `core.licenses`' own RLS ("members can view their business licenses") scopes
+ * a read to the caller's OWN businesses, and a superadmin is not necessarily a member of
+ * any business at all -- the same cross-tenant-by-design reasoning
+ * `platform-dashboard-queries.ts`'s own docstring already gives for its own use of the
+ * service-role client, applied here to a single count instead of the whole dashboard. */
+export async function getModuleImpact(moduleKey: string): Promise<{ affectedBusinessCount: number }> {
+  await requireSuperadmin();
+  const supabase = createAdminClient({ schema: "core" });
+  const { count, error } = await supabase
+    .from("licenses")
+    .select("id", { count: "exact", head: true })
+    .eq("module_key", moduleKey)
+    .in("status", ["active", "grace"]);
+  if (error) throw error;
+  return { affectedBusinessCount: count ?? 0 };
+}
+
+const setModuleEnabledSchema = z.object({
+  moduleKey: moduleKeySchema,
+  enabled: z.boolean(),
+  reason: z.string().trim().min(1, "A reason is required.").max(500, "Reason must be 500 characters or fewer."),
+});
+
+export type SetModuleEnabledInput = { moduleKey: string; enabled: boolean; reason: string };
+
+/** PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") -- the one mutation path for
+ * `platform.modules.enabled`. Calls `platform.set_module_enabled()` (the atomic,
+ * SECURITY DEFINER RPC that flips `enabled` AND writes `platform.module_kill_switch_events`
+ * together -- see that migration's own docstring) rather than a plain `.update()`, so a
+ * reason is structurally required, not merely validated client-side. `requireSuperadmin()`
+ * here is defense-in-depth on top of the RPC's own internal `platform.is_superadmin()`
+ * check (the function bypasses RLS via SECURITY DEFINER, so it re-checks itself) -- the
+ * same "two independent checks" relationship every other write in this file already has
+ * with its own RLS policy. */
+export async function setModuleEnabled(
+  input: SetModuleEnabledInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireSuperadmin();
+  const parsed = setModuleEnabledSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+
+  const supabase = await createClient({ schema: "platform" });
+  const { error } = await supabase.rpc("set_module_enabled", {
+    p_module_key: parsed.data.moduleKey,
+    p_enabled: parsed.data.enabled,
+    p_reason: parsed.data.reason,
+  });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
