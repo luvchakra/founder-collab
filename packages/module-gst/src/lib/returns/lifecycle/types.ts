@@ -7,9 +7,9 @@
  * separate tables yet).
  */
 
-export type ReturnType = "gstr1" | "gstr3b" | "gstr9";
+export type ReturnType = "gstr1" | "gstr3b" | "gstr9" | "us_sales_tax";
 
-export const RETURN_TYPES: ReturnType[] = ["gstr1", "gstr3b", "gstr9"];
+export const RETURN_TYPES: ReturnType[] = ["gstr1", "gstr3b", "gstr9", "us_sales_tax"];
 
 /** The five stages this epic's own one-line spec names, in the only order a period may
  * move through them (see `transitions.ts`). */
@@ -51,6 +51,12 @@ export type ReturnPeriod = {
   id: string;
   businessId: string;
   returnType: ReturnType;
+  /** COMPLY-P1-02.7: `null` for every NATIONAL return type (GSTR-1/3B/9 -- India has no
+   * state-level GST return); a US state's own two-letter USPS code for `"us_sales_tax"`,
+   * which is always state-specific (a business files a separate return per state it holds
+   * a registration in). `gst.return_periods`'s own check constraint makes any other
+   * combination structurally impossible. */
+  jurisdiction: string | null;
   periodStart: string;
   periodEnd: string;
   status: ReturnPeriodStatus;

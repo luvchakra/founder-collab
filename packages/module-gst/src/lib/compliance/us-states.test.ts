@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { US_STATES, getUsState, hasStateSalesTax, isUsState } from "./us-states";
+import { US_STATES, getUsState, hasStateSalesTax, isUsState, resolveUsStateCode } from "./us-states";
 
 describe("US_STATES catalog", () => {
   it("has exactly 51 entries (50 states + DC) with no duplicate codes", () => {
@@ -33,5 +33,28 @@ describe("US_STATES catalog", () => {
     expect(isUsState("ZZ")).toBe(false);
     expect(getUsState("ZZ")).toBeUndefined();
     expect(hasStateSalesTax("ZZ")).toBe(false);
+  });
+});
+
+describe("resolveUsStateCode", () => {
+  it("passes through an already-correct code, case-insensitively", () => {
+    expect(resolveUsStateCode("CA")).toBe("CA");
+    expect(resolveUsStateCode("ca")).toBe("CA");
+  });
+
+  it("resolves a full state name in any casing", () => {
+    expect(resolveUsStateCode("California")).toBe("CA");
+    expect(resolveUsStateCode("new york")).toBe("NY");
+  });
+
+  it("tolerates surrounding whitespace", () => {
+    expect(resolveUsStateCode("  Texas  ")).toBe("TX");
+  });
+
+  it("returns null for an unrecognized value, an empty string, and null/undefined", () => {
+    expect(resolveUsStateCode("Ontario")).toBeNull();
+    expect(resolveUsStateCode("")).toBeNull();
+    expect(resolveUsStateCode(null)).toBeNull();
+    expect(resolveUsStateCode(undefined)).toBeNull();
   });
 });

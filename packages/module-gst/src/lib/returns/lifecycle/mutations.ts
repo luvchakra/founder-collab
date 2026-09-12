@@ -4,6 +4,7 @@ import { createClient } from "../../../db/server";
 import { getGstr1Return } from "../gstr1/queries";
 import { getGstr3bReturn } from "../gstr3b/queries";
 import { getGstr9Return } from "../gstr9/queries";
+import { getUsSalesTaxReturn } from "../us-sales-tax/queries";
 import { getReturnPeriod, getReturnPeriodById } from "./queries";
 import { assertCanTransition } from "./transitions";
 import type {
@@ -47,7 +48,13 @@ function historyEntry(status: ReturnPeriodStatus, by: string | null): ReturnPeri
  * into `snapshot` -- never re-computed afterwards, so an approved/filed period's own
  * snapshot reflects exactly what was reviewed, not whatever `core.documents` says today.
  */
-async function computeReturnSnapshot(businessId: string, returnType: GstReturnType, periodStart: string, periodEnd: string): Promise<ReturnPeriodSnapshot> {
+async function computeReturnSnapshot(
+  businessId: string,
+  returnType: GstReturnType,
+  jurisdiction: string | null,
+  periodStart: string,
+  periodEnd: string,
+): Promise<ReturnPeriodSnapshot> {
   switch (returnType) {
     case "gstr1":
       return getGstr1Return(businessId, periodStart, periodEnd);
@@ -55,6 +62,12 @@ async function computeReturnSnapshot(businessId: string, returnType: GstReturnTy
       return getGstr3bReturn(businessId, periodStart, periodEnd);
     case "gstr9":
       return getGstr9Return(businessId, periodStart, periodEnd);
+    case "us_sales_tax":
+      // gst.return_periods' own return_periods_us_sales_tax_requires_jurisdiction check
+      // constraint already makes a null jurisdiction here structurally impossible for a
+      // real row -- this guard is defense in depth, not the primary enforcement.
+      if (!jurisdiction) throw new Error("A us_sales_tax return period must have a jurisdiction (US state).");
+      return getUsSalesTaxReturn(businessId, jurisdiction, periodStart, periodEnd);
   }
 }
 
@@ -65,11 +78,17 @@ async function computeReturnSnapshot(businessId: string, returnType: GstReturnTy
  * make a second call fail with a raw constraint-violation error for what a caller likely
  * meant as "make sure this period exists").
  */
-export async function createReturnPeriod(businessId: string, returnType: GstReturnType, periodStart: string, periodEnd: string): Promise<ReturnPeriod> {
+export async function createReturnPeriod(
+  businessId: string,
+  returnType: GstReturnType,
+  periodStart: string,
+  periodEnd: string,
+  jurisdiction: string | null = null,
+): Promise<ReturnPeriod> {
   await requireModule(businessId, "gst");
   await requirePermission(businessId, "gst.file_returns");
 
-  const existing = await getReturnPeriod(businessId, returnType, periodStart, periodEnd);
+  const existing = await getReturnPeriod(businessId, returnType, periodStart, periodEnd, jurisdiction);
   if (existing) return existing;
 
   const supabase = await createClient();
@@ -80,6 +99,7 @@ export async function createReturnPeriod(businessId: string, returnType: GstRetu
     .insert({
       business_id: businessId,
       return_type: returnType,
+      jurisdiction,
       period_start: periodStart,
       period_end: periodEnd,
       status_history: [historyEntry("draft", userId)],
@@ -133,7 +153,7 @@ export async function validateReturnPeriod(businessId: string, periodId: string)
   if (!current) throw new Error("Return period not found.");
   assertCanTransition(current.status, "validated");
 
-  const snapshot = await computeReturnSnapshot(businessId, current.returnType, current.periodStart, current.periodEnd);
+  const snapshot = await computeReturnSnapshot(businessId, current.returnType, current.jurisdiction, current.periodStart, current.periodEnd);
   return transition(businessId, periodId, "validated", { snapshot });
 }
 

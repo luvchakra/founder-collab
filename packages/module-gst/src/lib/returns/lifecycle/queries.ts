@@ -7,6 +7,7 @@ function mapRow(row: {
   id: string;
   business_id: string;
   return_type: string;
+  jurisdiction: string | null;
   period_start: string;
   period_end: string;
   status: string;
@@ -25,6 +26,7 @@ function mapRow(row: {
     id: row.id,
     businessId: row.business_id,
     returnType: row.return_type as ReturnType,
+    jurisdiction: row.jurisdiction,
     periodStart: row.period_start,
     periodEnd: row.period_end,
     status: row.status as ReturnPeriod["status"],
@@ -42,22 +44,33 @@ function mapRow(row: {
 }
 
 const RETURN_PERIOD_COLUMNS =
-  "id, business_id, return_type, period_start, period_end, status, snapshot, status_history, filing_reference, filed_at, payment_status, payment_reference, payment_amount, payment_date, created_at, updated_at";
+  "id, business_id, return_type, jurisdiction, period_start, period_end, status, snapshot, status_history, filing_reference, filed_at, payment_status, payment_reference, payment_amount, payment_date, created_at, updated_at";
 
 /** One return period by its own natural key -- the same key `getGstr1Return`/
- * `getGstr3bReturn`/`getGstr9Return` are already addressed by (business, return type,
- * period). `null` when no period has been created for this key yet (not every period a
- * business could prepare has necessarily been put through the review workflow). */
-export async function getReturnPeriod(businessId: string, returnType: ReturnType, periodStart: string, periodEnd: string): Promise<ReturnPeriod | null> {
+ * `getGstr3bReturn`/`getGstr9Return`/`getUsSalesTaxReturn` are already addressed by
+ * (business, return type, jurisdiction, period). `jurisdiction` defaults to `null` (every
+ * national return type's own only valid value); a `"us_sales_tax"` period must pass its
+ * own state code. `null` return when no period has been created for this key yet (not
+ * every period a business could prepare has necessarily been put through the review
+ * workflow). Matches `.is`/`.eq` null-vs-value distinction `getEffectiveTaxRule` already
+ * established for the same "nullable jurisdiction" shape. */
+export async function getReturnPeriod(
+  businessId: string,
+  returnType: ReturnType,
+  periodStart: string,
+  periodEnd: string,
+  jurisdiction: string | null = null,
+): Promise<ReturnPeriod | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("return_periods")
     .select(RETURN_PERIOD_COLUMNS)
     .eq("business_id", businessId)
     .eq("return_type", returnType)
     .eq("period_start", periodStart)
-    .eq("period_end", periodEnd)
-    .maybeSingle();
+    .eq("period_end", periodEnd);
+  query = jurisdiction === null ? query.is("jurisdiction", null) : query.eq("jurisdiction", jurisdiction);
+  const { data, error } = await query.maybeSingle();
   if (error) throw error;
   return data ? mapRow(data) : null;
 }
