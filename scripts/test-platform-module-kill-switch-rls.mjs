@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 /**
- * RLS + behavior test for `platform.module_kill_switch_events` and
- * `platform.set_module_enabled()` (PLATFORM-P0-07.2, "Platform-Wide Module Kill Switch",
- * docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §11). Same harness and bar every sibling
- * `platform.*` script in this backlog uses: a role-switched query against a real
- * database, plus a direct proof that the RPC's own internal authorization check (not RLS
- * alone -- SECURITY DEFINER bypasses it) is the real boundary.
+ * RLS + behavior test for `platform.set_module_enabled()` -- PLATFORM-P0-07.2's own
+ * "Platform-Wide Module Kill Switch" RPC, kept as a thin wrapper over
+ * `platform.set_module_status()` by PLATFORM-P0-07.3's own reconciliation (decision #1).
+ * This script exercises the boolean entry point specifically (backward-compatibility
+ * coverage for any caller that still uses the old on/off shape) -- see the new, dedicated
+ * `test-platform-module-status-rls.mjs` for the full four-status reconciliation invariant,
+ * the message-audit requirement (decision #4), and read_only/maintenance behavior
+ * (decisions #2/#3), which this boolean-only script cannot exercise.
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -57,29 +59,32 @@ async function main() {
         "fsm is still enabled -- Alice's rejected call changed nothing",
       );
       assertEqual(
-        psql(`set local role service_role; select count(*) from platform.module_kill_switch_events`),
+        psql(`set local role service_role; select count(*) from platform.module_status_events`),
         "0",
         "no audit event was written for the rejected call",
       );
 
-      console.log("Verifying a genuine superadmin (Zoe) CAN disable a module, with an atomic audit record...");
+      console.log(
+        "Verifying a genuine superadmin (Zoe) CAN disable a module via the boolean wrapper, mapping to status='disabled'...",
+      );
       psqlAsZoe(`select * from platform.set_module_enabled('fsm', false, 'Investigating a data-integrity bug')`);
+      assertEqual(psqlAsZoe(`select status from platform.modules where module_key = 'fsm'`), "disabled", "fsm.status set to disabled");
       assertEqual(
-        psqlAsZoe(`select enabled from platform.modules where module_key = 'fsm'`),
-        "f",
-        "fsm.enabled flipped to false",
+        psqlAsZoe(`select enabled::text from platform.modules where module_key = 'fsm'`),
+        "false",
+        "fsm.enabled (generated, derived from status) reads false -- the wrapper reaches the same reconciled column",
       );
       assertEqual(
-        psqlAsZoe(`select count(*) from platform.module_kill_switch_events where module_key = 'fsm'`),
+        psqlAsZoe(`select count(*) from platform.module_status_events where module_key = 'fsm'`),
         "1",
         "exactly one audit event was written",
       );
       assertEqual(
         psqlAsZoe(
-          `select enabled::text || ':' || reason || ':' || performed_by::text from platform.module_kill_switch_events where module_key = 'fsm'`,
+          `select previous_status || ':' || new_status || ':' || reason || ':' || performed_by::text from platform.module_status_events where module_key = 'fsm'`,
         ),
-        `false:Investigating a data-integrity bug:${ZOE}`,
-        "the audit event carries the real enabled value, reason, and performer",
+        `available:disabled:Investigating a data-integrity bug:${ZOE}`,
+        "the audit event carries the real previous/new status, reason, and performer",
       );
 
       console.log("Verifying an empty or whitespace-only reason is rejected, even for a real superadmin...");
@@ -92,7 +97,7 @@ async function main() {
         "a whitespace-only reason is rejected",
       );
       assertEqual(
-        psql(`set local role service_role; select count(*) from platform.module_kill_switch_events`),
+        psql(`set local role service_role; select count(*) from platform.module_status_events`),
         "1",
         "still exactly one event -- neither rejected call wrote anything",
       );
@@ -103,19 +108,24 @@ async function main() {
         "an unknown module key is rejected",
       );
 
-      console.log("Verifying Zoe can re-enable the module, adding a second audit event...");
+      console.log("Verifying Zoe can re-enable the module (status back to 'available'), adding a second audit event...");
       psqlAsZoe(`select * from platform.set_module_enabled('fsm', true, 'Root cause fixed and verified')`);
-      assertEqual(psqlAsZoe(`select enabled from platform.modules where module_key = 'fsm'`), "t", "fsm re-enabled");
+      assertEqual(psqlAsZoe(`select status from platform.modules where module_key = 'fsm'`), "available", "fsm re-enabled -> available");
       assertEqual(
-        psqlAsZoe(`select count(*) from platform.module_kill_switch_events where module_key = 'fsm'`),
+        psqlAsZoe(`select enabled::text from platform.modules where module_key = 'fsm'`),
+        "true",
+        "fsm.enabled reads true again",
+      );
+      assertEqual(
+        psqlAsZoe(`select count(*) from platform.module_status_events where module_key = 'fsm'`),
         "2",
         "two audit events now exist for fsm -- disable, then re-enable",
       );
 
       console.log("Verifying read access to the audit trail: superadmin-only, not open like platform.modules...");
-      assertEqual(psqlAsZoe(`select count(*) from platform.module_kill_switch_events`), "2", "Zoe can read the audit trail");
+      assertEqual(psqlAsZoe(`select count(*) from platform.module_status_events`), "2", "Zoe can read the audit trail");
       assertEqual(
-        psqlAsAlice(`select count(*) from platform.module_kill_switch_events`),
+        psqlAsAlice(`select count(*) from platform.module_status_events`),
         "0",
         "Alice gets zero rows -- the audit trail is not open catalog data like platform.modules itself",
       );
@@ -124,17 +134,17 @@ async function main() {
       assertThrows(
         () =>
           psqlAsZoe(
-            `insert into platform.module_kill_switch_events (module_key, enabled, reason, performed_by) values ('fsm', false, 'bypass attempt', '${ZOE}')`,
+            `insert into platform.module_status_events (module_key, previous_status, new_status, reason, performed_by) values ('fsm', 'available', 'disabled', 'bypass attempt', '${ZOE}')`,
           ),
-        "even a superadmin cannot INSERT directly -- only set_module_enabled()'s own SECURITY DEFINER path can",
+        "even a superadmin cannot INSERT directly -- only set_module_status()'s own SECURITY DEFINER path can",
       );
       assertEqual(
-        psql(`set local role service_role; select count(*) from platform.module_kill_switch_events`),
+        psql(`set local role service_role; select count(*) from platform.module_status_events`),
         "2",
         "still exactly two events -- the bypass attempt wrote nothing",
       );
 
-      console.log("\nAll platform.module_kill_switch_events / set_module_enabled() checks passed.");
+      console.log("\nAll platform.set_module_enabled() backward-compatibility checks passed.");
     },
   });
 }

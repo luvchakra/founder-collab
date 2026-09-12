@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import {
   getModuleImpact,
-  setModuleEnabled,
-  setModuleMeta,
+  setModuleStatus,
+  setModuleVersion,
   setModuleVisible,
   type ModuleStatus,
-  type SetModuleEnabledInput,
-  type SetModuleMetaInput,
+  type SetModuleStatusInput,
+  type SetModuleVersionInput,
 } from "@cofounderai/core/admin/platform-modules";
 
 export async function setModuleVisibleAction(
@@ -21,10 +21,10 @@ export async function setModuleVisibleAction(
   return { ok: true };
 }
 
-export async function setModuleMetaAction(
-  input: SetModuleMetaInput,
+export async function setModuleVersionAction(
+  input: SetModuleVersionInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await setModuleMeta(input);
+  const result = await setModuleVersion(input);
   if (!result.ok) return result;
   revalidatePath("/platform/modules");
   return { ok: true };
@@ -34,10 +34,14 @@ export async function getModuleImpactAction(moduleKey: string): Promise<{ affect
   return getModuleImpact(moduleKey);
 }
 
-export async function setModuleEnabledAction(
-  input: SetModuleEnabledInput,
+/** PLATFORM-P0-07.3's own reconciliation (decision #1) -- the ONE way to change a module's
+ * platform-wide status from the UI, including into/out of `disabled` (the old kill switch)
+ * and `maintenance`. See `setModuleStatus()`'s own docstring for why there is no longer a
+ * separate `setModuleEnabledAction()`. */
+export async function setModuleStatusAction(
+  input: SetModuleStatusInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await setModuleEnabled(input);
+  const result = await setModuleStatus(input);
   if (!result.ok) return result;
   revalidatePath("/platform/modules");
   return { ok: true };

@@ -2,58 +2,57 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Input } from "@cofounderai/core/ui/input";
-import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Switch } from "@cofounderai/core/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import type { ModuleRegistryEntry, ModuleStatus } from "@cofounderai/core/admin/platform-modules";
-import { setModuleMetaAction, setModuleVisibleAction } from "./actions";
-import { KillSwitchDialog } from "./kill-switch-dialog";
+import { setModuleVersionAction, setModuleVisibleAction } from "./actions";
+import { ModuleStatusDialog } from "./module-status-dialog";
 
 const FIELD_CLASS = "border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500";
-
-const STATUS_LABELS: Record<ModuleStatus, string> = {
-  available: "Available",
-  read_only: "Read-only",
-  maintenance: "Maintenance",
-  disabled: "Disabled",
-};
-
-type MetaDraft = { status: ModuleStatus; version: string };
 
 /**
  * PLATFORM-P0-07.1 ("Module Registry", §11) -- one row per licensable module.
  *
- * `enabled` (PLATFORM-P0-07.2's own "Platform-Wide Module Kill Switch") is never a plain
- * instant-flip switch -- clicking its badge opens `KillSwitchDialog`, which requires a
- * reason, shows the real live impact count, and requires an explicit acknowledgement
- * before the change is submitted (see that component's own docstring). `licensed` is
- * read-only (always "Yes" -- computed, see `platform-modules.ts`'s own docstring for why).
- * `minimumPlan` is read-only, derived display data (PLATFORM-P0-04.3's `plan_modules` is
- * the actual entitlement source).
+ * PLATFORM-P0-07.3's own reconciliation replaced the separate "Enabled" column (a plain
+ * badge opening the old kill-switch-only dialog) and the separate status/version
+ * NativeSelect+Save controls with ONE "Status" control: clicking the status badge opens
+ * `ModuleStatusDialog`, which covers all four statuses (including the old kill switch's
+ * plain on/off, now `available`/`disabled`) and requires a reason for every change, plus
+ * a live impact count and an explicit acknowledgement whenever the change enters or
+ * leaves a fully-blocked status (`maintenance`/`disabled`) -- see that dialog's own
+ * docstring. `enabled` is shown only as a small derived read-only label next to the
+ * status badge (never its own control) -- the database itself derives it from `status`
+ * (PLATFORM-P0-07.3's reconciliation migration), so a second, independent UI control for
+ * it would reintroduce exactly the duplicated-state problem that reconciliation removed.
+ * `licensed` is read-only (always "Yes" -- computed, see `platform-modules.ts`'s own
+ * docstring for why). `minimumPlan` is read-only, derived display data (PLATFORM-P0-04.3's
+ * `plan_modules` is the actual entitlement source).
  *
  * `visible` is a plain instant-flip switch (no confirmation needed -- it only affects a
  * not-yet-built marketing/module-picker surface, never access) mirroring
  * `module-entitlements-section.tsx`'s own "single boolean, no separate save step" shape.
- * `status`/`version` are edited together with one Save button, mirroring
- * `quantity-limits-section.tsx`'s own "two related fields, one Save" shape.
+ * `version` is its own plain, unaudited text field with its own Save button -- split out
+ * from `status` because a version label has no access effect on any business (see
+ * `setModuleVersion()`'s own docstring).
  */
 export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[] }) {
   const [rows, setRows] = useState(modules);
-  const [drafts, setDrafts] = useState<Record<string, MetaDraft>>(() =>
-    Object.fromEntries(modules.map((m) => [m.moduleKey, { status: m.status, version: m.version ?? "" }])),
+  const [versionDrafts, setVersionDrafts] = useState<Record<string, string>>(() =>
+    Object.fromEntries(modules.map((m) => [m.moduleKey, m.version ?? ""])),
   );
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  function updateDraft(key: string, next: Partial<MetaDraft>) {
-    setDrafts((d) => ({ ...d, [key]: { ...d[key], ...next } }));
-  }
-
-  function onKillSwitchChanged(moduleKey: string, nextEnabled: boolean) {
-    setRows((r) => r.map((row) => (row.moduleKey === moduleKey ? { ...row, enabled: nextEnabled } : row)));
+  function onStatusChanged(moduleKey: string, status: ModuleStatus, message: string | null) {
+    setRows((r) =>
+      r.map((row) =>
+        row.moduleKey === moduleKey
+          ? { ...row, status, customerFacingMessage: message, enabled: status === "available" || status === "read_only" }
+          : row,
+      ),
+    );
   }
 
   function toggleVisible(moduleKey: string, next: boolean) {
@@ -72,57 +71,51 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
     });
   }
 
-  function saveMeta(moduleKey: string) {
-    const draft = drafts[moduleKey];
-    setPendingKey(`${moduleKey}:meta`);
+  function saveVersion(moduleKey: string) {
+    const version = versionDrafts[moduleKey];
+    setPendingKey(`${moduleKey}:version`);
     startTransition(async () => {
-      const result = await setModuleMetaAction({ moduleKey, status: draft.status, version: draft.version });
+      const result = await setModuleVersionAction({ moduleKey, version });
       setPendingKey(null);
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
       setRows((r) =>
-        r.map((row) =>
-          row.moduleKey === moduleKey
-            ? { ...row, status: draft.status, version: draft.version === "" ? null : draft.version }
-            : row,
-        ),
+        r.map((row) => (row.moduleKey === moduleKey ? { ...row, version: version === "" ? null : version } : row)),
       );
-      toast.success(`${moduleKey} updated.`);
+      toast.success(`${moduleKey} version updated.`);
     });
   }
 
-  function StatusBadge({ status }: { status: ModuleStatus }) {
-    const variant = status === "available" ? "default" : status === "disabled" ? "destructive" : "secondary";
-    return <Badge variant={variant}>{STATUS_LABELS[status]}</Badge>;
-  }
-
-  function MetaControls({ moduleKey }: { moduleKey: string }) {
-    const draft = drafts[moduleKey];
-    const isPending = pendingKey === `${moduleKey}:meta`;
+  function VersionControl({ moduleKey }: { moduleKey: string }) {
+    const isPending = pendingKey === `${moduleKey}:version`;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <NativeSelect
-          value={draft.status}
-          onChange={(e) => updateDraft(moduleKey, { status: e.target.value as ModuleStatus })}
-          className={`${FIELD_CLASS} w-32`}
-        >
-          {(Object.keys(STATUS_LABELS) as ModuleStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </NativeSelect>
         <Input
-          value={draft.version}
-          onChange={(e) => updateDraft(moduleKey, { version: e.target.value })}
+          value={versionDrafts[moduleKey]}
+          onChange={(e) => setVersionDrafts((d) => ({ ...d, [moduleKey]: e.target.value }))}
           placeholder="e.g. 1.2"
           className={`${FIELD_CLASS} w-24`}
         />
-        <Button size="sm" disabled={isPending} onClick={() => saveMeta(moduleKey)}>
+        <Button size="sm" disabled={isPending} onClick={() => saveVersion(moduleKey)}>
           Save
         </Button>
+      </div>
+    );
+  }
+
+  function StatusCell({ m }: { m: ModuleRegistryEntry }) {
+    return (
+      <div className="flex flex-col items-start gap-1">
+        <ModuleStatusDialog
+          moduleKey={m.moduleKey}
+          moduleName={m.moduleName}
+          status={m.status}
+          message={m.customerFacingMessage}
+          onChanged={(status, message) => onStatusChanged(m.moduleKey, status, message)}
+        />
+        <span className="text-xs text-zinc-500">{m.enabled ? "Reachable" : "Blocked platform-wide"}</span>
       </div>
     );
   }
@@ -132,8 +125,8 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
       <div className="border-b border-zinc-800 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-100">Module registry</h2>
         <p className="text-xs text-zinc-500">
-          Every licensable module&apos;s platform-wide operational state. Click Enabled/Disabled to use the kill
-          switch -- it requires a reason and confirmation. Maintenance-mode messaging is a separate, later flow.
+          Every licensable module&apos;s platform-wide operational state. Click a module&apos;s status to change it
+          -- Maintenance and Disabled require a reason and confirmation, since both fully block every business.
         </p>
       </div>
 
@@ -145,15 +138,9 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
                 <p className="font-medium">{m.moduleName}</p>
                 <p className="text-xs text-zinc-500">{m.moduleKey}</p>
               </div>
-              <StatusBadge status={m.status} />
+              <StatusCell m={m} />
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
-              <KillSwitchDialog
-                moduleKey={m.moduleKey}
-                moduleName={m.moduleName}
-                enabled={m.enabled}
-                onChanged={(next) => onKillSwitchChanged(m.moduleKey, next)}
-              />
               <span>Licensed</span>
               <span>Min. plan: {m.minimumPlan ? m.minimumPlan.name : "None"}</span>
               {m.version ? <span>v{m.version}</span> : null}
@@ -169,7 +156,7 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
                 Visible
               </label>
             </div>
-            <MetaControls moduleKey={m.moduleKey} />
+            <VersionControl moduleKey={m.moduleKey} />
           </li>
         ))}
       </ul>
@@ -178,11 +165,11 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
         <TableHeader>
           <TableRow className="border-zinc-800 hover:bg-transparent">
             <TableHead className="text-zinc-400">Module</TableHead>
-            <TableHead className="text-zinc-400">Enabled</TableHead>
+            <TableHead className="text-zinc-400">Status</TableHead>
             <TableHead className="text-zinc-400">Visible</TableHead>
             <TableHead className="text-zinc-400">Licensed</TableHead>
             <TableHead className="text-zinc-400">Min. plan</TableHead>
-            <TableHead className="text-zinc-400">Status / version</TableHead>
+            <TableHead className="text-zinc-400">Version</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -193,12 +180,7 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
                 <p className="text-xs text-zinc-500">{m.moduleKey}</p>
               </TableCell>
               <TableCell>
-                <KillSwitchDialog
-                  moduleKey={m.moduleKey}
-                  moduleName={m.moduleName}
-                  enabled={m.enabled}
-                  onChanged={(next) => onKillSwitchChanged(m.moduleKey, next)}
-                />
+                <StatusCell m={m} />
               </TableCell>
               <TableCell>
                 <Switch
@@ -211,10 +193,7 @@ export function ModuleRegistryTable({ modules }: { modules: ModuleRegistryEntry[
               <TableCell className="text-zinc-300">{m.licensed ? "Yes" : "No"}</TableCell>
               <TableCell className="text-zinc-300">{m.minimumPlan ? m.minimumPlan.name : "None"}</TableCell>
               <TableCell>
-                <div className="flex flex-col gap-1">
-                  <StatusBadge status={m.status} />
-                  <MetaControls moduleKey={m.moduleKey} />
-                </div>
+                <VersionControl moduleKey={m.moduleKey} />
               </TableCell>
             </TableRow>
           ))}

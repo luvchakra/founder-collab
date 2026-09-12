@@ -24,7 +24,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
-| | 07 | Module Administration | 07.1 (Module Registry), 07.2 (Kill Switch) done; 07.3 (Maintenance Mode) stopped -- genuine ambiguity, see log |
+| | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
 | | 10 | AI Safety / Cost Controls | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 6 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06), plus 18.1.
-P1: 0/9 done.**
+**P0: 7 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07), plus
+18.1. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -3303,3 +3303,225 @@ here, not guessing past it**, per this run's own task brief's explicit instructi
 exactly this situation. This run's own usage-tracking note: well under the 80% stop
 threshold -- this is a natural, doc-mandated stopping point for this one story, not a
 usage cutoff.
+
+### PLATFORM-P0-07.3 — Module Maintenance Mode, resumed and completed (2026-09-12)
+
+The user answered all four open questions this story's own stop-and-report entry above
+raised, as an explicit, exact-scope authorization for this run to implement (not to
+re-derive or re-litigate). Restated briefly, since they drive every design choice below:
+(1) `status='disabled'` means the same real-world effect as the kill switch and MUST go
+through the same audited mechanism, not a second unaudited path; (2) `read_only` mirrors
+the existing grace-period shape exactly (read allowed, write denied), reusing
+`hasModule()`/`requireModule()`'s existing read/write distinction; (3) `maintenance` is
+the exact same full block as `disabled`, differing only in customer-facing copy, never a
+distinct access level; (4) the optional customer-facing message must be audited the same
+way the kill switch's `reason` already is.
+
+**The reconciliation itself (decision #1), and the direction chosen**: the user offered
+two directions and asked for whichever "requires the least duplicated state." `status`
+was made the single source of truth: `platform.modules.enabled` is now a Postgres
+`generated always as (status in ('available', 'read_only')) stored` column, not an
+independently-writable boolean. This is not merely "less" duplicated state than a
+trigger-based sync -- it is *zero*: the database itself makes it structurally impossible
+for `status` and `enabled` to ever disagree, which is the stronger property a trigger (or
+disciplined application code) can only approximate. Every enforcement point that used to
+read the old boolean `enabled` (three of them -- `requireModule()`, `hasModule()`,
+`middleware.ts`'s route guard, CLAUDE.md's own three named layers) was rewritten to read
+`status` directly instead, since `status` alone now carries the read_only/maintenance
+distinction `enabled` never could.
+
+**Decisions #1 and #3 together, mechanically**: `platform.set_module_status(p_module_key,
+p_status, p_message, p_reason)` (new migration
+`20260912220000_platform_module_status_reconciliation.sql`) is the ONE SECURITY DEFINER
+function that owns every status transition, for all four values, in both directions. It
+requires a non-empty `reason` unconditionally (not only when the target is
+disabled/maintenance) -- the same bar PLATFORM-P0-07.2's own kill switch already set for
+BOTH directions of its boolean flip, extended uniformly rather than special-cased, which
+keeps the function's own contract simple and auditable: every superadmin-initiated status
+change leaves a trace, full stop. `platform.set_module_enabled(p_module_key, p_enabled,
+p_reason)` (PLATFORM-P0-07.2's own RPC) is kept, not dropped -- redefined as a thin `sql`
+wrapper delegating to `set_module_status()` (`enabled=true` -> `status='available'`,
+`enabled=false` -> `status='disabled'`, current `customer_facing_message` passed through
+unchanged). This is deliberately "a thin wrapper around the same audited mechanism," per
+the user's own phrasing -- one real mutation path, two equally-valid entry points, never
+two independent ways to reach "every business blocked." The app layer's own
+`platform-modules.ts` does NOT re-expose a `setModuleEnabled()` TypeScript wrapper of its
+own, though: the new `setModuleStatus()` export covers all four statuses including
+`disabled`, so keeping a second, parallel app-layer path to the exact same status would
+reintroduce the very "two independently-toggled controls reaching one blocked reality"
+risk decision #1 warns against, this time in the UI rather than the database. The
+`module-registry-table.tsx` UI accordingly lost its standalone "Enabled" badge/dialog
+column entirely, replaced by one "Status" control (`ModuleStatusDialog`) covering all four
+values -- `enabled` is now shown only as a small derived, read-only label ("Reachable" /
+"Blocked platform-wide") beside the status badge, never its own clickable control.
+
+**Decision #2, mechanically**: `read_only` does NOT short-circuit the way
+`disabled`/`maintenance` do. `licensing/queries.ts` gained `getPlatformModuleStatus()`
+(replacing PLATFORM-P0-07.2's own boolean `isModuleEnabledPlatformWide()`, which could no
+longer represent four states), returning `{status, message}`. `requireModule()` now
+checks platform status in three tiers: `disabled`/`maintenance` throw immediately (before
+even checking the business's own license, since a full block is the more universal fact,
+unchanged from PLATFORM-P0-07.2's own precedent); then the business's own
+`hasModuleWrite()` check runs exactly as before (so a business's own genuine grace/expired
+reason still surfaces first when it's the actual blocker); only then, if the business's
+own license would otherwise permit the write, does a platform-wide `read_only` status
+throw its own distinct message. This ordering was a deliberate choice, not incidental: it
+means the most specific, most helpful reason always wins, mirroring how
+`buildModuleEntitlementDecision()` (see below) resolves the identical question for
+`hasModule()`'s own decision shape. `hasModule()` itself forces `writeAllowed =
+writeAllowedByLicense && platform.status !== "read_only"` before calling
+`buildModuleEntitlementDecision(moduleKey, readAllowed, writeAllowed, platformReadOnly)` --
+a new fourth parameter that, combined with `readAllowed=true`, produces a
+`source: "platform_global"` reason instead of the license-grace one, reusing the exact
+read/write distinction that function already used for a business's own grace period
+(literally: `if (readAllowed && platformReadOnly) { ... }` sits directly beside the
+pre-existing `if (readAllowed) { ...grace... }` branch) rather than inventing a new
+mechanism. `middleware.ts`'s route guard deliberately does NOT include `read_only` in its
+blocked-module set -- mirroring how a license's own `grace` status never blocks the route
+either, only writes -- so a `read_only` module's pages still load normally; only
+`requireModule()`/`hasModule()` deny the write.
+
+**Decision #4, mechanically**: `platform.module_kill_switch_events`
+(PLATFORM-P0-07.2) is renamed to `platform.module_status_events` (a fresh `create table` +
+`drop table`, not `like ... including all`, which was tried first and found not to copy
+foreign keys, RLS enablement, or policies -- confirmed by reading Postgre's own actual
+`LIKE` semantics rather than assuming, then rewritten explicit) and gains
+`previous_status`/`new_status`/`previous_message`/`new_message` (replacing the old boolean
+`enabled` column, now fully redundant with `new_status`). Every call to
+`set_module_status()` -- whether it changes `status`, `customer_facing_message`, or both
+-- writes one row capturing a full before/after snapshot of both fields together, so a
+superadmin editing only the message (status held constant) is audited exactly the same way
+a status-only change is, and a combined status+message change is one atomic row rather
+than two separate audit entries a partial failure could split. Renamed rather than left as
+`module_kill_switch_events` because, going forward, it also audits
+`read_only`<->`available` transitions, which are not a "kill switch" in any sense --
+keeping the old name would misdescribe its own contents from this migration onward. Zero
+rows existed in the dev project's own `module_kill_switch_events` table before this
+migration (confirmed live via `execute_sql` before writing it), so nothing was lost in the
+rename.
+
+**A real Postgres semantics correction found while writing the migration**: the first
+draft used `create table platform.module_status_events (like
+platform.module_kill_switch_events including all)`, reading "including all" as "copies
+everything, full stop." It does not -- per Postgres's own documented `LIKE` semantics,
+`INCLUDING ALL` covers constraints (CHECK only, not FOREIGN KEY), defaults, generated
+columns, identity, indexes, statistics, storage, and comments -- never foreign keys, never
+RLS enablement, never policies. Caught before applying anything (not discovered live
+against dev) by re-reading Postgres's own documentation rather than trusting the
+plausible-sounding name; the migration was rewritten to an explicit `create table` with
+every column, FK, index, `enable row level security`, and policy spelled out in full,
+which is also more readable for the next person than a `LIKE` clause would have been.
+
+**Deliberately not built, and why (no invented access levels or scope beyond the four
+decisions)**: no superadmin-only bypass or partial-access mode for `maintenance` (decision
+#3 explicitly rules this out -- it is behaviorally identical to `disabled`); no distinct
+UI ceremony for `read_only` beyond a reason field (decision #2 names no impact-confirmation
+or acknowledgement requirement for it, unlike `disabled`/`maintenance` -- the
+`ModuleStatusDialog`'s live-impact-count Alert and acknowledgement Checkbox render only
+when the transition enters or leaves a fully-blocked status, in either direction, mirroring
+PLATFORM-P0-07.2's own dialog already requiring the same ceremony for re-enabling, not only
+disabling); no cross-module-read carve-out for `read_only` (the stop-and-report entry's own
+question 2 raised this as a *rejected* alternative reading, not a real requirement -- the
+user's decision #2 confirmed the plain grace-period mirror, which has no such carve-out
+today either); no email/notification when a module's status changes (`PLATFORM-P0-11`,
+still "Not started"); no UI history page for `platform.module_status_events` (§16, Platform
+Audit, remains that future story).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace,
+including the module registry's own package. `npm run lint --workspaces --if-present` --
+0 errors, the same 1 pre-existing unrelated warning every prior entry in this log has
+logged (`Package` unused import in a CRM conversations page, untouched by this story).
+`node scripts/lint-import-boundaries.mjs` -- 1200 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 145 migrations (144 -> 145, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 172 tests (167 -> 172,
++5 new `module-entitlement.test.ts` cases for the `read_only`/`maintenance` decision
+branches and the customer-facing-message override, plus the existing
+`buildPlatformDisabledDecision`/`buildModuleEntitlementDecision` cases updated for their
+new signatures). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests, unchanged
+(no new `apps/web` test file this story -- its own logic is authorization/RLS +
+pure-decision composition, covered by the two new local-Postgres RLS scripts and the
+`packages/core` unit tests respectively).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that every module row is
+unchanged post-migration (`enabled=true`, `status='available'`, `customer_facing_message`
+null on all 5 rows) -- the reconciliation did not silently alter any existing state.
+`mcp__Supabase__get_advisors` (security) -- zero new findings: the same 5 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning
+every prior entry has logged (`module_kill_switch_events` no longer appears at all, having
+been dropped; its replacement `module_status_events` has a real SELECT policy from the
+start, so it was never flagged). `mcp__Supabase__get_advisors` (performance) -- the only
+new findings are the same benign "unused index" info-level class every sibling FK index
+already carries in this low-traffic dev database, this time for
+`module_status_events_module_key_idx`/`module_status_events_performed_by_idx`.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used, role-switched `select *
+from platform.set_module_status('gst', 'disabled', 'test message', 'live dev test -
+should be rejected')` returned a real Postgres error -- `P0001: Forbidden: only a
+SUPERADMIN can change a module's platform-wide status.` -- raised by the function's own
+internal check, not a generic RLS denial (there is no RLS on a function call itself; this
+is the function's own authorization boundary working exactly as designed, the same shape
+PLATFORM-P0-07.2's own boolean RPC already proved). Reconfirmed immediately after via a
+plain read that `gst` was still `status='available'`, `enabled=true`,
+`customer_facing_message` null, and that `platform.module_status_events` had `0` rows --
+this real user's attempt left zero residue, nothing to clean up. As with every prior story
+in this log, there is no seeded demo superadmin user in this environment, so the "a real
+superadmin CAN" half of this proof is verified for real only against local Postgres
+(below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior tests this workstream's own higher bar
+requires -- two scripts, per this story's own instruction that reconciling two
+previously-independent full-block mechanisms into one needs a real concurrency/
+consistency re-verification, not just a read of the updated SQL**:
+
+- `scripts/test-platform-module-kill-switch-rls.mjs` (PLATFORM-P0-07.2's own script,
+  rewritten rather than left broken by the rename) now exercises
+  `platform.set_module_enabled()` specifically as a backward-compatibility entry point --
+  confirming it still rejects a non-superadmin with zero residue, still requires a
+  non-empty reason in both directions, still rejects an unknown module key, and that a
+  disable/re-enable pair correctly maps to `status='disabled'`/`status='available'` (and
+  the derived `enabled` column agrees) while writing to the renamed
+  `platform.module_status_events` table. **All 18 assertions passed.**
+- `scripts/test-platform-module-status-rls.mjs` (new) is the real reconciliation-specific
+  test: cycling `gst` through all four statuses and asserting the derived `enabled` value
+  at each step (decision #1); a direct `update platform.modules set enabled = true`
+  attempt rejected even for `service_role`, since `enabled` is `GENERATED ALWAYS` and
+  cannot be assigned directly by anyone, proving the "structurally impossible to
+  desynchronize" claim rather than merely asserting it; `maintenance` and `disabled`
+  producing an identical `enabled=false` (decision #3); a non-superadmin rejected with zero
+  state change; an empty/whitespace reason rejected for a `read_only` and even a
+  same-value `available` transition, not only a disabling one; an unknown status value
+  rejected by the function's own friendlier check (not a raw CHECK-constraint error); a
+  message-only change (status held constant) still producing exactly one new audit row
+  with the real previous/new message values and `previous_status = new_status` (decision
+  #4); a combined status+message change captured as one atomic row; an empty-string
+  message normalizing to `null` rather than being stored literally; the audit trail
+  staying superadmin-only SELECT with no INSERT grant to `authenticated` at all (same
+  "one function owns every write" shape as its predecessor); and a same-module sequential
+  concurrency check (`disabled` then `read_only` on the same row) confirming the final
+  state is always self-consistent (`read_only` implies `enabled=true`, never a stale
+  `false` left over from the intermediate `disabled` state). **All 24 assertions passed.**
+
+Both scripts were run against a real, throwaway local Postgres 16 database (this sandbox's
+own cluster, already online via `pg_lsclusters` -- no restart needed this time) applying
+every migration in the current timeline (145 files) before asserting, and both are now
+wired into `package.json`'s `test:db` composite script.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully changes a
+module's status" half of the live-dev proof, and any live browser walkthrough of the new
+`ModuleStatusDialog` (opening it, seeing a real impact count render, actually clicking
+through the confirmation for a maintenance/disabled transition), were **not** performed
+against dev and are not claimed here. That half was verified for real only against local
+Postgres (all 24 assertions above, including the atomic message-audit proof and the
+concurrency/consistency check) -- the "a non-superadmin is rejected, with zero residue"
+half, and the underlying schema/function/RLS/generated-column shape, were verified for
+real against both the live dev Supabase project (role-switched, as a real user, a real
+Postgres error raised by the function's own check) and local Postgres, not merely asserted
+from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-07.3 done. §11 (Module Administration) is now fully complete
+(07.1-07.3). This run's own usage-tracking note: well under the 80% stop threshold --
+continuing per the auto-merge-to-main policy and the remaining backlog order.
