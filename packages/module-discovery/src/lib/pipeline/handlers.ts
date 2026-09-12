@@ -313,39 +313,53 @@ export async function runBuyerIntelligenceStage(ctx: StageContext): Promise<Stag
     : { outcome: "skipped", detail: "No contacts on file yet for the remaining opportunities." };
 }
 
+/** DISC-OFFER-P0-07.1's own narrow `NextBestActionInput` shape, gathered from data every
+ * earlier stage already produces -- no new evidence gathered here. Extracted out of
+ * `runRecommendedActionStage` below (DISC-OFFER-P1-01.2) so `lib/pipeline/incremental.ts`
+ * can build the exact same input for a single just-updated opportunity without
+ * duplicating this gathering logic a second time and risking the two drifting apart.
+ * Fetches `personas`/`icp` fresh per call rather than once per batch the way the stage's
+ * own loop used to -- one extra pair of cheap reads per opportunity, traded for one
+ * shared, single-purpose function instead of two slightly different copies of the same
+ * logic. */
+export async function buildNextBestActionInput(workspaceId: string, opportunity: Opportunity): Promise<NextBestActionInput> {
+  const [personas, icp, contacts, messages, negativeSignals] = await Promise.all([
+    listBuyerPersonas(workspaceId),
+    getIcpProfile(workspaceId),
+    listContacts(opportunity.prospect_id),
+    listMessages(opportunity.prospect_id),
+    listNegativeSignalsForProspect(opportunity.prospect_id),
+  ]);
+  const candidates = contacts.length > 0 ? computeBuyerIntelligence(contacts, personas, icp?.roles ?? [], []) : [];
+  const { primaryContactId } = computeBuyerFitScores(candidates);
+  const primary = candidates.find((c) => c.contact.id === primaryContactId) ?? null;
+
+  return {
+    status: opportunity.status,
+    score: opportunity.score,
+    confidence: opportunity.confidence,
+    hasResearch: Boolean(opportunity.why_them),
+    negativeSignalReasons: negativeSignals.map((n) => n.reason),
+    hasContact: contacts.length > 0,
+    bestContactability: primary?.contactability ?? null,
+    hasDraftMessage: messages.some((m) => m.status === "draft"),
+    hasSentMessage: messages.some((m) => m.status === "sent"),
+  };
+}
+
 /** DISC-OFFER-P0-10.1: "Recommend Next Action" -- DISC-OFFER-P0-07.1's own
- * `computeNextBestAction`, deterministic. Gathers exactly the narrow input it needs from
- * data every earlier stage already produced (no new evidence gathered here). */
+ * `computeNextBestAction`, deterministic. Only opportunities missing a recommendation
+ * yet -- one already recommended earlier is left alone here (DISC-OFFER-P1-01.2's own
+ * "Incremental Re-Run" is the path that revisits an opportunity that already has one,
+ * when fresh evidence specifically calls for it). */
 export async function runRecommendedActionStage(ctx: StageContext): Promise<StageOutcome> {
   const definition = await requireActiveDefinition(ctx.workspaceId);
   const opportunities = (await activeOpportunities(ctx.workspaceId, definition.id)).filter((o) => !o.recommended_action);
   if (opportunities.length === 0) return { outcome: "skipped", detail: "Nothing new to recommend." };
 
-  const personas = await listBuyerPersonas(ctx.workspaceId);
-  const icp = await getIcpProfile(ctx.workspaceId);
-
   let updated = 0;
   for (const opportunity of opportunities) {
-    const [contacts, messages, negativeSignals] = await Promise.all([
-      listContacts(opportunity.prospect_id),
-      listMessages(opportunity.prospect_id),
-      listNegativeSignalsForProspect(opportunity.prospect_id),
-    ]);
-    const candidates = contacts.length > 0 ? computeBuyerIntelligence(contacts, personas, icp?.roles ?? [], []) : [];
-    const { primaryContactId } = computeBuyerFitScores(candidates);
-    const primary = candidates.find((c) => c.contact.id === primaryContactId) ?? null;
-
-    const input: NextBestActionInput = {
-      status: opportunity.status,
-      score: opportunity.score,
-      confidence: opportunity.confidence,
-      hasResearch: Boolean(opportunity.why_them),
-      negativeSignalReasons: negativeSignals.map((n) => n.reason),
-      hasContact: contacts.length > 0,
-      bestContactability: primary?.contactability ?? null,
-      hasDraftMessage: messages.some((m) => m.status === "draft"),
-      hasSentMessage: messages.some((m) => m.status === "sent"),
-    };
+    const input = await buildNextBestActionInput(ctx.workspaceId, opportunity);
     await setOpportunityNextBestAction(opportunity.id, input);
     updated += 1;
   }

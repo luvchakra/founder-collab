@@ -14,6 +14,8 @@ import {
   deleteContact,
 } from "@cofounderai/module-discovery/lib/contacts/mutations";
 import { researchProspect } from "@cofounderai/module-discovery/lib/ai/research-prospect";
+import { applyIncrementalSignalUpdate } from "@cofounderai/module-discovery/lib/pipeline/incremental";
+import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { generateResearchBrief } from "@cofounderai/module-discovery/lib/ai/generate-research-brief";
 import { scoreProspect } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { generateOutreachStrategy } from "@cofounderai/module-discovery/lib/ai/generate-strategy";
@@ -140,6 +142,14 @@ export async function deleteContactAction(
   revalidatePath(prospectPath(businessId, productId, prospectId));
 }
 
+/**
+ * DISC-OFFER-P1-01.2: "Incremental Re-Run" -- the one place fresh evidence for an
+ * *existing* opportunity enters this module today (see `applyIncrementalSignalUpdate`'s
+ * own doc comment for why the pipeline's own automated path never needs this). A
+ * best-effort follow-up, not folded into `runAiAction`'s own error surface -- a founder
+ * re-researching a prospect should see their fresh research either way even if the
+ * incremental recompute that follows it hits something unexpected.
+ */
 export async function researchProspectAction(
   businessId: string,
   productId: string,
@@ -147,6 +157,15 @@ export async function researchProspectAction(
 ): Promise<AiActionState> {
   return runAiAction(async () => {
     await researchProspect(prospectId);
+    try {
+      const workspace = await getWorkspaceForProduct(productId);
+      if (workspace) {
+        await applyIncrementalSignalUpdate(workspace.id, prospectId);
+      }
+    } catch {
+      // The fresh research itself is already saved and worth showing regardless --
+      // never let the follow-on incremental recompute's own failure mask that success.
+    }
     revalidatePath(prospectPath(businessId, productId, prospectId));
   });
 }
