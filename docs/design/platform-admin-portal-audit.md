@@ -24,7 +24,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
-| | 07 | Module Administration | 07.1 (Module Registry), 07.2 (Kill Switch) done -- see log; 07.3 not started |
+| | 07 | Module Administration | 07.1 (Module Registry), 07.2 (Kill Switch) done; 07.3 (Maintenance Mode) stopped -- genuine ambiguity, see log |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
 | | 10 | AI Safety / Cost Controls | Not started |
@@ -3202,3 +3202,104 @@ the code or the SQL.
 
 **Status**: PLATFORM-P0-07.2 done. Continuing in §11's own story order: PLATFORM-P0-07.3
 (Module Maintenance Mode) next.
+
+### PLATFORM-P0-07.3 — Module Maintenance Mode (2026-09-12, stopped -- see below)
+
+The doc's own entire text for this story, in full:
+
+```text
+## PLATFORM-P0-07.3 — Module Maintenance Mode
+
+Set:
+
+Available
+Read-only
+Maintenance
+Disabled
+
+with optional customer-facing message.
+```
+
+Four state names and "optional customer-facing message" -- no worked example, no defined
+behavior for what each state actually restricts, the same shape PLATFORM-P0-06.5's own
+stop-and-report entry above already found and was resumed from once the user answered
+directly. `platform.modules.status` (the column itself, with this exact four-value CHECK)
+already exists, folded into PLATFORM-P0-07.1's own migration per that story's own "no
+placeholder lifecycle column" precedent -- what remains is real behavioral meaning, not
+schema.
+
+**This run's own task brief is explicit that this is exactly the situation to stop on**:
+"Any story whose correct behavior depends on a security/authorization judgment call the
+doc doesn't fully specify is a genuine architectural decision -- stop and report rather
+than guess-and-merge." This status column, once wired to real enforcement, is squarely
+"real entitlement/license enforcement" -- the same class of already-live control
+PLATFORM-P0-07.2's own kill switch just became. Guessing its behavior would mean inventing,
+unreviewed, a second way to fully block a module -- one that could either duplicate or
+silently bypass the reason-required, audited kill switch this run just built.
+
+**The specific questions this doc does not answer, stated precisely**:
+
+1. **Does `Disabled` (a value of this `status` column) mean the same thing as
+   `platform.modules.enabled = false` (PLATFORM-P0-07.2's own kill switch), or something
+   distinct?** Both are named, independently, as ways to fully block a module platform-
+   wide -- §11 never says how they relate. If they mean the same end state, then setting
+   `status = 'disabled'` needs the *same* safeguards §11 mandates for the kill switch
+   (reason, impact confirmation, explicit confirmation, audit record) -- shipping a plain,
+   unaudited `NativeSelect` option that produces an identical real-world effect (every
+   business loses access) without any of those four requirements would be a genuine
+   security regression: an unaudited back door around a control this run just built with
+   exactly those four requirements enforced. If instead `Disabled` (this column) is meant
+   to be a *lighter*, reason-free, unaudited day-to-day switch and the kill switch
+   (`enabled`) is reserved for a separate, more severe "kill" action, that is an equally
+   real design this run has no basis to assume -- it would mean two independently-toggled
+   flags can each independently produce "fully blocked," which the UI and any future
+   caller of `hasModule()`/`requireModule()` would need to reconcile (which reason string
+   does a blocked business see when both are true? does re-enabling one automatically
+   matter if the other is still set?).
+2. **What does `Read-only` restrict, precisely?** This run's own best guess -- mirroring
+   `core.has_module()`/`has_module_write()`'s already-live "read allowed, write denied"
+   grace-period shape exactly -- is plausible and would be the *minimal*, most consistent
+   answer, but the doc never confirms it. A different, equally plausible reading: `Read-
+   only` blocks the module's own UI entirely (like `Maintenance`) but still allows other
+   modules'/`core`'s own reads *of* that module's data (e.g. `core.documents` rows a
+   cancelled GST module's own invoices still live in) -- a materially different, harder-to-
+   scope behavior touching cross-module reads this run cannot verify without guessing.
+3. **Is `Maintenance` behaviorally identical to `Disabled` (both a full block, differing
+   only in customer-facing copy -- "temporary, we'll be back" vs. an indefinite disable),
+   or does `Maintenance` carry its own distinct access level** (e.g. read-only, or
+   superadmin-only access for verification before flipping back to `Available`)? Nothing
+   in this doc or `00-MASTER-PLAN.md` distinguishes the two beyond their names.
+4. **Does the optional customer-facing message require any safeguard of its own** (length
+   limit aside, already a `Zod` concern) -- e.g. should changing it be audited the same way
+   PLATFORM-P0-07.2's `reason` is, given it is text a superadmin writes that every affected
+   business will see? The doc names no requirement here, unlike §11's own explicit list of
+   four requirements for the kill switch specifically.
+
+**Not implementing any of the above.** Guessing question 1 in particular risks exactly the
+outcome this run's own "higher security bar... never weaken a security gate" instruction
+warns against: an unaudited path that reaches the identical real-world effect (every
+business blocked from a module) as a control this run just built with mandatory reason,
+impact confirmation, explicit confirmation, and an audit record. Shipping a plain
+`NativeSelect` for `status` today, before that relationship is resolved, would either
+duplicate the kill switch pointlessly or quietly undermine it -- not a call this run is
+free to make itself. PLATFORM-P0-05.1's and PLATFORM-P0-06.5's own precedent (stop, ask
+precisely, resume once the user answers) is the model repeated here.
+
+**What is NOT blocked by this**: §11's first two stories (07.1 Module Registry, 07.2
+Platform-Wide Module Kill Switch) are both real, complete, verified, and merged to `main`
+regardless of how 07.3 is eventually answered -- neither assumed or hard-coded any
+particular maintenance-mode design (07.1's own `status` column exists with its four values
+already correctly named, but nothing yet reads it for a behavioral decision, the same
+"table now, real enforcement later" sequencing this backlog has used repeatedly, e.g.
+`platform.plan_modules.enabled` between PLATFORM-P0-04.3 and PLATFORM-P0-05.x). Once
+resumed, 07.3 need only add whatever the answers require (a message column, and/or an
+enforcement branch alongside the kill switch's own, and/or an audit requirement) without
+revisiting anything already shipped.
+
+**Status**: PLATFORM-P0-07.3 **stopped, not built** -- a genuine architectural/security
+ambiguity the doc does not resolve, per this run's own task brief. §11 (Module
+Administration) is otherwise complete: 07.1-07.2 done, both merged to `main`. **Stopping
+here, not guessing past it**, per this run's own task brief's explicit instruction for
+exactly this situation. This run's own usage-tracking note: well under the 80% stop
+threshold -- this is a natural, doc-mandated stopping point for this one story, not a
+usage cutoff.
