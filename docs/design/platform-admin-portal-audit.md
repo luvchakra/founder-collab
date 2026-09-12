@@ -27,7 +27,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
-| | 10 | AI Safety / Cost Controls | Not started |
+| | 10 | AI Safety / Cost Controls | 10.1/10.2 stopped -- overlaps 09.4's own daily_platform_budget_usd, undefined per-business/per-feature granularity, and 10.2 needs real runtime enforcement + an undefined SUPERADMIN-notification mechanism, see log |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
@@ -4611,3 +4611,94 @@ directly against live data rather than only asserted from reading the code.
 **Status**: PLATFORM-P0-09.4 and 09.5 both done. §13 ("Internal AI Provider & Keys") is now
 fully complete (09.1 through 09.5). Committed and merged to `main`. Continuing per this
 doc's own section order into §14 ("AI Safety / Cost Controls," PLATFORM-P0-10.1/10.2) next.
+
+---
+
+### PLATFORM-P0-10.1/10.2 — AI Safety / Cost Controls (2026-09-12) — STOP AND REPORT
+
+**Worktree hazard checked first**: `git log --oneline -3` confirmed `HEAD` genuinely on
+`feature/platform-admin-portal`'s real tip (`36de41a`) before reading anything further.
+
+**§14's own text in full** -- two stories, ten words of field names and one sentence of
+behavior, nothing else:
+
+```text
+PLATFORM-P0-10.1 -- Platform AI Budget
+Configure: daily budget / monthly budget / per-business budget / per-feature budget
+
+PLATFORM-P0-10.2 -- AI Circuit Breaker
+If configured threshold is exceeded: Pause AI, and notify SUPERADMIN.
+```
+
+**This is a genuine architectural ambiguity to stop and report on, for the same reason
+09.3 was, not a case with an existing, reusable pattern to follow** -- and it compounds
+two separate open questions, one a real duplicate-of-existing-data risk (CLAUDE.md
+non-negotiable #5) and one squarely "real AI-calling infrastructure with an unstated
+algorithm" (this run's own task brief's own stop-and-report trigger).
+
+**Question 1 -- does 10.1 duplicate a field PLATFORM-P0-09.4 already built?**
+09.4's own migration (`20260912380000_platform_ai_feature_policies.sql`) already added
+`platform.ai_feature_policies.daily_platform_budget_usd` -- a platform-wide daily USD
+ceiling -- with its own docstring explicitly framing it as one of the knobs "PLATFORM-
+P0-10.1/10.2's own later, separate story" would eventually enforce. §14's own "daily
+budget" field for 10.1 reads like the exact same concept named slightly differently, not a
+new one. Building a second, independent "daily budget" column/table for 10.1 would create
+exactly the "two independently-writable sources of truth" CLAUDE.md non-negotiable #5
+warns against (which value would 10.2's own circuit breaker read if they ever drift?) --
+but the doc gives no signal either way, and this workstream's own prior entry (09.3's own
+stopped entry, "09.3 lists 'default model' again as a routing-level field... The doc's flat
+field list doesn't distinguish") already flagged this exact class of doc-duplicate-field
+ambiguity as something to ask about, not silently resolve.
+
+**Question 2 -- "per-business budget" and "per-feature budget" have no defined
+granularity.** Is "per-business budget" a single number applied identically to every
+business (a multiplier/ceiling shape), or a genuinely per-business override (which would
+need a new `business_id`-keyed table, a materially bigger structural addition than
+09.4's flat singleton row)? Is "per-feature budget" scoped to an `AiOperation`
+(`operation-registry.ts`'s 19 operations), a `ModuleKey` (the same five-module dimension
+`platform.ai_provider_routing`'s own `module_overrides` already uses), or a
+`platform.feature_flags` row (a real, existing "feature" concept in this exact schema,
+with a different meaning entirely -- an on/off flag, not a spend ceiling)? This codebase
+already uses "feature" for at least two unrelated things (`platform.features`/
+`plan_features`'s commercial entitlement catalog, and `platform.feature_flags`'
+operational kill-switch catalog) -- picking wrong here risks a `platform.ai_*` budget
+table that shares a name with, but no real relationship to, an already-existing and
+differently-scoped `feature` concept.
+
+**Question 3 -- 10.2's "Pause AI" is real runtime enforcement, exactly what 09.3's own
+routing wiring was explicitly deferred to avoid.** Making a circuit breaker actually pause
+AI requires: (a) a way to compute real spend against a budget -- synchronously per request
+(reading `core.ai_runs`/`discovery.ai_runs` on every call, a real latency/load cost) or
+periodically via a cron-style job (this codebase's own established "table plus a cron"
+pattern, ADR-5) -- the doc says nothing about which; (b) an actual gate checked by
+`business-router.ts`/discovery's own router before a call is allowed to proceed --
+precisely the file this run's own task brief named as off-limits for 09.3
+("No runtime code should read this new table yet... deferred to a future story once the
+BYOK-precedence/failover/granularity/missing-key-fallback questions... are separately
+answered") and unchanged by every story in this section since; and (c) a "notify
+SUPERADMIN" mechanism that does not exist anywhere in this codebase today -- grepped for
+any existing "notify superadmin"/admin-alerting pattern (email, in-app banner, a
+`platform.notifications` table) and found none, so this piece cannot even reuse an
+established pattern the way 09.1's secret-storage question could reuse BYOK's. A
+config-only 10.2 (a threshold value nothing ever reads) would not be a circuit breaker at
+all -- the same "a config-only story under a title that specifically implies the registry
+does something" critique 09.3's own stopped entry raised about itself, now doubly true for
+a feature literally named for the thing it would not do.
+
+**Nothing was built or changed this story** -- no migration, no application code, no UI.
+This audit-log entry and the Progress-table update above are the only changes.
+
+**Recommendation, not a decision**, mirroring 09.3's own stopped entry's own shape: the
+narrowest, lowest-risk config-only path once the user answers the above would likely be
+(a) extending `platform.ai_feature_policies` in place with `monthly_budget_usd` (resolving
+question 1 by treating 10.1's "daily budget" as the *same* field 09.4 already built, not a
+duplicate), while leaving "per-business"/"per-feature" budgets unbuilt until their own
+scope is answered (question 2) rather than guessing a shape that might have to be torn out;
+and (b) deferring all of 10.2 (the actual pause/notify behavior) to a further, separate
+story once its own runtime-wiring and notification-mechanism questions are answered --
+mirroring exactly how this run's own 09.3 (config-only) resolution deferred Reading 2's
+real wiring. But that is this agent's own suggestion for how to *sequence* the work, not a
+substitute for the user answering the three questions above.
+
+**Status**: PLATFORM-P0-10.1/10.2 stopped, open questions written above. Resume once the
+user decides. This run stops here for this workstream.
