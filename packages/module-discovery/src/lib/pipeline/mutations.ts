@@ -18,14 +18,58 @@ async function updateStage(
   return data;
 }
 
+/** DISC-OFFER-P0-10.2: records this stage's own just-finished attempt as a permanent,
+ * standalone row -- what a retry's own `updateStage` call above would otherwise silently
+ * overwrite on the current-state row. `startedAt` falls back to "now" only for the
+ * pathological case of a stage somehow reaching a terminal state with no recorded start
+ * (should not happen in practice -- every terminal mutation below is only ever called
+ * after `markPipelineStageRunning` set one). */
+async function recordPipelineStageRun(
+  workspaceId: string,
+  stageKey: PipelineStageKey,
+  version: number,
+  status: "completed" | "failed" | "skipped",
+  startedAt: string | null,
+  completedAt: string,
+  error: string | null,
+): Promise<void> {
+  const supabase = await createClient();
+  const { error: insertError } = await supabase.from("pipeline_stage_runs").insert({
+    workspace_id: workspaceId,
+    stage_key: stageKey,
+    version,
+    status,
+    started_at: startedAt ?? completedAt,
+    completed_at: completedAt,
+    error,
+  });
+  if (insertError) throw insertError;
+}
+
 /** Clears `failed_at`/`error` on (re)entry -- a stage that previously failed and is now
- * being retried shouldn't keep showing its old error once it's running again. */
+ * being retried shouldn't keep showing its old error once it's running again. Increments
+ * `version` on every entry (DISC-OFFER-P0-10.2: 1 for the first run, 2 after one retry,
+ * and so on) -- an explicit read-then-write rather than a raw SQL increment since the
+ * Supabase JS client has no atomic column-increment helper; concurrent runs of the same
+ * stage are already prevented by the caller only ever driving one stage at a time per
+ * offering (the run-ai-discovery panel), the same single-flight assumption
+ * `discoverProspects`' own per-workspace lock formalizes for its own operation. */
 export async function markPipelineStageRunning(workspaceId: string, stageKey: PipelineStageKey): Promise<PipelineStage> {
+  const supabase = await createClient();
+  const { data: current, error: readError } = await supabase
+    .from("pipeline_stages")
+    .select("version")
+    .eq("workspace_id", workspaceId)
+    .eq("stage_key", stageKey)
+    .single();
+  if (readError) throw readError;
+
   return updateStage(workspaceId, stageKey, {
     status: "running",
     started_at: new Date().toISOString(),
     failed_at: null,
     error: null,
+    version: current.version + 1,
   });
 }
 
@@ -34,19 +78,25 @@ export async function markPipelineStageCompleted(
   stageKey: PipelineStageKey,
   lastAiRunId?: string | null,
 ): Promise<PipelineStage> {
-  return updateStage(workspaceId, stageKey, {
+  const completedAt = new Date().toISOString();
+  const stage = await updateStage(workspaceId, stageKey, {
     status: "completed",
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
     ...(lastAiRunId !== undefined ? { last_ai_run_id: lastAiRunId } : {}),
   });
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "completed", stage.started_at, completedAt, null);
+  return stage;
 }
 
 export async function markPipelineStageFailed(workspaceId: string, stageKey: PipelineStageKey, message: string): Promise<PipelineStage> {
-  return updateStage(workspaceId, stageKey, {
+  const failedAt = new Date().toISOString();
+  const stage = await updateStage(workspaceId, stageKey, {
     status: "failed",
-    failed_at: new Date().toISOString(),
+    failed_at: failedAt,
     error: message,
   });
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "failed", stage.started_at, failedAt, message);
+  return stage;
 }
 
 /** No account/discovery-definition/etc. found to act on this run -- a real, honest
@@ -55,8 +105,11 @@ export async function markPipelineStageFailed(workspaceId: string, stageKey: Pip
  * true things into one status" discipline DISC-OFFER-P0-05.5's own
  * `insufficient_evidence` vs. `no_relevant_problem` split already established. */
 export async function markPipelineStageSkipped(workspaceId: string, stageKey: PipelineStageKey): Promise<PipelineStage> {
-  return updateStage(workspaceId, stageKey, {
+  const completedAt = new Date().toISOString();
+  const stage = await updateStage(workspaceId, stageKey, {
     status: "skipped",
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
   });
+  await recordPipelineStageRun(workspaceId, stageKey, stage.version, "skipped", stage.started_at, completedAt, null);
+  return stage;
 }

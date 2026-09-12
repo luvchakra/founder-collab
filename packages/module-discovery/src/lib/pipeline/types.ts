@@ -77,6 +77,33 @@ export type PipelineStage = {
   failed_at: string | null;
   error: string | null;
   last_ai_run_id: string | null;
+  /** DISC-OFFER-P0-10.2: how many times this stage has actually been run -- 0 before
+   * its first run, 1 after, 2 after one retry, and so on. "Reruns create new versions
+   * rather than silently destroying history" -- each prior attempt's own outcome is
+   * preserved as its own `PipelineStageRun` row rather than overwritten in place. */
+  version: number;
+  /** DISC-OFFER-P0-10.2's own named field -- deliberately unpopulated (null) until
+   * DISC-OFFER-P0-11.3's "Stage Dependency Graph" gives it something real to record
+   * (which upstream stage's own version this run consumed). See this table's own
+   * migration comment. */
+  input_version: number | null;
+  output_version: number | null;
   created_at: string;
   updated_at: string;
+};
+
+/** DISC-OFFER-P0-10.2: one immutable row per finished attempt at a stage -- what a
+ * retry would otherwise have silently overwritten on the current-state row above. Only
+ * terminal outcomes are ever recorded (a stage that's still `running` has nothing to
+ * preserve yet). */
+export type PipelineStageRun = {
+  id: string;
+  workspace_id: string;
+  stage_key: PipelineStageKey;
+  version: number;
+  status: "completed" | "failed" | "skipped";
+  started_at: string;
+  completed_at: string;
+  error: string | null;
+  created_at: string;
 };

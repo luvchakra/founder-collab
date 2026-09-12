@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import { PIPELINE_STAGE_KEYS, type PipelineStage } from "./types";
+import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey, type PipelineStageRun } from "./types";
 
 /** Seeds every stage key this workspace is still missing a row for, as `not_started` --
  * idempotent (an `on conflict do nothing` upsert keyed on the table's own
@@ -36,4 +36,22 @@ export async function listPipelineStages(workspaceId: string): Promise<PipelineS
   // progress UI) needs stage 1 before stage 2.
   const byKey = new Map(data.map((s) => [s.stage_key, s]));
   return PIPELINE_STAGE_KEYS.map((key) => byKey.get(key)).filter((s): s is PipelineStage => Boolean(s));
+}
+
+/** DISC-OFFER-P0-10.2: every past attempt at one stage, most recent first -- what
+ * "reruns create new versions rather than silently destroying history" actually needs a
+ * way to read back. No UI consumes this yet (10.2 itself has no UI acceptance criteria);
+ * exported now because a history table nothing can read back would leave "persistent"
+ * only half true, the same reasoning DISC-OFFER-P0-02.3's own `listBuyerPersonas` was
+ * exported ahead of DISC-OFFER-P0-06.3 actually consuming it. */
+export async function listPipelineStageRuns(workspaceId: string, stageKey: PipelineStageKey): Promise<PipelineStageRun[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_stage_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("stage_key", stageKey)
+    .order("version", { ascending: false });
+  if (error) throw error;
+  return data;
 }
