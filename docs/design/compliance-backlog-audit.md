@@ -59,24 +59,24 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 06.2 | Movement Data | Done |
 | | 06.3 | E-Way Adapter | Done |
 | | 06.4 | Document Link | Done |
-| P0-07 | 07.1–07.7 | India Returns | Not started |
+| P0-07 | 07.1 | GSTR-1 Preparation | Done |
+| | 07.2–07.7 | India Returns (remaining) | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**30 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**31 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
-COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and now COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-06.4 (Document Link) is the last completed
-story. Next: COMPLY-P0-07 (India Returns), starting with COMPLY-P0-07.1 (GSTR-1
-Preparation).
+COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
+E-Way Bill) are all fully done.** COMPLY-P0-07.1 (GSTR-1 Preparation) is the last completed
+story, starting epic 07 (India Returns). Next: COMPLY-P0-07.2 (GSTR-3B Preparation).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3063,3 +3063,220 @@ every COMPLY-P0-06.x/05.x story before it).
 - No lockfile drift (`node_modules` stays installed from COMPLY-P0-06.3's own fix).
 
 **COMPLY-P0-06 (India E-Way Bill) is now fully done.** Next: COMPLY-P0-07 (India Returns).
+
+### 07.1 — GSTR-1 Preparation (2026-09-12)
+
+The first story of COMPLY-P0-07 (India Returns) and this run's own instruction to "do its
+own research pass on GSTR-1's actual field/section structure (via web search, citing real
+sources) before implementing -- don't invent the return format from memory." Also the
+first story of this epic's own new `lib/returns/` folder (housing GSTR-1/3B/9 preparation
+alongside each other, matching the backlog's own `ReturnDefinition`/`ReturnPeriod`
+grouping without yet building either of those entities -- see "design decision" below).
+
+**Environment**: `npm install` was run first per this run's own instructions (a fresh
+worktree with no `node_modules` can otherwise silently resolve `@cofounderai/*` imports to
+the primary checkout's stale packages, per COMPLY-P0-06.2/06.3's own documented
+environment-artifact finding) -- confirmed no repeat of that issue by getting a clean,
+100%-passing full-monorepo `npm run typecheck` before making any change. `git fetch origin
+main comply-backlog` showed `origin/main..origin/comply-backlog` empty (branch fully
+merged as of COMPLY-P0-06.4) and `git branch -vv`/`git log --oneline -3` confirmed this
+worktree's `HEAD` is genuinely `comply-backlog`'s real tip (`b378004`), not a stray
+concurrent-workstream commit -- both per this run's own start-of-session sanity checks.
+This session's own local Postgres 16 cluster was NOT running (`pg_lsclusters` showed
+`down`, unlike COMPLY-P0-06.2/06.3's own session where it happened to be up) -- moot for
+this particular story anyway, since it added no new table/RLS surface to test (see below).
+
+**Checked existing code and the entity-ownership map first** (backlog rule 1 /
+`docs/plan/00-MASTER-PLAN.md` §5 / CLAUDE.md non-negotiable #5): `lib/filing/queries.ts`'s
+pre-existing `getSalesRegister` (Epic 6/S-2) already computes a B2B/B2C/HSN/credit-note
+summary from `core.documents`/`core.document_lines`, but with GSTR-1-shaped gaps this
+story's own precision requirements couldn't reuse as-is: its B2B/B2C split is "does the
+party have ANY GSTIN on file" rather than the real place-of-supply-aware distinction
+(inter-state above a versioned threshold vs. everything else), it has no B2C Large/B2C
+Others distinction at all, its B2C state bucketing reads only the billing address (not the
+shipping-preferred convention COMPLY-P0-04.4's own `chooseBuyerAddress` already
+established), and its credit-note handling nets everything into one grand total rather than
+a state-wise or registered/unregistered split. Reused instead of duplicated: `core.
+documents`/`core.document_lines` themselves (COMPLY-P0-03.1's own `Core Transaction
+Contract` read pattern, not `getDocumentContext`/`getDocumentPaymentContext` directly since
+this story needs a PERIOD of documents, not one), `determinePlaceOfSupply`
+(COMPLY-P0-04.4) for the real intra/inter-state/export/unknown classification, and
+`resolveStateCode`/`isValidGstin` (`@cofounderai/core/lib/gst.ts`). `docs/plan/
+00-MASTER-PLAN.md` §5 has no `Return`/`GSTR1` row (expected, predates this backlog); this
+backlog's own §5 assigns "returns" to Compliance -- no other module owns anything
+resembling this.
+
+**Design decision -- no new persisted table, this is a pure, on-demand computation**:
+"prepare" here means COMPUTE, not persist. `ReturnDefinition`/`ReturnPeriod`/
+`ReturnSubmission` (the backlog's own §4 data-model names for this epic) are NOT created
+yet -- there is no return-period LIFECYCLE STATE to persist until COMPLY-P0-07.5 (Return
+Review Workflow, Draft→Validate→Review→Approve→File) needs somewhere to put it, and
+inventing that schema now, before that story defines what states actually exist, would be
+exactly the "do not implement future stories implicitly" this backlog's rule 5 forbids.
+This matches the "lib first, persist later" shape every prior epic in this backlog has
+followed (COMPLY-P0-05.1's `getEinvoiceEligibility` computes live with no table of its own;
+`gst.einvoices` only appears once COMPLY-P0-05.4 has an actual government RESPONSE to
+persist). `getGstr1Return(businessId, periodStart, periodEnd)` is therefore a plain
+read, re-computed each call from live `core.documents`/`core.document_lines` -- correct
+today, and exactly the function COMPLY-P0-07.5's own future `ReturnPeriod` row would call
+to produce the content it then freezes into a real snapshot at "Validate" time.
+
+**Research, not assumption** (backlog rule 6, and this run's own explicit instruction):
+used `WebSearch` to confirm GSTR-1's real table structure before writing any classification
+logic, citing GSTN's own tutorial/contextual-help pages (`tutorial.gst.gov.in`) as mirrored
+by Masters India's, ClearTax's, TallyHelp's, Bajaj Finserv's, and CaClubIndia's own
+independent GSTR-1 table-wise guides -- multiple sources agreeing, not one:
+- **Table 4A/4B/4C, 6B/6C -- B2B Invoices**: 4A is regular B2B (not reverse charge, not
+  e-commerce-operator-collected); 4B is recipient-pays-under-reverse-charge; 4C is
+  e-commerce-operator-collected; 6B/6C are SEZ supplies and deemed exports. Only 4A is
+  modeled -- see "what was deliberately left out" below for why 4B/4C/6B/6C aren't.
+- **Table 5A/5B -- B2C (Large)**: inter-state supplies to unregistered persons "exceeding"
+  a value threshold, reported invoice-wise.
+- **Table 7 -- B2C (Others)**: a state-wise NET summary of every other unregistered-
+  recipient supply.
+- **Table 9B -- Credit/Debit Notes (Registered) "CDNR" and (Unregistered) "CDNUR"**: CDNR
+  covers notes against any registered recipient (GSTN's own tutorial page: "issued in
+  respect of taxable outward supplies made to registered persons," no value threshold);
+  CDNUR covers notes against an unregistered recipient that would itself have met the B2C
+  Large criteria (GSTN's own CDNUR contextual-help page groups it with the same inter-state/
+  threshold criteria as B2CL) -- confirmed this is still the current rule (this session's
+  research found no notification removing or changing that scoping), not the "CDNUR covers
+  every unregistered note regardless of value" claim one early, unconfirmed search result
+  suggested -- that claim was deliberately NOT relied on without a second source, per this
+  backlog's own "verify, don't assume" discipline.
+- **Table 12 -- HSN-wise summary of outward supplies.**
+- **The B2C Large threshold itself, versioned with two real notification-cited
+  versions** (seeded into `gst.tax_rules`, not hard-coded -- backlog rule 6/8): ₹2,50,000
+  under Rule 59(4) of the CGST Rules, 2017 as originally notified (GST's own 01-Jul-2017
+  commencement -- this session's research did not find a SEPARATE later notification that
+  first introduced this specific value, unlike the e-invoice/e-way-bill thresholds seeded by
+  prior stories, which each trace to their own distinct later notification; flagged rather
+  than inventing one), reduced to ₹1,00,000 by CBIC Notification No. 12/2024-Central Tax
+  dated 10-Jul-2024 (giving effect to the 53rd GST Council meeting's recommendation),
+  effective 01-Aug-2024 -- confirmed across TallyHelp, ClearTax, TaxBuddy, CaClubIndia, and
+  CashFlo, all describing the same amendment consistently, and the exact Rule 59(4)
+  substitution wording ("for the words 'two and a half lakh rupees' ... 'one lakh rupees'
+  shall be substituted") independently confirmed via a second search. Still current as of
+  this session's own "today" (2026-09-12) -- no further amendment found.
+
+**A precise wording distinction preserved, not smoothed over** (same discipline as
+COMPLY-P0-05.5/06.1): Rule 59(4)'s own "exceeding"/"more than" wording is strict `>`, the
+SAME comparison convention `determineEwayBillEligibility`'s own Rule 138(1) threshold
+already uses (as opposed to COMPLY-P0-05.5's own `>=` for its AATO-crossing rule) --
+`classifyGstr1Document`'s own test suite exercises the exact-threshold-value boundary case
+explicitly.
+
+**What was built** -- `packages/module-gst/src/lib/returns/gstr1/`:
+- `supabase/migrations/20260912090000_gst_tax_rules_gstr1_b2c_large_threshold_seed.sql`
+  -- the two-version threshold seed described above, same data-only-migration-seed
+  precedent as every prior rule-row story in this module.
+- `threshold.ts` (+ 6 test cases) -- `GSTR1_B2C_LARGE_THRESHOLD_RULE` lineage constant,
+  `parseGstr1B2cLargeThresholdValue`, `getEffectiveGstr1B2cLargeThreshold(asOf?)` -- same
+  shape as every prior threshold lookup in this module (`parseEinvoiceThresholdValue`,
+  `parseEwayBillThresholdValue`).
+- `classify.ts` (+ 12 test cases) -- the pure `classifyGstr1Document`: export ->
+  excluded; unresolved place of supply -> excluded; valid registered GSTIN -> b2b/cdnr
+  regardless of value or state; unregistered + inter-state + value above the effective
+  threshold -> b2c_large/cdnur; everything else unregistered -> nets into b2c_others.
+  Deliberately treats "no threshold rule resolved" the same as "not large" (never guesses a
+  business into the more consequential invoice-wise-reporting bucket when the rule itself
+  couldn't be resolved -- backlog rule 11).
+- `aggregate.ts` (+ 9 test cases) -- the pure `aggregateGstr1`: classifies each source
+  document and buckets it into the five populated tables plus the HSN summary and grand
+  totals, applying a credit-note-subtracts/debit-note-and-invoice-add sign convention (the
+  same `netTaxableValue = taxableValue - creditTaxableValue` precedent `getSalesRegister`
+  already established, applied uniformly here across Table 7's own net-by-state rows, the
+  HSN summary, and the return's own totals) so a credit note is never double-counted as
+  positive in one table and negative in another. DB-independent and unit-tested standalone,
+  per this module's own established split (e.g. `eway-bill-eligibility/determine.ts` vs.
+  its own `queries.ts`).
+- `queries.ts` -- `getGstr1Return(businessId, periodStart, periodEnd)`: the only file in
+  this folder that touches `core` -- reads documents (`doc_type in (invoice, credit_note,
+  debit_note)`) for the period plus every referenced party's tax identity/addresses and
+  every line, all via batched `.in()` queries (mirroring `getSalesRegister`'s/
+  `getPurchaseRegister`'s own batching convention, not N one-party-at-a-time calls),
+  resolves place-of-supply per document via the same pure `determinePlaceOfSupply`
+  COMPLY-P0-04.4 already established, resolves the threshold ONCE via the period's own end
+  date, then hands everything to `aggregateGstr1`. No test file (thin orchestrator over
+  already-tested pure pieces, this module's established convention). **Documented
+  simplification**: the threshold is resolved once per period, not once per document's own
+  `doc_date` -- correct for any realistic monthly period (this rule's own one real version
+  change falls exactly on a month boundary), but a period whose date range genuinely
+  straddled a rule version change would need per-document resolution this function doesn't
+  do; flagged in the file's own docstring rather than silently assumed correct in general.
+- `types.ts` -- `Gstr1Return` and every row shape, each retaining its own source
+  `documentId` (and, for Table 7's net rows, every contributing `documentIds`) so
+  COMPLY-P0-07.4 (Return Drill-Down) has real source-transaction links to build on rather
+  than having to re-derive them from a bare aggregate later -- this story surfaces that
+  traceability data now (it costs nothing extra to keep an id already in hand) without
+  building any drill-down UI/mechanism itself, which stays that later story's own job.
+  Also carries `Gstr1Return.notModeled`: an explicit, itemized list of every GSTR-1 table
+  number this function does NOT populate and why (see below) -- never a bare, silently
+  partial return with no record of what it left out (backlog rule 11/12).
+
+**What was deliberately left out, and why** (documented gaps, not oversights):
+- **Table 4B/4C** (reverse-charge / e-commerce-operator-collected B2B) -- no such flag
+  exists anywhere on `core.documents`; adding one is a `core` schema decision bigger than
+  this story's own "read what exists" scope.
+- **Table 6A/6B/6C** (exports / SEZ with payment / deemed exports) -- an export IS detected
+  (`placeOfSupply === "export"`) but excluded rather than placed in a Table 6 row, since
+  Table 6's own zero-rated/LUT-vs-with-payment distinction needs data (export type,
+  shipping-bill/LUT reference) this platform doesn't capture; SEZ has no flag on any party
+  at all (the same gap `lib/place-of-supply/determine.ts`'s own docstring already flagged).
+- **Table 8** (Nil-rated/exempted/non-GST) -- no per-line tax TREATMENT
+  (COMPLY-P0-02.4's own vocabulary) is recorded on `core.document_lines` today, only a flat
+  `tax_rate`/`taxable` pair.
+- **Table 9A/10** (amendments to a prior period's own B2B/B2CL/exports/B2C Others) -- no
+  document-amendment/revision history exists to detect "this was actually entered in an
+  earlier period's own return."
+- **Table 11** (advances received/adjusted) -- no advance-receipt concept exists in `core`.
+- **Table 13** (documents issued, incl. cancelled-document counts) -- `core.documents.
+  status` deliberately has no fixed cross-module vocabulary (`20260906105000_core_
+  documents.sql`'s own comment), so a generic "was this cancelled" check can't be built
+  without guessing a status string per `source_module`.
+- **Table 14/15** (e-commerce operator supplies) -- no e-commerce-operator concept exists
+  in `core`.
+- Any UI (matches this whole backlog's "lib first, UI later" pattern -- COMPLY-P0-11 is
+  the dedicated UI epic; this story's own function is what a future GSTR-1 preparation page
+  would call).
+- Linking a CDNR/CDNUR row back to its own original invoice with full confidence -- the
+  `againstInvoiceId` field is populated only when `core.documents.source_ref.
+  sales_invoice_id` happens to be set (the same field `getSalesRegister` already reads), a
+  best-effort convenience, not a GSTR-1 filing requirement.
+- Persisting anything (`gst.return_periods`/`gst.return_submissions` or similar) --
+  COMPLY-P0-07.5's own job, once there's real lifecycle state to store (see "design
+  decision" above).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1200 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 141 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 141 migration files scanned, 0
+  violations (confirms this story's read-only `core.documents`/`core.document_lines`
+  access doesn't introduce a parallel transaction master).
+- `npx vitest run --root packages/module-gst` -- 32 files / 264 tests passed (237
+  pre-existing + 27 new: 6 in `threshold.test.ts`, 12 in `classify.test.ts`, 9 in
+  `aggregate.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`, then confirmed by directly querying the two inserted
+  rows back (`select ... from gst.tax_rules where rule_key = 'gstr1_b2c_large_threshold_inr'
+  order by version` -- both rows present with the correct `value`/`effective_from`/
+  `effective_to`). `mcp__Supabase__get_advisors` (security + performance): identical
+  finding set to immediately before this story (same pre-existing `rls_enabled_no_policy`
+  infos, the one `auth_leaked_password_protection` warning, and the same shape of
+  unused-index info list) -- a plain data-only insert into an existing table with an
+  existing lookup index introduces nothing new to flag.
+- Local Postgres RLS harness (`npm run test:db`) not run this story -- no new table/RLS
+  surface was added (only new rows in the already-RLS-tested `gst.tax_rules`), and the
+  cluster was down this session anyway (see the environment note above); nothing in this
+  story's own scope needed it.
+- No `apps/web` change, so `next build` was not re-run -- matches every COMPLY-P0-05.x/
+  06.x story before it (this whole backlog's own "lib first" pattern for a brand-new
+  compliance capability).
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift beyond the pre-existing, already-flagged `module-crm`/`zod` line (see
+  COMPLY-P0-01.1's own note) -- reverted via `git checkout -- package-lock.json` before
+  committing.
