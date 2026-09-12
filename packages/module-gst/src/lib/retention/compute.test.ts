@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeGstRetentionUntil } from "./compute";
+import { computeGstRetentionUntil, computeSgGstRetentionUntil } from "./compute";
 
 const GSTR9_RULE = { dueMonth: 12, dueDay: 31 };
 
@@ -15,5 +15,19 @@ describe("computeGstRetentionUntil", () => {
 
   it("respects a different retentionMonths value (a future amended rule)", () => {
     expect(computeGstRetentionUntil("2026-03-31", 60, GSTR9_RULE)).toBe("2031-12-31");
+  });
+});
+
+describe("computeSgGstRetentionUntil", () => {
+  it("is 60 months after the end of the accounting period, straight addition -- no due-date detour", () => {
+    expect(computeSgGstRetentionUntil("2026-03-31", 60)).toBe("2031-03-31");
+  });
+
+  it("rolls correctly for a different accounting period end", () => {
+    expect(computeSgGstRetentionUntil("2026-12-31", 60)).toBe("2031-12-31");
+  });
+
+  it("respects a different retentionMonths value (a future amended rule)", () => {
+    expect(computeSgGstRetentionUntil("2026-03-31", 72)).toBe("2032-03-31");
   });
 });

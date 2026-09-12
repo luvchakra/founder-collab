@@ -361,6 +361,36 @@ async function main() {
         "the ca_gst_hst and gstr1 periods for the identical date range coexist as separate rows",
       );
 
+      // --- COMPLY-P1-04.2 (Singapore -- GST F5) -----------------------------------------
+      console.log("An 'sg_gst_f5' period is a real, distinct, ACCEPTED return_type, with jurisdiction staying null (a national return, same shape as gstr1/3b/9/ca_gst_hst)...");
+      const sgGstF5Period = psqlAsAlice(`
+        insert into gst.return_periods (business_id, return_type, period_start, period_end, status_history)
+        values ('${aliceBusiness}', 'sg_gst_f5', '2026-11-01', '2026-11-30', '[]'::jsonb)
+        returning id
+      `);
+      assertEqual(psqlAsAlice(`select jurisdiction from gst.return_periods where id = '${sgGstF5Period}'`), "", "jurisdiction is null for a national sg_gst_f5 period (empty string here is just psql's own NULL rendering)");
+
+      console.log("A SECOND sg_gst_f5 period for the SAME business/period is still rejected by the widened unique key (confirms the NULL-uniqueness fix holds for a THIRD null-jurisdiction return type)...");
+      assertThrows(
+        () =>
+          psqlAsAlice(`
+            insert into gst.return_periods (business_id, return_type, period_start, period_end)
+            values ('${aliceBusiness}', 'sg_gst_f5', '2026-11-01', '2026-11-30')
+          `),
+        "return_periods_business_id_return_type_jurisdiction_period_key rejects a duplicate sg_gst_f5 period",
+      );
+
+      console.log("...but a ca_gst_hst period for the SAME business/period is NOT a collision (different return_type, even though both also have jurisdiction = null)...");
+      psqlAsAlice(`
+        insert into gst.return_periods (business_id, return_type, period_start, period_end, status_history)
+        values ('${aliceBusiness}', 'ca_gst_hst', '2026-11-01', '2026-11-30', '[]'::jsonb)
+      `);
+      assertEqual(
+        psqlAsAlice(`select count(*)::int from gst.return_periods where business_id = '${aliceBusiness}' and period_start = '2026-11-01' and period_end = '2026-11-30'`),
+        "2",
+        "the sg_gst_f5 and ca_gst_hst periods for the identical date range coexist as separate rows",
+      );
+
       console.log("All gst.return_periods RLS assertions passed.");
     },
   });

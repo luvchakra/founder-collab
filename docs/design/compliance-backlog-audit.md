@@ -102,7 +102,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 03.3 | Place of Supply | Done (documented simplification -- see story log) |
 | | 03.4 | Filing Periods | Done (reuses gst.return_periods lifecycle) |
 | | 03.5 | CRA Filing Adapter | Done (record-what-happened, same posture as every other regime -- no live CRA API) |
-| P1-04 … P1-12 | — | (Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
+| P1-04 | 04.1 | GST Registration | Done |
+| | 04.2 | GST F5 | Done (output tax on sales only, see story log) |
+| | 04.3 | InvoiceNow Eligibility | Done |
+| | 04.4 | Peppol Identifier | Done (own business's SG registration only; counterparty lookup out of scope) |
+| | 04.5 | InvoiceNow Adapter | Done (stub -- no reachable Access Point/sandbox, see story log) |
+| | 04.6 | Transmission Status | Done |
+| | 04.7 | Five-Year Record Retention | Done |
+| P1-05 … P1-12 | — | (UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
 story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
@@ -7122,3 +7129,320 @@ back its own eight inserted rows, and stopped to report rather than guess -- exa
 right call under genuine uncertainty. That investigation is superseded by this entry: the
 rows it found are this session's own COMPLY-P1-03 implementation, now fully committed,
 tested, and merged above.
+
+## Epic 04 -- Singapore (COMPLY-P1-04.1 through 04.7, 2026-09-12)
+
+Built as one coherent vertical slice, continuing this backlog's own §8 delivery order
+(EU -> US -> Canada -> **Singapore**) and this epic's own now-established "jurisdictions ->
+rates -> registration/return preparation -> filing-adapter reuse" shape.
+
+**Starting-state verification, per this run's own instructions**: `git fetch origin main
+comply-backlog` showed `git log origin/main..origin/comply-backlog --oneline` empty
+(comply-backlog fully merged into main, as of the immediately-prior Canada work) --
+confirmed. `git branch -vv`/`git log --oneline -3` in this worktree found HEAD was
+actually sitting on a STRAY commit (`388655f`, "Merge remote-tracking branch
+'origin/comply-backlog' into scratch-main-canada") carrying leftover Platform Admin
+Portal content (`apps/web/app/platform/(protected)/ai-usage/page.tsx`,
+`packages/core/src/admin/platform-ai-usage.ts`, and large chunks of
+`docs/testing/test-cases/*`) that does NOT exist on the real `origin/comply-backlog` tip
+(`79ef789`) -- exactly the "stray scratch-merge branch" hazard this run's own instructions
+warned about, hit for a third time in this repo. Fixed by checking out the local
+`comply-backlog` branch (which already tracked `origin/comply-backlog` exactly, clean
+working tree, no data lost) rather than the worktree's own auto-named branch. Also queried
+the live dev database directly for `country = 'SG'` rows in `gst.tax_rules` and
+`gst.tax_registrations` before writing anything -- zero rows, no collision, confirmed
+again immediately before applying migrations (a different concurrent session could
+plausibly be starting Singapore at the same moment, per this run's own warning).
+
+**Research, not assumption, done fresh via WebSearch/WebFetch 2026-09-12** (IRAS's own
+site, `iras.gov.sg`, is egress-blocked in this environment for direct WebFetch -- the same
+posture COMPLY-P1-01.5 already documented for `ec.europa.eu`/VIES -- so every fact below
+is confirmed via MULTIPLE independently-agreeing secondary sources instead, several
+directly quoting or citing IRAS's own newsroom/e-Tax-guide titles):
+
+- **GST registration threshold, S$1,000,000, unchanged since GST's 1-Apr-1994
+  introduction** -- confirmed via WebSearch (formvalidation.io, contactone.com.sg,
+  excellencesg.com, growacross.com, tassure.com, assemblyworks.co, and Singapore MOF's own
+  "Conditions for Changing $1 Million Threshold for Businesses' Liability for GST
+  Registration" newsroom page title, all independently agreeing). Two real, distinct
+  tests, both compared against this same figure: the **retrospective** test (trailing
+  12-month taxable turnover, measured at each calendar quarter-end, exceeds S$1M --
+  30-day application deadline from that quarter-end) and the **prospective** test
+  (reasonable grounds to expect the NEXT 12 months will exceed S$1M -- 30-day application
+  deadline from the forecast date). **A genuine, dated regulatory addition the backlog's
+  own §2 section did not mention at all**: since 1-Jul-2025 (announced by the Second
+  Minister for Finance 28-Feb-2025), a prospective-basis registrant gets a two-month grace
+  period before GST charging must begin -- confirmed via WebSearch (formvalidation.io,
+  tassure.com, growacross.com, all independently agreeing), seeded as its own separate
+  versioned rule with `effective_from = '2025-07-01'` (no row before that date, so
+  `getEffectiveSgGstProspectiveGracePeriod` correctly returns `null` pre-2025-07-01 rather
+  than a guessed fallback).
+- **GST rate history: 7% (from 1-Jul-2007) -> 8% (1-Jan-2023) -> 9% (1-Jan-2024, current)**
+  -- confirmed via WebSearch (allianz.sg, KBA Training Centre, corporate.taxinfo.sg,
+  Medium "sgdecoded," all independently agreeing, consistent with the widely-reported
+  Budget 2022 two-stage increase). Seeded as a genuine three-version lineage, the same
+  "seed the real dated history, not just today's number" discipline the Nova Scotia HST
+  cut (COMPLY-P1-03.1) and every EU rate seed already established. Not seeded further back
+  than 2007 -- this session did not need to verify the 1994/2003/2004 increases, since no
+  document this platform would ever compute tax for predates 2007.
+- **GST F5 return**: quarterly filing (most businesses), due one month after the
+  accounting period end, filed via myTax Portal -- confirmed via WebSearch (cleartax.com,
+  sleek.com, commenda.io, IRAS's own "Completing GST Return" page title, taxfiling.sg,
+  criticalmass.digital, morrisonconsultants.com.sg, rafflescorporateservices.com, all
+  independently agreeing on the quarterly cadence and myTax Portal filing mechanism; minor
+  disagreement in the secondary sources themselves over the exact box COUNT, 15 vs.
+  15-21 depending on business type, not modeled here since this story prepares output tax
+  only -- see below).
+- **GST InvoiceNow Requirement -- the exact phased timeline, more precise than the
+  backlog's own pre-supplied "phased from 2025/2026...by 2031" framing** -- confirmed via
+  WebSearch against multiple independently-agreeing sources directly quoting or citing
+  IRAS's own newsroom releases ("Implementation of InvoiceNow for GST-Registered
+  Businesses and Free InvoiceNow Services for Newly Incorporated Businesses," "Committee
+  of Supply 2026: Extension of GST InvoiceNow Requirement to All GST-registered Businesses
+  by April 2031") and IRAS's own e-Tax Guide/FAQ PDF for the requirement (cleartax.com,
+  hawksford.com, beancount.io, podwerx.com, sqlaccounting.sg, pikon.com):
+  1. **Soft launch, 1-May-2025** -- voluntary early adoption open to all existing
+     GST-registered businesses and any new registrant from that date.
+  2. **1-Nov-2025** -- newly incorporated companies (incorporated within 6 months of their
+     GST registration application) that register for GST VOLUNTARILY must adopt
+     InvoiceNow and transmit invoice data to IRAS.
+  3. **1-Apr-2026** -- ALL businesses applying for voluntary GST registration, regardless
+     of incorporation date or structure, must adopt InvoiceNow.
+  4. **1-Apr-2028 through 1-Apr-2031** -- rollout to all remaining (compulsorily-
+     registered) GST-registered businesses, phased, smaller businesses prioritized
+     earlier; IRAS notifies each business individually of its own onboarding date within
+     this window.
+  Also confirmed the real mechanism: affected businesses transmit prescribed **Mandatory
+  Data Elements** to IRAS via the InvoiceNow network (API-based), IN ADDITION TO the
+  ordinary buyer-facing invoice exchange -- not a replacement for it.
+- **Peppol transmission model, genuinely NOT IRP-shaped** -- confirmed via WebSearch
+  (edicomgroup.com, peppolvalidator.com, ecosio.com, sovos.com, sesami.com, all
+  independently agreeing): Peppol is a four-corner ASYNCHRONOUS message-delivery network
+  (supplier's Access Point -> buyer's Access Point, addressed by the recipient's own
+  Peppol Participant ID, confirmed by an asynchronous Message Level Response), not a
+  government clearance/approval call the way India's IRP is -- there is no "reject before
+  delivery" concept and no network-level cancel (a wrongly-sent invoice is corrected with
+  a credit note, not an API call). Singapore's own InvoiceNow Requirement extends this
+  into a "five-corner" model with a parallel data-transmission leg to IRAS. This directly
+  shaped COMPLY-P1-04.5's own adapter interface (`submit`/`status` only, no `cancel`/
+  `fetch` -- see that story's own scope below).
+- **Singapore Peppol ID format, `0195:sguen<UEN>`, with a GST-number-based alternative
+  (`0195:sggst<GSTN>`) added November 2025** -- confirmed via WebSearch (peppol.org's own
+  "Singapore - OpenPeppol" country profile page title, terraadvisoryservices.com,
+  invoicenow.biz, poppel.app, all independently agreeing). IMDA is Singapore's own Peppol
+  Authority; `0195` is the ISO 6523 ICD scheme for Singapore's UEN registry.
+- **Five-year GST record retention, from the end of the relevant accounting period** --
+  confirmed via WebSearch (IRAS's own "Keeping records" page title/snippet,
+  accountingsolutionssingapore.com, enstoncorp.com.sg, apexiacorp.com, denpyo.com,
+  rafflescorporateservices.com, all independently agreeing on 5 years/60 months). This
+  session found no evidence the period has ever differed from 5 years -- matches the
+  backlog's own §2 pre-supplied figure exactly. A genuinely DIFFERENT basis from India's
+  own retention rule (which counts from the annual return's own due date, Section 36 CGST
+  Act) -- Singapore's own basis is a plain "N months from the accounting period end," no
+  annual-return-due-date dependency at all.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this epic's own prior US/Canada work first**
+(backlog rule 1/5): no schema change needed for rates/thresholds/the InvoiceNow mandate
+schedule -- the generic `gst.tax_rules` engine (COMPLY-P0-02.3) already extends to any
+country/jurisdiction/regime/rule_key combination via more rows. `lib/compliance/
+countries.ts`'s own `SG` entry already existed (`status: "planned"`, regime `GST`) --
+flipped to `"supported"`, no regime-catalog change needed (Singapore, like Canada, has
+only the one regime). `lib/compliance/jurisdictions.ts` gets no `SG` entry at all --
+Singapore has no sub-national tax jurisdiction concept whatsoever (the same "absent, not
+an empty array with special-casing" convention the five EU VAT country packs already
+established), so every SG rule lineage below uses `jurisdiction = null`.
+
+**What was built**:
+
+- `lib/compliance/countries.ts`/`countries.test.ts` -- `SG` flipped from `planned` to
+  `supported`.
+- `supabase/migrations/20260912600000_gst_tax_rules_sg_gst_seed.sql` -- 7 rows: 3
+  `gst_standard_rate_percent` (the 7%/8%/9% lineage), 1
+  `gst_registration_threshold_sgd`, 1 `gst_prospective_registration_grace_period_months`,
+  1 `invoicenow_mandate_schedule` (the 4-phase jsonb schedule), 1
+  `gst_record_retention_months` (Singapore's own `"accounting_period_end"` basis).
+- **COMPLY-P1-04.1 (GST Registration)**: `lib/singapore-gst/{types,rules}.ts` (+ 7 test
+  cases in `rules.test.ts`) -- lineage/parse/effective-lookup functions for all three
+  registration-relevant rule_keys, same shape as every other country pack's own
+  `rules.ts`. `lib/singapore-gst/registration.ts` (+ 12 test cases) --
+  `determineSgRetrospectiveRegistrationObligation`/`determineSgProspectiveRegistrationObligation`,
+  a strict EXCEEDS (`>`) comparison matching IRAS's own "exceeds S$1 million" statutory
+  wording (same convention `determineSmallSupplierRegistrationObligation`, Canada,
+  already established for its own "exceeds" wording), each computing a 30-day
+  `applicationDeadline` and, for the prospective test, surfacing the 2-month grace-period
+  note when a grace rule resolves for the forecast date. **What this does NOT model,
+  named explicitly** (same "obligation, not full deadline mechanics" scope boundary
+  COMPLY-P1-02.4/03 already drew): the exact date GST charging must begin once a
+  registration actually takes effect -- IRAS assigns this as part of processing the
+  application, a fact this platform has no registration-processing workflow to derive.
+- **COMPLY-P1-04.2 (GST F5)**: `lib/singapore-gst/supply-classification.ts` (+ 8 test
+  cases) -- the pure `classifySgSupply` (domestic-vs-export by buyer country; Singapore
+  has no place-of-supply cascade to model, unlike Canada/India, since it's one nationwide
+  rate). `lib/singapore-gst/queries.ts` -- `getSgGstF5Return(businessId, periodStart,
+  periodEnd)`, the one new "prepare" function feeding the reused return lifecycle, same
+  shape as `getCaGstHstReturn`: reads `core.documents`/`core.document_lines`/
+  `core.addresses` (reusing `mapPartyAddress`/`selectPartyAddress` from COMPLY-P0-03.4),
+  classifies each line, applies the effective standard rate, totals gross/taxable/
+  zero-rated/unresolved sales plus GST collected. **Scoped to output tax on sales only,
+  named explicitly**: does not model input tax/refunds claimed (Box 7), a separate exempt-
+  supplies total (Box 3), the Overseas Vendor Registration reverse-charge regime on
+  imported services, or net GST payable (Box 8, output minus input) -- no test file (thin
+  DB-touching orchestrator over already-tested pure pieces, this module's established
+  convention). `lib/returns/lifecycle/{types,mutations}.ts` extended: `ReturnType` gained
+  `sg_gst_f5`; the `computeReturnSnapshot` dispatcher gained an `sg_gst_f5` branch calling
+  `getSgGstF5Return` (ignoring `jurisdiction`, always null).
+  `supabase/migrations/20260912610000_gst_return_periods_sg_gst_f5.sql` -- the one-line
+  `return_type` check-constraint widening, same shape as the `ca_gst_hst`/`us_sales_tax`
+  widenings before it.
+- **COMPLY-P1-04.3 (InvoiceNow Eligibility)**: `lib/einvoicing-sg/{types,mandate}.ts` (+
+  11 test cases in `mandate.test.ts`) -- `SG_INVOICENOW_MANDATE_SCHEDULE_RULE` (the
+  versioned 4-phase schedule) and the pure `determineActiveSgInvoiceNowPhases`, directly
+  mirroring `determineActiveDeEinvoicingPhases`'s (COMPLY-P1-01.6) own "phases as a
+  versioned jsonb array, a pure function tells you which are active given a caller-
+  declared business profile" shape. **Never guesses in the risky direction (backlog rule
+  11)**: the `new_voluntary_registrants_recent_incorporation`/`all_new_voluntary_
+  registrants` phases return `null` (unknown), never `false`, when the registration basis
+  or incorporation/registration dates are unknown; `all_gst_registered_businesses`
+  ALWAYS returns `null` once its own 2028-2031 window opens, for every business
+  regardless of registration basis -- IRAS notifies affected businesses individually of
+  their own exact onboarding date, a fact this platform has no source for per business,
+  so understating this obligation as `false` would be the genuinely risky direction.
+- **COMPLY-P1-04.4 (Peppol Identifier)**: `lib/tax-registrations/sg-registration-
+  profile.ts` (+ 13 test cases) -- `isValidSgPeppolId`/`parseSgRegistrationProfile`/
+  `buildSgRegistrationMetadata`, the Singapore counterpart to COMPLY-P0-04.2's own
+  India-specific `gst-registration-profile.ts`: a business's own Peppol Participant ID
+  lives in `gst.tax_registrations.metadata.peppol_id` on its SG/GST registration row (no
+  schema change -- that `metadata jsonb` bucket was reserved for exactly this kind of
+  regime-specific attribute back in COMPLY-P0-02.1). Validates the STRUCTURAL format only
+  (`0195:sguen...`/`0195:sggst...`, case-insensitive) -- explicitly NOT a live Peppol
+  Directory lookup confirming the ID is actually registered/reachable, and NOT a UEN/GST-
+  number checksum validation (ACRA's own check-digit algorithm was not independently
+  verified this session) -- same "format-only where a live network check is out of
+  reach" honesty COMPLY-P1-01.5 (VAT ID Validation/VIES) already established. **Scoped to
+  the filing business's OWN registration only, named explicitly**: resolving a
+  counterparty's own Peppol ID (e.g. via a live Peppol Directory lookup) is out of scope
+  -- `InvoiceNowSubmitRequest.buyerPeppolId` (COMPLY-P1-04.5) is caller-supplied, not
+  looked up by this module.
+- **COMPLY-P1-04.5 (InvoiceNow Adapter)**: `lib/einvoicing-sg/{types,adapter}.ts` (+ 2
+  test cases in `adapter.test.ts`) -- `InvoiceNowAdapter` (`submit`/`status` only,
+  deliberately no `cancel`/`fetch` -- see the Peppol-transmission-model research above for
+  exactly why neither concept exists in Peppol's own real model) and
+  `StubInvoiceNowAdapter`, a clearly-labeled stub that always throws
+  `InvoiceNowUnreachableError` rather than fabricating a transmission result -- same
+  posture `StubDeEinvoicingAdapter` (COMPLY-P1-01.6) already established for Germany's own
+  decentralized e-invoicing exchange: no real Peppol Access Point credentials, and no
+  public sandbox endpoint this session could locate to integrate against even for
+  testing.
+- **COMPLY-P1-04.6 (Transmission Status)**:
+  `supabase/migrations/20260912620000_gst_invoicenow_transmissions.sql` -- a new,
+  genuinely distinct table (checked against `gst.einvoices` first, per backlog rule 1/5 --
+  that table's own IRN/ack-no/QR-code columns are India-IRP-specific and do not fit
+  Peppol's own message-id/buyer-Peppol-id/IRAS-submission-id shape without either
+  overloading India-specific field names or losing the distinction entirely), same "one
+  row per document ever, append-only, reuses the existing `gst.generate` permission and
+  the shared `gst.enforce_document_business_id` cross-tenant guard" shape
+  `gst.einvoices`/`gst.eway_bills` already established. `lib/einvoicing-sg/
+  transmissions.ts` -- `recordInvoiceNowTransmission`/`updateInvoiceNowTransmissionStatus`/
+  `getInvoiceNowTransmission` (thin DB orchestrators, no test file, same convention as
+  `lib/einvoicing/mutations.ts`). `lib/einvoicing-sg/transmission-status.ts` (+ 4 test
+  cases) -- the pure `determineSgInvoiceNowTransmissionStatus` combiner, and
+  `lib/einvoicing-sg/queries.ts` -- the orchestrator (`getSgInvoiceNowTransmissionStatus`)
+  combining mandate-phase applicability (04.3) with the persisted transmission row (no
+  test file, DB-touching orchestrator).
+- **COMPLY-P1-04.7 (Five-Year Record Retention)**: `lib/retention/types.ts` widened --
+  `GstRecordRetentionRuleValue.basis` now accepts `"accounting_period_end"` alongside
+  India's own `"annual_return_due_date"`. `lib/retention/rule.ts` -- added
+  `SG_GST_RECORD_RETENTION_RULE` (the SAME `gst_record_retention_months` rule_key,
+  country-scoped) and `getEffectiveSgGstRecordRetentionRule`, widened
+  `parseGstRecordRetentionValue` to accept either basis (+ 8 new test cases in the new
+  `rule.test.ts` -- this file had no test coverage at all before this story, added now
+  since real branching logic was introduced). `lib/retention/compute.ts` -- added
+  `computeSgGstRetentionUntil` (a plain `addMonths` from the accounting period end, no
+  GSTR-9-due-date detour the way India's own `computeGstRetentionUntil` needs -- + 3 new
+  test cases in `compute.test.ts`). `lib/retention/queries.ts` -- added
+  `getSgGstRetentionUntil`, the Singapore counterpart to `getGstRetentionUntil`, needing
+  only ONE rule lookup (not two) since Singapore's basis has no due-date dependency.
+
+**What was deliberately left out** (beyond what's already named per-story above): any UI
+(no Compliance UI epic exists for P1 yet, same as EU/US/Canada); a live CRA-style filing
+adapter for the GST F5 return itself (no live myTax Portal API this platform drives --
+COMPLY-P1-04.2's own return preparation feeds the SAME `markReturnPeriodFiled`/
+`recordReturnPeriodPayment` record-what-happened functions every other regime already
+uses, needing zero new code, the same "CRA Filing Adapter" posture COMPLY-P1-03.5 already
+established -- not called out as its own sub-story since the backlog's own §7 Singapore
+section does not list one separately); a live Peppol Directory lookup or UEN/GST-number
+checksum validation (COMPLY-P1-04.4); resolving a counterparty's own Peppol ID; the exact
+per-business onboarding date within the 2028-2031 `all_gst_registered_businesses` phase.
+
+**How verified**:
+
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1483 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 194
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 95 files / 732 tests passed (674
+  pre-existing + 58 new across `singapore-gst/{rules,registration,supply-
+  classification}.test.ts`, `einvoicing-sg/{mandate,adapter,transmission-status}.test.ts`,
+  `tax-registrations/sg-registration-profile.test.ts`, `retention/rule.test.ts`
+  (new coverage for existing code), plus 3 new cases each in `retention/compute.test.ts`
+  and `compliance/countries.test.ts`).
+- All three new/widened migrations applied live to the **dev** Supabase project
+  (`jazdtomcgqjxjueedmck`) via `mcp__Supabase__apply_migration` (the seed migration's own
+  `invoicenow_mandate_schedule` jsonb-concatenation needed a `::jsonb` cast fix mid-story
+  after a first attempt correctly failed atomically with zero rows inserted -- confirmed
+  via a direct re-query before retrying); confirmed live by directly querying all 7
+  inserted `gst.tax_rules` rows, the widened `return_periods_return_type_check`
+  constraint, and the new `gst.invoicenow_transmissions` table's own columns.
+  `mcp__Supabase__get_advisors` (security): identical finding set to immediately before
+  this story (same 6 pre-existing infos, 1 pre-existing warning) -- no new findings.
+  Performance: the new `invoicenow_transmissions_business_id_idx` shows as an expected
+  "unused" info (no live traffic yet, same as every other index on this dev project); no
+  new unindexed-foreign-key findings.
+- **Local Postgres RLS harness actually run this story** -- found and started a local
+  PostgreSQL 16 cluster available in this environment (`service postgresql start`; not
+  running by default) and used it for real DB-level verification, per this run's own
+  instruction to check for this before assuming it's unavailable:
+  - New `scripts/test-gst-invoicenow-transmissions-rls.mjs` (added to `test:db`) --
+    tenant isolation, license gating (no license / grace / active), permission gating
+    (`gst.generate`), the cross-tenant document_id-smuggling trigger, the
+    `unique(document_id)` one-row-per-document constraint, status-update authorization,
+    the `status` check constraint, and the no-delete-policy invariant -- all passing on
+    the first run after one `::jsonb` cast fix in the seed migration (caught by this same
+    harness run, which replays the full migration timeline from scratch).
+  - Extended the already-merged `scripts/test-gst-return-periods-rls.mjs` again (the
+    same "more facts about the same table" rationale COMPLY-P0-07.7/COMPLY-P1-02.7/03
+    already used): an `sg_gst_f5` period is accepted with `jurisdiction` staying null; a
+    second `sg_gst_f5` period for the identical business/period is rejected by the
+    unique key (confirming the `coalesce(jurisdiction, '')` NULL-uniqueness fix now
+    correctly holds for a THIRD null-jurisdiction return type, not just `ca_gst_hst`/
+    `us_sales_tax`/`gstr1`); an `sg_gst_f5` and a `ca_gst_hst` period for the identical
+    date range coexist as separate rows -- all passing.
+  - **A pre-existing, unrelated test failure was found and left alone, per this run's own
+    "do not refactor unrelated code" instruction**: `npm run test:db`'s full chain fails
+    at `test-discovery-rls.mjs`'s own hardcoded `core.permissions` row-count assertion
+    (expects `53`, the live count is now `57`) -- confirmed via `grep` across
+    `supabase/migrations/` that this drift is caused entirely by `core.permissions` rows
+    already added by EARLIER, already-merged P0 Compliance migrations
+    (`gst_return_periods.sql`'s own `gst.file_returns`, `gst_gstr2b_statements.sql`'s own
+    reconciliation permission, `gst_compliance_evidence.sql`'s own evidence permission,
+    `gst_exemption_certificates.sql`'s own permission, plus `crm_role_permissions.sql`)
+    that postdate the `53` comment's own last update -- NONE of this story's own three
+    migrations touch `core.permissions` at all, so this is provably not something COMPLY-
+    P1-04 caused. Every gst-specific script in the `test:db` chain that this story's own
+    changes could plausibly affect (`test-gst-generation-history-rls.mjs`,
+    `test-gst-return-periods-rls.mjs`, the new `test-gst-invoicenow-transmissions-rls.mjs`)
+    was run and confirmed passing individually; the stale count assertion itself was left
+    unfixed, named here rather than silently patched, since correcting a Discovery-epic
+    test's own hardcoded catalogue count is not this story's scope.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched this
+  story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
+
+**COMPLY-P1-04 (Singapore) is now fully done -- all seven sub-stories (04.1 GST
+Registration through 04.7 Five-Year Record Retention).** This completes this backlog's
+own §8 "P1 Release 1" (EU -> US -> Canada -> Singapore). Continuing to COMPLY-P1-05 (UAE)
+in this same session per "P1 Release 2," usage/time permitting.
