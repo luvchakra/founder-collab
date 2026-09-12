@@ -6907,3 +6907,99 @@ story is the OBLIGATION DETERMINATION a founder would act on, not a filing mecha
 **COMPLY-P1-02 (United States) is now fully done -- all eight sub-stories (02.1 State/Local
 Jurisdictions through 02.8 1099 Information Returns).** Continuing to COMPLY-P1-03 (Canada)
 in this same session.
+
+## Epic 03 -- Canada (COMPLY-P1-03) -- STOPPED: concurrent-work collision on the shared dev database (2026-09-12)
+
+Began COMPLY-P1-03.1 (GST/HST) following this epic's own established pattern: researched
+and cross-verified Canada's real facts via WebSearch 2026-09-12 (federal GST 5%; HST at
+13% Ontario, 15% New Brunswick/Newfoundland and Labrador/PEI, 14% Nova Scotia effective
+1-Apr-2025 -- itself a real two-version lineage, the province having cut its own
+provincial HST component from 10% to 9% that date; the CAD 30,000 small-supplier
+threshold over a trailing four-quarter test, confirmed directly against canada.ca's own
+"When to register for and start charging the GST/HST" page); wrote
+`lib/compliance/ca-provinces.ts` (the 13-province/territory catalog, mirroring
+`lib/compliance/us-states.ts`'s own "structural catalog, not a versioned rule" shape) and
+`lib/tax-rules/canada-gst-hst.ts` (rate/threshold lookups, mirroring `lib/tax-rules/
+eu-vat-rates.ts`); flipped Canada from `status: "planned"` to `"supported"` in
+`lib/compliance/countries.ts`; and wrote a migration seeding `gst.tax_rules` rows keyed
+`gst_rate` (national), `hst_rate` (per-province), and `small_supplier_threshold`
+(national).
+
+**Stopped at the live-verification step, before any commit.** Applying that migration to
+the dev Supabase project (`jazdtomcgqjxjueedmck`) and querying the result back
+(backlog rule 1: "inspect the existing implementation before creating anything," done
+here for the DATABASE specifically, not just the repo) surfaced **twenty pre-existing
+`gst.tax_rules` rows for `country = 'CA', regime = 'GST_HST'`** that this session did not
+create -- `rule_key`s `gst_hst_rate` (covering all three of Alberta/territories'
+`gst_only`, the five HST provinces, and British Columbia/Manitoba/Quebec/Saskatchewan's
+own federal-GST-component under ONE unified rule_key with a `taxModel` field inside its
+own `value`, a genuinely different design from this session's own three-separate-
+rule_key approach), `provincial_sales_tax_rate` (BC/MB/QC/SK -- this session's own
+COMPLY-P1-03.2 scope, already seeded), `small_supplier_threshold_cad`, and
+`gst_hst_filing_frequency_threshold_cad` (this session's own COMPLY-P1-03.4 scope,
+**already seeded**, with real $1.5M/$6M annual/quarterly thresholds matching what this
+session's own WebSearch had independently confirmed against RC4022 before discovering
+these rows).
+
+**Confirmed this is NOT a git-history gap on this session's own side**: `git fetch origin
+main comply-backlog` immediately before and again immediately after this discovery shows
+`origin/comply-backlog` unchanged (`89947e3`, the same commit this session started from --
+COMPLY-P1-02.8) and no commit reachable from `origin/main` or `origin/comply-backlog`
+touches Canada/`CA`/`GST_HST` anywhere in the migration history. These twenty rows exist
+live on the shared dev Supabase project with **no corresponding migration file in git at
+all** -- the only explanation consistent with CLAUDE.md's own "Development must use
+Supabase MCP... against the dev project only" instruction and this run's own explicit
+briefing that "other agents are actively working Discovery and Platform branches in this
+same repo right now" is that **another concurrent session is right now mid-flight on this
+exact same COMPLY-P1-03 story, against the same shared dev database, with a genuinely
+different schema design** (one `gst_hst_rate` rule_key carrying a `taxModel` discriminator
+versus this session's own three separate rule_keys) -- not yet reflected in any pushed
+commit.
+
+**This is a genuine, live collision, not a naming/layout choice safe to just pick one side
+of**: committing this session's own migration on top of these rows would leave the SAME
+regulatory facts (Ontario's HST rate, the small-supplier threshold, etc.) recorded TWICE
+under two incompatible `rule_key` schemes in the same table, with no way for
+`getEffectiveTaxRule()`'s own single-lineage lookup to know which scheme any future
+caller should read -- exactly the "parallel table/concept for the same thing" backlog
+rule 1/5 exists to prevent, just at the rule_key/data-shape level rather than a whole
+table. Whichever session's migration file lands in git second will need to reconcile
+against the other's already-live data either way, and this run has no visibility into
+what the other session's own already-in-flight design intends for the remaining
+COMPLY-P1-03.2/03.3/03.4/03.5 sub-stories (their own `gst_hst_rate` value shape suggests a
+unified-rate-plus-`taxModel` design that may cover place-of-supply/filing-frequency
+differently than this session would have built it).
+
+**Action taken**: rolled back this session's own eight inserted rows (`delete from
+gst.tax_rules where country = 'CA' and rule_key in ('gst_rate', 'hst_rate',
+'small_supplier_threshold')`, verified via a re-query showing exactly the other session's
+own twenty rows remain, untouched) -- restoring the dev database to the state this
+session found it in, rather than leaving two competing schemes live simultaneously.
+Reverted every local file change for this attempt (`lib/compliance/ca-provinces.ts`,
+`lib/tax-rules/canada-gst-hst.ts`, both test files, the migration file, and the
+`countries.ts`/`countries.test.ts` edits) -- `git status` confirms a clean working tree,
+identical to the `89947e3` commit this session started from. No commit was made for this
+attempt.
+
+**Open question this run cannot safely resolve by guessing**: which session's own
+COMPLY-P1-03 design should become the one actually committed to `comply-backlog` --
+this session's three-rule_key-per-fact approach, or the other, already-partially-live
+`gst_hst_rate`-plus-`taxModel` approach? Proceeding on the assumption that this session's
+own design should win (and either overwriting or coexisting with the other session's
+live rows) would risk exactly the double-booked-regulatory-fact outcome described above,
+which no automated test in this module would catch (both schemes independently parse
+and return internally-consistent values; only a human reconciling the two ever-so-
+slightly-different designs, or the other session's own commit landing first, resolves
+this cleanly). Per this run's own standing instruction ("write the precise open question
+into the audit log and stop rather than merging an assumption" for a genuine decision
+the doc doesn't specify), **stopping COMPLY-P1-03 here** rather than guessing which
+design should win. Recommended next step for whoever picks this back up: re-fetch
+`origin/comply-backlog` first to see whether the other session's own commit has landed
+(if so, continue from whatever COMPLY-P1-03 sub-story it left off at, using ITS schema);
+if not, check with the user directly about which concurrent session owns this story
+before writing any new Canada migration.
+
+**Status unchanged: 51/59 P0 in-scope stories done; P1 EU VAT (COMPLY-P1-01) and United
+States (COMPLY-P1-02, all 8 sub-stories) fully done and merged. COMPLY-P1-03 (Canada) not
+started by this session** -- live dev-database rows exist for it from elsewhere, but no
+git-committed implementation from any session yet.
