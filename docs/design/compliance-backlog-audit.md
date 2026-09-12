@@ -49,7 +49,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.5 | GST Tax Determination | Done |
 | | 04.6 | GST Invoice Validation | Done |
 | | 04.7 | GST Rule Versioning | Done |
-| P0-05 | 05.1–05.6 | India E-Invoice | Not started |
+| P0-05 | 05.1 | E-Invoice Eligibility | Done |
+| | 05.2–05.6 | India E-Invoice (Schema Validation, IRP Adapter, IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -58,16 +59,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**20 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**21 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and now
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-04.7 (GST Rule Versioning) is the
-last completed story, finishing epic 04. Next: COMPLY-P0-05 (India E-Invoice), the start of
-P0 Release 2.
+**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.1 (E-Invoice Eligibility) is the
+last completed story, starting epic 05 (India E-Invoice) and P0 Release 2 (epics 05-08).
+Next: COMPLY-P0-05.2 (Schema Validation).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1958,3 +1959,139 @@ Versioning) implemented, closing out P0 Release 1
 Shell & Country Switch) → COMPLY-P0-02 (Generic Tax Framework) → COMPLY-P0-03
 (Existing-Data Integration) → COMPLY-P0-04 (India GST). Next: COMPLY-P0-05 (India
 E-Invoice), the start of P0 Release 2, per §8's own delivery order.
+
+### 05.1 — E-Invoice Eligibility (2026-09-12)
+
+"Determine obligation using active rules" -- the first story of COMPLY-P0-05 (India
+E-Invoice) and of P0 Release 2. Checked existing code first (backlog rule 1): `module-gst`
+already has a working e-invoice GENERATION pipeline from an earlier slice (Epic 6/S-2) --
+`gst.einvoice_credentials` (GSP secrets), `gst.einvoices` (one row per document, ever,
+IRN/QR/ack persisted), `lib/gsp-client.ts` (the actual IRP HTTP call), and
+`lib/einvoicing/{queries,mutations}.ts` (`generateEinvoice`/`cancelEinvoice`) -- but
+nothing anywhere in that pipeline, or anywhere else in the module, ever asks "is this
+business even OBLIGATED to e-invoice in the first place." COMPLY-P0-04.2's own
+`eInvoiceEligible` field on a GST registration's profile is explicitly self-declared, not
+computed ("an eligibility *engine* reading turnover/thresholds is COMPLY-P0-05.1's own
+job" -- that story's own log entry). This story is that engine's first piece: the
+comparison against the REAL regulatory threshold, not the generation pipeline itself
+(COMPLY-P0-05.3's own "IRP Adapter" story already names the provider interface
+`generateEinvoice`/`cancelEinvoice` effectively already are, just not yet formalized
+behind that name -- a decision for that story, not this one).
+
+**Research, not assumption** (same discipline COMPLY-P0-04.7 established): used
+`WebSearch` to verify the real turnover-threshold history before writing it into a
+versioned, source-cited `gst.tax_rules` row. Confirmed: CBIC Notification No. 17/2022-
+Central Tax (dated 01-Aug-2022) lowered the threshold to ₹10 crore aggregate turnover,
+effective 01-Oct-2022; CBIC Notification No. 10/2023-Central Tax (dated 10-May-2023)
+lowered it again to ₹5 crore, effective 01-Aug-2023 -- still the current threshold as of
+this session's own "today" (2026-09-12, confirmed by the same search finding no further
+lowering). Earlier phases of the same threshold (₹500cr in 2020 down through ₹100cr/₹50cr/
+₹20cr in 2021-2022) are real but deliberately NOT modeled -- no current-or-recent
+determination in this platform needs them, and adding exact dates without the same level
+of verification would be the "no false precision" this module has avoided since
+COMPLY-P0-04.3/04.4; the migration's own comment names this as a documented, extensible
+gap rather than a silent omission.
+
+**A regulatory nuance flagged rather than silently gotten wrong**: GST law tests whether a
+business's aggregate turnover EVER exceeded the then-applicable threshold in any financial
+year since 2017-18 -- once crossed, the e-invoice obligation is permanent even if turnover
+later falls back below the threshold. This platform has no financial-year turnover ledger
+to derive that fact from (and no cross-GSTIN/PAN aggregation either -- real AATO aggregates
+every GSTIN under one PAN, this platform tracks each business's own registrations only).
+Rather than silently ignoring this rule or fabricating a computation this platform's data
+can't actually support, `determineEinvoiceEligibility` takes it as an explicit, optional,
+caller-DECLARED input (`everCrossedThresholdHistorically`) that wins outright when true --
+the same "self-declared, not computed" posture COMPLY-P0-04.2's own `eInvoiceEligible` flag
+and COMPLY-P0-04.5's own `reverseCharge` flag already take for facts this module has no way
+to derive on its own.
+
+**What was built**:
+- `supabase/migrations/20260912010000_gst_tax_rules_einvoice_threshold_seed.sql` --
+  data-only (no DDL), seeding `gst.tax_rules` with a two-version
+  `einvoice_turnover_threshold_inr` lineage (`country: IN`, `regime: GST`,
+  `jurisdiction: null`, `treatment: null` -- an obligation threshold, not a treatment
+  classification): version 1 (₹10,00,00,000 = 100000000, effective 2022-10-01, closed
+  2023-08-01) and version 2 (₹5,00,00,000 = 50000000, effective 2023-08-01, still open).
+  Follows the exact seed-via-migration-INSERT precedent COMPLY-P0-04.7 established.
+- `packages/module-gst/src/lib/einvoice-eligibility/` (new directory -- deliberately
+  separate from the existing `lib/einvoicing/` generation-pipeline code, matching this
+  module's own per-concern directory convention):
+  - `threshold.ts` (+ test) -- `EINVOICE_TURNOVER_THRESHOLD_RULE` lineage constant,
+    `parseEinvoiceThresholdValue` (defensive jsonb parse, mirroring COMPLY-P0-04.7's own
+    `parseRateSlabValue`), `getEffectiveEinvoiceThreshold(asOf?)` (wraps COMPLY-P0-02.3's
+    `getEffectiveTaxRule`).
+  - `turnover.ts` (+ test) -- `estimateTrailingSalesTurnoverInr(businessId, asOf?)`: a
+    rough, explicitly-labeled PROXY for aggregate turnover, summing this business's own
+    `core.documents` (`doc_type = 'invoice'`) over the trailing 365 days -- NOT the legally
+    exact AATO (documented gap: no cross-GSTIN/PAN aggregation, no financial-year
+    boundary), used only when the caller doesn't supply a real declared figure. Uses
+    mechanism (1) (`core` read directly, no requireModule/requirePermission, matching
+    every other core-transactions-style read in this module). `sumInvoiceTotals` is its
+    own pure, tested arithmetic extraction.
+  - `determine.ts` (+ 7 test cases) -- the pure `determineEinvoiceEligibility`: exceeds
+    threshold → mandated; at or below → not mandated (boundary case: exactly AT the
+    threshold does NOT mandate -- the rule is "exceeding," not "meeting"); no threshold
+    rule resolved or no turnover figure at all → `mandated: null`, never defaulted to
+    `false` (backlog rule 11); `everCrossedThresholdHistorically: true` wins outright.
+  - `types.ts` -- `EinvoiceEligibilityResult` carries `mandated`, `reason`, the resolved
+    `thresholdInr`/`thresholdRule` (full row, for future traceability --
+    COMPLY-P0-10.4's own job), `turnoverInr`/`turnoverSource` (`"declared"` vs.
+    `"estimated_from_documents"`, never conflated), and `selfDeclaredEligible` (the
+    business's own COMPLY-P0-04.2 flag, surfaced alongside the rule-based answer and never
+    silently overridden by it -- backlog rule 11 again).
+  - `queries.ts` -- `getEinvoiceEligibility(businessId, input?)`, the orchestrator: reads
+    the effective threshold rule and the business's primary IN/GST registration in
+    parallel, uses the caller's declared turnover if given (else falls back to the
+    document-based estimate), then hands everything to the pure function. No test file
+    (thin orchestrator over already-tested pieces, this module's established convention).
+
+**What was deliberately left out**:
+- Any UI -- no page surfaces this yet; matches this epic's own established "lib first,
+  UI later" pattern from COMPLY-P0-04 (registrations/profile pages came in 04.1/04.2 only
+  once the underlying generic tables existed).
+- Wiring this into the existing `generateEinvoice` pipeline (`lib/einvoicing/mutations.ts`)
+  to actually BLOCK generation for a non-obligated business, or warn for one that is
+  obligated but hasn't generated one -- this story only builds the determination itself;
+  deciding where/how it gates the real generation flow (or the future e-invoice status
+  view, COMPLY-P0-05.6) is a decision for a later story in this same epic, not implied
+  here (this determination is advisory/informational, matching backlog rule 11's "never
+  claim compliant from a calculation alone" -- an eligibility ENGINE result should not
+  itself become a silent hard gate without its own story considering that decision).
+- Earlier threshold-history versions (₹500cr/100cr/50cr/20cr, 2020-2022) -- flagged above
+  as a documented, extensible gap, not a silent omission.
+- The full cross-GSTIN/PAN aggregate-turnover computation real AATO requires -- flagged
+  above as a platform-wide data-model gap (no financial-year ledger, no cross-GSTIN
+  linkage under one PAN), out of this story's own "reuse what exists" scope.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1045 files scanned, 0 violations (lower
+  count than COMPLY-P0-04.7's own 1115 because this story's branch checkout doesn't
+  include the other concurrently-running agents' own branches' files -- expected, not a
+  regression; confirms no `module-fsm`/`module-inventory`/`module-crm` import in any new
+  file, only `@cofounderai/core/db/server` and this module's own `tax-rules`/
+  `tax-registrations` subpaths).
+- `node scripts/lint-migration-schema.mjs` -- 110 migration files checked, 0 violations
+  (the new migration is INSERT-only, no `create`/`alter table`, registers no schema touch).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 110 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 18 files / 134 tests passed (118
+  pre-existing + 16 new: 6 in `threshold.test.ts`, 3 in `turnover.test.ts`, 7 in
+  `determine.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning, and the same unused-index info list plus one new, unrelated entry from a
+  concurrently-running Discovery-backlog migration on the shared dev project
+  (`website_onboarding_runs_business_id_idx`) -- not this story's own work, expected per
+  the multi-agent isolation instructions, same as COMPLY-P0-02.5's own log entry already
+  noted for a similar case) -- no new finding attributable to this story's own
+  data-only insert.
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story,
+  same convention as every COMPLY-P0-04.x story before it.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
