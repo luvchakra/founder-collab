@@ -4167,12 +4167,32 @@ order) this run stops here to report rather than skip ahead on its own judgment.
 
 ### PLATFORM-P0-09.3 — Provider Routing, CONFIG-ONLY (2026-09-12) — RESUMED AND BUILT
 
-**Worktree hazard checked first, per this workstream's own standing instruction**:
-`git log --oneline -3` at the start of this run showed `HEAD` genuinely on
-`feature/platform-admin-portal`'s real tip (the prior run's own scratch-merge commit,
-`3dbcdc7`, itself already merged to that branch's tip) -- no stash/rebuild needed this
-time. Working tree was clean. `npm install` run fresh (no `node_modules` in this worktree;
-679 packages added, clean).
+**Worktree hazard hit again, fixed with the established pattern**: this run's worktree
+`HEAD` started on branch `worktree-agent-a2cb7c907300c14f6`, sitting on `3dbcdc7` ("Merge
+branch 'feature/platform-admin-portal' into scratch-plat-09-3-merge") -- a stray scratch
+commit from a prior run's own auto-merge-to-main procedure that had folded in unrelated
+concurrent work from `main` (comply-backlog's US 1099 story, discovery-offering-backlog's
+website-onboarding/pipeline work -- 325 files, +29894/-169 relative to
+`feature/platform-admin-portal`'s real tip), not the feature branch's own clean history.
+Not caught before the first commit this time (the implementation work above was already
+done and committed as `79e95be` before this was noticed) -- fixed after the fact rather
+than before, per the same pattern the log's own hazard note describes: `git status`
+confirmed a clean tree, then `git checkout -B feature/platform-admin-portal
+origin/feature/platform-admin-portal` (landing exactly on `5c24b69`, the real tip) followed
+by `git cherry-pick 79e95be` to replay this story's own changes onto the correct base. One
+conflict, in `package.json`'s `test:db` script list (the scratch commit's version included
+several other workstreams' own script entries this branch's real history doesn't have) --
+resolved by keeping this branch's own real list and appending only this story's one new
+entry, the same "keep both sides' entries" resolution this workstream's task brief itself
+prescribes for that exact file. `git log --oneline -3` reconfirmed `HEAD` on
+`feature/platform-admin-portal` at the replayed commit (`c09194a`) after the fix, before any
+further work. The full verification pipeline below was run (and, where a stale `.next`
+build-artifact from the wrong-branch build briefly broke `tsc` with phantom route-module
+errors, re-run after `rm -rf apps/web/.next`) entirely on this corrected branch, not the
+scratch one -- the numbers reported below (1218 boundary files, 148 migrations) are this
+branch's own real counts, distinct from an intermediate, discarded run's own (1444 files,
+188 migrations) taken while still on the stray scratch commit. `npm install` run fresh (no
+`node_modules` in this worktree; 679 packages added, clean).
 
 **The user's decision, verbatim intent**: build the routing *configuration data only, with
 NO runtime wiring* -- exactly Reading 1 from the prior stopped entry's own analysis, and
@@ -4269,8 +4289,8 @@ key/enabled state either).
 `module-inventory`, `module-registry`). `npm run lint --workspaces --if-present` -- 0
 errors, the same 1 pre-existing unrelated warning every prior entry has logged
 (`Package` unused in an unrelated CRM conversations page). `node scripts/
-lint-import-boundaries.mjs` -- 1444 files, no violations. `node scripts/
-lint-migration-schema.mjs` -- 188 migrations (187 -> 188, this story's own file). `npx
+lint-import-boundaries.mjs` -- 1218 files, no violations. `node scripts/
+lint-migration-schema.mjs` -- 148 migrations (147 -> 148, this story's own file). `npx
 vitest run --root packages/core` -- 22 files / 218 tests (210 -> 218, +8 this story's own).
 `cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-routing` lists `ƒ`
 (dynamic), correctly inheriting the outer layout's existing `force-dynamic`.
@@ -4314,7 +4334,8 @@ requires**: new `scripts/test-platform-ai-provider-routing-rls.mjs`, wired into
 `package.json`'s `test:db` composite script immediately after
 `test-platform-ai-providers-rls.mjs`. Same Alice (business admin, not a superadmin)/Zoe
 (real platform superadmin) pair every sibling script uses. **All 30 assertions passed**
-against the full current migration timeline (188 files): the singleton row starts seeded
+against the full current migration timeline (148 files, on the corrected branch, re-run
+after the worktree-branch fix above): the singleton row starts seeded
 with no provider/model set and an empty override map; Alice can read the open policy row
 but her mutation attempt is rejected by the function's own internal check with zero
 residue; a genuine superadmin can set the full policy (default provider/model, fallback
