@@ -83,7 +83,13 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 10.4 | Source Traceability | Done |
 | | 10.5 | Retention Rules | Done |
 | P0-11 | 11.1–11.5 | Compliance UI | Done |
-| P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
+| P1-01 | 01.1 | EU VAT Core | Done |
+| | 01.2 | Member State Country Packs (DE/FR/BE/PL/IT) | Done |
+| | 01.3 | Intra-EU VAT | Done |
+| | 01.4 | OSS/IOSS | Done |
+| | 01.5 | VAT ID Validation / VIES Where Supported | Done (format+checksum; VIES itself stubbed -- ec.europa.eu unreachable, see story log) |
+| | 01.6 | Country-Specific E-Invoicing | Done |
+| P1-02 … P1-12 | — | (US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
 story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
@@ -5660,3 +5666,367 @@ practice that one-at-a-time actions are not a real usability problem yet).
 **This completes ALL of P0 (COMPLY-P0-01 through COMPLY-P0-11).** The next work, if this
 run has room for it, is P1 (§7 of the backlog) per §8's "P1 Release 1" ordering: EU VAT,
 US, Canada, Singapore.
+
+---
+
+# P1 — Global Tax & Compliance (2026-09-12)
+
+Before touching anything: `npm install` (fresh worktree, no `node_modules` -- confirmed
+`@cofounderai/*` resolved correctly, not a stale primary-checkout copy), read this file's
+own last several entries (Epics 08-11 above) plus `docs/plan/11-COMPLIANCE-GLOBAL-TAX
+-BACKLOG.md` §7/§8/§2 in full, and verified starting state: `git log
+origin/main..origin/comply-backlog --oneline` was empty (P0 fully merged), and this
+worktree's own HEAD was found to be on a STRAY scratch-merge branch
+(`worktree-agent-a550c02fe0e01f2a3`, a Discovery-workstream leftover), not `comply-backlog`
+-- exactly the "prior environment artifact has hit every workstream" scenario this run's own
+instructions warned about. Fixed by checking out `comply-backlog` and fast-forwarding to
+`origin/comply-backlog` (56 commits, no local-only commits lost) before writing anything.
+Local Postgres (`pg_ctlcluster 16 main start`) works in this environment and was used for
+real verification alongside the dev Supabase project (`jazdtomcgqjxjueedmck`).
+
+## Epic 01 -- EU VAT Framework (COMPLY-P1-01)
+
+The backlog's own single most-repeated instruction governed every story below: "Use one
+generic Compliance domain plus country/regime packs with versioned rules and government
+adapters. Never hard-code country-specific rules into the UI." Every P0-built generic table
+(`gst.compliance_profiles`, `gst.tax_registrations`, `gst.tax_rules`) already handles ANY
+country/regime by construction -- this epic's job was adding ROWS (rate/threshold/mandate
+data) and, where genuinely needed, independent thin adapters, never a second parallel
+schema for VAT the way a naive "port GST" instinct might have built.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §4/§5 first (backlog rule
+1/5), before writing anything**: no new table was created anywhere in this epic.
+`ComplianceProfile`/`TaxRegistration`/`TaxRule` (the exact §4 entities this backlog names)
+already existed from P0 and needed zero schema changes to hold Germany/France/Belgium/
+Poland/Italy's own VAT content -- confirmed by reading `gst.tax_rules`'s own migration
+(COMPLY-P0-02.3) before adding a single row.
+
+### 01.1 -- EU VAT Core (2026-09-12)
+
+`lib/compliance/eu.ts` -- the EU member-state catalog (all 27, not just the five this build
+has working country packs for -- "is this country in the EU" is a geography fact
+independent of which member states have real rate content yet) and `EU_WIDE_RULE_COUNTRY`
+("EU", a two-letter sentinel for genuinely pan-EU rules that belong to no single member
+state -- fits `gst.tax_rules.country`'s own `^[A-Z]{2}$` check constraint). Application-code
+catalog, not a table -- the same shape `lib/compliance/jurisdictions.ts`/`countries.ts`
+already established for "which countries/regimes/jurisdictions exist," since EU membership
+is a structural fact, not a versioned regulatory rule.
+
+Flipped Germany/France/Belgium/Poland/Italy from `"planned"` to `"supported"` in
+`lib/compliance/countries.ts` (regime `"VAT"`, already named in that catalog since P0's own
+placeholder entries). **A real, pleasant surprise checked before assuming any UI work was
+needed**: `country-bar.tsx` (the country/regime switcher) and
+`unsupported-country-notice.tsx` were both already driven entirely by `COUNTRY_CATALOG`'s
+own `status` field, never a hard-coded country check -- flipping the catalog flag alone
+makes all five countries genuinely selectable in the existing UI with zero component
+changes. Confirmed by reading both files before deciding this, not assumed.
+
+**What was deliberately left out**: a real EU VAT determination wired into an actual
+invoice line (no EU-country document/invoicing consumer exists yet in this platform --
+COMPLY-P0-04.5's own India equivalent only exists because India invoicing already existed
+to wire it into); Northern Ireland's own post-Brexit "XI" VAT arrangement (a real, smaller,
+separate fact from plain EU membership, not modeled -- named in `eu.ts`'s own docstring).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/compliance/
+src/components/compliance/` -- 24 passing (updated `countries.test.ts`'s own assertions,
+since "India is the only supported country" stopped being true).
+
+### 01.2 -- Member State Country Packs (2026-09-12)
+
+Germany/France/Belgium/Poland/Italy's own real standard + reduced VAT rates, seeded as
+versioned `gst.tax_rules` rows (`vat_standard_rate`, `vat_reduced_rates`), the same shape
+COMPLY-P0-04.7 already used for India's own GST rate slabs.
+
+**A real, honest limitation checked and named, not silently worked around (backlog rule 11)
+-- checked egress FIRST, per this run's own instruction ("same as prior stories hit with
+GSTN docs")**: attempted `WebFetch` against `taxation-customs.ec.europa.eu`, `ec.europa.eu`,
+`bundesfinanzministerium.de`, and `economie.gouv.fr` -- every one returned `EGRESS_BLOCKED`
+live. Every EU/national tax-authority primary source this session tried is unreachable from
+this sandbox. Rates below are therefore WebSearched and cross-checked across multiple
+independently-agreeing secondary VAT-compliance trackers per country (the same evidentiary
+tier COMPLY-P0-09.1's own GSTR due-date research already used when GSTN's own docs were
+unreachable), never a primary legal text this session could read directly -- each row's own
+`source` column says so explicitly, plus a "verify before production use" caveat matching
+COMPLY-P0-04.7's own India precedent.
+
+Rates verified 2026-09-12 (sources cited in full in the migration's own comment):
+- **Germany**: standard 19%, reduced 7% (basic foodstuffs, books, newspapers, public
+  transport, cultural services; restaurant/catering food also 7% from 1-Jan-2026 under the
+  Steueränderungsgesetz 2025).
+- **France**: standard 20%, reduced 10%/5.5%/2.1% (intermediate/reduced/super-reduced).
+- **Belgium**: standard 21%, reduced 12%/6% (noted, not modeled as a rate-list version
+  change: a 1-March-2026 category-to-bracket reclassification moves hotel/accommodation,
+  sports/entertainment tickets, and takeaway meals from 6% to 12% -- the SET of rates
+  {21,12,6} itself doesn't change, only which goods map to which bracket, which this
+  platform's generic rate-list value doesn't model at item level).
+- **Poland**: standard 23%, reduced 8%/5%/0%.
+- **Italy**: standard 22%, reduced 10%/5%/4%.
+
+**`effective_from` is deliberately a conservative, safely-recent anchor date (2024-01-01),
+not each country's own true historical rate-change date (backlog rule 11 again)**: this
+session could not independently re-verify exactly when each country's CURRENT rate
+structure first took effect against a primary source it could reach. Rather than assert an
+unverified historical date, every row's own `effective_from` only claims "this rate is
+confirmed accurate as of 2026-09-12" -- a lookup for a date before 2024-01-01 correctly
+returns `null` (no version covers it) rather than a guessed value, the same "never guess a
+fallback" posture `getEffectiveIndiaGstRateSlabs` already established.
+
+`lib/tax-rules/eu-vat-rates.ts` -- generic (country-parametrized, unlike India's own
+single-lineage `india-rate-slabs.ts`) rate-lookup helpers.
+
+**What was deliberately left out**: per-item/per-category reduced-rate mapping (see the
+Belgium note above -- this platform has no per-item reduced-rate classification for India's
+own multiple GST slabs either, so not invented here); domestic small-business VAT
+registration thresholds (not asked for by this backlog's own narrow "rates" focus for this
+sub-story -- the pan-EU OSS threshold, which IS asked for, is 01.4's own job).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/tax-rules/` -- 18
+passing. Migration (`20260912240000_gst_tax_rules_eu_vat_rates_seed.sql`, 10 rows) applied
+live to the dev Supabase project via `mcp__Supabase__apply_migration`; `get_advisors`
+(security) identical finding set before/after (same 5 pre-existing `rls_enabled_no_policy`
+infos, 1 pre-existing `auth_leaked_password_protection` warning) -- no new finding (a
+data-only insert into an existing, already-RLS'd table). Confirmed via `execute_sql` that
+all 10 rows (plus every later story's own rows) read back with the exact values intended.
+
+### 01.3/01.4 -- Intra-EU VAT / OSS/IOSS (2026-09-12)
+
+Built together (the backlog's own §7 lists them as adjacent facets of one cross-border VAT
+treatment decision, and 01.3's own B2C branch cannot be decided without 01.4's own
+threshold).
+
+`lib/eu-vat-determination/determine.ts` -- `determineEuVatTreatment`, a pure, synchronous
+function (no DB access, mirroring `place-of-supply/determine.ts`'s own "pure logic over
+caller-resolved facts" shape) deciding: domestic (same country, standard-rated at the
+seller's own rate); export (buyer outside the EU, zero-rated); intra-EU B2B (buyer has a
+VALIDATED VAT ID -- reverse charge, no VAT on the invoice); intra-EU B2C (no/invalid VAT
+ID -- origin-rated below the EU-wide OSS threshold, destination-rated above it, per a
+caller-declared cumulative distance-sales figure).
+
+**A real design decision, not an oversight, checked against the actual regulatory shape
+before writing the function**: an unvalidated OR missing buyer VAT ID is treated identically
+as B2C -- never a silent B2B assumption, since the EU's own "wrongly zero-rated supply is
+the SUPPLIER's liability" rule means a business can never safely apply intra-EU B2B
+treatment on an unverified VAT ID. This collapses "no VAT ID given" and "gave an invalid VAT
+ID" into one outcome deliberately, not two separate untested branches.
+
+**An unresolved OSS threshold never blocks a determination that never needed it**: the
+orchestrator (`queries.ts#determineEuVatTreatmentForSale`) always attempts the DB lookup but
+passes `null` straight through on failure rather than short-circuiting -- only a B2C
+intra-EU sale that actually REACHES that branch reports `incomplete: true`; a
+domestic/export/B2B sale is unaffected by whether the threshold rule happened to resolve.
+
+`lib/eu-vat-determination/oss-ioss.ts` -- lineage/parse helpers for the two pan-EU
+threshold rules seeded in `20260912250000_gst_tax_rules_eu_oss_ioss_thresholds_seed.sql`
+(country = `"EU"`, per `eu.ts`'s own sentinel): the EUR 10,000 OSS distance-selling
+threshold and the EUR 150 IOSS consignment-value ceiling, both from EU Council Directive
+(EU) 2017/2455 / Implementing Regulation (EU) 2019/2026, effective 1-July-2021 -- verified
+via WebSearch (hellotax.com, taxology.co, vatupdate.com, norman.finance, polishtax.com, and
+Wikipedia's own Import-One-Stop-Shop article for the IOSS figure specifically), primary
+source (`taxation-customs.ec.europa.eu`) confirmed unreachable this session.
+
+**What was deliberately left out**: the IOSS threshold has no consumer yet (no import-side,
+i.e. goods entering the EU FROM a non-EU seller, determination exists in this platform) --
+published as real, source-cited reference content for whichever future story builds that
+consumer, matching backlog rule 5 ("don't implement future stories implicitly") applied to
+the CONSUMER, not to publishing the regulatory fact itself; wiring `determineEuVatTreatment`
+into an actual `core.documents` invoice line (no EU-country document consumer exists yet,
+same gap 01.1 already named).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/eu-vat-determination/`
+-- 13 passing (covering every branch: unknown seller country, domestic, export, B2B
+reverse-charge, B2C at/below/above the threshold, unvalidated-VAT-ID-treated-as-B2C, and
+both "missing cumulative figure" and "missing threshold" incomplete cases independently).
+Migration (2 rows) applied live to dev Supabase; `get_advisors` unchanged.
+
+### 01.5 -- VAT ID Validation / VIES Where Supported (2026-09-12)
+
+`lib/eu-vat-id/validate.ts` -- real format + CHECKSUM validation (not a bare regex) for
+Germany/France/Belgium/Poland/Italy VAT IDs, the same rigor `core/lib/gst.ts`'s own GSTIN
+validation already established (format + mod-36 check character) rather than a
+weaker-than-precedent bar for the EU country packs. Algorithms verified via WebSearch and
+implemented exactly as documented, cross-checked by construction:
+- **Germany**: DE + 9 digits, ISO 7064 MOD 11,10 check digit over the first 8.
+- **France**: FR + 2-char key + 9-digit SIREN, `key = (12 + 3*(SIREN mod 97)) mod 97` when
+  the key is numeric (a letter key is accepted as format-valid without a checksum -- this
+  module has no documented rule for when a letter key is assigned, a named, honest gap).
+- **Belgium**: BE + 10 digits (first digit 0 or 1), last two digits = `97 - (first eight
+  digits mod 97)`.
+- **Poland**: PL + 10-digit NIP, weighted (6,5,7,2,3,4,5,6,7) modulo-11 check digit; a
+  remainder of 10 is never valid.
+- **Italy**: IT + 11-digit Partita IVA, Luhn-style check digit.
+
+**A genuinely useful cross-check found while writing tests**: self-computing a valid DE
+example via the implemented algorithm produced `DE136695976` and a valid BE example produced
+`BE0403170701` -- both of which are well-known, independently-recognizable public VAT test
+numbers, increasing confidence the implementations are correct (not merely internally
+self-consistent). The French and Polish test cases reuse WORKED EXAMPLES found directly in
+this session's own research (SIREN 404833048 -> key 83; NIP 2073786728 with its own digit-
+by-digit worked checksum), not self-computed values.
+
+Deliberately NOT a versioned `gst.tax_rules` row: a VAT number's own check-digit algorithm
+is a structural, decades-stable numbering-scheme fact, not a regulatory rate/threshold/
+deadline that changes over time -- the same reasoning `treatments.ts`'s own fixed catalog
+already documents for the universal treatment vocabulary.
+
+`lib/eu-vat-id/vies-adapter.ts` -- the `ViesAdapter` contract (mirrors `IrpAdapter`) for
+confirming a VAT ID is CURRENTLY REGISTERED, not just well-formed. **Checked reachability
+first, per this run's own explicit instruction**: the real VIES SOAP endpoint lives under
+`ec.europa.eu/taxation_customs/vies/...` -- both `ec.europa.eu` and
+`taxation-customs.ec.europa.eu` returned `EGRESS_BLOCKED` when fetched directly this
+session (confirmed live, not assumed). `StubViesAdapter` always throws a clearly-labeled
+`ViesUnreachableError` naming the country it couldn't check, rather than fabricating a
+valid/invalid result -- the interface itself is real and ready for a future environment
+with reachable EU Commission network access to implement against with zero caller changes.
+
+**What was deliberately left out**: a live VIES implementation (impossible in this sandbox,
+see above); a `core.tax_identities`-equivalent column to persist a party's own EU VAT ID
+(that table is India-GST-shaped -- `gstin`/`state`/`gst_registration_type` -- and `core` is
+out of this workstream's own scope; a real future need, not invented here); per-country VAT
+ID format for the 22 EU member states this build has no rate/mandate content for yet (a
+real, plausible future expansion, not built ahead of a real consumer).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/eu-vat-id/` -- 20
+passing (19 format/checksum cases across all five countries' positive/negative/malformed
+cases, plus the stub adapter's own rejection).
+
+### 01.6 -- Country-Specific E-Invoicing -- completes COMPLY-P1-01 (2026-09-12)
+
+"Country adapters must be independent." Four genuinely separate packages
+(`lib/einvoicing-{de,fr,be,pl}/`) -- own types, own mandate-eligibility logic, own adapter
+interface/stub -- deliberately NOT unified behind one shared "EU e-invoicing" abstraction,
+mirroring how India's own `IrpAdapter`/`EwayBillAdapter` (COMPLY-P0-05.3/06.3) are two
+independent interfaces rather than one "government adapter" base type.
+
+**Re-verified the backlog's own four named mandates via WebSearch this session, since the
+backlog document predates this run (explicit instruction: "confirm nothing has changed")**
+-- all four are still current, several now MORE PRECISELY dated than the backlog's own
+terse "2026/2027" language:
+- **Germany**: reception (all businesses) from 1-Jan-2025 -- already in force. Issuance
+  (turnover over EUR 800,000) from 1-Jan-2027. Universal issuance from 1-Jan-2028.
+- **France**: DGFiP publicly reconfirmed NO delay to 1-Sep-2026 (sovos.com, vatcalc.com,
+  vatit.com, tradeshift.com, avalara.com, softco.com, vatupdate.com all independently
+  agreeing, despite public "third delay" speculation this session's own search also
+  surfaced) -- reception (all businesses) + issuance (large/GE and mid/ETI) from
+  1-Sep-2026; issuance (small/PME and micro/TPE) from 1-Sep-2027. A DGFiP soft-enforcement
+  period (no automatic sanctions for good-faith businesses) runs through 31-Dec-2026 -- an
+  enforcement POSTURE, not a change to the legal deadline, so not modeled as its own phase.
+- **Belgium**: live since 1-Jan-2026 (all VAT-registered B2B, Peppol/EN 16931) -- the Q1
+  2026 tolerance period has now expired as of this migration's own creation date. A
+  near-real-time e-Reporting requirement targets 1-Jan-2028.
+- **Poland (KSeF 2.0)**: signed into law 27-Aug-2025. THREE precise tiers, more specific
+  than the backlog's own language: large taxpayers (turnover over PLN 200 million) from
+  1-Feb-2026; all other VAT-registered businesses (excluding micro-entrepreneurs) from
+  1-Apr-2026; micro-entrepreneurs from 1-Jan-2027. No financial penalties apply during 2026
+  itself (an "education, not fines" grace year) -- KSeF-specific penalties (up to 100% of
+  the VAT on an invoice issued outside KSeF) begin 1-Jan-2027.
+
+Each country's own mandate schedule is seeded as ONE versioned `gst.tax_rules` row
+(`einvoicing_b2b_mandate_schedule`) holding the full phased rollout as a compound jsonb
+value -- the same "one rule, one compound value for a multi-part regulatory fact" shape
+COMPLY-P0-09.1's own GSTR-1/3B due-date rules already established, rather than one row per
+phase (a country's phased schedule is one law/settled roadmap, not a sequence of
+supersessions of the same fact).
+
+**Each country's own eligibility-gating shape genuinely differs, which is exactly why this
+story kept four independent files rather than one shared determiner**: Germany gates by a
+single EUR turnover threshold; France by INSEE company-SIZE CATEGORY (GE/ETI/PME/TPE), not
+a number; Belgium has NO gating at all (every VAT-registered business, same date); Poland
+gates by a three-tier PLN-turnover-plus-micro-entrepreneur-carveout. Every determiner
+returns `applies: boolean | null` per phase -- `null` (never silently `false`) whenever the
+caller-declared fact it needs (turnover, company size, VAT-registration status,
+micro-entrepreneur status) is itself unknown, the same "never understate an obligation"
+posture (backlog rule 11) `determineEinvoiceEligibility`'s own India equivalent established.
+
+Each adapter (`DeEinvoicingAdapter`/`FrEinvoicingAdapter`/`BeEinvoicingAdapter`/
+`PlEinvoicingAdapter`) is its own interface, deliberately NOT one shared "submit" shape --
+Germany's own exchange is decentralized (no clearance portal); France transmits via a PDP or
+the public PPF; Belgium via Peppol's four-corner model; Poland's KSeF is a real government
+clearance API structurally closer to India's own IRP. Every stub implementation throws a
+clearly-labeled `*UnreachableError` naming the invoice it couldn't submit -- no real
+sandbox/test credentials exist in this environment for any of the four, and this story found
+no public sandbox endpoint reachable to integrate against for any of them either
+(Germany/France/Belgium: no credentials AND no located public sandbox; Poland: KSeF has a
+documented test environment in principle, but no NIP/certificate to authenticate with here).
+
+**What was deliberately left out**: a real working submission to any of the four government
+systems (no reachable sandbox/credentials for any -- see above); wiring the mandate
+eligibility functions into a real per-business "are you subject to X mandate" UI (no
+EU-country document/invoicing consumer exists yet in this platform, the same gap 01.1/01.3
+already named -- this epic built the DETERMINATION logic and real dated facts, not a new UI
+surface, matching how much of P0's own Epic 05-10 backend work also shipped ahead of
+COMPLY-P0-11's dedicated UI epic); a fifth+ country pack beyond the backlog's own named
+initial four for e-invoicing (Italy has no P1-01.6-equivalent mandate named in the backlog's
+own §2 research -- Italy's own e-invoicing via SdI actually already exists and predates this
+backlog's own P1 research entirely, a genuinely different, older, already-settled mandate
+this session did not attempt to research/model without an explicit backlog pointer to do
+so, matching backlog rule 5).
+
+**A real, pre-existing gap discovered (not introduced, not fixed -- out of this
+workstream's scope) while running the full local-Postgres `test:db` chain for the first
+time this session**:
+1. `scripts/test-gst-tax-rules-rls.mjs`'s own "duplicate version is rejected" assertion
+   (COMPLY-P0-02.3's own test) fails against a real Postgres: two `gst.tax_rules` rows
+   sharing `(country, regime, rule_key, version)` with `jurisdiction` BOTH NULL do not
+   violate the unique index, because standard SQL treats `NULL <> NULL` -- this is the
+   EXACT gap that migration's own comment already named and deliberately left unfixed
+   ("not fixed here... revisit if a real multi-writer admin workflow makes the gap
+   matter"), now concretely triggered by this test's own scenario (both its v2-lineage and
+   its "duplicate v2" probe use `jurisdiction = null`). Every row THIS epic added has a
+   fully-disjoint, unique `(country, regime, rule_key, version)` combination (different
+   `country`/`rule_key` values throughout) -- unaffected by the gap, confirmed via
+   `execute_sql` that all 16 EU rows read back exactly as intended with no constraint
+   collisions of any kind.
+2. `scripts/test-discovery-rls.mjs`'s own hardcoded permission-catalogue count (53) is
+   stale against the real, current count (56) -- concurrent CRM-backlog/FSM-story
+   permission additions have been merged into `main` since that count was last updated in
+   its own test file. Unrelated to this epic (this test never touches `gst.tax_rules` or
+   any EU country data at all).
+
+Neither was touched here: both are genuine, pre-existing, out-of-scope issues (a P0-era
+test file's own known-and-documented limitation, and cross-workstream test drift in a
+`discovery`-adjacent test) -- flagged for whichever future session is authorized to fix
+`scripts/test-gst-tax-rules-rls.mjs` (a real fix would need a partial unique index with a
+`COALESCE`d sentinel for `jurisdiction`, or an equivalent constraint, itself a P0-02.3-
+adjacent schema change out of this run's own "add data, not fix P0 schema" scope for
+COMPLY-P1-01) or `scripts/test-discovery-rls.mjs`'s own count.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean, throughout all six sub-stories.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning (`crm/conversations/page.tsx`'s own unused `Package` import) as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1376 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 168 migration files, 0 violations (all three
+  of this epic's own migrations are data-only INSERTs into the existing `gst.tax_rules`
+  table -- no DDL, so no schema-boundary surface at all).
+- `npx vitest run` (full `module-gst` suite) -- **534 tests passing** (458 prior end-of-P0 +
+  76 new across all six COMPLY-P1-01 sub-stories).
+- All three migrations (`20260912240000` rates, `20260912250000` OSS/IOSS,
+  `20260912260000` e-invoicing schedules) applied live to the **dev** Supabase project
+  (`jazdtomcgqjxjueedmck`) via `mcp__Supabase__apply_migration`. `get_advisors` (security)
+  re-checked after each: identical finding set throughout (same 5 pre-existing
+  `rls_enabled_no_policy` infos, 1 pre-existing `auth_leaked_password_protection` warning)
+  -- no new finding at any point (every migration is a pure data INSERT into an
+  already-RLS'd, already-licensed-gated table).
+- Confirmed via `execute_sql` against the dev project that all 16 new `gst.tax_rules` rows
+  (10 rate rows across the five countries + 2 OSS/IOSS rows + 4 e-invoicing-schedule rows
+  for Germany/France/Belgium/Poland -- Italy has no e-invoicing-schedule row, see above)
+  read back with exactly the intended values.
+- **Local Postgres actually run this session** (cluster started fresh, confirmed working):
+  the full 168-file migration timeline (including all three of this epic's own migrations)
+  applied cleanly with no error; `scripts/test-gst-tax-rules-rls.mjs` run individually
+  surfaced the pre-existing NULL-uniqueness gap documented above (not caused by this
+  epic's own rows); the full `npm run test:db` chain was also run and separately surfaced
+  the pre-existing, unrelated `test-discovery-rls.mjs` permission-count drift documented
+  above, before it would have reached any `gst`-specific script.
+- `cd apps/web && npx tsc --noEmit` -- clean. `cd apps/web && npm run build` -- clean
+  production build (touched `country-bar.tsx`'s own docstring only, no logic change; ran
+  the build anyway since it's a UI component this epic's own country-flip makes newly
+  reachable for five more countries).
+- No live browser walkthrough -- same documented limitation as every prior UI-adjacent
+  story in this log (no seeded demo user/`apps/web/.env.local` in this environment); this
+  epic shipped no NEW UI of its own regardless (01.1's own finding: the existing country
+  bar needed zero changes).
+
+**COMPLY-P1-01 (EU VAT Framework) is now fully done.** Per §8's "P1 Release 1" ordering,
+next is COMPLY-P1-02 (United States -- state/local sales tax jurisdictions, economic nexus,
+physical nexus, taxability, exemption certificates, sales tax returns, 1099s).
