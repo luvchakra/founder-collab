@@ -23,7 +23,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
-| | 06 | Usage & Limits | 06.1-06.4 done (counters, dashboard, atomic enforcement, graceful copy/UI); 06.5 (Soft vs Hard Limits) **stopped -- genuine architectural ambiguity the doc doesn't resolve, see log entry for the exact open questions** |
+| | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -38,7 +38,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 4 full sections done (01, 02, 03 -- 03.2 deferred by design, 04), plus 18.1.
+**P0: 6 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06), plus 18.1.
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -2578,3 +2578,246 @@ precedent PLATFORM-P0-05.1's own entry above set (stop, document precisely, wait
 user's own decision, resume from exactly this point once it's given). This run's own
 usage-tracking note: well under the 80% stop threshold -- this is a natural, doc-mandated
 stopping point for this one story, not a usage cutoff.
+
+### PLATFORM-P0-06.5 (resumed) — Soft vs Hard Limits, Warning Threshold (2026-09-12)
+
+**Worktree-reuse hazard checked before writing anything (per this workstream's own standing
+instruction)**: this run's worktree `HEAD` was `6334596` ("Merge remote-tracking branch
+'origin/comply-backlog'"), checked out under a `worktree-agent-*` branch name --
+`feature/platform-admin-portal` was a real, up-to-date local branch
+(`git log origin/main..origin/feature/platform-admin-portal` was empty, matching the
+dispatch's own pre-flight check) but not what this worktree had checked out. Working tree
+was clean, so no stash was needed -- fixed with a plain `git checkout
+feature/platform-admin-portal`, then re-verified `git rev-parse HEAD` matched
+`origin/feature/platform-admin-portal` (`1a4ef4e`, this section's own stop-and-report entry
+above) before touching any file.
+
+**Resuming exactly where the previous entry stopped**: the three open questions that entry
+raised have been answered directly by the user (not derived or guessed by this run) as part
+of this run's own dispatch. Implemented exactly as given -- no re-litigation, no broader
+scope:
+
+1. **Soft-limit behavior**: a soft limit never blocks. `getLimit()`/`canConsume()` keep
+   allowing exactly as today for an ordinary `limited` state at/under its cap; once usage is
+   at or over the limit for a `soft`-typed resource, the action is still `allowed: true`,
+   with `reason` saying the business is over its plan's *guideline* rather than denying it.
+   No overage ceiling of any kind (the "billing overage" option was explicitly rejected).
+2. **Schema shape**: a new, independent `limit_type` column on `platform.plan_limits`
+   (`'soft' | 'hard'`), meaningful only when `state = 'limited'`, defaulting every
+   pre-existing and newly-`limited` row to `'hard'` -- `state`'s own three existing values
+   are untouched.
+3. **Warning Threshold**: UI-only, computed on the fly from `getLimit()`'s own real
+   `usage`/`limit`, no schema change, no per-plan configurability, no notification/email
+   wiring (PLATFORM-P0-11 stays out of scope). `DEFAULT_WARNING_THRESHOLD_PERCENT = 80`.
+
+**What was built, decision #2 (schema)**: migration
+`20260912110000_platform_plan_limits_soft_hard.sql` -- `platform.plan_limits.limit_type`
+(nullable `text`), backfilled to `'hard'` for any pre-existing `limited` row (none exist in
+dev today -- confirmed live via `execute_sql` before writing the migration, same as every
+prior plan-limits story's own "check live data first" discipline), with a new row-level
+CHECK, `plan_limits_type_matches_state`, requiring `limit_type in ('soft','hard')` exactly
+when `state = 'limited'` and `null` otherwise -- the identical "companion column gated on
+`state`" shape `plan_limits_value_matches_state` already established for `limit_value`
+itself. No RLS policy change (row-level, not column-level; the existing superadmin-write/
+any-authenticated-read policies from PLATFORM-P0-04.5/04.6 and PLATFORM-P0-05.2 already
+cover every column on the row).
+
+**A real bug found by the local RLS test, not by reading the SQL, and fixed before this
+story's first commit**: the first draft of `plan_limits_type_matches_state` was
+`(state = 'limited' and limit_type in ('soft','hard')) or (state in ('unlimited','disabled')
+and limit_type is null)` -- the exact same *shape* `plan_limits_value_matches_state` uses,
+but with one load-bearing difference: `limit_type in (...)` on a NULL column evaluates to
+SQL `NULL`, not `false` (`NULL IN (...)` is `NULL`), and Postgres treats a NULL CHECK result
+as *satisfied*, not violated. The result: inserting a `limited` row with no `limit_type` at
+all silently succeeded instead of being rejected -- a real, live defect in decision #2's own
+"required exactly when state='limited'" rule, caught by
+`scripts/test-platform-plan-limits-rls.mjs`'s very first run of its own new assertion
+("limited with no limit_type at all is rejected"), which failed with "expected an error,
+none was thrown." `plan_limits_value_matches_state` (the sibling constraint, written a
+migration ago) avoids this exact trap by using `is not null`/`is null` throughout rather
+than `in`; this migration's own constraint didn't, initially, and this is exactly why the
+higher bar this workstream holds itself to requires an actually-executed local-Postgres test
+per new column/constraint rather than a read of the SQL -- reading this constraint's text
+alone would not have caught it. Fixed in the same migration file (never committed with the
+bug) to `(state = 'limited' and limit_type is not null and limit_type in ('soft','hard'))
+or (state in ('unlimited','disabled') and limit_type is null)` -- confirmed correct by
+re-running the same local test to green. The live dev project, which had already received
+the buggy version via `apply_migration`, was fixed with one corrective `alter table ...
+drop constraint ... ; alter table ... add constraint ...` (not a second migration file --
+the single committed migration already carries the corrected text) and reconfirmed via
+`pg_get_constraintdef`.
+
+**What was built, decision #1 (soft-limit enforcement)**: migration
+`20260912120000_core_try_consume_usage_counter_soft_limits.sql` drops and recreates
+`core.try_consume_usage_counter()` (PLATFORM-P0-06.3) -- Postgres cannot `CREATE OR REPLACE`
+a function whose `RETURNS TABLE` shape changes, and this adds one output column,
+`limit_type` (mirrors the table's own column). No argument/signature change, so the one
+existing caller (`canConsume()`) is unaffected. Body change is a single new branch: when
+`state = 'limited' and limit_type = 'soft'`, the function now unconditionally grants and
+increments (same as the `unlimited`/`unrestricted` branches), instead of checking
+`v_before + p_quantity > v_limit` the way the `hard` branch (unchanged) still does. The
+row-level lock (`select ... for update`) that makes the whole function atomic is untouched
+and now guards both branches identically -- removing the *denial* for soft does not remove
+the *lock*.
+
+`getLimit()`/`buildLimitEntitlementDecision()` and `canConsume()`/
+`buildConsumeEntitlementDecision()` (`packages/core/src/entitlements/limit-entitlement.ts`)
+both thread `limit_type` through (the `platform_limits` select and the RPC call each now
+read/return it) and both grow one new branch, checked before the existing hard-limit logic:
+a `limited` row/attempt whose `limit_type` is `'soft'` (defaulting to `'hard'` when the
+field is absent, so every existing call site and every pre-06.5 unit test that never passed
+`limit_type` keeps its exact prior behavior) is always `allowed: true`; the `reason` text
+says "usage ... is within the ... plan's limit ..." while under the guideline (identical
+wording to the hard case) and "usage ... is over your ... plan's guideline of ..." once at
+or over it, rather than claiming a false "within the limit." `limit`/`usage`/`remaining` are
+still the real numbers either way (`remaining` still clamped to a minimum of 0, same as the
+hard case) -- a soft limit changes what "allowed" and the copy mean, not what the numbers
+are.
+
+**What was built, decision #3 (Warning Threshold)**: new
+`packages/core/src/entitlements/limit-warning-messaging.ts` -- `isApproachingLimit(usage,
+limit, thresholdPercent = DEFAULT_WARNING_THRESHOLD_PERCENT)` (pure; `false` whenever
+`limit`/`usage` is `null`, `limit <= 0` avoids a division by zero, and once `usage >= limit`
+-- that is `describeLimitReached()`'s own case, or a soft-limit allowance's, not a warning's)
+and `describeLimitWarning(decision, resourceLabel, planKey, thresholdPercent?)` (mirrors
+`describeLimitReached()`'s own "raw decision in, copy out" split, but returns `null` instead
+of throwing when there's nothing to warn about, since a caller checking on every render
+needs a cheap "should I show anything" answer rather than a try/catch). No schema change, no
+per-plan configurability, no notification wiring -- exactly as scoped. New
+`packages/core/src/components/limits/limit-warning-notice.tsx` -- `LimitWarningNotice`, a
+sibling of `LimitReachedNotice` (PLATFORM-P0-06.4) rather than a `variant` prop added to it:
+the two are built from different decision states (a denial vs. an approaching-but-still-
+allowed one) and keeping them as separate, small, single-purpose components avoids a prop
+that would let a caller pass the wrong kind of decision into the wrong copy-shaping
+function. Same default (non-destructive) `Alert`, an `AlertTriangle` icon (already used
+elsewhere in this codebase, e.g. `dashboard/page.tsx`, `crm/lost-business/page.tsx`) instead
+of `LimitReachedNotice`'s `Gauge`, and no "Upgrade" button -- a warning is a heads-up on an
+action that already succeeded, not the dead end a denial is, so "View usage" is the one
+button that reliably makes sense here. Like its sibling, `usageHref` is optional and
+independent (never a dead link when omitted), and **no page renders this component yet** --
+same boundary PLATFORM-P0-06.4's own entry drew for `LimitReachedNotice`: a real caller
+needs a real trigger (a module reading `getLimit()`) and a real "View usage" destination,
+neither of which exists yet; wiring either in now would be inventing a future module's own
+integration work.
+
+**UI (admin side)**: `quantity-limits-section.tsx` (the "Limited" row's own controls, §8's
+entitlements page) gains a Hard/Soft `NativeSelect` shown only alongside the numeric value
+(same "two related fields, one Save" reasoning already governing that row), defaulting to
+Hard for a fresh row and remembering a soft row's own already-configured type when editing
+it. The state badge for a configured `limited` row now appends a small `(soft)` qualifier
+when applicable -- an ordinary hard limit (today's default, and every pre-06.5 configured
+row) renders exactly as before, unchanged pixel-for-pixel. The section's own header copy and
+file-level docstring both gained one sentence naming the Hard/Soft distinction plainly.
+
+**Deliberately not built this story, and why -- staying exactly inside the three decisions
+given, no broader scope**:
+- No overage billing ceiling, no per-attempt override/dismiss flow for a hard limit -- both
+  were named candidate meanings for "soft limit" in the previous entry's own stop-and-report
+  and both were explicitly rejected by decision #1's own wording ("there is no ceiling on a
+  soft limit," "this decision explicitly rejected the 'billing overage ceiling' option").
+- No new column or table for the warning threshold, no per-plan/per-resource configurable
+  percentage, no notification or email wiring for crossing it -- all three explicitly
+  declined by decision #3, `PLATFORM-P0-11` (Global Email/Notification Configuration) stays
+  "Not started."
+- No page renders `LimitWarningNotice` (see above) and no module's own mutating action calls
+  `getLimit()`/`canConsume()` to trigger either notice -- the same "each module's own future
+  integration work" boundary PLATFORM-P0-06.1/06.3/06.4 already drew, unchanged by this
+  story.
+- `platform.plan_features`/`plan_modules` untouched -- decision #1 is explicit that this
+  only affects the limits/counters path.
+
+**Verification**: this worktree needed its own `npm install` first (fresh worktree, no
+local `node_modules` -- same cross-checkout symlink issue every prior worktree-run entry in
+this log has documented; confirmed `readlink -f node_modules/@cofounderai/core` resolves to
+this worktree's own `packages/core`). Full monorepo `npm run typecheck` -- clean across
+every workspace. `npm run lint --workspaces --if-present` -- 0 errors, the same 1
+pre-existing unrelated warning (`Package` unused import in a CRM conversations page,
+untouched by this story) every prior entry has logged. `node
+scripts/lint-import-boundaries.mjs` -- 1194 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 142 migrations, no violations (this branch's own
+prior-story count was 140; +2, this story's own two files). `npx vitest run --root
+packages/core` -- 18 files / 156 tests passed (127 -> 156, +29 new: 6 `platform-plan-
+limits.test.ts` limit_type cases, 7 `limit-entitlement.test.ts` soft/hard cases across both
+`buildLimitEntitlementDecision`/`buildConsumeEntitlementDecision`, 16
+`limit-warning-messaging.test.ts` cases for `isApproachingLimit`/`describeLimitWarning`).
+`apps/web`'s own `vitest run --passWithNoTests` -- 47 tests, unchanged (no new apps/web test
+file this story). `cd apps/web && rm -rf .next && npm run build` -- clean; the route
+listing is unchanged from PLATFORM-P0-04.3's own entry (`/platform/plans/[id]/entitlements`
+still lists `ƒ` dynamic; `LimitWarningNotice` is a component, not a route, same as
+`LimitReachedNotice`).
+
+Both migrations applied live via `mcp__Supabase__apply_migration` against the **dev**
+project (`jazdtomcgqjxjueedmck`) only -- confirmed via `execute_sql` that
+`platform.plan_limits` was empty before either migration (so the backfill touched zero
+rows, matching PLATFORM-P0-04.5's own "starts empty" stance), and via `pg_get_constraintdef`
+that the corrected (post-bugfix) constraint text is exactly right. `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and
+the pre-existing leaked-password-protection warning every prior entry has logged (a new
+column + CHECK, and a dropped/recreated function, add no new RLS surface).
+`mcp__Supabase__get_advisors` (performance) -- zero new findings (no new table, no new
+index; the function drop/recreate adds nothing for either advisor to flag).
+
+**Role-switched live proof against dev's own real data (not a synthetic seed), the standard
+this workstream has held itself to since PLATFORM-P0-03.4**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`) and one of their real businesses (`Meridian
+HomeTech Solutions`, on the real `free` plan) PLATFORM-P0-06.3's own entry already used --
+temporarily seeded `contacts = limited/soft(1)` and `prospects = limited/hard(1)` on the
+free plan, then, role-switched as that authenticated user (`set local role authenticated;
+set local request.jwt.claim.sub = '<their id>'`): `try_consume_usage_counter(<their
+business>, 'contacts', 5, 'current')` returned `{state: limited, limit_value: 1, limit_type:
+soft, usage_before: 0, usage_after: 5, granted: true}` -- a soft limit of 1, asked to
+consume 5, granted in full, no ceiling, exactly as decision #1 specifies; the equivalent
+call against `prospects` (`hard`, same limit of 1, same quantity of 5) returned `{...,
+usage_after: 0, granted: false}` -- the hard branch denies exactly as PLATFORM-P0-06.3 left
+it, proving this story changed no hard-limit behavior at all. Both temporary `plan_limits`
+rows and both resulting `usage_counters` rows were deleted immediately afterward, reconfirmed
+via a direct count query (`0` rows) -- dev is left exactly as it was found, no residue.
+
+**The dedicated local-Postgres re-verification this workstream's own higher bar requires for
+a modified `try_consume_usage_counter()`** (not just a read of the updated SQL): extended
+the existing `scripts/test-core-try-consume-usage-counter-rls.mjs` (PLATFORM-P0-06.3's own
+script) rather than writing a new one -- this is the same access pattern/function, not a new
+one, so following that script's own precedent of extending
+`test-platform-plan-limits-rls.mjs`/`test-core-plan-entitlement-lookup.mjs` in place for a
+column addition rather than forking a parallel file. Every pre-existing `limited` seed row
+in that script now explicitly carries `limit_type = 'hard'` (the migration's own backfill
+default), so every one of PLATFORM-P0-06.3's own original assertions is re-verified against
+the *current*, modified function with no behavior change. New assertions (seeded against a
+fresh `contacts = limited/soft(2)` row): a soft limit grants normally under its guideline
+(identical to a hard grant); grants exactly at the guideline; **grants past the guideline**
+(the one behavior that actually differs from hard); grants a large single over-the-guideline
+quantity request in full, atomically. **The concurrency re-verification this story's own
+task brief specifically asked for**: 10 concurrent callers against a soft limit already well
+past its own guideline are *all* granted (proving a soft limit never denies, even under
+real concurrent load) with the final counter landing at exactly `13 + 10 = 23` -- proving
+the same `for update` row lock that PLATFORM-P0-06.3's own two hard-limit concurrency tests
+(re-run here, still passing, still exactly 2 and exactly 3) already proved race-free
+continues to serialize correctly for the soft branch too, with zero lost updates, even
+though that branch's own decision logic no longer has a denial path to protect. **All 26
+assertions passed** (17 pre-existing + 9 new) against the full current migration timeline
+(142 files, including both this story's own files). `scripts/test-platform-plan-limits-rls.mjs`
+extended with 6 new assertions proving the corrected `plan_limits_type_matches_state`
+CHECK constraint (both the bug and the fix, described above, were proven by actually running
+this script, not by reading the constraint's text) plus a real hard-to-soft flip by a
+superadmin -- **all 15 assertions passed**. `scripts/test-core-plan-entitlement-lookup.mjs`
+extended to also read back `limit_type` through the same non-superadmin join chain it
+already proves -- **all 7 assertions passed**. Local Postgres 16 was already running in this
+environment (`pg_lsclusters` showed it online).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening `/platform/plans/[id]/entitlements`, setting a
+resource to Soft, and later seeing `LimitWarningNotice`/a soft-limit "over guideline" message
+render in a real product surface was **not** performed and is **not** claimed here (no
+surface renders either yet, by design -- see "deliberately not built" above). This entry's
+functional and authorization-critical claims (soft-limit enforcement grants past the
+guideline with no ceiling; hard-limit enforcement is unchanged; the new CHECK constraint
+holds, including the real bug this story's own local test caught before it ever reached a
+commit) were verified for real against both the live dev Supabase project (role-switched, as
+a real user, against real business data, residue cleaned up afterward) and a real local
+Postgres database running every relevant RLS/behavior test to completion -- not merely
+asserted from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-06.5 done. §10 (Usage & Limits) is now fully complete: 06.1-06.5 all
+done and merged to `main`. Continuing in doc order, per this run's own task brief: §11
+(Module Administration, PLATFORM-P0-07) next.

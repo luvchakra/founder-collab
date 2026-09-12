@@ -27,6 +27,16 @@ export type { ResourceKey };
 export type LimitState = "limited" | "unlimited" | "disabled";
 const LIMIT_STATES = ["limited", "unlimited", "disabled"] as const;
 
+/**
+ * PLATFORM-P0-06.5 decision #2: an independent column, meaningful only when
+ * `state = 'limited'` -- see the migration's own docstring
+ * (`20260912110000_platform_plan_limits_soft_hard.sql`) for why this does not reinterpret
+ * `LimitState`/`state` itself. `null` for `unlimited`/`disabled` rows and for a row that
+ * doesn't exist yet (`configured: false`), matching the DB's own CHECK constraint.
+ */
+export type LimitType = "soft" | "hard";
+const LIMIT_TYPES = ["soft", "hard"] as const;
+
 /** One resource dimension's configured state for one plan -- or `configured: false` when
  * no row exists yet, the honest "not yet configured" gap this table's own migration
  * docstring deliberately does not paper over with a fabricated default. */
@@ -37,6 +47,7 @@ export type PlanResourceLimit =
       configured: true;
       state: LimitState;
       limitValue: number | null;
+      limitType: LimitType | null;
       updatedAt: string;
       updatedBy: string | null;
     };
@@ -45,6 +56,7 @@ type PlanLimitRow = {
   resource_key: ResourceKey;
   state: LimitState;
   limit_value: number | null;
+  limit_type: LimitType | null;
   updated_at: string;
   updated_by: string | null;
 };
@@ -57,7 +69,7 @@ export async function listPlanLimits(planId: string): Promise<PlanResourceLimit[
   const supabase = await createClient({ schema: "platform" });
   const { data, error } = await supabase
     .from("plan_limits")
-    .select("resource_key, state, limit_value, updated_at, updated_by")
+    .select("resource_key, state, limit_value, limit_type, updated_at, updated_by")
     .eq("plan_id", planId);
   if (error) throw error;
 
@@ -70,6 +82,7 @@ export async function listPlanLimits(planId: string): Promise<PlanResourceLimit[
       configured: true as const,
       state: row.state,
       limitValue: row.limit_value,
+      limitType: row.limit_type,
       updatedAt: row.updated_at,
       updatedBy: row.updated_by,
     };
@@ -87,6 +100,13 @@ export const setPlanLimitSchema = z
       .trim()
       .optional()
       .transform((v) => (v === undefined || v === "" ? null : Number(v))),
+    // PLATFORM-P0-06.5 decision #2: optional on input -- see the `.transform()` below for
+    // why a missing value defaults to 'hard' (decision #1's own "unchanged default")
+    // rather than being rejected the way an out-of-place `limitValue` is above. There is no
+    // meaningful "wrong" limitType once `state` isn't 'limited' either, so it is silently
+    // normalized to `null` there rather than erroring on a stray value from a form that
+    // didn't clear it after switching away from "Limited".
+    limitType: z.enum(LIMIT_TYPES).optional(),
   })
   .superRefine((val, ctx) => {
     if (val.state === "limited") {
@@ -98,7 +118,11 @@ export const setPlanLimitSchema = z
     } else if (val.limitValue !== null) {
       ctx.addIssue({ code: "custom", path: ["limitValue"], message: "Unlimited and Disabled do not take a numeric value." });
     }
-  });
+  })
+  .transform((val) => ({
+    ...val,
+    limitType: val.state === "limited" ? (val.limitType ?? ("hard" as const)) : null,
+  }));
 export type SetPlanLimitInput = z.input<typeof setPlanLimitSchema>;
 
 export async function setPlanLimit(
@@ -121,6 +145,7 @@ export async function setPlanLimit(
       resource_key: resourceKey,
       state: parsed.data.state,
       limit_value: parsed.data.limitValue,
+      limit_type: parsed.data.limitType,
       updated_by: user?.id ?? null,
       updated_at: new Date().toISOString(),
     },

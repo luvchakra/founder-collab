@@ -6,7 +6,9 @@
  * direct re-proof that this new table is covered by PLATFORM-P0-03.4's schema-grant fix.
  * Also proves 04.6's own tri-state CHECK constraint (`plan_limits_value_matches_state`)
  * holds even for a superadmin -- the "never a fake unlimited number" rule is enforced by
- * the database itself, not only the app's Zod schema.
+ * the database itself, not only the app's Zod schema. Extended for PLATFORM-P0-06.5 (Soft
+ * vs Hard Limits): proves the new `limit_type` column and its own
+ * `plan_limits_type_matches_state` CHECK constraint the same way.
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -55,8 +57,8 @@ async function main() {
       console.log("Verifying a business admin (not a superadmin) can read but not change limits...");
       psql(`
         set local role service_role;
-        insert into platform.plan_limits (plan_id, resource_key, state, limit_value)
-        values ('${proPlanId}', 'businesses', 'limited', 5);
+        insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type)
+        values ('${proPlanId}', 'businesses', 'limited', 5, 'hard');
       `);
       // PLATFORM-P0-05.2/05.3's own migration opened SELECT on this catalog to any
       // authenticated user (getLimit() reads it on behalf of ordinary business members) --
@@ -133,6 +135,52 @@ async function main() {
             `insert into platform.plan_limits (plan_id, resource_key, state) values ('${proPlanId}', 'bogus_dimension', 'unlimited')`,
           ),
         "an unrecognized resource_key is rejected -- the 13 dimensions are a closed list",
+      );
+
+      console.log("Verifying PLATFORM-P0-06.5's own plan_limits_type_matches_state CHECK constraint holds even for a superadmin...");
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `insert into platform.plan_limits (plan_id, resource_key, state, limit_value) values ('${proPlanId}', 'contacts', 'limited', 5)`,
+          ),
+        "limited with no limit_type at all is rejected -- limit_type is required exactly when state='limited'",
+      );
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values ('${proPlanId}', 'contacts', 'limited', 5, 'bogus')`,
+          ),
+        "limited with an unrecognized limit_type is rejected -- 'soft'/'hard' is a closed list",
+      );
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `insert into platform.plan_limits (plan_id, resource_key, state, limit_type) values ('${proPlanId}', 'contacts', 'unlimited', 'hard')`,
+          ),
+        "unlimited with a limit_type set is rejected -- limit_type is meaningless (must be null) for any state other than 'limited'",
+      );
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `insert into platform.plan_limits (plan_id, resource_key, state, limit_type) values ('${proPlanId}', 'contacts', 'disabled', 'soft')`,
+          ),
+        "disabled with a limit_type set is rejected",
+      );
+
+      console.log("Verifying a superadmin can configure both a hard and a soft limit for real, and read the distinction back...");
+      psqlAsZoe(
+        `insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values ('${proPlanId}', 'contacts', 'limited', 10, 'hard')`,
+      );
+      assertEqual(
+        psqlAsZoe(`select limit_type from platform.plan_limits where resource_key = 'contacts'`),
+        "hard",
+        "the hard row was stored as configured",
+      );
+      psqlAsZoe(`update platform.plan_limits set limit_type = 'soft' where resource_key = 'contacts'`);
+      assertEqual(
+        psqlAsZoe(`select limit_type from platform.plan_limits where resource_key = 'contacts'`),
+        "soft",
+        "a superadmin can flip an existing limited row from hard to soft",
       );
 
       console.log("\nAll platform.plan_limits RLS checks passed.");

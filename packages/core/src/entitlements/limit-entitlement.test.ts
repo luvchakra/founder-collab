@@ -60,6 +60,42 @@ describe("buildLimitEntitlementDecision (PLATFORM-P0-05.2/05.3/06.1)", () => {
       expect(buildLimitEntitlementDecision("users", "free", row).source).toBe("plan");
     }
   });
+
+  it("defaults an unmarked 'limited' row to hard behavior (limit_type not present) -- unchanged from before PLATFORM-P0-06.5", () => {
+    const decision = buildLimitEntitlementDecision("businesses", "pro", { state: "limited", limit_value: 5 }, 5);
+    expect(decision.allowed).toBe(false);
+  });
+
+  it("a hard limit (explicit) still denies at the limit, exactly as before", () => {
+    const decision = buildLimitEntitlementDecision("businesses", "pro", { state: "limited", limit_value: 5, limit_type: "hard" }, 5);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe("pro plan allows 5 businesses.");
+  });
+
+  it("PLATFORM-P0-06.5 decision #1: a soft limit under its guideline behaves exactly like a hard limit's own 'within' case", () => {
+    const decision = buildLimitEntitlementDecision("businesses", "pro", { state: "limited", limit_value: 5, limit_type: "soft" }, 3);
+    expect(decision.allowed).toBe(true);
+    expect(decision.usage).toBe(3);
+    expect(decision.remaining).toBe(2);
+    expect(decision.reason).toBe("businesses usage (3) is within the pro plan's limit of 5.");
+  });
+
+  it("PLATFORM-P0-06.5 decision #1: a soft limit at its guideline is allowed, not denied, with guideline copy", () => {
+    const decision = buildLimitEntitlementDecision("businesses", "pro", { state: "limited", limit_value: 5, limit_type: "soft" }, 5);
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(5);
+    expect(decision.reason).toBe("businesses usage (5) is over your pro plan's guideline of 5.");
+  });
+
+  it("PLATFORM-P0-06.5 decision #1: a soft limit over its guideline is still allowed -- no ceiling, never denied", () => {
+    const decision = buildLimitEntitlementDecision("businesses", "pro", { state: "limited", limit_value: 5, limit_type: "soft" }, 9);
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(9);
+    expect(decision.remaining).toBe(0); // never negative, same clamping as the hard case
+    expect(decision.reason).toBe("businesses usage (9) is over your pro plan's guideline of 5.");
+  });
 });
 
 describe("buildConsumeEntitlementDecision (PLATFORM-P0-06.3)", () => {
@@ -149,5 +185,45 @@ describe("buildConsumeEntitlementDecision (PLATFORM-P0-06.3)", () => {
     for (const attempt of attempts) {
       expect(buildConsumeEntitlementDecision("users", "free", attempt, 1).source).toBe("plan");
     }
+  });
+
+  it("PLATFORM-P0-06.5 decision #1: a soft limit still granted, and worded as 'within', when consumption stays under the guideline", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, limit_type: "soft", usage_before: 2, usage_after: 3, granted: true },
+      1,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(3);
+    expect(decision.remaining).toBe(2);
+    expect(decision.reason).toBe("Consuming 1 businesses keeps usage (3) within the pro plan's limit of 5.");
+  });
+
+  it("PLATFORM-P0-06.5 decision #1: a soft limit is granted (never denied) even when consumption pushes usage past the guideline, worded as 'over' rather than a denial", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, limit_type: "soft", usage_before: 5, usage_after: 6, granted: true },
+      1,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(6);
+    expect(decision.remaining).toBe(0);
+    expect(decision.reason).toBe("Consuming 1 businesses takes usage (6) over the pro plan's guideline of 5.");
+  });
+
+  it("a hard limit (explicit limit_type) still denies exactly as before, with pre-attempt usage/remaining", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, limit_type: "hard", usage_before: 5, usage_after: 5, granted: false },
+      1,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.usage).toBe(5);
+    expect(decision.remaining).toBe(0);
   });
 });

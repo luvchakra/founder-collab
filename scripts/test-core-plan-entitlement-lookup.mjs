@@ -65,11 +65,11 @@ async function main() {
       );
 
       console.log("getLimit()'s own join chain: plans.id -> plan_limits(resource_key)...");
-      psql(`set local role service_role; insert into platform.plan_limits (plan_id, resource_key, state, limit_value) values ('${freePlanId}', 'businesses', 'limited', 1);`);
+      psql(`set local role service_role; insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values ('${freePlanId}', 'businesses', 'limited', 1, 'hard');`);
       assertEqual(
-        as(`select state, limit_value from platform.plan_limits where plan_id = '${freePlanId}' and resource_key = 'businesses'`),
-        "limited|1",
-        "Alice's own client can read the configured limit for her own plan",
+        as(`select state, limit_value, limit_type from platform.plan_limits where plan_id = '${freePlanId}' and resource_key = 'businesses'`),
+        "limited|1|hard",
+        "Alice's own client can read the configured limit (and its limit_type, PLATFORM-P0-06.5) for her own plan",
       );
       assertEqual(
         as(`select count(*) from platform.plan_limits where plan_id = '${freePlanId}' and resource_key = 'contacts'`),
