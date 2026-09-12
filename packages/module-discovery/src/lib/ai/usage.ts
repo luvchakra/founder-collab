@@ -60,3 +60,39 @@ export async function recordAiRun(input: {
     console.error("Failed to record ai_runs entry:", error.message);
   }
 }
+
+/** DISC-OFFER-P0-14.1: "AI provider/model where applicable" for one Discovery Run History
+ * entry -- every `ai_runs` row this workspace recorded while that run was in progress,
+ * distinct `(operation, model, provider, status)` combinations only (a run's own
+ * "Collect Signals"/"Research Top Opportunities" stages can each call this per account,
+ * and a founder reviewing run history wants "which models/providers did this run use,"
+ * not one row per account researched). Reuses the existing `discovery.ai_runs` usage
+ * ledger directly, per this story's own "Reuse existing Core AI run/audit mechanisms
+ * where appropriate" rather than duplicating provider/model onto `pipeline_runs` itself
+ * -- see that table's own migration comment. `to: null` means "still running" -- every
+ * `ai_runs` row from `from` onward, since the run's own true end time isn't known yet. */
+export async function listAiRunsInWindow(
+  workspaceId: string,
+  from: string,
+  to: string | null,
+): Promise<{ operation: string; model: string; provider: string | null; status: "succeeded" | "failed" }[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("ai_runs")
+    .select("operation, model, provider, status")
+    .eq("workspace_id", workspaceId)
+    .gte("created_at", from);
+  if (to) query = query.lte("created_at", to);
+  const { data, error } = await query.order("created_at", { ascending: true });
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const distinct: { operation: string; model: string; provider: string | null; status: "succeeded" | "failed" }[] = [];
+  for (const row of data) {
+    const key = `${row.operation}::${row.model}::${row.provider ?? ""}::${row.status}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    distinct.push(row);
+  }
+  return distinct;
+}

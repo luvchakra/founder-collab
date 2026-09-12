@@ -71,6 +71,10 @@ export function ProductNav({
       { href: `${basePath}/opportunities`, label: "Opportunities" },
       { href: `${basePath}/prospects`, label: "Prospects" },
       { href: `${basePath}/conversions`, label: "Conversions" },
+      // DISC-OFFER-P0-14.1's own "Discovery Run History" -- a real page exists behind
+      // this one now (`history/page.tsx`), same "no dead links" rule this bar's own
+      // comment already established for Discovery/Opportunities.
+      { href: `${basePath}/history`, label: "History" },
     ];
     const activeOngoingIndex = ongoingTabs.findIndex((tab) =>
       tab.href === basePath ? pathname === basePath : pathname === tab.href || pathname.startsWith(`${tab.href}/`),
