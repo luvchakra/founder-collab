@@ -67,13 +67,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.6 | Return Lock | Done |
 | | 07.7 | Filing/Payment Status | Done |
 | P0-08 | 08.1 | GSTR-2B Fetch/Import | Done |
-| | 08.2–08.6 | Purchase-to-2B Matching, Match Explanation, IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
+| | 08.2 | Purchase-to-2B Matching | Done |
+| | 08.3–08.6 | Match Explanation, IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**38 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**39 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -82,8 +83,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
 Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
-Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import) is done.
-Next: COMPLY-P0-08.2 (Purchase-to-2B Matching).
+Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import) and
+COMPLY-P0-08.2 (Purchase-to-2B Matching) are done. Next: COMPLY-P0-08.3 (Match
+Explanation).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4242,6 +4244,112 @@ this ships to a real business).
   `scripts/test-gst-gstr2b-rls.mjs`, all assertions listed above passing, including the
   cross-tenant and no-update-policy checks that only a real database (not a
   reasoning-on-paper review) can actually prove.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.2 — Purchase-to-2B Matching (2026-09-12)
+
+**A real, structural limitation found and worked around honestly rather than
+papered over (backlog rule 1 -- check existing code before designing)**: a genuine
+invoice-level match needs a join key both sides carry. GSTR-2B's own key is the
+SUPPLIER's invoice number (`inum`). Checked `core.documents`'s own schema
+(`20260906105000_core_documents.sql`) and `module-inventory`'s own purchase-order
+creation flow and `source_ref` usage (the documented extension point for
+module-specific fields) this story -- a `purchase_order` row stores only THIS
+business's own PO number (`number`, minted via `core.next_number()`); nowhere does this
+platform capture the SUPPLIER's own invoice number for a purchase, not even inside
+`source_ref` jsonb. A true invoice-level match is therefore not reachable with the
+current data model, not merely unimplemented -- flagged as a concrete follow-up for
+`module-inventory` (add a vendor-invoice-number field to its own PO entry flow, most
+naturally `source_ref.vendor_invoice_number`, needing no schema migration) rather than
+silently building a fake invoice-level match on a key that doesn't exist, or inventing a
+speculative new core column this story has no mandate to add.
+
+**Design decision -- SUPPLIER-level (GSTIN) reconciliation instead**: supplier GSTIN IS a
+reliable join key on both sides today -- a registered supplier has exactly one GSTIN per
+state, `core.tax_identities` already supplies it for every purchase-register row
+(`getPurchaseRegister`, read as this story's reconnaissance), and
+`gst.gstr2b_documents.supplier_gstin` is the same concept from GSTN's own side. This
+story sums this business's own recorded purchases per supplier GSTIN for a period and
+compares against what GSTN's GSTR-2B reports for that same GSTIN -- real-world useful on
+its own (the same first check a bookkeeper does: "does my total spend with Vendor X this
+month match what showed up in 2B for Vendor X"), and a legitimate incremental step:
+COMPLY-P0-08.3 (Match Explanation) can drill into the underlying invoices on each side
+for a human to compare by eye even without an automated 1:1 link, and a future story can
+upgrade to real invoice-level matching once `module-inventory` captures the join key,
+without this story's own supplier-level rows becoming wasted work (COMPLY-P0-08.3 would
+still want a supplier-level entry point).
+
+**No new schema this story -- deliberately schema-free, matching the GSTR-1/3B/9
+"prepare" precedent**: `lib/reconciliation/match.ts`'s `matchPurchasesTo2b` is a pure
+function with no persisted state, mirroring `lib/returns/{gstr1,gstr3b,gstr9}/queries.ts`'s
+own on-demand-computation pattern rather than inventing a `Reconciliation` table ahead of
+COMPLY-P0-08.6 (Exception Queue), which is the story that actually needs tracked,
+resolvable-over-time state -- building that now would be exactly the "implement future
+stories implicitly" backlog rule 5 forbids.
+
+**Two more honest limits named rather than silently assumed away**:
+- A no-GSTIN supplier (unregistered, or a missing GSTIN on file) is structurally excluded
+  from this reconciliation -- it cannot appear in a GSTR-2B at all (2B is sourced only
+  from registered suppliers' own GSTR-1 filings), so it is never counted as
+  `missing_in_2b` (that status means "should be in 2B and isn't," not "can't be in 2B by
+  definition"). Its own spend total is surfaced separately
+  (`excludedNoGstinTaxableValue`) so this reconciliation never silently drops real
+  purchase spend from view.
+- Whether GSTN's real GSTR-2B JSON encodes a credit note's `txval`/tax fields as
+  already-negative, or positive with only the note-type flag distinguishing it, could not
+  be confirmed via the sources reachable in COMPLY-P0-08.1's own research. This story sums
+  every `gst.gstr2b_documents` row's stored values exactly as `parse.ts` persisted them,
+  with no sign-flipping applied -- documented in `match.ts`'s own docstring as a concrete
+  thing to verify against a real downloaded 2B statement before this reconciliation is
+  trusted for a live business's credit-note-heavy supplier.
+
+**Reused, not re-derived**: `lib/filing/queries.ts`'s own `getPurchaseRegister` already
+computes exactly the per-supplier taxable-value/tax totals (and GSTIN-risk flagging) this
+story needs on the books side -- called directly rather than re-querying
+`core.documents`/`core.tax_identities` a second time.
+
+**What was built**:
+- `lib/reconciliation/types.ts` -- `PurchaseMatchStatus`, `BookSupplierTotal`,
+  `Gstr2bSupplierTotal`, `SupplierReconciliationRow`, `PurchaseReconciliationResult`.
+- `lib/reconciliation/match.ts` -- `matchPurchasesTo2b` (pure), `RECONCILIATION_TOLERANCE`
+  (₹1 on taxable value and on tax each -- a named internal reconciliation constant, not a
+  government-mandated threshold, so deliberately NOT sourced from `gst.tax_rules`; backlog
+  rule 6's versioning/sourcing discipline applies to regulatory facts, not a software
+  rounding allowance).
+- `lib/reconciliation/queries.ts` -- `periodToDateRange` (pure, `YYYY-MM` ->
+  first/last calendar date, leap-year-correct) and `getPurchaseReconciliation` (assembles
+  both sides via `getPurchaseRegister`/`getGstr2bStatementWithDocuments`, returns `null`
+  when no GSTR-2B statement has been imported for the period yet -- a real, common state,
+  not an error).
+- 22 new vitest cases across `match.test.ts` and `queries.test.ts` covering: exact match,
+  within-tolerance match, over-tolerance mismatch on taxable value, mismatch on tax alone,
+  missing-in-2b, missing-in-books, no-GSTIN exclusion (never counted as missing_in_2b),
+  summing two book rows under one GSTIN rather than dropping one, multiple independent
+  suppliers with mixed outcomes and stable GSTIN-sorted output, the fully-empty case, and
+  `periodToDateRange`'s own month-boundary/leap-year/malformed-input behavior.
+
+**What was deliberately left out**: invoice-level matching (see the structural limitation
+above -- not reachable with the current data model); any persisted reconciliation/
+exception state (COMPLY-P0-08.6's own job); any UI (COMPLY-P0-11); a live exercise against
+a real downloaded GSTR-2B statement to confirm the credit-note sign convention (no such
+statement reachable this session -- same honest-limit pattern as COMPLY-P0-08.1).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1236 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 148 migration files, 0 violations (no new
+  migration this story -- purely a `lib/` addition over existing tables).
+- `npx vitest run --root packages/module-gst` -- 349 tests passing (336 prior + 13 new).
+- No Supabase migration applied and no `get_advisors` re-check needed -- this story added
+  no schema.
+- No local Postgres RLS harness needed -- no new table, no new RLS policy; the reads this
+  story composes (`getPurchaseRegister`, `getGstr2bStatementWithDocuments`) are already
+  covered by `test-core-documents-rls.mjs` and `test-gst-gstr2b-rls.mjs` respectively.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
