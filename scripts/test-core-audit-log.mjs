@@ -69,7 +69,9 @@ async function main() {
       assertEqual(psqlAsAlice(`select count(*) from core.audit_log where entity_type = 'document' and entity_id = '${aliceDoc}'`), "1", "updating an unrelated column doesn't add another entry");
 
       console.log("Verifying the business_settings change trigger...");
-      psqlAsAlice(`insert into core.business_settings (business_id) values ('${aliceBusiness}');`);
+      // core.handle_new_business() (PLATFORM-P0-05.2's own plan-link migration) already
+      // created this row the moment core.businesses was inserted above -- no insert
+      // needed (and a plain one would now fail on the business_id primary key).
       psqlAsAlice(`update core.business_settings set gstin = '27ALICE0001Z5' where business_id = '${aliceBusiness}';`);
       assertEqual(psqlAsAlice(`select count(*) from core.audit_log where entity_type = 'business_settings'`), "1", "setting a GSTIN for the first time logs one entry");
       psqlAsAlice(`update core.business_settings set slug = 'alice-co' where business_id = '${aliceBusiness}';`);
