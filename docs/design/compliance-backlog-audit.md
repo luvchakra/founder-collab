@@ -50,7 +50,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.6 | GST Invoice Validation | Done |
 | | 04.7 | GST Rule Versioning | Done |
 | P0-05 | 05.1 | E-Invoice Eligibility | Done |
-| | 05.2–05.6 | India E-Invoice (Schema Validation, IRP Adapter, IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
+| | 05.2 | Schema Validation | Done |
+| | 05.3–05.6 | India E-Invoice (IRP Adapter, IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -59,16 +60,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**21 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**22 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.1 (E-Invoice Eligibility) is the
-last completed story, starting epic 05 (India E-Invoice) and P0 Release 2 (epics 05-08).
-Next: COMPLY-P0-05.2 (Schema Validation).
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.2 (Schema Validation) is the
+last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
+Next: COMPLY-P0-05.3 (IRP Adapter).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2093,5 +2094,64 @@ to derive on its own.
   data-only insert.
 - No `apps/web` change, so `next build` was not re-run -- another pure-library story,
   same convention as every COMPLY-P0-04.x story before it.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 05.2 — Schema Validation (2026-09-12)
+
+"Validate mandatory fields" -- the IRP (e-invoice) schema requires fields a plain domestic
+GST tax invoice does not always need, most importantly the SELLER's and BUYER's own GSTINs
+(e-invoicing under current GST rules applies to B2B, export, SEZ and deemed-export
+supplies, never to an unregistered B2C recipient). Checked existing code first (backlog
+rule 1): COMPLY-P0-04.6's own `GstInvoiceValidationResult` already checks invoice number/
+date, line HSN/SAC, and place of supply -- this story adds only the DELTA on top of that,
+never re-checking what 04.6 already covers (this platform's own "don't duplicate
+deterministic logic" development principle).
+
+**What was built** -- `packages/module-gst/src/lib/einvoice-schema-validation/`:
+- `types.ts` -- `EinvoiceSchemaValidationResult` wraps 04.6's own
+  `GstInvoiceValidationResult` (`invoiceValidation`) alongside this story's own
+  `schemaIssues` (`missing_seller_gstin` / `missing_buyer_gstin`, both errors); `valid` is
+  true only when BOTH have no errors.
+- `validate.ts` (+ 6 test cases) -- the pure `validateEinvoiceSchemaFields`: flags a
+  missing seller GSTIN outright; flags a missing buyer GSTIN for every place-of-supply
+  treatment EXCEPT `"export"` (a foreign buyer has no GSTIN to require); and distinguishes,
+  in the issue's own message text, "no `core.tax_identities` row on file at all" (unknown)
+  from "a row exists and explicitly says the buyer is unregistered" (confirmed) -- the same
+  "unknown vs. confirmed" distinction COMPLY-P0-03.4's own `getPartyTaxIdentity` docstring
+  established, now actually consumed by a caller for the first time.
+- `queries.ts` -- `getEinvoiceSchemaValidation(businessId, documentId)`: reads the document
+  (03.1, to find its `partyId`), then in parallel runs COMPLY-P0-04.6's own
+  `getGstInvoiceValidation`, COMPLY-P0-04.1's `getPrimaryTaxRegistration` (seller GSTIN),
+  COMPLY-P0-03.4's `getPartyTaxIdentity` (buyer GSTIN), and COMPLY-P0-04.4's
+  `getPlaceOfSupplyForParty`, then hands everything to the pure function. Returns `null`
+  when the document doesn't exist for this business, matching `getGstInvoiceValidation`'s
+  own convention exactly. No test file (thin orchestrator over already-tested pieces).
+
+**What was deliberately left out**: any UI; any wiring into the actual `generateEinvoice`
+call (`lib/einvoicing/mutations.ts`) to block generation on a failed schema validation --
+that gating decision belongs with COMPLY-P0-05.3 (IRP Adapter) once the adapter interface
+itself is formalized, not this story, which only builds the check; and every OTHER real
+IRP schema field this simplified platform doesn't model (seller/buyer legal name, full
+address breakdown, item-level serial numbers, etc. -- `generateEinvoice`'s own docstring
+already names this as "not a fully IRP-compliant payload, a deliberate simplification"
+inherited from the earlier S-2 slice, unchanged by this story).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean (one fix mid-story: two `schemaIssues[0]`
+  accesses in the test file needed optional-chaining under `strict`'s
+  `noUncheckedIndexedAccess`-style narrowing, same as every other array-index test
+  assertion elsewhere in this module).
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1049 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 110 migration files checked, 0 violations (no
+  schema change this story).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 110 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 19 files / 140 tests passed (134
+  pre-existing + 6 new in `validate.test.ts`).
+- No migration to apply, no `get_advisors` re-check -- this story touched no schema.
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
