@@ -51,7 +51,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.7 | GST Rule Versioning | Done |
 | P0-05 | 05.1 | E-Invoice Eligibility | Done |
 | | 05.2 | Schema Validation | Done |
-| | 05.3–05.6 | India E-Invoice (IRP Adapter, IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
+| | 05.3 | IRP Adapter | Done |
+| | 05.4–05.6 | India E-Invoice (IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -60,16 +61,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**22 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**23 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.2 (Schema Validation) is the
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.3 (IRP Adapter) is the
 last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
-Next: COMPLY-P0-05.3 (IRP Adapter).
+Next: COMPLY-P0-05.4 (IRN/QR Response).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2154,4 +2155,105 @@ inherited from the earlier S-2 slice, unchanged by this story).
 - No migration to apply, no `get_advisors` re-check -- this story touched no schema.
 - No `apps/web` change, so `next build` was not re-run -- another pure-library story.
 - No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 05.3 — IRP Adapter (2026-09-12)
+
+"Provider interface: submit, status, cancel, fetch" -- backlog universal rule 7
+("government integrations must be adapter-based") applied to India's e-invoicing IRP for
+the first time. Checked existing code first (backlog rule 1): `lib/einvoicing/mutations.ts`'s
+`generateEinvoice`/`cancelEinvoice` (Epic 6/S-2) already call the real IRP over HTTP, but
+inline -- no formal interface, and no `status`/`fetch` operation exists anywhere (`gst.
+einvoice_credentials` never stored a URL for either). This story formalizes the interface
+the backlog names verbatim and gives `status`/`fetch` somewhere real to point at.
+
+**Schema change, with real justification, not speculation**: the real NIC/GSP e-invoice API
+genuinely exposes distinct "Get IRN details by IRN" endpoints beyond generate/cancel --
+this is the missing half of a provider config the adapter needs to actually call `status`/
+`fetch`, not a future-looking guess. Added `status_url`/`fetch_url` (both nullable, unlike
+`generate_url`/`cancel_url`) to `gst.einvoice_credentials`
+(`20260912020000_gst_einvoice_credentials_status_fetch_urls.sql`) -- a business already
+using the existing generate/cancel workflow isn't forced to configure two new fields
+before that keeps working; the adapter's own `status()`/`fetch()` throw a clear,
+actionable error when either URL is unset rather than guessing. Also recreated
+`gst.einvoice_credentials_status()` (drop + create, since `create or replace function`
+can't change a `returns table(...)` column list in place) to surface the two new
+non-secret URLs through the existing read path.
+
+**What was built**:
+- `packages/module-gst/src/lib/gsp-client.ts`: extracted `handleGspResponse` (shared
+  response-handling/error-sanitization, previously duplicated) and added `callGspGet` -- a
+  GET counterpart to the existing POST-only `callGsp`, since the real "Get IRN details"
+  endpoints take the IRN as a path parameter with no request body. 2 new test cases in
+  `gsp-client.test.ts` (GET shape + no body; shares the same sanitized-error behavior,
+  not re-testing the full failure matrix already covered for `callGsp`).
+- `packages/module-gst/src/lib/irp-adapter/types.ts` -- the `IrpAdapter` interface itself
+  (`submit`/`status`/`cancel`/`fetch`), provider-agnostic on purpose even though the only
+  implementation shipped is still GSP-based: a second GSP or a direct-to-IRP integration
+  could implement the same shape later with no other code in this module needing to
+  change. `status`/`fetch` responses are deliberately loose passthroughs
+  (`[key: string]: unknown`) -- this module has no existing persisted shape to normalize
+  either into yet (COMPLY-P0-05.6 "E-Invoice Status" is that future decision).
+- `packages/module-gst/src/lib/irp-adapter/gsp-adapter.ts` (+ 13 test cases) --
+  `createGspIrpAdapter`: `submit`/`cancel` are the exact same requests
+  `generateEinvoice`/`cancelEinvoice` already made (now expressed through this interface
+  instead of calling `callGsp` inline); `status`/`fetch` GET `<configured URL>/<IRN>`
+  (`buildIrnUrl`, its own pure, tested URL-building helper) and throw a named "not
+  configured" error when the corresponding URL is unset. `buildSubmitPayload`/
+  `parseSubmitResponse`/`buildCancelPayload` are the exact request/response mappings
+  `generateEinvoice`/`cancelEinvoice` already had inline, extracted as their own pure,
+  tested functions.
+- `packages/module-gst/src/lib/einvoicing/mutations.ts`: `generateEinvoice`/
+  `cancelEinvoice` refactored to build a `createGspIrpAdapter` and call `submit`/`cancel`
+  on it instead of `callGsp` directly -- same external behavior/signatures, now genuinely
+  adapter-based. `cancelEinvoice` gained one real correctness fix along the way: it used
+  to send `Irn: existing.irn` even when `existing.irn` was `null` (the adapter's own
+  `IrpCancelRequest.irn: string` type caught this at compile time) -- now throws
+  "This e-Invoice has no IRN on record to cancel" first, a case that was previously a
+  silent bad request rather than a clear error. Added `getEinvoiceIrpStatus(businessId,
+  documentId)` -- the first real caller of the adapter's own new `status()` method,
+  reading the document's IRN and returning the live IRP answer; deliberately read-only and
+  NOT persisted anywhere (deciding how a live status answer should update `gst.einvoices`'
+  own `status` column, or a fuller state machine, is COMPLY-P0-05.6's own job).
+  `EinvoiceCredentialsInput` gained optional `status_url`/`fetch_url`.
+- `packages/module-gst/src/components/einvoicing/einvoicing-form.tsx` +
+  `apps/web/.../gst/einvoicing/actions.ts`: two new optional "Status URL"/"Fetch URL"
+  fields on the existing credentials form, each with a one-line explanation of what
+  leaving it blank means. `lib/einvoicing/types.ts`'s `EinvoiceCredentialsStatus` gained
+  the matching nullable fields.
+
+**What was deliberately left out**: any UI for actually calling `status`/`fetch`
+interactively (no button anywhere invokes `getEinvoiceIrpStatus` yet -- that's a UI
+decision for COMPLY-P0-05.6 "E-Invoice Status" once a real status-tracking view exists to
+put it on); persisting a live status answer back onto `gst.einvoices` (same reasoning,
+explicitly flagged as 05.6's job); a `fetch()` consumer beyond the adapter itself (no
+current need for it -- the capability exists and is tested, but nothing calls it yet, the
+same "ship the capability, flag the missing consumer" pattern this module has used before,
+e.g. COMPLY-P0-03.3's FSM boundary); and extending `gst.eway_bill_credentials` with the
+same two columns (structurally similar, but E-Way Bill is COMPLY-P0-06's own epic --
+touching it now would be scope creep across epics, not "one story at a time").
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1052 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 111 migration files checked, 0 violations
+  (single `gst`-schema migration, no cross-module touch).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 111 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 20 files / 155 tests passed (140
+  pre-existing + 15 new: 2 in `gsp-client.test.ts`, 13 in `gsp-adapter.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing infos, 1
+  pre-existing warning, same unused-index list) -- two new nullable columns with no FK and
+  a recreated SECURITY DEFINER function introduce nothing new to flag.
+- `cd apps/web && npm run build` -- clean production build; `/dashboard/businesses/
+  [businessId]/gst/einvoicing` appears in the route manifest; grepped for `error`/`failed`,
+  none found.
+- No live browser walkthrough -- see the limitation note at the top of this document; the
+  two new form fields were verified by reading the rendered JSX (optional, clearly
+  labeled, consistent with every existing field's own layout) rather than a live viewport
+  check.
 - No lockfile drift (`node_modules` already installed earlier in this session).

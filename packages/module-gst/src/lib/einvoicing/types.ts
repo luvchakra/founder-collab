@@ -6,6 +6,12 @@ export type EinvoiceCredentialsStatus = {
   auth_url: string;
   generate_url: string;
   cancel_url: string;
+  /** COMPLY-P0-05.3 (IRP Adapter): the two endpoints `submit`/`cancel` never needed but
+   * `status`/`fetch` do -- nullable, unlike `generate_url`/`cancel_url`, since a business
+   * already using the existing generate/cancel workflow isn't forced to configure these
+   * before that keeps working. */
+  status_url: string | null;
+  fetch_url: string | null;
   updated_at: string;
 };
 

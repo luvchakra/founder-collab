@@ -26,6 +26,8 @@ export async function saveEinvoiceCredentialsAction(
       auth_url,
       generate_url,
       cancel_url,
+      status_url: String(formData.get("status_url") ?? "").trim() || null,
+      fetch_url: String(formData.get("fetch_url") ?? "").trim() || null,
       gsp_username: String(formData.get("gsp_username") ?? "").trim() || null,
       gsp_password: String(formData.get("gsp_password") ?? "").trim() || null,
       client_id: String(formData.get("client_id") ?? "").trim() || null,

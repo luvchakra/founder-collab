@@ -39,6 +39,16 @@ export function decryptGspSecrets(row: {
   };
 }
 
+function gspAuthHeaders(credentials: GspCredentials): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (credentials.client_id) headers["client-id"] = credentials.client_id;
+  if (credentials.client_secret) headers["client-secret"] = credentials.client_secret;
+  if (credentials.gsp_username && credentials.gsp_password) {
+    headers.Authorization = `Basic ${Buffer.from(`${credentials.gsp_username}:${credentials.gsp_password}`).toString("base64")}`;
+  }
+  return headers;
+}
+
 /** Error-message audit (2026-09-09): a failure here used to surface as `` `GSP request
  * to ${url} failed: ${response.status} ${response.statusText}` `` -- thrown straight
  * through `generateEinvoice`/`cancelEinvoice`/`generateEwayBill`/`cancelEwayBill`,
@@ -47,27 +57,12 @@ export function decryptGspSecrets(row: {
  * business's own configured GSP endpoint URL into the UI and gave a business owner a
  * raw HTTP status code instead of anything they could act on. The url/status/cause are
  * still logged server-side (via `console.error`) for whoever debugs this later -- only
- * the message shown to the *caller* (and from there, the end user) is sanitized. */
-export async function callGsp(
-  url: string,
-  credentials: GspCredentials,
-  body: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (credentials.client_id) headers["client-id"] = credentials.client_id;
-  if (credentials.client_secret) headers["client-secret"] = credentials.client_secret;
-  if (credentials.gsp_username && credentials.gsp_password) {
-    headers.Authorization = `Basic ${Buffer.from(`${credentials.gsp_username}:${credentials.gsp_password}`).toString("base64")}`;
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
-  } catch (cause) {
-    console.error(`GSP request to ${url} failed to connect:`, cause);
-    throw new Error("Could not reach the configured GST service provider -- check the configured URL and your network connection, then try again.");
-  }
-
+ * the message shown to the *caller* (and from there, the end user) is sanitized.
+ *
+ * Shared between `callGsp` (POST, used by submit/cancel) and `callGspGet` (COMPLY-P0-05.3
+ * IRP Adapter's own status/fetch, GET) -- extracted so both response-side failure modes
+ * are sanitized identically rather than maintaining the message text in two places. */
+async function handleGspResponse(url: string, response: Response): Promise<Record<string, unknown>> {
   if (!response.ok) {
     console.error(`GSP request to ${url} failed: ${response.status} ${response.statusText}`);
     if (response.status === 401 || response.status === 403) {
@@ -82,4 +77,42 @@ export async function callGsp(
     console.error(`GSP request to ${url} returned a response that wasn't valid JSON:`, cause);
     throw new Error("The configured GST service provider returned an unexpected response. Try again, or contact its support if this keeps happening.");
   }
+}
+
+export async function callGsp(
+  url: string,
+  credentials: GspCredentials,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...gspAuthHeaders(credentials) };
+
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  } catch (cause) {
+    console.error(`GSP request to ${url} failed to connect:`, cause);
+    throw new Error("Could not reach the configured GST service provider -- check the configured URL and your network connection, then try again.");
+  }
+
+  return handleGspResponse(url, response);
+}
+
+/**
+ * COMPLY-P0-05.3 (IRP Adapter): a GET counterpart to `callGsp` -- the real NIC/GSP
+ * "Get IRN details" endpoints take the IRN as a path/query parameter with no request
+ * body, unlike generate/cancel's own POST-with-body shape. Same auth-header and
+ * error-sanitization behavior as `callGsp`, just a different HTTP method and no body.
+ */
+export async function callGspGet(url: string, credentials: GspCredentials): Promise<Record<string, unknown>> {
+  const headers = gspAuthHeaders(credentials);
+
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "GET", headers });
+  } catch (cause) {
+    console.error(`GSP request to ${url} failed to connect:`, cause);
+    throw new Error("Could not reach the configured GST service provider -- check the configured URL and your network connection, then try again.");
+  }
+
+  return handleGspResponse(url, response);
 }
