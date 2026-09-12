@@ -55,7 +55,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 05.4 | IRN/QR Response | Done |
 | | 05.5 | Reporting Deadline Control | Done |
 | | 05.6 | E-Invoice Status | Done |
-| P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
+| P0-06 | 06.1 | Eligibility Engine | Done |
+| | 06.2–06.4 | India E-Way Bill (remaining) | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
@@ -63,7 +64,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**26 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**27 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -71,8 +72,8 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), and COMPLY-P0-05 (India E-Invoice) are all fully done.**
-COMPLY-P0-05.6 (E-Invoice Status) is the last completed story. Next: COMPLY-P0-06 (India
-E-Way Bill), starting P0 Release 2's remaining epics (06-08).
+COMPLY-P0-06.1 (Eligibility Engine, India E-Way Bill) is the last completed story. Next:
+COMPLY-P0-06.2 (Movement Data), continuing epic 06.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2502,3 +2503,105 @@ already flagged above.
   same convention as every prior story that needed a fresh install.
 
 **COMPLY-P0-05 (India E-Invoice) is now fully done.**
+
+### 06.1 — Eligibility Engine (2026-09-12)
+
+"Determine whether e-way bill applies" -- the first story of COMPLY-P0-06 (India E-Way
+Bill), the exact same shape of problem COMPLY-P0-05.1 already solved for e-invoicing
+(compare a document-level figure against a versioned threshold rule), now applied to the
+e-way bill's own real, different rule: Rule 138(1) of the CGST Rules, a per-consignment
+value threshold rather than an aggregate-turnover one.
+
+**Checked existing code first** (backlog rule 1): `gst.eway_bill_credentials`/
+`gst.eway_bills` (Epic 6/S-2) already generate/cancel a real e-way bill manually, but
+nothing in this module ever determined WHETHER one is required in the first place -- the
+existing `generateEwayBill` mutation will call the GSP for any document a user manually
+triggers it on, mandated or not. `generateEwayBill` already sends `document.total_amount`
+as `totalValue` to the GSP, confirming that field (tax-inclusive) is this platform's own
+existing convention for a document's consignment value -- reused here rather than inventing
+a second figure.
+
+**Research, not assumption** (same discipline as every prior rule row in this backlog):
+used `WebSearch` twice -- once to confirm the ₹50,000 consignment-value threshold under
+Rule 138(1) is still current as of this session's "today" (2026-09-12; multiple 2026-dated
+sources confirm it unchanged, one noting a state, West Bengal, only just aligning its own
+intra-state threshold to ₹50,000 effective 01-Jun-2026, implying it differed before), and
+once to verify the exact source notification and effective date rather than inventing one:
+CBIC Notification No. 12/2018-Central Tax (07-Mar-2018) substituted Rule 138 itself;
+CBIC Notification No. 15/2018-Central Tax (23-Mar-2018) appointed 01-Apr-2018 as the date
+those provisions came into force nationwide for inter-state movement. One version only --
+no evidence of any change to the central ₹50,000 figure since 2018.
+
+**A precise wording distinction preserved, not smoothed over** (same discipline as 05.5):
+Rule 138(1)'s own real language is "exceeds fifty thousand rupees" -- strict `>`, the SAME
+comparison COMPLY-P0-05.1's own e-invoice mandate threshold uses, and deliberately
+DIFFERENT from COMPLY-P0-05.5's own `>=` ("AATO of ₹10 crore OR MORE") reporting-window
+rule. `determine.ts`'s own docstring documents all three thresholds' own comparisons
+side by side so a future reader never assumes they're all the same convention.
+
+**What was built** -- `packages/module-gst/src/lib/eway-bill-eligibility/`:
+- `supabase/migrations/20260912050000_gst_tax_rules_eway_bill_threshold_seed.sql` -- seeds
+  `gst.tax_rules` with a single-version `eway_bill_consignment_value_threshold_inr` lineage
+  (`country: IN`, `regime: GST`, `jurisdiction: null` -- the central/common threshold,
+  `treatment: null` -- an obligation threshold, not a treatment classification): ₹50,000,
+  effective 2018-04-01, still open. Deliberately does NOT model real state-specific
+  intra-state threshold variations (flagged, with the West Bengal example above, in the
+  migration's own extensive comment) -- COMPLY-P0-02.2's jurisdiction catalog and
+  COMPLY-P0-02.3's own versioned-rule table already support adding per-state override rows
+  later with no schema change, only new seed rows and jurisdiction-aware lookup code
+  neither this table nor this story invents speculatively now.
+- `threshold.ts` (+ 6 test cases) -- `EWAY_BILL_THRESHOLD_RULE` lineage constant,
+  `parseEwayBillThresholdValue` (defensive jsonb parse, mirroring
+  `parseEinvoiceThresholdValue`), `getEffectiveEwayBillThreshold(asOf?)` (wraps
+  COMPLY-P0-02.3's `getEffectiveTaxRule`).
+- `determine.ts` (+ 6 test cases) -- the pure `determineEwayBillEligibility`: exceeds
+  threshold -> required; at or below (including exactly AT the threshold -- `>`, not `>=`)
+  -> not required; no threshold rule resolved or no consignment value at all ->
+  `required: null`, never defaulted to `false` (backlog rule 11). Deliberately does NOT
+  model Rule 138(14)'s own goods-category exemptions (exempted goods, non-motorized
+  conveyance, empty cargo containers, short-distance movements, etc.) or the reverse cases
+  where an e-way bill is required regardless of value (handicraft goods, job-work
+  movements) -- real GST nuances, explicitly out of this story's baseline-comparison scope,
+  same "ship the narrower reachable slice, flag the rest" discipline as every prior
+  eligibility engine in this epic.
+- `queries.ts` -- `getEwayBillEligibility(businessId, documentId, input?)`: reads the
+  document's own context (COMPLY-P0-03.1, for its tax-inclusive `totalAmount` as the default
+  consignment value) and the effective threshold rule in parallel, then hands both to the
+  pure function. Returns `null` when the document doesn't exist for this business, matching
+  every other document-keyed orchestrator in this module. No test file (thin orchestrator
+  over already-tested pieces, this module's established convention).
+
+**What was deliberately left out**: any UI (matches this whole epic's own likely "lib
+first, UI later" pattern, same as COMPLY-P0-05); wiring this determination into the
+existing `generateEwayBill` mutation to block/warn on an ineligible or non-mandated
+generation (a decision for a later story in this same epic, once movement data (06.2) and
+the formal adapter (06.3) exist to decide where such a gate belongs -- same reasoning
+COMPLY-P0-05.1's own log entry gave for not wiring into `generateEinvoice`); goods-category
+exemptions, reverse-mandate cases, and state-specific intra-state threshold overrides (all
+flagged above as documented, extensible gaps, not silent omissions).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1067 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 114 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 114 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 25 files / 192 tests passed (180
+  pre-existing + 12 new: 6 in `threshold.test.ts`, 6 in `determine.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning, and the same shape of unused-index info list) -- a plain data-only insert
+  introduces nothing new to flag.
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+**Session note**: this story is the last one completed in this run -- stopped here per an
+explicit mid-session instruction to finish the in-progress story and then stop (rather than
+continuing automatically story-by-story per the run's original standing policy), regardless
+of remaining usage budget. COMPLY-P0-06.2 (Movement Data) is next for whoever resumes this
+workstream.
