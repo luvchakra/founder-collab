@@ -50,7 +50,13 @@ export const COUNTRY_CATALOG: CountryCatalogEntry[] = [
   // P1 targets (backlog §7/§8) -- named here so the country selector can show them as
   // "Planned" rather than omitting them outright (COMPLY-P0-01.5's own "clearly show
   // supported vs planned capability"), but with no working regime logic behind them yet.
-  { code: "US", name: "United States", status: "planned", regimes: [{ key: "SALES_TAX", name: "Sales Tax" }] },
+  // COMPLY-P1-02 (United States): a jurisdiction ENGINE, not one tax rate (backlog §2's own
+  // words) -- state-level sales tax rates + economic nexus thresholds now exist for an
+  // initial focus list of 10 states (lib/tax-rules/us-sales-tax.ts), plus a generic
+  // physical/economic nexus + registration-obligation determination engine that extends to
+  // any state via more rule rows, without new code. No return-preparation/filing-adapter
+  // depth yet (unlike India/GST) -- see that story's own audit-log entry for exact scope.
+  { code: "US", name: "United States", status: "supported", regimes: [{ key: "SALES_TAX", name: "Sales Tax" }] },
   { code: "CA", name: "Canada", status: "planned", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
   { code: "SG", name: "Singapore", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
   // COMPLY-P1-01 (EU VAT Framework): the backlog's own initial member-state focus list
