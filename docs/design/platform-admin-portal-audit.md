@@ -23,7 +23,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | 05.1 done (module-level `hasModule()`); 05.2/05.3 done for `hasFeature()`/`getLimit()` (Plan layer composed via the new business&lt;-&gt;plan link); 05.4 confirmed (`hasModule()` deliberately still license-only); `canConsume()` deferred to right after PLATFORM-P0-06.1 ships real usage counters |
-| | 06 | Usage & Limits | Not started |
+| | 06 | Usage & Limits | 06.1 done (`core.usage_counters` table + RLS + read/write query surface; no module writes to it yet -- each module's own future integration work); 06.2-06.5 next |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -2091,3 +2091,125 @@ undegraded). `canConsume()` explicitly deferred to right after §10's own PLATFO
 Moving to the next doc section in order: §10 Usage & Limits (PLATFORM-P0-06), starting
 with 06.1 (Usage Counters, `core.usage_counters` -- decision #3 from this run's task
 brief, deferred here specifically for this moment).
+
+### PLATFORM-P0-06.1 — Usage Counters (2026-09-12)
+
+Implements decision #3 from this run's own task brief, deferred to this exact moment by
+every prior entry in this section: **"Usage counters live in a new shared
+`core.usage_counters` table that each module writes to directly, business-scoped, when it
+performs a countable action."** The task brief is explicit that this story only needs to
+build "the table, its RLS, and the read-side query surface for PLATFORM-P0-06.2" real and
+usable -- not wire up any module's own countable actions yet ("that's each module's own
+future integration work"). This entry does exactly that scope, plus a real write-side
+surface (natural to include alongside the read side, and needed for this story's own
+tests) -- no module's own mutation code was touched.
+
+**Schema** (`supabase/migrations/20260912090000_core_usage_counters.sql`): `core`, not
+`platform` -- per the task brief, this is a business's own tenant-scoped operational data
+("customer-facing billing-adjacent data"), not platform-operator catalog data, so it
+follows `core`'s existing tenant-RLS convention (members can view their own business's
+rows), not `platform`'s superadmin-only one. One row per `(business_id, resource_key,
+period)`; `resource_key` reuses `platform.plan_limits`' own closed 13-value list verbatim
+(so a business's usage and its plan's limit always speak the same vocabulary -- required
+for `getLimit()` to ever honestly compare the two). `period` is either the sentinel
+`'current'` (a running, never-reset total -- the natural fit for "how many of X exist
+right now," e.g. businesses/users/products/contacts/prospects/opportunities/
+business_offerings) or a `'YYYY-MM'` UTC calendar-month key (a periodic consumption
+dimension that resets monthly -- ai_runs/ai_credits/whatsapp_conversations/api_calls/
+automation_runs/storage, matching every seeded plan's `'month'` billing interval; a
+year-interval plan's own periodization is left to whichever future story actually sells
+one, per CLAUDE.md's "never implement speculative functionality").
+
+**Write path, deliberately narrow**: no client-facing INSERT/UPDATE/DELETE policy at all
+-- the same "no client-facing write, one SECURITY DEFINER function is the only path to a
+row" shape `core.audit_log`/`core.write_audit_log()` already established (D-10). The one
+write path, `core.increment_usage_counter(business_id, resource_key, delta, period)`, is
+an atomic upsert-and-increment (`on conflict ... do update set count = greatest(count +
+delta, 0)` -- never negative, so a mismatched decrement can't produce a nonsensical
+number) that additionally **re-checks tenant membership inside the function body**
+(`p_business_id in (select user_business_ids())`) before writing, unlike
+`write_audit_log()` -- usage data is more consequential to get wrong (it will gate real
+enforcement once PLATFORM-P0-06.3 lands) than an audit trail entry, so a caller invoking
+it for a business it doesn't belong to is rejected outright rather than trusted.
+
+**TypeScript surface** (`packages/core/src/usage/`): `types.ts` (`UsageCounter`,
+`toUsageCounter()` mapper, and `currentMonthPeriod()` -- a pure, directly-unit-tested UTC
+month-key helper, so no module ever hand-rolls its own period-string logic inconsistently
+later), `queries.ts` (`listUsageCounters(businessId)` for PLATFORM-P0-06.2's own dashboard,
+`getUsageCounter(businessId, resourceKey, period)` for `getLimit()`'s own future use),
+`mutations.ts` (`incrementUsageCounter(businessId, resourceKey, delta, period)`, the thin
+wrapper over the RPC). `RESOURCE_KEYS`/`ResourceKey` were factored out of
+`entitlements/limit-entitlement.ts` into a new shared `entitlements/resource-keys.ts`
+(re-exported from `limit-entitlement.ts` for backward compatibility) rather than declaring
+the same 13-value list a third time -- `usage/types.ts` imports the one shared list.
+
+**Tests**: `usage/types.test.ts` (4 cases, `currentMonthPeriod`'s UTC-not-local-time
+behavior explicitly covered, plus the row-mapper) -- pure, no database. New RLS/behavior
+test `scripts/test-core-usage-counters-rls.mjs` (wired into `test:db`, 13 assertions,
+mandatory per CLAUDE.md principle 9 for business-scoped data): no client INSERT/UPDATE/
+DELETE path exists (INSERT throws on the WITH CHECK clause; UPDATE/DELETE silently affect
+zero rows, since there's no USING policy either); `increment_usage_counter()` rejects a
+business the caller doesn't belong to, even through the SECURITY DEFINER function;
+upsert-and-increment is atomic and idempotent-safe (a second call increments rather than
+duplicating); a negative delta decrements and clamps at zero, never negative; period-scoped
+rows are independent of each other; both CHECK constraints (resource_key, period) reject
+invalid values; tenant isolation holds on reads.
+
+**Verification**: applied live via `mcp__Supabase__apply_migration` against the dev
+project. `mcp__Supabase__get_advisors` (security) -- zero new findings, same 5
+pre-existing `rls_enabled_no_policy` tables and the pre-existing leaked-password-protection
+warning every prior entry has logged. `mcp__Supabase__get_advisors` (performance) -- the
+one new index (`usage_counters_business_id_idx`) shows up only as the same benign "unused
+index" class every sibling FK index already carries in this empty dev database.
+`has_table_privilege('authenticated', 'core.usage_counters', 'select')` confirmed `true`
+directly on the live project -- this brand-new table is covered by the existing
+schema-wide `core` grant (PLATFORM-P0-03.4's own fix), not silently missing it. Full
+monorepo `npm run typecheck --workspaces --if-present` -- clean across every workspace.
+`npm run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated
+warning every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1186
+files, no violations (the new `usage/` directory only imports `../db/server` and
+`../entitlements/resource-keys`, both already-allowed dependencies within
+`packages/core`). `node scripts/lint-migration-schema.mjs` -- 139 migrations (138 -> 139,
+this story's own file; touches `core` only), no violations. `npx vitest run --root
+packages/core` -- 107 tests (103 -> 107, this story's own 4 new cases), all passing. `cd
+apps/web && rm -rf .next && npm run build` -- clean (run despite no route/page being
+touched, given this story adds a new RLS-protected table).
+
+**Immediate follow-up, folded into this same commit rather than left as a stated "next
+step"**: `getLimit()` (`entitlements/limit-entitlement.ts`) now reads through
+`getUsageCounter()` for real `usage`/`remaining` values -- the one piece PLATFORM-P0-05.2's
+own entry left honestly `null`, now completed the moment real counters exist. Looked up
+under the `'current'` running-total period for most resources, or the current UTC
+calendar month (`currentMonthPeriod()`) for the periodic-consumption subset
+(`isPeriodicResource()`, `entitlements/resource-keys.ts`). A resource with no counter row
+yet reports `usage: 0` (an honest "hasn't happened yet," not a fabricated number -- the
+counters table's own additive, non-negative design makes 0 the only correct reading of
+"never incremented"). For a `limited` resource, `allowed`/`remaining` now match
+PLATFORM-P0-05.3's own worked example verbatim (`{allowed: false, reason: "Pro plan
+allows 5 businesses", usage: 5, remaining: 0}`): `remaining = max(limit - usage, 0)`,
+`allowed = usage < limit`. `buildLimitEntitlementDecision()`'s own test suite grew from 5
+to 8 cases covering exactly this (at-the-limit denial matching the doc's example, under-limit
+allowance with real remaining, usage clamped and never producing a negative remaining, and
+the unconfigured/disabled/unlimited cases each re-verified against the new `usage`
+parameter's default).
+
+**Deliberately still not built**: `canConsume(business, resource, quantity)`
+(PLATFORM-P0-05.1's fourth named function) -- real usage now exists, but `canConsume`
+needs to reserve/check against a *prospective* quantity atomically at the point of the
+action, a genuinely separate concern from "read the current state" (all `getLimit()`
+does) -- left to PLATFORM-P0-06.3 (Limit Enforcement) itself, the doc's own next story for
+exactly this question. No module's own countable actions write to `core.usage_counters`
+yet either -- explicit, named scope of this exact story per the task brief; each module's
+own future integration work. PLATFORM-P0-06.2 (Usage Dashboard UI), 06.3 (Limit
+Enforcement), 06.4 (Graceful Limit UX), 06.5 (Soft vs Hard Limits) -- each its own
+following story in this same section.
+
+**Re-verification after the `getLimit()` addition**: full monorepo `npm run typecheck
+--workspaces --if-present` -- clean. `node scripts/lint-import-boundaries.mjs` -- 1186
+files, no violations (the new cross-file imports -- `limit-entitlement.ts` importing
+`../usage/types`/`../usage/queries` -- are within `packages/core` itself, not a
+cross-package boundary this lint enforces). `npx vitest run --root packages/core` -- 110
+tests (107 -> 110, net +3 from replacing `limit-entitlement.test.ts`'s 5 cases with 8).
+
+**Status**: PLATFORM-P0-06.1 done, including `getLimit()`'s own real `usage`/`remaining`
+wiring. Continuing in doc order: PLATFORM-P0-06.2 (Usage Dashboard).
