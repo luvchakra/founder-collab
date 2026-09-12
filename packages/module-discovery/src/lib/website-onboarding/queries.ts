@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
-import type { WebsiteOnboardingRun } from "./types";
+import type { WebsiteOnboardingPage, WebsiteOnboardingRun } from "./types";
 
 /** The one onboarding run this business page cares about "right now" -- most-recent
  * first, same "most recent reflects current state" convention `getProspectSummaryForParty`
@@ -35,3 +35,18 @@ export async function getWebsiteOnboardingRun(runId: string): Promise<WebsiteOnb
   if (error) throw error;
   return data;
 }
+
+/** DISC-OFFER-P0-09.2's own "crawl progress is visible" / "store source URL and
+ * retrieval timestamp" -- the pages a run's crawl actually attempted, fetch order (the
+ * order they were inserted in). `cache()`-wrapped for the same reason
+ * getLatestWebsiteOnboardingRun is -- both are read on the business page's render. */
+export const listWebsiteOnboardingPages = cache(async (runId: string): Promise<WebsiteOnboardingPage[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("website_onboarding_pages")
+    .select("*")
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+});

@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { toast } from "@cofounderai/core/ui/sonner";
 import type { WebsiteBusinessProfile, WebsiteFieldStatus } from "../../lib/ai/schemas";
-import type { WebsiteOnboardingRun, WebsiteOnboardingStatus } from "../../lib/website-onboarding/types";
+import type { CrawledPage } from "../../lib/ai/website-crawl";
+import { WEBSITE_PAGE_CATEGORY_LABEL, type WebsitePageCategory } from "../../lib/website-onboarding/crawl-plan";
+import type { WebsiteOnboardingPage, WebsiteOnboardingRun, WebsiteOnboardingStatus } from "../../lib/website-onboarding/types";
 import { WEBSITE_FIELD_STATUS_LABEL, WEBSITE_LIST_FIELDS, WEBSITE_TEXT_FIELDS } from "./field-labels";
 
 type RetryResult = { error: string } | { success: true; run: WebsiteOnboardingRun };
@@ -15,9 +17,23 @@ type ApplyResult = { error: string } | { success: true };
 
 type StreamEvent =
   | { type: "progress"; profile: Record<string, unknown> }
+  | { type: "page"; page: CrawledPage }
   | { type: "done"; profile: WebsiteBusinessProfile }
   | { type: "error"; error: string }
   | { type: "noop"; status: WebsiteOnboardingStatus };
+
+/** A crawled page as tracked client-side, whether it arrived live via a "page" stream
+ * event (camelCase, matches CrawledPage) or was loaded from the DB on page render
+ * (snake_case, matches WebsiteOnboardingPage) -- normalized to one shape so the render
+ * code below doesn't need to know which source it came from. */
+type CrawledPageView = { url: string; category: WebsitePageCategory; status: "succeeded" | "failed"; error: string | null };
+
+function fromInitialPage(page: WebsiteOnboardingPage): CrawledPageView {
+  return { url: page.url, category: page.category, status: page.status, error: page.error };
+}
+function fromStreamedPage(page: CrawledPage): CrawledPageView {
+  return { url: page.url, category: page.category, status: page.status, error: page.error };
+}
 
 /**
  * DISC-OFFER-P0-09.1's own "Website inspection runs asynchronously. Progress is
@@ -37,11 +53,16 @@ type StreamEvent =
 export function WebsiteOnboardingPanel({
   businessId,
   initialRun,
+  initialPages = [],
   retryAction,
   applyAction,
 }: {
   businessId: string;
   initialRun: WebsiteOnboardingRun;
+  /** The prior crawl's own pages (DISC-OFFER-P0-09.2), loaded from
+   * discovery.website_onboarding_pages -- empty for a `pending` run that hasn't crawled
+   * anything yet. */
+  initialPages?: WebsiteOnboardingPage[];
   retryAction: () => Promise<RetryResult>;
   applyAction: () => Promise<ApplyResult>;
 }) {
@@ -49,6 +70,7 @@ export function WebsiteOnboardingPanel({
   const [run, setRun] = useState(initialRun);
   const [streaming, setStreaming] = useState(false);
   const [progressFieldCount, setProgressFieldCount] = useState(0);
+  const [pages, setPages] = useState<CrawledPageView[]>(initialPages.map(fromInitialPage));
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const startedRunIds = useRef(new Set<string>());
@@ -58,6 +80,7 @@ export function WebsiteOnboardingPanel({
     startedRunIds.current.add(runId);
     setStreaming(true);
     setProgressFieldCount(0);
+    setPages([]);
 
     try {
       const response = await fetch(`/dashboard/businesses/${businessId}/website-onboarding`, {
@@ -81,6 +104,8 @@ export function WebsiteOnboardingPanel({
           const event = JSON.parse(line) as StreamEvent;
           if (event.type === "progress") {
             setProgressFieldCount(Object.keys(event.profile).length);
+          } else if (event.type === "page") {
+            setPages((prev) => [...prev, fromStreamedPage(event.page)]);
           } else if (event.type === "done") {
             setRun((r) => ({ ...r, status: "succeeded", profile: event.profile, error: null }));
           } else if (event.type === "error") {
@@ -111,6 +136,7 @@ export function WebsiteOnboardingPanel({
       return;
     }
     setApplied(false);
+    setPages([]);
     setRun(result.run);
   }
 
@@ -129,12 +155,17 @@ export function WebsiteOnboardingPanel({
 
   if (run.status === "pending" || (run.status === "running" && streaming)) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
-        <span>
-          Reading {run.website} and building your business profile...
-          {progressFieldCount > 0 ? ` (${progressFieldCount} of ${WEBSITE_TEXT_FIELDS.length + WEBSITE_LIST_FIELDS.length} fields so far)` : ""}
-        </span>
+      <div className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3">
+          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+          <span>
+            {pages.length === 0
+              ? `Reading ${run.website}...`
+              : `Crawled ${pages.length} page${pages.length === 1 ? "" : "s"} on ${run.website} so far, building your business profile...`}
+            {progressFieldCount > 0 ? ` (${progressFieldCount} of ${WEBSITE_TEXT_FIELDS.length + WEBSITE_LIST_FIELDS.length} fields so far)` : ""}
+          </span>
+        </div>
+        {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
       </div>
     );
   }
@@ -160,6 +191,7 @@ export function WebsiteOnboardingPanel({
           <p className="font-medium text-destructive">We couldn&apos;t finish understanding your website.</p>
           <p className="mt-1 text-muted-foreground">{run.error ?? "Something went wrong."}</p>
         </div>
+        {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
         <Button type="button" variant="outline" size="sm" className="self-start" onClick={handleRetry}>
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Retry
@@ -193,6 +225,8 @@ export function WebsiteOnboardingPanel({
           ) : null}
         </div>
 
+        {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
+
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {WEBSITE_TEXT_FIELDS.map(({ key, label }) => (
             <FieldCard key={key} label={label} status={profile[key].status}>
@@ -218,6 +252,32 @@ export function WebsiteOnboardingPanel({
   }
 
   return null;
+}
+
+/**
+ * DISC-OFFER-P0-09.2's own "crawl progress is visible" / "extracted facts retain source
+ * references": a compact list of every page the crawl attempted, each with its own source
+ * URL and a succeeded/failed indicator -- shown live (from the "page" stream events) while
+ * a run is in progress, and from the persisted `discovery.website_onboarding_pages` rows
+ * on reload once it's finished, so this survives a page refresh rather than only existing
+ * for the one browser tab that watched the stream.
+ */
+function CrawledPageList({ pages }: { pages: CrawledPageView[] }) {
+  return (
+    <ul className="flex flex-col gap-1 rounded-lg border border-border/60 bg-background/50 p-2 text-xs">
+      {pages.map((page, i) => (
+        <li key={`${page.url}-${i}`} className="flex items-center gap-2">
+          {page.status === "succeeded" ? (
+            <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+          ) : (
+            <XCircle className="size-3.5 shrink-0 text-destructive" aria-hidden="true" />
+          )}
+          <span className="font-medium">{WEBSITE_PAGE_CATEGORY_LABEL[page.category]}</span>
+          <span className="truncate text-muted-foreground">{page.url}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function FieldCard({

@@ -7,7 +7,10 @@ import {
   listProducts,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
-import { getLatestWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
+import {
+  getLatestWebsiteOnboardingRun,
+  listWebsiteOnboardingPages,
+} from "@cofounderai/module-discovery/lib/website-onboarding/queries";
 import {
   renameBusinessAction,
   updateBusinessDescriptionAction,
@@ -56,6 +59,9 @@ export default async function BusinessDetailPage({
   const products = await listProducts(business.id);
   const rows = await Promise.all(products.map(loadOfferingRow));
   const websiteOnboardingRun = await getLatestWebsiteOnboardingRun(business.id);
+  const websiteOnboardingPages = websiteOnboardingRun
+    ? await listWebsiteOnboardingPages(websiteOnboardingRun.id)
+    : [];
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8">
@@ -108,6 +114,7 @@ export default async function BusinessDetailPage({
         <WebsiteOnboardingPanel
           businessId={business.id}
           initialRun={websiteOnboardingRun}
+          initialPages={websiteOnboardingPages}
           retryAction={retryWebsiteOnboardingAction.bind(null, business.id)}
           applyAction={applyWebsiteOnboardingProfileAction.bind(null, business.id)}
         />

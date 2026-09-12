@@ -44,7 +44,7 @@ only genuine architectural/key decisions are raised.
 | | 08.2 | Existing Relationship Detection | Done |
 | | 08.3 | Handoff Status | Done |
 | E | 09.1 | Website URL Business Onboarding | Done |
-| | 09.2 | Website Crawl & Content Discovery | Not started |
+| | 09.2 | Website Crawl & Content Discovery | Done |
 | | 09.3 | AI Offering Extraction | Not started |
 | | 09.4 | Offering Review Before Activation | Not started |
 | | 10.1 | Run AI Discovery CTA | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**26 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**27 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1552,3 +1552,126 @@ relevant here given a real website fetch + AI call is the entire point of this s
 
 **Status**: 26 of 68 in-scope stories done -- Phase E underway. Next: 09.2, Website Crawl
 & Content Discovery.
+
+### 09.2 — Website Crawl & Content Discovery (2026-09-12)
+
+Built directly on 09.1's own foundation rather than a second flow: 09.1's
+`understandBusinessWebsite()` only ever fetched the one URL a founder typed in
+(`researchWebsite()`, a single page). This story replaces that single fetch with a real,
+bounded multi-page crawl and keeps everything downstream (the structuring call, `ai_runs`
+logging, the streaming route handler, the panel) working the same way, just fed richer
+input.
+
+New pure planning layer, `lib/website-onboarding/crawl-plan.ts` (CLAUDE.md dev principle
+#4 -- no AI call decides which pages to visit): `extractPageLinks()` reads the exact
+"label [absolute-url]" annotations `fetchPageText` (core's own, from 09.1) already
+preserves on every anchor of a directly-fetched page -- deliberately *not* built on the
+AI-structured `relevant_pages` field 09.1 already produces, since that field only exists
+*after* a structuring call runs once, which would make building a crawl plan depend on an
+AI call it doesn't need. `buildCrawlPlan()` then dedupes (by hostname+path, ignoring query
+strings/fragments/trailing slashes), drops off-domain links (this story's own "stay within
+the supplied domain by default"), categorizes each remaining link by keyword match against
+its label/path into the doc's own literal priority list (Home/About/Products/Services/
+Solutions/Industries/Use Cases/Pricing/Case Studies/Customers/Resources/FAQ/Contact/Other),
+keeps at most one URL per category, and caps the result at 8 additional pages (this story's
+own "prevent infinite crawling") -- the lowest-priority categories are the ones dropped
+first when there are more distinct categories than the cap allows. 19 new vitest cases
+cover link extraction (including the inherent ambiguity of a flattened page's text having
+no real boundary between ordinary prose and an anchor's own label -- documented in the
+function's own comment rather than glossed over), categorization priority, and every
+dedup/cap/off-domain rule.
+
+New `lib/website-onboarding/robots.ts` for "respect access/robots restrictions" -- a
+minimal, dependency-free robots.txt reader (CLAUDE.md dev principle #2: no new package for
+what's ultimately a flat list of `Disallow` prefixes for one user-agent group; crawl-delay,
+sitemap directives, and `Allow` overrides are out of scope for a same-domain crawl bounded
+to a handful of pages). `fetchRobotsRules()` is best-effort and fails open (a missing or
+unreachable robots.txt means no restrictions, the same permissive default real crawlers
+use) -- consistent with 09.1's own bias toward a direct fetch failing open rather than
+blocking the whole run over a secondary concern. 11 new vitest cases cover parsing
+(wildcard vs. named-agent groups, comments, grouped `User-agent` lines) and the prefix-match
+allow rule.
+
+New orchestrator `lib/ai/website-crawl.ts` (deliberately placed alongside
+`research-website.ts` rather than under `lib/website-onboarding/`, matching this module's
+existing convention that AI-research orchestration lives in `lib/ai/`): `crawlWebsite()`
+fetches the homepage exactly as 09.1 did (throwing on total failure -- there's nothing to
+build a profile from without it, so this is the one case that still fails the whole run),
+checks it against robots.txt first, extracts candidate links from its raw findings, builds
+the crawl plan, then visits each planned page with the same per-page fetch mechanism
+(`researchWebsite()`'s own direct-fetch-then-provider-tool-fallback, this story's own
+"support JavaScript-heavy sites through the available website inspection mechanism," reused
+rather than re-implemented per page) inside its own try/catch. A secondary page's failure
+is recorded and the crawl continues -- this story's own "support partial success": only the
+homepage fetch (or a robots-disallowed homepage) can fail the entire run. Every succeeded
+page's findings are combined into one blob, each headed by a "Page: `<label>` (`<url>`)"
+line, for the structuring prompt to read from -- and every attempted page (homepage plus
+whichever of the plan robots.txt allowed), succeeded or failed, comes back as a `CrawledPage`
+for the caller to persist and display.
+
+New `discovery.website_onboarding_pages` table (`20260912020000_discovery_website_onboarding_pages.sql`)
+-- one row per page the crawl actually attempted, child of `website_onboarding_runs`
+(read-through RLS policies against the parent run's own `business_id`, the same "child of a
+tenant-scoped row" pattern `discovery.signal_correlations` already established against
+`prospects`). This story's own "store source URL and retrieval timestamp" needed a real,
+queryable row per page, not a summary count -- and a page skipped by robots/dedup/the cap is
+never attempted, so it's correctly never inserted here either (nothing happened to record).
+Append-only like the parent run and every other history-preserving table in this schema; the
+FK was indexed from the start (`get_advisors` confirmed no new findings of any kind after
+applying). New `recordWebsiteOnboardingPages()` mutation and `listWebsiteOnboardingPages()`
+query (`cache()`-wrapped, same as `getLatestWebsiteOnboardingRun`).
+
+`understand-business-website.ts` itself now calls `crawlWebsite()` instead of a single
+`researchWebsite()` call, sums token/search usage across every page's own research call plus
+the final structuring call into the *same one* `ai_runs` row per run (not one row per page --
+preserving 09.1's own "one row per operation" discipline), and returns `{ profile, pages }`
+instead of a bare profile so callers can persist the crawl's own page-level record. New
+structuring prompt `prompts/business/understand_business_website_v2.ts` (v1 kept alongside
+unchanged, per this module's own prompt-versioning convention already established by
+`research_prospect_v1.ts`/`_v2.ts`) -- same per-field explicit/inferred/unknown discipline as
+v1, extended to read multiple "Page:"-headed findings blocks instead of one page's own
+findings, and told explicitly to attribute a fact to whichever crawled page actually said it.
+
+Route handler (`website-onboarding/route.ts`) gained a new `"page"` stream event, sent as
+each page is attempted (independent of the existing `"progress"` events, which only ever
+cover the later structuring step), and persists the crawl's own returned `pages` via
+`recordWebsiteOnboardingPages()` right after the run itself completes. Panel
+(`WebsiteOnboardingPanel`) tracks these live during a run and also loads the prior run's own
+persisted pages on render (`listWebsiteOnboardingPages`, new prop `initialPages`) -- a new
+`CrawledPageList` shows each page's category, URL, and succeeded/failed status, both while
+crawling ("Crawled 3 pages ... so far") and afterward, satisfying "crawl progress is
+visible" as a real, reload-surviving list rather than a one-time toast.
+
+One deliberate scope boundary, flagged rather than silently assumed: "extracted facts
+retain source references" is satisfied at the *page* level this story (every fact came from
+one of the pages recorded in `website_onboarding_pages`, and the prompt tells the model
+which page said what) -- not yet at the *field* level (no per-field "this came from the
+Pricing page" pointer on `WebsiteBusinessProfileSchema` itself). Finer-grained field-to-page
+lineage is what DISC-OFFER-P0-09.3's own explicit "Source Pages" per proposed offering and
+13.1's "Structured Stage Outputs" are for; adding it to the flat business profile now would
+be speculative ahead of those stories actually needing it (CLAUDE.md dev principle #7).
+Also flagged: a page's own crawled record is only persisted once the whole run succeeds
+(matching 09.1's original "nothing persisted on failure but the error text") -- if the
+*structuring* step fails after a successful crawl, the pages fetched are lost rather than
+persisted standalone; broadening that would mean partially decoupling page persistence from
+run completion, a larger change than this story's own scope asks for.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- this worktree
+again started with no `node_modules` at all, same environment quirk 05.3 noted; `npm ci`
+at the repo root was required first), `lint:boundaries` (1149 files, no violations --
+`lib/ai/website-crawl.ts` importing from `lib/website-onboarding/{crawl-plan,robots}.ts`
+stays an internal, same-package import, not a cross-module one), `lint:migrations` (127
+migrations, no violations), `npm run lint` (0 errors, 1 pre-existing unrelated warning),
+`npm run test -w @cofounderai/module-discovery` (132/132, +24 new -- caught and fixed one
+real bug of its own along the way: an overly broad "case" keyword in the `use_cases`
+category made "Case Studies" misclassify as `use_cases` instead of `case_studies`, found by
+the new tests themselves, not by inspection), a live migration apply + `get_advisors` for
+both `security`/`performance` (no new findings of any kind -- the new FK was indexed from
+the start), and a clean `next build` (confirmed both `/dashboard/businesses/[businessId]/business`
+and the `/website-onboarding` route handler build with no errors). Same
+live-browser-walkthrough constraint noted in every prior story this run (no seeded demo
+user/`.env.local` in this environment) -- particularly relevant here given a real multi-page
+crawl against a real website is the entire point of this story.
+
+**Status**: 27 of 68 in-scope stories done -- Phase E continuing. Next: 09.3, AI Offering
+Extraction.
