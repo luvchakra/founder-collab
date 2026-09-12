@@ -225,6 +225,17 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "e-Way Bill", slug: "eway-bill", icon: "Truck" },
           { label: "e-Invoicing", slug: "einvoicing", icon: "FileText" },
           { label: "GST Filing", slug: "filing", icon: "ClipboardList" },
+          { label: "Reconciliation", slug: "reconciliation", icon: "ListChecks" },
+        ],
+      },
+      {
+        // COMPLY-P0-11 (Compliance UI): Evidence (10.1) and Audit Log (10.3) are
+        // cross-cutting record-keeping, not GST-return mechanics -- their own heading,
+        // matching how "Overview" is already split out from "GST" above.
+        heading: "Records",
+        items: [
+          { label: "Evidence", slug: "evidence", icon: "FolderOpen" },
+          { label: "Audit Log", slug: "audit-log", icon: "History" },
         ],
       },
     ],
