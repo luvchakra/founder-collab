@@ -3,7 +3,8 @@ import {
   getProduct,
   getWorkspaceForProduct,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { getIcpProfile, listCloneableIcpSourcesForBusiness } from "@cofounderai/module-discovery/lib/icp/queries";
+import { getIcpProfile, listCloneableIcpSourcesForBusiness, listIcpProfileVersions } from "@cofounderai/module-discovery/lib/icp/queries";
+import { IcpVersionHistory } from "@cofounderai/module-discovery/components/icp/icp-version-history";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { AiActionForm } from "@cofounderai/module-discovery/components/ai/ai-action-form";
 import { Input } from "@cofounderai/core/ui/input";
@@ -107,19 +108,29 @@ export default async function IcpPage({
     );
   }
 
+  // DISC-OFFER-P0-14.2: "Current version is clearly identified" -- fetched only once the
+  // ICP itself exists (there's nothing to version before then), keyed by `icp.id` rather
+  // than workspace so a founder can still see the trail even across a future clone.
+  const versions = await listIcpProfileVersions(icp.id);
+
   return (
     <div className="flex flex-col gap-6">
       {autoPopulateBanner}
       <div className="flex items-center justify-between">
-        <span
-          className={
-            icp.status === "approved"
-              ? "rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-              : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-          }
-        >
-          {icp.status === "approved" ? "Approved" : "Draft"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className={
+              icp.status === "approved"
+                ? "rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+            }
+          >
+            {icp.status === "approved" ? "Approved" : "Draft"}
+          </span>
+          {icp.version > 0 ? (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">v{icp.version}</span>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2">
           <AiActionForm
             action={generateIcpAction.bind(null, businessId, productId)}
@@ -227,6 +238,11 @@ export default async function IcpPage({
           />
         </div>
       </form>
+
+      <div className="flex flex-col gap-3">
+        <h3 className="font-medium">Version history</h3>
+        <IcpVersionHistory versions={versions} />
+      </div>
 
       {personaSection}
     </div>
