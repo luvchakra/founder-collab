@@ -52,7 +52,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-05 | 05.1 | E-Invoice Eligibility | Done |
 | | 05.2 | Schema Validation | Done |
 | | 05.3 | IRP Adapter | Done |
-| | 05.4–05.6 | India E-Invoice (IRN/QR Response, Reporting Deadline Control, E-Invoice Status) | Not started |
+| | 05.4 | IRN/QR Response | Done |
+| | 05.5–05.6 | India E-Invoice (Reporting Deadline Control, E-Invoice Status) | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -61,16 +62,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**23 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**24 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.3 (IRP Adapter) is the
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.4 (IRN/QR Response) is the
 last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
-Next: COMPLY-P0-05.4 (IRN/QR Response).
+Next: COMPLY-P0-05.5 (Reporting Deadline Control).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2256,4 +2257,60 @@ touching it now would be scope creep across epics, not "one story at a time").
   two new form fields were verified by reading the rendered JSX (optional, clearly
   labeled, consistent with every existing field's own layout) rather than a live viewport
   check.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 05.4 — IRN/QR Response (2026-09-12)
+
+"Persist government response and identifiers." Checked existing code first (backlog rule
+1): `gst.einvoices` (Epic 6/S-2) already persists the four IDENTIFIERS this story's own
+title names -- `irn`/`ack_no`/`ack_date`/`qr_code` -- on every successful generation. What
+was still missing is the "response" half of the same sentence: only those four extracted
+fields are ever kept; the COMPLETE government response body is discarded the moment
+`generateEinvoice` finishes parsing it, with nowhere to look if a future story (most
+directly COMPLY-P0-10.2 "Government Response Store") ever needs more than those four
+values for one specific generation.
+
+**What was built**:
+- `supabase/migrations/20260912030000_gst_einvoices_raw_response.sql` -- adds a nullable
+  `raw_response jsonb` column to `gst.einvoices`. Deliberately not a new evidence table --
+  COMPLY-P0-10.2 is the future story that builds a real, purpose-built evidence repository
+  (likely spanning e-invoice/e-way-bill/return-filing responses alike); this is the
+  minimal, correctly-scoped step of not letting the raw data disappear at the moment it's
+  received, on the one table this specific story concerns.
+- `packages/module-gst/src/lib/irp-adapter/types.ts`: `IrpSubmitResponse` gained a `raw:
+  Record<string, unknown>` field alongside the four already-extracted identifiers --
+  `parseSubmitResponse` (`gsp-adapter.ts`) now returns the complete response verbatim
+  alongside its own normalized fields, rather than discarding everything it didn't
+  explicitly pull out. Updated 3 existing test cases + added 1 new one (`raw` preserves a
+  field this module doesn't otherwise extract, proving nothing gets silently dropped).
+- `packages/module-gst/src/lib/einvoicing/mutations.ts`: `generateEinvoice` now persists
+  `raw_response: response.raw` alongside the four identifiers on every insert.
+  `lib/einvoicing/types.ts`'s `Einvoice` type gained the matching nullable field.
+
+**What was deliberately left out**: any UI surfacing `raw_response` (no evidence/audit view
+exists yet -- COMPLY-P0-10's own future job); backfilling the column for e-invoices
+generated before this migration (impossible -- the original response was never kept, so
+there is nothing to backfill from, only future generations gain this record); and
+persisting a raw response from `getEinvoiceIrpStatus`'s own `status()` call (COMPLY-P0-05.3)
+-- that function is still deliberately read-only/unpersisted, a decision explicitly left
+for COMPLY-P0-05.6 "E-Invoice Status," unchanged by this story.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1052 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 112 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 112 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 20 files / 156 tests passed (155
+  pre-existing + 1 net new -- 3 existing `gsp-adapter.test.ts` assertions updated to
+  include `raw`, 1 wholly new case added for the "preserves unextracted fields" guarantee).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story -- one new nullable jsonb column
+  with no FK introduces nothing new to flag.
+- No `apps/web` change this story (unlike 05.3, which added the status/fetch URL form
+  fields -- this story is lib+schema only), so `next build` was not re-run.
+- No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).

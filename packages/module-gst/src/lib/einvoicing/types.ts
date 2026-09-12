@@ -29,6 +29,11 @@ export type Einvoice = {
   ack_no: string | null;
   ack_date: string | null;
   qr_code: string | null;
+  /** COMPLY-P0-05.4 (IRN/QR Response): the complete, unmodified government response body
+   * from generation, alongside the four identifiers already extracted from it above --
+   * `null` for any row created before this column existed, or if a caller is ever using
+   * this table's write path without going through `generateEinvoice`. */
+  raw_response: Record<string, unknown> | null;
   cancel_reason: string | null;
   cancelled_at: string | null;
   created_at: string;

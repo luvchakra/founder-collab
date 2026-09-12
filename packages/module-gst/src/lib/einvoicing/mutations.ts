@@ -131,6 +131,7 @@ export async function generateEinvoice(businessId: string, documentId: string): 
       ack_no: response.ackNo,
       ack_date: response.ackDate,
       qr_code: response.qrCode,
+      raw_response: response.raw,
     })
     .select()
     .single();

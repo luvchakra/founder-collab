@@ -1,0 +1,25 @@
+-- WonderArc Compliance backlog, COMPLY-P0-05.4 (IRN/QR Response): "Persist government
+-- response and identifiers." `gst.einvoices` (20260908120000_gst_generation_history.sql,
+-- Epic 6/S-2) already persists the four IDENTIFIERS this table exists to hold (irn/
+-- ack_no/ack_date/qr_code) on every successful generation -- checked first (backlog rule
+-- 1) before assuming this story needed a new table. What was still missing is the
+-- COMPLETE government RESPONSE this story's own title also names: only four fields the
+-- IRP actually returns are ever kept; everything else in that response is discarded the
+-- moment `generateEinvoice` finishes parsing it.
+--
+-- `raw_response jsonb` is nullable (unlike the four identifier columns, all already
+-- nullable themselves) -- every row created before this migration has none on record, and
+-- backfilling one from nothing is impossible, not merely inconvenient; a null here means
+-- "response not captured" (a fact about this row's own history), never "no response was
+-- ever received" (the row's own existence, plus a populated `irn`, already proves one
+-- was).
+--
+-- Deliberately NOT a new evidence table -- COMPLY-P0-10.2 ("Government Response Store")
+-- is the future story that builds a real, purpose-built evidence repository (likely
+-- spanning e-invoice/e-way-bill/return-filing responses alike, per that epic's own
+-- broader "Evidence & Audit" scope); this column is the minimal, correctly-scoped step
+-- of not letting the raw data disappear at the moment it's received, on the ONE table
+-- this specific story concerns (e-invoices), not a redesign of that future epic's own
+-- eventual shape.
+
+alter table gst.einvoices add column raw_response jsonb;
