@@ -8,16 +8,25 @@ import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { RESOURCE_LABELS, type ResourceKey } from "@cofounderai/core/admin/platform-limits-constants";
-import type { LimitState, PlanResourceLimit } from "@cofounderai/core/admin/platform-plan-limits";
+import type { LimitState, LimitType, PlanResourceLimit } from "@cofounderai/core/admin/platform-plan-limits";
 import { clearPlanLimitAction, setPlanLimitAction } from "./actions";
 
 const FIELD_CLASS = "border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500";
 
-type RowDraft = { state: LimitState; limitValue: string };
+type RowDraft = { state: LimitState; limitValue: string; limitType: LimitType };
 
 function draftFrom(limit: PlanResourceLimit): RowDraft {
-  if (!limit.configured) return { state: "unlimited", limitValue: "" };
-  return { state: limit.state, limitValue: limit.limitValue === null ? "" : String(limit.limitValue) };
+  if (!limit.configured) return { state: "unlimited", limitValue: "", limitType: "hard" };
+  return {
+    state: limit.state,
+    limitValue: limit.limitValue === null ? "" : String(limit.limitValue),
+    // PLATFORM-P0-06.5 decision #2: limitType is only ever real when state='limited';
+    // "hard" here for a non-limited row is just this draft's own placeholder default for
+    // if/when the superadmin switches the select to "Limited" -- it is never sent to the
+    // server for a state other than "limited" (setPlanLimitSchema normalizes it to null
+    // regardless).
+    limitType: limit.state === "limited" && limit.limitType ? limit.limitType : "hard",
+  };
 }
 
 /**
@@ -29,6 +38,10 @@ function draftFrom(limit: PlanResourceLimit): RowDraft {
  * `branding-form.tsx`'s single "Save" button applies to its own multi-field sections.
  * "Not configured" is rendered as its own honest state (see the migration's own
  * docstring), never silently defaulted to Unlimited or Disabled.
+ *
+ * PLATFORM-P0-06.5 decision #2: a "Limited" row also carries a Hard/Soft selector,
+ * defaulting to Hard (today's unchanged behavior) -- shown only alongside the numeric
+ * value, since `limit_type` is meaningless for any other state.
  */
 export function QuantityLimitsSection({ planId, limits }: { planId: string; limits: PlanResourceLimit[] }) {
   const [rows, setRows] = useState(limits);
@@ -60,6 +73,7 @@ export function QuantityLimitsSection({ planId, limits }: { planId: string; limi
                 configured: true,
                 state: draft.state,
                 limitValue: draft.state === "limited" ? Number(draft.limitValue) : null,
+                limitType: draft.state === "limited" ? draft.limitType : null,
                 updatedAt: new Date().toISOString(),
                 updatedBy: null,
               }
@@ -80,7 +94,7 @@ export function QuantityLimitsSection({ planId, limits }: { planId: string; limi
         return;
       }
       setRows((r) => r.map((row) => (row.resourceKey === key ? { resourceKey: key, configured: false } : row)));
-      setDrafts((d) => ({ ...d, [key]: { state: "unlimited", limitValue: "" } }));
+      setDrafts((d) => ({ ...d, [key]: { state: "unlimited", limitValue: "", limitType: "hard" } }));
       toast.success(`${RESOURCE_LABELS[key]} reverted to not configured.`);
     });
   }
@@ -89,7 +103,16 @@ export function QuantityLimitsSection({ planId, limits }: { planId: string; limi
     if (!limit.configured) return <Badge variant="outline" className="border-zinc-700 text-zinc-400">Not configured</Badge>;
     if (limit.state === "unlimited") return <Badge>Unlimited</Badge>;
     if (limit.state === "disabled") return <Badge variant="destructive">Disabled</Badge>;
-    return <Badge variant="secondary">{limit.limitValue}</Badge>;
+    // PLATFORM-P0-06.5 decision #2: the limit's own type rides alongside its numeric value
+    // -- "Soft" makes clear this ceiling never actually blocks anything, distinct from an
+    // ordinary (hard) numeric limit which reads unadorned, matching this table's own
+    // pre-06.5 look exactly (no visual change for the still-default 'hard' case).
+    return (
+      <Badge variant="secondary" className="gap-1">
+        {limit.limitValue}
+        {limit.limitType === "soft" && <span className="text-zinc-400">(soft)</span>}
+      </Badge>
+    );
   }
 
   function RowControls({ limit }: { limit: PlanResourceLimit }) {
@@ -108,15 +131,26 @@ export function QuantityLimitsSection({ planId, limits }: { planId: string; limi
           <option value="disabled">Disabled</option>
         </NativeSelect>
         {draft.state === "limited" ? (
-          <Input
-            type="number"
-            min={0}
-            step="1"
-            value={draft.limitValue}
-            onChange={(e) => updateDraft(key, { limitValue: e.target.value })}
-            placeholder="e.g. 5"
-            className={`${FIELD_CLASS} w-24`}
-          />
+          <>
+            <Input
+              type="number"
+              min={0}
+              step="1"
+              value={draft.limitValue}
+              onChange={(e) => updateDraft(key, { limitValue: e.target.value })}
+              placeholder="e.g. 5"
+              className={`${FIELD_CLASS} w-24`}
+            />
+            <NativeSelect
+              value={draft.limitType}
+              onChange={(e) => updateDraft(key, { limitType: e.target.value as LimitType })}
+              className={`${FIELD_CLASS} w-28`}
+              title="Hard limits deny the action once reached. Soft limits never block -- they only flag that usage is over the plan's guideline."
+            >
+              <option value="hard">Hard</option>
+              <option value="soft">Soft</option>
+            </NativeSelect>
+          </>
         ) : null}
         <Button size="sm" disabled={isPending} onClick={() => save(key)}>
           Save
@@ -142,6 +176,7 @@ export function QuantityLimitsSection({ planId, limits }: { planId: string; limi
         <h2 className="text-sm font-semibold text-zinc-100">Quantity limits</h2>
         <p className="text-xs text-zinc-500">
           Numeric ceilings this plan enforces per resource. Unlimited and Disabled are explicit states, never a stand-in number.
+          A Limited resource is Hard (blocks once reached) or Soft (never blocks -- usage past it is only flagged, never denied).
         </p>
       </div>
 

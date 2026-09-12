@@ -7,6 +7,13 @@
  * `test-core-number-sequences.mjs`'s own `psqlAsAsync`/`Promise.all` pattern for proving a
  * SECURITY DEFINER function is actually race-free under real concurrent callers, not just
  * correct when called one at a time.
+ *
+ * Extended for PLATFORM-P0-06.5 (Soft vs Hard Limits, decision #1): proves a soft limit
+ * never denies (even far past its own guideline, even for a large single quantity request)
+ * while re-confirming, under real concurrency, that the row lock making this function
+ * atomic still serializes correctly for the now-modified function -- a soft limit removes
+ * the denial branch, not the lock, so a burst of concurrent soft consumption must still
+ * produce a correct, race-free final count with zero lost updates.
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -66,14 +73,14 @@ async function main() {
         "the counter really was incremented by 3",
       );
 
-      console.log("Seeding plan_limits: businesses=limited(2), opportunities=disabled, ai_credits=unlimited on the free plan...");
+      console.log("Seeding plan_limits: businesses=limited/hard(2), opportunities=disabled, ai_credits=unlimited on the free plan...");
       const freePlanId = psql(`select id from platform.plans where key = 'free';`);
       psql(`
         set local role service_role;
-        insert into platform.plan_limits (plan_id, resource_key, state, limit_value) values
-          ('${freePlanId}', 'businesses', 'limited', 2),
-          ('${freePlanId}', 'opportunities', 'disabled', null),
-          ('${freePlanId}', 'ai_credits', 'unlimited', null);
+        insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values
+          ('${freePlanId}', 'businesses', 'limited', 2, 'hard'),
+          ('${freePlanId}', 'opportunities', 'disabled', null, null),
+          ('${freePlanId}', 'ai_credits', 'unlimited', null, null);
       `);
 
       console.log("Verifying a disabled resource is denied outright, with no side effect...");
@@ -93,9 +100,9 @@ async function main() {
 
       console.log("Verifying a limited resource grants up to the limit, then denies with no partial increment...");
       assertEqual(
-        psqlAsAlice(`select state, limit_value, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'businesses', 1, 'current')`),
-        "limited|2|t|0|1",
-        "first unit of 2 granted",
+        psqlAsAlice(`select state, limit_value, limit_type, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'businesses', 1, 'current')`),
+        "limited|2|hard|t|0|1",
+        "first unit of 2 granted -- and the function's own new limit_type output column correctly reports 'hard' (PLATFORM-P0-06.5)",
       );
       assertEqual(
         psqlAsAlice(`select state, limit_value, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'businesses', 1, 'current')`),
@@ -145,7 +152,7 @@ async function main() {
       psql(`set local role service_role; delete from core.usage_counters where business_id = '${aliceBiz}' and resource_key = 'products';`);
       psql(`
         set local role service_role;
-        insert into platform.plan_limits (plan_id, resource_key, state, limit_value) values ('${freePlanId}', 'products', 'limited', 3);
+        insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values ('${freePlanId}', 'products', 'limited', 3, 'hard');
       `);
       const raceResults2 = await Promise.all(
         Array.from({ length: 10 }, () => psqlAsAsync(ALICE, `select granted from core.try_consume_usage_counter('${aliceBiz}', 'products', 1, 'current')`)),
@@ -156,6 +163,49 @@ async function main() {
         psqlAsAlice(`select count from core.usage_counters where business_id = '${aliceBiz}' and resource_key = 'products' and period = 'current'`),
         "3",
         "the final counter is exactly 3, matching the limit -- no overshoot from the concurrent race",
+      );
+
+      console.log("PLATFORM-P0-06.5 decision #1: seeding a soft limit (contacts=limited/soft(2)) on the free plan...");
+      psql(`
+        set local role service_role;
+        insert into platform.plan_limits (plan_id, resource_key, state, limit_value, limit_type) values ('${freePlanId}', 'contacts', 'limited', 2, 'soft');
+      `);
+
+      console.log("Verifying a soft limit grants normally under its guideline...");
+      assertEqual(
+        psqlAsAlice(`select state, limit_value, limit_type, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'contacts', 1, 'current')`),
+        "limited|2|soft|t|0|1",
+        "first unit of a soft limit of 2 granted, same as a hard limit would be under its own cap",
+      );
+
+      console.log("Verifying a soft limit keeps granting once usage reaches, then exceeds, its guideline -- never denied, no ceiling...");
+      assertEqual(
+        psqlAsAlice(`select state, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'contacts', 1, 'current')`),
+        "limited|t|1|2",
+        "second unit granted, now exactly at the guideline of 2",
+      );
+      assertEqual(
+        psqlAsAlice(`select state, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'contacts', 1, 'current')`),
+        "limited|t|2|3",
+        "third unit STILL granted, even though it pushes usage past the guideline of 2 -- this is the one behavior that actually differs from the hard case above",
+      );
+      assertEqual(
+        psqlAsAlice(`select state, granted, usage_before, usage_after from core.try_consume_usage_counter('${aliceBiz}', 'contacts', 10, 'current')`),
+        "limited|t|3|13",
+        "a large over-the-guideline quantity request is still granted in full, atomically -- no partial grant, no overage ceiling of any kind",
+      );
+
+      console.log(
+        "Re-verifying PLATFORM-P0-06.3's own row-locking behavior still holds for the now-modified function: 10 concurrent callers against a soft limit, already well past its guideline, are ALL granted (never denied) with no lost updates...",
+      );
+      const softRaceResults = await Promise.all(
+        Array.from({ length: 10 }, () => psqlAsAsync(ALICE, `select granted from core.try_consume_usage_counter('${aliceBiz}', 'contacts', 1, 'current')`)),
+      );
+      assertEqual(softRaceResults.every((r) => r === "t"), true, "every one of 10 concurrent soft-limit callers was granted -- a soft limit never denies");
+      assertEqual(
+        psqlAsAlice(`select count from core.usage_counters where business_id = '${aliceBiz}' and resource_key = 'contacts' and period = 'current'`),
+        "23",
+        "the counter is exactly 13 + 10 = 23 -- every one of the 10 concurrent increments landed with none lost to a race, proving the same `for update` row lock that serializes the hard-limit branch above still correctly serializes the soft-limit branch, even though this branch never denies",
       );
 
       console.log("Verifying tenant isolation: Bob's own counters are unaffected by any of Alice's calls...");
