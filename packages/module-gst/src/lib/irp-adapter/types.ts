@@ -31,6 +31,14 @@ export type IrpSubmitResponse = {
   ackNo: string | null;
   ackDate: string | null;
   qrCode: string | null;
+  /** COMPLY-P0-05.4 (IRN/QR Response): the complete, unmodified government response body
+   * -- kept alongside the four extracted identifiers above so nothing the IRP actually
+   * returned is ever lost to this platform's own narrower field selection. The four
+   * extracted fields remain what this module operates on day to day (persisted on
+   * `gst.einvoices` for direct reads); `raw` is the verbatim evidence record, persisted
+   * into `gst.einvoices.raw_response` and left otherwise unused until a future story
+   * (COMPLY-P0-10.2 "Government Response Store") builds a real evidence view around it. */
+  raw: Record<string, unknown>;
 };
 
 export type IrpCancelRequest = {

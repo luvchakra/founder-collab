@@ -38,13 +38,16 @@ export function buildSubmitPayload(request: IrpSubmitRequest): Record<string, un
 
 /** Pure: the inverse of `buildSubmitPayload` -- normalizes the IRP's own
  * Irn/AckNo/AckDt/SignedQRCode response fields into `IrpSubmitResponse`, exactly the
- * mapping `generateEinvoice` already did inline before this story. */
+ * mapping `generateEinvoice` already did inline before COMPLY-P0-05.3. COMPLY-P0-05.4
+ * added `raw`, the complete unmodified response, alongside the four extracted fields --
+ * see `IrpSubmitResponse`'s own docstring for why. */
 export function parseSubmitResponse(response: Record<string, unknown>): IrpSubmitResponse {
   return {
     irn: (response.Irn as string | undefined) ?? null,
     ackNo: (response.AckNo as string | undefined) ?? null,
     ackDate: (response.AckDt as string | undefined) ?? null,
     qrCode: (response.SignedQRCode as string | undefined) ?? null,
+    raw: response,
   };
 }
 

@@ -28,16 +28,23 @@ describe("buildSubmitPayload", () => {
 
 describe("parseSubmitResponse", () => {
   it("normalizes the real IRP response fields", () => {
-    expect(parseSubmitResponse({ Irn: "irn-1", AckNo: "ack-1", AckDt: "2026-09-12", SignedQRCode: "qr-data" })).toEqual({
+    const raw = { Irn: "irn-1", AckNo: "ack-1", AckDt: "2026-09-12", SignedQRCode: "qr-data" };
+    expect(parseSubmitResponse(raw)).toEqual({
       irn: "irn-1",
       ackNo: "ack-1",
       ackDate: "2026-09-12",
       qrCode: "qr-data",
+      raw,
     });
   });
 
-  it("defaults every field to null when the response has none of them", () => {
-    expect(parseSubmitResponse({})).toEqual({ irn: null, ackNo: null, ackDate: null, qrCode: null });
+  it("defaults every extracted field to null when the response has none of them, but still keeps the raw response", () => {
+    expect(parseSubmitResponse({})).toEqual({ irn: null, ackNo: null, ackDate: null, qrCode: null, raw: {} });
+  });
+
+  it("COMPLY-P0-05.4: preserves fields this module doesn't extract on its own inside raw", () => {
+    const raw = { Irn: "irn-1", SomeOtherFieldThisModuleIgnores: "value" };
+    expect(parseSubmitResponse(raw).raw).toEqual(raw);
   });
 });
 
@@ -82,7 +89,7 @@ describe("createGspIrpAdapter", () => {
     );
     await expect(
       adapter.submit({ docNumber: "INV-1", docDate: "12-09-2026", assessableValue: 100, cgstValue: 0, sgstValue: 0, igstValue: 18, totalValue: 118 }),
-    ).resolves.toEqual({ irn: "irn-1", ackNo: null, ackDate: null, qrCode: null });
+    ).resolves.toEqual({ irn: "irn-1", ackNo: null, ackDate: null, qrCode: null, raw: { Irn: "irn-1" } });
   });
 
   it("cancel() posts to cancelUrl", async () => {
