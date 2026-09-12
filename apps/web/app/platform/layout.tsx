@@ -58,6 +58,9 @@ const NAV_LINKS = [
   // PLATFORM-P0-09.5: a read-only, platform-wide view of recent AI runs -- no new table,
   // see platform-ai-usage.ts's own docstring.
   { href: "/platform/ai-usage", label: "AI Usage" },
+  // PLATFORM-P0-11.1: the platform-wide email provider config -- config-only, no runtime
+  // wiring (see the migration's own docstring).
+  { href: "/platform/email-provider", label: "Email Provider" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

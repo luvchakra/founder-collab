@@ -28,7 +28,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
-| | 11 | Global Email / Notification Configuration | Not started |
+| | 11 | Global Email / Notification Configuration | 11.1 done (config-only, "from name" reuses `platform.branding.email_from_name`); 11.2/11.3 not started -- see log |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
@@ -39,7 +39,8 @@ verification in full regardless of which mode was in effect when it landed.
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
 **P0: 9 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09),
-plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). P1: 0/9 done.**
+plus 18.1, 10.1 (10.2/10.3/10.4 remain open within §14), and 11.1 (11.2/11.3 remain open
+within §15). P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -4846,3 +4847,227 @@ assignment says to continue past §14 into the doc's next section (§15, "Global
 Notification Configuration") once 10.1 lands, so 10.3/10.4 are left open for a future story
 rather than picked up now. Committed and merged to `main`. Continuing per this doc's own
 section order into §15 next.
+
+### PLATFORM-P0-11.1 — Email Provider (2026-09-12)
+
+**Worktree hazard checked first**: `git log --oneline -3` on entry showed `HEAD` on
+`5d3e847` ("Merge branch 'feature/platform-admin-portal' into scratch-plat-10-1-merge"), one
+commit *ahead of* `origin/feature/platform-admin-portal` itself, and `git log
+origin/feature/platform-admin-portal..origin/main` was non-empty (`main` had moved further
+via the scratch-branch auto-merge procedure, `feature/platform-admin-portal` itself was
+stale by design, matching this workstream's own documented hazard). Reset with `git checkout
+-B feature/platform-admin-portal origin/main`, landing exactly on `5d3e847`, confirmed
+identical to `origin/main`'s own tip before writing any code. `npm install` run fresh (no
+`node_modules` in this worktree).
+
+**§15's own text in full** -- three sub-stories, each a short field/item list:
+
+```text
+PLATFORM-P0-11.1 -- Email Provider
+Configure: provider / from name / from email / reply-to
+
+PLATFORM-P0-11.2 -- System Email Templates
+Manage templates for: welcome / verification / password/security events / subscription /
+usage limits / compliance reminders / system announcements
+
+PLATFORM-P0-11.3 -- Notification Policies
+Configure platform defaults for: email / in-app / push
+```
+
+**The entity-ownership question this run's own task assignment flagged, read closely and
+resolved, not guessed at**: does 11.1's "from name" duplicate `platform.branding.
+email_from_name` (PLATFORM-P0-03.1's own "Email Branding" column, whose own audit entry
+above says it was built "waiting for PLATFORM-P0-11 to plug into")? Read both sources in
+full before deciding, per the assignment's own instruction:
+
+- `platform.branding.email_from_name` (`20260911010000_platform_branding.sql`) is a single
+  `text` column, no `from_email`/`reply_to`/`provider` alongside it, filed under a section
+  the migration's own comment literally labels "Email Branding" -- and PLATFORM-P0-03.1's
+  own audit entry above states, in its own words, the reason no email consumer was wired up:
+  "there is no email-sending system yet (PLATFORM-P0-11) for `email_from_name` to plug
+  into." That is not a coincidental naming collision -- it is the prior story's own stated
+  design intent that this exact story would be the one to make that column meaningful.
+- §15's own "from name" field, read literally, names the same real-world concept: the
+  display name a recipient's mail client shows for a platform-originated email's sender.
+  There is no second, materially different reading of "from name" anywhere in §15's four
+  words of text for 11.1, unlike PLATFORM-P0-10.1's own "daily budget" duplicate-field
+  question (which required a user decision because *both* readings -- "the same field" and
+  "a genuinely new, different ceiling" -- were textually plausible and the doc gave no way
+  to tell them apart). Here, only one reading is textually plausible.
+
+**Verdict: cleanly resolvable, not a stop-and-report** -- reuse `platform.branding.
+email_from_name` as the one and only "from name" value; this migration adds no
+`from_name`-shaped column. This differs from PLATFORM-P0-09.3/10.1's own stopped entries in
+kind, not just degree: those each compounded a duplicate-field question with a genuine,
+textually unstated *algorithm* question (BYOK precedence/failover semantics for 09.3;
+"per-business"/"per-feature" granularity plus an undefined circuit-breaker/notification
+mechanism for 10.1/10.2) -- exactly the class of thing this run's own task brief names as a
+stop-and-report trigger. Nothing here asks this story to invent a runtime algorithm; the
+only real work is a data-modeling choice (add three new columns to `platform.branding`
+itself, or a new table that doesn't re-store the fourth), and the prior story's own audit
+trail already answers which of those the fourth field's design intent was.
+
+**A second, materially bigger discovery made during reconnaissance, not assumed away**:
+grepping this codebase for any existing "email provider" concept (`sendgrid`, `resend`,
+`postmark`, `ses`, `mailgun`, `nodemailer`, `smtp`) surfaced real, already-live email-sending
+code -- `resend` (the npm package) called directly, today, from roughly a dozen call sites
+across three modules (`module-discovery`: `lib/messages/send.ts`,
+`lib/messages/resend-templates.ts`, `lib/interest/notify.ts`; `module-fsm`:
+`lib/reminders`, `lib/customer-center`, `lib/invoices`, `lib/estimates`, `lib/events`,
+`lib/messages`; `module-gst`: `lib/reminders`), every one reading `process.env.
+RESEND_API_KEY`/`process.env.RESEND_FROM_EMAIL` directly, no database config at all. This
+was not mentioned anywhere in this backlog's own prior entries (PLATFORM-P0-02.2's
+Configuration Health "email" category and PLATFORM-P0-03.1's own note both describe "no
+email-sending system yet" in a way that reads, in isolation, as if none existed).
+
+Considered stopping over this, since it raises the same shape of "config table vs. an
+already-live, unwired mechanism" tension PLATFORM-P0-09.3's own entry flagged as a stop
+trigger -- but concluded it is not one, on inspection: PLATFORM-P0-09.1 itself already
+established and shipped, without stopping, the exact same pattern -- a new `platform.
+ai_providers` config registry built and merged while `business-router.ts`'s own
+`getPlatformCredential()` fallback stayed hardcoded to `provider: "anthropic"` reading
+`PLATFORM_AI_API_KEY`, completely untouched, with the actual wiring explicitly deferred to
+09.3 (a later, separate, still-open story). §15's own field list for 11.1 says nothing about
+migrating these dozen Resend call sites or unifying them behind one sender, and doing so
+would require inventing a real migration/cutover plan (do all call sites switch at once? is
+there a fallback if the new config is incomplete? what happens to a message already queued
+mid-cutover?) that is squarely the "real infrastructure with an unstated algorithm" class of
+question this run's own task brief reserves for a stop, not "config registry with no
+consumer yet" (09.1's own accepted shape). So this story proceeds config-only, exactly like
+09.1, but **states the gap plainly** rather than the way 03.1/02.2's own prior wording
+happened to read as if no live path existed: the migration's own docstring, the app layer's
+docstring, and the admin page's own on-screen copy (an amber warning banner, not a footnote)
+all name the real Resend env-var call sites directly, so a future superadmin configuring
+this screen -- and a future story that eventually wires it up -- both start from an accurate
+picture, not the one this story almost shipped with before the grep.
+
+**What was built**: migration `20260912400000_platform_email_provider.sql` -- singleton
+`platform.email_provider` (boolean PK fixed to `true`, same construction as `platform.
+branding`), with `provider` (free text, not a closed enum -- unlike `platform.
+ai_providers.provider`, no closed TS union or SDK integration for "email provider" exists
+anywhere in this codebase to validate against, so constraining it now would invent a
+catalog nothing could ever route to), `from_email`/`reply_to` (each a nullable, regex-
+checked email address, same pattern `platform.branding.support_email` already uses), and
+`updated_at`/`updated_by`. No `from_name` column -- see the entity-ownership section above.
+No secret/credential column -- §15 has no "Email Provider Credentials" sub-story the way
+§13 named "Secure API Key Storage" (09.2) as its own explicit companion to "Internal AI
+Provider Registry" (09.1); PLATFORM-P0-12.4 ("Credential Separation") reads as the more
+likely future home for actual per-integration secret storage, not this story's to guess at.
+Every mutation goes through `platform.update_email_provider_config()` (SECURITY DEFINER,
+`is_superadmin()` + non-empty-reason checks, one `platform.email_provider_events` audit row
+per change via `to_jsonb()` snapshots -- safe here since no secret column exists on this
+table at all) -- the audited-function pattern `platform.ai_providers`/`platform.
+ai_feature_policies` already established, not `platform.branding`'s own plainer RLS-gated
+`.update()`, since this run's own task brief sets a higher security bar and `from_email`/
+`reply_to` are a real phishing/spoofing-adjacent surface once any email system reads them,
+not merely cosmetic like branding's colors/copy. RLS is superadmin-only SELECT (unlike
+`platform.ai_providers`' own open-to-`authenticated` SELECT, which was deliberately widened
+in anticipation of PLATFORM-P0-09.3's own named future routing consumer -- §15 names no
+analogous consumer, so this story does not speculate a wider grant ahead of need). No
+INSERT/UPDATE/DELETE grant to `authenticated` on either table -- singleton-row and
+audited-function-only-write, matching `platform.branding`/`platform.ai_providers`.
+
+**Application layer** (`packages/core/src/admin/platform-email-provider.ts`):
+`getEmailProviderConfig()` reads this table's three fields *and* calls the existing
+`getPlatformBranding()` to surface `email_from_name` as a read-only `fromName` field on the
+same response -- there is no `updateEmailProviderConfig()` write path for it at all, so the
+one and only way to change "from name" stays `/platform/branding`'s own draft/publish flow
+(PLATFORM-P0-03.5). `updateEmailProviderConfigSchema` validates `provider` (optional, free
+text, 120-char cap, empty clears it), `fromEmail`/`replyTo` (optional, `z.string().email()`,
+empty clears), and a required `reason`. 7 new unit tests in
+`platform-email-provider.test.ts` (valid config, empty-to-null normalization, malformed
+from/reply-to email, blank reason, provider trimming, overlong provider rejection).
+
+**UI**: new `apps/web/app/platform/(protected)/email-provider/` (page.tsx, actions.ts,
+email-provider-dialog.tsx) -- a singleton settings surface, same shape as `/platform/
+ai-feature-policies` (a `Field` list plus one "Configure" dialog, reason required to save;
+no table/mobile-card split needed per CLAUDE.md development principle #12, which targets a
+page whose *primary* content is a table of *many* rows, not a page holding one config row).
+"From name" renders as a plain read-only field with a link to `/platform/branding`'s own
+"Email branding" section, not an editable input -- consistent with the application layer
+having no write path for it. An amber warning banner above the settings card states the
+real-Resend-env-var gap in plain language (see above) -- the same "state what this doesn't
+do yet" honesty `/platform/ai-feature-policies`' own copy already established
+("configuration only... nothing here is enforced by any real AI call yet"), made more
+concrete here since this story found something specific to name. `apps/web/app/platform/
+layout.tsx` gains one nav entry, "Email Provider", after "AI Usage".
+
+**Deliberately not built this story**: no wiring of any of the dozen real Resend call sites
+to this table (see the discovery/reasoning above); no email-provider credential/API-key
+storage (no such sub-story exists in §15; a future story's job if one is ever added,
+following `platform.ai_provider_keys`' own zero-grant lockdown pattern); no closed
+provider enum (no existing catalog to validate against); PLATFORM-P0-11.2 (System Email
+Templates) and PLATFORM-P0-11.3 (Notification Policies) are their own separate stories in
+this same §15 section, picked up next, not folded in here.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace (fresh
+worktree `npm install` needed first, same recurring cross-checkout symlink issue every
+prior worktree-run entry in this log has documented). `npm run lint --workspaces
+--if-present` -- 0 errors after fixing one unescaped-quote catch in the new page's own copy
+(the same recurring class of lint 03.1/03.5 also hit), 1 pre-existing unrelated warning
+(`Package` unused import in a CRM conversations page, untouched by this story). `node
+scripts/lint-import-boundaries.mjs` -- 1471 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 193 migrations (190 -> 193; +1 this story's own file,
++2 other workstreams' concurrent merges into `main` since 10.1's own entry), no violations.
+`npx vitest run --root packages/core` -- 25 files / 237 tests (24/230 -> 25/237, +7 new
+`updateEmailProviderConfigSchema` cases), all passing. `apps/web`'s own `vitest run
+--passWithNoTests` -- 50 tests, unchanged. `cd apps/web && rm -rf .next && npm run build` --
+clean; `/platform/email-provider` lists `ƒ` (dynamic), inheriting the outer layout's
+existing `force-dynamic` with no change needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` that the singleton row seeded with `provider`/`from_email`/`reply_to` all
+`null` (no fabricated "configured" state). `mcp__Supabase__get_advisors` (security and
+performance) -- **zero new findings**: the same 6 pre-existing `rls_enabled_no_policy` INFO
+rows and the pre-existing leaked-password-protection warning (security); the two new
+indexes (`email_provider_updated_by_idx`, `email_provider_events_performed_by_idx`) appear
+only as the same benign "unused index" INFO class every sibling table's own FK index
+already carries in this empty dev database (performance) -- no new unindexed-FK finding,
+no new RLS-policy-shape finding.
+
+**Role-switched live proof against dev's own real data**: using the same real non-superadmin
+user (`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this backlog's own prior entries have
+repeatedly used -- role-switched `select count(*) from platform.email_provider` returned
+`0` (RLS-filtered, not an error), and a role-switched call to
+`platform.update_email_provider_config('SendGrid', 'notifications@wonderarc.com',
+'support@wonderarc.com', 'trying as non-superadmin')` returned the real Postgres `P0001:
+Forbidden: only a SUPERADMIN can change the email provider configuration.` error -- a
+genuine function-level rejection, not merely an RLS-filtered empty read. As with every
+prior story in this log, there is no seeded demo superadmin user in this environment, so
+the "a real superadmin CAN configure it" half of the live-dev proof was **not** performed
+against dev and is not claimed here -- verified for real only against local Postgres
+(below).
+
+**The dedicated local-Postgres RLS/behavior test**: new `scripts/test-platform-email-
+provider-rls.mjs` (added to `package.json`'s `test:db` composite script, after
+`test-gst-exemption-certificates-rls.mjs`) -- seeds a real business admin (Alice, not a
+superadmin) and a real superadmin (Zoe, seeded the service-role/migration-only way the
+actual bootstrap flow works). Asserts: the singleton starts unconfigured; Alice gets 0 rows
+on SELECT and her mutation attempt is rejected with zero residue in either table; Zoe can
+SELECT and successfully update the config via the audited RPC, which writes exactly one
+`config_updated` event with a real before/after snapshot; a blank/whitespace reason is
+rejected even for Zoe; a malformed `from_email`/`reply_to` is rejected by the table's own
+CHECK constraint even when submitted by Zoe through the RPC; and -- the negative space this
+story's own singleton/audited-function design promises but nothing explicitly asked to
+test -- **not even Zoe** can INSERT a second row, DELETE the singleton, or bypass the RPC
+with a direct UPDATE, since no such grant to `authenticated` exists at all. Ran locally
+against a real, already-running local Postgres 16 cluster (`pg_lsclusters` confirmed it
+online, no restart needed this time): **all 24 assertions passed** on the first corrected
+run (one query needed a `coalesce()` fix after a first run failed on SQL NULL-propagation
+through string concatenation, not an RLS/behavior bug) against the full current migration
+timeline (194 files).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed environment, so a live browser walkthrough of
+`/platform/email-provider` actually saving a configuration through the real UI was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness and a direct read of the applied schema/RLS/function against the live dev
+database (the "SUPERADMIN-only" half proven live; the "a real superadmin succeeds" half
+proven only against local Postgres), not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-11.1 done (config-only, "from name" reuses `platform.branding.
+email_from_name` rather than duplicating it -- a clean resolution, not a stop-and-report,
+per the reasoning above). PLATFORM-P0-11.2 (System Email Templates) and PLATFORM-P0-11.3
+(Notification Policies) remain open, picked up next in section order. Committing and
+merging to `main`, then continuing.
