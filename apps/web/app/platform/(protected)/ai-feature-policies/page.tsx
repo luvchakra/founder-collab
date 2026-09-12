@@ -15,6 +15,11 @@ import { FeaturePolicyDialog } from "./feature-policy-dialog";
  * row (singleton `platform.ai_feature_policies`), so there is no table/mobile-card split
  * to make (CLAUDE.md development principle #12 targets a page whose *primary* content is a
  * table of many rows).
+ *
+ * PLATFORM-P0-10.1 ("Platform AI Budget", §14, user-decided) extended this same page with a
+ * monthly platform budget field -- the same singleton row, the same audited mutation, no new
+ * page. Per-business/per-feature budgets and the PLATFORM-P0-10.2 circuit breaker remain
+ * deferred (see `20260912390000_platform_ai_feature_policies_monthly_budget.sql`).
  */
 export default async function PlatformAiFeaturePoliciesPage() {
   const [policy, providerOptions] = await Promise.all([getAiFeaturePolicy(), listAiFeaturePolicyProviderOptions()]);
@@ -66,6 +71,11 @@ export default async function PlatformAiFeaturePoliciesPage() {
             <Field label="Daily platform budget">
               <span className={policy.dailyPlatformBudgetUsd === null ? "text-zinc-500" : "text-zinc-100"}>
                 {policy.dailyPlatformBudgetUsd === null ? "No budget configured" : `$${policy.dailyPlatformBudgetUsd.toFixed(2)}`}
+              </span>
+            </Field>
+            <Field label="Monthly platform budget">
+              <span className={policy.monthlyBudgetUsd === null ? "text-zinc-500" : "text-zinc-100"}>
+                {policy.monthlyBudgetUsd === null ? "No budget configured" : `$${policy.monthlyBudgetUsd.toFixed(2)}`}
               </span>
             </Field>
           </div>

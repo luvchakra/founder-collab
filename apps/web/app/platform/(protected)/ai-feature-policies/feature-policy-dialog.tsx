@@ -70,6 +70,7 @@ export function FeaturePolicyDialog({
         maxTokensPerRun: String(formData.get("maxTokensPerRun") ?? ""),
         maxRunCostUsd: String(formData.get("maxRunCostUsd") ?? ""),
         dailyPlatformBudgetUsd: String(formData.get("dailyPlatformBudgetUsd") ?? ""),
+        monthlyBudgetUsd: String(formData.get("monthlyBudgetUsd") ?? ""),
         reason,
       });
       if (!result.ok) {
@@ -133,7 +134,7 @@ export function FeaturePolicyDialog({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="maxTokensPerRun" className={LABEL_CLASS}>
                 Max tokens/run
@@ -173,10 +174,29 @@ export function FeaturePolicyDialog({
                 aria-invalid={Boolean(fieldErrors.dailyPlatformBudgetUsd)}
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="monthlyBudgetUsd" className={LABEL_CLASS}>
+                Monthly budget (USD)
+              </Label>
+              <Input
+                id="monthlyBudgetUsd"
+                name="monthlyBudgetUsd"
+                defaultValue={policy.monthlyBudgetUsd ?? ""}
+                placeholder="No budget"
+                className={FIELD_CLASS}
+                aria-invalid={Boolean(fieldErrors.monthlyBudgetUsd)}
+              />
+            </div>
           </div>
-          {(fieldErrors.maxTokensPerRun || fieldErrors.maxRunCostUsd || fieldErrors.dailyPlatformBudgetUsd) && (
+          {(fieldErrors.maxTokensPerRun ||
+            fieldErrors.maxRunCostUsd ||
+            fieldErrors.dailyPlatformBudgetUsd ||
+            fieldErrors.monthlyBudgetUsd) && (
             <p role="alert" className="text-xs text-red-400">
-              {fieldErrors.maxTokensPerRun || fieldErrors.maxRunCostUsd || fieldErrors.dailyPlatformBudgetUsd}
+              {fieldErrors.maxTokensPerRun ||
+                fieldErrors.maxRunCostUsd ||
+                fieldErrors.dailyPlatformBudgetUsd ||
+                fieldErrors.monthlyBudgetUsd}
             </p>
           )}
 
