@@ -23,7 +23,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | 05.1 done (module-level `hasModule()`); 05.2/05.3 done for `hasFeature()`/`getLimit()` (Plan layer composed via the new business&lt;-&gt;plan link); 05.4 confirmed (`hasModule()` deliberately still license-only); `canConsume()` deferred to right after PLATFORM-P0-06.1 ships real usage counters |
-| | 06 | Usage & Limits | 06.1 done (`core.usage_counters` table + RLS + read/write query surface; no module writes to it yet -- each module's own future integration work); 06.2-06.5 next |
+| | 06 | Usage & Limits | 06.1 done (`core.usage_counters` table + RLS + read/write query surface; no module writes to it yet -- each module's own future integration work); 06.2 done (read-side dashboard query, no UI page); 06.3-06.5 next |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -2213,3 +2213,44 @@ tests (107 -> 110, net +3 from replacing `limit-entitlement.test.ts`'s 5 cases w
 
 **Status**: PLATFORM-P0-06.1 done, including `getLimit()`'s own real `usage`/`remaining`
 wiring. Continuing in doc order: PLATFORM-P0-06.2 (Usage Dashboard).
+
+### 06.2 — Usage Dashboard (2026-09-12)
+
+New `packages/core/src/usage/dashboard.ts`: `getUsageDashboard(businessId)`, one row per
+`ResourceKey` carrying exactly the four fields the doc's own worked example names --
+`Current Usage`, `Plan Limit`, `Remaining`, `Projected Usage` -- built entirely on top of
+06.1's own `getBusinessPlan()`/`getUsageCounter()`/`plan_limits` machinery and
+05.2/05.3's own `buildLimitEntitlementDecision()`, not a second parallel query path.
+
+`projectedUsage` is a real, deterministic linear projection (`projectedMonthlyUsage()`):
+current usage divided by calendar days elapsed this UTC month, times days in the month --
+never an LLM guess, per CLAUDE.md principle 4. `null` for a running-total (non-periodic)
+resource (there is no month to project a running total against) and `null` when there is
+no configured limit to project against (nothing to compare the projection to).
+
+**Deliberately no `/platform` UI page ships with this story** -- not a PLATFORM-P0-05.1-
+style blocked judgment call (this function is fully real, authorized today by
+`core.usage_counters`/`core.business_settings`/`platform.plan_limits`'s own existing RLS
+for any caller with a legitimate `businessId`), but because both plausible homes for the
+page are someone else's future story: a tenant-facing "my usage" settings page is each
+*module's* own future integration work (same scope boundary 06.1's own entry already
+drew for who writes the counters); a superadmin cross-tenant browsing UI needs real
+business search across tenants, which doesn't exist yet and is explicitly
+PLATFORM-P1-03.1/03.2's own deferred future scope ("Customer Search," "Customer
+Configuration View"). Building either now would be exactly the kind of scope this run's
+task brief says to stop and report on, not invent.
+
+New `packages/core/src/usage/dashboard.test.ts` -- 5 cases for `projectedMonthlyUsage()`
+(flat linear projection, zero usage, first-day-of-month with no divide-by-zero, rounding,
+and a real February 28-day month). `getUsageDashboard()` itself is a thin composition over
+already-tested primitives (`getBusinessPlan`/`buildLimitEntitlementDecision`), matching
+this codebase's own established convention (`packages/core/src/admin/queries.ts`,
+`platform-dashboard-queries.ts`) that a query-only DB wrapper with no independent branching
+logic doesn't get its own mocked-DB test.
+
+Verified: `npx tsc --noEmit` clean in `packages/core`; `node
+scripts/lint-import-boundaries.mjs` -- 1188 files, no violations; `npx vitest run --root
+packages/core` -- 16 files / 115 tests passed (110 -> 115, +5 new).
+
+**Status**: PLATFORM-P0-06.2 done. Continuing in doc order: PLATFORM-P0-06.3 (Limit
+Enforcement).
