@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Circle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
+import { computeDisplayGroups, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
 import { PIPELINE_STAGE_KEYS, PIPELINE_STAGE_LABEL, type PipelineStage, type PipelineStageKey } from "../../lib/pipeline/types";
 
 type StageResponse = { ok: true; stage: PipelineStage; detail: string } | { ok: false; stage: PipelineStage; error: string };
@@ -15,18 +17,43 @@ function firstIncompleteIndex(stages: PipelineStage[]): number {
   return index === -1 ? PIPELINE_STAGE_KEYS.length : index;
 }
 
+/** DISC-OFFER-P0-10.3: where a group's own underlying data actually lives, for "Users
+ * can inspect completed stages" -- a plain link to the real page already showing it,
+ * rather than a second read-only viewer duplicating that page's own content (the same
+ * "the edit dialog is the way to see the rest" call DISC-OFFER-P0-01.3 already made).
+ * `website_understanding`/`offering_profile` have no link -- their own result is this
+ * very Overview page, immediately below this panel. */
+const GROUP_DESTINATION: Partial<Record<DisplayGroupKey, { label: string; tab: string }>> = {
+  icp: { label: "View ICP", tab: "icp" },
+  buyer_personas: { label: "View buyer personas", tab: "icp" },
+  discovery_strategy: { label: "View discovery strategy", tab: "discovery" },
+  signal_intelligence: { label: "View prospects", tab: "prospects" },
+  opportunity_scoring: { label: "View opportunities", tab: "opportunities" },
+  research: { label: "View opportunities", tab: "opportunities" },
+  recommended_action: { label: "View opportunities", tab: "opportunities" },
+};
+
+function formatTime(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 /**
- * DISC-OFFER-P0-10.1: "Run AI Discovery CTA" -- the doc's own exact button copy and
- * supporting line. "The button must make it obvious that clicking it starts an automated
- * research process" -- literal label, no "Continue"/"Process"/"Generate".
+ * DISC-OFFER-P0-10.1/10.3: "Run AI Discovery CTA" + "Pipeline Progress UI". The doc's own
+ * exact button copy and supporting line ("The button must make it obvious that clicking
+ * it starts an automated research process" -- literal label, no "Continue"/"Process"/
+ * "Generate"), and the doc's own nine-line non-technical progress mockup (✓/●/○) --
+ * `computeDisplayGroups` collapses DISC-OFFER-P0-10.2's fourteen persisted technical
+ * stages into those same nine founder-facing lines. Drives the pipeline one HTTP request
+ * per *technical* stage (see run-ai-discovery/route.ts's own comment for why one long
+ * stream would be unsafe here), so a group spanning several technical stages advances
+ * through them one request at a time while showing a single, stable line the whole time.
  *
- * Drives the fourteen-stage pipeline one request per stage (see run-ai-discovery/
- * route.ts's own comment for why), rendering a plain ordered checklist rather than
- * DISC-OFFER-P0-10.3's own polished non-technical mockup (✓/●/○ with per-stage "Review"/
- * "Run From Here") -- that visual/UX pass is 10.3's own explicit scope; this is the
- * minimum real, working progress view 10.1's own "Progress is visible" acceptance
- * criterion needs: every stage's current persisted status, a spinner on whichever one is
- * in flight, and a Retry action on whichever one failed.
+ * "Users can inspect completed stages": clicking any group expands it to show each of its
+ * own underlying technical stages' status/timestamp, plus a link to wherever that group's
+ * real result already lives elsewhere in the app -- not a second, duplicate display of
+ * the same data. "Retry failed stages": the Retry button on a failed group re-runs from
+ * the one technical stage that actually failed, not the whole group.
  */
 export function RunAiDiscoveryPanel({
   businessId,
@@ -40,12 +67,11 @@ export function RunAiDiscoveryPanel({
   const [stages, setStages] = useState(initialStages);
   const [runningKey, setRunningKey] = useState<PipelineStageKey | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [expanded, setExpanded] = useState<Set<DisplayGroupKey>>(new Set());
 
   const endpoint = `/dashboard/businesses/${businessId}/products/${productId}/run-ai-discovery`;
+  const basePath = `/dashboard/businesses/${businessId}/products/${productId}`;
 
-  function statusOf(key: PipelineStageKey) {
-    return stages.find((s) => s.stage_key === key)?.status ?? "not_started";
-  }
   function stageOf(key: PipelineStageKey) {
     return stages.find((s) => s.stage_key === key) ?? null;
   }
@@ -82,7 +108,17 @@ export function RunAiDiscoveryPanel({
     }
   }
 
-  const allDone = stages.length === PIPELINE_STAGE_KEYS.length && stages.every((s) => s.status === "completed" || s.status === "skipped");
+  function toggleExpanded(key: DisplayGroupKey) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const groups = computeDisplayGroups(stages);
+  const allDone = groups.every((g) => g.status === "completed");
   const hasStarted = stages.some((s) => s.status !== "not_started");
 
   return (
@@ -101,33 +137,82 @@ export function RunAiDiscoveryPanel({
         </Button>
       </div>
 
-      <ol className="flex flex-col gap-1.5">
-        {PIPELINE_STAGE_KEYS.map((key) => {
-          const status = statusOf(key);
-          const stage = stageOf(key);
-          const isRunning = runningKey === key || status === "running";
+      <ol className="flex flex-col gap-1">
+        {groups.map((group) => {
+          const isOpen = expanded.has(group.key);
+          const isRunning =
+            group.status === "current" &&
+            group.activeStageKey !== null &&
+            (runningKey === group.activeStageKey || stageOf(group.activeStageKey)?.status === "running");
+          const destination = GROUP_DESTINATION[group.key];
+
           return (
-            <li key={key} className="flex flex-col gap-1 rounded-md px-2 py-1.5 text-sm">
-              <div className="flex items-center gap-2">
-                {status === "completed" || status === "skipped" ? (
-                  <CheckCircle2 className={status === "skipped" ? "size-4 text-muted-foreground" : "size-4 text-primary"} />
+            <li key={group.key} className="rounded-md text-sm">
+              <button
+                type="button"
+                onClick={() => toggleExpanded(group.key)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent"
+              >
+                {isOpen ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
+                {group.status === "completed" ? (
+                  <CheckCircle2 className="size-4 text-primary" />
                 ) : isRunning ? (
                   <Loader2 className="size-4 animate-spin text-primary" />
-                ) : status === "failed" ? (
+                ) : group.status === "failed" ? (
                   <XCircle className="size-4 text-destructive" />
+                ) : group.status === "current" ? (
+                  <span className="flex size-4 items-center justify-center">
+                    <span className="size-2 rounded-full bg-primary" />
+                  </span>
                 ) : (
                   <Circle className="size-4 text-muted-foreground" />
                 )}
-                <span className={status === "not_started" ? "text-muted-foreground" : ""}>{PIPELINE_STAGE_LABEL[key]}</span>
-                {status === "skipped" ? <span className="text-xs text-muted-foreground">Nothing new</span> : null}
-                {status === "failed" ? (
-                  <Button variant="ghost" size="sm" className="ml-auto h-7 gap-1 px-2" onClick={() => runFrom(key)} disabled={autoRunning}>
+                <span className={group.status === "upcoming" ? "text-muted-foreground" : ""}>{group.label}</span>
+                {group.status === "failed" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-7 gap-1 px-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (group.activeStageKey) void runFrom(group.activeStageKey);
+                    }}
+                    disabled={autoRunning}
+                  >
                     <RotateCcw className="size-3.5" />
                     Retry
                   </Button>
                 ) : null}
-              </div>
-              {status === "failed" && stage?.error ? <p className="pl-6 text-xs text-destructive">{stage.error}</p> : null}
+              </button>
+
+              {isOpen ? (
+                <div className="flex flex-col gap-1.5 py-1 pl-9 pr-2 text-xs text-muted-foreground">
+                  {group.stageKeys.map((stageKey) => {
+                    const stage = stageOf(stageKey);
+                    return (
+                      <div key={stageKey} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1">{PIPELINE_STAGE_LABEL[stageKey]}</span>
+                        <span>
+                          {stage?.status === "completed"
+                            ? `Completed ${formatTime(stage.completed_at)}`
+                            : stage?.status === "skipped"
+                              ? "Nothing new"
+                              : stage?.status === "failed"
+                                ? (stage.error ?? "Failed")
+                                : stage?.status === "running"
+                                  ? "Running..."
+                                  : "Not started"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {destination ? (
+                    <Link href={`${basePath}/${destination.tab}`} className="pt-0.5 font-medium text-primary hover:underline">
+                      {destination.label} &rarr;
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
             </li>
           );
         })}

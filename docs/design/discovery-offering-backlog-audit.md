@@ -49,7 +49,7 @@ only genuine architectural/key decisions are raised.
 | | 09.4 | Offering Review Before Activation | Done |
 | | 10.1 | Run AI Discovery CTA | Done |
 | | 10.2 | Persistent Pipeline Stage Model | Done |
-| | 10.3 | Pipeline Progress UI | Not started |
+| | 10.3 | Pipeline Progress UI | Done |
 | | 11.1 | Editable Pipeline Stages | Not started |
 | | 11.2 | Run From This Stage | Not started |
 | | 11.3 | Stage Dependency Graph | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**31 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**32 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -2125,3 +2125,53 @@ story, all on unrelated tables), and a clean `next build`.
 
 **Status**: 31 of 68 in-scope stories done -- Phase E continuing. Next: 10.3, Pipeline
 Progress UI.
+
+### 10.3 — Pipeline Progress UI (2026-09-12)
+
+The doc's own mockup for this story shows nine plain-language lines (Website
+Understanding / Offering Profile / ICP / Buyer Personas / Discovery Strategy / Signal
+Intelligence / Opportunity Scoring / Research / Recommended Action) with a single
+✓/●/○ vocabulary -- not DISC-OFFER-P0-10.2's own fourteen persisted *technical* stage
+keys. Recognized this as a presentation-layer grouping problem, not a schema change: the
+persisted state stays exactly as granular as 10.2 built it (nothing about
+`discovery.pipeline_stages`/`pipeline_stage_runs` changes this story), and a new
+`computeDisplayGroups()` (`lib/pipeline/display-groups.ts`, pure and deterministic --
+CLAUDE.md dev principle #4) folds the fourteen technical keys into the doc's own nine
+groups: `signal_intelligence` = account_discovery + signals + signal_correlation,
+`opportunity_scoring` (display) = opportunity_scoring + why_now,
+`research` = research + buyer_intelligence, `recommended_action` (display) =
+recommended_action + crm_handoff -- everything else is a 1:1 group. A module-load-time
+assertion checks every one of the fourteen technical keys appears in exactly one display
+group (a stage silently missing from the UI, or double-counted across two groups, would
+be a real regression worth failing loudly on rather than a display quirk someone notices
+later). 6 new vitest cases cover: full coverage, the "exactly one group is ever current"
+invariant matching the mockup's own single "●" line, a failure *inside* a multi-stage
+group correctly marking that whole group failed (not silently masked by its own
+not-yet-attempted sibling stage), and `skipped` counting the same as `completed` for a
+group's own "is it done" purposes.
+
+Rebuilt `RunAiDiscoveryPanel` (10.1's own component, same file) around these nine groups
+rather than the flat fourteen-item list: each group shows the doc's own status
+vocabulary (check / a small filled dot for the one current group / hollow circle for
+upcoming / an X for failed), a "Retry" on a failed group that targets the one *technical*
+stage that actually failed (not the whole group -- a group spanning several technical
+stages should never re-run the ones that already succeeded). "Users can inspect completed
+stages": clicking any group expands it to show each of its own underlying technical
+stages' status and completion time, plus a link to wherever that group's real result
+already lives elsewhere in the app (the ICP tab, the Discovery tab, Prospects,
+Opportunities) -- not a second, duplicate viewer of the same data, the same "the real
+page is the way to see it" call DISC-OFFER-P0-01.3 already made for long descriptions.
+`website_understanding`/`offering_profile` get no such link since their own result *is*
+this very Overview page, immediately below the panel.
+
+No migration this story (a pure UI/presentation change over already-persisted state).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1161 files, no violations),
+`npx vitest run --root packages/module-discovery` (169/169, +6 new), and a clean `next
+build` (confirmed the offering Overview page, which renders the rebuilt panel, still
+builds with no errors). Same live-browser-walkthrough constraint noted in every prior
+UI-touching story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 32 of 68 in-scope stories done -- Phase E continuing. Next: 11.1, Editable
+Pipeline Stages.
