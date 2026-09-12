@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import type { WebsiteBusinessProfile } from "../ai/schemas";
+import type { WebsiteBusinessProfile, WebsiteOfferingCandidate } from "../ai/schemas";
 import type { CrawledPage } from "../ai/website-crawl";
 import type { WebsiteOnboardingRun } from "./types";
 
@@ -72,6 +72,39 @@ export async function recordWebsiteOnboardingPages(runId: string, pages: Crawled
       status: page.status,
       error: page.error,
       fetched_at: page.fetchedAt,
+    })),
+  );
+  if (error) throw error;
+}
+
+/**
+ * DISC-OFFER-P0-09.3's own "extracted facts retain source references" / "multiple
+ * offerings can be identified" -- persists the AI extraction's already-sanitized proposed
+ * offerings (sanitizeOfferingCandidates() already ran before this is called) as one row
+ * each, so DISC-OFFER-P0-09.4's review screen has real rows to edit/merge/remove rather
+ * than a jsonb blob. Same "safe no-op on an empty list" shape as
+ * recordWebsiteOnboardingPages -- an extraction that found nothing is a valid, if
+ * unusual, outcome, not an error the caller needs to branch around.
+ */
+export async function recordWebsiteOnboardingOfferingCandidates(
+  runId: string,
+  offerings: WebsiteOfferingCandidate[],
+): Promise<void> {
+  if (offerings.length === 0) return;
+  const supabase = await createClient();
+  const { error } = await supabase.from("website_onboarding_offering_candidates").insert(
+    offerings.map((offering) => ({
+      run_id: runId,
+      name: offering.name,
+      description: offering.description,
+      offering_type: offering.offeringType,
+      problem_solved: offering.problemSolved,
+      target_customer: offering.targetCustomer,
+      target_industry: offering.targetIndustry,
+      value_proposition: offering.valueProposition,
+      evidence: offering.evidence,
+      confidence: offering.confidence,
+      source_pages: offering.sourcePages,
     })),
   );
   if (error) throw error;

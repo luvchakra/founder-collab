@@ -22,7 +22,8 @@ export type AiOperation =
   | "summarize_customer"
   | "summarize_conversation"
   | "suggest_offering_profile"
-  | "generate_research_brief";
+  | "generate_research_brief"
+  | "extract_business_offerings";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -105,6 +106,14 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // specific angle" case, not extraction. No web search: this reuses researchProspect()'s
   // own already-fetched findings rather than searching again (minimize LLM calls).
   generate_research_brief: { qualityTier: "reasoning", requiresWebSearch: false },
+  // DISC-OFFER-P0-09.3's "AI Offering Extraction" -- balanced, same tier as
+  // summarize_customer/draft_review_response: consolidating a crawled site's own findings
+  // into a handful of distinct commercial offerings (not one per feature) is bounded
+  // synthesis over already-gathered text, not the multi-source strategic synthesis
+  // generate_outreach_strategy/chat use "reasoning" for. No web search: reuses the same
+  // crawl findings understand_business_website already fetched (minimize LLM calls) --
+  // no fresh research of its own.
+  extract_business_offerings: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

@@ -45,7 +45,7 @@ only genuine architectural/key decisions are raised.
 | | 08.3 | Handoff Status | Done |
 | E | 09.1 | Website URL Business Onboarding | Done |
 | | 09.2 | Website Crawl & Content Discovery | Done |
-| | 09.3 | AI Offering Extraction | Not started |
+| | 09.3 | AI Offering Extraction | Done |
 | | 09.4 | Offering Review Before Activation | Not started |
 | | 10.1 | Run AI Discovery CTA | Not started |
 | | 10.2 | Persistent Pipeline Stage Model | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**27 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**28 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1675,3 +1675,111 @@ crawl against a real website is the entire point of this story.
 
 **Status**: 27 of 68 in-scope stories done -- Phase E continuing. Next: 09.3, AI Offering
 Extraction.
+
+### 09.3 — AI Offering Extraction (2026-09-12)
+
+Built on 09.1/09.2's own foundation exactly the way 09.2 built on 09.1's: no second crawl.
+`understandBusinessWebsite()` already produces one combined, page-attributed findings
+blob per run (09.2's own `crawlWebsite()`); this story adds a second structuring call
+against that SAME blob -- `extractBusinessOfferings()` (`lib/ai/extract-business-offerings.ts`)
+-- rather than re-fetching the site to ask a different question of it ("never send
+unnecessary context to an LLM" / minimize LLM calls cuts both ways: reusing findings
+already in hand beats a second research pass).
+
+New `WebsiteOfferingCandidateSchema`/`WebsiteOfferingExtractionSchema` (`lib/ai/schemas.ts`)
+-- exactly the doc's own ten-field list (name, description, offeringType, problemSolved,
+targetCustomer, targetIndustry, valueProposition, evidence, confidence, sourcePages) per
+proposed offering, as a list ("multiple offerings can be identified"), each item carrying
+its own provenance rather than one blanket score for the whole call -- the same
+"provenance is per-item" discipline `WebsiteTextFieldSchema`/`WebsiteListFieldSchema`
+already established for the business profile. `offeringType` reuses the existing
+`OfferingType` vocabulary (`lib/offerings/types.ts`, DISC-OFFER-P0-01.1) rather than a
+parallel one, since a proposed offering eventually becomes a real `discovery.products`
+row (09.4's own job). New prompt `prompts/business/extract_business_offerings_v1.ts`
+carries the story's own central warning as an explicit instruction with a worked example
+("24/7 monitoring" + "incident response" + "identity governance dashboards" described
+separately is ONE offering, not three) -- the acceptance criterion most likely to fail
+silently if left implicit.
+
+New `sanitizeOfferingCandidates()` (`lib/website-onboarding/sanitize-offerings.ts`, pure
+and unit-tested, CLAUDE.md dev principle #4): drops a nameless candidate, trims text
+fields, clamps confidence into [0,1], and -- the two structural enforcements that matter
+most here -- (1) filters `sourcePages` down to only URLs this run's crawl actually
+succeeded on, so "extracted facts are traceable to source pages" holds in code rather
+than by prompt request alone (a hallucinated source page is dropped, not trusted), and
+(2) deduplicates an exact-name duplicate as a deterministic backstop on top of the
+prompt's own consolidation instruction, merging in any additional source pages the
+duplicate named rather than silently losing that evidence. 9 new vitest cases cover every
+one of these rules independently.
+
+New operation `extract_business_offerings` in `packages/core/src/ai/operation-registry.ts`
+-- `balanced` tier (bounded synthesis over already-gathered text, the same tier
+`summarize_customer`/`draft_review_response` use, not the `reasoning` tier multi-source
+strategic synthesis like `generate_outreach_strategy`/`chat` needs), no web search (reuses
+the crawl's own findings). Own `ai_runs` row (`extract_business_offerings`,
+business_id-scoped like `understand_business_website`'s own row, for the same
+"no workspace exists yet" reason) -- kept separate from the profile-structuring row rather
+than folded in, the same "one row per operation" discipline every lib/ai/*.ts function in
+this module already follows individually.
+
+New `discovery.website_onboarding_offering_candidates` table
+(`20260912050000_discovery_website_onboarding_offering_candidates.sql`) -- one row per
+proposed offering, child of `website_onboarding_runs` via the same read-through-the-parent
+RLS pattern `website_onboarding_pages` (09.2) already established. Checked the entity
+ownership map (`docs/plan/00-MASTER-PLAN.md` §5) first per CLAUDE.md's own instruction --
+no existing "offering candidate"/proposal concept there (it covers cross-module `core`
+entities, not a single module's own onboarding-pipeline internals), so this is not a
+duplicate of anything already listed. Insert/select policies only, deliberately no
+update/delete yet -- DISC-OFFER-P0-09.4's own "edit, rename, merge, remove" review actions
+are that story's scope to add (CLAUDE.md dev principle #7/#10: never implement
+speculative functionality ahead of the story that actually needs it). New
+`recordWebsiteOnboardingOfferingCandidates()` mutation and
+`listWebsiteOnboardingOfferingCandidates()` query (`cache()`-wrapped, same pattern as the
+pages table's own pair).
+
+Route handler gained an `"offerings-progress"` stream event (mirroring `"page"`'s own
+live-progress role, independent of the existing `"progress"` event which only ever covers
+business-profile fields) and persists the extraction's own sanitized offerings via
+`recordWebsiteOnboardingOfferingCandidates()` right after the run completes, alongside the
+existing page persistence. The `"done"` event now also carries the offering list. Panel
+(`WebsiteOnboardingPanel`) gained a new `initialOfferings` prop (loaded from the DB on
+render, same reload-survives-refresh precedent `initialPages` set) and a new
+`OfferingCandidateList` component -- one card per offering (name, type badge, confidence
+percentage, description, problem/customer/industry/value-prop fields shown only when
+non-null, a quoted evidence line, and clickable source-page links), reusing this file's
+own established bordered-card/`Badge` visual language rather than inventing a second style
+(this platform's own design-consistency rule). Deliberately read-only: no Edit/Merge/
+Remove/"Create Offerings" action here -- that is DISC-OFFER-P0-09.4's own explicit next
+story, and adding it now would mean guessing at exactly what an edit/merge/remove
+operation writes before that story defines it.
+
+One deliberate scope boundary, flagged rather than silently assumed (the same kind of note
+09.2's own log made about page persistence): if offering extraction fails after a
+successful crawl and profile structuring, the whole run fails rather than completing with
+a profile but no offerings -- "one run, one outcome" stays simpler than partially
+decoupling the run's own two structuring steps, and a provider failure at the extraction
+step (e.g. an invalid key) would very likely have failed the profile step moments earlier
+too, so the realistic cost of this choice is low. Also flagged: this story's own
+acceptance criterion "User can edit, rename, merge, remove or add offerings" is only
+partially satisfied here -- the *data model* supports it (each candidate is already its
+own row), but the interactive actions themselves are 09.4's "Offering Review Before
+Activation" own explicit scope (its mockup shows the actual Edit/Merge/Remove buttons and
+the "Create Offerings" activation step); building them now ahead of 09.4 defining exactly
+what a merge writes would be the same kind of speculative work CLAUDE.md dev principle #7
+warns against.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1157 files, no violations), `lint:migrations` (131 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npx vitest run --root
+packages/module-discovery` (141/141, +9 new), a live migration apply + `get_advisors` for
+both `security`/`performance` (no new findings of any kind -- the new FK was indexed from
+the start, and the new table's own two policies are the only ones on it, matching
+`website_onboarding_pages`'s own shape), and a clean `next build` (confirmed both
+`/dashboard/businesses/[businessId]/business` and the `/website-onboarding` route handler
+still build with no errors). Same live-browser-walkthrough constraint noted in every prior
+story this run (no seeded demo user/`.env.local` in this environment) -- particularly
+relevant here given a real AI extraction call against real crawled website content is the
+entire point of this story.
+
+**Status**: 28 of 68 in-scope stories done -- Phase E continuing. Next: 09.4, Offering
+Review Before Activation.

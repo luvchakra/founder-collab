@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
-import type { WebsiteOnboardingPage, WebsiteOnboardingRun } from "./types";
+import type { WebsiteOnboardingOfferingCandidate, WebsiteOnboardingPage, WebsiteOnboardingRun } from "./types";
 
 /** The one onboarding run this business page cares about "right now" -- most-recent
  * first, same "most recent reflects current state" convention `getProspectSummaryForParty`
@@ -50,3 +50,19 @@ export const listWebsiteOnboardingPages = cache(async (runId: string): Promise<W
   if (error) throw error;
   return data ?? [];
 });
+
+/** DISC-OFFER-P0-09.3's own proposed offerings for a run, in extraction order (the order
+ * they were inserted in). `cache()`-wrapped for the same render-time reuse reason
+ * `listWebsiteOnboardingPages` is. */
+export const listWebsiteOnboardingOfferingCandidates = cache(
+  async (runId: string): Promise<WebsiteOnboardingOfferingCandidate[]> => {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("website_onboarding_offering_candidates")
+      .select("*")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return data ?? [];
+  },
+);

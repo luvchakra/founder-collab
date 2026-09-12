@@ -1,4 +1,5 @@
 import type { WebsiteBusinessProfile } from "../ai/schemas";
+import type { OfferingType } from "../offerings/types";
 import type { WebsitePageCategory } from "./crawl-plan";
 
 export const WEBSITE_ONBOARDING_STATUS_VALUES = ["pending", "running", "succeeded", "failed"] as const;
@@ -20,6 +21,26 @@ export type WebsiteOnboardingPage = {
   status: WebsiteOnboardingPageStatus;
   error: string | null;
   fetched_at: string;
+  created_at: string;
+};
+
+/** discovery.website_onboarding_offering_candidates -- DISC-OFFER-P0-09.3. One row per
+ * proposed commercial Offering the AI extraction step identified from a run's own crawled
+ * findings; not yet a real `discovery.products` row (DISC-OFFER-P0-09.4 is what turns a
+ * founder-reviewed subset of these into real rows). */
+export type WebsiteOnboardingOfferingCandidate = {
+  id: string;
+  run_id: string;
+  name: string;
+  description: string;
+  offering_type: OfferingType | null;
+  problem_solved: string | null;
+  target_customer: string | null;
+  target_industry: string | null;
+  value_proposition: string | null;
+  evidence: string;
+  confidence: number;
+  source_pages: string[];
   created_at: string;
 };
 

@@ -10,6 +10,7 @@ import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/q
 import {
   getLatestWebsiteOnboardingRun,
   listWebsiteOnboardingPages,
+  listWebsiteOnboardingOfferingCandidates,
 } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
 import {
   renameBusinessAction,
@@ -61,6 +62,9 @@ export default async function BusinessDetailPage({
   const websiteOnboardingRun = await getLatestWebsiteOnboardingRun(business.id);
   const websiteOnboardingPages = websiteOnboardingRun
     ? await listWebsiteOnboardingPages(websiteOnboardingRun.id)
+    : [];
+  const websiteOnboardingOfferingCandidates = websiteOnboardingRun
+    ? await listWebsiteOnboardingOfferingCandidates(websiteOnboardingRun.id)
     : [];
 
   return (
@@ -115,6 +119,7 @@ export default async function BusinessDetailPage({
           businessId={business.id}
           initialRun={websiteOnboardingRun}
           initialPages={websiteOnboardingPages}
+          initialOfferings={websiteOnboardingOfferingCandidates}
           retryAction={retryWebsiteOnboardingAction.bind(null, business.id)}
           applyAction={applyWebsiteOnboardingProfileAction.bind(null, business.id)}
         />

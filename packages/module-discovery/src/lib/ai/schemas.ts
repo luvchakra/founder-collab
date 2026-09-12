@@ -386,3 +386,50 @@ export const WebsiteBusinessProfileSchema = z.object({
   relevant_pages: WebsiteListFieldSchema,
 });
 export type WebsiteBusinessProfile = z.infer<typeof WebsiteBusinessProfileSchema>;
+
+/**
+ * DISC-OFFER-P0-09.3 "AI Offering Extraction" -- one proposed commercial Offering
+ * identified from the crawled website findings (09.2's own combined, page-attributed
+ * findings blob), carrying exactly the doc's own field list. Unlike
+ * `WebsiteBusinessProfileSchema` above (one flat set of facts about the business as a
+ * whole), this is a *list* -- "multiple offerings can be identified" -- and each item
+ * carries its own evidence/confidence/source pages rather than one blanket score for the
+ * whole extraction, the same "provenance is per-item, not per-call" discipline
+ * `WebsiteTextFieldSchema`/`WebsiteListFieldSchema` already established for the business
+ * profile.
+ *
+ * `offeringType` reuses the existing Offering vocabulary (`lib/offerings/types.ts`,
+ * DISC-OFFER-P0-01.1) rather than inventing a parallel one -- a proposed offering
+ * eventually becomes a real `discovery.products` row (DISC-OFFER-P0-09.4), so its type
+ * should already speak that row's own language.
+ *
+ * `sourcePages` is intentionally a plain string array of URLs (not yet cross-checked
+ * against which pages were actually crawled) -- `sanitizeOfferingCandidates()`
+ * (lib/website-onboarding/sanitize-offerings.ts) is what drops any URL the model names
+ * that isn't one of the pages this run actually fetched, the same "a prompt is a
+ * request, not a guarantee, enforce it in code" discipline `sanitizeWebsiteProfile()`
+ * already applies to the business profile.
+ */
+export const WebsiteOfferingCandidateSchema = z.object({
+  name: z.string().describe("A short, specific commercial offering name, e.g. 'Managed IAM Services' -- not a single feature."),
+  description: z.string().describe("1-3 sentences describing what this offering is and includes."),
+  offeringType: z
+    .enum(OFFERING_TYPE_VALUES as [string, ...string[]])
+    .nullable()
+    .describe("Best-fit offering type from the fixed vocabulary, or null if none clearly fits."),
+  problemSolved: z.string().nullable().describe("The problem this offering solves for a customer, or null if the findings don't say."),
+  targetCustomer: z.string().nullable().describe("Who buys this specific offering (role/org type), or null if the findings don't say."),
+  targetIndustry: z.string().nullable().describe("Which industries/verticals this offering is aimed at, or null if the findings don't say."),
+  valueProposition: z.string().nullable().describe("Why a customer would choose this offering, or null if the findings don't say."),
+  evidence: z
+    .string()
+    .describe("A short quote or close paraphrase from the findings that supports this offering existing as its own commercial unit."),
+  confidence: z.number().min(0).max(1).describe("0-1: how confident this is a real, distinct commercial offering (not a single feature or a guess)."),
+  sourcePages: z.array(z.string()).describe("URLs (from the findings' own 'Page: ... (url)' headers) that mention this offering."),
+});
+export type WebsiteOfferingCandidate = z.infer<typeof WebsiteOfferingCandidateSchema>;
+
+export const WebsiteOfferingExtractionSchema = z.object({
+  offerings: z.array(WebsiteOfferingCandidateSchema),
+});
+export type WebsiteOfferingExtraction = z.infer<typeof WebsiteOfferingExtractionSchema>;
