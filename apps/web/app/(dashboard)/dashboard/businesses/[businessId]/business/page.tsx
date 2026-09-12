@@ -26,6 +26,7 @@ import {
   duplicateOfferingAction,
   retryWebsiteOnboardingAction,
   applyWebsiteOnboardingProfileAction,
+  createOfferingsFromWebsiteOnboardingAction,
 } from "../actions";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
@@ -122,6 +123,7 @@ export default async function BusinessDetailPage({
           initialOfferings={websiteOnboardingOfferingCandidates}
           retryAction={retryWebsiteOnboardingAction.bind(null, business.id)}
           applyAction={applyWebsiteOnboardingProfileAction.bind(null, business.id)}
+          activateOfferingsAction={createOfferingsFromWebsiteOnboardingAction.bind(null, business.id)}
         />
       ) : null}
 

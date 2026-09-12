@@ -2,14 +2,20 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, RefreshCw, Sparkles, XCircle } from "lucide-react";
+import { CheckCircle2, GitMerge, Loader2, Pencil, RefreshCw, Sparkles, Trash2, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { Checkbox } from "@cofounderai/core/ui/checkbox";
+import { Input } from "@cofounderai/core/ui/input";
+import { Label } from "@cofounderai/core/ui/label";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { Textarea } from "@cofounderai/core/ui/textarea";
 import { toast } from "@cofounderai/core/ui/sonner";
 import type { WebsiteBusinessProfile, WebsiteFieldStatus, WebsiteOfferingCandidate } from "../../lib/ai/schemas";
 import type { CrawledPage } from "../../lib/ai/website-crawl";
-import { OFFERING_TYPE_LABEL, type OfferingType } from "../../lib/offerings/types";
+import { OFFERING_TYPE_LABEL, OFFERING_TYPE_VALUES, type OfferingType } from "../../lib/offerings/types";
 import { WEBSITE_PAGE_CATEGORY_LABEL, type WebsitePageCategory } from "../../lib/website-onboarding/crawl-plan";
+import { mergeOfferingCandidates, type EditableOfferingCandidate } from "../../lib/website-onboarding/offering-review";
 import type {
   WebsiteOnboardingOfferingCandidate,
   WebsiteOnboardingPage,
@@ -20,6 +26,7 @@ import { WEBSITE_FIELD_STATUS_LABEL, WEBSITE_LIST_FIELDS, WEBSITE_TEXT_FIELDS } 
 
 type RetryResult = { error: string } | { success: true; run: WebsiteOnboardingRun };
 type ApplyResult = { error: string } | { success: true };
+type ActivateResult = { error: string } | { success: true; created: number };
 
 type StreamEvent =
   | { type: "progress"; profile: Record<string, unknown> }
@@ -45,9 +52,12 @@ function fromStreamedPage(page: CrawledPage): CrawledPageView {
 /** A proposed offering as tracked client-side, whether loaded from the DB on page render
  * (snake_case, matches WebsiteOnboardingOfferingCandidate) or received in the stream's
  * final "done" event (camelCase, matches WebsiteOfferingCandidate) -- normalized to one
- * shape for the same reason CrawledPageView is above. DISC-OFFER-P0-09.3 only ever shows
- * these read-only; edit/merge/remove/"Create Offerings" is DISC-OFFER-P0-09.4's own scope. */
+ * shape for the same reason CrawledPageView is above. `id` is a stable client-side key
+ * (the DB row id when one exists, a generated one for a just-streamed candidate that
+ * hasn't been persisted from this browser's own point of view yet) -- DISC-OFFER-P0-09.4
+ * uses it to track which proposed offerings are selected, being edited, or merged. */
 type OfferingCandidateView = {
+  id: string;
   name: string;
   description: string;
   offeringType: OfferingType | null;
@@ -62,6 +72,7 @@ type OfferingCandidateView = {
 
 function fromInitialOffering(offering: WebsiteOnboardingOfferingCandidate): OfferingCandidateView {
   return {
+    id: offering.id,
     name: offering.name,
     description: offering.description,
     offeringType: offering.offering_type,
@@ -74,8 +85,11 @@ function fromInitialOffering(offering: WebsiteOnboardingOfferingCandidate): Offe
     sourcePages: offering.source_pages,
   };
 }
+let clientOfferingIdCounter = 0;
 function fromStreamedOffering(offering: WebsiteOfferingCandidate): OfferingCandidateView {
+  clientOfferingIdCounter += 1;
   return {
+    id: `streamed-${clientOfferingIdCounter}`,
     name: offering.name,
     description: offering.description,
     offeringType: offering.offeringType as OfferingType | null,
@@ -111,6 +125,7 @@ export function WebsiteOnboardingPanel({
   initialOfferings = [],
   retryAction,
   applyAction,
+  activateOfferingsAction,
 }: {
   businessId: string;
   initialRun: WebsiteOnboardingRun;
@@ -120,11 +135,14 @@ export function WebsiteOnboardingPanel({
   initialPages?: WebsiteOnboardingPage[];
   /** The prior run's own proposed offerings (DISC-OFFER-P0-09.3), loaded from
    * discovery.website_onboarding_offering_candidates -- empty for a `pending` run or one
-   * whose extraction hasn't completed yet. Read-only here: DISC-OFFER-P0-09.4 is what
-   * turns these into editable, activatable rows. */
+   * whose extraction hasn't completed yet. DISC-OFFER-P0-09.4 turns these into editable,
+   * mergeable, removable rows the founder explicitly activates. */
   initialOfferings?: WebsiteOnboardingOfferingCandidate[];
   retryAction: () => Promise<RetryResult>;
   applyAction: () => Promise<ApplyResult>;
+  /** DISC-OFFER-P0-09.4's own "Create Offerings" -- creates one real
+   * `discovery.products` row per surviving reviewed offering. */
+  activateOfferingsAction: (offerings: EditableOfferingCandidate[]) => Promise<ActivateResult>;
 }) {
   const router = useRouter();
   const [run, setRun] = useState(initialRun);
@@ -135,6 +153,7 @@ export function WebsiteOnboardingPanel({
   const [offerings, setOfferings] = useState<OfferingCandidateView[]>(initialOfferings.map(fromInitialOffering));
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [offeringsActivated, setOfferingsActivated] = useState(!!initialRun.activated_at);
   const startedRunIds = useRef(new Set<string>());
 
   async function startRun(runId: string) {
@@ -203,6 +222,7 @@ export function WebsiteOnboardingPanel({
       return;
     }
     setApplied(false);
+    setOfferingsActivated(false);
     setPages([]);
     setOfferings([]);
     setRun(result.run);
@@ -299,7 +319,23 @@ export function WebsiteOnboardingPanel({
 
         {pages.length > 0 ? <CrawledPageList pages={pages} /> : null}
 
-        {offerings.length > 0 ? <OfferingCandidateList offerings={offerings} /> : null}
+        {offerings.length > 0 ? (
+          offeringsActivated ? (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-600/30 bg-emerald-600/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
+              <span>Offerings created -- see them below in this business&apos;s offering list.</span>
+            </div>
+          ) : (
+            <OfferingActivationReview
+              offerings={offerings}
+              activateAction={activateOfferingsAction}
+              onActivated={() => {
+                setOfferingsActivated(true);
+                router.refresh();
+              }}
+            />
+          )
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {WEBSITE_TEXT_FIELDS.map(({ key, label }) => (
@@ -355,73 +391,301 @@ function CrawledPageList({ pages }: { pages: CrawledPageView[] }) {
 }
 
 /**
- * DISC-OFFER-P0-09.3's own "multiple offerings can be identified" / "evidence and
- * confidence are shown" -- one card per proposed commercial Offering, read-only. Reuses
- * this file's own FieldCard visual language (bordered card, badge for a per-item status)
- * rather than inventing a second style, per this platform's own "preserve consistency"
- * design rule. Deliberately has no Edit/Merge/Remove/"Create Offerings" action here --
- * that is DISC-OFFER-P0-09.4's own "Offering Review Before Activation" scope; this is the
- * extraction result, not yet the review screen.
+ * DISC-OFFER-P0-09.4 "Offering Review Before Activation" -- the doc's own mockup
+ * ("We found 4 Business Offerings" + checkmarks + [Edit] [Merge] [Remove] +
+ * [Create Offerings]): every proposed offering starts selected, the founder can edit any
+ * field inline, remove one they don't want, select two or more to merge into one, and
+ * finally activate the surviving, reviewed list into real `discovery.products` rows.
+ * Local-only state (id/included/editing) lives here rather than being lifted into the
+ * parent panel -- once this run has succeeded, nothing outside this component needs to
+ * know about an in-progress edit or merge selection, only the final activation result.
  */
-function OfferingCandidateList({ offerings }: { offerings: OfferingCandidateView[] }) {
+function OfferingActivationReview({
+  offerings,
+  activateAction,
+  onActivated,
+}: {
+  offerings: OfferingCandidateView[];
+  activateAction: (offerings: EditableOfferingCandidate[]) => Promise<ActivateResult>;
+  onActivated: () => void;
+}) {
+  const [items, setItems] = useState<OfferingCandidateView[]>(offerings);
+  const [included, setIncluded] = useState<Set<string>>(() => new Set(offerings.map((o) => o.id)));
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+
+  function toggleIncluded(id: string, checked: boolean) {
+    setIncluded((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function toggleMergeSelected(id: string, checked: boolean) {
+    setSelectedForMerge((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function updateField(id: string, patch: Partial<EditableOfferingCandidate>) {
+    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function handleRemove(id: string) {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+    setIncluded((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setSelectedForMerge((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    if (editingId === id) setEditingId(null);
+  }
+
+  function handleMerge() {
+    const toMerge = items.filter((item) => selectedForMerge.has(item.id));
+    if (toMerge.length < 2) return;
+    const merged = mergeOfferingCandidates(toMerge);
+    clientOfferingIdCounter += 1;
+    const mergedItem: OfferingCandidateView = {
+      ...merged,
+      id: `merged-${clientOfferingIdCounter}`,
+      evidence: toMerge.map((item) => item.evidence).filter(Boolean).join(" "),
+      confidence: Math.max(...toMerge.map((item) => item.confidence)),
+    };
+    setItems((prev) => [...prev.filter((item) => !selectedForMerge.has(item.id)), mergedItem]);
+    setIncluded((prev) => {
+      const next = new Set([...prev].filter((id) => !selectedForMerge.has(id)));
+      next.add(mergedItem.id);
+      return next;
+    });
+    setSelectedForMerge(new Set());
+    setEditingId(mergedItem.id);
+  }
+
+  async function handleActivate() {
+    const toCreate = items.filter((item) => included.has(item.id));
+    if (toCreate.length === 0) return;
+    setActivating(true);
+    const result = await activateAction(toCreate.map(stripReviewOnlyFields));
+    setActivating(false);
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    onActivated();
+    toast.success(`Created ${result.created} offering${result.created === 1 ? "" : "s"}.`);
+  }
+
+  const includedCount = items.filter((item) => included.has(item.id)).length;
+
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm font-semibold">
-        We found {offerings.length} Business Offering{offerings.length === 1 ? "" : "s"}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">
+          We found {items.length} Business Offering{items.length === 1 ? "" : "s"}
+        </p>
+        {selectedForMerge.size >= 2 ? (
+          <Button type="button" variant="outline" size="sm" onClick={handleMerge}>
+            <GitMerge className="size-3.5" aria-hidden="true" />
+            Merge {selectedForMerge.size} selected
+          </Button>
+        ) : null}
+      </div>
+
       <div className="flex flex-col gap-2">
-        {offerings.map((offering, i) => (
-          <div key={`${offering.name}-${i}`} className="flex flex-col gap-1.5 rounded-lg border border-border/60 p-3 text-sm">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="font-medium">{offering.name}</span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {offering.offeringType ? <Badge variant="outline">{OFFERING_TYPE_LABEL[offering.offeringType]}</Badge> : null}
-                <Badge variant="secondary">{Math.round(offering.confidence * 100)}% confidence</Badge>
-              </div>
-            </div>
-            <p className="text-muted-foreground">{offering.description}</p>
-            <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
-              {offering.problemSolved ? (
-                <div>
-                  <dt className="font-medium text-foreground">Problem solved</dt>
-                  <dd className="text-muted-foreground">{offering.problemSolved}</dd>
-                </div>
-              ) : null}
-              {offering.targetCustomer ? (
-                <div>
-                  <dt className="font-medium text-foreground">Target customer</dt>
-                  <dd className="text-muted-foreground">{offering.targetCustomer}</dd>
-                </div>
-              ) : null}
-              {offering.targetIndustry ? (
-                <div>
-                  <dt className="font-medium text-foreground">Target industry</dt>
-                  <dd className="text-muted-foreground">{offering.targetIndustry}</dd>
-                </div>
-              ) : null}
-              {offering.valueProposition ? (
-                <div>
-                  <dt className="font-medium text-foreground">Value proposition</dt>
-                  <dd className="text-muted-foreground">{offering.valueProposition}</dd>
-                </div>
-              ) : null}
-            </dl>
-            {offering.evidence ? (
-              <p className="border-l-2 border-border pl-2 text-xs italic text-muted-foreground">&ldquo;{offering.evidence}&rdquo;</p>
-            ) : null}
-            {offering.sourcePages.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                <span>Source{offering.sourcePages.length === 1 ? "" : "s"}:</span>
-                {offering.sourcePages.map((url) => (
-                  <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary underline-offset-2 hover:underline">
-                    {url}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-          </div>
+        {items.map((item) => (
+          <OfferingReviewCard
+            key={item.id}
+            item={item}
+            included={included.has(item.id)}
+            mergeSelected={selectedForMerge.has(item.id)}
+            editing={editingId === item.id}
+            onToggleIncluded={(checked) => toggleIncluded(item.id, checked)}
+            onToggleMergeSelected={(checked) => toggleMergeSelected(item.id, checked)}
+            onEdit={() => setEditingId(item.id)}
+            onDoneEditing={() => setEditingId(null)}
+            onChange={(patch) => updateField(item.id, patch)}
+            onRemove={() => handleRemove(item.id)}
+          />
         ))}
       </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+        <p className="text-xs text-muted-foreground">
+          {includedCount} of {items.length} selected to create.
+        </p>
+        <Button type="button" size="sm" disabled={activating || includedCount === 0} onClick={handleActivate}>
+          <Sparkles className="size-3.5" aria-hidden="true" />
+          {activating ? "Creating..." : `Create ${includedCount} Offering${includedCount === 1 ? "" : "s"}`}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function stripReviewOnlyFields(item: OfferingCandidateView): EditableOfferingCandidate {
+  return {
+    name: item.name,
+    description: item.description,
+    offeringType: item.offeringType,
+    problemSolved: item.problemSolved,
+    targetCustomer: item.targetCustomer,
+    targetIndustry: item.targetIndustry,
+    valueProposition: item.valueProposition,
+    sourcePages: item.sourcePages,
+  };
+}
+
+/** One offering in the review list: display mode (name, type/confidence badges,
+ * description, the doc's own field list, evidence quote, source links, plus the
+ * include checkbox, merge checkbox, Edit and Remove actions) or edit mode (inline
+ * inputs for every field this offering can carry into `createOffering()`, per this
+ * platform's own "inline editing over navigating to a separate page" design rule). */
+function OfferingReviewCard({
+  item,
+  included,
+  mergeSelected,
+  editing,
+  onToggleIncluded,
+  onToggleMergeSelected,
+  onEdit,
+  onDoneEditing,
+  onChange,
+  onRemove,
+}: {
+  item: OfferingCandidateView;
+  included: boolean;
+  mergeSelected: boolean;
+  editing: boolean;
+  onToggleIncluded: (checked: boolean) => void;
+  onToggleMergeSelected: (checked: boolean) => void;
+  onEdit: () => void;
+  onDoneEditing: () => void;
+  onChange: (patch: Partial<EditableOfferingCandidate>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border/60 p-3 text-sm">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <label className="flex min-w-0 items-center gap-2">
+          <Checkbox checked={included} onCheckedChange={(checked) => onToggleIncluded(checked === true)} aria-label={`Include ${item.name}`} />
+          {editing ? (
+            <Input value={item.name} onChange={(e) => onChange({ name: e.target.value })} className="h-8 w-56" aria-label="Offering name" />
+          ) : (
+            <span className="truncate font-medium">{item.name}</span>
+          )}
+        </label>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {!editing && item.offeringType ? <Badge variant="outline">{OFFERING_TYPE_LABEL[item.offeringType]}</Badge> : null}
+          {!editing ? <Badge variant="secondary">{Math.round(item.confidence * 100)}% confidence</Badge> : null}
+          <label className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Checkbox checked={mergeSelected} onCheckedChange={(checked) => onToggleMergeSelected(checked === true)} aria-label={`Select ${item.name} to merge`} />
+            Merge
+          </label>
+          <Button type="button" variant="ghost" size="icon" className="size-7" onClick={editing ? onDoneEditing : onEdit} aria-label={editing ? "Done editing" : `Edit ${item.name}`}>
+            <Pencil className="size-3.5" aria-hidden="true" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon" className="size-7 text-destructive hover:text-destructive" onClick={onRemove} aria-label={`Remove ${item.name}`}>
+            <Trash2 className="size-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+
+      {editing ? (
+        <div className="flex flex-col gap-2 pt-1">
+          <div className="flex flex-col gap-1">
+            <Label htmlFor={`${item.id}-description`}>Description</Label>
+            <Textarea id={`${item.id}-description`} value={item.description} onChange={(e) => onChange({ description: e.target.value })} rows={2} />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${item.id}-type`}>Offering type</Label>
+              <NativeSelect
+                id={`${item.id}-type`}
+                value={item.offeringType ?? ""}
+                onChange={(e) => onChange({ offeringType: (e.target.value || null) as OfferingType | null })}
+              >
+                <option value="">Not set</option>
+                {OFFERING_TYPE_VALUES.map((value) => (
+                  <option key={value} value={value}>
+                    {OFFERING_TYPE_LABEL[value]}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${item.id}-problem`}>Problem solved</Label>
+              <Input id={`${item.id}-problem`} value={item.problemSolved ?? ""} onChange={(e) => onChange({ problemSolved: e.target.value || null })} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${item.id}-customer`}>Target customer</Label>
+              <Input id={`${item.id}-customer`} value={item.targetCustomer ?? ""} onChange={(e) => onChange({ targetCustomer: e.target.value || null })} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor={`${item.id}-industry`}>Target industry</Label>
+              <Input id={`${item.id}-industry`} value={item.targetIndustry ?? ""} onChange={(e) => onChange({ targetIndustry: e.target.value || null })} />
+            </div>
+            <div className="flex flex-col gap-1 sm:col-span-2">
+              <Label htmlFor={`${item.id}-value-prop`}>Value proposition</Label>
+              <Input id={`${item.id}-value-prop`} value={item.valueProposition ?? ""} onChange={(e) => onChange({ valueProposition: e.target.value || null })} />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="text-muted-foreground">{item.description}</p>
+          <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
+            {item.problemSolved ? (
+              <div>
+                <dt className="font-medium text-foreground">Problem solved</dt>
+                <dd className="text-muted-foreground">{item.problemSolved}</dd>
+              </div>
+            ) : null}
+            {item.targetCustomer ? (
+              <div>
+                <dt className="font-medium text-foreground">Target customer</dt>
+                <dd className="text-muted-foreground">{item.targetCustomer}</dd>
+              </div>
+            ) : null}
+            {item.targetIndustry ? (
+              <div>
+                <dt className="font-medium text-foreground">Target industry</dt>
+                <dd className="text-muted-foreground">{item.targetIndustry}</dd>
+              </div>
+            ) : null}
+            {item.valueProposition ? (
+              <div>
+                <dt className="font-medium text-foreground">Value proposition</dt>
+                <dd className="text-muted-foreground">{item.valueProposition}</dd>
+              </div>
+            ) : null}
+          </dl>
+          {item.evidence ? (
+            <p className="border-l-2 border-border pl-2 text-xs italic text-muted-foreground">&ldquo;{item.evidence}&rdquo;</p>
+          ) : null}
+          {item.sourcePages.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <span>Source{item.sourcePages.length === 1 ? "" : "s"}:</span>
+              {item.sourcePages.map((url) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer" className="truncate text-primary underline-offset-2 hover:underline">
+                  {url}
+                </a>
+              ))}
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

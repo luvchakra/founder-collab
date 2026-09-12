@@ -55,6 +55,10 @@ export type WebsiteOnboardingRun = {
   error: string | null;
   started_at: string | null;
   completed_at: string | null;
+  /** DISC-OFFER-P0-09.4 -- set once the founder explicitly turns this run's proposed
+   * offerings into real `discovery.products` rows ("Create Offerings"). Null until then;
+   * a durable guard against activating the same run's offerings twice. */
+  activated_at: string | null;
   created_at: string;
   updated_at: string;
 };

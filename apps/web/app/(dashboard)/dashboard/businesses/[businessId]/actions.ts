@@ -27,8 +27,15 @@ import {
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 import { getBusiness } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getLatestWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
-import { createWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
+import {
+  createWebsiteOnboardingRun,
+  markWebsiteOnboardingRunActivated,
+} from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
 import type { WebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/types";
+import {
+  offeringInputFromCandidate,
+  type EditableOfferingCandidate,
+} from "@cofounderai/module-discovery/lib/website-onboarding/offering-review";
 
 export async function renameBusinessAction(
   businessId: string,
@@ -342,4 +349,50 @@ export async function applyWebsiteOnboardingProfileAction(
   }
   revalidatePath(`/dashboard/businesses/${businessId}`);
   return { success: true };
+}
+
+/**
+ * DISC-OFFER-P0-09.4 "Offering Review Before Activation" -- "the user explicitly
+ * activates the final offering list." `offerings` is whatever the review panel currently
+ * shows (each proposed offering possibly renamed/edited/merged, or dropped entirely by
+ * the founder unchecking/removing it) -- not the raw AI extraction; this is the founder's
+ * own reviewed list, the same "AI suggestions are always editable proposals, never
+ * silently auto-saved as fact" discipline `applyWebsiteOnboardingProfileAction` above
+ * already follows for the business profile.
+ *
+ * Re-checks the run's own `activated_at` server-side (not just trusting the client
+ * hasn't already clicked once) before creating anything, so a reload racing a slow
+ * request -- or the founder double-clicking -- can never create the same offerings
+ * twice. Creates one real `discovery.products` row per surviving offering via the
+ * existing `createOffering()` (same function DISC-OFFER-P0-01.3's own manual "Create"
+ * dialog uses), so every side effect that function already has (the workspace/inventory
+ * mirror) happens exactly the same way here.
+ */
+export async function createOfferingsFromWebsiteOnboardingAction(
+  businessId: string,
+  offerings: EditableOfferingCandidate[],
+): Promise<{ error: string } | { success: true; created: number }> {
+  const named = offerings.filter((offering) => offering.name.trim().length > 0);
+  if (named.length === 0) return { error: "Nothing to create -- every offering needs a name." };
+
+  const run = await getLatestWebsiteOnboardingRun(businessId);
+  if (!run || run.status !== "succeeded") {
+    return { error: "No completed onboarding run to activate offerings from." };
+  }
+  if (run.activated_at) {
+    return { error: "This run's offerings were already created." };
+  }
+
+  try {
+    for (const offering of named) {
+      await createOffering(businessId, offeringInputFromCandidate(offering));
+    }
+    await markWebsiteOnboardingRunActivated(run.id);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Could not create these offerings." };
+  }
+
+  revalidatePath(`/dashboard/businesses/${businessId}`);
+  return { success: true, created: named.length };
 }
