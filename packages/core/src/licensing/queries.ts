@@ -68,6 +68,28 @@ export async function hasModuleWrite(businessId: string, moduleKey: string): Pro
   return Boolean(data);
 }
 
+/** PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") -- whether `moduleKey` is
+ * enabled platform-wide, independent of any business's own license. Reads
+ * `platform.modules` directly, not through `@cofounderai/core/admin/platform-modules`
+ * (that file's every export requires `requireSuperadmin()`, appropriate for the
+ * `/platform` admin UI but wrong here: this must work for any ordinary, signed-in
+ * business member checking their own entitlements). Safe without an admin gate because
+ * `platform.modules`' own RLS already opens SELECT to any authenticated user -- the same
+ * "public catalog fact" trust level `core.modules`' own read policy already established
+ * (see that migration's own docstring). A module with no row at all (should never happen
+ * once seeded, but defensive) defaults to enabled, matching `platform.modules`' own
+ * migration-level default -- a missing row must never silently disable a module. */
+export async function isModuleEnabledPlatformWide(moduleKey: string): Promise<boolean> {
+  const supabase = await createClient({ schema: "platform" });
+  const { data, error } = await supabase
+    .from("modules")
+    .select("enabled")
+    .eq("module_key", moduleKey)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.enabled ?? true;
+}
+
 /**
  * Defense-in-depth mirror of core.has_module_write() (C-3/ADR-9) -- CLAUDE.md's
  * architecture section names this exact function as one of licensing's four required
@@ -88,11 +110,23 @@ export async function hasModuleWrite(businessId: string, moduleKey: string): Pro
  * anywhere in the UI) -- the same lookup `not-licensed/page.tsx`'s route guard already
  * does, so a toast surfacing this message reads consistently with that page rather than
  * leaking an internal identifier the moment someone's session outlives their license's
- * grace window mid-page instead of getting caught by the route guard on load. */
+ * grace window mid-page instead of getting caught by the route guard on load.
+ *
+ * PLATFORM-P0-07.2: the platform-wide kill switch is checked first, before this
+ * business's own license -- it is the more universal fact (it blocks every business, not
+ * just this one), and its own error message is deliberately distinct so a caller (or a
+ * toast surfacing this message) never tells a business owner to go check their license
+ * for a problem their license has nothing to do with. */
 export async function requireModule(businessId: string, moduleKey: string): Promise<void> {
+  const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
+
+  const platformEnabled = await isModuleEnabledPlatformWide(moduleKey);
+  if (!platformEnabled) {
+    throw new Error(`${moduleName} has been temporarily disabled platform-wide by WonderArc.`);
+  }
+
   const licensed = await hasModuleWrite(businessId, moduleKey);
   if (!licensed) {
-    const moduleName = moduleRegistry.find((m) => m.key === moduleKey)?.name ?? moduleKey;
     throw new Error(`${moduleName} isn't licensed (or is in its read-only grace period) for this business.`);
   }
 }

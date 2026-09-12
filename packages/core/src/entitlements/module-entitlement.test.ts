@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildModuleEntitlementDecision } from "./module-entitlement";
+import { buildModuleEntitlementDecision, buildPlatformDisabledDecision } from "./module-entitlement";
 
 describe("buildModuleEntitlementDecision (PLATFORM-P0-05.1)", () => {
   it("is allowed, source license, when the license is fully active", () => {
@@ -50,5 +50,24 @@ describe("buildModuleEntitlementDecision (PLATFORM-P0-05.1)", () => {
     // the whole point of preserving this state separately from "not licensed at all".
     const decision = buildModuleEntitlementDecision("crm", true, false);
     expect(decision.allowed).toBe(false);
+  });
+});
+
+describe("buildPlatformDisabledDecision (PLATFORM-P0-07.2)", () => {
+  it("is never allowed, source platform_global", () => {
+    const decision = buildPlatformDisabledDecision("fsm");
+    expect(decision).toEqual({
+      allowed: false,
+      reason: "Service has been temporarily disabled platform-wide by WonderArc.",
+      source: "platform_global",
+      limit: null,
+      usage: null,
+      remaining: null,
+    });
+  });
+
+  it("falls back to the raw module key when the key is not in the registry", () => {
+    const decision = buildPlatformDisabledDecision("not-a-real-module");
+    expect(decision.reason).toBe("not-a-real-module has been temporarily disabled platform-wide by WonderArc.");
   });
 });

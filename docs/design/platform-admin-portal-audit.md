@@ -24,7 +24,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
-| | 07 | Module Administration | 07.1 (Module Registry) done -- see log; 07.2/07.3 not started |
+| | 07 | Module Administration | 07.1 (Module Registry), 07.2 (Kill Switch) done -- see log; 07.3 not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
 | | 10 | AI Safety / Cost Controls | Not started |
@@ -3017,3 +3017,188 @@ completion -- not merely asserted from reading the code or the SQL.
 
 **Status**: PLATFORM-P0-07.1 done. Continuing in §11's own story order: PLATFORM-P0-07.2
 (Platform-Wide Module Kill Switch) next.
+
+### PLATFORM-P0-07.2 — Platform-Wide Module Kill Switch (2026-09-12)
+
+**Scope**: §11's own ask -- "Allow authorized platform operators to disable a module
+globally. This is a dangerous operation and must require: reason, impact confirmation,
+explicit confirmation, audit record." `platform.modules.enabled` (PLATFORM-P0-07.1) already
+exists as the flag; this story is the real mutation path plus real enforcement.
+
+**A genuine architecture judgment call, decided and documented per this run's own task
+brief (non-security data-flow choice, not an authorization gray area)**: where should the
+kill switch actually take effect? `entitlements/module-entitlement.ts::hasModule()`'s own
+docstring (written in PLATFORM-P0-05.1, before this story existed) already answered this
+exact question in advance: "Platform Global... not composed: PLATFORM-P0-07.2... is listed
+'Not started'... there is no `platform.*` row this layer could read yet" -- naming this
+story, this layer, and this precedence position (checked *before* the license layer) as
+the intended extension point. That docstring also already ruled out composing it into
+`core.has_module()`/`has_module_write()` (RLS itself) for the identical reason
+`platform.plan_modules` isn't composed into RLS either: doing so means changing every
+module table's own RLS policy, a genuine architecture change CLAUDE.md non-negotiable #10
+requires explicit approval for, not something to fold into a §11 story unreviewed. So this
+story wires the flag into the three layers that were always meant to compose it --
+`hasModule()` (the entitlement service), `requireModule()` (the server-action
+defense-in-depth layer CLAUDE.md's architecture section names), and the `middleware.ts`
+route guard (that section's other named layer) -- and explicitly not into RLS. This
+mirrors, rather than invents, the precedent already on record.
+
+**What was built, the data layer**: migration `20260912150000_platform_module_kill_switch.sql`
+-- `platform.module_kill_switch_events` (append-only audit trail: `module_key`, `enabled`,
+`reason` with a `btrim(reason) <> ''` CHECK, `performed_by`, `performed_at`) and
+`platform.set_module_enabled(p_module_key, p_enabled, p_reason)`, a `SECURITY DEFINER`
+`plpgsql` function that flips `platform.modules.enabled` AND inserts the audit row in one
+atomic statement -- mirrors `core.write_audit_log()`'s own "one function owns every write,
+no direct client insert policy" shape (Epic 3, D-10) exactly, adapted for platform-wide
+(not business-scoped) data, and deliberately one function rather than two separate client
+calls: for an operation this doc itself calls "dangerous," a superadmin's own read of
+`enabled` must never be able to disagree with what the audit trail says happened, even
+under a partial failure. The function re-checks `platform.is_superadmin()` itself (`
+SECURITY DEFINER` bypasses the table's own RLS, so the function is the actual boundary
+here) and rejects a `null`/empty/whitespace-only reason -- both checked and proven by the
+new local-Postgres test below, not just asserted from reading the function body.
+`platform.module_kill_switch_events`' own RLS is superadmin-only SELECT (unlike
+`platform.modules`' open-catalog read) -- this is sensitive operational history, not
+merchandising-style catalog data -- and no INSERT/UPDATE/DELETE grant to `authenticated`
+at all; the only path to a row is the function above.
+
+**What was built, real enforcement (the actual point of a "kill switch")**:
+- `packages/core/src/licensing/queries.ts` gains `isModuleEnabledPlatformWide(moduleKey)`
+  -- a plain, non-admin-gated read of `platform.modules.enabled` (safe without
+  `requireSuperadmin()` because that table's own RLS already opens SELECT to any
+  authenticated user, the same "public catalog fact" trust level `core.modules`' own read
+  policy already established) -- defaults to `true` when a row is somehow missing, so a
+  data gap can never silently disable a module. `requireModule()` now calls this first,
+  before the existing license check, and throws a distinct message ("...has been
+  temporarily disabled platform-wide by WonderArc") so a caller surfacing this error never
+  tells a business owner to go check their own license for a problem their license has
+  nothing to do with. This is the layer with by far the largest real blast radius: ~70
+  mutation call sites across every module already call `requireModule()`
+  (`docs/testing/EXECUTION-2026-09-08.md` finding 4's own rollout), so this one change adds
+  real, working defense-in-depth for the kill switch to every one of them, with zero
+  changes to any of those call sites themselves.
+- `packages/core/src/db/middleware.ts` (the route guard, CLAUDE.md's second named
+  enforcement layer): refactored `findUnlicensedModuleForRoute()`'s own route-matching
+  logic out into a shared, unexported `moduleForRoute()` helper (behavior-preserving --
+  `middleware.test.ts`'s existing cases for the exported function are untouched and still
+  pass), then added a sibling `findPlatformDisabledModuleForRoute()` built on the same
+  helper. `updateSession()` now also reads `platform.modules` (one more small query
+  alongside the existing `core.licenses` read, both already parallelized with
+  `Promise.all`) and checks the platform-disabled case *first* -- it is the more universal
+  fact, blocking every business regardless of that business's own license state. A new
+  `reason=platform_disabled` rewrites to the same `not-licensed` page, which gets a fourth
+  branch in `describeReason()` with copy that explicitly says this is not the business's
+  own licensing problem (its data/license are unaffected) -- and its CTA button is
+  swapped from "Go to Settings → Licenses" (misleading here -- reactivating a license
+  fixes nothing) to "Back to Dashboard" for this one reason only, every other reason
+  unchanged.
+- `entitlements/module-entitlement.ts::hasModule()` now checks the same flag first and
+  short-circuits to a new pure `buildPlatformDisabledDecision()` (mirrors
+  `buildModuleEntitlementDecision()`'s own "pure helper beside the IO-touching function"
+  split) with `source: "platform_global"` -- the exact value `EntitlementSource`
+  (PLATFORM-P0-05.1's own type) already declared in full anticipation of this story. Always
+  `allowed: false` with no degraded/read-only nuance -- §11 names none for the kill switch,
+  and PLATFORM-P0-07.3 (Maintenance Mode) is the section that will introduce a real
+  `read_only` state, not this one.
+
+**What was built, the admin UI**: `packages/core/src/admin/platform-modules.ts` gains
+`getModuleImpact(moduleKey)` (the real, live count of businesses with an `active`/`grace`
+license for the module -- §11's own "impact confirmation," never fabricated or omitted;
+deliberately uses `createAdminClient()`, not the request-scoped client every other
+function in this file uses, since `core.licenses`' own RLS scopes a read to the caller's
+own businesses and a superadmin is not necessarily a member of any -- the identical
+cross-tenant-by-design reasoning `platform-dashboard-queries.ts`'s own docstring already
+gives for its own use of the service-role client) and `setModuleEnabled()` (calls the RPC
+above; no plain `.update()` on `enabled` exists anywhere in this file). New
+`kill-switch-dialog.tsx` (`KillSwitchDialog`, a client component) replaces the plain
+read-only "Enabled" badge from PLATFORM-P0-07.1: clicking it opens a dialog requiring a
+non-empty reason (`Textarea`, mirrors the RPC's own server-side check -- genuine UX, not
+the only enforcement), showing the live impact count (fetched fresh every time the dialog
+opens, never cached), and a separate acknowledgement `Checkbox` -- the confirm button stays
+disabled until both are satisfied. Disabling and re-enabling share the same dialog (only
+copy/button color changes) since both are real state changes worth a reason and a
+confirmation, not just the "disable" direction. `module-registry-table.tsx`'s own local
+row state updates via a new `onChanged` callback passed to the dialog (the same
+"local optimistic state" pattern its `visible`/`status` controls already use, since a
+child dialog component can't reach into its parent's `useState` directly).
+
+**Deliberately not built this story, and why**:
+- No wiring into RLS/`core.has_module()`/`has_module_write()` -- see the architecture
+  judgment call above; a genuine, larger architecture change requiring explicit approval,
+  not this story's to make unreviewed.
+- No maintenance-mode message, no `read_only`/`maintenance`/`disabled` *behavioral*
+  enforcement -- PLATFORM-P0-07.3's own explicit scope. This story's kill switch is a pure
+  on/off; the four-value `status` column PLATFORM-P0-07.1 already folded in stays exactly
+  as inert as that story left it.
+- No email/notification when a module is disabled (`PLATFORM-P0-11`, Global Email/
+  Notification Configuration, stays "Not started") -- the audit trail is the only record.
+- No UI surface for browsing `platform.module_kill_switch_events` as its own history page
+  -- §16 (Platform Audit) is that future, broader story; this one only needed the table to
+  exist and be queryable, which the local test below already proves.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning.
+`node scripts/lint-import-boundaries.mjs` -- 1200 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 144 migrations (143 -> 144, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 167 tests (161 -> 167,
++6: 4 new `middleware.test.ts` cases for `findPlatformDisabledModuleForRoute()`, 2 new
+`module-entitlement.test.ts` cases for `buildPlatformDisabledDecision()`). `apps/web`'s own
+`vitest run --passWithNoTests` -- 47 tests, unchanged. `cd apps/web && rm -rf .next && npm
+run build` -- clean; route listing unchanged in shape (`/platform/modules` still `ƒ`
+dynamic; no new route this story, only new logic inside `middleware.ts`/existing pages).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only. `mcp__Supabase__get_advisors` (security) -- zero new
+findings, the same 5 pre-existing `rls_enabled_no_policy` tables and the pre-existing
+leaked-password-protection warning every prior entry has logged (no `function search path
+mutable` warning either -- `set search_path = platform` on the new function was set from
+the start, not added after a finding). `mcp__Supabase__get_advisors` (performance) -- zero
+new findings beyond the same benign "unused index" info-level note every sibling FK index
+already carries (this migration's own two new indexes included).
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, not a superadmin) this backlog's own prior entries
+have repeatedly used, role-switched `select * from platform.set_module_enabled('fsm',
+false, 'live dev test - should be rejected')` returned a real Postgres error --
+`P0001: Forbidden: only a SUPERADMIN can change a module's platform-wide enabled state.`
+-- raised by the function's own internal check, not a generic RLS denial (there is no RLS
+on a function call at all; this is the function's own authorization boundary working
+exactly as designed). Reconfirmed immediately after via a plain read that every module in
+`platform.modules` was still `enabled = true` and `platform.module_kill_switch_events` had
+`0` rows -- this real user's attempt left zero residue, nothing to clean up. As with every
+prior story in this log, there is no seeded demo superadmin user in this environment, so
+the "a real superadmin CAN" half of this proof is verified for real only against local
+Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-module-kill-switch-rls.mjs`, wired into
+`package.json`'s `test:db` composite script after `test-platform-modules-rls.mjs`. Same
+Alice (business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. One formatting slip caught by actually running it, not by reading the SQL:
+the first draft asserted `enabled::text` renders as `"f"` (matching Postgres's own `boolean
+out` short form used elsewhere in `psql`'s default output), but a `select ...::text`
+expression in a plain query actually renders the SQL-standard `"true"`/`"false"` spelling
+-- corrected once, then green. **All 15 assertions passed**: Alice's call is rejected by
+the function's own check with zero state change and zero audit rows written; a genuine
+superadmin (Zoe) can disable a module, with exactly one atomic audit row carrying the real
+`enabled` value, reason, and performer; an empty or whitespace-only reason is rejected even
+for Zoe, writing nothing; an unknown module key is rejected; Zoe can re-enable the module,
+adding a second, distinct audit event; the audit trail's own SELECT is superadmin-only
+(Alice gets zero rows, unlike the open `platform.modules` read); and nobody -- including
+Zoe -- can bypass the function with a direct `INSERT` into the audit table (no such grant
+exists at all). Local Postgres 16 was already running in this environment.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully disables/
+re-enables a module" half of the live-dev proof, and any live browser walkthrough of the
+new `KillSwitchDialog` (opening it, seeing a real impact count render, actually clicking
+through the confirmation), were **not** performed against dev and are not claimed here.
+That half was verified for real only against local Postgres (all 15 assertions above,
+including the atomic audit-row proof) -- the "a non-superadmin is rejected, with zero
+residue" half, and the underlying schema/function/RLS shape, were verified for real against
+both the live dev Supabase project (role-switched, as a real user, a real Postgres error
+raised by the function's own check) and local Postgres, not merely asserted from reading
+the code or the SQL.
+
+**Status**: PLATFORM-P0-07.2 done. Continuing in §11's own story order: PLATFORM-P0-07.3
+(Module Maintenance Mode) next.

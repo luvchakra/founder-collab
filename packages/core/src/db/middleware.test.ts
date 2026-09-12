@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { activeBusinessIdFromPath, findUnlicensedModuleForRoute, isProtectedPath, isUnlicensedModuleRoute } from "./middleware";
+import {
+  activeBusinessIdFromPath,
+  findPlatformDisabledModuleForRoute,
+  findUnlicensedModuleForRoute,
+  isProtectedPath,
+  isUnlicensedModuleRoute,
+} from "./middleware";
 
 describe("isProtectedPath", () => {
   it("protects the customer dashboard", () => {
@@ -67,5 +73,25 @@ describe("findUnlicensedModuleForRoute", () => {
   it("returns null when the route is licensed", () => {
     const pathname = "/dashboard/businesses/abc-123/inventory/products";
     expect(findUnlicensedModuleForRoute(pathname, new Set(["inventory"]))).toBeNull();
+  });
+});
+
+describe("findPlatformDisabledModuleForRoute (PLATFORM-P0-07.2)", () => {
+  it("returns the module's key when a superadmin has disabled it platform-wide", () => {
+    const pathname = "/dashboard/businesses/abc-123/inventory/products";
+    expect(findPlatformDisabledModuleForRoute(pathname, new Set(["inventory"]))).toBe("inventory");
+  });
+
+  it("returns null when the module is not platform-disabled", () => {
+    const pathname = "/dashboard/businesses/abc-123/inventory/products";
+    expect(findPlatformDisabledModuleForRoute(pathname, new Set())).toBeNull();
+  });
+
+  it("is independent of any license -- a platform-disabled module blocks even with no licensed-module context at all", () => {
+    expect(findPlatformDisabledModuleForRoute("/fsm/jobs", new Set(["fsm"]))).toBe("fsm");
+  });
+
+  it("does not false-positive on a path that merely contains a prefix as a substring", () => {
+    expect(findPlatformDisabledModuleForRoute("/fsmxyz", new Set(["fsm"]))).toBeNull();
   });
 });
