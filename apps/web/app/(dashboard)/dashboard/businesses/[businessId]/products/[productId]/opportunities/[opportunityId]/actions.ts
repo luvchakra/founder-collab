@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { setOpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/mutations";
+import { setOpportunityStatus, recordOpportunityHandoffFailure } from "@cofounderai/module-discovery/lib/opportunities/mutations";
 import type { OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
 import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
 
@@ -49,11 +49,25 @@ export async function sendOpportunityToCrmAction(
   prospectId: string,
   partyId: string,
 ) {
-  const result = await promoteProspectToCrm(businessId, { partyId, prospectId });
-  if (result.ok) {
-    await setOpportunityStatus(opportunityId, "sent_to_crm");
+  try {
+    const result = await promoteProspectToCrm(businessId, { partyId, prospectId });
+    if (result.ok) {
+      await setOpportunityStatus(opportunityId, "sent_to_crm");
+      revalidatePath(opportunityPath(businessId, productId, opportunityId));
+      revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+    }
+    return result;
+  } catch (error) {
+    // DISC-OFFER-P0-08.3: "Handoff Failed" -- an unexpected thrown exception (not the
+    // ok:false MODULE_NOT_LICENSED/validation results above, which are normal ADR-10
+    // outcomes handled by the caller already) is the one case this opportunity didn't
+    // previously have a durable record of. Persist it so it survives a reload and shows
+    // up as computeHandoffStatus's own "handoff_failed" state, then still resolve with
+    // an ok:false result so the button's existing toast path handles the immediate UI
+    // feedback the same way it already does for a normal error.
+    const message = error instanceof Error ? error.message : "Could not send to CRM.";
+    await recordOpportunityHandoffFailure(opportunityId, message);
     revalidatePath(opportunityPath(businessId, productId, opportunityId));
-    revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+    return { ok: false as const, error: message };
   }
-  return result;
 }

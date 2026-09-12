@@ -11,7 +11,7 @@ import {
   convertLeadToOpportunity as convertLeadToOpportunityMutation,
   promoteProspectToLead,
 } from "../lib/leads/mutations";
-import { listLeads as listLeadsQuery } from "../lib/leads/queries";
+import { listLeads as listLeadsQuery, getLeadBySourceReference } from "../lib/leads/queries";
 import { detectExistingRelationship } from "../lib/relationships/queries";
 import type { ContractResult } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
@@ -212,5 +212,21 @@ export async function classifyExistingRelationship(
   if (licenseError) return { ok: false, error: licenseError };
 
   const data = await detectExistingRelationship(businessId, input);
+  return { ok: true, data };
+}
+
+/**
+ * DISC-OFFER-P0-08.3: "Handoff Status" -- whether *this exact* Discovery prospect
+ * already has a CRM lead, checked the same way `promoteProspectToLead`'s own
+ * idempotency guard does (`source_module='discovery'`, `source_reference=prospectId`),
+ * but exposed as a plain read so the doc's own "Already in CRM" status can show on an
+ * opportunity page *before* a founder clicks "Send to CRM," not only discovered via
+ * the mutation's `alreadyPromoted` flag after the fact.
+ */
+export async function getDiscoveryHandoffLead(businessId: string, prospectId: string): Promise<ContractResult<Lead | null>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const data = await getLeadBySourceReference(businessId, "discovery", prospectId);
   return { ok: true, data };
 }
