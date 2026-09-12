@@ -55,6 +55,9 @@ const NAV_LINKS = [
   // PLATFORM-P0-09.4: the platform-wide AI feature/usage-ceiling policy -- config-only,
   // no runtime enforcement (see the migration's own docstring).
   { href: "/platform/ai-feature-policies", label: "AI Feature Policies" },
+  // PLATFORM-P0-09.5: a read-only, platform-wide view of recent AI runs -- no new table,
+  // see platform-ai-usage.ts's own docstring.
+  { href: "/platform/ai-usage", label: "AI Usage" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

@@ -26,7 +26,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.4 done (registry, secure key storage, routing policy, feature policies -- all config-only, no runtime wiring); 09.5 remaining |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -4498,3 +4498,116 @@ assertions above).
 
 **Status**: PLATFORM-P0-09.4 (AI Feature Policies, config-only) done. Committed and merged
 to `main`. Continuing in §13's own story order: PLATFORM-P0-09.5 (AI Usage) next.
+
+---
+
+### PLATFORM-P0-09.5 — AI Usage (2026-09-12)
+
+**Worktree hazard checked first**: `git log --oneline -3` confirmed `HEAD` genuinely on
+`feature/platform-admin-portal`'s real tip (`3113120`) before writing any code.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5) drove the whole shape of this
+story**: §13's own field list for 09.5 ("provider / model / module / business / run /
+tokens / estimated cost / status") is almost exactly `core.ai_runs`' own columns (Epic 6
+story S-4) plus a "module" the doc names but no existing table stores. Before writing
+anything, checked whether "AI usage ledger" is already a canonical concept per the
+entity-ownership map -- it is, twice over: `core.ai_runs` (`business_id`-scoped, the
+shared home for any non-discovery module's usage) and `discovery.ai_runs`
+(`workspace_id`-scoped, ADR-4's own separate discovery tenancy, "completely untouched" per
+that migration's own text). **No new table was created** -- this story is a pure read
+aggregation across those two already-canonical ledgers, not a third one.
+
+**Two real, resolved (not stopped-on) data-modeling questions, both non-security judgment
+calls per this run's own task brief ("layout, which existing pattern to reuse, exact
+naming you may decide yourself and document")**:
+
+1. **"module" has no stored column on either ledger.** Grepped every current caller of
+   `recordAiRun()` outside `module-discovery` to find the real answer: exactly four
+   operations, all logged by `module-crm` (`summarize_customer`, `summarize_conversation`,
+   `check_response_quality`, `draft_review_response`) -- `module-fsm`/`module-gst`/
+   `module-inventory` call no LLM at all yet (confirmed by the same grep). Built
+   `CORE_AI_RUN_OPERATION_MODULE`, a small explicit map from that real, current mapping,
+   not a guess -- a `core.ai_runs` row whose `operation` isn't in the map (a future
+   module's own new operation, until this map is updated alongside it) shows `module:
+   null` in the API and "Unknown (operation_name)" in the UI, never a fabricated label.
+   `discovery.ai_runs` rows are always `module: "discovery"` (that table has no other
+   writer). Retrofitting a real `module_key` column onto `core.ai_runs` -- and updating
+   every module's own `recordAiRun()` call site to pass it -- would be a cross-cutting
+   change to shared infrastructure *and* to other workstreams' own module packages,
+   explicitly out of scope per this run's own task brief ("Do not touch module-discovery...
+   or any other workstream's files") and unnecessary for a "track" story with no
+   enforcement of its own.
+2. **"business" for a `discovery.ai_runs` row is not `account_id`.** That table does carry
+   an `account_id` column, but an account can own more than one business (00-MASTER-
+   PLAN.md's own tenancy model), so it can't resolve to one specific business name.
+   Resolved instead via the real, already-existing chain `discovery.ai_runs.workspace_id
+   -> discovery.workspaces.product_id -> discovery.products.business_id -> core.
+   businesses` -- verified correct against dev's own real data below, not merely asserted.
+
+**New application code**: `packages/core/src/admin/platform-ai-usage.ts` --
+`listAiUsage(limit = 100)`, a pure read merging the most recent `limit` rows from each
+ledger (service-role `createAdminClient()`, the same cross-tenant-read pattern
+`platform-dashboard-queries.ts` already established, gated by this file's own
+`requireSuperadmin()` call), resolving business names for both sources, and sorting the
+merge by `created_at` descending before trimming back to `limit`. Never reads
+`core.ai_provider_credentials`/`discovery.ai_provider_credentials`/`platform.
+ai_provider_keys` anywhere -- §13's own explicit "do not expose secret credentials"
+instruction for this story, trivially satisfied since this file has no reason to touch any
+of the three credential tables at all.
+
+**No new migration, no new RLS test script**: this story writes nothing and creates no
+table -- both underlying ledgers' own RLS is unchanged and already proven by their own
+original stories' test coverage, and the only authorization gate this file adds
+(`requireSuperadmin()`) is the same, already-proven check every other `platform-ai-*.ts`
+file in this backlog reuses verbatim. This mirrors `platform-dashboard-queries.ts`'s own
+precedent exactly -- that file, the very first cross-tenant superadmin read in this
+backlog, also added no dedicated RLS script for the same reason (confirmed by checking:
+no `scripts/test-platform-dashboard-*.mjs` exists).
+
+**New UI**: `/platform/ai-usage` -- unlike `/platform/ai-routing` and `/platform/
+ai-feature-policies` (a single settings row each), this page's primary content genuinely
+is a table of many rows, so the desktop-table/mobile-card split (CLAUDE.md development
+principle #12, docs/design/claude-ui-design-rules.md rule 5) applies here, mirroring
+`ai-providers/page.tsx`'s own established split. Columns: when, module (with the real
+operation name shown whenever the module is unknown), business, provider/model, tokens,
+estimated cost, status. Added to `/platform`'s nav strip as "AI Usage," directly after "AI
+Feature Policies."
+
+**Deliberately not built this story**: no filtering/search/pagination beyond "the most
+recent 100 runs" (§13 says "track," not "search" -- CLAUDE.md development principle #7);
+no aggregate totals/charts (a natural future enhancement, not asked for by this story's own
+flat field list); no `module_key` column on `core.ai_runs` (see judgment call 1 above); no
+AI Safety/Cost Controls enforcement tying this data to the ceilings PLATFORM-P0-09.4 just
+configured (that wiring is PLATFORM-P0-10.1/10.2's own later, separate section, §14).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1226 files, no
+violations (no migration touched this story, so `lint:migrations` was not re-run against a
+changed timeline). `npx vitest run --root packages/core` -- 24 files / 229 tests (226 ->
+229, +3 this story's own -- `CORE_AI_RUN_OPERATION_MODULE`'s own known/unknown-operation
+behavior, plus a type-level export check). `cd apps/web && rm -rf .next && npm run build`
+-- clean; `/platform/ai-usage` lists `ƒ` (dynamic).
+
+**Real-data verification against dev**: `execute_sql` against the **dev** project
+(`jazdtomcgqjxjueedmck`) confirmed `core.ai_runs` currently holds `0` rows (no non-
+discovery module has logged AI usage yet, matching the grep above) and `discovery.ai_runs`
+holds `115` real rows. Ran the exact `workspace -> product -> business` join
+`resolveDiscoveryBusinesses()` performs (as three separate lookups in the application code,
+expressed here as one SQL join for verification) against those real rows: it resolved
+cleanly to real business names (e.g. "Meridian HomeTech Solutions") for the five most
+recent real runs, confirming the join chain is correct against live data, not merely
+plausible from reading the code. No migration was applied this story (none was written),
+so `mcp__Supabase__get_advisors` was not re-run (nothing changed for it to newly flag).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so an actual live browser walkthrough of
+`/platform/ai-usage` (which needs a real SUPERADMIN session to pass the outer layout's own
+`requireSuperadmin()` redirect) was **not** performed and is not claimed here. What *was*
+verified for real against dev: the underlying data (`core.ai_runs`/`discovery.ai_runs` row
+counts) and the join logic this file's own business-name resolution depends on, both
+directly against live data rather than only asserted from reading the code.
+
+**Status**: PLATFORM-P0-09.4 and 09.5 both done. §13 ("Internal AI Provider & Keys") is now
+fully complete (09.1 through 09.5). Committed and merged to `main`. Continuing per this
+doc's own section order into §14 ("AI Safety / Cost Controls," PLATFORM-P0-10.1/10.2) next.
