@@ -76,22 +76,22 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 09.2 | Payment Calendar | Done |
 | | 09.3 | Reminder Engine | Done |
 | | 09.4 | Overdue Detection | Done |
-| | 09.5 | Risk Dashboard | Not started |
+| | 09.5 | Risk Dashboard | Done |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**47 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**48 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 through COMPLY-P0-08 are all now fully done** -- Generic Tax Framework,
+**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done** -- Generic Tax Framework,
 Existing-Data Integration, India GST, India E-Invoice, India E-Way Bill, India Returns,
-and India Reconciliation & IMS. **COMPLY-P0-09.1 through 09.4 (Filing Calendar, Payment
-Calendar, Reminder Engine, Overdue Detection) are now done too** -- see the story log
-below. Next: COMPLY-P0-09.5 (Risk Dashboard), the last story of Epic 09.
+India Reconciliation & IMS, and now Compliance Calendar & Risk (Filing/Payment Calendar,
+Reminder Engine, Overdue Detection, Risk Dashboard). Next: COMPLY-P0-10 (Evidence &
+Audit), starting with COMPLY-P0-10.1 (Evidence Repository).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4984,3 +4984,107 @@ flagged rather than built here).
 
 **How verified**: same combined verification run as 09.3 above (the "430 tests passing"
 total and the single `apps/web` build cover 09.1 through 09.4 together).
+
+### 09.5 -- Risk Dashboard (2026-09-12)
+
+The last story of Epic 09, and the one that actually ties this whole epic (and several
+prior ones) together into something a founder looks at. The backlog's own six worked
+examples -- "Return not approved, E-invoice deadline approaching, Unmatched ITC, Missing
+tax registration, Invalid classification, Failed submission" -- became six
+`RiskSignalKind` values, each backed by real, already-persisted state, per the run
+instructions' own explicit requirement to read real state rather than invent data.
+
+**Reused, not re-derived, at every turn (backlog rule 1)**: `"return_not_approved"` reuses
+09.1's `getFilingCalendar` + 09.4's own `isFilingOverdue` directly -- no new due-date or
+overdue logic. `"unmatched_itc"` reuses COMPLY-P0-08.6's `gst.reconciliation_exceptions`
+(via a new `listOpenReconciliationExceptions`, a small addition to that story's own
+`queries.ts` since the existing function required a specific return period).
+`"missing_tax_registration"` reuses COMPLY-P0-04.1's `listTaxRegistrationsForRegime` and
+COMPLY-P0-01.2's `getEffectiveComplianceProfile`. `"invalid_classification"` reuses
+COMPLY-P0-04.3's `validateItemHsnSac` (via a new `listAllItemTaxContexts`, the
+whole-active-catalog counterpart to the existing by-id-list `listItemTaxContexts`).
+`"einvoice_deadline"` reuses COMPLY-P0-05.5's own `determineEinvoiceReportingDeadline` and
+COMPLY-P0-07.1's shared `resolveOutwardDocuments`, called ONCE per batch (turnover and the
+reporting-window rule resolved once for every candidate document, not once per document
+the way the single-document `getEinvoiceReportingDeadline` orchestrator is designed for).
+
+**`"failed_submission"` is named in the type system but never produced, and this is
+deliberate, not an oversight (backlog rule 11)**: re-confirmed this session (re-reading
+`lib/einvoice-status/determine.ts`'s own docstring, already flagged by COMPLY-P0-05.4/05.6)
+that `generateEinvoice`/`generateEwayBill` insert a row ONLY on a successful government
+response -- a rejected or technically failed attempt throws and persists nothing anywhere
+in this platform. There is no table a risk detector could read a real failure out of.
+Fabricating a signal that can never fire would be a worse failure mode than naming the gap
+honestly -- kept in the `RiskSignalKind` union (documenting the intended shape for
+whichever future story changes the generate mutations' own error path to persist a
+failed-attempt row) with a prominent docstring explaining why `detect.ts` never emits it,
+matching `EinvoiceStatusCode`'s own precedent of keeping unreachable codes in its union.
+
+**A genuine severity model, not just presence/absence (backlog rule: "never rely on color
+alone" -- applied here to the underlying DATA, not just the UI COMPLY-P0-11.5 will build on
+top of it)**: `"high"` (already overdue/blocking: an unapproved-and-overdue return, a
+breached e-invoice deadline, zero active registration), `"medium"` (coming due soon or
+needs triage: an e-invoice deadline within 3 days, an open reconciliation exception),
+`"low"` (a data-quality issue with no deadline: a missing/invalid HSN code). Every signal
+also carries a plain-language `summary` and, where meaningful, a `relatedEntityType`/
+`relatedEntityId` for COMPLY-P0-11.4's own future row-level actions to link to.
+
+**A real, named scope limitation for the e-invoice signal**: bounded to a 45-day lookback
+window over outward documents, not this business's entire document history -- scanning
+every document ever would mean an unbounded number of per-document reads on every
+dashboard load. An ancient, still-un-reported mandated e-invoice older than 45 days would
+not be caught by this dashboard. Documented in `queries.ts`'s own docstring rather than
+silently accepted.
+
+**What was built**:
+- `lib/inventory-tax-context/queries.ts` -- `listAllItemTaxContexts(businessId)` (new: the
+  whole active catalog, not just a specific id list).
+- `lib/exceptions/queries.ts` -- `listOpenReconciliationExceptions(businessId)` (new:
+  every open exception across every period, not one period at a time).
+- `lib/risk/types.ts` -- `RiskSignalKind`, `RiskSeverity`, `RiskSignal`, `RiskDashboard`.
+- `lib/risk/detect.ts` -- the five real pure detectors (`detectReturnNotApprovedSignals`,
+  `detectEinvoiceDeadlineSignals`, `detectUnmatchedItcSignals`,
+  `detectMissingRegistrationSignal`, `detectInvalidClassificationSignals`) plus the
+  `EINVOICE_DEADLINE_APPROACHING_DAYS` product threshold (3 days -- WonderArc's own
+  choice, not a government rule, so not a `gst.tax_rules` row).
+- `lib/risk/queries.ts` -- `getRiskDashboard(businessId, asOf)`: the orchestrator,
+  including the batched `getEinvoiceRiskCandidates` helper described above.
+- 17 new vitest cases in `detect.test.ts` covering every detector's positive and negative
+  cases (overdue-and-unapproved vs. not-yet-due vs. already-approved/filed; breached vs.
+  approaching vs. far-out vs. not-restricted/unknown e-invoice deadlines; one signal per
+  open exception; present vs. absent registration; invalid/missing vs. valid vs.
+  not-applicable item classification).
+
+**What was deliberately left out**: any UI (COMPLY-P0-11, "Overview Dashboard" is that
+epic's own first story and the natural home for actually rendering this); persisting a
+computed dashboard snapshot (like every other "prepare"/"compute" function in this module,
+this is live and re-computed on every call -- there is no COMPLY-P0-02.5-style need for a
+frozen snapshot here since the underlying facts it reads are themselves either already
+snapshotted where that matters, e.g. `gst.return_periods.snapshot`, or genuinely live); a
+real `"failed_submission"` detector (see above -- needs a schema change to the generate
+mutations' own error path, a different story's job); severity/threshold configurability
+(the 3-day e-invoice threshold and the "overdue means high" rule are fixed constants, not
+per-business settings -- a real, plausible future need, not asked for by this backlog's
+own terse spec).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1313 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- not re-run; no new migration this story.
+- `npx vitest run --root packages/module-gst` -- 447 tests passing (430 prior + 17 new).
+- No Supabase migration, no `get_advisors` re-check, no local Postgres RLS harness -- no
+  new schema, no new table, no new RLS policy this story; every underlying read is already
+  covered by an existing RLS harness (`test-gst-tax-registrations-rls.mjs`,
+  `test-gst-reconciliation-exceptions-rls.mjs`, `test-core-items-rls.mjs`, and 09.1-09.4's
+  own already-covered reads).
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+**COMPLY-P0-09 (Compliance Calendar & Risk) is now fully done** -- Filing Calendar,
+Payment Calendar, Reminder Engine, Overdue Detection, and now a real, multi-epic-spanning
+Risk Dashboard. This completes COMPLY-P0-02 through COMPLY-P0-09 in full. Next:
+COMPLY-P0-10 (Evidence & Audit).
