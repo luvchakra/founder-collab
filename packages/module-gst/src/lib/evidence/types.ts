@@ -20,6 +20,12 @@ export type ComplianceEvidence = {
   description: string | null;
   uploadedBy: string;
   createdAt: string;
+  /** COMPLY-P0-10.5 (Retention Rules): computed once at creation, from the
+   * `gst_record_retention_months` rule and the caller-declared financial year this
+   * evidence pertains to -- `null` means "not yet computed" (no financial year was
+   * declared at upload time, or the rule couldn't be resolved), never "no retention
+   * requirement." See `lib/retention/`'s own docstrings for the full computation. */
+  retentionUntil: string | null;
 };
 
 /** A `ComplianceEvidence` row joined with its own `core.attachments` row -- the shape a

@@ -81,7 +81,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 10.2 | Government Response Store | Done |
 | | 10.3 | Audit Trail | Done |
 | | 10.4 | Source Traceability | Done |
-| | 10.5 | Retention Rules | Not started |
+| | 10.5 | Retention Rules | Done |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
@@ -94,9 +94,10 @@ used an approximate "~50" denominator that only ever accounted for Epics 01-09 (
 49) -- corrected here to the real full-backlog total (Epics 01-11, 60 stories minus the
 one absorbed into 01.2 = 59) now that Epic 10 is underway.
 
-**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1 through
-10.4 (Evidence Repository, Government Response Store, Audit Trail, Source Traceability)
-are done too. Next: COMPLY-P0-10.5 (Retention Rules), the last story of Epic 10.
+**COMPLY-P0-02 through COMPLY-P0-10 are all now fully done** -- Epic 10 (Evidence &
+Audit) is complete: Evidence Repository, Government Response Store, Audit Trail, Source
+Traceability, and now Retention Rules. Next: COMPLY-P0-11 (Compliance UI), the last epic
+of P0, starting with COMPLY-P0-11.1 (Overview Dashboard).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5427,3 +5428,95 @@ needs it).
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 10.5 -- Retention Rules (2026-09-12)
+
+The last story of Epic 10. "Retention must be country/regime-specific" (the backlog's own
+one-line spec) -- a real, versioned, source-cited retention rule, and the follow-up
+COMPLY-P0-10.1's own migration comment explicitly deferred to this story: "adding
+[retention_until] now, before this story's own versioned retention rule exists, would
+mean guessing a number this story has no rule to compute it from."
+
+**Research, not assumption (backlog rule 6)**: WebSearched Section 36 of the CGST Act,
+2017 before writing anything. Confirmed across taxguru.in, the OFFICIAL CBIC tax
+repository (taxinformation.cbic.gov.in -- the primary legal source itself, not just a
+secondary explainer this time), gstgyaan.com and aubsp.com, all independently agreeing:
+every registered person must retain accounts/records for a minimum of 72 months (6 years)
+from the due date of furnishing the annual return (GSTR-9) for the relevant financial
+year.
+
+**A real regulatory nuance found and deliberately NOT modeled, named rather than silently
+dropped**: Section 36 also extends retention to one year after the final disposal of any
+appeal/revision/proceeding/investigation the records relate to, whichever is LATER --
+this platform has no dispute/litigation-tracking concept anywhere to know whether a given
+piece of evidence is even subject to one, so this rule's own seeded value only carries the
+base 72-month figure. Both the migration's own comment and `computeGstRetentionUntil`'s
+own docstring say explicitly that a caller with real knowledge of an active dispute
+should treat the computed date as a FLOOR, not a ceiling -- backlog rule 11 ("never claim
+more than is actually established") applied to a retention date instead of a tax amount.
+
+**Reused, not re-derived**: `computeGstRetentionUntil` reuses COMPLY-P0-09.1's own
+`gstr9DueDate` for the "annual return due date" half of the arithmetic rather than
+re-deriving GSTR-9's own due-date computation a second time -- "72 months from the annual
+return due date" IS "72 months from `gstr9DueDate(...)`," not a separate calculation.
+
+**`retention_until` is computed ONCE at evidence-creation time from a caller-declared
+financial year, never inferred or recomputed live** -- matching the exact "snapshot, not
+live recompute" precedent COMPLY-P0-02.5's own tax determinations already established: if
+Section 36 is ever amended to a longer period, an already-computed evidence row's own
+retention date should not silently drift out from under a business that was already told
+a specific date. Resolving WHICH financial year a piece of evidence pertains to from its
+own `relatedEntityType`/`relatedEntityId` (five different tables, five different lookups)
+is deliberately left to whichever future story builds the actual upload UI
+(COMPLY-P0-11) and has real context to pass in -- not solved speculatively here.
+
+**What was built**:
+- `supabase/migrations/20260912230000_gst_tax_rules_retention_seed_and_evidence_retention.sql`
+  -- the seeded `gst_record_retention_months` rule row, plus `alter table
+  gst.compliance_evidence add column retention_until date`.
+- `lib/retention/types.ts` -- `GstRecordRetentionRuleValue`.
+- `lib/retention/rule.ts` -- `GST_RECORD_RETENTION_RULE` lineage,
+  `parseGstRecordRetentionValue`, `getEffectiveGstRecordRetentionRule`.
+- `lib/retention/compute.ts` -- `computeGstRetentionUntil` (pure).
+- `lib/retention/queries.ts` -- `getGstRetentionUntil(financialYearEndDate, asOf?)`: the
+  orchestrator, resolving both the retention rule AND the GSTR-9 due-date rule, returning
+  `null` if either can't be resolved rather than computing from half the facts.
+- `lib/evidence/types.ts`/`queries.ts` -- `ComplianceEvidence.retentionUntil`.
+- `lib/evidence/mutations.ts` -- `recordComplianceEvidence` gains an optional
+  `financialYearEndDate` input; when provided, `retention_until` is computed and stored.
+- 3 new vitest cases in `compute.test.ts` covering the base case, a different financial
+  year, and a different (future-amended) retention-months figure.
+
+**What was deliberately left out**: the appeal/investigation retention extension (see
+above); inferring `financialYearEndDate` from `relatedEntityType`/`relatedEntityId` (see
+above -- COMPLY-P0-11's own job once a real upload UI exists to pass real context); any UI
+(COMPLY-P0-11); a scheduled job that purges or flags evidence past its own
+`retention_until` (a real, plausible future need -- this story only computes and stores
+the date, matching backlog rule 5's "do not implement future stories implicitly"; GST law
+in any case only sets a MINIMUM retention period, never a maximum, so there is no
+compliance reason to ever delete evidence automatically).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1328 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 165 migration files, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 458 tests passing (455 prior + 3 new).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (security): identical finding set
+  before/after -- no new finding (a data-only insert plus a nullable `ALTER TABLE ADD
+  COLUMN`, no new RLS surface).
+- Re-ran the existing `scripts/test-gst-compliance-evidence-rls.mjs` harness locally to
+  confirm the full migration timeline (165 files, including this story's own additions)
+  applies cleanly and `gst.compliance_evidence`'s own existing RLS/constraints are
+  unaffected by the new nullable column.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+**COMPLY-P0-10 (Evidence & Audit) is now fully done** -- Evidence Repository, Government
+Response Store, Audit Trail, Source Traceability, and Retention Rules. This completes
+COMPLY-P0-02 through COMPLY-P0-10 in full. Next: COMPLY-P0-11 (Compliance UI), the last
+epic of P0.
