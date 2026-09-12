@@ -1,0 +1,84 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { getEmailProviderConfig } from "@cofounderai/core/admin/platform-email-provider";
+import { EmailProviderDialog } from "./email-provider-dialog";
+
+/**
+ * PLATFORM-P0-11.1 ("Email Provider", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §15) --
+ * CONFIG-ONLY. See `platform-email-provider.ts` and this feature's migration for the full
+ * entity-ownership reasoning ("from name" is `platform.branding.email_from_name`, not a
+ * second field here) and for why no real email routes through this table yet (real outbound
+ * email already exists via `resend`, called directly from discovery/fsm/gst, reading
+ * `RESEND_API_KEY`/`RESEND_FROM_EMAIL` env vars -- untouched by this story).
+ *
+ * A single settings surface, not a list of rows -- singleton `platform.email_provider`, same
+ * shape as `/platform/ai-feature-policies`, so no table/mobile-card split applies here
+ * (CLAUDE.md development principle #12 targets a page whose *primary* content is a table of
+ * many rows).
+ */
+export default async function PlatformEmailProviderPage() {
+  const config = await getEmailProviderConfig();
+
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+      <div>
+        <h1 className="text-xl font-semibold">Email Provider</h1>
+        <p className="text-sm text-zinc-400">
+          Configuration only -- nothing here is wired into real outbound email yet. Platform emails today are sent
+          directly via Resend, reading environment variables. Every change here is recorded with a reason.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-amber-900/60 bg-amber-950/20 p-4 text-sm text-amber-200">
+        Real outbound email (discovery outreach, FSM reminders/invoices/estimates, GST reminders) is not affected by
+        this page. It keeps reading <code className="rounded bg-amber-900/40 px-1">RESEND_API_KEY</code>/
+        <code className="rounded bg-amber-900/40 px-1">RESEND_FROM_EMAIL</code> directly until a future story wires
+        this configuration in.
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-2xl border border-zinc-800 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-col gap-3 text-sm">
+            <Field label="From name">
+              <span className={config.fromName ? "text-zinc-100" : "text-zinc-500"}>
+                {config.fromName ?? "Not configured"}
+              </span>
+              <p className="text-xs text-zinc-500">
+                Edited on{" "}
+                <Link href="/platform/branding" className="underline hover:text-zinc-300">
+                  Platform Branding
+                </Link>{" "}
+                -- &quot;Email branding&quot; section, not here.
+              </p>
+            </Field>
+            <Field label="Provider">
+              <span className={config.provider ? "text-zinc-100" : "text-zinc-500"}>
+                {config.provider ?? "Not configured"}
+              </span>
+            </Field>
+            <Field label="From email">
+              <span className={config.fromEmail ? "text-zinc-100" : "text-zinc-500"}>
+                {config.fromEmail ?? "Not configured"}
+              </span>
+            </Field>
+            <Field label="Reply-to">
+              <span className={config.replyTo ? "text-zinc-100" : "text-zinc-500"}>
+                {config.replyTo ?? "Not configured"}
+              </span>
+            </Field>
+          </div>
+          <EmailProviderDialog config={config} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs uppercase tracking-wide text-zinc-500">{label}</span>
+      <div>{children}</div>
+    </div>
+  );
+}
