@@ -26,7 +26,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage) -- 09.3/09.4/09.5 remaining, see log |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage); 09.3 stopped -- genuine routing-algorithm ambiguity, see log; 09.4/09.5 remaining |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -4008,3 +4008,157 @@ the database-layer behavior this script proves is unaffected by that gap.
 
 **Status**: PLATFORM-P0-09.1/09.2 done. Continuing in §13's own story order:
 PLATFORM-P0-09.3 (Provider Routing) next.
+
+---
+
+### PLATFORM-P0-09.3 — Provider Routing (2026-09-12) — STOP AND REPORT
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at a stale scratch merge
+commit (`8f138b1`, "Merge branch 'feature/platform-admin-portal' into scratch-plat-09-
+merge") one commit *ahead of* `feature/platform-admin-portal`'s own real tip rather than
+sitting on the feature branch itself. Working tree was clean -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing exactly on
+`772d61e` (PLATFORM-P0-09.1/09.2's own commit), then re-verified `git log --oneline -3`
+before touching any file. `npm install` run fresh (no `node_modules` in this worktree; 679
+packages added, clean).
+
+**Read first**: `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §13 in full (again, for
+09.3's own text this time), §3 ("Critical Architecture Principle"), §40 ("Architectural
+Constraints for Claude Code"), and this audit log's own PLATFORM-P0-09.1/09.2 entry above
+in full (its own explicit "Deliberately not built this story: no real AI-calling router
+wiring... PLATFORM-P0-09.3 (Provider Routing) is the next, separate story" note is exactly
+the seam this story picks up from). Also read, to establish what routing infrastructure
+already exists and what a "Provider Routing" story would have to change:
+`packages/core/src/ai/business-router.ts` (the actual runtime provider-resolution path
+every `business_id`-scoped module currently calls through), `packages/core/src/ai/
+operation-registry.ts` and `model-registry.ts` (the existing `AiOperation` ->
+qualityTier -> provider -> modelId resolution chain), and `packages/module-registry/
+src/index.ts` (confirms a clean, closed `ModuleKey` union -- `"discovery" | "inventory" |
+"fsm" | "crm" | "gst"` -- already exists, so "which modules can be routing targets" is not
+itself an open question).
+
+**This is a genuine architectural ambiguity to stop and report on -- matching this run's
+own task brief almost verbatim ("If 'Provider Routing' turns out to require real AI-calling
+infrastructure... and the doc doesn't specify the routing algorithm precisely, that is
+exactly the kind of thing to stop and report on rather than invent")**, not a case with an
+existing, reusable, already-proven pattern to follow the way 09.1/09.2's own secret-storage
+question turned out to be.
+
+§13's own text for 09.3 is four configuration field names and a three-line example:
+
+```text
+default provider
+default model
+module-specific provider
+fallback provider
+
+Discovery -> Gemini
+CRM -> OpenAI
+Compliance -> OpenAI
+```
+
+That is exhaustive -- there is no other mention of "routing," "failover," or a per-module
+provider concept anywhere else in this doc (checked: the doc's only other "routing" hits are
+`crm`'s unrelated `routing_rules` ticket-routing table and one throwaway ADR-1 aside about
+extracting a module into its own deployment "later" being "a routing change, not a rewrite"
+-- neither is this feature). Two readings of "Provider Routing" are both consistent with
+that text, and this codebase's actual AI call chain makes the gap between them a real one,
+not a cosmetic one:
+
+1. **Config-only reading** (same shape as 09.1 itself): a new, audited `platform.*`
+   config surface -- a fixed-shape routing table (a platform-wide default provider/model,
+   a `ModuleKey -> AiProvider` override map, a platform-wide fallback provider) -- that a
+   SUPERADMIN can set and see, with no runtime code path reading it yet. This mirrors
+   09.1/09.2's own explicit deferral pattern exactly ("no real AI-calling router wiring...
+   next story's job").
+2. **Wiring reading**: actually change `business-router.ts` (and, by the doc's own
+   Discovery/CRM/Compliance example, `module-discovery`'s separate `lib/ai/router.ts` too)
+   so a real AI call's provider selection is actually governed by this configuration
+   instead of the current hardcoded `getPlatformCredential()` (`provider: "anthropic"`,
+   read from the single `PLATFORM_AI_API_KEY` env var, no per-module distinction at all).
+
+Reading 1 alone would just be 09.1 again with different columns -- plausible, but if 09.3's
+whole point is that the *next* story is the one that makes the registry actually do
+something (as 09.1/09.2's own entry implied), a config-only 09.3 defers the real work
+indefinitely under a title that specifically says "Routing." Reading 2 is what "Provider
+Routing" most naturally means, and is squarely in "real AI-calling infrastructure" territory
+-- and the doc gives no algorithm for it. Concretely, all of the following are genuine,
+consequential unknowns a correct implementation would have to invent from nothing:
+
+- **Precedence with BYOK**: `resolveBusinessAiModel()` currently tries the business's own
+  connected key (`core.ai_provider_credentials`) *first*, falling back to the platform
+  credential only if none exists. Does "module-specific provider" ever override a
+  business's own BYOK provider choice (e.g. force CRM calls through OpenAI even for a
+  business that connected its own Anthropic key), or does it only decide which provider the
+  *platform's own* fallback credential uses when there is no BYOK key at all? The doc's
+  Discovery/CRM/Compliance example reads as an absolute per-module rule, which would mean
+  overriding a tenant's own explicit BYOK choice -- a materially different (and more
+  surprising) behavior than "only governs the platform's own fallback," and CLAUDE.md's own
+  AI section documents BYOK as the established, tenant-controlled path without ever
+  mentioning platform routing overriding it.
+- **Fallback semantics**: is "fallback provider" a static secondary choice substituted at
+  resolution time only when the primary provider has no configured key or is disabled
+  (`platform.ai_providers.enabled = false`), or live mid-request failover -- retry a failed
+  call against a different provider after it fails? If the latter, which of
+  `business-router.ts`'s own existing `AiErrorCode` classifications
+  (`rate_limited`/`provider_unavailable`/`timeout`/`invalid_key`/...) should trigger
+  failover and which shouldn't (retrying `invalid_key` against a different provider makes
+  sense; retrying `invalid_response` -- a schema-validation failure of the model's own
+  output -- against a different provider is a different kind of fix entirely)? None of this
+  is in the doc, and inventing a specific retry/error-classification policy here is exactly
+  the kind of unstated algorithm the task brief calls out.
+- **Granularity -- module vs. operation**: the doc's example is per-module (Discovery, CRM,
+  Compliance), but the *existing* resolution chain is per-`AiOperation`
+  (`operation-registry.ts`'s 19 operations, each with its own quality tier), and
+  `business-router.ts`/discovery's own router take no "module" parameter at all today --
+  there is no place in the current call chain that even knows which `ModuleKey` a given
+  call belongs to. Wiring module-specific routing would mean threading a new `ModuleKey`
+  argument through every current and future caller of `resolveBusinessAiModel()`
+  (`crm` today; `fsm`/`inventory`/`gst` whenever each first calls an LLM) and through
+  discovery's own separate router -- a cross-cutting signature change to shared
+  infrastructure, not a self-contained addition, and the doc doesn't say whether operation-
+  level quality-tier selection and module-level provider selection are meant to compose (an
+  operation still picks a quality tier; the module picks which provider's model at that
+  tier) or whether module routing is meant to *replace* today's tier-based selection.
+- **"default model" vs. `platform.ai_providers.default_model`**: 09.1 already gave each
+  provider row its own `default_model`/`fallback_model` columns (`platform.ai_providers`,
+  this run's own prior story). 09.3 lists "default model" again as a routing-level field.
+  Is this the same value read from a different table (redundant), a platform-wide override
+  independent of any single provider's own default (used when no module-specific route
+  matches), or a per-module model override on top of a per-module provider override? The
+  doc's flat field list doesn't distinguish.
+- **Missing-key behavior**: if a module is routed to a provider that has no
+  `platform.ai_provider_keys` row configured (or `platform.ai_providers.enabled = false`
+  for it), does resolution fall through to the "fallback provider," to the platform's
+  historical single-credential behavior, or fail outright with a new error code? Each is a
+  different user-facing behavior for a real outage, not a stylistic choice.
+
+None of these are layout, naming, or "which existing pattern to reuse" calls -- they are
+exactly "how a module's own AI call chooses platform-key-vs-BYOK, retry/failover semantics"
+per this run's own task brief, and getting any one of them wrong ships either a silent
+tenant-BYOK-override regression or unwanted retry behavior against a real, billed third-
+party API. Per this workstream's own established pattern (five prior successful stop-and-
+report cycles this session: PLATFORM-P0-06.5, PLATFORM-P0-07.3, and others referenced
+above), this story stops here rather than guessing.
+
+**Nothing was built or changed this story** -- no migration, no application code, no UI.
+This audit-log entry and the Progress-table update above are the only changes.
+
+**Recommendation, not a decision**: the narrowest, lowest-risk path once the user answers
+the above would likely be Reading 1 (config-only: a `platform.ai_provider_routing` table --
+platform-wide default provider/model plus a `ModuleKey -> AiProvider` override map plus a
+platform-wide fallback provider, audited the same way as 09.1/09.2, no runtime wiring),
+deferring Reading 2's actual call-chain wiring to a follow-up story once its own algorithm
+questions (precedence with BYOK, failover semantics, granularity) are separately answered --
+mirroring exactly how 09.1/09.2 itself deferred all routing to this story. But that is this
+agent's own suggestion for how to *sequence* the work, not a substitute for the user
+answering the open questions above; implementing even the config-only reading without
+confirming it's what's wanted risks building the wrong table shape (e.g. omitting the
+per-operation dimension if that turns out to be required).
+
+**Status**: PLATFORM-P0-09.3 stopped, open questions written above. Resume once the user
+decides. §13's other stories (09.4 AI Feature Policies, 09.5 AI Usage) do not obviously
+depend on 09.3's own resolution and remain candidates to pick up first if the user prefers,
+but per this run's own task brief ("Then continue to 09.4..., 09.5..." in §13's own stated
+order) this run stops here to report rather than skip ahead on its own judgment.
