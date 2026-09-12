@@ -13,16 +13,20 @@ export type CountryBarActionState = { error: string } | { success: true } | null
  * bar (backlog §3), mounted once in `gst/layout.tsx` above every Compliance page.
  *
  * Regime only gets its own selector when the current country's catalog entry has more
- * than one (COMPLY-P0-01.3) -- no P0 country does yet (India has exactly one, GST), so in
- * practice only the regime badge (not a control) renders today; the mechanism exists for
- * the first P1 country pack that needs it, per the backlog's own "do not implement future
- * stories implicitly" balanced against "build the generic mechanism this epic owns."
+ * than one (COMPLY-P0-01.3) -- no supported country does yet, India and each of
+ * COMPLY-P1-01's five EU country packs (Germany/France/Belgium/Poland/Italy) alike having
+ * exactly one regime (GST or VAT respectively), so in practice only the regime badge (not
+ * a control) renders today; the mechanism exists for the first future country pack that
+ * needs it, per the backlog's own "do not implement future stories implicitly" balanced
+ * against "build the generic mechanism this epic owns."
  *
- * Every non-India entry in the country list renders as a disabled `<option>` labelled
- * "Planned" -- this is COMPLY-P0-01.5's own "clearly show supported vs planned
- * capability", not a full unsupported-country empty-state page (nothing routes a
+ * Every entry whose own catalog `status` isn't `"supported"` renders as a disabled
+ * `<option>` labelled "Planned" -- this is COMPLY-P0-01.5's own "clearly show supported vs
+ * planned capability", not a full unsupported-country empty-state page (nothing routes a
  * business into an unsupported country in the first place, since selecting one is
- * disabled here and refused server-side).
+ * disabled here and refused server-side). This component itself needed no change for
+ * COMPLY-P1-01 to add five more selectable countries -- it was already driven entirely by
+ * `COUNTRY_CATALOG`'s own `status` field, never a hard-coded country check.
  */
 export function CountryBar({
   profile,

@@ -13,8 +13,12 @@
  * ones this build actually supports," never a rate or a legal rule.
  *
  * `status: "supported"` means the platform has a real, working implementation for that
- * country's regime (India/GST, built across COMPLY-P0-04 through 10). `status:
- * "planned"` means the regime is named in this backlog's own research (§2) as a P1
+ * country's regime (India/GST, built across COMPLY-P0-04 through 10; Germany/France/
+ * Belgium/Poland/Italy VAT, built across COMPLY-P1-01 -- rate/treatment rules,
+ * intra-EU/OSS-IOSS determination, VAT ID validation and e-invoicing-mandate tracking,
+ * per that story's own log entry for exactly what "working" means for a VAT country pack
+ * versus GST's fuller e-invoicing/e-way-bill/returns/reconciliation depth). `status:
+ * "planned"` means the regime is named in this backlog's own research (§2) as a P1/P2
  * target but has no implementation yet -- selecting one is refused by the mutation layer,
  * not just hidden in the UI (defense in depth, same pattern as every other
  * license/permission check in this platform).
@@ -49,11 +53,19 @@ export const COUNTRY_CATALOG: CountryCatalogEntry[] = [
   { code: "US", name: "United States", status: "planned", regimes: [{ key: "SALES_TAX", name: "Sales Tax" }] },
   { code: "CA", name: "Canada", status: "planned", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
   { code: "SG", name: "Singapore", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
-  { code: "DE", name: "Germany", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
-  { code: "FR", name: "France", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
-  { code: "BE", name: "Belgium", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
-  { code: "PL", name: "Poland", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
-  { code: "IT", name: "Italy", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
+  // COMPLY-P1-01 (EU VAT Framework): the backlog's own initial member-state focus list
+  // (§7, COMPLY-P1-01.2) -- real, versioned, source-cited standard/reduced rate rules
+  // (lib/tax-rules/eu-vat-rates.ts), intra-EU B2B/B2C treatment (lib/eu-vat/), OSS/IOSS
+  // threshold rules, VAT ID format+checksum validation and per-country e-invoicing-mandate
+  // tracking now all exist for these five -- see that story's own audit-log entry for the
+  // exact scope (a VAT country pack is intentionally narrower than India/GST's own
+  // e-invoicing/e-way-bill/returns/reconciliation depth; no GSTR-style return preparation
+  // or a live government filing adapter exists for any of these five yet).
+  { code: "DE", name: "Germany", status: "supported", regimes: [{ key: "VAT", name: "VAT" }] },
+  { code: "FR", name: "France", status: "supported", regimes: [{ key: "VAT", name: "VAT" }] },
+  { code: "BE", name: "Belgium", status: "supported", regimes: [{ key: "VAT", name: "VAT" }] },
+  { code: "PL", name: "Poland", status: "supported", regimes: [{ key: "VAT", name: "VAT" }] },
+  { code: "IT", name: "Italy", status: "supported", regimes: [{ key: "VAT", name: "VAT" }] },
   { code: "AE", name: "United Arab Emirates", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
   { code: "SA", name: "Saudi Arabia", status: "planned", regimes: [{ key: "VAT", name: "VAT" }] },
   { code: "AU", name: "Australia", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },

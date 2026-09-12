@@ -13,31 +13,39 @@ describe("compliance country catalog", () => {
     }
   });
 
-  it("India is the only P0-supported country", () => {
+  it("India plus COMPLY-P1-01's five EU country packs are the currently-supported countries", () => {
     const supported = COUNTRY_CATALOG.filter((c) => c.status === "supported").map((c) => c.code);
-    expect(supported).toEqual(["IN"]);
+    expect(supported.sort()).toEqual(["BE", "DE", "FR", "IN", "IT", "PL"]);
   });
 
   it("getCountry finds a known code and misses an unknown one", () => {
     expect(getCountry("IN")?.name).toBe("India");
+    expect(getCountry("DE")?.name).toBe("Germany");
     expect(getCountry("ZZ")).toBeUndefined();
   });
 
-  it("isCountrySupported is true only for India in P0", () => {
+  it("isCountrySupported is true for India and the five COMPLY-P1-01 EU country packs, false for everything else", () => {
     expect(isCountrySupported("IN")).toBe(true);
+    for (const code of ["DE", "FR", "BE", "PL", "IT"]) {
+      expect(isCountrySupported(code)).toBe(true);
+    }
     expect(isCountrySupported("US")).toBe(false);
+    expect(isCountrySupported("NL")).toBe(false); // a real EU member state with no country pack yet
     expect(isCountrySupported("ZZ")).toBe(false);
   });
 
   it("isRegimeSupported requires both a supported country and a real regime of that country's own catalog entry", () => {
     expect(isRegimeSupported("IN", "GST")).toBe(true);
     expect(isRegimeSupported("IN", "VAT")).toBe(false); // real regime, wrong country
+    expect(isRegimeSupported("DE", "VAT")).toBe(true);
+    expect(isRegimeSupported("DE", "GST")).toBe(false); // real regime, wrong country
     expect(isRegimeSupported("US", "SALES_TAX")).toBe(false); // real regime, unsupported country
     expect(isRegimeSupported("ZZ", "GST")).toBe(false);
   });
 
-  it("defaultRegimeFor returns India's GST and nothing for an unknown country", () => {
+  it("defaultRegimeFor returns each supported country's own regime and nothing for an unknown country", () => {
     expect(defaultRegimeFor("IN")).toBe("GST");
+    expect(defaultRegimeFor("DE")).toBe("VAT");
     expect(defaultRegimeFor("ZZ")).toBeUndefined();
   });
 });
