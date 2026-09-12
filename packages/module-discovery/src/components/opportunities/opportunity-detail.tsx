@@ -236,7 +236,23 @@ export function OpportunityDetail({
           <ul className="flex flex-col gap-1 text-sm">
             {research.evidence.map((item, i) => (
               <li key={i} className="text-muted-foreground">
-                <span className="rounded bg-muted px-1 text-xs">{EVIDENCE_TYPE_LABEL[item.evidence_type]}</span> {item.statement}
+                <span className="rounded bg-muted px-1 text-xs">{EVIDENCE_TYPE_LABEL[item.evidence_type]}</span>{" "}
+                {/* DISC-OFFER-P0-12.2: "clearly distinguish first-party website evidence
+                    from external evidence" -- omitted entirely for evidence recorded
+                    before this story added the field (`source_type` is optional on
+                    older stored rows), rather than guessing. */}
+                {item.source_type ? (
+                  <span
+                    className={
+                      item.source_type === "first_party"
+                        ? "rounded bg-primary/10 px-1 text-xs text-primary"
+                        : "rounded bg-secondary px-1 text-xs text-secondary-foreground"
+                    }
+                  >
+                    {item.source_type === "first_party" ? "First-party" : "External"}
+                  </span>
+                ) : null}{" "}
+                {item.statement}
                 {item.source || item.observed_at ? (
                   <span className="text-xs"> ({[item.source, item.observed_at].filter(Boolean).join(", ")})</span>
                 ) : null}

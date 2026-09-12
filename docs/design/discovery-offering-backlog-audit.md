@@ -54,7 +54,7 @@ only genuine architectural/key decisions are raised.
 | | 11.2 | Run From This Stage | Done |
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Done |
-| | 12.2 | External Opportunity Research | Not started |
+| | 12.2 | External Opportunity Research | Done |
 | | 13.1 | Structured Stage Outputs | Not started |
 | | 14.1 | Discovery Run History | Not started |
 | | 14.2 | Versioned Stage Results | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**36 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**37 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2411,3 +2411,74 @@ seeded demo user/`.env.local`/real website fetch reachable in this environment).
 
 **Status**: 36 of 68 in-scope stories done -- Phase E continuing. Next: 12.2, External
 Opportunity Research.
+
+### 12.2 — External Opportunity Research (2026-09-12)
+
+Checked `researchProspect()` (DISC-OFFER-P0-06.1's own "Evidence-Backed Research")
+before building anything: it already does almost everything this story's own signal list
+asks for -- growth/hiring/leadership changes/tech changes/news/expansion -- via a live
+web-search call whose prompt (`research_prospect_v2`) already asks for exactly those
+categories, with each finding's source/URL/date already captured per DISC-OFFER-P0-06.1.
+The two genuine gaps: (1) it never reads the prospect's own website directly at all --
+only a general web search that *might* surface the company's own site among its results,
+never asked to specifically -- so there was no real "first-party website understanding"
+step this story's own "after first-party website understanding, research external
+sources" ordering assumes exists; and (2) nothing in the stored evidence shape says
+*which* of "the company's own site" vs. "everywhere else" a given claim came from -- the
+doc's own explicit "clearly distinguish first-party website evidence from external
+evidence" wasn't actually representable, only inferable (unreliably) from the free-text
+`source` field.
+
+New `research_prospect_v3.ts` prompt file (v2 left untouched, per this module's own
+versioned-prompts convention -- `ai_runs` caches off the version string).
+`researchProspectPrompt` (the external search question) is unchanged from v2; new
+`firstPartyProspectWebsitePrompt` asks a plain, narrow question -- what does the
+company's own site say about itself -- deliberately *not* asked to search for
+opportunity signals, so its findings can be honestly labeled first-party rather than a
+search result that happened to land on the prospect's own domain.
+`structureResearchPrompt` now takes both findings blocks (first-party, nullable when no
+website is on file or it couldn't be read, and external) as two separately labeled
+`<first_party_website_findings>`/`<external_web_search_findings>` sections, and requires
+a new `source_type` ("first_party"/"external") per evidence item naming which block it
+came from.
+
+`researchProspect()` (`lib/ai/research-prospect.ts`) now makes a **best-effort** first
+call to `researchWebsite()` (the same direct-fetch-first/provider-tool-fallback helper
+`understandProduct()` already uses) against `prospect.website` when one is on file,
+*before* the existing external web-search call -- wrapped in its own try/catch that never
+throws outward: a prospect with no website, or one that's unreachable, is a completely
+normal case (same "support partial success" precedent DISC-OFFER-P0-09.2's own crawl
+already established for a single failed page), not a reason to fail the whole research
+run. Both findings blocks feed one combined structuring call and one combined `ai_runs`
+row (token/search usage from all three sub-calls summed into it) -- "one row per
+operation," not one per source, the same discipline every `lib/ai/*.ts` function in this
+module already follows.
+
+New `EvidenceItemSchema.source_type` (`lib/ai/schemas.ts`, required on every new item --
+the model must pick one) and a matching **optional** `EvidenceItem.source_type` field on
+the plain TS type (`lib/research/types.ts`) -- optional, not nullable, because `evidence`
+is a jsonb array: an item persisted before this story simply has no such key in its
+stored object at all, not an explicit null, so the type says exactly that rather than
+claiming a value that was never written. No migration -- `prospect_research.evidence` is
+already `jsonb`, so a new per-item field needs no schema change, only the Zod/TS shapes
+that describe what goes into and comes out of that column.
+
+UI: Opportunity Detail's own evidence list (`components/opportunities/opportunity-
+detail.tsx`) gained a small "First-party"/"External" badge next to the existing
+evidence-type badge -- omitted entirely (not shown as "Unknown") for any evidence
+recorded before this story, matching the field's own optional-not-null semantics rather
+than guessing at data that was never captured.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1166 files, no violations),
+`lint:migrations` (130 migrations, unchanged -- no migration this story), `npx vitest run
+--root packages/module-discovery` (178/178, unchanged -- `research-prospect.ts` is an
+AI/DB-composing function with no unit tests of its own, per this run's established
+precedent, and no new pure logic was added), and a clean `next build` (confirmed the
+Opportunity Detail route, which renders the new evidence badge, still builds with no
+errors). Same live-browser-walkthrough constraint noted in every prior AI-calling story
+this run (no seeded demo user/`.env.local`/real website fetch reachable in this
+environment).
+
+**Status**: 37 of 68 in-scope stories done -- Phase E continuing. Next: 13.1, Structured
+Stage Outputs.

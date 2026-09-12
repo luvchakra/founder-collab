@@ -7,34 +7,46 @@ import { getProspectResearch } from "../research/queries";
 import type { ProspectResearch } from "../research/types";
 import {
   researchProspectPrompt,
+  firstPartyProspectWebsitePrompt,
   structureResearchPrompt,
   RESEARCH_PROSPECT_PROMPT_VERSION,
-} from "../../prompts/research/research_prospect_v2";
+} from "../../prompts/research/research_prospect_v3";
 import { hashInput } from "./hash";
 import { ProspectResearchSchema } from "./schemas";
 import { recordAiRun } from "./usage";
 import { assertWithinUsageLimit } from "../usage/limits";
 import { hasRecentSuccess } from "./dedup";
 import { resolveAiModel, toAiProviderError } from "./router";
-import { createWebSearchTools } from "@cofounderai/core/ai/provider-factory";
+import { researchWebsite } from "./research-website";
+import { createUrlContextTools, createWebSearchTools } from "@cofounderai/core/ai/provider-factory";
 
 const OPERATION = "research_prospect";
 const RESEARCH_TTL_DAYS = 30;
 
 /**
- * Researches a prospect via two calls through the BYOK router (lib/ai/router.ts):
- * 1. The operation's "reasoning" tier model plus that provider's own provider-executed
+ * Researches a prospect via up to three calls through the BYOK router (lib/ai/router.ts):
+ * 1. DISC-OFFER-P0-12.2: if the prospect has a website on file, a first-party read of it
+ *    (research-website.ts's own researchWebsite(), the same direct-fetch-first/provider-
+ *    tool-fallback helper `understandProduct()` uses) -- best-effort: a failed or missing
+ *    website never blocks the rest of this function ("support partial success," the same
+ *    precedent DISC-OFFER-P0-09.2's own crawl already established for a single page).
+ * 2. The operation's "reasoning" tier model plus that provider's own provider-executed
  *    web search tool (lib/ai/provider-factory.ts's createWebSearchTools) gathers sourced
- *    findings -- whichever of the three providers the account connected.
- * 2. The same provider's "fast" tier (via resolveAiModel's modelAtTier, no second
- *    credential fetch) structures those findings into ProspectResearchSchema -- pure
- *    extraction from already-written text, exactly the "cheap model" case blueprint §11
- *    calls out.
+ *    *external* findings -- whichever of the three providers the account connected. This
+ *    is the doc's own "research relevant public external sources for current signals"
+ *    (company growth, hiring, leadership changes, tech changes, news, expansion, etc).
+ * 3. The same provider's "fast" tier (via resolveAiModel's modelAtTier, no second
+ *    credential fetch) structures both sets of findings into ProspectResearchSchema --
+ *    pure extraction from already-written text, exactly the "cheap model" case blueprint
+ *    §11 calls out.
  *
  * The model is instructed not to invent facts; each evidence item carries a
  * fact/inference/assumption/unknown `evidence_type` tag (blueprint §33) plus its own
- * separate `confidence`, source description/URL, observed date, and which signal (if
- * any) it supports (DISC-OFFER-P0-06.1) rather than being asserted flatly.
+ * separate `confidence`, source description/URL, observed date, which signal (if any) it
+ * supports (DISC-OFFER-P0-06.1), and now a `source_type` ("first_party" vs "external",
+ * DISC-OFFER-P0-12.2) naming which of the two findings blocks it actually came from,
+ * rather than being asserted flatly or left for a reader to guess at from the free-text
+ * `source` field alone.
  */
 export async function researchProspect(prospectId: string): Promise<ProspectResearch> {
   const prospect = await getProspect(prospectId);
@@ -76,19 +88,46 @@ export async function researchProspect(prospectId: string): Promise<ProspectRese
 
   const startedAt = Date.now();
   try {
+    // DISC-OFFER-P0-12.2: best-effort first-party read of the prospect's own website --
+    // never throws (a missing or unreachable site is a normal, common case, not a
+    // failure of this whole operation); its own token usage still counts toward this
+    // one ai_runs row, the same "one row per operation" discipline every lib/ai/*.ts
+    // function in this module already follows.
+    let firstPartyFindings: string | null = null;
+    let firstPartyInputTokens = 0;
+    let firstPartyOutputTokens = 0;
+    let firstPartySearchCount = 0;
+    if (prospect.website) {
+      try {
+        const firstPartyResult = await researchWebsite(
+          model,
+          createUrlContextTools(provider),
+          firstPartyProspectWebsitePrompt(prospect.company_name, prospect.website),
+          prospect.website,
+          provider,
+        );
+        firstPartyFindings = firstPartyResult.findings.trim() || null;
+        firstPartyInputTokens = firstPartyResult.inputTokens;
+        firstPartyOutputTokens = firstPartyResult.outputTokens;
+        firstPartySearchCount = firstPartyResult.searchCount;
+      } catch {
+        firstPartyFindings = null;
+      }
+    }
+
     const searchResponse = await generateText({
       model,
       tools: createWebSearchTools(provider),
       prompt: researchPrompt,
     });
 
-    const findings = searchResponse.text.trim();
-    if (!findings) throw new Error("Web research returned no findings.");
+    const externalFindings = searchResponse.text.trim();
+    if (!externalFindings) throw new Error("Web research returned no findings.");
 
     const structureResponse = await generateObject({
       model: modelAtTier("fast"),
       schema: ProspectResearchSchema,
-      prompt: structureResearchPrompt(findings),
+      prompt: structureResearchPrompt({ externalFindings, firstPartyFindings }),
     });
     const draft = structureResponse.object;
 
@@ -99,10 +138,10 @@ export async function researchProspect(prospectId: string): Promise<ProspectRese
       promptVersion: RESEARCH_PROSPECT_PROMPT_VERSION,
       inputHash,
       inputTokens:
-        (searchResponse.usage.inputTokens ?? 0) + (structureResponse.usage.inputTokens ?? 0),
+        firstPartyInputTokens + (searchResponse.usage.inputTokens ?? 0) + (structureResponse.usage.inputTokens ?? 0),
       outputTokens:
-        (searchResponse.usage.outputTokens ?? 0) + (structureResponse.usage.outputTokens ?? 0),
-      searchCount: searchResponse.toolCalls.length,
+        firstPartyOutputTokens + (searchResponse.usage.outputTokens ?? 0) + (structureResponse.usage.outputTokens ?? 0),
+      searchCount: firstPartySearchCount + searchResponse.toolCalls.length,
       status: "succeeded",
       accountId,
       provider,

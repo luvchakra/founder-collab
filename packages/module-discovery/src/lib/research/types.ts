@@ -34,6 +34,13 @@ export type EvidenceItem = {
   /** How confident the claim is accurate, independent of `evidence_type` -- see the
    * type's own doc comment. */
   confidence: EvidenceConfidence;
+  /** DISC-OFFER-P0-12.2: "Clearly distinguish first-party website evidence from
+   * external evidence" -- optional (not `| null`) because it's genuinely absent, not
+   * merely unset, on any evidence item persisted before this story: `evidence` is a
+   * jsonb array, so an older stored item's own object simply has no such key at all
+   * rather than an explicit null. Every item a `research_prospect_v3`-or-later run
+   * produces always sets one. */
+  source_type?: "first_party" | "external";
 };
 
 export type ProspectResearch = {
