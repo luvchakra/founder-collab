@@ -59,11 +59,14 @@ async function main() {
         "every seeded row defaults to enabled = true",
       );
 
-      console.log("Verifying a business admin (not a superadmin) cannot see or change module entitlements...");
+      console.log("Verifying a business admin (not a superadmin) can read but not change module entitlements...");
+      // PLATFORM-P0-05.2/05.3's own migration opened SELECT on this catalog to any
+      // authenticated user (the Entitlement Engine reads it on behalf of ordinary business
+      // members) -- write access stays superadmin-only, asserted right below.
       assertEqual(
         psqlAsAlice(`select count(*) from platform.plan_modules`),
-        "0",
-        "Alice gets 0 rows on SELECT -- the schema-level grant is present, not just RLS denying her",
+        "15",
+        "Alice can read every row -- SELECT is open to any authenticated user",
       );
 
       // A fresh plan with no plan_modules rows yet (seeded directly via service_role,
