@@ -1,0 +1,34 @@
+-- Fixes a real gap found while implementing PLATFORM-P0-03.4 ("Customer-Facing Branding
+-- Scope"). Every platform.* migration so far (20260911004400_platform_superadmin.sql,
+-- 20260911010000_platform_branding.sql, 20260911020000_platform_login_branding.sql)
+-- granted table-level SELECT/UPDATE privileges to `authenticated`, but never the
+-- schema-level USAGE grant every other module schema's own creation migration already
+-- gives explicitly -- see 20260907120000_grant_schema_privileges.sql's own docstring,
+-- which documents this *exact* class of bug for core/discovery/inventory ("a schema
+-- created by our own migrations gets no such automatic grant... the underlying
+-- `authenticated` database role still needs USAGE on the schema... before Postgres will
+-- let a query run at all, prior to RLS ever being evaluated"), and fsm/gst/crm's own
+-- schema-creation migrations (20260908010000, 20260907150000, 20260908130000) each
+-- granting it inline as part of their own `create schema`.
+--
+-- `create schema platform;` (20260911004400) never got its own copy of that line.
+-- Confirmed live against the dev project (jazdtomcgqjxjueedmck) via a role-switched
+-- `execute_sql` call before this fix: `set local role authenticated; select count(*)
+-- from platform.branding;` failed with `permission denied for schema platform` (42501)
+-- -- a schema-level permission error, thrown before RLS is ever evaluated, not an RLS
+-- rejection. That means every `/platform/branding` read and write has been silently
+-- broken for a *real superadmin* since PLATFORM-P0-03.1 first shipped, not merely
+-- correctly denied for a business admin who was never supposed to get in. Every prior
+-- platform story's own "Verified" section checked schema/RLS definitions, typecheck, and
+-- build, but never an actual role-switched query against the live database, which is
+-- exactly the gap 20260907120000's own docstring warns masks this class of bug ("every
+-- RLS test in this repo passed... masking the gap... It surfaced only once real user
+-- traffic hit the actual dev Supabase project").
+--
+-- No blanket `insert, delete` grant here (unlike the core/discovery/inventory fix this
+-- mirrors, which grants all four verbs). platform.admins and platform.branding each
+-- deliberately grant only the narrower privileges their own migrations already chose
+-- (`select` only for platform.admins; `select, update` only for platform.branding) --
+-- that choice is preserved exactly as-is; this migration only unblocks the schema-level
+-- gate those existing table-level grants were already meant to sit behind.
+grant usage on schema platform to authenticated, service_role;

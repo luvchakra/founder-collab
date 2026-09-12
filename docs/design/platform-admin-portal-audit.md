@@ -31,14 +31,14 @@ verification in full regardless of which mode was in effect when it landed.
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
-| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4/03.5 not started -- see log |
+| P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 not started -- see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
 | | 17 | Configuration Versioning | Not started |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 2 full sections done (01, 02), plus 18.1 and 03.1. P1: 0/9 done.**
+**P0: 2 full sections done (01, 02), plus 18.1 and 03.1/03.3/03.4. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -666,3 +666,152 @@ database, not an end-to-end UI verification.
 **Status**: PLATFORM-P0-03.2 deferred (recorded above, not built), PLATFORM-P0-03.3 done.
 Continuing to PLATFORM-P0-03.4 (Customer-Facing Branding Scope) next, per this run's
 auto-continue assignment.
+
+### PLATFORM-P0-03.4 — Customer-Facing Branding Scope (2026-09-12)
+
+**What this story asks, read literally**: "Clearly distinguish WonderArc Platform
+Branding from future Business-level branding. Business administrators must not be able
+to change WonderArc's global brand." Two halves: a labeling/documentation half (make the
+distinction obvious to a reader) and an authorization half (make it actually true, not
+just documented). Reconnaissance confirmed **no business-level branding feature exists
+anywhere in this codebase yet** -- the only related text is
+`packages/module-fsm/src/components/settings/settings-view.tsx`'s own note that "company
+logo/document footer aren't configurable yet ... need a document-branding upload feature
+this platform doesn't have yet either", and `core.items.brand` is an unrelated *product*
+attribute (a manufacturer name like "Nike", not a visual identity concept). So this story
+is about making the boundary unmistakable and verified now, before a future story ever
+builds business-level branding into that same gap, not retrofitting a fix onto an
+existing collision.
+
+**A real bug found and fixed while investigating the authorization half**: reading
+`platform.is_superadmin()`'s RLS policies confirmed they were correctly scoped, but
+actually *proving* "a business admin cannot change it" requires a live role-switched
+query, not just reading the policy SQL -- something no prior platform story had actually
+done (each verified schema/RLS *definitions* by inspection, typecheck, and build, never
+an executed query as a non-superadmin). Running exactly that check via
+`mcp__Supabase__execute_sql` against the **dev** project (role `authenticated`, `set
+local request.jwt.claim.sub` to a synthetic user id, `select count(*) from
+platform.branding`) surfaced `ERROR: 42501: permission denied for schema platform` --
+not an RLS rejection, a schema-level permission error thrown *before* RLS is ever
+evaluated. Comparing against `20260907120000_grant_schema_privileges.sql` (a real,
+already-documented production bug from Epic 2: "every prior migration... assumed
+`core`/`discovery`/`inventory` behaved like Supabase's built-in `public` schema... A
+schema created by our own migrations gets no such automatic grant") confirmed the exact
+same class of gap: `fsm`/`gst`/`crm`'s own schema-creation migrations each grant `usage
+on schema <x> to authenticated, service_role` inline, and `core`/`discovery`/`inventory`
+got theirs via that dedicated fix migration -- but `20260911004400_platform_superadmin.sql`
+(PLATFORM-P0-01, `create schema platform;`) never got the equivalent line, and neither did
+PLATFORM-P0-03.1/03.3's own migrations. **This meant every `/platform/branding` read and
+write has been silently broken for a real superadmin since PLATFORM-P0-03.1 first
+shipped** -- not merely correctly denied for a business admin who was never supposed to
+get in, which is a materially worse bug than what this story set out to check. Fixed by
+`supabase/migrations/20260912010000_platform_schema_grants.sql`
+(`grant usage on schema platform to authenticated, service_role;`) -- deliberately
+*only* the schema-level grant, not the core/discovery/inventory fix's blanket
+`select, insert, update, delete on all tables`, since `platform.admins`/`platform.branding`
+each already deliberately chose narrower table-level grants (`select` only; `select,
+update` only) that this fix does not widen. Applied live via
+`mcp__Supabase__apply_migration` against the **dev** project (`jazdtomcgqjxjueedmck`)
+only, then re-ran the same role-switched query: the "permission denied for schema"
+error is gone, and a non-superadmin instead correctly gets 0 rows on `SELECT` and a
+silent no-op on `UPDATE` (confirmed the row's `platform_name` was untouched afterward,
+still `WonderArc`) -- RLS now actually reachable and actually enforcing, not
+short-circuited by a missing grant one layer below it.
+
+**Authorization verification, made permanent**: added `scripts/test-platform-branding-rls.mjs`
+(wired into `package.json`'s `test:db` composite script, after
+`test-crm-backlog-rls.mjs`) -- the first automated RLS test for the `platform` schema,
+following the exact same `withTestDatabase` harness every other `test-*-rls.mjs` in this
+repo already uses. Seeds a real business with a `core.business_members.role = 'admin'`
+member (Alice -- the literal "business administrator" concept this story names, not a
+stand-in) and a real `platform.admins` superadmin (Zoe, seeded the same
+service-role/migration-only way the actual bootstrap flow works). Asserts: Alice gets 0
+rows on `select * from platform.branding` and 0 rows on `select * from platform.admins`;
+Alice's `update platform.branding set platform_name = ...` silently affects zero rows
+(row unchanged, confirmed via a service-role read); Zoe can read and update both tables;
+and -- the negative space this story doesn't ask for but the same table's own design
+already promises -- **not even Zoe** can `INSERT` a second `platform.branding` row or
+`DELETE` the singleton, since no such policy or grant exists for `authenticated` at all
+(only `service_role`, i.e. the migration, ever adds/removes that row). Ran it locally
+against a real, throwaway Postgres 16 database (this sandbox's own local cluster, which
+needed a one-time `pg_hba.conf` ownership fix -- `chown postgres:postgres`, restored
+after another process had apparently left it root-owned -- and a temporary local
+superuser role matching this sandbox's OS user, dropped again once the run finished):
+**all 10 assertions passed** on the first run against every migration in the current
+timeline (126 files), proving both the bug (pre-fix) and the fix (post-fix) rather than
+asserting either from reading code alone. This script now also runs in CI via `npm run
+test:db`, which has a real `postgres:16` service container per
+`.github/workflows/ci.yml` -- unlike every other `test-*-rls.mjs` script, an actual
+execution of this one is included in this story's own verification, not deferred as a
+future-CI-only claim.
+
+**Documentation/labeling half**: `packages/core/src/admin/platform-branding.ts` gains a
+dedicated docstring paragraph naming the structural (not just naming-convention)
+separation from any future business-level branding: different Postgres schema
+(`platform`, never `core`/a module schema), different route (`/platform/branding`, never
+linked from any business admin UI), different authorization function
+(`platform.is_superadmin()`, which takes no `business_id` and never consults
+`core.business_members`), and an explicit instruction for whoever eventually builds
+business-level branding: it must be its own `core`-/business-schema-owned table under
+ordinary `tenant AND licensed` RLS, never a reuse of this table, route, or function.
+`apps/web/app/platform/layout.tsx`'s nav strip relabels "Branding" to "Platform
+Branding" -- a one-word change, cheap insurance against ambiguity even though nothing
+today could actually confuse the two (this label doesn't rely on that staying true
+forever). `/platform/branding`'s own page copy already said "not a business's own
+branding" since PLATFORM-P0-03.1 -- left as-is, already correct.
+
+**Deliberately not built this story**: no new UI, no new admin-configurable field, no
+change to `platformBrandingInputSchema` -- PLATFORM-P0-03.4 is a scope/authorization
+story, not a new capability, and CLAUDE.md's "never implement speculative functionality"
+rules out building a business-level branding *table* now merely to have something to
+"distinguish" against when nothing in this backlog has asked for that table yet (it's
+explicitly future scope per the story's own wording). PLATFORM-P0-03.5 (Preview Before
+Publish) is next and is its own, separate workflow story.
+
+**Verification**: this worktree needed its own `npm install` first (no local
+`node_modules` in a fresh worktree -- same cross-checkout symlink issue PLATFORM-P0-03.1's
+own entry documented; confirmed the resulting `package-lock.json` has no diff). Full
+monorepo `npm run typecheck` -- clean across every workspace. `npm run lint` -- 0 errors,
+the same 1 pre-existing unrelated warning (`Package` unused import in a CRM conversations
+page, untouched by this story). `node scripts/lint-import-boundaries.mjs` -- 1139 files,
+no violations. `node scripts/lint-migration-schema.mjs` -- 126 migrations (122 -> 126;
++1 this story's own grant migration, +3 other workstreams' concurrent merges into `main`
+since 03.3's own entry), no violations. `npx vitest run --root packages/core` -- 54 tests,
+unchanged (this story's real logic is authorization/RLS, tested by the new
+`test-platform-branding-rls.mjs` script instead of a vitest unit test -- no new pure
+validation logic was added to `platform-branding.ts`, only a docstring). `apps/web`'s own
+`vitest run --passWithNoTests` -- 41 tests, unchanged. `node scripts/test-platform-branding-rls.mjs`
+-- **run directly, locally, against a real throwaway Postgres 16 database** (not just
+described) -- all assertions passed, both before and after applying the schema-grant fix
+(pre-fix: the harness itself can't even distinguish "no grant" from "RLS denied" without
+the fix, which is exactly why this test needed the fix landed first to assert the correct
+*post-fix* behavior; the pre-fix, live-dev-project repro is documented above instead).
+Live migration applied via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via role-switched `execute_sql` calls (not just
+schema/policy inspection) that a non-superadmin now gets 0 rows / a no-op update, and that
+the row's `platform_name` is still `WonderArc`, unchanged, after the earlier failed
+"Hacked" attempt made mid-investigation. `mcp__Supabase__get_advisors` for both `security`
+and `performance` afterward showed **zero new findings** -- this migration adds a schema
+grant, not a table, index, or RLS policy, so neither advisor had anything new to flag; all
+listed findings (5 pre-existing `rls_enabled_no_policy` tables, the pre-existing leaked-
+password-protection warning, 130+ pre-existing "unused index" entries including
+`platform.admins`'/`platform.branding`'s own from prior stories) were already present.
+`cd apps/web && npm run build` -- clean after the worktree's own `npm install`; `/platform`
+and `/platform/branding` still list `ƒ` (dynamic), unchanged (no new route segment this
+story).
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no
+seeded demo superadmin user in this environment, so a live authenticated browser
+walkthrough of `/platform/branding`'s nav label or page copy was not performed. This is
+narrower than most prior stories' limitation note, though: this story's *actual*
+authorization-critical claim (a business admin cannot read or write
+`platform.branding`/`platform.admins`, and a superadmin can) was verified twice, for
+real -- once against the live dev Supabase project via role-switched `execute_sql`, and
+once by actually executing `scripts/test-platform-branding-rls.mjs` against a real local
+Postgres database -- not merely asserted from reading policy SQL, which is the standard
+this log is raising for every future `platform.*` authorization change from here on.
+
+**Status**: PLATFORM-P0-03.4 done. PLATFORM-P0-03.5 (Preview Before Publish) is next in
+section order, finishing §7 Branding, per this run's auto-continue assignment -- but per
+this run's own wrap-up instruction, stopping here after merge rather than continuing to
+it.
