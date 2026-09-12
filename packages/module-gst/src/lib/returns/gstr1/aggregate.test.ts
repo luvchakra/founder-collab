@@ -36,7 +36,7 @@ describe("aggregateGstr1", () => {
     expect(result.b2b[0]?.recipientGstin).toBe(VALID_GSTIN);
     expect(result.totals.taxableValue).toBe(1000);
     expect(result.hsnSummary).toEqual([
-      { hsnCode: "1006", totalQuantity: 10, totalValue: 1180, taxableValue: 1000, cgstAmount: 90, sgstAmount: 90, igstAmount: 0 },
+      { hsnCode: "1006", totalQuantity: 10, totalValue: 1180, taxableValue: 1000, cgstAmount: 90, sgstAmount: 90, igstAmount: 0, documentIds: ["doc-1"] },
     ]);
     expect(result.b2cOthers).toHaveLength(0);
   });
@@ -142,5 +142,24 @@ describe("aggregateGstr1", () => {
     expect(result.hsnSummary).toHaveLength(1);
     expect(result.hsnSummary[0]?.totalQuantity).toBe(8);
     expect(result.hsnSummary[0]?.taxableValue).toBe(800);
+  });
+
+  it("COMPLY-P0-07.4: HSN summary documentIds names every contributing document, deduplicated when one document has multiple lines with the same HSN code", () => {
+    const docWithTwoLinesSameHsn = makeDoc({
+      documentId: "multi-line-doc",
+      gstin: VALID_GSTIN,
+      lines: [
+        { hsnCode: "1006", quantity: 2, taxableValue: 200, cgstAmount: 18, sgstAmount: 18, igstAmount: 0 },
+        { hsnCode: "1006", quantity: 3, taxableValue: 300, cgstAmount: 27, sgstAmount: 27, igstAmount: 0 },
+      ],
+    });
+    const otherDoc = makeDoc({
+      documentId: "other-doc",
+      gstin: VALID_GSTIN,
+      lines: [{ hsnCode: "1006", quantity: 1, taxableValue: 100, cgstAmount: 9, sgstAmount: 9, igstAmount: 0 }],
+    });
+    const result = aggregateGstr1([docWithTwoLinesSameHsn, otherDoc], THRESHOLD);
+    expect(result.hsnSummary).toHaveLength(1);
+    expect(result.hsnSummary[0]?.documentIds).toEqual(["multi-line-doc", "other-doc"]);
   });
 });

@@ -62,14 +62,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-07 | 07.1 | GSTR-1 Preparation | Done |
 | | 07.2 | GSTR-3B Preparation | Done |
 | | 07.3 | GSTR-9 Preparation | Done |
-| | 07.4–07.7 | India Returns (remaining) | Not started |
+| | 07.4 | Return Drill-Down | Done |
+| | 07.5–07.7 | India Returns (remaining) | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**33 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**34 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -77,9 +78,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.3 (GSTR-9 Preparation) is the last
-completed story, epic 07 (India Returns) now three of seven stories in. Next:
-COMPLY-P0-07.4 (Return Drill-Down).
+E-Way Bill) are all fully done.** COMPLY-P0-07.4 (Return Drill-Down) is the last
+completed story, epic 07 (India Returns) now four of seven stories in. Next:
+COMPLY-P0-07.5 (Return Review Workflow).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3491,3 +3492,163 @@ guessed at here).
   this epic.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 07.4 — Return Drill-Down (2026-09-12)
+
+The fourth story of COMPLY-P0-07 -- "every return amount is traceable to source
+transactions" (the backlog's own one-line spec). Also the first story of this run to build
+directly on the "surface `documentId`/`documentIds` now, drill-down later" convention
+COMPLY-P0-07.1/07.2/07.3 each deliberately established for exactly this purpose.
+
+**Environment**: `npm install` was run first per this run's own instructions (a fresh
+worktree with no `node_modules` can otherwise silently resolve `@cofounderai/*` imports to
+another worktree's stale packages). Before touching anything, verified `git fetch origin
+main comply-backlog` showed `origin/main..origin/comply-backlog` empty (branch fully merged
+as of COMPLY-P0-07.3) -- but this worktree's own checked-out branch (`worktree-agent-...`)
+was actually pointed at a stray scratch-merge commit from a concurrent Discovery-workstream
+session, not `comply-backlog`'s own tip, exactly the environment artifact this run's own
+instructions warned about. Fixed by `git checkout comply-backlog` (the local branch itself
+was also stale, `git merge --ff-only origin/comply-backlog` fast-forwarded it cleanly to
+`9128238`, no conflicts) before starting any work. `git branch -vv` and `git log --oneline
+-3` confirmed the fix.
+
+**Design decision -- schema-free, per this run's own explicit instruction to only add
+lifecycle persistence in whichever story genuinely needs it**: 07.4 needs no new table.
+"Drill-down" here means resolving a row's already-carried `documentId`/`documentIds` back
+to the real `core.documents` rows and PROVING the row's own reported amount is reproduced
+by summing those real documents the same way the return's own aggregation logic does --
+both are pure/thin functions over existing data, not new persisted state. The
+`gst.return_periods`/lifecycle table this epic will eventually need belongs to
+COMPLY-P0-07.5 (Draft→Validate→Review→Approve→File), once there is real workflow STATE to
+store -- inventing it now, before that story defines what states exist, would be exactly
+the "implement future stories implicitly" this backlog's rule 5 forbids. Checked
+`docs/plan/00-MASTER-PLAN.md` §5 again before concluding this: still no `ReturnPeriod`/
+`ReturnSubmission` row (expected, predates this backlog); no schema change this story.
+
+**What was built** -- `packages/module-gst/src/lib/returns/drilldown/`:
+- `types.ts` -- `ReturnSourceDocument` (the real document behind a row: id, doc type,
+  number, date, party name, and its own taxable/CGST/SGST/IGST/invoice-value amounts) and
+  `ReturnDrillDown` (`requestedDocumentIds`, the real `documents` found, and
+  `missingDocumentIds` -- a requested id that doesn't resolve to a real document owned by
+  this business is a genuine data-integrity signal, never silently dropped, per backlog
+  rule 11/12).
+- `reconcile.ts` (+ 12 test cases in `reconcile.test.ts`) -- the real correctness check:
+  `reconcileReturnRow(reported, sourceDocuments, signConvention)` recomputes a row's own
+  four amounts directly from its real source documents and compares against what the row
+  reported, returning `{ reconciled, computedFromSources, discrepancy }` (never just a
+  boolean -- a reviewer sees the actual figures and, on mismatch, the signed per-field
+  difference). Two sign conventions, precisely distinguished after re-reading every
+  aggregation function's own actual behavior rather than assuming one convention applies
+  uniformly (a real distinction this story would have gotten wrong by guessing): `"net"`
+  for a row that SUMS multiple documents with the credit-note-subtracts convention
+  `aggregateGstr1`/`aggregateGstr3bOutward`/`buildGstr9Table4` already use (Table 7 B2C
+  Others, every GSTR-3B 3.1/3.2 bucket, GSTR-9 Table 4's own combined B2C/B2B/zero-rated
+  buckets, the ITC total), and `"raw"` for a row that reports a single document's (or a
+  note-type bucket's) own face value un-netted (a lone B2B/B2C-Large/CDNR/CDNUR row, and
+  GSTR-9's own separate `creditNotes`/`debitNotes` buckets -- confirmed by re-reading
+  `buildGstr9Table4`'s own code and test suite, which sums each bucket from `note.
+  taxableValue`, the note's raw field, not a signed one). A ₹0.01 tolerance absorbs
+  floating-point rounding without masking a real discrepancy -- tested explicitly
+  (sub-paisa noise reconciles, a one-rupee gap does not). Also exports
+  `computeMissingDocumentIds` (dedupes the request, diffs against what a query actually
+  found), extracted as its own pure/tested function so `queries.ts` stays thin.
+- `queries.ts` -- `getReturnRowSourceDocuments(businessId, documentIds)`: the only file in
+  this folder touching `core`. Explicitly filters `core.documents` on
+  `business_id = businessId` (not left to RLS alone) before matching the requested ids --
+  the same "never trust a client-supplied id without server-side authorization" discipline
+  CLAUDE.md's development principle 8 already requires everywhere else in this platform,
+  applied here to a document id embedded in an already-computed return row rather than a
+  raw request parameter, which deserves exactly the same suspicion (a bug elsewhere, or a
+  row copy-pasted across businesses, must never silently surface another business's
+  document). Batched the same way every other read in this epic already is (one `.in()`
+  query for documents, one for party names). No test file -- thin DB read, same convention
+  every other `queries.ts` in this epic already follows (the real logic,
+  `computeMissingDocumentIds`, is tested on its own).
+- `reconciliation.test.ts` (11 test cases) -- the actual end-to-end proof, not just unit
+  tests of the checker in isolation: runs the SAME `aggregateGstr1`/
+  `aggregateGstr3bOutward`/`buildGstr9Table4` functions COMPLY-P0-07.1/07.2/07.3 ship, feeds
+  the exact source-document fixtures those rows' own `documentId`/`documentIds` point to
+  into `reconcileReturnRow`, and asserts every populated row type reconciles exactly: a
+  single B2B invoice row (raw), a netted B2C Others state bucket across an invoice AND a
+  credit note (net), the WHOLE return's own grand totals against every included document
+  (a stronger, return-level claim -- proven to hold for whatever the totals happen to be,
+  since both sides use the identical sign formula), a GSTR-3B outward bucket and a Table 3.2
+  inter-state state row, a GSTR-9 Table 4 combined 4A bucket, and the provisional ITC total
+  against its own purchase orders. Also proves the raw/net distinction actually matters (the
+  same credit note reconciles under `"raw"` but NOT under `"net"`, and vice versa for a
+  netted bucket) and that a real discrepancy is caught (a source document mutated after the
+  row was computed, simulating a document corrected post-preparation, fails reconciliation
+  with the correct signed diff).
+- `gstr1/types.ts`/`gstr1/aggregate.ts` (+ 1 new test in `aggregate.test.ts`, 1 existing
+  assertion updated) -- `Gstr1HsnRow` gained `documentIds: string[]` (every document that
+  contributed at least one line with that HSN code, deduplicated when one document has
+  multiple lines sharing an HSN code -- tested explicitly). Documented as NOT a
+  whole-document reconciliation set the way every other row's `documentIds` is: an HSN row
+  is a per-LINE aggregate, and a single document can span several HSN codes, so
+  `reconcileReturnRow` is deliberately not claimed to apply to this row shape (see its own
+  updated docstring) -- the ids are for real-document LOOKUP ("show me the invoices with
+  this HSN code"), not penny-exact reconciliation. GSTR-9's own `hsnSummaryOutward` reuses
+  this same array for free (it's a direct pass-through of `aggregateGstr1`'s own
+  `hsnSummary`, no code change needed in `gstr9/`).
+- `gstr3b/types.ts`/`gstr3b/queries.ts`, `gstr9/types.ts`/`gstr9/queries.ts` --
+  `Gstr3bItcSummary`/`Gstr9Return.itcAvailed` each gained `documentIds: string[]`, wired
+  from `lib/filing/queries.ts`'s own `getPurchaseRegister`, which gained a new top-level
+  `poIds: string[]` field (every purchase-order document behind its existing
+  taxableValue/CGST/SGST/IGST totals) -- purely additive, so `gst-filing-view.tsx` and
+  `lib/dashboard/queries.ts` (this pre-existing Epic 6 function's other two callers) are
+  unaffected, confirmed by the unchanged monorepo typecheck/lint below. Deliberately scoped
+  to a WHOLE-total drill-down list, not a per-supplier/per-HSN one: extending
+  `getPurchaseRegister`'s own `bySupplier`/`byHsn` maps with per-row document ids would
+  widen this story's blast radius into a separately-owned, pre-existing UI feature for a
+  finer granularity this epic's own ITC figure doesn't need yet (it has no state/HSN split
+  of its own to trace per-row) -- flagged as a genuine follow-up below, not silently
+  skipped.
+
+**What was deliberately left out, and why**:
+- **Per-supplier/per-HSN purchase-side drill-down** (`PurchaseRegister.bySupplier`/
+  `byHsn`, and therefore `Gstr9Return.hsnSummaryInward`'s own rows) -- these keep no
+  `documentIds` of their own; only the WHOLE ITC total is traceable (via the new top-level
+  `poIds`). A genuine, documented follow-up (most naturally whichever future story needs
+  finer-grained purchase-side traceability, since fixing it means touching
+  `getPurchaseRegister`'s own shared row shapes, used by the pre-existing GST Filing UI too)
+  -- see `gstr9/types.ts`'s own updated docstring for the exact reasoning.
+- **Exact monetary reconciliation for HSN summary rows** (Table 12 / Table 17) -- `documentIds`
+  is populated (real documents ARE findable), but `reconcileReturnRow` is deliberately not
+  claimed to apply to a per-line aggregate the way it provably does to every whole-document
+  row/bucket -- see `Gstr1HsnRow`'s own updated docstring.
+- **Any UI** -- matches this whole epic's "lib first, UI later" pattern; COMPLY-P0-11 is the
+  dedicated UI epic. This story's own `getReturnRowSourceDocuments`/`reconcileReturnRow` are
+  exactly what a future "view source transactions" panel/button on a return-preparation page
+  would call.
+- **Persisting anything** (`gst.return_periods` or similar) -- COMPLY-P0-07.5's own job, once
+  there is real Draft→Validate→Review→Approve→File lifecycle state to store (see "design
+  decision" above).
+- **Line-level drill-down** (as opposed to whole-document) for any row -- no row in this
+  epic reports a per-line figure that would need it; whole-document is the correct
+  granularity for every populated table except the two HSN summaries, whose own gap is
+  flagged above rather than half-solved with a mismatched mechanism.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces (confirms the
+  additive `PurchaseRegister.poIds` field didn't break `gst-filing-view.tsx`'s or
+  `lib/dashboard/queries.ts`'s own existing usage).
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1217 files scanned, 0 violations (5 new
+  files: `drilldown/{types,reconcile,queries}.ts` + 2 test files).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 141
+  migration files each, 0 violations -- unchanged file count confirms no schema change this
+  story, as designed.
+- `npx vitest run --root packages/module-gst` -- 37 files / 308 tests passed (285
+  pre-existing + 23 new: 1 in `gstr1/aggregate.test.ts`, 10 in `drilldown/reconcile.test.ts`
+  (plus 4 for `computeMissingDocumentIds`), 8 in `drilldown/reconciliation.test.ts` -- see
+  the file for the exact split across GSTR-1/3B/9 row types and the ITC total).
+- No migration to apply and no new `get_advisors` findings possible -- this story touched
+  no schema, per the design decision above.
+- Local Postgres RLS harness not applicable -- no new table/RLS surface.
+- No `apps/web` change, so `next build` was not re-run -- matches every prior story in this
+  epic.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` installed once at the start of this session; `git
+  status` showed no `package-lock.json` change to revert).

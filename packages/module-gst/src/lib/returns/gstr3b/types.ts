@@ -83,6 +83,13 @@ export type Gstr3bItcSummary = {
    * explicit field so a caller can never mistake this for a filing-ready number by
    * forgetting to read a comment. */
   reconciledWithGstr2b: false;
+  /** COMPLY-P0-07.4 (Return Drill-Down): every purchase-order document behind this total
+   * (`lib/filing/queries.ts`'s own `getPurchaseRegister`'s `poIds`) -- since this bucket
+   * has no state/HSN-wise split of its own, this is a whole-total drill-down list, not a
+   * per-row one. `../drilldown/reconcile.ts`'s `reconcileReturnRow` (mode `"net"`, though
+   * every id here is a plain `purchase_order` so the sign is always `+1` regardless) can
+   * reproduce this bucket's own four amounts exactly from these documents' own figures. */
+  documentIds: string[];
 };
 
 export type Gstr3bReturn = {

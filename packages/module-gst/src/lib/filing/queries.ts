@@ -129,6 +129,7 @@ export const getPurchaseRegister = cache(
 
     return {
       poCount: pos.length,
+      poIds: pos.map((po) => po.id),
       taxableValue,
       cgst,
       sgst,
