@@ -3,7 +3,7 @@ import type { Attachment } from "@cofounderai/core/attachments/types";
 import { createClient } from "../../db/server";
 import type { ComplianceEvidence, ComplianceEvidenceWithAttachment, EvidenceType, RelatedEntityType } from "./types";
 
-const EVIDENCE_COLUMNS = "id, business_id, attachment_id, evidence_type, related_entity_type, related_entity_id, description, uploaded_by, created_at";
+const EVIDENCE_COLUMNS = "id, business_id, attachment_id, evidence_type, related_entity_type, related_entity_id, description, uploaded_by, retention_until, created_at";
 
 function mapRow(row: {
   id: string;
@@ -14,6 +14,7 @@ function mapRow(row: {
   related_entity_id: string | null;
   description: string | null;
   uploaded_by: string;
+  retention_until: string | null;
   created_at: string;
 }): ComplianceEvidence {
   return {
@@ -25,6 +26,7 @@ function mapRow(row: {
     relatedEntityId: row.related_entity_id,
     description: row.description,
     uploadedBy: row.uploaded_by,
+    retentionUntil: row.retention_until,
     createdAt: row.created_at,
   };
 }
