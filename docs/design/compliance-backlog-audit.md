@@ -60,14 +60,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 06.3 | E-Way Adapter | Done |
 | | 06.4 | Document Link | Done |
 | P0-07 | 07.1 | GSTR-1 Preparation | Done |
-| | 07.2–07.7 | India Returns (remaining) | Not started |
+| | 07.2 | GSTR-3B Preparation | Done |
+| | 07.3–07.7 | India Returns (remaining) | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**31 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**32 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -75,8 +76,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.1 (GSTR-1 Preparation) is the last completed
-story, starting epic 07 (India Returns). Next: COMPLY-P0-07.2 (GSTR-3B Preparation).
+E-Way Bill) are all fully done.** COMPLY-P0-07.2 (GSTR-3B Preparation) is the last
+completed story, epic 07 (India Returns) now two of seven stories in. Next:
+COMPLY-P0-07.3 (GSTR-9 Preparation).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3280,3 +3282,116 @@ explicitly.
 - No lockfile drift beyond the pre-existing, already-flagged `module-crm`/`zod` line (see
   COMPLY-P0-01.1's own note) -- reverted via `git checkout -- package-lock.json` before
   committing.
+
+### 07.2 — GSTR-3B Preparation (2026-09-12)
+
+The second story of COMPLY-P0-07, and the first to build directly on COMPLY-P0-07.1's own
+output rather than reading `core.documents` independently a second time.
+
+**Refactor done as part of this story, not a separate cleanup pass**: COMPLY-P0-07.1's own
+document-resolution logic (read `core.documents`/`core.document_lines`/`core.parties`/
+`core.tax_identities`/`core.addresses` for a period, batched, with place-of-supply already
+resolved) was extracted from `gstr1/queries.ts` into a new `lib/returns/shared/` folder
+(`resolveOutwardDocuments` + `OutwardSupplyDocument`) once this story needed the exact same
+read plus one more field (`gstRegistrationType`) GSTR-1 has no use for. `gstr1/types.ts`'s
+own `Gstr1SourceDocument` is now a plain type alias of the shared `OutwardSupplyDocument`
+(zero behavior change -- confirmed by re-running COMPLY-P0-07.1's own full test suite
+unchanged and green both before and after). This is the same "extract once a second
+consumer needs the identical logic" discipline this module has followed all along (e.g.
+COMPLY-P0-04.4's own `resolveSupplyStateCodes` was exported specifically so
+COMPLY-P0-04.5 could reuse it later), not a speculative generalization done ahead of need.
+
+**Research, not assumption, and it changed this story's own design** (backlog rule 6, and
+this run's own explicit instruction to research the real return structure first): `WebSearch`
+against Busy.in's, ClearTax's, and IncorpX's own 2026-dated GSTR-3B guides confirmed the
+real table structure (3.1 outward supplies, 3.1.1 e-commerce, 3.2 inter-state supplies, 4
+ITC, 5 exempt/non-GST inward, 5.1 interest/late fee, 6 tax payment) AND a specific, current
+(2026) regulatory fact worth designing around: **GSTR-3B's own Table 3.1/3.2 figures are,
+under GSTN's current rules, auto-populated from the taxpayer's own filed GSTR-1/IFF and are
+now non-editable** (one source names the November 2025 tax period as when Table 3.2 itself
+became "use system-generated values only"). That is the real-world justification (not just
+a code-reuse convenience) for this story's own design: Section 3.1(a)/3.2 are computed by
+re-classifying COMPLY-P0-07.1's own `resolveOutwardDocuments` read (GSTR-3B's own coarser
+"taxable_other vs. zero_rated" split, plus its own inter-state-unregistered/composition
+Table 3.2 split), not an independent third derivation from `core.documents` that could
+silently disagree with what GSTR-1 itself reports for the same period.
+
+**Checked existing code first** (backlog rule 1): `lib/filing/queries.ts`'s own
+pre-existing `getPurchaseRegister` (Epic 6/S-2) already computes taxable value + CGST/SGST/
+IGST totals from `core.documents` where `doc_type = 'purchase_order'`, `source_module =
+'inventory'` -- reused directly for this story's own ITC figure rather than re-querying the
+same rows with new code. No new table, no duplicate transaction/purchase master (backlog
+rule 3).
+
+**A real regulatory fact this story does NOT get to skip past** (backlog rule 11: never
+claim compliant from a calculation alone): a real GSTR-3B's Table 4A is supposed to be
+sourced from the taxpayer's own GSTR-2B (supplier-reported, government-matched inward
+supplies), not the taxpayer's own purchase-order records -- confirmed by this same
+research. COMPLY-P0-08 (India Reconciliation & IMS) is the epic that will actually fetch
+and match against GSTR-2B; until then, this story's own `Gstr3bItcSummary.
+reconciledWithGstr2b` is hard-typed `false` on every result (not a boolean that could
+accidentally read `true` from some future code path forgetting to set it) -- a caller
+cannot mistake this provisional, own-books-only figure for a filing-ready ITC claim.
+
+**What was built** -- `packages/module-gst/src/lib/returns/`:
+- `shared/types.ts` / `shared/queries.ts` -- the extracted `OutwardSupplyDocument` /
+  `resolveOutwardDocuments`, described above.
+- `gstr3b/classify.ts` (+ 10 test cases) -- two pure functions: `classifyGstr3bOutwardDocument`
+  (export -> zero_rated Table 3.1(b); unresolved -> excluded; everything else -> Table
+  3.1(a), with NO registered/unregistered split at this level, unlike GSTR-1's own finer
+  B2B/B2CL/B2CS classification) and `classifyGstr3bInterStateBucket` (Table 3.2's own
+  recipient-type split -- unregistered vs. composition dealer, only meaningful for an
+  inter-state supply; a validly-registered regular recipient is `"not_applicable"`, since
+  Table 3.2 has no column for that case at all).
+- `gstr3b/aggregate.ts` (+ 7 test cases) -- the pure `aggregateGstr3bOutward`: buckets every
+  document into `outwardTaxableOther`/`outwardZeroRated` (Table 3.1(a)/(b)) and, for
+  qualifying inter-state documents, ALSO into a state-wise `interStateToUnregistered`/
+  `interStateToComposition` breakdown (Table 3.2) -- explicitly a subset VIEW of Table
+  3.1(a)'s own total, not a deduction from it, matching the real form. Same credit-note-
+  subtracts sign convention as COMPLY-P0-07.1's own `aggregateGstr1`.
+- `gstr3b/queries.ts` -- `getGstr3bReturn(businessId, periodStart, periodEnd)`: calls
+  `resolveOutwardDocuments` + `getPurchaseRegister` in parallel, aggregates the outward side,
+  and assembles the ITC section directly from the purchase register's own totals. No test
+  file (thin orchestrator over already-tested pure pieces plus one already-tested
+  pre-existing query, this module's established convention).
+- `gstr3b/types.ts` -- `Gstr3bReturn` and every section's row shape, each retaining source
+  `documentIds` for COMPLY-P0-07.4's own future drill-down, same convention COMPLY-P0-07.1's
+  own types established. Carries `notModeled`, itemizing every GSTR-3B table this function
+  does not populate (3.1(c)/(d)/(e), 3.1.1, 3.2's UIN column, 4A(1)/(2)/(3), 4B, 4D, 5, 5.1,
+  6) and why -- see the file's own docstring for the full list; every gap traces to either a
+  data concept this platform doesn't have yet (UIN, e-commerce operator, reverse-charge
+  liability, import documentation, ISD, blocked-credit classification) or a concern that
+  belongs to an actual FILING event, not a preparation step (5.1's interest/late fee, 6's
+  cash-ledger reconciliation).
+
+**What was deliberately left out**: everything in `notModeled` above; any UI (matches this
+whole epic's "lib first, UI later" pattern); and re-deriving Table 3.1/3.2 independently
+from `core.documents` rather than reusing COMPLY-P0-07.1's own read -- deliberately avoided,
+per the research finding above, since the real system's own design has GSTR-3B READ
+GSTR-1's own data, not recompute it separately.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean, both immediately after the `shared/`
+  extraction (confirming the refactor alone changed nothing) and again after adding the new
+  `gstr3b/` files.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1208 files scanned, 0 violations (confirms
+  `gstr3b/`'s own new imports -- `../shared/queries`, `../../filing/queries` -- are
+  same-module, not a boundary violation).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 141
+  migration files, 0 violations each -- no schema change this story (no new `gst.tax_rules`
+  lineage was needed; GSTR-3B's own scope here needed no new versioned rule).
+- `npx vitest run --root packages/module-gst` -- 34 files / 281 tests passed (264
+  pre-existing after COMPLY-P0-07.1 + 17 new: 10 in `gstr3b/classify.test.ts`, 7 in
+  `gstr3b/aggregate.test.ts`). Re-ran immediately after the `shared/` extraction alone
+  (before adding any `gstr3b/` file) and confirmed the exact same 264 pre-existing tests
+  still passed unchanged, verifying the refactor was truly behavior-preserving.
+- No migration to apply and no new `get_advisors` findings possible -- this story touched
+  no schema.
+- Local Postgres RLS harness not applicable -- no new table/RLS surface.
+- No `apps/web` change, so `next build` was not re-run -- matches COMPLY-P0-07.1 and every
+  COMPLY-P0-05.x/06.x story before it.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).

@@ -13,6 +13,7 @@ function makeDoc(overrides: Partial<Gstr1SourceDocument>): Gstr1SourceDocument {
     partyId: "party-1",
     partyName: "Acme Co",
     gstin: null,
+    gstRegistrationType: null,
     placeOfSupply: "intra_state",
     buyerStateCode: "27",
     taxableValue: 1000,

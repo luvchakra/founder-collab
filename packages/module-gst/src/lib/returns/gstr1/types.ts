@@ -41,50 +41,14 @@ export type Gstr1DocType = "invoice" | "credit_note" | "debit_note";
 /** One outward-supply document (invoice, credit note, or debit note), normalized from
  * `core.documents`/`core.document_lines` plus the resolved place-of-supply/GSTIN facts
  * COMPLY-P0-03.4/04.4 already know how to produce -- the shared input every classification
- * and aggregation function in this folder consumes. */
-export type Gstr1SourceDocument = {
-  documentId: string;
-  docType: Gstr1DocType;
-  number: string | null;
-  docDate: string;
-  partyId: string;
-  partyName: string;
-  /** The buyer's own GSTIN on file, or `null` when none is recorded -- distinct from "not
-   * a valid GSTIN," which `hasValidRegisteredGstin` (derived, see `classify.ts`) checks
-   * separately. */
-  gstin: string | null;
-  placeOfSupply: "intra_state" | "inter_state" | "export" | "unknown";
-  /** The buyer's resolved GST state code, when `placeOfSupply` is `"intra_state"` or
-   * `"inter_state"` -- `null` for `"export"`/`"unknown"`, where there either is no
-   * domestic state to speak of or it couldn't be resolved at all. This is the state
-   * Table 7 (B2C Others) buckets by; carried on the source document itself rather than
-   * re-derived in `aggregate.ts` so the two never disagree about which state a document
-   * belongs to. */
-  buyerStateCode: string | null;
-  /** `core.documents.subtotal` -- the taxable value before tax. */
-  taxableValue: number;
-  cgstAmount: number;
-  sgstAmount: number;
-  igstAmount: number;
-  /** `core.documents.total_amount` -- used for the B2C Large invoice-value threshold
-   * comparison, which GST's own rule text compares against the full invoice value, not
-   * the taxable value alone. */
-  invoiceValue: number;
-  /** For a credit/debit note only: the ORIGINAL invoice's own document id, when
-   * `core.documents.source_ref` recorded one (the same `source_ref.sales_invoice_id`
-   * shape `lib/filing/queries.ts`'s own `getSalesRegister` already reads) -- `null`
-   * otherwise. Carried purely for this platform's own drill-down convenience; GSTR-1
-   * itself doesn't require this link. */
-  againstInvoiceId: string | null;
-  lines: {
-    hsnCode: string | null;
-    quantity: number;
-    taxableValue: number;
-    cgstAmount: number;
-    sgstAmount: number;
-    igstAmount: number;
-  }[];
-};
+ * and aggregation function in this folder consumes.
+ *
+ * COMPLY-P0-07.2 (GSTR-3B Preparation) extracted this same shape (plus one field GSTR-1
+ * has no use for, `gstRegistrationType`) into `../shared/types.ts`'s own
+ * `OutwardSupplyDocument` once GSTR-3B needed the identical `core.documents`/
+ * `core.document_lines` read -- this is a plain alias, not a redefinition, so every
+ * existing consumer/test in this folder keeps working unchanged. */
+export type { OutwardSupplyDocument as Gstr1SourceDocument } from "../shared/types";
 
 /** Table 4A -- B2B Invoices (regular, registered recipients). One row per invoice. */
 export type Gstr1B2bRow = {
