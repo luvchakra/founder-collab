@@ -25,17 +25,24 @@ export default async function NotLicensedPage({
   searchParams,
 }: {
   params: Promise<{ businessId: string }>;
-  searchParams: Promise<{ module?: string; reason?: string; graceEndsAt?: string }>;
+  searchParams: Promise<{
+    module?: string;
+    reason?: string;
+    graceEndsAt?: string;
+    platformStatus?: string;
+    message?: string;
+  }>;
 }) {
-  const { module: moduleKey, reason, graceEndsAt } = await searchParams;
+  const { module: moduleKey, reason, graceEndsAt, platformStatus, message } = await searchParams;
 
   const matchedModule = moduleRegistry.find((m) => m.key === moduleKey);
   const moduleName = matchedModule?.name ?? "This module";
 
-  const { title, description } = describeReason(moduleName, reason, graceEndsAt);
-  // PLATFORM-P0-07.2: a platform-wide kill switch is not a licensing problem this
-  // business can fix, so its CTA points back at the dashboard rather than a "Licenses"
-  // page that would imply reactivating something fixes it.
+  const { title, description } = describeReason(moduleName, reason, graceEndsAt, platformStatus, message);
+  // PLATFORM-P0-07.2/07.3: a platform-wide full block (kill switch OR maintenance mode --
+  // decision #3, the exact same block) is not a licensing problem this business can fix,
+  // so its CTA points back at the dashboard rather than a "Licenses" page that would imply
+  // reactivating something fixes it.
   const isPlatformDisabled = reason === "platform_disabled";
   const ctaHref = isPlatformDisabled ? "/dashboard" : "/dashboard/settings/licenses";
   const ctaLabel = isPlatformDisabled ? "Back to Dashboard" : "Go to Settings → Licenses";
@@ -63,6 +70,8 @@ function describeReason(
   moduleName: string,
   reason: string | undefined,
   graceEndsAt: string | undefined,
+  platformStatus: string | undefined,
+  message: string | undefined,
 ): { title: string; description: string } {
   if (reason === "grace") {
     const until = graceEndsAt ? formatDate(graceEndsAt) : "soon";
@@ -78,14 +87,28 @@ function describeReason(
     };
   }
   if (reason === "platform_disabled") {
-    // PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") -- distinct from every other
-    // reason above: this business's own license is fine, WonderArc has temporarily
-    // disabled the module for every business. Reactivating a license (the CTA every other
-    // reason points at) would not help here, so the copy says so plainly rather than
-    // implying a fix the business itself can make.
+    // PLATFORM-P0-07.2/07.3 -- distinct from every other reason above: this business's
+    // own license is fine, WonderArc has fully blocked the module for every business,
+    // either via the kill switch (`disabled`) or maintenance mode (`maintenance` --
+    // decision #3, the exact same full block, differing only in this copy). Reactivating
+    // a license (the CTA every other reason points at) would not help here, so the copy
+    // says so plainly rather than implying a fix the business itself can make. `message`
+    // is a superadmin-set customer-facing override (decision #4); when unset, the default
+    // copy differs only by whether this is maintenance (temporary) or a plain disable
+    // (indefinite).
+    if (platformStatus === "maintenance") {
+      return {
+        title: `${moduleName} is temporarily down for maintenance`,
+        description:
+          message ??
+          `${moduleName} is temporarily down for maintenance. We'll be back soon. This is not a licensing issue on your account -- your license and data are unaffected.`,
+      };
+    }
     return {
       title: `${moduleName} is temporarily unavailable`,
-      description: `${moduleName} has been temporarily disabled platform-wide by WonderArc. This is not a licensing issue on your account -- your license and data are unaffected, and access will return automatically once the module is re-enabled.`,
+      description:
+        message ??
+        `${moduleName} has been temporarily disabled platform-wide by WonderArc. This is not a licensing issue on your account -- your license and data are unaffected, and access will return automatically once the module is re-enabled.`,
     };
   }
   return {

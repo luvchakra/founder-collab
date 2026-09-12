@@ -72,14 +72,18 @@ export function isUnlicensedModuleRoute(pathname: string, licensedModules: Set<s
 }
 
 /**
- * PLATFORM-P0-07.2 ("Platform-Wide Module Kill Switch") -- the key of the module
- * `pathname` belongs to, if a superadmin has disabled it platform-wide (`platform.modules
- * .enabled = false`) -- null otherwise. Deliberately business-independent (unlike
- * `findUnlicensedModuleForRoute()` above): a platform-wide kill switch blocks every
- * business regardless of that business's own license status, so this check is not gated
- * on the caller having any particular license at all. Checked first in `updateSession()`
- * below -- a platform-disabled module takes priority over an ordinary licensing reason,
- * since it is the more universal fact. */
+ * PLATFORM-P0-07.2/07.3 -- the key of the module `pathname` belongs to, if a superadmin
+ * has fully blocked it platform-wide (`platform.modules.status` is `disabled` OR
+ * `maintenance` -- PLATFORM-P0-07.3 decision #3: the exact same full block, so both
+ * populate `disabledModules` identically here) -- null otherwise. Deliberately
+ * business-independent (unlike `findUnlicensedModuleForRoute()` above): a platform-wide
+ * full block applies to every business regardless of that business's own license status,
+ * so this check is not gated on the caller having any particular license at all. A
+ * platform-wide `read_only` status is deliberately NOT included here (decision #2 --
+ * mirrors a license's own grace period, which likewise never blocks the route itself,
+ * only writes); it takes no route-guard action at all, the same way grace-period licenses
+ * don't. Checked first in `updateSession()` below -- a platform-disabled module takes
+ * priority over an ordinary licensing reason, since it is the more universal fact. */
 export function findPlatformDisabledModuleForRoute(pathname: string, disabledModules: Set<string>): string | null {
   const module = moduleForRoute(pathname);
   if (module && disabledModules.has(module.key)) return module.key;
@@ -171,28 +175,45 @@ export async function updateSession(request: NextRequest) {
       );
       const [{ data: licenses }, { data: platformModules }] = await Promise.all([
         coreClient.from("licenses").select("module_key, status, grace_ends_at").eq("business_id", businessId),
-        // PLATFORM-P0-07.2: platform.modules' own SELECT policy is open to any
+        // PLATFORM-P0-07.2/07.3: platform.modules' own SELECT policy is open to any
         // authenticated user (see that migration's own docstring), so this read works for
-        // an ordinary business member's session, not just a superadmin's.
-        platformClient.from("modules").select("module_key, enabled"),
+        // an ordinary business member's session, not just a superadmin's. `status` (not
+        // the old boolean `enabled`, which PLATFORM-P0-07.3's reconciliation made a
+        // derived, database-generated column) is the source of truth from here on.
+        platformClient.from("modules").select("module_key, status, customer_facing_message"),
       ]);
       const licensedModules = new Set(
         (licenses ?? []).filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key as string),
       );
+      const platformStatusByKey = new Map(
+        (platformModules ?? []).map((m) => [
+          m.module_key as string,
+          { status: m.status as string, message: m.customer_facing_message as string | null },
+        ]),
+      );
+      // PLATFORM-P0-07.3 decision #3: `maintenance` and `disabled` are the exact same
+      // full block -- both populate this set identically. A platform-wide `read_only`
+      // status (decision #2) deliberately does NOT block the route, mirroring how a
+      // license's own grace period never blocks the route either -- only writes.
       const platformDisabledModules = new Set(
-        (platformModules ?? []).filter((m) => !m.enabled).map((m) => m.module_key as string),
+        [...platformStatusByKey.entries()]
+          .filter(([, v]) => v.status === "disabled" || v.status === "maintenance")
+          .map(([key]) => key),
       );
 
-      // Platform-wide kill switch checked first -- it blocks every business regardless of
+      // Platform-wide full block checked first -- it blocks every business regardless of
       // that business's own license status, so it is the more universal fact when both
       // would otherwise apply.
       const platformDisabledKey = findPlatformDisabledModuleForRoute(pathname, platformDisabledModules);
       if (platformDisabledKey) {
+        const info = platformStatusByKey.get(platformDisabledKey);
         const url = request.nextUrl.clone();
         url.pathname = `/dashboard/businesses/${businessId}/not-licensed`;
         url.search = "";
         url.searchParams.set("module", platformDisabledKey);
         url.searchParams.set("reason", "platform_disabled");
+        url.searchParams.set("platformStatus", info?.status ?? "disabled");
+        if (info?.message) url.searchParams.set("message", info.message);
         return NextResponse.rewrite(url);
       }
 
