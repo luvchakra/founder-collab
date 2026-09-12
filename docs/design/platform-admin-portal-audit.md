@@ -26,7 +26,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage); 09.3 stopped -- genuine routing-algorithm ambiguity, see log; 09.4/09.5 remaining |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage); 09.3 done config-only per user decision (routing policy, no runtime wiring); 09.4/09.5 remaining |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -4162,3 +4162,185 @@ decides. §13's other stories (09.4 AI Feature Policies, 09.5 AI Usage) do not o
 depend on 09.3's own resolution and remain candidates to pick up first if the user prefers,
 but per this run's own task brief ("Then continue to 09.4..., 09.5..." in §13's own stated
 order) this run stops here to report rather than skip ahead on its own judgment.
+
+---
+
+### PLATFORM-P0-09.3 — Provider Routing, CONFIG-ONLY (2026-09-12) — RESUMED AND BUILT
+
+**Worktree hazard checked first, per this workstream's own standing instruction**:
+`git log --oneline -3` at the start of this run showed `HEAD` genuinely on
+`feature/platform-admin-portal`'s real tip (the prior run's own scratch-merge commit,
+`3dbcdc7`, itself already merged to that branch's tip) -- no stash/rebuild needed this
+time. Working tree was clean. `npm install` run fresh (no `node_modules` in this worktree;
+679 packages added, clean).
+
+**The user's decision, verbatim intent**: build the routing *configuration data only, with
+NO runtime wiring* -- exactly Reading 1 from the prior stopped entry's own analysis, and
+exactly that entry's own "Recommendation" section. This entry documents that the config-only
+scope was a given (the user's explicit decision, relayed in this run's own task brief, not
+this agent's own judgment call) -- what *was* this agent's own call, and is documented
+below, is the table's exact shape, the audit-events design, and the UI's placement.
+
+**What was deliberately NOT touched, matching the decision's own explicit boundary**:
+`packages/core/src/ai/business-router.ts`, `operation-registry.ts`, `model-registry.ts`'s
+resolution logic, and `packages/module-discovery`'s own separate router -- zero lines
+changed in any of the four. No function in the new `platform-ai-provider-routing.ts` is
+called from any of them, and none of them import from it. Grepped after finishing to
+confirm: `grep -rl "ai_provider_routing" packages/core/src/ai packages/module-discovery/src`
+returns nothing. The BYOK-precedence/failover-semantics/module-vs-operation-granularity/
+missing-key-fallback questions the prior entry raised remain fully open and unanswered --
+this story builds no code path that would need to answer them, so none needed answering.
+
+**New migration**: `supabase/migrations/20260912370000_platform_ai_provider_routing.sql` --
+`platform.ai_provider_routing` (singleton, boolean-PK-fixed-to-true, same trick
+`platform.branding` established) with `default_provider`/`fallback_provider` (nullable,
+each FK-referencing `platform.ai_providers.provider`), `default_model` (free text, no
+cross-table containment check), and `module_overrides` (a single `jsonb` `ModuleKey ->
+AiProvider` map, validated key-by-key and value-by-value inside the mutation function
+against `core.modules`/`platform.ai_providers` respectively, since a table CHECK cannot
+express a cross-table lookup) -- plus a dedicated `platform.ai_provider_routing_events`
+audit table. See the migration's own extensive docstring for the full reasoning on each of
+these calls; the two most consequential ones, summarized:
+
+- **Nullable `default_provider`/`fallback_provider`, not seeded to a real provider** --
+  mirrors PLATFORM-P0-09.1's own "every provider seeded `enabled = false`, not a fabricated
+  'on' state" stance. Seeding a non-null "the platform's default AI provider is X" the
+  moment this table starts existing, before any SUPERADMIN has actually decided that, would
+  be exactly the fabricated state that story avoided.
+- **A dedicated `ai_provider_routing_events` table, not a reuse of `platform.
+  ai_provider_events`** -- considered and rejected: that table's `provider` column is `not
+  null` and its `action` CHECK enumerates four per-provider actions; a routing-policy change
+  touches `default_provider`, `fallback_provider`, and potentially several
+  `module_overrides` entries (each naming a different provider) in one atomic write, so
+  forcing it into that table would need either a fabricated sentinel `provider` value or
+  widening that table's own CHECK/nullability for a genuinely different kind of event. The
+  new table also has no `action` column at all (unlike its sibling) -- there is exactly one
+  kind of event this table will ever record, so a column that could only ever hold one value
+  would be speculative structure (CLAUDE.md development principle #7), not deferred scope.
+
+Audited-mutation pattern mirrored exactly from `platform.ai_providers`/`platform.
+feature_flags`: no INSERT/UPDATE/DELETE grant to `authenticated` on either table at all;
+every change goes through `platform.update_ai_provider_routing()`, which requires a genuine
+SUPERADMIN (`platform.is_superadmin()`) and a non-empty `reason`, validates every provider/
+module-key reference, and writes one atomic before/after audit snapshot. SELECT on the
+policy row is open to any authenticated user (same "avoid a second widening migration
+later" reasoning `platform.ai_providers`/`platform.modules` already used -- a future routing
+consumer will most likely run as an ordinary signed-in business member, not exclusively a
+SUPERADMIN); SELECT on the audit trail is SUPERADMIN-only, matching every sibling audit
+table in this backlog.
+
+**New application code**: `packages/core/src/admin/platform-ai-provider-routing.ts` --
+`getAiProviderRouting()` (the singleton row joined with `core.modules` names for display),
+`listAiProviderRoutingOptions()` (provider/module dropdown options for the form), and
+`updateAiProviderRoutingSchema`/`updateAiProviderRouting()` (Zod validation -- empty string
+normalizes to `null`/`[]`, an unrecognized provider or a duplicate module override is
+rejected client-side before the RPC call, matching the friendlier-error-before-DB-constraint
+pattern `platform-ai-providers.ts` already established). `requireSuperadmin()` guards every
+exported function, defense-in-depth matching every sibling admin file, since `SECURITY
+DEFINER` bypasses RLS.
+
+**New UI**: `/platform/ai-routing` (`apps/web/app/platform/(protected)/ai-routing/`) --
+a single settings surface, not a list of rows: there is exactly one routing policy, so
+there is no table/mobile-card split to make (CLAUDE.md development principle #12 targets a
+page whose *primary* content is a table of many rows; the up-to-five module overrides here
+are already shown as stacked labeled rows, narrow-screen-safe without a table at all,
+consulting `docs/design/claude-ui-design-rules.md` before writing markup per rule #13). One
+`RoutingConfigDialog` edits the whole singleton policy at once (default provider/model,
+fallback provider, and a `<select>` per module) -- a single form matches the data shape more
+directly than per-row dialogs the way `platform.ai_providers`' own fixed three-row catalog
+needed per-row ones. Added to `/platform`'s nav strip (`layout.tsx`) as "AI Routing",
+directly after "AI Providers".
+
+**Deliberately not built this story**: no runtime wiring of any kind (see above -- this is
+this story's entire point, not an oversight); no per-operation routing dimension (the
+doc's own field list is per-module, and the prior entry's own granularity question -- module
+vs. operation, and whether they're meant to compose -- remains unanswered and unneeded here);
+no dedicated audit-browsing UI for `platform.ai_provider_routing_events` (§16, Platform
+Audit, remains that future, broader story, the same deferral every sibling audit table in
+this backlog has already made); no cross-table containment check between `default_model`
+and `default_provider`'s own configured `models` array (this column is a platform-wide
+override independent of any single provider's own model list, and the referenced provider
+may legitimately have zero models configured yet -- config describing intent, not a
+live-readiness check, matching this story's own explicit brief not to require a configured
+key/enabled state either).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace
+(`web`, `@cofounderai/core`, `module-crm`, `module-discovery`, `module-fsm`, `module-gst`,
+`module-inventory`, `module-registry`). `npm run lint --workspaces --if-present` -- 0
+errors, the same 1 pre-existing unrelated warning every prior entry has logged
+(`Package` unused in an unrelated CRM conversations page). `node scripts/
+lint-import-boundaries.mjs` -- 1444 files, no violations. `node scripts/
+lint-migration-schema.mjs` -- 188 migrations (187 -> 188, this story's own file). `npx
+vitest run --root packages/core` -- 22 files / 218 tests (210 -> 218, +8 this story's own).
+`cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-routing` lists `ƒ`
+(dynamic), correctly inheriting the outer layout's existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` after apply that the singleton row seeded with `default_provider`,
+`default_model`, and `fallback_provider` all `null` and `module_overrides = '{}'` -- no
+fabricated state -- and that `platform.ai_provider_routing_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- no new finding: the same 6 pre-existing
+`rls_enabled_no_policy` INFO-level rows (including `platform.ai_provider_keys`, already
+known/by-design) and the same pre-existing leaked-password-protection warning every prior
+entry has logged; nothing new from this migration, since both new tables have real RLS
+policies. `mcp__Supabase__get_advisors` (performance) -- two new, genuinely new-shaped but
+benign INFO findings: `unindexed_foreign_keys` on `ai_provider_routing`'s own
+`default_provider`/`fallback_provider` FKs. Considered and left as-is: this is a singleton
+table with exactly one row, ever -- an index exists to speed lookups/cascade-checks across
+many referencing rows, and "many" here is structurally capped at 1, so adding one would be
+the same kind of speculative structure this backlog's own development-principle-#7
+reasoning already rules out elsewhere; also present are the same "unused index" info-level
+findings every sibling FK index already carries in this low-traffic dev database
+(including this migration's own two new indexes), unchanged in kind from every prior entry.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.ai_provider_routing` returned `1` cleanly (the open-SELECT policy
+row working as intended), and role-switched `select platform.update_ai_provider_routing(...)`
+returned a real Postgres `P0001: Forbidden: only a SUPERADMIN can change the AI provider
+routing policy` error -- a genuine function-level rejection, not a silently-ignored RLS
+filter. Reconfirmed immediately after that the singleton row was still untouched
+(`default_provider`/`fallback_provider` still null, `module_overrides` still `{}`) and
+`platform.ai_provider_routing_events` still had `0` rows -- this real user's attempt left
+zero residue. As with every prior story in this log, there is no seeded demo superadmin
+user in this environment, so the "a real superadmin CAN set the policy" half of the live-dev
+proof was **not** performed against dev and is not claimed here -- verified for real only
+against local Postgres (below), the same limitation every prior entry has stated.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-provider-routing-rls.mjs`, wired into
+`package.json`'s `test:db` composite script immediately after
+`test-platform-ai-providers-rls.mjs`. Same Alice (business admin, not a superadmin)/Zoe
+(real platform superadmin) pair every sibling script uses. **All 30 assertions passed**
+against the full current migration timeline (188 files): the singleton row starts seeded
+with no provider/model set and an empty override map; Alice can read the open policy row
+but her mutation attempt is rejected by the function's own internal check with zero
+residue; a genuine superadmin can set the full policy (default provider/model, fallback
+provider, two module overrides), writing exactly one atomic audit event with a real
+before/after snapshot; an unknown default/fallback provider and an unknown module key or
+unknown provider inside `module_overrides` are each rejected, with zero residue; a
+non-object `module_overrides` value (a JSON array, a JSON scalar) is rejected; an
+empty/whitespace reason is rejected; clearing the policy back to an all-null/empty state
+is accepted as a valid, honest state (and is itself audited); the audit trail's own SELECT
+is superadmin-only (Alice gets zero rows, RLS-filtered, not an error); and nobody --
+including a superadmin -- can bypass `update_ai_provider_routing()` with a direct
+INSERT/UPDATE/DELETE on either table (the boolean PK also structurally blocks a second
+singleton row). Local Postgres 16 was already running in this environment (confirmed via
+`pg_lsclusters`).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures the
+routing policy" half of the live-dev proof, and any live browser walkthrough of the new
+`/platform/ai-routing` page (opening the config dialog, setting a default/fallback provider
+and a module override, seeing them render), were **not** performed against dev and are not
+claimed here. That half was verified for real only against local Postgres (all 30
+assertions above) -- the "a non-superadmin is rejected, with zero residue" half, and the
+underlying schema/function/RLS/grant shape, were verified for real against both the live
+dev Supabase project (role-switched, as a real user, a real Postgres error raised by the
+function's own check) and local Postgres, not merely asserted from reading the code or the
+SQL.
+
+**Status**: PLATFORM-P0-09.3 (Provider Routing, config-only) done. Committed and merged to
+`main`. Continuing in §13's own story order: PLATFORM-P0-09.4 (AI Feature Policies) next.
