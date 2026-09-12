@@ -28,7 +28,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
-| | 11 | Global Email / Notification Configuration | 11.1/11.2 done (both config-only); 11.3 not started -- see log |
+| | 11 | Global Email / Notification Configuration | All of §15 done (11.1-11.3, all config-only) -- see log |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
@@ -38,9 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 9 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09),
-plus 18.1, 10.1 (10.2/10.3/10.4 remain open within §14), and 11.1/11.2 (11.3 remains open
-within §15). P1: 0/9 done.**
+**P0: 10 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -5212,3 +5211,140 @@ proven only against local Postgres), not an end-to-end UI verification.
 
 **Status**: PLATFORM-P0-11.2 done. PLATFORM-P0-11.3 (Notification Policies) remains open,
 picked up next in section order. Committing and merging to `main`, then continuing.
+
+### PLATFORM-P0-11.3 — Notification Policies (2026-09-12)
+
+**§15's own text in full**: "Configure platform defaults for: email / in-app / push."
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: `docs/plan/00-MASTER-PLAN.md` §5
+lists the canonical home for the "Notification" concept as `core.notifications` +
+`core.notification_prefs`. Grepped the full migration timeline for both names first --
+**zero hits**, confirmed rather than assumed: neither table exists anywhere in this
+codebase yet. So there is no existing table this migration could duplicate today. Read
+closely, this story's own ask is also a different concept on its own terms even once that
+future pair is eventually built: "platform defaults" is WonderArc's own operator-level
+policy for which channels are available/on by default across the whole platform, not a
+`business_id`- or `user_id`-scoped preference row (what `core.notification_prefs`, when
+built, would own -- an individual's own choice to mute a channel). This mirrors the same
+"platform operator config vs. tenant-scoped data" split `platform.plans` already draws
+against `core.licenses`/`core.business_settings.plan`, and `platform.ai_providers` draws
+against `core.ai_provider_credentials` (BYOK) -- a `platform`-schema table naming a concept
+a future `core`-schema table will also touch is not automatically a duplicate, provided (as
+confirmed here) the two operate at genuinely different scopes and neither exists yet to
+actually collide. Not a stop-and-report case: no existing data to conflict with, and no
+unstated runtime algorithm to invent (unlike 09.3/10.2's own routing/circuit-breaker
+questions) -- just three platform-wide default toggles.
+
+**Config-only, same accepted scope as PLATFORM-P0-11.1/11.2**: grepped for any existing
+in-app or push notification delivery mechanism -- zero hits. Email is the one channel with
+any real live sending path at all (Resend, catalogued in `platform-email-provider.ts`'s own
+docstring), and even that path reads nothing from this table. Real wiring is a future,
+separate story's job, matching this section's own established precedent twice already this
+run.
+
+**What was built**: migration `20260912420000_platform_notification_policies.sql` --
+singleton `platform.notification_policies` (boolean PK fixed to `true`, same construction
+as `platform.branding`), three boolean columns (`email_enabled`, `in_app_enabled`,
+`push_enabled`), each defaulting `false` -- the same "no fabricated 'on' state for a
+brand-new, never-configured surface" discipline `platform.ai_providers.enabled default
+false` already established, applied here even though email genuinely is this platform's own
+one channel with real infrastructure elsewhere: this table itself has never been
+configured, so it doesn't get to start "on" by inference.
+
+**A deliberate, documented pattern choice (this run's own task brief marks "which existing
+pattern to reuse" as a non-security call)**: unlike PLATFORM-P0-11.1's `from_email`/
+`reply_to` (a phishing/spoofing-adjacent surface once read) or PLATFORM-P0-11.2's template
+`body` (a literal injection point for a password-reset email's own links), three boolean
+channel-default toggles carry no comparable payload an attacker could weaponize --
+the worst a malicious flip does is silently disable a notification channel, not impersonate
+WonderArc or inject content into a security-critical message. So this table uses
+`platform.branding`'s own plain `select`/`update` RLS shape (superadmin read/write is the
+whole ask, no separate audit table) rather than 11.1/11.2's heavier audited-RPC pattern --
+recorded here as a reasoned choice, not an oversight, should a future reviewer wonder why
+this one `platform.*` table in the same doc section looks different from its two siblings.
+
+**Application layer** (`packages/core/src/admin/platform-notification-policies.ts`):
+`getNotificationPolicies()`/`updateNotificationPolicies()`, mirroring `platform-branding.ts`'s
+own pre-03.5 shape (request-scoped client, `requireSuperadmin()` first, RLS authoritative,
+`updated_by` set explicitly via `supabase.auth.getUser()` since there is no SECURITY
+DEFINER function auto-populating it from `auth.uid()` here). `updateNotificationPoliciesSchema`
+is a plain three-boolean Zod object -- no string-to-null normalization needed, unlike every
+other §11 schema in this file. 5 new unit tests in
+`platform-notification-policies.test.ts` (all-true, all-false, mixed, non-boolean rejection,
+missing-field rejection).
+
+**UI**: new `apps/web/app/platform/(protected)/notification-policies/` (page.tsx,
+actions.ts, notification-policies-form.tsx) -- a plain always-editable form (three
+`Checkbox`es + one Save button), not a dialog, matching `branding-form.tsx`'s own
+"standalone settings screen with one purpose" reasoning (CLAUDE.md development principle
+#1) rather than porting a dialog pattern this page's single settings row doesn't need. No
+"reason" field, matching the lighter, non-audited mutation this table uses.
+`apps/web/app/platform/layout.tsx` gains one nav entry, "Notification Policies", after
+"Email Templates" -- completing §15's own three-item nav.
+
+**Deliberately not built this story**: no real notification delivery of any kind (see
+above); no per-user or per-business notification preference table (that is
+`core.notification_prefs`'s own future, separate scope per the entity-ownership reasoning
+above); no audit trail (a deliberate, documented pattern choice, not a gap -- see above).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, 1 pre-existing unrelated warning (`Package`
+unused import in a CRM conversations page, untouched by this story). `node
+scripts/lint-import-boundaries.mjs` -- 1485 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 197 migrations (195 -> 197, this story's own file plus
+one other workstream's concurrent merge into `main` since 11.2's own entry), no violations.
+`npx vitest run --root packages/core` -- 27 files / 248 tests (26/243 -> 27/248, +5 new),
+all passing. `apps/web`'s own `vitest run --passWithNoTests` -- 50 tests, unchanged. `cd
+apps/web && rm -rf .next && npm run build` -- clean; `/platform/notification-policies` lists
+`ƒ` (dynamic), inheriting the outer layout's existing `force-dynamic` with no change needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` that the singleton row seeded with all three channels `false`.
+`mcp__Supabase__get_advisors` (security and performance) -- **zero new findings**: the same
+6 pre-existing `rls_enabled_no_policy` INFO rows and the pre-existing leaked-password-
+protection warning (security); the one new index on this table appears only as the same
+benign "unused index" INFO class every sibling table's own FK index already carries in this
+empty dev database (performance).
+
+**Role-switched live proof against dev's own real data, this table's own pattern
+demonstrated directly (not merely a function-level rejection)**: using the same real
+non-superadmin user (`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this backlog's own prior
+entries have repeatedly used -- role-switched `select count(*) from
+platform.notification_policies` returned `0` (RLS-filtered, not an error); a role-switched
+`update platform.notification_policies set email_enabled = true where id = true` returned
+successfully (no error -- this table has no SECURITY DEFINER function to reject the
+attempt, RLS's `USING` clause is the only gate) but a follow-up read confirmed
+`email_enabled` was still `false` -- the update genuinely affected zero rows, exactly the
+"RLS-filtered no-op" behavior `platform.branding`'s own established pattern predicts, not a
+silent bypass. As with every prior story in this log, there is no seeded demo superadmin
+user in this environment, so the "a real superadmin CAN update it" half of the live-dev
+proof was **not** performed against dev and is not claimed here -- verified for real only
+against local Postgres (below).
+
+**The dedicated local-Postgres RLS test**: new
+`scripts/test-platform-notification-policies-rls.mjs` (added to `package.json`'s `test:db`
+composite script, after `test-platform-email-templates-rls.mjs`) -- seeds a real business
+admin (Alice, not a superadmin) and a real superadmin (Zoe). Asserts: the singleton starts
+seeded with all three channels false; Alice gets 0 rows on SELECT and her UPDATE silently
+affects zero rows (row confirmed untouched via a service-role read); Zoe can SELECT and
+successfully UPDATE the row directly; and -- the negative space this table's own singleton
+design promises -- **not even Zoe** can INSERT a second row or DELETE the singleton, since
+no such policy or grant exists for `authenticated` at all. Ran locally against the
+already-running local Postgres 16 cluster: one assertion needed a fix on the first run (a
+`::text` cast on a Postgres boolean prints `true`/`false`, not `t`/`f` -- a test-authoring
+mistake, not an RLS/behavior bug, caught and corrected before the final run); **all 8
+assertions passed** on the corrected run against the full current migration timeline (197
+files).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed environment, so a live browser walkthrough of
+`/platform/notification-policies` actually toggling a channel through the real UI was
+**not** performed and is **not** claimed here. This entry documents build/typecheck/lint/
+unit-test correctness and a direct read/write proof against the live dev database (the
+"non-superadmin update is a silent no-op" half proven live; the "a real superadmin succeeds"
+half proven only against local Postgres), not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-11.3 done. §15 (Global Email / Notification Configuration) is now
+finished (11.1/11.2/11.3 all done). Committing and merging to `main`, then continuing to
+§16 (Global Integrations, PLATFORM-P0-12) next, per this doc's own section order.

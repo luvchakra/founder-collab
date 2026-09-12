@@ -63,6 +63,8 @@ const NAV_LINKS = [
   { href: "/platform/email-provider", label: "Email Provider" },
   // PLATFORM-P0-11.2: the fixed, seven-purpose system email template catalog -- config-only.
   { href: "/platform/email-templates", label: "Email Templates" },
+  // PLATFORM-P0-11.3: the platform-wide default notification channel toggles -- config-only.
+  { href: "/platform/notification-policies", label: "Notification Policies" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
