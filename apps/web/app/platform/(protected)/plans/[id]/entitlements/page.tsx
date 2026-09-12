@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getPlatformPlan } from "@cofounderai/core/admin/platform-plans";
 import { listPlanModuleEntitlements } from "@cofounderai/core/admin/platform-plan-modules";
+import { listPlanLimits } from "@cofounderai/core/admin/platform-plan-limits";
 import { ModuleEntitlementsSection } from "./module-entitlements-section";
+import { QuantityLimitsSection } from "./quantity-limits-section";
 
 /**
  * PLATFORM-P0-04.2 ("Plan Entitlements", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
@@ -19,7 +21,7 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
   const plan = await getPlatformPlan(id);
   if (!plan) notFound();
 
-  const moduleEntitlements = await listPlanModuleEntitlements(id);
+  const [moduleEntitlements, limits] = await Promise.all([listPlanModuleEntitlements(id), listPlanLimits(id)]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -34,6 +36,7 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
       </div>
 
       <ModuleEntitlementsSection planId={id} entitlements={moduleEntitlements} />
+      <QuantityLimitsSection planId={id} limits={limits} />
     </div>
   );
 }
