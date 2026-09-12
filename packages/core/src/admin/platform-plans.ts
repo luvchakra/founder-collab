@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createClient } from "../db/server";
 import { requireSuperadmin } from "../rbac/platform-admin";
+import { seedPlanModuleEntitlements } from "./platform-plan-modules";
 
 /**
  * PLATFORM-P0-04.1 ("Plan Management", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §8):
@@ -184,6 +185,13 @@ export async function createPlatformPlan(
     }
     throw error;
   }
+
+  // PLATFORM-P0-04.3: a brand-new plan gets one plan_modules row per existing module,
+  // enabled by default -- the same default the migration's own one-time seed gave every
+  // plan that already existed, so no plan is ever left with silently missing module
+  // entitlement rows. Not part of the plan_modules migration's own seed (that ran once,
+  // at migration time, over the plans that existed then).
+  await seedPlanModuleEntitlements(data.id as string);
 
   return { ok: true, plan: toPlan(data as PlanRow) };
 }
