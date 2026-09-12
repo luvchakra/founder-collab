@@ -205,6 +205,59 @@ async function main() {
       `);
       assertEqual(psqlAsAlice(`select jsonb_array_length(status_history) from gst.return_periods where id = '${period}'`), "2", "a new history entry was appended even though the period is filed and locked");
 
+      // --- COMPLY-P0-07.7 (Filing/Payment Status) ------------------------------------
+      console.log("Every filed period defaults to payment_status = 'not_applicable' (correct for GSTR-1/9, not just 'unknown')...");
+      assertEqual(psqlAsAlice(`select payment_status from gst.return_periods where id = '${period}'`), "not_applicable", "default payment status");
+
+      console.log("A filing_reference (ARN) can be attached AFTER the fact, even though the period is already filed and locked (filed_at was never set in this raw-SQL flow, so it stays null)...");
+      psqlAsAlice(`update gst.return_periods set filing_reference = 'AA270826000111A' where id = '${period}'`);
+      assertEqual(psqlAsAlice(`select filing_reference from gst.return_periods where id = '${period}'`), "AA270826000111A", "the ARN is now on file");
+
+      console.log("...but once an ARN is actually on file, it can never be altered again...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set filing_reference = 'TAMPERED' where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects altering an already-recorded filing_reference",
+      );
+
+      console.log("A blank filing_reference is rejected on a fresh row by its own non-blank check (tested on a second, unlocked period so the lock itself isn't what's being exercised here)...");
+      const secondPeriod = psqlAsAlice(`
+        insert into gst.return_periods (business_id, return_type, period_start, period_end, status_history)
+        values ('${aliceBusiness}', 'gstr3b', '2026-09-01', '2026-09-30', '[]'::jsonb)
+        returning id
+      `);
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set filing_reference = '   ' where id = '${secondPeriod}'`),
+        "filing_reference non-blank check constraint",
+      );
+
+      console.log("Recording a pending payment...");
+      psqlAsAlice(`update gst.return_periods set payment_status = 'pending', payment_reference = null, payment_amount = 5000.50 where id = '${period}'`);
+      assertEqual(psqlAsAlice(`select payment_status from gst.return_periods where id = '${period}'`), "pending", "payment now pending");
+
+      console.log("A negative payment_amount is rejected by its own check constraint...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set payment_amount = -1 where id = '${period}'`),
+        "payment_amount >= 0 check",
+      );
+
+      console.log("Marking the payment paid, with a real CIN...");
+      psqlAsAlice(`update gst.return_periods set payment_status = 'paid', payment_reference = 'CIN12345678901234', payment_date = '2026-08-20' where id = '${period}'`);
+      assertEqual(psqlAsAlice(`select payment_status from gst.return_periods where id = '${period}'`), "paid", "payment now paid");
+
+      console.log("Once paid, the payment's own status/reference/amount/date can never be altered -- a settled fact, same discipline as the return's own approved/filed content...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set payment_amount = 1 where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects altering an already-paid payment's amount",
+      );
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set payment_status = 'pending' where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects un-paying an already-paid payment",
+      );
+
+      console.log("Carol (viewer) can read the recorded ARN and payment status, but Bob still cannot touch or see any of it (tenant isolation still holds on the new columns)...");
+      assertEqual(psqlAsCarol(`select filing_reference from gst.return_periods where id = '${period}'`), "AA270826000111A", "Carol can read the ARN");
+      assertEqual(psqlAsBob(`select count(*)::int from gst.return_periods where id = '${period}'`), "0", "Bob cannot see this period at all");
+
       console.log("All gst.return_periods RLS assertions passed.");
     },
   });

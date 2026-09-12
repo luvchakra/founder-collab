@@ -65,24 +65,24 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.4 | Return Drill-Down | Done |
 | | 07.5 | Return Review Workflow | Done |
 | | 07.6 | Return Lock | Done |
-| | 07.7 | Filing/Payment Status | Not started |
+| | 07.7 | Filing/Payment Status | Done |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**36 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**37 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
-COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.6 (Return Lock) is the last completed
-story, epic 07 (India Returns) now six of seven stories in. Next: COMPLY-P0-07.7
-(Filing/Payment Status).
+COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
+Bill), and now COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-07.7
+(Filing/Payment Status) is the last completed story. Next: COMPLY-P0-08 (India
+Reconciliation & IMS), starting with COMPLY-P0-08.1 (GSTR-2B Fetch/Import).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3925,6 +3925,135 @@ same-session-discovered fix.
   something that only happens to hold for ordinary request-scoped writes; and
   `status_history` can still be appended on an already-filed, locked period, confirming the
   audit trail itself was deliberately left unlocked. All passing.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 07.7 — Filing/Payment Status (2026-09-12)
+
+The seventh and last story of COMPLY-P0-07 (India Returns), completing the whole epic.
+Records the ACTUAL, human-reported outcome of an already-authorized filing action
+(COMPLY-P0-07.5's own `markReturnPeriodFiled`) and, separately, the tax payment associated
+with it.
+
+**Research, not assumption** (backlog rule 6): `WebSearch` against ClearTax's, Bajaj
+Finserv's, and Saral's own GST-terminology guides confirmed the real distinction between
+three similarly-named identifiers this story could easily have conflated: **ARN**
+(Acknowledgement/Application Reference Number) is what the GST Portal generates on
+successful SUBMISSION of a return -- GSTR-3B guides describe filing as "complete only
+after the ARN is generated"; **CIN** (Challan Identification Number, 17 digits) is the
+receipt the collecting BANK issues once a tax payment is actually realized; **CPIN**
+(Common Portal Identification Number, 14 digits) is generated when a challan is merely
+CREATED, before payment. This story only needs the ARN (for filing) and the CIN (for a
+completed payment) -- the pre-payment CPIN is deliberately not modeled, since this table
+records a completed payment's own receipt, never an in-progress challan.
+
+**Checked existing code first** (backlog rule 1): confirmed via COMPLY-P0-07.2's own
+already-on-file research (cited again here rather than re-derived) that GSTR-1/GSTR-9
+carry no tax-payment obligation of their own under real GST practice -- the actual cash/
+credit-ledger payment happens against GSTR-3B. This is the real justification for
+`payment_status`'s own default: `"not_applicable"` is a correct, permanent answer for most
+periods, not a placeholder for "unknown."
+
+**Design decision -- extend the existing table and its lock trigger, not a new
+`ReturnSubmission` table**: COMPLY-P0-07.6's own migration comment explicitly anticipated
+this exact story ("COMPLY-P0-07.7 ... will need to record an ARN/payment reference/
+government-response metadata onto an already-'filed' period ... whatever columns that
+story adds are untouched by [the lock] trigger unless THAT story's own migration explicitly
+extends the check") -- this is squarely "more facts about the SAME return period," so six
+new nullable columns were added to `gst.return_periods` itself (`filing_reference`,
+`filed_at`, `payment_status`, `payment_reference`, `payment_amount`, `payment_date`) via
+`alter table`, and `gst.enforce_return_period_lock()` was replaced (`create or replace
+function`, same object) with two more rules extending its own "protect a SETTLED fact, not
+an in-progress one" philosophy from COMPLY-P0-07.6.
+
+**A real design bug caught by actually running the RLS harness, not just reasoning about
+it on paper**: the first draft of the lock's own filing-reference rule fired whenever
+`old.status = 'filed'`, which would have blocked a legitimate, real-world flow this story's
+own `markReturnPeriodFiled(businessId, periodId, filingReference?)` API explicitly allows --
+marking a period filed without an ARN in hand yet (it accepts an OPTIONAL reference,
+"recorded moments after DSC/EVC submission, before the confirmation page loads"), then
+attaching the real ARN in a separate, later call. Running the extended
+`scripts/test-gst-return-periods-rls.mjs` against this exact scenario ("attach an ARN to an
+already-filed period that has none yet") surfaced the bug immediately -- the update was
+wrongly rejected. Fixed by keying the lock on `old.filing_reference/filed_at IS NOT NULL`
+(a settled fact already on file) rather than on `old.status = 'filed'` alone (which merely
+means "this period has reached the filed stage," not "this specific field has already been
+recorded") -- re-ran the harness afterward to confirm both directions now work correctly:
+a null->value fill-in succeeds, and a value->different-value overwrite is rejected. This is
+exactly the kind of design mistake that looks correct on paper (and would have looked
+correct via `mcp__Supabase__apply_migration` + `get_advisors` alone, which cannot exercise
+actual UPDATE semantics) but is caught by a real, behavior-level test -- the concrete
+payoff of this run's own "check first whether you have a working local Postgres" advice.
+
+**What was built**:
+- `supabase/migrations/20260912120000_gst_return_periods_filing_payment_status.sql` -- the
+  six new columns (all nullable except `payment_status`, which defaults to
+  `'not_applicable'`) plus the corrected, extended lock function described above.
+- `lib/returns/lifecycle/types.ts` -- `ReturnPeriodPaymentStatus` (`"not_applicable" |
+  "pending" | "paid"`) and the matching new `ReturnPeriod` fields.
+- `lib/returns/lifecycle/queries.ts` -- `mapRow`/`RETURN_PERIOD_COLUMNS` extended to
+  read/translate the six new columns.
+- `lib/returns/lifecycle/mutations.ts` -- `markReturnPeriodFiled` now takes an optional
+  `filingReference` (validated non-blank when provided) and always stamps `filed_at`;
+  `recordReturnPeriodPayment(businessId, periodId, { status, reference?, amount?, date? })`
+  is a new, independent mutation -- deliberately NOT gated by `transitions.ts`'s own
+  Draft->Validate->Review->Approve->File state machine at all, since a payment is an
+  orthogonal fact about the period, not another pipeline stage. Includes an
+  application-layer "already paid, can't un-pay" check as defense in depth on top of the
+  database's own authoritative lock, matching how every other mutation in this module
+  double-checks what its own RLS/trigger layer already enforces.
+
+**What was deliberately left out**: any live GSTN filing-status or payment-status FETCH --
+there is no such API adapter in this backlog (unlike e-invoice/e-way-bill's own real IRP/GSP
+HTTP adapters); every field here is a human-reported record of something that already
+happened, never claimed or inferred (backlog rule 11), matching `markReturnPeriodFiled`'s
+own established posture. Per-supplier/per-line payment allocation, multiple partial
+payments against one period, or a payment history/audit trail of its own (as opposed to one
+current payment snapshot) -- a real, plausible future need if a period's tax liability is
+ever paid in installments, named here rather than solved, since real GST practice as
+researched for this story describes a single challan payment per return period, not
+partial/installment payment as the common case. Any UI -- matches this whole epic's "lib
+first, UI later" pattern; COMPLY-P0-11 is the dedicated UI epic.
+
+**COMPLY-P0-07 (India Returns) is now fully done** -- GSTR-1/3B/9 preparation, drill-down
+traceability, the full Draft->Validate->Review->Approve->File review workflow, a real
+database-level lock on approved/filed content, and filing/payment status recording.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1222 files scanned, 0 violations (no new
+  TypeScript file this story -- only existing files extended).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 145
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- still 318 tests passing; no new vitest
+  file (the new mutation-layer validation -- blank-reference/negative-amount/already-paid
+  checks -- mirrors the same "thin, inline validation, not independently unit-tested"
+  convention `createTaxRegistration`'s own validation already established in this module;
+  the real, authoritative coverage is the live RLS harness below, since the database's own
+  lock trigger is what actually enforces the settled-fact guarantees).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning, same unused-index shape) -- the function was created with `set search_path =
+  gst` from the start this time (COMPLY-P0-07.6's own search-path fix applied as learned
+  practice), so no repeat of that story's own follow-up-fix cycle.
+- **Local Postgres RLS harness actually run this story** (cluster started, used, stopped
+  back to "down" afterward, same as 07.5/07.6): extended `scripts/
+  test-gst-return-periods-rls.mjs` with real assertions -- the default `payment_status =
+  'not_applicable'`; a filing reference attached AFTER the period is already filed (the
+  null->value fill-in this story's own bug fix specifically enables); that same reference
+  becoming immutable once on file; a blank filing reference rejected by its own non-blank
+  check (tested on a fresh, unlocked period so the check constraint itself, not the lock,
+  is what's being exercised); a negative `payment_amount` rejected by its own check
+  constraint; a payment moving `pending` -> `paid` with a real CIN; that payment's own
+  status/reference/amount/date all becoming immutable once `paid`; and tenant isolation
+  still holding on every new column (Carol, a same-business viewer, can read the recorded
+  ARN; Bob, a different business's owner, sees nothing at all). All passing.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
