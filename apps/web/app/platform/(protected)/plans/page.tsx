@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listPlatformPlans } from "@cofounderai/core/admin/platform-plans";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
@@ -59,8 +60,11 @@ export default async function PlatformPlansPage() {
                 <span>Order {plan.displayOrder}</span>
                 <span>{plan.marketingVisible ? "Marketing visible" : "Hidden from marketing"}</span>
               </div>
-              <div>
+              <div className="flex items-center gap-3">
                 <PlanDialog plan={plan} />
+                <Link href={`/platform/plans/${plan.id}/entitlements`} className="text-xs text-zinc-400 hover:text-zinc-100">
+                  Entitlements
+                </Link>
               </div>
             </li>
           ))}
@@ -95,7 +99,15 @@ export default async function PlatformPlansPage() {
                 <TableCell className="text-zinc-300">{plan.displayOrder}</TableCell>
                 <TableCell className="text-zinc-300">{plan.marketingVisible ? "Visible" : "Hidden"}</TableCell>
                 <TableCell className="text-right">
-                  <PlanDialog plan={plan} />
+                  <div className="flex items-center justify-end gap-3">
+                    <Link
+                      href={`/platform/plans/${plan.id}/entitlements`}
+                      className="text-xs text-zinc-400 hover:text-zinc-100"
+                    >
+                      Entitlements
+                    </Link>
+                    <PlanDialog plan={plan} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

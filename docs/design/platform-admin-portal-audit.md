@@ -21,7 +21,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 02 | Platform Dashboard | Done |
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
-| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7's lifecycle status folded in); 04.2/04.3/04.4/04.5/04.6 not started -- see log |
+| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7 folded in); 04.3 done; 04.2/04.4/04.5/04.6 not started -- see log |
 | | 05 | Entitlement Engine | Not started |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
@@ -38,7 +38,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1 and 04.1.
+**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1, 04.1, 04.3.
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -1151,3 +1151,170 @@ higher bar PLATFORM-P0-03.4 set for every `platform.*` table.
 turns. Given this run's usage is approaching its practical limit for one sitting, stopping
 here after merge rather than starting another new story -- see the final status message
 for the full summary of what this run covered.
+
+### PLATFORM-P0-04.3 — Module Entitlements (2026-09-12)
+
+**Worktree-reuse hazard hit for real this run, fixed before any code was written**: this
+run's worktree's own `HEAD` was `a95ae42` ("compliance: COMPLY-P0-07.1"), the tip of a
+sibling backlog's branch, checked out under a `worktree-agent-*` branch name -- not
+`feature/platform-admin-portal` at all (`origin/feature/platform-admin-portal`'s real tip
+was `4c7b8cd`, PLATFORM-P0-04.1). Exactly the class of artifact this run's own assignment
+warned about (see `docs/design/discovery-offering-backlog-audit.md`'s 09.3 entry for the
+first occurrence). Working tree was already clean, so no stash was needed -- fixed with
+`git checkout -B feature/platform-admin-portal origin/feature/platform-admin-portal`,
+re-verified `git rev-parse HEAD` matched `origin/feature/platform-admin-portal` exactly
+before writing anything.
+
+**Sequencing, per PLATFORM-P0-04.1's own migration docstring, not re-litigated here**:
+that migration already states "PLATFORM-P0-04.2 ('Plan Entitlements') is the composite
+view of the three tables above [module/feature/limit entitlements] once they exist -- not
+its own table." So this run's own assignment note ("RESUME AT PLATFORM-P0-04.2... continue
+through 04.3-04.7") is followed in the order the codebase's own prior work already
+committed to: the three underlying tables first (04.3 this story, then 04.4, then
+04.5/04.6, each its own commit), then 04.2's composite UI last, once all three exist to
+compose. This is a non-security sequencing call (both orderings reach the same doc
+sections; nothing about it is security-ambiguous), the same kind of call PLATFORM-P0-03.1's
+own entry already made and documented rather than silently departing from an instruction's
+literal ordering.
+
+**Naming discrepancy, flagged per CLAUDE.md's "live source wins"**: the doc's own §8.3
+example lists modules as "Discovery, Inventory, FSM, CRM, Compliance"; `core.modules`
+(Epic 2, story C-3, the live, canonical module catalog `core.licenses.module_key` itself
+references) has no `compliance` key -- its fifth module is `gst`. Treated as the same
+module under the doc's descriptive name vs. the live schema's actual key, not a sixth
+module to invent; `platform.plan_modules` is keyed off `core.modules.key` (`gst`), the live
+source, not the doc's prose.
+
+**What was built**: migration `20260912040000_platform_plan_modules.sql` --
+`platform.plan_modules`, a join table between `platform.plans` (PLATFORM-P0-04.1) and
+`core.modules` (the cross-schema FK points into `core`, per CLAUDE.md non-negotiable #1,
+not a parallel module-identity list invented for `platform`). One row per (plan, module)
+pair, not a sparse override table -- every plan is seeded `enabled = true` for every
+module. This default was a real, considered choice, not an accident: the doc's §8.3
+module-inclusion example ("FSM ✗ disabled") is labelled "Example:", illustrating the
+*shape* of the model, unlike PLATFORM-P0-04.1's own "Initial plans: Free/Pro/Max" line,
+which was a literal seed instruction under a plain heading -- inventing which specific
+modules Free/Pro/Max should each include would be fabricating a real pricing decision no
+document here actually makes, exactly the class of thing CLAUDE.md's "never implement
+speculative functionality" rules out. Defaulting every module to enabled keeps today's
+behavior (every module purchasable on every plan, matching the fact that `core.licenses`
+does not consult `platform.plans` at all yet -- PLATFORM-P0-05.4's own future job)
+unchanged the moment this table starts existing, the same "opt-in override defaults to
+today's look" reasoning PLATFORM-P0-03.3 already used for login branding. RLS mirrors
+`platform.plans`: `select`/`insert`/`update` policies via `platform.is_superadmin()`, no
+delete policy or grant at all -- not because of a 04.7-style "never delete" rule (there is
+none here), but because nothing in this story's own UI ever needs to remove a row: every
+(plan, module) pair always has exactly one row (seeded at migration time, and by the
+application layer for every plan created afterward), so toggling `enabled` via UPDATE is
+the only mutation that exists to grant.
+
+**Application layer** (`packages/core/src/admin/platform-plan-modules.ts`):
+`listPlanModuleEntitlements(planId)` merges two schema-scoped reads (`platform.plan_modules`
+and `core.modules`) in application code rather than a single PostgREST embed, since each
+Supabase client here is pinned to one `db.schema` and the two tables live in different
+ones. `setPlanModuleEnabled(planId, moduleKey, enabled)` upserts (defensive fallback for a
+plan/module combo somehow missing its seeded row, e.g. a module added to `core.modules`
+after a plan's own rows were seeded -- not the common path). `seedPlanModuleEntitlements(planId)`
+is the new piece wired into `createPlatformPlan()` (`platform-plans.ts`) right after a new
+plan's row is inserted, so a plan created through the UI after this story ships starts with
+the same "every module enabled" default the migration's own seed gave every plan that
+existed at migration time -- never a plan with silently missing entitlement rows. No new
+Zod schema of any real complexity here (a module key is just a non-empty string checked
+against a live FK, not a format worth its own regex) -- no new vitest cases added, matching
+this codebase's own established bar (PLATFORM-P0-02/03.4's entries: a two-line check or a
+thin DB wrapper doesn't need a unit test beyond what `isProtectedPath()` set as the minimum
+for real branching logic).
+
+**UI**: new `apps/web/app/platform/(protected)/plans/[id]/entitlements/` (page.tsx,
+actions.ts, module-entitlements-section.tsx) -- the first section of PLATFORM-P0-04.2's own
+eventual composite page, explicitly documented in the page's own header comment as growing
+one section per sibling story (feature-level entitlements, quantity limits) rather than
+being built as one big page ahead of those tables' own turns. Each module renders with a
+direct `Switch` toggle (`@cofounderai/core/ui/switch`, already vendored and already used
+elsewhere in this codebase, e.g. `module-fsm/.../settings-view.tsx`) rather than a save-button
+form -- a single boolean flip per row needs no separate save step, the same "no form to
+submit for one field" reasoning already applied elsewhere in this app's own settings
+pages. Desktop table / mobile card split per CLAUDE.md development principle #12 and
+`docs/design/claude-ui-design-rules.md` rule 5, mirroring `plans/page.tsx`'s own established
+split. `plans/page.tsx` (04.1's own list) gets one new "Entitlements" link per row, on both
+the mobile card and desktop table layouts, pointing at the new page -- otherwise this new
+route would be unreachable via any UI, the same "no orphaned route" bar PLATFORM-P0-03.1's
+own nav-strip addition already set.
+
+**Deliberately not built this story**: feature-level entitlements (PLATFORM-P0-04.4) and
+quantity limits/unlimited support (PLATFORM-P0-04.5/04.6) -- each its own sibling
+migration/story, landing next in this same run, not folded in here (unlike PLATFORM-P0-04.7,
+these are genuinely separate tables with their own shapes, not one column on an
+already-existing table); no UI or DB support for adding a *new* module to the catalog
+(that is `core.modules`' own concern, Epic 2 scope, not this story's); no wiring of
+`plan_modules.enabled` into any actual entitlement check anywhere in the app
+(PLATFORM-P0-05, Entitlement Engine, "Not started," is explicitly that integration's own
+future job -- this table stores configuration, nothing reads it for a real authorization
+decision yet, matching PLATFORM-P0-04.1's own identical stance for `platform.plans` itself).
+
+**Verification**: this worktree needed its own `npm install` first (fresh worktree, no
+local `node_modules` -- same cross-checkout symlink issue every prior worktree-run entry in
+this log has documented; confirmed the resulting `package-lock.json` has no diff and
+`readlink -f node_modules/@cofounderai/core` resolves to this worktree's own
+`packages/core`). Full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint` -- 0 errors, the same 1 pre-existing unrelated warning (`Package` unused import in
+a CRM conversations page, untouched by this story). `node scripts/lint-import-boundaries.mjs`
+-- 1166 files, no violations. `node scripts/lint-migration-schema.mjs` -- 134 migrations
+(133 -> 134, this story's own file), no violations. `npx vitest run --root packages/core`
+-- 70 tests, unchanged (no new pure validation logic this story, see above). `cd apps/web
+&& npm run build` -- clean; `/platform/plans/[id]/entitlements` lists `ƒ` (dynamic),
+correctly inheriting the outer layout's existing `force-dynamic` with no per-route opt-in
+needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the seed is exactly right
+(`select p.key, count(*), bool_and(enabled) ...` grouped by plan -- all three plans show 5
+rows, all enabled). Role-switched (not just policy-read) `execute_sql` as a synthetic
+non-superadmin user id against the live dev project: `select count(*) from
+platform.plan_modules` returns `0` cleanly (no "permission denied for schema" error),
+confirming this brand-new table is already covered by PLATFORM-P0-03.4's own schema-grant
+fix rather than repeating that bug for a third table. `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and
+the pre-existing leaked-password-protection warning every prior entry has already logged.
+`mcp__Supabase__get_advisors` (performance) -- zero new findings: both new indexes
+(`plan_modules_module_key_idx`, `plan_modules_updated_by_idx`) were added in the same
+migration as their columns, so neither tripped the "unindexed foreign key" check
+PLATFORM-P0-03.5 hit; both show up only as the same benign "unused index" info-level note
+every sibling FK index already carries in this empty dev database.
+
+**A third RLS test script, following the established standard**: new
+`scripts/test-platform-plan-modules-rls.mjs`, wired into `package.json`'s `test:db`
+composite script after `test-platform-plans-rls.mjs`. Same Alice (business admin)/Zoe
+(superadmin) pair. One test-design correction made before it passed: the first draft had
+Alice attempt an INSERT whose `select ... from platform.plans limit 1` subquery itself
+returns zero rows under her own RLS-restricted view of `platform.plans` (she can't read
+that table either), making the INSERT a legitimate zero-row no-op rather than a rejected
+one -- corrected to seed a bare plan via `service_role` first (with no `plan_modules` rows
+yet) and have Alice attempt a literal insert against it, genuinely isolating the RLS `WITH
+CHECK` clause rather than accidentally testing an unrelated "empty subquery" no-op. Local
+Postgres 16 was already running in this environment (`pg_lsclusters` showed it online), but
+the test harness's `createdb`/`psql` calls failed with `role "root" does not exist` -- this
+sandboxed container's OS user is `root`, and no matching Postgres superuser role existed
+yet in this fresh environment (the prior entries' own note about a "temporary local
+superuser role matching this sandbox's OS user" applied again, freshly, in this run's own
+container). Fixed the same way: `CREATE ROLE root LOGIN SUPERUSER;` via `sudo -u postgres
+psql`, left in place for the rest of this run's own local-Postgres verification work rather
+than dropped after each script (a throwaway local dev cluster, not a shared or
+production resource). **All 11 assertions passed** against the full current migration
+timeline (134 files), including the seed count, the corrected INSERT-rejection case, the
+UPDATE no-op, Zoe's real read/write access, the "nobody can DELETE" negative case, and a
+direct proof that a freshly-created plan can have its own module rows populated (simulating
+what `seedPlanModuleEntitlements()` does at plan-creation time).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening `/platform/plans/[id]/entitlements` and
+toggling a module switch was **not** performed and is **not** claimed here. This story's
+authorization-critical claims (schema grant present for a new table; RLS denies a
+non-superadmin; a superadmin can read/toggle but never delete) were verified for real
+against both the live dev Supabase project and a real local Postgres database, per the
+standard PLATFORM-P0-03.4 set for every `platform.*` table.
+
+**Status**: PLATFORM-P0-04.3 done. Continuing to PLATFORM-P0-04.4 (Feature-Level
+Entitlements) next, per this run's own sequencing note above (the two remaining
+prerequisite tables before PLATFORM-P0-04.2's own composite page can be built).
