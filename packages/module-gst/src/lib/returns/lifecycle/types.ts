@@ -37,6 +37,16 @@ export type ReturnPeriodStatusHistoryEntry = {
  * discriminate the union itself. */
 export type ReturnPeriodSnapshot = unknown;
 
+/** COMPLY-P0-07.7 (Filing/Payment Status): whether a payment associated with this return
+ * period has been recorded. `"not_applicable"` (the default for every return type) is a
+ * real, correct answer, not a placeholder for "unknown" -- most return types (GSTR-1,
+ * GSTR-9) carry no tax-payment obligation of their own; only GSTR-3B periods realistically
+ * ever move past it. Forward-only once `"paid"`, mirrored by a real database-level lock
+ * (`gst.enforce_return_period_lock`, extended by this story) -- a completed payment's own
+ * reference/amount/date can never be silently rewritten, the same "protect a settled fact"
+ * rule COMPLY-P0-07.6 already applies to an approved/filed return's own content. */
+export type ReturnPeriodPaymentStatus = "not_applicable" | "pending" | "paid";
+
 export type ReturnPeriod = {
   id: string;
   businessId: string;
@@ -48,6 +58,23 @@ export type ReturnPeriod = {
    * constraint makes any other status structurally impossible without one. */
   snapshot: ReturnPeriodSnapshot | null;
   statusHistory: ReturnPeriodStatusHistoryEntry[];
+  /** COMPLY-P0-07.7: the ARN (Acknowledgement/Application Reference Number) the real GST
+   * Portal issues on successful filing -- recorded here as a human-reported fact, never
+   * fetched live (this backlog has no GSTN filing-status API adapter). `null` until
+   * recorded; may be set at the same moment as the draft->...->filed transition, or added
+   * shortly after. Immutable once this period is already `"filed"` and this field has a
+   * value (see the migration's own lock trigger). */
+  filingReference: string | null;
+  /** COMPLY-P0-07.7: when the filing was recorded -- a first-class, queryable column
+   * rather than something only recoverable by parsing `statusHistory`'s own jsonb array. */
+  filedAt: string | null;
+  paymentStatus: ReturnPeriodPaymentStatus;
+  /** COMPLY-P0-07.7: the CIN (Challan Identification Number) the collecting bank issues
+   * once a tax payment is actually realized -- distinct from a CPIN (issued when a challan
+   * is merely CREATED, before payment), which this table does not track. */
+  paymentReference: string | null;
+  paymentAmount: number | null;
+  paymentDate: string | null;
   createdAt: string;
   updatedAt: string;
 };

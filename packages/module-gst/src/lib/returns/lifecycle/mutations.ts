@@ -8,6 +8,7 @@ import { getReturnPeriod, getReturnPeriodById } from "./queries";
 import { assertCanTransition } from "./transitions";
 import type {
   ReturnPeriod,
+  ReturnPeriodPaymentStatus,
   ReturnPeriodSnapshot,
   ReturnPeriodStatus,
   ReturnPeriodStatusHistoryEntry,
@@ -156,10 +157,76 @@ export async function approveReturnPeriod(businessId: string, periodId: string):
  * DSC/EVC-signed by the taxpayer, outside this platform. This is the internal "we filed
  * this" record for that already-happened, human-authorized external action, per backlog
  * rule 11's own "filing/submission is a consequential external action requiring explicit
- * user authorization" -- never inferred, never automated. COMPLY-P0-07.7's own "Filing/
- * Payment Status" is where richer metadata about that filing (an ARN, a payment/challan
- * reference) belongs; this story only marks that the stage was reached and by whom.
+ * user authorization" -- never inferred, never automated.
+ *
+ * `filingReference` (COMPLY-P0-07.7) is the ARN the GST Portal issued for that filing --
+ * optional, since it may not be on hand the instant this is called (recorded moments after
+ * DSC/EVC submission, before the confirmation page loads) but typically available right
+ * away in practice. Once this period is already `"filed"` (a LATER call, not this one),
+ * `gst.enforce_return_period_lock` makes `filingReference`/`filedAt` permanently
+ * immutable -- a real ARN, once on file, is never silently overwritten.
  */
-export async function markReturnPeriodFiled(businessId: string, periodId: string): Promise<ReturnPeriod> {
-  return transition(businessId, periodId, "filed");
+export async function markReturnPeriodFiled(businessId: string, periodId: string, filingReference?: string): Promise<ReturnPeriod> {
+  const trimmed = filingReference?.trim();
+  if (filingReference !== undefined && !trimmed) {
+    throw new Error("A filing reference, if provided, cannot be blank.");
+  }
+  return transition(businessId, periodId, "filed", {
+    filing_reference: trimmed ?? null,
+    filed_at: new Date().toISOString(),
+  });
+}
+
+/**
+ * COMPLY-P0-07.7 (Filing/Payment Status): records the tax payment associated with a
+ * return period -- a human-reported fact (a CIN, an amount, a date), never a live payment
+ * status FETCH (this backlog has no GSTN payment API adapter). Callable at ANY point in
+ * the period's own review-workflow status, not gated by `transitions.ts`'s own state
+ * machine at all -- payment is an orthogonal fact about the period, not another stage of
+ * Draft->Validate->Review->Approve->File (most realistically recorded around the same time
+ * as filing for a GSTR-3B period, but this function does not assume that timing).
+ *
+ * Rejects moving `status` backward AWAY from `"paid"` here too (defense in depth on top of
+ * `gst.enforce_return_period_lock`'s own database-level guard, matching how every other
+ * mutation in this module double-checks what its own RLS/trigger layer already enforces) --
+ * a payment marked paid is a settled fact and this function will not silently "un-pay" it.
+ */
+export async function recordReturnPeriodPayment(
+  businessId: string,
+  periodId: string,
+  input: { status: ReturnPeriodPaymentStatus; reference?: string; amount?: number; date?: string },
+): Promise<ReturnPeriod> {
+  await requireModule(businessId, "gst");
+  await requirePermission(businessId, "gst.file_returns");
+
+  const current = await getReturnPeriodById(businessId, periodId);
+  if (!current) throw new Error("Return period not found.");
+  if (current.paymentStatus === "paid" && input.status !== "paid") {
+    throw new Error(`This period's payment is already marked "paid" and cannot be changed to "${input.status}".`);
+  }
+
+  const reference = input.reference?.trim();
+  if (input.reference !== undefined && !reference) {
+    throw new Error("A payment reference, if provided, cannot be blank.");
+  }
+  if (input.amount !== undefined && input.amount < 0) {
+    throw new Error("A payment amount cannot be negative.");
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("return_periods")
+    .update({
+      payment_status: input.status,
+      payment_reference: reference ?? null,
+      payment_amount: input.amount ?? null,
+      payment_date: input.date ?? null,
+    })
+    .eq("business_id", businessId)
+    .eq("id", periodId);
+  if (error) throw error;
+
+  const updated = await getReturnPeriodById(businessId, periodId);
+  if (!updated) throw new Error("Return period was updated but could not be read back.");
+  return updated;
 }

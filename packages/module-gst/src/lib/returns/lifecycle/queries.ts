@@ -1,5 +1,5 @@
 import { createClient } from "../../../db/server";
-import type { ReturnPeriod, ReturnPeriodStatusHistoryEntry, ReturnType } from "./types";
+import type { ReturnPeriod, ReturnPeriodPaymentStatus, ReturnPeriodStatusHistoryEntry, ReturnType } from "./types";
 
 /** DB row -> `ReturnPeriod`, the only place snake_case/camelCase translation happens for
  * this table (mirrors every other `queries.ts` in this module). */
@@ -12,6 +12,12 @@ function mapRow(row: {
   status: string;
   snapshot: unknown;
   status_history: unknown;
+  filing_reference: string | null;
+  filed_at: string | null;
+  payment_status: string;
+  payment_reference: string | null;
+  payment_amount: string | number | null;
+  payment_date: string | null;
   created_at: string;
   updated_at: string;
 }): ReturnPeriod {
@@ -24,12 +30,19 @@ function mapRow(row: {
     status: row.status as ReturnPeriod["status"],
     snapshot: row.snapshot ?? null,
     statusHistory: (row.status_history as ReturnPeriodStatusHistoryEntry[] | null) ?? [],
+    filingReference: row.filing_reference,
+    filedAt: row.filed_at,
+    paymentStatus: row.payment_status as ReturnPeriodPaymentStatus,
+    paymentReference: row.payment_reference,
+    paymentAmount: row.payment_amount === null ? null : Number(row.payment_amount),
+    paymentDate: row.payment_date,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-const RETURN_PERIOD_COLUMNS = "id, business_id, return_type, period_start, period_end, status, snapshot, status_history, created_at, updated_at";
+const RETURN_PERIOD_COLUMNS =
+  "id, business_id, return_type, period_start, period_end, status, snapshot, status_history, filing_reference, filed_at, payment_status, payment_reference, payment_amount, payment_date, created_at, updated_at";
 
 /** One return period by its own natural key -- the same key `getGstr1Return`/
  * `getGstr3bReturn`/`getGstr9Return` are already addressed by (business, return type,
