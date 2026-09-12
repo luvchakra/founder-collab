@@ -80,7 +80,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-10 | 10.1 | Evidence Repository | Done |
 | | 10.2 | Government Response Store | Done |
 | | 10.3 | Audit Trail | Done |
-| | 10.4–10.5 | Evidence & Audit (remaining) | Not started |
+| | 10.4 | Source Traceability | Done |
+| | 10.5 | Retention Rules | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
@@ -93,9 +94,9 @@ used an approximate "~50" denominator that only ever accounted for Epics 01-09 (
 49) -- corrected here to the real full-backlog total (Epics 01-11, 60 stories minus the
 one absorbed into 01.2 = 59) now that Epic 10 is underway.
 
-**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1/10.2/10.3
-(Evidence Repository, Government Response Store, Audit Trail) are done too. Next:
-COMPLY-P0-10.4 (Source Traceability).
+**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1 through
+10.4 (Evidence Repository, Government Response Store, Audit Trail, Source Traceability)
+are done too. Next: COMPLY-P0-10.5 (Retention Rules), the last story of Epic 10.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5354,6 +5355,75 @@ component needed, confirmed by reading both before deciding this).
   real `core.audit_log` insert on its own real transition, the no-op-field-change
   negative case, and the IMS insert-then-update-mind producing two distinct entries.
   Confirms the full migration timeline (164 files) still applies cleanly.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 10.4 -- Source Traceability (2026-09-12)
+
+Closes a gap flagged by name at the exact moment it was created: COMPLY-P0-02.5's own
+`gst.tax_determinations` migration comment said outright that `rule_refs` is "the
+traceability hook backlog rule 14 / COMPLY-P0-07.4 'Return Drill-Down' / COMPLY-P0-10.4
+'Source Traceability' will build on later." `rule_refs` has stored `gst.tax_rules.id`
+values since that story shipped, but nothing anywhere in this module has ever resolved
+those bare ids back into the actual rule content (rule_key, value, version, source
+citation) a human reviewing a computed tax result would need. This story is that
+resolution -- confirmed, by re-reading `lib/tax-determinations/queries.ts` before writing
+anything, that no such lookup existed yet.
+
+**Deliberately narrow, not a general "explain everything" traceability engine (backlog
+rule 5)**: every OTHER "why" trail already built elsewhere in this module already carries
+its own inline traceability as part of its OWN story -- `EinvoiceStatusResult` already
+surfaces `mandated`/`deadlineStatus`/`einvoiceRowStatus` (COMPLY-P0-05.6),
+`effectiveImsStatus()` already surfaces the real fact it derived from (COMPLY-P0-08.4),
+`explainSupplierMatch()` already returns real, WebSearch-sourced candidate causes
+(COMPLY-P0-08.3). This story's own incremental job is specifically the ONE gap two prior
+stories already named by number and left open, not re-litigating traceability everywhere
+it already exists.
+
+**A real, honest edge case named rather than silently assumed away**: a `rule_refs` id
+that no longer resolves to any `gst.tax_rules` row (should not happen in practice --
+`gst.tax_rules` rows are never deleted, only superseded via a new version -- but not
+assumed structurally impossible) is simply absent from the resolved `rules` list rather
+than throwing or silently padding with a fake placeholder; `rules.length` may legitimately
+be shorter than `determination.rule_refs.length`, and a caller comparing the two can
+detect that rather than being misled into thinking every citation resolved.
+
+**What was built**:
+- `lib/tax-determinations/queries.ts` -- `getTaxDeterminationById` (new: by id, the entry
+  point a caller resolving a specific already-rendered determination actually has, vs. the
+  existing `sourceModule`/`sourceReference`-keyed lookups).
+- `lib/tax-determinations/traceability.ts` -- `resolveRuleRefs(ruleRefIds)` (resolves bare
+  `gst.tax_rules.id` values into real rows -- no `businessId` needed, since `gst.tax_rules`
+  is platform-wide regulatory content with its own already-existing RLS gate),
+  `getTaxDeterminationSources(businessId, determinationId)` (the orchestrator: one
+  determination plus the real rule content behind it).
+- 1 new vitest case in `traceability.test.ts` (the empty-`rule_refs` short-circuit, a real
+  or valid state per COMPLY-P0-02.5's own migration comment -- "may cite zero rules, e.g.
+  an out-of-scope/no-tax result" -- and the one case testable without a live database).
+
+**What was deliberately left out**: resolving the OTHER side of a determination (what was
+actually taxed, `sourceModule`/`sourceReference`) back into a real document -- that
+remains the opaque, not-yet-typed reference COMPLY-P0-03.1 itself deliberately left open
+(the migration's own documented decision, not this story's to reach ahead of); any UI
+(COMPLY-P0-11); a general cross-cutting traceability abstraction spanning every computed
+result in this module (see above -- each already has its own, story-specific
+traceability, and unifying them into one abstraction now would be speculative
+infrastructure backlog rule 5 warns against building ahead of a real second consumer that
+needs it).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1323 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- not re-run; no new migration this story.
+- `npx vitest run --root packages/module-gst` -- 455 tests passing (454 prior + 1 new).
+- No Supabase migration, no `get_advisors` re-check, no new local Postgres RLS harness --
+  no new schema, no new table, no new RLS policy this story; both underlying reads
+  (`gst.tax_determinations`, `gst.tax_rules`) are already covered by
+  `test-gst-tax-determinations-rls.mjs`/`test-gst-tax-rules-rls.mjs`.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).

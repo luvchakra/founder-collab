@@ -23,6 +23,18 @@ export async function listTaxDeterminations(
   return data;
 }
 
+/** One determination by its own id -- COMPLY-P0-10.4 (Source Traceability)'s own entry
+ * point: a caller already has a specific determination's `id` (from `listTaxDeterminations`
+ * or an already-rendered document/return view) and wants to resolve its own `rule_refs`
+ * into real rule content (`traceability.ts`'s own `getTaxDeterminationSources`), not
+ * re-look-up by `sourceModule`/`sourceReference`. */
+export async function getTaxDeterminationById(businessId: string, determinationId: string): Promise<TaxDetermination | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("tax_determinations").select("*").eq("business_id", businessId).eq("id", determinationId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 /** The most recent determination for a transaction -- "what tax result is currently in
  * effect for this document," the shape most callers (a document view, a return
  * drill-down) actually want instead of the full history. `null` if nothing has been
