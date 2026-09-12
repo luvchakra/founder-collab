@@ -26,7 +26,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage) -- 09.3/09.4/09.5 remaining, see log |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -3720,3 +3720,291 @@ from reading the code or the SQL.
 **Status**: PLATFORM-P0-08.1/08.2/08.3/08.4 done -- §12 (Feature Flags) is now fully
 complete. This run's own usage-tracking note: well under the 80% stop threshold. Moving to
 the next doc section in order: §13 Internal AI Provider & Keys (PLATFORM-P0-09).
+
+### PLATFORM-P0-09.1/09.2 — Internal AI Provider Registry / Secure API Key Storage (2026-09-12)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at `origin/main`'s tip
+(itself already fast-forwarded to `feature/platform-admin-portal`'s own tip, `b2a0123`, by
+a prior scratch-branch merge) rather than the feature branch itself. Working tree was
+clean -- fixed with `git checkout -B feature/platform-admin-portal
+origin/feature/platform-admin-portal`, landing exactly on `b2a0123`
+(PLATFORM-P0-08.1-08.4's own commit), then re-verified `git log --oneline -3` before
+touching any file. `npm install` run fresh (no `node_modules` in this worktree), confirmed
+via `readlink -f node_modules/@cofounderai/core` resolving to this worktree's own
+`packages/core`.
+
+**Read first, per this run's own task brief**: this whole audit log's "Progress" table,
+every §11/§12 entry above (the module-registry/feature-flag precedent this story mirrors
+most closely for "fixed catalog" and "every mutation is a SECURITY DEFINER function"
+respectively), and `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §13 (09.1-09.5) in
+full. Also read, per this run's own explicit instruction to check for an existing,
+proven-safe secret-storage pattern before inventing one: `packages/core/src/crypto/
+api-key.ts` (the shared AES-256-GCM module, built for BYOK and already reused by
+`module-gst`'s GSP credentials), `packages/core/src/ai/business-router.ts` and
+`module-discovery/lib/ai-providers/mutations.ts` (how BYOK actually calls that module and
+tests a key before saving it), and `supabase/migrations/20260909010000_gst_credentials_
+encrypt_secrets.sql` / `20260907150000_gst_credentials_schema.sql` (the "no SELECT grant
+to `authenticated` at all" lockdown pattern this story's own higher bar ends up following
+instead of BYOK's own weaker one).
+
+**Not a genuine architectural ambiguity to stop and report on, despite the task brief's own
+warning to watch for one here**: the task brief flagged "if the doc is ambiguous about
+WHERE/HOW a real provider API key should be encrypted or stored... and the codebase
+doesn't already have an established, reusable pattern... stop and report." It does,
+though: `packages/core/src/crypto/api-key.ts`'s own file header already documents itself
+as generic, reusable infrastructure ("any caller with its own text column can reuse it as-
+is, sharing the same `API_KEY_ENCRYPTION_SECRET`"), and it has already been reused once
+outside its original BYOK caller (`module-gst`'s GSP credentials, 2026-09-09). Reusing it a
+third time for a platform-level key is exactly "a consistent, already-proven-safe pattern
+... reused rather than invented fresh," not a case where the doc and codebase leave a real
+choice open. The one genuine judgment call this story does make -- going further than
+BYOK's own row-level SELECT grant to match `gst`'s stricter zero-grant lockdown instead --
+is a security *tightening*, decided in the direction the task brief's own higher bar for
+this section points, not a case of picking between two equally-defensible storage
+mechanisms.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: no "AI provider" or "AI provider
+key" concept is listed in `docs/plan/00-MASTER-PLAN.md` §5 at all. The two existing
+near-neighbors -- `discovery.ai_provider_credentials` and `core.ai_provider_credentials`
+-- are BYOK (Bring Your Own Key): one business's own connected key, tenant-scoped,
+covering only that business's own AI calls. PLATFORM-P0-02.2's own dashboard entry
+(PLATFORM-P0-02, 2026-09-11) already named this exact distinction in advance: "the one
+category with a narrower real signal (per-business BYOK `ai_provider_credentials`)...
+explicitly labeled as *not* the platform-wide provider registry PLATFORM-P0-09 will add."
+This story is that platform-wide registry -- WonderArc's own provider configuration and
+its own platform-level credential, used as the fallback the platform itself bills when a
+business has no BYOK key connected (the existing `getPlatformCredential()`/
+`PLATFORM_AI_API_KEY` env-var fallback in `business-router.ts`/`module-discovery`'s own
+router is the *current*, deployment-wide, single-credential version of exactly this need)
+-- never a business's data, never gated by `core.licenses`, hence `platform` schema.
+
+**Migration**: `supabase/migrations/20260912280000_platform_ai_providers.sql` -- three
+tables, all with full reasoning in the migration's own header comment (not repeated here
+in full):
+
+- `platform.ai_providers` -- a **fixed, seeded catalog**, not an open create/delete
+  surface, mirroring `platform.modules`' own precedent (PLATFORM-P0-07.1): `AiProvider`
+  (`packages/core/src/ai/model-registry.ts`) is a closed TS union
+  (`"openai" | "anthropic" | "google"`) with no fourth-provider code (model registry
+  entry, provider-factory branch, test-connection endpoint) anywhere in this codebase, so
+  accepting an arbitrary provider string would let a SUPERADMIN configure a "provider"
+  nothing could ever route to. §13's own "Other future providers" text is aspirational,
+  not a request to build an open-ended registry now (CLAUDE.md development principle #7).
+  Three rows seeded at migration time (openai/anthropic/google), all `enabled = false`
+  (unlike `platform.modules`' own `enabled default true` -- there is no existing behavior
+  to preserve for a never-before-configured provider, so defaulting to "on" would be a
+  fabricated state). Columns: `enabled`, `models text[]`, `default_model`/`fallback_model`
+  (each CHECK-constrained to be a member of `models` or null), and two deliberately opaque
+  `rate_limits`/`cost_controls` JSONB columns -- §13's own text names both with no units,
+  fields, or granularity, and no consumer enforces either yet (PLATFORM-P0-10, "AI Safety /
+  Cost Controls," is the later, separate story that gives platform-wide budget enforcement
+  a real shape). Same reasoning `gst.tax_rules.value` already used for its own
+  under-specified config ("opaque jsonb... next story's job to give some of that jsonb
+  shape a name, not this one's to guess ahead of time").
+- `platform.ai_provider_keys` -- the secret table, one row per provider, present only once
+  a SUPERADMIN has actually configured a key. **Lockdown goes further than BYOK's own two
+  tables, matching `gst`'s own stricter fix instead**: `core.ai_provider_credentials`/
+  `discovery.ai_provider_credentials` grant `authenticated` a SELECT policy on the whole
+  row (safe there only because the reader is the same tenant the key belongs to, and no
+  query in this codebase ever actually selects that column back to a browser).
+  `gst.eway_bill_credentials`/`einvoice_credentials` went further after
+  `docs/testing/EXECUTION-2026-09-08.md` finding 3: zero SELECT grant to `authenticated`
+  at all, with a separate SECURITY DEFINER status function that never selects the secret
+  column. Given this run's own explicitly higher bar for this section and the fact that a
+  platform-level key protects every tenant at once (not one tenant's own data),
+  `platform.ai_provider_keys` follows `gst`'s stricter shape: **zero SELECT grant to
+  `authenticated`, not even for a genuine SUPERADMIN** -- verified directly below, both
+  live against dev and against local Postgres, not merely asserted from the grant
+  statements. The only read path is `platform.ai_provider_key_status()`, a SECURITY
+  DEFINER function that never selects `encrypted_api_key`. No `status`/`last_error`
+  columns (unlike BYOK's own credential tables) -- the application layer only ever calls
+  `set_ai_provider_key()` after `testProviderConnection()` succeeds, so a stored "error"
+  state that no code would ever write would be exactly the speculative column CLAUDE.md
+  development principle #7 rules out.
+- `platform.ai_provider_events` -- append-only audit trail for both tables above, same
+  `previous_value`/`new_value` JSONB-snapshot shape `platform.feature_flag_events`
+  established. **The audit trail never carries key material, not even ciphertext**: a key
+  mutation's snapshots are hand-built with `jsonb_build_object('key_fingerprint', ...)`,
+  never `to_jsonb(row)` -- verified directly below (a `bool_or(... like '%ciphertext%')`
+  check across every event row). Config-only mutations (`update_ai_provider_config`) touch
+  no secret column, so `to_jsonb(row)` is safe there.
+
+**Why every mutation goes through a SECURITY DEFINER function, including the registry's
+own non-secret config**: PLATFORM-P0-16.2 explicitly names "AI key changes" as a mandatory
+high-risk audit item. This run extends that same audited-write discipline to the
+registry's own config (enabled/models/rate limits/cost controls) too, not only the key
+material -- matching `platform.feature_flags`' own "every change," not `platform.modules`'
+narrower, not-yet-audited plain columns -- since this config directly controls real spend
+and which third party a platform-wide credential is sent to. Four functions:
+`update_ai_provider_config()`, `set_ai_provider_key()` (upserts -- sets or rotates),
+`remove_ai_provider_key()`, and `ai_provider_key_status()` (the one masked read path).
+Every mutation function requires a non-empty `reason` unconditionally and writes one
+atomic audit event.
+
+**A real bug this story's own dedicated RLS script caught, not merely a read of the SQL**:
+`set_ai_provider_key()`'s first draft reused PL/pgSQL's `FOUND` special variable twice --
+once immediately after the `SELECT ... FOR UPDATE` (to decide `key_set` vs.
+`key_rotated`), and again later when building the audit event's `previous_value`. `FOUND`
+is overwritten by *every* subsequent statement that can set it, including the upsert in
+between -- an `INSERT ... ON CONFLICT DO UPDATE` always affects a row, so by the time the
+audit insert ran, `FOUND` had silently flipped to `true` regardless of whether the key was
+actually new. The local RLS script's very first key-set assertion
+("`(previous_value is null)::text`" should be `true` for a brand-new key) failed
+immediately with `got "false"`, catching this on the first run. Fixed by capturing
+`v_existed := found;` into its own variable right after the SELECT, before anything else
+could clobber it -- re-verified with the same assertion, now passing, plus a follow-up
+rotation assertion that the *next* call's `previous_value` correctly carries the *first*
+key's own fingerprint. Both the live-dev copy and the local-Postgres copy of this migration
+were dropped and re-applied clean after the fix (dev's copy briefly held the buggy version
+for the few minutes between the two `apply_migration` calls in this same session -- no
+other agent or user touched `platform.ai_provider_keys` in that window, confirmed by its
+row count staying `0` throughout).
+
+**Application layer** (`packages/core/src/admin/platform-ai-providers.ts`):
+`listAiProviders()` (joins the open `platform.ai_providers` read with
+`ai_provider_key_status()`'s masked join, never selecting `encrypted_api_key`),
+`updateAiProviderConfig()`, `setAiProviderKey()` (calls the same shared
+`testProviderConnection()` BYOK's own `connectAiProvider()` uses, encrypts and
+fingerprints the key itself via `encryptApiKey()`/`fingerprintApiKey()`, and -- matching
+BYOK's own "a rejected key is never persisted" -- never calls the RPC at all if the test
+fails), and `removeAiProviderKey()`. There is no `getAiProviderKey()`/
+`revealAiProviderKey()` function anywhere in this file or this codebase's `platform.*`
+surface. A comma-separated model-list input and two free-form JSON-object inputs
+(`rateLimits`/`costControls`, validated as parseable JSON objects, empty string
+normalizing to `{}`) back the config form; a Zod `superRefine` enforces default/fallback
+model membership client-side too (the DB's own CHECK constraint is still the authoritative
+enforcement, verified directly in the RLS script). 17 new unit tests (config-schema edge
+cases -- model dedup/trim, default/fallback-must-be-in-models, JSON-object validation,
+unknown provider, empty reason -- plus key-schema and remove-schema edge cases). No
+`platform-ai-providers.ts` code ever logs `apiKey` -- checked by inspection, since there is
+no automated way to assert the absence of a log call.
+
+**UI**: new `/platform/ai-providers` route (added to the platform nav), always exactly
+three rows (no add/remove-provider affordance, matching the fixed-catalog schema).
+`ProviderConfigDialog` (enabled/models/default/fallback/rate-limits/cost-controls, a
+required reason) and `ProviderKeyDialog` (the one place a plaintext key is ever typed --
+always opens blank, never pre-filled, whether setting or rotating) mirror
+`feature-flag-dialog.tsx`'s established pattern; `RemoveKeyDialog` mirrors
+`DeleteFlagDialog`'s `AlertDialog` + required-reason shape. The key dialog's placeholder
+text shows only `••••••••••••{fingerprint}` when a key is already configured -- the same
+12-dot-plus-fingerprint mask `apps/web/components/settings/ai-section.tsx` (BYOK's own
+settings UI) already established, reused rather than inventing new masking copy. Desktop
+table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, mirroring `feature-flags/page.tsx`'s own
+established split.
+
+**Deliberately not built this story**: no real AI-calling router wiring (no code anywhere
+reads `platform.ai_provider_keys`/`platform.ai_providers` to actually make a request yet)
+-- PLATFORM-P0-09.3 (Provider Routing) is the next, separate story in this doc's own
+section order, and `business-router.ts`'s existing `PLATFORM_AI_API_KEY` env-var fallback
+is untouched; no fourth ("other") provider support -- see the entity-ownership/fixed-
+catalog reasoning above; no key re-validation/"test connection" flow after the initial
+set (no stored `status`/`last_error`, see the migration's own reasoning); no specific
+rate-limit/cost-control fields or enforcement -- deliberately opaque JSONB, real shape and
+enforcement is PLATFORM-P0-10's own later, separate story; no AI feature policies
+(enabled/allowed providers/allowed models/max tokens/max run cost/daily platform budget --
+PLATFORM-P0-09.4, next in this doc's own section order); no AI usage dashboard
+(PLATFORM-P0-09.5); no dedicated audit-browsing UI for `platform.ai_provider_events` (§16,
+Platform Audit, remains that future, broader story, the same deferral 07.2/07.3/08.1-08.4
+already made for their own audit tables).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1213 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 147 migrations (146 -> 147, this
+story's own file). `npx vitest run --root packages/core` -- 21 files / 210 tests (193 ->
+210, +17 this story's own). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests,
+unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-providers`
+lists `ƒ` (dynamic), correctly inheriting the outer layout's existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only -- twice, once before the `FOUND`-variable bug was caught
+and fixed, and once after: the first apply's three tables/four functions were dropped
+(`drop table`/`drop function`, cascade-free since nothing else yet references them) and
+its `supabase_migrations.schema_migrations` row deleted before the corrected file was
+re-applied clean, so dev's own migration history has exactly one row for
+`platform_ai_providers`, matching the corrected file on disk. Confirmed via `execute_sql`
+after the final apply that the catalog seeded exactly the three known providers, all
+`enabled = false`, no models -- no fabricated "on" state -- and that both
+`platform.ai_provider_keys`/`platform.ai_provider_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- one new, fully expected finding:
+`platform.ai_provider_keys` joins the same `rls_enabled_no_policy` INFO-level class
+`gst.eway_bill_credentials`/`einvoice_credentials` already carry (RLS enabled, zero
+policies, by design -- the entire point of the table), alongside the same 5 pre-existing
+findings and the pre-existing leaked-password-protection warning every prior entry has
+logged. `mcp__Supabase__get_advisors` (performance) -- only the same benign "unused index"
+info-level class every sibling FK index already carries in this low-traffic dev database,
+this migration's own five new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used --
+role-switched `select count(*) from platform.ai_providers` returned `3` cleanly (the open-
+SELECT catalog policy working as intended), role-switched `select * from platform.
+ai_provider_key_status()` returned zero rows (the function's own internal
+`is_superadmin()` filter, not an error), and role-switched `select * from platform.
+ai_provider_keys` returned a real Postgres **permission-denied** error (`42501:
+permission denied for table ai_provider_keys`) -- not an RLS-filtered empty result, a
+genuine grant-level refusal, confirming the "zero SELECT grant, not even RLS-filtered"
+design holds for a real non-superadmin against the real dev database. All three mutation
+RPCs (`update_ai_provider_config`/`set_ai_provider_key`/`remove_ai_provider_key`) each
+returned a real `P0001: Forbidden` error raised by the function's own internal check.
+Reconfirmed immediately after via a plain read that every provider was still `enabled =
+false` and both `platform.ai_provider_keys`/`platform.ai_provider_events` still had `0`
+rows -- this real user's attempts left zero residue. As with every prior story in this
+log, there is no seeded demo superadmin user in this environment, so the "a real
+superadmin CAN" half of this proof, including the "even a superadmin cannot read
+`platform.ai_provider_keys` directly" half, is verified for real only against local
+Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-providers-rls.mjs`, wired into `package.json`'s
+`test:db` composite script after `test-platform-feature-flags-rls.mjs`. Same Alice
+(business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. **All 40 assertions passed** (after the `FOUND`-variable fix above) against
+the full current migration timeline (147 files): the catalog seeds exactly three
+providers, disabled, no models, no keys, no events; Alice can read the open catalog but
+gets a genuine permission-denied error selecting `platform.ai_provider_keys` directly (not
+an empty RLS-filtered result) and zero rows (not an error) from
+`ai_provider_key_status()`; every one of Alice's config/key mutation attempts is rejected
+by the functions' own internal checks with zero residue across all three tables; a genuine
+superadmin can update a provider's config, with the default/fallback-model-in-models CHECK
+constraint enforced even for her; an unknown provider key and an empty/whitespace reason
+are rejected by every mutation function; a genuine superadmin can set a key (one `key_set`
+event, no `previous_value`, correct fingerprint), then rotate it (one `key_rotated` event
+whose `previous_value`/`new_value` carry only the two fingerprints -- confirmed via a
+`bool_or(... like '%ciphertext%')` sweep across every event row, finding none), with the
+underlying table always holding exactly one row per provider (the upsert never
+duplicates); **even Zoe, a genuine superadmin, gets a permission-denied error selecting
+`platform.ai_provider_keys` directly** -- the standout assertion this story's higher bar
+demanded; removing a key writes one `key_removed` event capturing the last fingerprint,
+and removing an already-absent key is rejected; the audit trail's own SELECT is
+superadmin-only (Alice gets zero rows, RLS-filtered, not an error); and nobody -- including
+a superadmin -- can bypass any of the three functions with a direct INSERT/UPDATE/DELETE
+on any of the three tables. Local Postgres 16 was already running in this environment
+(confirmed via `pg_lsclusters` both before and after).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures/
+sets/rotates/removes a key" half of the live-dev proof, and any live browser walkthrough
+of the new `/platform/ai-providers` page (opening the config dialog, setting a key against
+a real provider's own API, seeing the "Configured" badge and masked fingerprint render,
+removing a key), were **not** performed against dev and are not claimed here. That half
+was verified for real only against local Postgres (all 40 assertions above) -- the "a
+non-superadmin is rejected, with zero residue, including a genuine permission-denied error
+on the secret table" half, and the underlying schema/function/RLS/grant shape, were
+verified for real against both the live dev Supabase project (role-switched, as a real
+user, real Postgres errors raised by both the grant system and the functions' own checks)
+and local Postgres, not merely asserted from reading the code or the SQL. Separately: since
+`testProviderConnection()` makes a real outbound HTTPS call to whichever provider's own API,
+no automated test in this story exercises `setAiProviderKey()` end-to-end against an actual
+live provider (that would require a real, working third-party API key committed to test
+fixtures, which CLAUDE.md's environment rules already forbid regardless) -- the local RLS
+script instead calls `platform.set_ai_provider_key()` directly with a fabricated
+already-encrypted string, which is exactly what the function receives after
+`testProviderConnection()` has already succeeded in the real application-layer flow, so
+the database-layer behavior this script proves is unaffected by that gap.
+
+**Status**: PLATFORM-P0-09.1/09.2 done. Continuing in §13's own story order:
+PLATFORM-P0-09.3 (Provider Routing) next.

@@ -47,6 +47,8 @@ const NAV_LINKS = [
   { href: "/platform/modules", label: "Modules" },
   // PLATFORM-P0-08.1: the operational feature-flag catalog.
   { href: "/platform/feature-flags", label: "Feature Flags" },
+  // PLATFORM-P0-09.1/09.2: the platform-wide AI provider registry and key storage.
+  { href: "/platform/ai-providers", label: "AI Providers" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
