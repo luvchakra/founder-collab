@@ -28,7 +28,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
-| | 11 | Global Email / Notification Configuration | 11.1 done (config-only, "from name" reuses `platform.branding.email_from_name`); 11.2/11.3 not started -- see log |
+| | 11 | Global Email / Notification Configuration | 11.1/11.2 done (both config-only); 11.3 not started -- see log |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
@@ -39,7 +39,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
 **P0: 9 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09),
-plus 18.1, 10.1 (10.2/10.3/10.4 remain open within §14), and 11.1 (11.2/11.3 remain open
+plus 18.1, 10.1 (10.2/10.3/10.4 remain open within §14), and 11.1/11.2 (11.3 remains open
 within §15). P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -5071,3 +5071,144 @@ email_from_name` rather than duplicating it -- a clean resolution, not a stop-an
 per the reasoning above). PLATFORM-P0-11.2 (System Email Templates) and PLATFORM-P0-11.3
 (Notification Policies) remain open, picked up next in section order. Committing and
 merging to `main`, then continuing.
+
+### PLATFORM-P0-11.2 — System Email Templates (2026-09-12)
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: read `core.message_templates`'
+own migration (`20260908100000_core_messages.sql`) in full before writing anything. It is
+`business_id`-scoped and freely named (`unique (business_id, name)`, no fixed catalog) --
+a *business's own* templates for messaging *its own customers* (Kickserv-style messaging/
+reminder templates). PLATFORM-P0-11.2's "System Email Templates" are the opposite on every
+axis that matters: WonderArc's own transactional emails to *platform users* (a founder
+resetting a password, a business owner told they hit a usage limit), never
+`business_id`-scoped, and a fixed, doc-named catalog (welcome / verification / password-
+security / subscription / usage limits / compliance reminders / system announcements) a
+superadmin edits the *content* of, never creates or deletes a new one of. No overlap, no
+duplication -- confirmed by reading the actual table, not inferred from the similar name.
+Also checked: `module-discovery`'s own `resend_template_id`/`resend_template_name` columns
+(`20260907170000_discovery_messages_resend_templates.sql`, surfaced during PLATFORM-P0-11.1's
+own reconnaissance) point at templates stored in a *founder's own Resend account* -- a
+different, tenant-scoped, BYOK-adjacent concept, not a database table this story could
+duplicate.
+
+**What was built**: migration `20260912410000_platform_email_templates.sql` --
+`platform.email_templates`, a fixed, seven-row catalog (`template_key text primary key`
+constrained to exactly the seven values above -- `password_security` as one key, matching
+the doc's own single "password/security events" bullet rather than inventing a split the
+text doesn't ask for), each row holding `subject`/`body` (both nullable free text, no
+templating-variable syntax defined or validated -- §15 names none, and no consumer parses
+these columns yet, the same "underspecified shape, don't invent one" reasoning
+`platform.ai_providers.rate_limits`/`cost_controls` already established for their own
+doc-silent shape). Seeded with all seven keys, `subject`/`body` both null -- no fabricated
+copy, matching every sibling table's own "no fake 'on' state" convention. No
+`create_email_template()`/`delete_email_template()` function -- same fixed-catalog shape
+`platform.ai_providers`/`platform.modules` already use (seed once, edit forever, never
+add/remove through the app). Audited-write pattern, matching PLATFORM-P0-11.1's own
+`platform.email_provider`, not `platform.branding`'s plainer `.update()`: this run's own
+higher security bar applies here with real teeth -- the "password/security events" template
+is a textbook phishing target (an attacker who could edit its copy/links could turn
+WonderArc's own password-reset email into a credential-harvesting vector for every business
+on the platform). Every write goes through `platform.update_email_template()` (SECURITY
+DEFINER, `is_superadmin()` + non-empty-reason checks, one `platform.email_template_events`
+row per change, scoped to that one template's own `template_key`). RLS is superadmin-only
+SELECT on both tables, same reasoning as `platform.email_provider` (no real rendering
+consumer exists yet to justify a wider grant). No INSERT/UPDATE/DELETE grant to
+`authenticated` at all -- only the audited RPC can change a row.
+
+**Config-only, same accepted scope as PLATFORM-P0-11.1 -- no wiring**: none of the
+already-live Resend call sites PLATFORM-P0-11.1's own entry catalogued render any database
+template today; wiring a real send path to read from here is a future, separate story's
+job (the same "config registry now, real wiring later" precedent PLATFORM-P0-09.1
+established and PLATFORM-P0-11.1 already followed once this section).
+
+**Application layer** (`packages/core/src/admin/platform-email-templates.ts`):
+`EMAIL_TEMPLATE_KEYS` (the seven-value const array, in the doc's own listed order, not
+alphabetical) + `EMAIL_TEMPLATE_LABELS`; `listEmailTemplates()` returns all seven in that
+same fixed order (re-sorted client-side from the DB's own row order, so the admin page
+always reads in the doc's order regardless of how Postgres returns them);
+`updateEmailTemplateSchema` validates `templateKey` (closed enum), `subject`/`body`
+(optional, empty clears back to unconfigured), and a required `reason`. 6 new unit tests in
+`platform-email-templates.test.ts` (the seven-key list and order, valid input, empty-to-null
+normalization, unknown-key rejection, blank-reason rejection, every one of the seven keys
+individually accepted).
+
+**UI**: new `apps/web/app/platform/(protected)/email-templates/` (page.tsx, actions.ts,
+email-template-dialog.tsx) -- desktop table / mobile card split per CLAUDE.md development
+principle #12 and `docs/design/claude-ui-design-rules.md` rule 5, mirroring `/platform/
+plans`' own established split (this page's primary content is a table of seven rows, unlike
+`/platform/email-provider`'s single settings row, which correctly used the singleton
+`Field`-list shape instead). Edit-only per row (`EmailTemplateDialog`, no Add/Delete --
+the catalog is fixed); `templateKey` is never editable, matching `PlanDialog`'s own
+"immutable identity field, editable everything else" precedent. A "Configured"/"Not
+configured" badge per row (derived from whether `subject`/`body` is set) gives the list an
+at-a-glance completion signal the doc doesn't explicitly ask for but the "manage templates
+for X" framing implies is useful, the same minimal-but-real affordance `/platform/plans`'
+own status badge already established for a different fixed set of states.
+`apps/web/app/platform/layout.tsx` gains one nav entry, "Email Templates", after "Email
+Provider".
+
+**Deliberately not built this story**: no templating-variable syntax/validation (see
+above); no real email-sending wiring; no per-template on/off "enabled" toggle (§15 names no
+such field, and nothing in this codebase would read it yet -- adding one now would be
+exactly the kind of no-consumer speculative column CLAUDE.md development principle #7
+rules out); PLATFORM-P0-11.3 (Notification Policies) is next, its own separate story.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors after fixing one unescaped-quote catch in
+the new dialog's own `DialogTitle` copy (the same recurring class of lint 03.1/03.5/11.1
+also hit), 1 pre-existing unrelated warning (`Package` unused import in a CRM conversations
+page, untouched by this story). `node scripts/lint-import-boundaries.mjs` -- 1477 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 195 migrations (193 -> 195, this
+story's own file plus one other workstream's concurrent merge into `main` since 11.1's own
+entry), no violations. `npx vitest run --root packages/core` -- 26 files / 243 tests (25/237
+-> 26/243, +6 new), all passing. `apps/web`'s own `vitest run --passWithNoTests` -- 50
+tests, unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean;
+`/platform/email-templates` lists `ƒ` (dynamic), inheriting the outer layout's existing
+`force-dynamic` with no change needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` that all seven fixed keys are seeded with `subject`/`body` both `null`.
+`mcp__Supabase__get_advisors` (security and performance) -- **zero new findings**: the same
+6 pre-existing `rls_enabled_no_policy` INFO rows and the pre-existing leaked-password-
+protection warning (security); the four new indexes on the two new tables appear only as
+the same benign "unused index" INFO class every sibling table's own FK index already
+carries in this empty dev database (performance) -- no new unindexed-FK finding.
+
+**Role-switched live proof against dev's own real data**: using the same real
+non-superadmin user (`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this backlog's own prior
+entries have repeatedly used -- role-switched `select count(*) from
+platform.email_templates` returned `0` (RLS-filtered, not an error), and a role-switched
+call to `platform.update_email_template('welcome', 'Hacked', 'hacked body', 'trying as
+non-superadmin')` returned the real Postgres `P0001: Forbidden: only a SUPERADMIN can
+change a system email template.` error -- a genuine function-level rejection. As with
+every prior story in this log, there is no seeded demo superadmin user in this environment,
+so the "a real superadmin CAN edit a template" half of the live-dev proof was **not**
+performed against dev and is not claimed here -- verified for real only against local
+Postgres (below).
+
+**The dedicated local-Postgres RLS/behavior test**: new
+`scripts/test-platform-email-templates-rls.mjs` (added to `package.json`'s `test:db`
+composite script, after `test-platform-email-provider-rls.mjs`) -- seeds a real business
+admin (Alice, not a superadmin) and a real superadmin (Zoe). Asserts: the catalog starts
+seeded with exactly the seven fixed keys, all unconfigured; Alice gets 0 rows on SELECT and
+her mutation attempt is rejected with zero residue; Zoe can SELECT all seven and
+successfully update one template's content via the audited RPC, which writes exactly one
+`content_updated` event scoped to that one `template_key` while every other template stays
+untouched; a blank/whitespace reason is rejected even for Zoe; an unknown template key is
+rejected; and -- the negative space this story's own fixed-catalog design promises --
+**not even Zoe** can INSERT an eighth row, DELETE any of the seven, or bypass the RPC with
+a direct UPDATE. Ran locally against the already-running local Postgres 16 cluster: **all
+24 assertions passed** on the first run against the full current migration timeline (196
+files).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed environment, so a live browser walkthrough of
+`/platform/email-templates` actually editing a template through the real UI was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness and a direct read of the applied schema/RLS/function against the live dev
+database (the "SUPERADMIN-only" half proven live; the "a real superadmin succeeds" half
+proven only against local Postgres), not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-11.2 done. PLATFORM-P0-11.3 (Notification Policies) remains open,
+picked up next in section order. Committing and merging to `main`, then continuing.
