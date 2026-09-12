@@ -6,8 +6,10 @@ import {
   markWebsiteOnboardingRunRunning,
   completeWebsiteOnboardingRun,
   failWebsiteOnboardingRun,
+  recordWebsiteOnboardingPages,
 } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
 import { understandBusinessWebsite } from "@cofounderai/module-discovery/lib/ai/understand-business-website";
+import type { CrawledPage } from "@cofounderai/module-discovery/lib/ai/website-crawl";
 
 /**
  * Streaming counterpart to the WebsiteOnboardingPanel (business/page.tsx) -- same
@@ -29,7 +31,14 @@ export async function POST(_request: Request, { params }: { params: Promise<{ bu
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (event: { type: "progress"; profile: Record<string, unknown> } | { type: "done"; profile: unknown } | { type: "error"; error: string } | { type: "noop"; status: string }) => {
+      const send = (
+        event:
+          | { type: "progress"; profile: Record<string, unknown> }
+          | { type: "page"; page: CrawledPage }
+          | { type: "done"; profile: unknown }
+          | { type: "error"; error: string }
+          | { type: "noop"; status: string },
+      ) => {
         controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
       };
 
@@ -57,14 +66,16 @@ export async function POST(_request: Request, { params }: { params: Promise<{ bu
 
         await markWebsiteOnboardingRunRunning(runId);
 
-        const profile = await understandBusinessWebsite(
+        const { profile, pages } = await understandBusinessWebsite(
           businessId,
           business.account_id,
           run.website,
           (partial) => send({ type: "progress", profile: partial }),
+          (page) => send({ type: "page", page }),
         );
 
         await completeWebsiteOnboardingRun(runId, profile);
+        await recordWebsiteOnboardingPages(runId, pages).catch(() => {});
         send({ type: "done", profile });
       } catch (error) {
         const message = error instanceof Error ? error.message : "Something went wrong.";

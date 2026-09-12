@@ -22,6 +22,7 @@ export type AiErrorCode =
   | "timeout"
   | "url_retrieval_failed"
   | "no_content_found"
+  | "robots_disallowed"
   | "invalid_response"
   | "unknown";
 
