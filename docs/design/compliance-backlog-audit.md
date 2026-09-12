@@ -95,7 +95,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.4 | Sales Tax Registration Obligations | Done |
 | | 02.5 | Product/Service Taxability | Done (clothing + groceries seeded across the 10-state focus list; prepared_food/digital_goods/saas/services are catalog-only) |
 | | 02.6 | Exemption Certificates | Done |
-| | 02.7 | Sales Tax Returns/Remittance | Not started |
+| | 02.7 | Sales Tax Returns/Remittance | Done (reuses gst.return_periods lifecycle, widened with a jurisdiction column) |
 | | 02.8 | 1099 Information Returns | Not started |
 | P1-03 … P1-12 | — | (Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
@@ -6630,5 +6630,169 @@ re-implement file upload" convention `gst.compliance_evidence` already establish
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift.
 
-**COMPLY-P1-02 (United States) is now fully done except 02.7 (Sales Tax Returns/Remittance)
-and 02.8 (1099 Information Returns), both continuing in this same session.**
+### 02.7 -- Sales Tax Returns/Remittance (2026-09-12)
+
+This run's own explicit instruction: "reuse the generic return-preparation/drill-down/
+lifecycle machinery Epic 07 already built for India ... rather than rebuilding it for the
+US." Checked `gst.return_periods` (COMPLY-P0-07.5/07.6/07.7) first, in full, before writing
+anything: its Draft->Validate->Review->Approve->File lifecycle, its
+snapshot-required-once-validated guarantee, and its database-level lock are all completely
+regime-agnostic already -- nothing in the table or its own lock trigger mentions GSTR/India
+by name. Reusable almost as-is; the one real gap found and fixed (see below) is that its
+own unique key had no JURISDICTION concept, because a GSTR-1/3B/9 filing is national and a
+US sales tax return is fundamentally state-by-state -- a business files a SEPARATE return
+per state it holds a registration in, for the SAME period (a California return and a Texas
+return for the same month are two different filings, not one).
+
+**Extended the existing table, not a parallel one** (backlog rule 1/5, matching this run's
+own explicit reuse instruction): a new migration adds a nullable `jurisdiction` column to
+`gst.return_periods` (`null` for every national return type, the same convention
+`gst.tax_rules.jurisdiction`/`gst.tax_registrations.jurisdiction` already established),
+widens the unique key to include it, adds `us_sales_tax` to `return_type`'s own check
+constraint, and adds a new structural guarantee -- `check ((return_type = 'us_sales_tax') =
+(jurisdiction is not null))` -- so a US return can never be recorded without naming its own
+state, and a national return can never accidentally carry one. The lock trigger
+(`gst.enforce_return_period_lock`) is extended (same object, `create or replace`) to protect
+`jurisdiction` too, the one new defining-identity column this story adds, following
+COMPLY-P0-07.6's own "protect a settled fact" rule. No new lifecycle states, no new
+lifecycle code at all beyond passing `jurisdiction` through -- `lib/returns/lifecycle/
+{transitions,queries,mutations}.ts` already work unchanged for any return_type/jurisdiction
+combination, since none of that code ever branched on the return type's own identity in the
+first place.
+
+**A real bug caught by actually running the RLS harness, not just reasoning about it on
+paper** (the exact payoff this run's own briefing named for a prior session's own
+COMPLY-P0-07.7 story): the first draft of the widened unique key was a plain SQL `unique
+(business_id, return_type, jurisdiction, period_start, period_end)` constraint -- which
+reintroduces the EXACT NULL-uniqueness gap this run's own briefing flagged as a pre-existing,
+documented, out-of-scope issue in `gst.tax_rules`'s own sibling constraint: a plain UNIQUE
+constraint treats every NULL as distinct from every other NULL, so two `gstr1` periods for
+the same business/period (both `jurisdiction = null`) would NOT collide -- silently
+REOPENING the exact duplicate-period bug the original 4-column unique constraint had
+correctly prevented before this story added a nullable column to it. Caught immediately:
+`scripts/test-gst-return-periods-rls.mjs`'s own pre-existing "a second return period for the
+same business/return_type/period is rejected" assertion failed the moment this story's first
+migration was applied against a real database. Fixed with a proper UNIQUE INDEX over
+`coalesce(jurisdiction, '')` instead (the standard Postgres pattern for "treat NULL as one
+specific, comparable value for uniqueness"), safe specifically because `jurisdiction`'s own
+check constraint already guarantees it is either null or exactly two uppercase letters -- an
+empty-string sentinel can never collide with a real value. Kept as its OWN follow-up
+migration file, not a silent edit to the already-applied one, matching COMPLY-P0-07.6's own
+same-session-discovered-fix precedent -- both the bug and the fix are visible in the
+migration history, not silently smoothed over.
+
+**The one new "prepare" function this reuse actually needs** -- `lib/returns/us-sales-tax/`
+-- explicitly NOT built on `lib/returns/shared/resolveOutwardDocuments` despite that being
+the obvious first place to look (checked it in full first, backlog rule 1): that function
+resolves an India-specific shape (a GSTIN, `gst_registration_type`, a GST-style place-of-
+supply, CGST/SGST/IGST columns) via India-specific state-code resolution
+(`resolveStateCode`, which parses a GSTIN) -- a US sale has none of that. Reused instead of
+duplicated: `core.documents`/`core.document_lines` themselves (read directly, same
+"no duplicate transaction master" discipline every prior return preparer follows), and
+`mapPartyAddress`/`selectPartyAddress` (COMPLY-P0-03.4's own address-selection helper,
+genuinely regime-agnostic despite living in this module already). Added
+`resolveUsStateCode` (+ 4 test cases) to `lib/compliance/us-states.ts` -- a party's own
+`core.addresses.state` is free text with no fixed catalog at all (unlike this schema's
+own jurisdiction columns), so a real customer address might read "CA" or "California" in
+any casing; this normalizes either spelling to the canonical USPS code.
+
+**This is the story where COMPLY-P1-02.5 (Product/Service Taxability) and COMPLY-P1-02.6
+(Exemption Certificates) actually combine for the first time** -- flagged as a deliberate,
+NOT-implemented-ahead-of-need integration in each of those stories' own audit-log entries
+("no such combining story exists yet ... a future determine-tax-for-this-sale orchestrator,
+if one is ever added, is the natural place"). This story IS that natural consumer: for each
+sale line in the state being returned, a valid exemption certificate on file for the buyer
+(COMPLY-P1-02.6) makes the whole line exempt outright -- that is literally what a
+certificate means, and it overrides product taxability, never the reverse. Absent a
+certificate, COMPLY-P1-02.5's own `getUsProductTaxability` determines the line's own
+treatment/rate. A line whose `core.document_lines.taxable` flag is already `false` short-
+circuits before either check (an existing, generic, cross-regime flag this platform already
+has). Both the per-item taxability determination and the per-party certificate lookup are
+cached across lines within one call (many lines commonly share the same item or customer
+within a period) rather than repeated per line.
+
+**Never guesses in the risky direction (backlog rule 11), a third time in this same
+epic**: a line whose taxability genuinely cannot be resolved (a `saas`/`services`-category
+item with no state-specific rule on file, COMPLY-P1-02.5's own documented posture) is
+reported in a SEPARATE `unresolvedSales` bucket -- never silently folded into `taxableSales`
+(which would understate a real obligation) or `exemptSales` (which would overstate one).
+
+**Sourcing rule -- destination-based, a documented simplification, not silently assumed
+universal**: this function counts a sale toward a state when the BUYER's own resolved state
+(shipping preferred, falling back to billing) matches -- real US sales tax sourcing is more
+nuanced (a handful of ORIGIN-based states tax an intrastate sale by the SELLER's own
+location instead), not modeled here. Destination-based is both the majority rule and the
+only one that matters for a remote seller registered under economic nexus (COMPLY-P1-02.2),
+this backlog's own primary US scenario per its own §2 research -- named as a real,
+plausible gap for a future refinement, not silently assumed correct for every case.
+
+**What was built**:
+- `supabase/migrations/20260912340000_gst_return_periods_jurisdiction_and_us_sales_tax.sql`
+  (the schema changes described above); `20260912350000_..._unique_index_fix.sql` (the
+  same-session bug fix described above).
+- `lib/compliance/us-states.ts` -- `resolveUsStateCode` (+ 4 test cases).
+- `lib/returns/lifecycle/{types,queries,mutations}.ts` extended: `ReturnType` gained
+  `"us_sales_tax"`; `ReturnPeriod` gained `jurisdiction`; `getReturnPeriod`/
+  `createReturnPeriod` gained an optional `jurisdiction` parameter (defaulting to `null`,
+  matching `getEffectiveTaxRule`'s own null-vs-value query-building convention);
+  `computeReturnSnapshot`'s dispatcher gained a `us_sales_tax` branch calling this story's
+  own `getUsSalesTaxReturn`.
+- `lib/returns/us-sales-tax/{types,aggregate,queries}.ts` (+ 6 test cases in
+  `aggregate.test.ts` for the pure summation; `queries.ts` has no test file, matching this
+  module's established "thin DB-touching orchestrator, already-tested pure pieces"
+  convention) -- `resolveUsSaleLines`/`getUsSalesTaxReturn`/`aggregateUsSalesTaxReturn`,
+  described above.
+
+**What was deliberately left out**: local (county/city/special-district) sales tax add-on
+rates (this schema's own already-flagged gap); origin-based sourcing (named above); a
+vendor/dealer timely-filing discount some states allow; use tax owed on the filer's OWN
+untaxed purchases (this return models outward sales tax COLLECTED, not use-tax
+self-assessment -- a real, separate, plausible future concept); prior-period amendments (no
+document-revision history exists to detect one); any UI (no Compliance UI epic exists for P1
+yet); a real state-revenue-department filing/remittance API adapter (this backlog has none,
+the same "record what a human already did, never claim or automate it" posture
+`markReturnPeriodFiled` already established for India, unchanged here since it's the SAME
+lifecycle code).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1406 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 177
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 79 files / 617 tests passed (607
+  pre-existing + 10 new: 4 in `us-states.test.ts`, 6 in `us-sales-tax/aggregate.test.ts`).
+- Both migrations applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): identical
+  finding set to immediately before this story's OWN changes (same 5 pre-existing infos, 1
+  pre-existing warning) plus one NEW info (`platform.ai_provider_keys` has RLS enabled, no
+  policies) that is NOT this story's own work -- the parallel Platform Admin Portal
+  workstream's own migration landing on the shared dev project between advisor calls,
+  expected and outside this run's own scope per the multi-agent isolation instructions (the
+  same kind of cross-workstream artifact COMPLY-P0-02.5's own audit entry already
+  documented once before). Performance: no new `unindexed_foreign_keys` finding; the
+  expression-based unique index and the confirmed-safe `jurisdiction` column introduce
+  nothing new to flag beyond the expected "unused index" entries.
+- **Local Postgres RLS harness actually run this story** (`pg_ctlcluster 16 main start`
+  succeeded immediately again this session): extended the ALREADY-MERGED
+  `scripts/test-gst-return-periods-rls.mjs` (not a new file -- this is squarely "more facts
+  about the same table," the same rationale COMPLY-P0-07.7 itself used to extend this exact
+  file rather than create a new one) with the `us_sales_tax`/`jurisdiction` assertions
+  described above -- the requires-jurisdiction check in both directions, the malformed-
+  jurisdiction format check, two different states' own periods for the identical
+  business/period coexisting as separate rows (the whole point of this story's own schema
+  change), the widened unique key still rejecting a genuine duplicate, and `jurisdiction`
+  itself becoming locked once approved -- all passing, AFTER catching and fixing the real
+  NULL-uniqueness bug described above via this exact test run. Re-ran the full, extended
+  script rather than a fresh standalone one, confirming every COMPLY-P0-07.5/07.6/07.7
+  assertion still passes unchanged alongside the new ones (a real regression check on the
+  most heavily-reused table in this whole epic).
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched this
+  story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
+
+**COMPLY-P1-02 (United States) is now fully done except 02.8 (1099 Information Returns),
+continuing in this same session.**

@@ -258,6 +258,79 @@ async function main() {
       assertEqual(psqlAsCarol(`select filing_reference from gst.return_periods where id = '${period}'`), "AA270826000111A", "Carol can read the ARN");
       assertEqual(psqlAsBob(`select count(*)::int from gst.return_periods where id = '${period}'`), "0", "Bob cannot see this period at all");
 
+      // --- COMPLY-P1-02.7 (Sales Tax Returns/Remittance -- jurisdiction + us_sales_tax) ---
+      console.log("A 'us_sales_tax' period MUST name a jurisdiction (the requires-jurisdiction check constraint)...");
+      assertThrows(
+        () =>
+          psqlAsAlice(`
+            insert into gst.return_periods (business_id, return_type, period_start, period_end)
+            values ('${aliceBusiness}', 'us_sales_tax', '2026-08-01', '2026-08-31')
+          `),
+        "return_periods_us_sales_tax_requires_jurisdiction rejects a null jurisdiction for us_sales_tax",
+      );
+
+      console.log("...and a NATIONAL return type (gstr1/3b/9) must NOT name one...");
+      assertThrows(
+        () =>
+          psqlAsAlice(`
+            insert into gst.return_periods (business_id, return_type, jurisdiction, period_start, period_end)
+            values ('${aliceBusiness}', 'gstr1', 'CA', '2026-10-01', '2026-10-31')
+          `),
+        "return_periods_us_sales_tax_requires_jurisdiction rejects a jurisdiction on a national return type",
+      );
+
+      console.log("A well-formed us_sales_tax period for California is accepted...");
+      const caPeriod = psqlAsAlice(`
+        insert into gst.return_periods (business_id, return_type, jurisdiction, period_start, period_end, status_history)
+        values ('${aliceBusiness}', 'us_sales_tax', 'CA', '2026-08-01', '2026-08-31', '[]'::jsonb)
+        returning id
+      `);
+
+      console.log("A malformed jurisdiction is rejected by its own format check...");
+      assertThrows(
+        () =>
+          psqlAsAlice(`
+            insert into gst.return_periods (business_id, return_type, jurisdiction, period_start, period_end)
+            values ('${aliceBusiness}', 'us_sales_tax', 'California', '2026-09-01', '2026-09-30')
+          `),
+        "jurisdiction ~ '^[A-Z]{2}$' check constraint",
+      );
+
+      console.log("A DIFFERENT state's own us_sales_tax period for the SAME business/period is a real, separate row -- the widened unique key allows it (this is the whole point of adding jurisdiction)...");
+      const txPeriod = psqlAsAlice(`
+        insert into gst.return_periods (business_id, return_type, jurisdiction, period_start, period_end, status_history)
+        values ('${aliceBusiness}', 'us_sales_tax', 'TX', '2026-08-01', '2026-08-31', '[]'::jsonb)
+        returning id
+      `);
+      assertEqual(
+        psqlAsAlice(`select count(*)::int from gst.return_periods where business_id = '${aliceBusiness}' and return_type = 'us_sales_tax' and period_start = '2026-08-01'`),
+        "2",
+        "both the CA and TX periods for the same month coexist as separate rows",
+      );
+
+      console.log("...but a SECOND period for the SAME business/return_type/jurisdiction/period is still rejected by the widened unique key...");
+      assertThrows(
+        () =>
+          psqlAsAlice(`
+            insert into gst.return_periods (business_id, return_type, jurisdiction, period_start, period_end)
+            values ('${aliceBusiness}', 'us_sales_tax', 'CA', '2026-08-01', '2026-08-31')
+          `),
+        "return_periods_business_id_return_type_jurisdiction_period_key rejects a duplicate CA period",
+      );
+
+      console.log("Validating and approving the California period, then confirming jurisdiction itself is now locked too (the one new defining-identity column this story adds)...");
+      psqlAsAlice(`update gst.return_periods set status = 'validated', snapshot = '{"jurisdiction": "CA"}'::jsonb where id = '${caPeriod}'`);
+      psqlAsAlice(`update gst.return_periods set status = 'in_review' where id = '${caPeriod}'`);
+      psqlAsAlice(`update gst.return_periods set status = 'approved' where id = '${caPeriod}'`);
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set jurisdiction = 'TX' where id = '${caPeriod}'`),
+        "gst.enforce_return_period_lock rejects altering an approved period's own jurisdiction",
+      );
+      assertEqual(psqlAsAlice(`select jurisdiction from gst.return_periods where id = '${caPeriod}'`), "CA", "jurisdiction is genuinely unchanged after the rejected attempt");
+
+      console.log("Tenant isolation still holds for us_sales_tax periods: Bob cannot see Alice's CA/TX periods...");
+      assertEqual(psqlAsBob(`select count(*)::int from gst.return_periods where id in ('${caPeriod}', '${txPeriod}')`), "0", "Bob sees neither");
+
       console.log("All gst.return_periods RLS assertions passed.");
     },
   });

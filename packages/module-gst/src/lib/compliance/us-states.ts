@@ -120,3 +120,19 @@ export function isUsState(code: string): boolean {
 export function hasStateSalesTax(code: string): boolean {
   return getUsState(code)?.hasStateSalesTax === true;
 }
+
+/** COMPLY-P1-02.7 (Sales Tax Returns/Remittance): a party's own `core.addresses.state` is
+ * free text (that column has no fixed catalog at all, unlike this schema's own
+ * jurisdiction columns) -- a real customer address might have it as either the two-letter
+ * USPS code ("CA") or the full name ("California"), in any casing. Resolves either
+ * spelling to the canonical USPS code; `null` when it doesn't recognizably match any US
+ * state at all (a non-US address, a typo, or an empty field). */
+export function resolveUsStateCode(stateText: string | null | undefined): string | null {
+  if (!stateText) return null;
+  const trimmed = stateText.trim();
+  if (!trimmed) return null;
+  const upper = trimmed.toUpperCase();
+  if (US_STATES.some((s) => s.code === upper)) return upper;
+  const byName = US_STATES.find((s) => s.name.toLowerCase() === trimmed.toLowerCase());
+  return byName?.code ?? null;
+}
