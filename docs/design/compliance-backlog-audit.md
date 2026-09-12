@@ -54,7 +54,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 05.3 | IRP Adapter | Done |
 | | 05.4 | IRN/QR Response | Done |
 | | 05.5 | Reporting Deadline Control | Done |
-| | 05.6 | E-Invoice Status | Not started |
+| | 05.6 | E-Invoice Status | Done |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -63,16 +63,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**25 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**26 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.5 (Reporting Deadline Control)
-is the last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
-Next: COMPLY-P0-05.6 (E-Invoice Status), which finishes epic 05.
+**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
+COMPLY-P0-04 (India GST), and COMPLY-P0-05 (India E-Invoice) are all fully done.**
+COMPLY-P0-05.6 (E-Invoice Status) is the last completed story. Next: COMPLY-P0-06 (India
+E-Way Bill), starting P0 Release 2's remaining epics (06-08).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2397,3 +2397,108 @@ posture as COMPLY-P0-05.1's own eligibility result).
 - No `apps/web` change, so `next build` was not re-run -- another pure-library story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 05.6 — E-Invoice Status (2026-09-12)
+
+"Ready/Submitted/Accepted/Rejected/Cancelled/Failed/Deadline Breached" -- the epic's own
+final story, combining every signal COMPLY-P0-05.1-05.5 already built (whether a
+`gst.einvoices` row exists, the mandate determination, the reporting-deadline
+determination) into one coherent status a future UI can show per document, without
+inventing any new persisted state.
+
+**Checked existing code first** (backlog rule 1): `gst.einvoices.status` (Epic 6/S-2) only
+ever holds `'generated'`/`'cancelled'` -- a plain record of what THIS platform's own
+generate/cancel actions did, not the backlog's fuller government-lifecycle vocabulary.
+COMPLY-P0-05.1's `getEinvoiceEligibility` (mandate), COMPLY-P0-05.5's
+`getEinvoiceReportingDeadline` (deadline), and COMPLY-P0-05.3's `getEinvoiceIrpStatus`
+(live, unpersisted GSP poll) already exist as separate answers; no story until now combined
+them into one status a document detail view could actually show.
+
+**A real, recorded outcome always outranks a forward-looking projection**: the pure
+`determineEinvoiceStatus` checks the existing `gst.einvoices` row FIRST -- `'generated'` ->
+`accepted`, `'cancelled'` -> `cancelled` -- before ever consulting mandate/deadline, and
+returns that regardless of what a since-changed turnover estimate or a since-passed
+deadline would otherwise say (an already-accepted IRN doesn't retroactively un-accept
+itself; the deadline governs whether submission is still ALLOWED, not whether an
+already-accepted invoice remains accepted).
+
+**One documented status added beyond the backlog's literal seven-item list**:
+`not_applicable`, for a business COMPLY-P0-05.1 can positively tell is not mandated to
+e-invoice at all (`mandated: false`) -- returning a bare `"Ready"` for a business that
+isn't required to e-invoice in the first place would be exactly the kind of misleading
+compliance signal backlog rule 11 forbids. Same precedent as COMPLY-P0-05.5's own
+`not_restricted`/`unknown` additions to its literal "30-day restriction" description.
+
+**Three of the eight codes are deliberately UNREACHABLE by this story's own function,
+flagged rather than silently unimplemented** (see `determine.ts`'s own docstring for the
+full reasoning):
+- `submitted` -- this platform's IRP integration (COMPLY-P0-05.3) is one synchronous
+  `submit()` call that returns an IRN or throws; there is no observable in-flight gap for a
+  distinct `submitted` state to occupy today. A future asynchronous generation pipeline
+  (queued retry, webhook callback) would need to persist a pending state on
+  `gst.einvoices` itself before this function could ever see and report it.
+- `rejected` / `failed` -- `generateEinvoice` inserts a row ONLY on a successful GSP
+  response; a rejected or technically failed submission attempt throws and persists
+  NOTHING, so there is no row for this function to read a rejection/failure out of.
+  Distinguishing a government rejection from a technical failure also needs the GSP's own
+  error shape captured somewhere, which `callGsp`'s current error handling sanitizes away
+  rather than persists. Both require a schema/behavior change to `generateEinvoice`'s own
+  error path (recording a failed-attempt row instead of only throwing) -- a change to the
+  GENERATION MUTATION's own retry semantics, out of scope for this read-only
+  status-derivation story. **Flagged here as a concrete follow-up for whichever future
+  story owns that pipeline change** (most naturally a revisit of COMPLY-P0-05.3/05.4, or
+  COMPLY-P0-10's Evidence & Audit epic, which already owns "capture the full government
+  response" for a related reason).
+
+**What was built** -- `packages/module-gst/src/lib/einvoice-status/`:
+- `types.ts` -- `EinvoiceStatusCode` (the eight codes above) and `EinvoiceStatusResult`
+  (`status`, `reason`, plus the underlying `mandated`/`deadlineStatus`/`einvoiceRowStatus`
+  facts surfaced alongside it, never hidden behind the single code -- backlog rule 14
+  traceability).
+- `determine.ts` (+ 10 test cases) -- the pure `determineEinvoiceStatus` described above.
+- `queries.ts` -- `getEinvoiceStatus(businessId, documentId, input?)`: reads
+  `getEinvoiceForDocument` (05.4), `getEinvoiceEligibility` (05.1), and
+  `getEinvoiceReportingDeadline` (05.5) in parallel (an `input` bag with `asOf`/
+  `aggregateTurnoverInr`/`everCrossedThresholdHistorically`, forwarded to both
+  sub-determinations so they agree on one turnover figure instead of each independently
+  estimating), then hands the combined facts to the pure function. Returns `null` when the
+  document doesn't exist for this business, detected via the deadline determination's own
+  `null` (matching this module's "don't re-check document existence a second time"
+  convention) -- same as every other document-keyed orchestrator in this module. No test
+  file (thin orchestrator over already-tested pieces, this module's established
+  convention).
+
+**What was deliberately left out**: any UI (matches this whole epic's own "lib first, UI
+later" pattern -- 05.1 through 05.5 shipped none either; a status-summary view is a later
+UI-epic decision, COMPLY-P0-11); wiring the epic's own live `getEinvoiceIrpStatus` (05.3)
+into this derivation -- its `IrpStatusResponse.status` is a deliberately loose,
+provider-specific passthrough with no normalized vocabulary this module has verified
+against a real source yet, and this synchronous-integration design has no async gap for a
+live poll to usefully resolve beyond what the persisted row already says; normalizing a
+specific GSP's real status strings, if ever needed, is its own future story once there's a
+real source to cite, not a guess made here; and the `rejected`/`failed`/`submitted` gap
+already flagged above.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story
+  (`crm/conversations/page.tsx`'s unused `Package` import).
+- `node scripts/lint-import-boundaries.mjs` -- 1061 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 113 migration files checked, 0 violations (no
+  schema change this story).
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 113 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 23 files / 180 tests passed (170
+  pre-existing + 10 new in `determine.test.ts`).
+- No migration to apply and no new `get_advisors` findings possible -- this story touched
+  no schema.
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story,
+  matching every COMPLY-P0-05.x story before it.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- **Environment note**: this worktree had no `node_modules` installed at session start;
+  `npm install` was run once against the existing `package-lock.json`, and the resulting
+  lockfile drift was reverted via `git checkout -- package-lock.json` before committing,
+  same convention as every prior story that needed a fresh install.
+
+**COMPLY-P0-05 (India E-Invoice) is now fully done.**
