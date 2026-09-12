@@ -61,14 +61,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 06.4 | Document Link | Done |
 | P0-07 | 07.1 | GSTR-1 Preparation | Done |
 | | 07.2 | GSTR-3B Preparation | Done |
-| | 07.3–07.7 | India Returns (remaining) | Not started |
+| | 07.3 | GSTR-9 Preparation | Done |
+| | 07.4–07.7 | India Returns (remaining) | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**32 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**33 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -76,9 +77,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.2 (GSTR-3B Preparation) is the last
-completed story, epic 07 (India Returns) now two of seven stories in. Next:
-COMPLY-P0-07.3 (GSTR-9 Preparation).
+E-Way Bill) are all fully done.** COMPLY-P0-07.3 (GSTR-9 Preparation) is the last
+completed story, epic 07 (India Returns) now three of seven stories in. Next:
+COMPLY-P0-07.4 (Return Drill-Down).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3393,5 +3394,100 @@ GSTR-1's own data, not recompute it separately.
 - Local Postgres RLS harness not applicable -- no new table/RLS surface.
 - No `apps/web` change, so `next build` was not re-run -- matches COMPLY-P0-07.1 and every
   COMPLY-P0-05.x/06.x story before it.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 07.3 — GSTR-9 Preparation (2026-09-12)
+
+The third story of COMPLY-P0-07 -- the annual return, aggregating a full financial year
+rather than one monthly/quarterly period.
+
+**Research, not assumption** (backlog rule 6, and this run's own explicit instruction):
+`WebSearch` against GetSwipe's, ClearTax's, and TaxGuru's own GSTR-9 table-wise guides,
+cross-checked against each other, confirmed the real 19-table/6-part structure and, more
+specifically, Table 4's own sub-item labels: 4A (B2C), 4B (B2B, including UIN holders),
+4C (zero-rated exports, with payment of tax), 4D (SEZ with payment), 4E (deemed exports),
+4F (advances, tax paid, no invoice issued), 4G (inward RCM), 4I (credit notes against
+4B-4E), 4J (debit notes against 4B-4E) -- confirmed by TaxGuru's own technical analysis and
+GST India News's own table-4 breakdown independently agreeing on the same labels. Also
+confirmed GSTR-9's own instructions describe it as summarizing "supplies... as declared in
+the returns filed during the financial year" -- the real justification (not just
+convenience) for this story's own core design decision.
+
+**Design decision -- reuse this epic's own classification, don't re-derive it**: rather
+than writing new B2B/B2C/export classification logic for GSTR-9, this story re-runs
+COMPLY-P0-07.1's own `aggregateGstr1` AND COMPLY-P0-07.2's own `aggregateGstr3bOutward`
+over a single `resolveOutwardDocuments` read spanning the WHOLE financial year (not one
+month), then reshapes both outputs into Table 4's own coarser row shape via a new pure
+`buildGstr9Table4`. `aggregateGstr1` supplies 4B (its own `b2b`) and 4A (its own `b2cLarge`
++ `b2cOthers` combined -- GSTR-9's own Table 4A doesn't distinguish large from small B2C
+the way GSTR-1's own Table 5/7 split does) plus 4I/4J (its own `creditDebitNotes`, split by
+`docType`); `aggregateGstr3bOutward` supplies 4C (its own `outwardZeroRated` bucket, which
+`aggregateGstr1` itself deliberately excludes rather than totals -- GSTR-1 has no Table 6
+row for an export, so its own aggregation never needed to keep export VALUES, only
+document ids). Zero new classification code, and zero risk of a GSTR-9 Table 4 total ever
+silently disagreeing with what the SAME document, in the SAME period, would show in a
+GSTR-1/3B draft.
+
+**A real limitation actually made WORSE by an annual, not monthly, scope -- flagged
+plainly, not silently accepted**: COMPLY-P0-07.1's own "resolve the B2C Large threshold
+once, at period end" simplification was harmless for a single calendar month (the rule's
+one real version change falls exactly on a month boundary). Applied to a full financial
+year, it is no longer harmless: an Indian FY (e.g. 2024-25, 01-Apr-2024 to 31-Mar-2025)
+can itself straddle the 01-Aug-2024 threshold change, and this function still resolves the
+threshold only ONCE, at the financial year's own end date -- meaning a handful of
+pre-01-Aug-2024 B2C invoices between ₹1,00,000 and ₹2,50,000 could be classified as "not
+large" for this FY-wide computation even though contemporaneous GSTR-1 filings, using the
+then-current ₹2,50,000 threshold, would correctly NOT have reported them as B2C Large
+either way (the pre-amendment threshold was actually HIGHER) -- so in this specific
+direction the simplification happens to still agree with the real historical rule for this
+one real rule change, but the file's own docstring documents the general gap plainly
+rather than relying on that coincidence: a future country/regime whose annual-return
+threshold-crossing rule changed to a LOWER value mid-year would not be so lucky, and this
+function's own known limitation is recorded for that case now.
+
+**What was built** -- `packages/module-gst/src/lib/returns/gstr9/`:
+- `types.ts` -- `Gstr9Return`/`Gstr9Table4` and every row shape, with `notModeled`
+  itemizing every one of GSTR-9's own 19 tables this function does not populate (4D/4E,
+  4C's own with-payment-vs-LUT gap, 4F, 4G, 4K/4L/4M/4N, 5, 7, 8, 10-13, 9, 14, 15, 16, 19)
+  and why -- see the file's own docstring for the full list.
+- `aggregate.ts` (+ 4 test cases) -- the pure `buildGstr9Table4` described above.
+- `queries.ts` -- `getGstr9Return(businessId, fyStart, fyEnd)`: one `resolveOutwardDocuments`
+  read plus `getPurchaseRegister` (reused directly for Table 6 ITC-availed and Table 18
+  inward HSN summary, same provisional `reconciledWithGstr2b: false` caveat
+  COMPLY-P0-07.2 already established), then both aggregations plus the reshape. Table 17
+  (outward HSN summary) is `aggregateGstr1`'s own already-computed `hsnSummary`, reused
+  directly -- no separate HSN computation needed since it's the exact same figure GSTR-1
+  itself would show for the same period. No test file (thin orchestrator over already-
+  tested pure pieces plus two already-tested pre-existing functions, this module's
+  established convention). Takes `fyStart`/`fyEnd` as caller-supplied dates rather than
+  assuming any particular financial-year convention itself -- matching how
+  `getGstr1Return`/`getGstr3bReturn` take a caller-supplied period rather than assuming a
+  calendar month.
+
+**What was deliberately left out**: everything in `notModeled` above; any UI (matches this
+whole epic's "lib first, UI later" pattern); and fixing the FY-wide threshold-resolution
+gap described above (a genuine COMPLY-P0-07.1-inherited limitation, not something to
+silently patch over inside this story without first deciding, generically, how period-
+spanning rule versions should be handled -- flagged as a concrete follow-up rather than
+guessed at here).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1212 files scanned, 0 violations (confirms
+  `gstr9/`'s own new imports -- `../gstr1/aggregate`, `../gstr1/threshold`,
+  `../gstr3b/aggregate`, `../gstr3b/types`, `../shared/queries`, `../../filing/queries` --
+  are all same-module, not a boundary violation).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 141
+  migration files, 0 violations each -- no schema change this story.
+- `npx vitest run --root packages/module-gst` -- 35 files / 285 tests passed (281
+  pre-existing + 4 new in `gstr9/aggregate.test.ts`).
+- No migration to apply and no new `get_advisors` findings possible -- this story touched
+  no schema.
+- No `apps/web` change, so `next build` was not re-run -- matches every prior story in
+  this epic.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
