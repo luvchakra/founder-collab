@@ -69,13 +69,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-08 | 08.1 | GSTR-2B Fetch/Import | Done |
 | | 08.2 | Purchase-to-2B Matching | Done |
 | | 08.3 | Match Explanation | Done |
-| | 08.4–08.6 | IMS Accept/Reject/Pending, ITC Availability View, Exception Queue | Not started |
+| | 08.4 | IMS Accept/Reject/Pending | Done |
+| | 08.5–08.6 | ITC Availability View, Exception Queue | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**40 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**41 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -85,8 +86,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
 Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
 Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import),
-COMPLY-P0-08.2 (Purchase-to-2B Matching) and COMPLY-P0-08.3 (Match Explanation) are done.
-Next: COMPLY-P0-08.4 (IMS Accept/Reject/Pending).
+COMPLY-P0-08.2 (Purchase-to-2B Matching), COMPLY-P0-08.3 (Match Explanation) and
+COMPLY-P0-08.4 (IMS Accept/Reject/Pending) are done. Next: COMPLY-P0-08.5 (ITC
+Availability View).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4431,6 +4433,110 @@ distinction).
 - No Supabase migration, no `get_advisors` re-check, no local Postgres RLS harness --
   no new schema, no new table, no new RLS policy this story; the underlying reads are
   already covered by existing RLS tests.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.4 — IMS Accept/Reject/Pending (2026-09-12)
+
+Records the Invoice Management System (IMS) action a business takes on one GSTR-2B
+document, before its ITC flows into GSTR-3B.
+
+**Research, not assumption (backlog rule 6)**: `WebSearch` against ClearTax's and
+TaxGuru's own IMS guides confirmed the real mechanics -- a recipient flags each B2B
+document as Accepted, Rejected, or Pending; Accepted auto-populates ITC in GSTR-3B;
+Rejected does not; Pending excludes the document from BOTH GSTR-2B recomputation and
+GSTR-3B until later resolved; GSTN added an optional remarks field on Reject/Pending
+actions from the October 2025 tax period; and, critically, INACTION IS "DEEMED
+ACCEPTANCE" once the recipient files GSTR-3B.
+
+**Design decision -- deemed acceptance modeled as absence-of-row, not a fourth action
+value**: `gst.ims_actions.action` only allows `'accepted' | 'rejected' | 'pending'` --
+an explicit value should only ever mean "a human actually recorded this." `lib/ims/
+status.ts`'s own `effectiveImsStatus()` is the one place "no row yet" surfaces as its own
+distinct `'no_action'` display value (never silently relabeled `'accepted'` before that
+has actually happened -- backlog rule 11).
+
+**A real tenant-isolation gap found and closed with a trigger, not assumed safe because
+RLS exists**: RLS's own `with check (business_id in ...)` only proves the CALLER may
+write rows for a `business_id` they belong to -- it says nothing about whether the
+REFERENCED `gstr2b_document_id` actually belongs to that same business. Without a
+cross-reference guard, a caller licensed on their OWN business could insert an
+`ims_actions` row whose `business_id` is theirs but whose `gstr2b_document_id` points at
+a DIFFERENT business's document, and RLS alone would never catch it. Checked existing
+code first (backlog rule 1): `gst.enforce_document_business_id()`
+(`20260908120000_gst_generation_history.sql`) already closes this exact class of gap for
+a bare reference into `core.documents` -- reused the SAME shape, not invented from
+scratch, as a new `gst.enforce_gstr2b_document_business_id()` (since the existing
+function is hardcoded to `core.documents`, not reusable as-is for a `gst`-schema
+reference) plus a `before insert or update` trigger. Verified live (see below) that this
+is a REAL rejection, not a theoretical one: a same-business-licensed caller attempting to
+act on a different business's own document is genuinely blocked.
+
+**Deliberately left out this story (a real, plausible future need, named rather than
+solved -- backlog rule 5)**: a database-level lock on `gst.ims_actions` once the
+corresponding GSTR-3B period is filed, mirroring `gst.enforce_return_period_lock`'s own
+"protect a settled fact" philosophy -- real GST practice says an IMS action is only
+meaningful before the recipient's own GSTR-3B filing for that period. Wiring that lock
+needs correlating `gst.gstr2b_documents`' own `YYYY-MM` return period against
+`gst.return_periods`' own `period_start`/`period_end` date-range shape across two
+different period conventions this platform currently keeps separate -- a genuine, separate
+design decision, not a one-line addition to this migration.
+
+**What was built**:
+- `supabase/migrations/20260912160000_gst_ims_actions.sql` -- `gst.ims_actions` (one row
+  per `gstr2b_document_id`, `action_history` append-only jsonb, same "current state +
+  audit trail" shape `gst.return_periods.status_history` already established), RLS behind
+  the existing `gst.manage_reconciliation` permission (COMPLY-P0-08.1 already worded its
+  own description to cover this), and the new cross-reference guard trigger described
+  above. No delete policy -- changing one's mind is a new action/history entry, never a
+  removal, same precedent every other append-only table in this schema follows.
+- `lib/ims/types.ts` -- `ImsActionValue`, `ImsActionHistoryEntry`, `ImsAction`,
+  `EffectiveImsStatus`.
+- `lib/ims/status.ts` -- `effectiveImsStatus()` (pure).
+- `lib/ims/queries.ts` -- `getImsAction`, `listImsActionsForDocuments` (deliberately NOT
+  `cache()`-wrapped, same reasoning `lib/gstr2b/queries.ts`/`lib/returns/lifecycle/
+  queries.ts` already document).
+- `lib/ims/mutations.ts` -- `recordImsAction` (upsert-by-document, appends to
+  `action_history`, blank-remark validation, `requireModule`/
+  `requirePermission('gst.manage_reconciliation')`).
+- 4 new vitest cases in `status.test.ts` covering `null` -> `'no_action'` and each
+  explicit action value passing through unchanged.
+- `scripts/test-gst-ims-actions-rls.mjs` -- new real-Postgres RLS harness (added to
+  `package.json`'s `test:db` chain), covering: permission gating, the `action` check
+  constraint, `unique(gstr2b_document_id)`, THE CROSS-REFERENCE GUARD (a same-business
+  caller rejected for referencing a different business's own document -- the one
+  assertion that actually proves this story's central security claim), tenant isolation
+  on read, and no delete policy.
+
+**What was deliberately left out**: the GSTR-3B-filed lock (see above); any UI
+(COMPLY-P0-11); bulk/multi-document accept-all convenience (a real, plausible UI-layer
+feature once COMPLY-P0-11 builds the actual IMS review screen, not this lib-first story's
+job).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1243 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 149
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 359 tests passing (355 prior + 4 new).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): identical
+  finding set before and after (same 5 pre-existing `rls_enabled_no_policy` infos, the 1
+  pre-existing `auth_leaked_password_protection` warning) -- no new security finding.
+  Performance: no new `unindexed_foreign_keys` finding this time (the `business_id` index
+  was added proactively in the same migration, applying COMPLY-P0-08.1's own lesson) --
+  only the expected, benign "unused" listing for the new index itself, same as every
+  other RLS-covering index in a traffic-free dev project.
+- **Local Postgres RLS harness actually run this story** (cluster already running from
+  earlier in this session -- reused, not restarted): `scripts/test-gst-ims-actions-rls.mjs`,
+  all assertions above passing, MOST NOTABLY the cross-reference guard -- confirmed as a
+  genuine rejection (a real Postgres exception from the trigger), not a no-op, and
+  confirmed the guard doesn't over-block by proving Bob can still act on his own document
+  right after Alice's cross-tenant attempt was rejected.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
