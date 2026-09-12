@@ -35,7 +35,12 @@ export const dynamic = "force-dynamic";
  */
 const NAV_LINKS = [
   { href: "/platform", label: "Dashboard" },
-  { href: "/platform/branding", label: "Branding" },
+  // PLATFORM-P0-03.4: labeled "Platform Branding", not just "Branding" -- this nav sits
+  // only inside the SUPERADMIN-gated /platform shell, but the extra word costs nothing
+  // and removes any doubt that this configures WonderArc's own global brand, not a
+  // business's (no such business-level branding page exists anywhere in the app to
+  // confuse it with today, but the label shouldn't rely on that always being true).
+  { href: "/platform/branding", label: "Platform Branding" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

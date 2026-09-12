@@ -20,6 +20,29 @@ import { requireSuperadmin } from "../rbac/platform-admin";
  * columns below and `getPublicLoginBranding()` -- the one exception to "RLS is
  * authoritative" in this file, since the consumer there is the *public, unauthenticated*
  * login page, not a superadmin. See that function's own docstring.
+ *
+ * PLATFORM-P0-03.4 ("Customer-Facing Branding Scope"): this file, `platform.branding`,
+ * and everything under `/platform/branding` is WonderArc's own, singular, platform-wide
+ * brand -- entirely separate from any future *business*-level branding (a business's own
+ * logo/colors on its invoices, portal, or documents -- not built anywhere in this
+ * codebase yet; the one forward-looking note that exists,
+ * packages/module-fsm/src/components/settings/settings-view.tsx's "document footer"
+ * comment, is explicit that it doesn't exist yet either). The two are kept structurally
+ * separate, not just by naming convention: `platform.branding` lives in the `platform`
+ * schema (never `core`/a module schema -- CLAUDE.md non-negotiable #1's own carve-out),
+ * is reachable only via `/platform/branding` (a route no business admin's UI ever links
+ * to -- `/platform/*` sits behind its own layout's `requireSuperadmin()`, a completely
+ * different gate from `core.business_members.role`), and its RLS policies check
+ * `platform.is_superadmin()` -- a function that has no `business_id` argument and
+ * consults `platform.admins`, never `core.business_members`. A `core.business_members.role
+ * = 'admin'` row (the actual "business administrator" concept elsewhere in this codebase)
+ * grants no path to this table at all: confirmed live, not just by inspection, in
+ * `scripts/test-platform-branding-rls.mjs`, which seeds exactly that row for a test user
+ * and asserts she gets 0 rows on SELECT and a no-op on UPDATE against `platform.branding`,
+ * while a real `platform.admins` superadmin succeeds at both. If/when a future story adds
+ * business-level branding, it must live in its own `core`- or business-schema-owned
+ * table, gated by ordinary business RLS (`tenant AND licensed`) -- never by reusing this
+ * table, this route, or `platform.is_superadmin()`.
  */
 
 export type PlatformBranding = {
