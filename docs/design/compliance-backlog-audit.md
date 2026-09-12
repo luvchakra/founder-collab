@@ -63,14 +63,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.2 | GSTR-3B Preparation | Done |
 | | 07.3 | GSTR-9 Preparation | Done |
 | | 07.4 | Return Drill-Down | Done |
-| | 07.5–07.7 | India Returns (remaining) | Not started |
+| | 07.5 | Return Review Workflow | Done |
+| | 07.6–07.7 | India Returns (remaining) | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**34 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**35 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -78,9 +79,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.4 (Return Drill-Down) is the last
-completed story, epic 07 (India Returns) now four of seven stories in. Next:
-COMPLY-P0-07.5 (Return Review Workflow).
+E-Way Bill) are all fully done.** COMPLY-P0-07.5 (Return Review Workflow) is the last
+completed story, epic 07 (India Returns) now five of seven stories in. Next:
+COMPLY-P0-07.6 (Return Lock).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3652,3 +3653,175 @@ the "implement future stories implicitly" this backlog's rule 5 forbids. Checked
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` installed once at the start of this session; `git
   status` showed no `package-lock.json` change to revert).
+
+### 07.5 — Return Review Workflow (2026-09-12)
+
+"Draft -> Validate -> Review -> Approve -> File." The first story in this epic that
+actually needs to persist something -- COMPLY-P0-07.1/07.2/07.3's own "prepare" functions
+and COMPLY-P0-07.4's own drill-down are all schema-free, pure on-demand computations; this
+story is the one COMPLY-P0-07.4's own audit-log entry (and this run's own instructions)
+flagged as the natural home for lifecycle persistence, since it's the first point a real
+Draft/Validate/Review/Approve/File STATE needs somewhere to live.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §4 data model first**
+(backlog rule 1 / CLAUDE.md non-negotiable #5): §4 names `ReturnDefinition`/`ReturnPeriod`/
+`ReturnSubmission` as this epic's own generic entities; no table anywhere in the platform
+already covers "which stage of review a return period is at." Deliberately did NOT create
+separate tables for all three names: `ReturnDefinition` (which return TYPES exist) stays a
+fixed, hard-coded three-value set (`gstr1`/`gstr3b`/`gstr9`, a check constraint) -- the same
+"a handful of known kinds, not a user-defined catalog" call this backlog already made for
+`gst.tax_registrations.regime` -- and `ReturnSubmission` (COMPLY-P0-07.7's own "Filing/
+Payment Status": an ARN, a payment/challan reference) is left for that story to design,
+rather than guessed at now; this table's own `status = 'filed'` plus its `status_history`
+entry already records that a period was marked filed and by whom, which is as far as this
+story's own scope goes.
+
+**Design decisions**:
+- **One new table, `gst.return_periods`** (`20260912100000_gst_return_periods.sql`):
+  `business_id`/`return_type`/`period_start`/`period_end` (the same natural key
+  `getGstr1Return`/`getGstr3bReturn`/`getGstr9Return` are already addressed by),
+  `status` (the five-value enum), `snapshot` (the frozen return content, `jsonb`), and
+  `status_history` (an append-only `jsonb` array of `{status, at, by}` entries) in place of
+  four separate `..._at`/`..._by` column pairs -- one shape that already generalizes to a
+  future sixth stage or a reject/reopen path without a schema change, since every
+  transition is just another array entry. `unique(business_id, return_type, period_start,
+  period_end)` -- one row per return instance, looked up by its own natural key rather than
+  a caller-supplied id.
+- **A real structural integrity constraint, not just an application-level check**:
+  `check (status = 'draft' or snapshot is not null)` makes it impossible at the DATABASE
+  level for a period to ever reach `validated` or beyond without a frozen snapshot on file
+  -- a review workflow reviewing a blank would be worse than no review workflow at all
+  (backlog rule 11/12). Verified live against the real RLS harness (see below): attempting
+  to set `status = 'validated'` with no `snapshot` is rejected by the constraint itself, not
+  just by application code that a direct SQL write could bypass.
+- **Forward-only state machine, one step at a time, in `lib/returns/lifecycle/
+  transitions.ts`** (pure, DB-independent, 10 test cases): `draft -> validated -> in_review
+  -> approved -> filed`, nothing more. No skip-a-stage, no reject-back-to-draft path --
+  this backlog's own one-line spec for this story describes exactly this forward pipeline
+  and nothing else; a reject/reopen flow is a real, plausible future need, explicitly named
+  as a deliberately left-out gap in the module's own docstring (backlog rule 5: don't
+  implement future stories implicitly) rather than invented here.
+- **Every transition re-reads the period's own CURRENT status immediately before writing**
+  (`lib/returns/lifecycle/mutations.ts`'s own `transition()` helper) -- never a
+  caller-supplied "I assume it's still in review" status -- so a stale UI, or someone else
+  having already advanced the same period, is rejected with a clear message
+  (`assertCanTransition`) instead of silently skipping a stage or clobbering a concurrent
+  change.
+- **`validateReturnPeriod` calls the actual COMPLY-P0-07.1/07.2/07.3 preparer** (whichever
+  of `getGstr1Return`/`getGstr3bReturn`/`getGstr9Return` matches the period's own
+  `returnType`) and freezes its live result into `snapshot` -- the one and only place this
+  story's own code touches those functions, keeping the "prepare = compute, this story =
+  persist the reviewed copy" boundary exactly where COMPLY-P0-07.1's own docstring said it
+  would eventually be.
+- **`markReturnPeriodFiled` does NOT submit anything to a government system** -- stated
+  plainly in its own docstring (backlog rule 11: filing/submission is a consequential
+  external action requiring explicit user authorization, never claimed or automated): unlike
+  e-invoice/e-way-bill (which have a real IRP/GSP HTTP adapter, COMPLY-P0-05.3/06.3), there
+  is no GSTN return-filing API this platform drives end-to-end -- a real GSTR-1/3B/9 filing
+  happens on the GSTN portal, DSC/EVC-signed by the taxpayer, outside this platform. This
+  function only records that a human has already done that, and when.
+- **New permission `gst.file_returns`**, one key covering the whole pipeline
+  (create/validate/submit-for-review/approve/mark-filed), same "one key, several related
+  actions" shape `gst.generate` already established for e-invoice/e-way-bill generate+cancel.
+  owner/admin only. RLS: SELECT open to any business member (a return's review status isn't
+  sensitive the way an e-way-bill credential secret is); INSERT/UPDATE gated by tenant +
+  write-licensed + `gst.file_returns`. No DELETE policy at all -- same append-only precedent
+  `gst.einvoices`/`gst.eway_bills` already established.
+
+**What was built** -- `packages/module-gst/src/lib/returns/lifecycle/`:
+- `types.ts` -- `ReturnType`, `ReturnPeriodStatus`, `ReturnPeriodStatusHistoryEntry`,
+  `ReturnPeriod`.
+- `transitions.ts` (+ 10 test cases) -- the pure state machine described above:
+  `nextStatus`, `canTransition`, `assertCanTransition`.
+- `queries.ts` -- `getReturnPeriod` (by natural key), `getReturnPeriodById` (by id, with
+  `businessId` enforced explicitly rather than left to RLS alone -- the same "never trust a
+  client-supplied id without server-side authorization" discipline `drilldown/queries.ts`
+  already applies to a document id, applied here to a return-period id a server action
+  might be handed from a form submission), `listReturnPeriods`.
+- `mutations.ts` -- `createReturnPeriod` (idempotent: returns the existing row rather than
+  erroring on the unique-key conflict if one already exists for that key),
+  `validateReturnPeriod`, `submitReturnPeriodForReview`, `approveReturnPeriod`,
+  `markReturnPeriodFiled` -- each guarded by `requireModule`/`requirePermission
+  ("gst.file_returns")`, each going through the shared `transition()` helper described above.
+  No test file for this DB-touching layer -- its own real branch logic
+  (`assertCanTransition`) is already covered by `transitions.test.ts`, matching this
+  module's established "pure logic tested, thin query/mutation layer isn't" convention.
+- No UI -- matches this whole epic's "lib first, UI later" pattern (COMPLY-P0-11 is the
+  dedicated UI epic); this story's own functions are exactly what a future review-workflow
+  page (a "Validate" button, a reviewer's approve/reject screen) would call.
+
+**A real, live-Postgres-verified finding this story surfaced, not silently worked around**:
+this session's local Postgres 16 cluster, reported "down" by every prior story in this run,
+was actually already installed and startable this session (`pg_ctlcluster 16 main start`
+succeeded immediately) -- so, per this run's own instruction to check first rather than
+assume unavailability, `npm run test:db`'s real RLS harness was used for genuine
+tenant/license/permission verification (see below), not just Supabase MCP's
+`apply_migration`/`get_advisors` pair. Running it surfaced a real, pre-existing bug in this
+harness's own USAGE pattern (not something this story's own code introduced): `assertThrows`
+around a cross-tenant `UPDATE ... WHERE business_id = <other business>` is the wrong
+assertion for RLS's own `USING` clause, which makes an unauthorized row invisible to the
+statement entirely -- Postgres matches zero rows and returns successfully (no exception),
+unlike an `INSERT` (where a `WITH CHECK` violation on a brand-new row genuinely does raise
+an error) or an in-place `WITH CHECK` violation on a value the writer WAS otherwise allowed
+to touch. Confirmed this is not new: re-running the ALREADY-MERGED
+`scripts/test-gst-tax-registrations-rls.mjs` (COMPLY-P0-02.1) against a real database for
+the first time in this whole run reproduces the exact same false failure at its own
+"Bob cannot update Alice's registrations" assertion -- a latent bug that predates this
+story, invisible until now because every prior story's own local Postgres was reported
+unavailable and relied on Supabase MCP checks instead. This story's own new
+`scripts/test-gst-return-periods-rls.mjs` uses the CORRECT pattern (attempt the write, then
+assert the row is unchanged via a read as the rightful owner) and documents why in its own
+top-of-file comment. **Flagged, not silently fixed**: `test-gst-tax-registrations-rls.mjs`
+itself was NOT edited -- it is COMPLY-P0-02.1's own already-merged file, and fixing a
+pre-existing story's test is a genuine, worthwhile follow-up for whoever next touches that
+file (or a dedicated small fix-up story), not something to bundle silently into an unrelated
+07.5 commit per this run's own "do not refactor unrelated code" instruction. Likely the same
+`assertThrows`-around-a-cross-tenant-UPDATE pattern recurs in other already-merged
+`test-*-rls.mjs` scripts across this whole platform (not just `module-gst`'s own); this is
+named here as a real, general finding, not chased further across other modules' own test
+files, which are out of this run's own scope (`packages/module-gst` only).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1222 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 142
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 38 files / 318 tests passed (308
+  pre-existing + 10 new in `transitions.test.ts`).
+- `node --test scripts/*.test.mjs` -- 11/11 passing (confirms the `package.json` `test:db`
+  chain edit didn't break the harness scripts' own self-tests).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`, then confirmed structurally via `mcp__Supabase__
+  list_tables` (verbose): the table, its check constraints, its FK into `core.businesses`,
+  and its RLS flag all present exactly as designed. `mcp__Supabase__get_advisors`
+  (security + performance): identical finding set to immediately before this story (the
+  same pre-existing `rls_enabled_no_policy` infos on unrelated tables, the one pre-existing
+  `auth_leaked_password_protection` warning, and the same shape of unused-index info list,
+  with no new missing-index finding for the new table's own `business_id` FK -- its unique
+  index's own leading column already covers it, same precedent COMPLY-P0-02.1 established).
+- **Local Postgres RLS harness actually run this story** (`node
+  scripts/test-gst-return-periods-rls.mjs`, standalone): tenant isolation (Bob cannot see or
+  effectively write Alice's return periods), license/permission gating (Carol, a viewer with
+  no `gst.file_returns`, cannot create or advance a period; Alice, an owner, can), the
+  snapshot-required-once-validated check constraint (rejected with no snapshot, accepted
+  with one), the unique-key constraint (a second period for the same business/type/range is
+  rejected), the `period_end >= period_start` check, the `return_type` enum check, no delete
+  policy at all, and `status_history` accumulating real entries -- all passing, using the
+  corrected cross-tenant-UPDATE assertion pattern described above. Also ran the FULL `npm
+  run test:db` chain once, to confirm this story's own addition slots into it cleanly --
+  it does (every check up to and including this story's own new script passed) -- but the
+  chain itself fails further along at a genuinely unrelated, pre-existing assertion in
+  `scripts/test-discovery-rls.mjs` (a hardcoded expected count of rows in `core.permissions`,
+  now stale because OTHER concurrent workstreams' own migrations -- Discovery, CRM, FSM,
+  Platform Admin, sales-returns -- have added far more permissions than that count accounts
+  for: expected 43, actual 54). This is squarely Discovery-workstream/shared-infrastructure
+  territory, not `module-gst`, so it was NOT fixed here -- flagged for whichever workstream
+  or integration pass next touches that assertion, per this run's own explicit
+  "never touch ... module-discovery" boundary and "flag the discrepancy rather than
+  silently reconciling" instruction.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
