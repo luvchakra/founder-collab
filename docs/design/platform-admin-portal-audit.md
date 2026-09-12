@@ -21,7 +21,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 02 | Platform Dashboard | Done |
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
-| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7 folded in); 04.3 done; 04.2/04.4/04.5/04.6 not started -- see log |
+| P0 Phase 2 | 04 | Subscription / Pricing Plans | 04.1 done (04.7 folded in); 04.3 done; 04.5/04.6 done; 04.2/04.4 not started -- see log |
 | | 05 | Entitlement Engine | Not started |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1, 04.1, 04.3.
-P1: 0/9 done.**
+**P0: 3 full sections done (01, 02, 03 -- 03.2 deferred by design), plus 18.1, 04.1, 04.3,
+04.5, 04.6. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -1318,3 +1318,152 @@ standard PLATFORM-P0-03.4 set for every `platform.*` table.
 **Status**: PLATFORM-P0-04.3 done. Continuing to PLATFORM-P0-04.4 (Feature-Level
 Entitlements) next, per this run's own sequencing note above (the two remaining
 prerequisite tables before PLATFORM-P0-04.2's own composite page can be built).
+
+### PLATFORM-P0-04.5/04.6 — Quantity Limits + Unlimited Support (2026-09-12)
+
+**Why one story, not two**: 04.6 ("Support: numeric limit / unlimited / disabled. Do not
+represent unlimited as an arbitrary huge number") is not a separate table or feature --
+it is the value semantics of the one table 04.5 asks for. There is no way to design
+04.5's table correctly without already deciding the tri-state representation 04.6
+describes, so building 04.5 first and 04.6 "later" would only mean an immediate rewrite.
+Folded into one migration/story, the same way PLATFORM-P0-04.7's lifecycle enum was
+folded into PLATFORM-P0-04.1's own migration -- recorded here explicitly rather than
+silently merging two backlog line items.
+
+**Reading "must be data-driven" (04.5)**: taken to mean the storage shape -- one generic
+table with a `resource_key` column, not a hardcoded column per resource
+(`max_users int, max_products int, ...`), which would make the 13 independently-evolving
+dimensions the doc names painful to extend. Not read as "accept any free-text key
+forever": the doc itself enumerates exactly 13 dimensions under "Configurable limits:",
+so `resource_key` is a closed list enforced by a CHECK constraint, the same defense-in-
+depth pattern `billing_interval`/`status`/`login_background_style` already use elsewhere
+in this schema.
+
+**What was built**: migration `20260912050000_platform_plan_limits.sql` --
+`platform.plan_limits` (plan_id + resource_key primary key). `state` (`limited` /
+`unlimited` / `disabled`) plus a nullable `limit_value`, with a row-level CHECK
+(`plan_limits_value_matches_state`) requiring `limit_value` present and non-negative only
+when `state = 'limited'`, and null for the other two states -- so "unlimited" can never be
+represented as a magic number like 999999999 that a future usage report or a naive
+`usage >= limit` comparison could misread, and "disabled" (this resource does not exist on
+this plan at all) is its own explicit state, not `limit_value = 0` (indistinguishable from
+"allowed, but none left"). **Deliberately seeded with nothing**: the doc's §8.5 list is a
+category list, not specific numbers for Free/Pro/Max the way PLATFORM-P0-04.1's "Initial
+plans:" line was a literal seed instruction -- inventing "Free allows 3 businesses" here
+would fabricate a real pricing decision nothing in this backlog actually makes. A missing
+(plan, resource_key) row means "not yet configured," an honest third possibility this
+table's own read function surfaces explicitly (`configured: false`) rather than defaulting
+silently to either extreme -- the same stance PLATFORM-P0-02's Configuration Health widget
+already set for unconfigured platform-wide surfaces. What "no row" should mean to a real
+authorization decision is left to PLATFORM-P0-05 (Entitlement Engine, "Not started") to
+decide when it actually wires this table into one.
+
+RLS mirrors the established `platform.is_superadmin()` shape, but -- unlike
+`platform.plan_modules` (04.3) -- **DELETE is granted** here: `plan_modules` has no
+meaningful "unconfigured" state a row's absence could represent (every plan x module combo
+always has a row), but here "no row" is itself one of the table's own valid, intended
+states, so a superadmin reverting a resource back to "not configured" genuinely needs to
+remove the row, not merely flip it to one of the three configured states. This asymmetry
+is deliberate and documented in the migration itself, not an inconsistency.
+
+**Application layer** (`packages/core/src/admin/platform-plan-limits.ts`):
+`listPlanLimits(planId)` returns all 13 dimensions in the doc's own listed order, each
+either `{ configured: false }` or the real state/value -- a discriminated union, not a
+nullable field, so a caller cannot accidentally treat "not configured" as "unlimited" by
+forgetting a null check. `setPlanLimit`/`clearPlanLimit` upsert/delete. The tri-state
+validation (`setPlanLimitSchema`, a `.superRefine()` requiring the value/state pairing the
+DB's own CHECK constraint also enforces) is real, non-trivial logic distinct from a plain
+enum check, so it gets the same unit-test treatment `platformBrandingInputSchema` and
+`createPlatformPlanSchema` already received -- 11 new cases in the new
+`platform-plan-limits.test.ts` (every valid pairing, `limitValue = 0` treated as a real
+limit rather than "no value" since the empty-string check runs before numeric coercion,
+every invalid pairing including "unlimited with 999999999" explicitly, and an unknown
+state value).
+
+**A real Next.js build failure, caught and fixed, not routed around**: `RESOURCE_KEYS`/
+`RESOURCE_LABELS`/`ResourceKey` were first declared directly in `platform-plan-limits.ts`
+alongside its server-only `createClient`/`requireSuperadmin` imports. `next build` failed
+with a Client/Server Component boundary error: the new `quantity-limits-section.tsx`
+(`"use client"`) imported `RESOURCE_LABELS` as a runtime value from that same file, which
+pulled `../db/server` (uses `next/headers`, server-only) into the client bundle. Fixed by
+extracting the three into a new, dependency-free `packages/core/src/admin/platform-
+limits-constants.ts` that `platform-plan-limits.ts` re-exports (server callers'
+import path is unchanged) and that the client component imports directly (a type-only
+import of `LimitState`/`PlanResourceLimit` from `platform-plan-limits.ts` itself is fine --
+those are erased at compile time and never pull in the runtime module). `module-
+entitlements-section.tsx` (04.3) never hit this because it only ever imported
+`PlanModuleEntitlement` as a type, never a runtime value, from its own admin module.
+
+**UI**: `plans/[id]/entitlements/quantity-limits-section.tsx` -- the second section of
+PLATFORM-P0-04.2's own eventual composite page. Unlike 04.3's single-field instant-toggle
+switches, each row here edits two related fields together (state + numeric value, the
+latter shown only when state = Limited) and gets its own explicit "Save" button rather than
+an instant flip -- the same "commit two related fields together" reasoning
+`branding-form.tsx`'s one page-level "Save" button already applies, scaled down to one row.
+A "Clear" action (configured rows only) reverts to "Not configured" via `clearPlanLimit`.
+"Not configured" renders as its own outlined badge, distinct from "Unlimited"/"Disabled"/a
+numeric badge -- never silently folded into one of the three real states. Desktop table /
+mobile card split per CLAUDE.md development principle #12 and
+`docs/design/claude-ui-design-rules.md` rule 5, matching the page's own established
+pattern from 04.3.
+
+**Deliberately not built this story**: feature-level entitlements (PLATFORM-P0-04.4,
+still the one remaining table before PLATFORM-P0-04.2's composite page); any wiring of
+`plan_limits` into a real authorization/usage check anywhere in the app (PLATFORM-P0-05/06,
+both "Not started," are that integration's own future job -- this table stores
+configuration only, matching every sibling `platform.*` table's current stance); no
+specific numeric limits seeded for Free/Pro/Max (see above -- inventing them would
+fabricate a pricing decision).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint` -- 0 errors, the same 1 pre-existing unrelated warning. `node scripts/lint-
+import-boundaries.mjs` -- 1170 files, no violations. `node scripts/lint-migration-
+schema.mjs` -- 135 migrations on this branch (134 -> 135, this story's own file; this
+branch does not carry other workstreads' concurrent `main` commits until its next merge,
+so this count is relative to this branch's own prior story, not `main`'s current total).
+`npx vitest run --root packages/core` -- 81 tests (70 -> 81, this story's 11 new
+tri-state-schema cases), all passing. `cd apps/web && npm run build` -- clean after the
+constants-file extraction described above; `/platform/plans/[id]/entitlements` still lists
+`ƒ` (dynamic).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` the table is genuinely empty
+after creation (no fabricated seed). Role-switched (not just policy-read) `execute_sql` as
+a synthetic non-superadmin user id: `select count(*) from platform.plan_limits` returns `0`
+cleanly (no "permission denied for schema" error), confirming this fourth `platform.*`
+table is already covered by PLATFORM-P0-03.4's own schema-grant fix.
+`mcp__Supabase__get_advisors` (security) -- zero new findings, the same 5 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning
+every prior entry has logged. `mcp__Supabase__get_advisors` (performance) -- one new,
+fully benign entry (`plan_limits_updated_by_idx` as "unused index," the same class every
+sibling FK index in this empty dev database already carries; no unindexed-FK finding, since
+the index was added in the same migration as its column).
+
+**A fourth RLS test script, following the established standard**: new `scripts/test-
+platform-plan-limits-rls.mjs`, wired into `package.json`'s `test:db` composite script after
+`test-platform-plan-modules-rls.mjs`. Same Alice/Zoe pair. One test-design correction made
+before it passed: the first draft asserted Alice's DELETE *throws* (mirroring the INSERT
+assertion just above it), but a DELETE whose `USING` clause matches zero rows under RLS is
+a legitimate zero-row no-op in Postgres, not an error -- corrected to assert the row count
+is unchanged afterward instead, the same class of correction PLATFORM-P0-04.3's own INSERT
+test needed for the same underlying reason (an RLS-filtered query returning nothing is not
+itself a thrown error). Local Postgres 16 was already running with the `root` superuser
+role this run's own PLATFORM-P0-04.3 entry created still in place. **All 13 assertions
+passed** against the full current migration timeline (135 files), including the empty-
+table start, the corrected DELETE-no-op case, Zoe's real read/write/delete access, and --
+the story's own core "never a fake unlimited number" rule -- three separate CHECK-
+constraint rejections (unlimited-with-a-value, limited-with-no-value, disabled-with-a-
+value) plus the closed resource_key list, all enforced by the database itself and proven
+even for a superadmin, not merely asserted from reading the constraint's SQL.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user or live browser session in this sandboxed environment, so a live
+authenticated walkthrough of actually opening the entitlements page and setting/clearing a
+limit was **not** performed and is **not** claimed here. This story's authorization- and
+constraint-critical claims were verified for real against both the live dev Supabase
+project and a real local Postgres database, per the standard PLATFORM-P0-03.4 set for
+every `platform.*` table.
+
+**Status**: PLATFORM-P0-04.5/04.6 done. PLATFORM-P0-04.4 (Feature-Level Entitlements) is
+the one remaining table before PLATFORM-P0-04.2's own composite page can be built --
+picked up next.
