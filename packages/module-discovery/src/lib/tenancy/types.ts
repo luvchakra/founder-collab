@@ -1,4 +1,5 @@
 import type { ProductProfile } from "../ai/schemas";
+import type { RediscoveryInterval } from "./rediscovery";
 
 export type Account = {
   id: string;
@@ -73,6 +74,13 @@ export type Workspace = {
   name: string;
   created_at: string;
   updated_at: string;
+  /** DISC-OFFER-P1-01.1's own "Scheduled Offering Re-Discovery" -- see
+   * `lib/tenancy/rediscovery.ts` for the vocabulary and the deterministic date math over
+   * these two fields. `next_discovery_at` is null both when scheduling is off and, once
+   * a run actually completes, kept rolling forward from that completion time (see
+   * `completePipelineRun`) -- it is never a one-time value that silently goes stale. */
+  rediscovery_interval: RediscoveryInterval;
+  next_discovery_at: string | null;
 };
 
 /** Shared by every rename action (business, product) and the EditableName component

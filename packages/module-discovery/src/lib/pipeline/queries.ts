@@ -71,6 +71,25 @@ export async function listPipelineRuns(workspaceId: string, limit = 50): Promise
   return data;
 }
 
+/** DISC-OFFER-P1-01.1's own "Last discovery: Today, 10:30" -- derived from
+ * `pipeline_runs` (14.1) rather than a duplicate `last_discovery_at` column on
+ * `workspaces`: the same "don't store what's already derivable" discipline 14.1's own
+ * "AI provider/model"/"stages executed" derivation already established, since
+ * `pipeline_runs` is already the authoritative record of every completed walk. */
+export async function getLastCompletedPipelineRun(workspaceId: string): Promise<PipelineRun | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "completed")
+    .order("completed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 /** One run, scoped to its own workspace -- used both to render a single run's own detail
  * and, in `run-ai-discovery/route.ts`, to validate a client-supplied `runId` actually
  * belongs to the caller's own workspace before trusting it (CLAUDE.md dev principle #8:

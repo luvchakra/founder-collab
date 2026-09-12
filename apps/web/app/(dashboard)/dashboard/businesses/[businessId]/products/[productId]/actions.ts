@@ -8,7 +8,8 @@ import {
   deleteKnowledgeSource,
   updateKnowledgeSource,
 } from "@cofounderai/module-discovery/lib/knowledge/mutations";
-import { updateProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import { updateProduct, setRediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import type { RediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/rediscovery";
 import { understandProduct } from "@cofounderai/module-discovery/lib/ai/understand-product";
 import { setOpportunityStatus, recordOpportunityHandoffFailure } from "@cofounderai/module-discovery/lib/opportunities/mutations";
 import type { OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
@@ -195,6 +196,24 @@ export async function sendTopOpportunityToCrmAction(
     revalidatePath(productPath(businessId, productId));
     return { ok: false as const, error: message };
   }
+}
+
+/**
+ * DISC-OFFER-P1-01.1: "Scheduled Offering Re-Discovery" -- a founder's own choice of
+ * cadence. `formData.get("interval")` is trusted only as one of the closed vocabulary's
+ * own three values (an unrecognized value falls back to `"off"` rather than the
+ * mutation's own DB check constraint being the first thing to reject it).
+ */
+export async function updateRediscoveryIntervalAction(
+  businessId: string,
+  productId: string,
+  workspaceId: string,
+  formData: FormData,
+): Promise<void> {
+  const raw = String(formData.get("interval") ?? "off");
+  const interval: RediscoveryInterval = raw === "daily" || raw === "weekly" ? raw : "off";
+  await setRediscoveryInterval(workspaceId, interval);
+  revalidatePath(productPath(businessId, productId));
 }
 
 export async function generateProductProfileAction(
