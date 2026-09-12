@@ -96,7 +96,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.5 | Product/Service Taxability | Done (clothing + groceries seeded across the 10-state focus list; prepared_food/digital_goods/saas/services are catalog-only) |
 | | 02.6 | Exemption Certificates | Done |
 | | 02.7 | Sales Tax Returns/Remittance | Done (reuses gst.return_periods lifecycle, widened with a jurisdiction column) |
-| | 02.8 | 1099 Information Returns | Not started |
+| | 02.8 | 1099 Information Returns | Done (core.payments only; fsm.expenses flagged as a follow-up) |
 | P1-03 … P1-12 | — | (Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
@@ -6794,5 +6794,116 @@ lifecycle code).
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift.
 
-**COMPLY-P1-02 (United States) is now fully done except 02.8 (1099 Information Returns),
-continuing in this same session.**
+### 02.8 -- 1099 Information Returns -- completes COMPLY-P1-02 (2026-09-12)
+
+The final story of COMPLY-P1-02, and a genuinely DIFFERENT federal concern from every
+other US story in this epic: this is INCOME reporting to the IRS about payments a business
+made to its OWN vendors/contractors, not indirect tax collected from customers. Verified
+this run's own two pre-supplied facts from scratch rather than copying them blindly, per
+this run's own explicit instruction:
+
+- **The $600->$2,000 Form 1099-NEC/MISC reporting threshold change** -- confirmed via
+  WebSearch 2026-09-12 against OnPay, Avalara, 1800Accountant, Groom Law Group, Thomson
+  Reuters, TINCheck, and Landmark CPAs, all independently agreeing: the threshold rises to
+  $2,000 for payments made in calendar year 2026 onward, under the One Big Beautiful Bill
+  Act (OBBBA, signed 4-Jul-2025) -- confirmed accurate as pre-supplied. Also found (not
+  pre-supplied): the IRS will index the new $2,000 figure for inflation starting 2027 --
+  not modeled (no 2027 adjustment has been published yet).
+- **The 10-return aggregate e-file threshold** -- confirmed via WebSearch 2026-09-12
+  against IRS.gov's own Publication 1220 and "E-filing thresholds lowered for certain
+  information returns" page, Porte Brown, Intuit TaxBandits/Tax Pro Center, ADP, and
+  Durity USA, all independently agreeing: Treasury Decision 9972 (published 23-Feb-2023)
+  lowered the threshold from 250 to 10, effective for information returns required to be
+  filed on or after 1-Jan-2024 -- confirmed accurate as pre-supplied, with the useful
+  additional detail (not pre-supplied) that "aggregate" means nearly every information-
+  return type a filer issues (W-2s, the full 1099 series, and others) is summed together
+  against ONE combined threshold, not counted per form type -- directly informed this
+  story's own `notModeled` caveat that this platform's visible count is a lower bound.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 first** (backlog rule 1/5): "Payment |
+`core.payments` + `core.payment_allocations`" is already core-owned -- this story reads it
+directly, no new table, no duplicate transaction master. Added a new regime,
+`INFORMATION_RETURNS`, to `lib/compliance/countries.ts`'s own US catalog entry (alongside
+the existing `SALES_TAX`) -- a genuinely separate federal regime from sales tax, so it gets
+its own regime key in the SAME generic `gst.tax_rules` engine (COMPLY-P0-02.3) rather than
+being folded into `SALES_TAX`'s own rule lineages; no schema change needed for the seed
+itself, matching every prior US story's own "generic engine, country/regime packs are just
+rows" precedent.
+
+**Design decision -- a pure combiner over `core.payments`, not a `gst.tax_registrations`-
+shaped obligation and no new table**: a 1099 reporting obligation is not a registration a
+business holds, it is a periodic DETERMINATION over payments already on file -- the same
+"generic engine + a pure combiner function" shape COMPLY-P1-02.2's own `determineEconomicNexus`
+already established for a different threshold-crossing question, reused again rather than
+inventing a third pattern.
+
+**Never guesses in the risky direction (backlog rule 11), a fourth time in this same
+epic**: a `company`-kind party (`core.parties.kind`) is ALWAYS reported unresolved,
+regardless of amount -- payments to most corporations are exempt from 1099-NEC reporting
+(with real exceptions, e.g. attorneys), and this platform has no corporate-entity-type data
+(C-corp/S-corp/LLC-taxed-as...) to distinguish them. Guessing "obligated" would risk a false
+positive; guessing "not obligated" would risk a false negative -- neither is safe, so
+`resolved: false` is the only honest answer. Uses `>=` (not `>`) against the threshold,
+matching the IRS's own "$600 or more" statutory wording -- a deliberate, cited departure
+from this module's own `>` convention for GSTR-1's B2C Large / Rule 138(1) e-way-bill
+thresholds, whose OWN governing rule text uses "exceeding" instead.
+
+**A real, named scope limitation, not silently narrowed**: only `core.payments` is read.
+`fsm.expenses` (a second real source of vendor/contractor payments, FSM-schema-owned) is
+NOT read -- `module-fsm` exposes no `contract/index.ts` function for vendor payment totals
+today, and CLAUDE.md's own cross-module mechanisms don't permit reaching into another
+module's schema directly. Flagged as a concrete follow-up (the same "flag the missing
+cross-module wiring, don't build it speculatively" precedent COMPLY-P0-04.3 already set for
+`module-inventory`'s own product form), not worked around.
+
+**What was built**:
+- `lib/compliance/countries.ts` -- US catalog entry extended with the new
+  `INFORMATION_RETURNS` regime (+ 1 test case in `countries.test.ts`).
+- `supabase/migrations/20260912360000_gst_tax_rules_1099_information_returns_seed.sql` --
+  the two two-version rule lineages described above.
+- `lib/information-returns/types.ts` -- `VendorPaymentTotal`/`Form1099Determination`/
+  `Form1099ReportingSummary` and the two rule-value shapes.
+- `lib/information-returns/rules.ts` (+ 6 test cases) -- lineage/parse/effective-lookup
+  functions for both thresholds, same shape as every other regime's own `rules.ts`.
+- `lib/information-returns/determine.ts` (+ 7 test cases) -- the pure
+  `determineForm1099Obligation` combiner described above, DB-independent.
+- `lib/information-returns/queries.ts` -- `getVendorPaymentTotals(businessId,
+  calendarYear)` (reads `core.payments`/`core.party_roles`/`core.parties` for
+  `supplier`/`vendor`-role parties, batched, grouped per party) and
+  `getForm1099ReportingSummary(businessId, calendarYear, asOfDate?)` (the full
+  orchestrator, defaulting `asOfDate` to the calendar year's own last day -- the threshold
+  in effect at year-end is the correct one to apply to payments made during that year).
+  No test file (thin DB-touching orchestrator over already-tested pure pieces, this
+  module's established convention).
+
+**What was deliberately left out**: `fsm.expenses` (named above); corporate-entity-type
+tracking (named above); 1099-K and other information-return types beyond 1099-NEC/MISC-
+shaped vendor payments; any UI (no Compliance UI epic exists for P1 yet); any actual 1099
+form generation/e-filing (this backlog has no IRS FIRE/IRIS filing API adapter -- this
+story is the OBLIGATION DETERMINATION a founder would act on, not a filing mechanism).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1432 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 186
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 81 files / 631 tests passed (617
+  pre-existing + 14 new: 7 in `determine.test.ts`, 6 in `rules.test.ts`, 1 new assertion
+  added to `countries.test.ts`'s existing regime-support test).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`, then confirmed by directly querying all 4 inserted rows
+  back (correct `rule_key`/`version`/`effective_from`/`effective_to`/`value` for both
+  lineages). No `get_advisors` re-check -- a plain data-only insert into an already-audited
+  table with an existing lookup index introduces nothing new to flag, matching every prior
+  pure-seed story's own verification convention.
+- No new table/RLS surface -- local Postgres harness not applicable this story.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
+
+**COMPLY-P1-02 (United States) is now fully done -- all eight sub-stories (02.1 State/Local
+Jurisdictions through 02.8 1099 Information Returns).** Continuing to COMPLY-P1-03 (Canada)
+in this same session.

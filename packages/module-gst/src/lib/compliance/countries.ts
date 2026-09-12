@@ -56,7 +56,18 @@ export const COUNTRY_CATALOG: CountryCatalogEntry[] = [
   // physical/economic nexus + registration-obligation determination engine that extends to
   // any state via more rule rows, without new code. No return-preparation/filing-adapter
   // depth yet (unlike India/GST) -- see that story's own audit-log entry for exact scope.
-  { code: "US", name: "United States", status: "supported", regimes: [{ key: "SALES_TAX", name: "Sales Tax" }] },
+  // COMPLY-P1-02.8 (1099 Information Returns): a genuinely SEPARATE federal regime from
+  // sales tax -- income reporting, not indirect tax -- so it gets its own regime key
+  // rather than being folded into SALES_TAX's own rule lineages.
+  {
+    code: "US",
+    name: "United States",
+    status: "supported",
+    regimes: [
+      { key: "SALES_TAX", name: "Sales Tax" },
+      { key: "INFORMATION_RETURNS", name: "1099 Information Returns" },
+    ],
+  },
   { code: "CA", name: "Canada", status: "planned", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
   { code: "SG", name: "Singapore", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
   // COMPLY-P1-01 (EU VAT Framework): the backlog's own initial member-state focus list
