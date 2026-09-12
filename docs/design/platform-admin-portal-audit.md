@@ -22,8 +22,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
-| | 05 | Entitlement Engine | 05.1 done (module-level `hasModule()`); 05.2/05.3 done for `hasFeature()`/`getLimit()` (Plan layer composed via the new business&lt;-&gt;plan link); 05.4 confirmed (`hasModule()` deliberately still license-only); `canConsume()` deferred to right after PLATFORM-P0-06.1 ships real usage counters |
-| | 06 | Usage & Limits | 06.1 done (`core.usage_counters` table + RLS + read/write query surface; no module writes to it yet -- each module's own future integration work); 06.2 done (read-side dashboard query, no UI page); 06.3-06.5 next |
+| | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
+| | 06 | Usage & Limits | 06.1/06.2 done (counters + dashboard); 06.3 done (`canConsume()`/`try_consume_usage_counter()`, atomic server-side enforcement); 06.4/06.5 next |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -2254,3 +2254,132 @@ packages/core` -- 16 files / 115 tests passed (110 -> 115, +5 new).
 
 **Status**: PLATFORM-P0-06.2 done. Continuing in doc order: PLATFORM-P0-06.3 (Limit
 Enforcement).
+
+### PLATFORM-P0-06.3 — Limit Enforcement (2026-09-12)
+
+Session note before this entry: this run resumed a worktree whose local branch
+`feature/platform-admin-portal` was 4 commits behind `origin/feature/platform-admin-portal`
+(a prior run had already shipped PLATFORM-P0-05.2/05.3/05.4, 06.1, and 06.2, all already
+merged into `origin/main`). Verified per the task brief's own instruction ("confirm HEAD
+genuinely sits on the branch's real tip") before writing any code: fast-forwarded the local
+branch to `origin/feature/platform-admin-portal` (`git merge --ff-only`, no rewrite), then
+re-read this file's own tail and `git log` to confirm exactly where that prior run stopped
+-- "Continuing in doc order: PLATFORM-P0-06.3 (Limit Enforcement)," above -- before
+resuming from there.
+
+**Scope**: "Enforce limits server-side. UI-only restrictions are not sufficient." This is
+`canConsume(business, resource, quantity)`, PLATFORM-P0-05.1's fourth and final named
+entitlement-service function, deliberately left unbuilt by both `limit-entitlement.ts`'s
+own docstring and `usage/mutations.ts`'s own docstring, each pointing at this exact story
+as where it belongs.
+
+**Why a new SQL function rather than reusing `getLimit()`'s read-then-decide shape**: a
+naive implementation -- call `getLimit()`, check `allowed`, then call
+`incrementUsageCounter()` -- has a real race. Two concurrent requests for the same
+(business, resource) can both read "1 remaining," both decide "allowed," and both
+increment, overshooting the configured limit by one. "Enforce limits server-side" has to
+mean atomically, not just "in a server-side function that itself isn't atomic." The fix:
+`core.try_consume_usage_counter()` (`20260912100000_core_try_consume_usage_counter.sql`),
+one new SECURITY DEFINER PL/pgSQL function that does the whole "read the plan's limit for
+this resource, lock the counter row, decide, and (if granted) increment" sequence inside
+one transaction. The row lock (`select ... for update` on the now-guaranteed-to-exist
+counter row) is the actual enforcement mechanism: a second concurrent caller for the same
+(business, resource, period) blocks on that lock until the first transaction commits,
+so two callers can never both read the same "before" count and both be granted past the
+limit. This is exactly `core.increment_usage_counter()`'s own reasoning (PLATFORM-P0-06.1)
+for being one atomic function rather than a client read-modify-write, applied to the
+harder "check before deciding" case.
+
+Returns raw facts (`state`, `limit_value`, `usage_before`, `usage_after`, `granted`), not
+an already-shaped `EntitlementDecision` -- the same "IO-touching function returns raw
+data, a pure sibling shapes the decision" split `getLimit()`/`buildLimitEntitlementDecision()`
+already established, so the `reason`/`allowed` text logic lives in one place
+(TypeScript, directly unit-testable) rather than being duplicated as PL/pgSQL string
+formatting.
+
+`canConsume(businessId, resourceKey, quantity = 1)` (`packages/core/src/entitlements/limit-entitlement.ts`)
+is the thin TypeScript wrapper: resolves the business's plan (for the decision's own
+`reason` text, matching every sibling entitlement function), calls the RPC once, and shapes
+the result through the new pure `buildConsumeEntitlementDecision()`. A *granted* call has a
+real side effect (the counter is incremented by `quantity`); a *denied* call has none at
+all -- the whole point of doing the check and the write in one atomic step. `getLimit()`
+remains the right call for a caller that only wants to inspect current standing without
+consuming anything (e.g. a dashboard); `canConsume()` is for the actual point of a
+countable action.
+
+Same "no configured limit row = unrestricted, not denied" default `getLimit()`/every prior
+`plan_limits`-reading story already established -- the SQL function normalizes a `null`
+`plan_limits.state` read to `'unrestricted'` before deciding, and `buildConsumeEntitlementDecision()`
+treats it identically to `'unlimited'` except for the `reason` text (matches
+`buildLimitEntitlementDecision()`'s own wording exactly).
+
+**Verification**:
+- `npx tsc --noEmit` clean across the full monorepo (`npm run typecheck`, all 7
+  workspaces).
+- `npm run lint --workspaces --if-present` -- 0 errors (1 pre-existing, unrelated warning
+  in a CRM conversations page).
+- `node scripts/lint-import-boundaries.mjs` -- 1188 files, no violations.
+- `node scripts/lint-migration-schema.mjs` -- 140 migration files, no violations (this
+  migration creates a function only, no `CREATE TABLE`, so the schema-mixing check the
+  linter enforces doesn't even apply, but it fully qualifies every cross-schema reference
+  regardless).
+- `npx vitest run --root packages/core` -- 16 files / 122 tests passed (115 -> 122, +7 new:
+  `buildConsumeEntitlementDecision()` covering disabled/unrestricted/unlimited/
+  limited-granted/limited-denied/negative-remaining-never/source-always-plan, the same
+  coverage shape `buildLimitEntitlementDecision()`'s own suite already has).
+- New `scripts/test-core-try-consume-usage-counter-rls.mjs` against real local Postgres 16
+  (`pg_ctlcluster 16 main start`) -- the mandatory dedicated RLS/behavior script for this
+  story's new access pattern, following `test-core-usage-counters-rls.mjs`'s own harness.
+  Covers: cross-tenant rejection (Alice cannot consume against Bob's business, and the
+  rejected call leaves no row at all -- the FK on `business_id` means an unrelated/
+  nonexistent business fails before the membership check even runs, and a real
+  unauthorized business fails the explicit membership check with no side effect either
+  way); unconfigured-resource unrestricted grant; disabled-resource denial with no side
+  effect; unlimited-resource grant regardless of quantity; limited-resource grants up to
+  the limit then denies the next unit with the counter provably unchanged; a single
+  over-sized quantity request (5 against a limit of 2) denied atomically, never partially
+  consumed; `p_quantity <= 0` rejected. **The two concurrency tests are the real proof of
+  this story's own core claim**: 10 concurrent callers already at a limit of 2 are all
+  denied (0 granted, counter stays at 2, `psqlAsAsync`/`Promise.all`, the same pattern
+  `test-core-number-sequences.mjs` established for `core.next_number()`'s own race test);
+  10 concurrent callers racing for the last 3 slots of a fresh limit of 3 grant *exactly*
+  3, never more, with the final counter provably at exactly 3 -- if the row lock weren't
+  doing its job, this test would flake toward more than 3 grants under real concurrent
+  execution, and it doesn't.
+- Migration applied live to the **dev** project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance)
+  re-run after: no new findings attributable to this migration (the existing
+  `rls_enabled_no_policy`/`auth_leaked_password_protection`/`unused_index` findings are all
+  pre-existing and unrelated -- this migration creates a function only, no new table, so
+  there is no new RLS surface for the linter to flag).
+- Role-switched live `execute_sql` verification against the dev project's own real data
+  (one real user, `c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real member of several real
+  businesses -- confirmed live rather than assumed, matching this backlog's own
+  established rigor): as that authenticated user against their own real business (which
+  has no `plan_limits` configured on the free plan in dev, same as the empty `plan_limits`
+  table PLATFORM-P0-04.5's own migration deliberately shipped with) --
+  `try_consume_usage_counter(<their business>, 'contacts', 1, 'current')` returned
+  `{state: unrestricted, limit_value: null, usage_before: 0, usage_after: 1, granted:
+  true}`, confirmed correct, then the resulting test row was deleted afterward
+  (`delete ... returning *`, confirmed exactly the one row this verification created was
+  removed) so this verification leaves no residue in dev's own usage data. As the same
+  user against an unrelated/nonexistent business id: rejected with the function's own
+  explicit `is not a member of business` exception, not a generic FK error -- the
+  membership check fires first. As `anon` (no session): rejected outright at the schema
+  grant level (`permission denied for schema core`) -- `core` has never granted `anon`
+  schema `usage` at all, the same wall every other `core.*` write path already sits behind.
+
+**Deliberately not built this story**: no module's own countable action calls
+`canConsume()` yet -- wiring a specific module's create-a-thing flow (e.g. Discovery's
+"create an opportunity") to call `canConsume()` before proceeding, and to surface a denial
+to the end user, is each module's own future integration work, the same scope boundary
+PLATFORM-P0-06.1's own entry already drew for who writes to `core.usage_counters` at all
+(a story for whichever module workstream picks it up, and explicitly not this platform
+workstream's files to touch per this run's own task brief). PLATFORM-P0-06.4 (Graceful
+Limit UX -- the "You've reached your Pro plan limit... [Upgrade] [View Usage]" message) and
+PLATFORM-P0-06.5 (Soft vs Hard Limits, Warning Threshold) are each their own next story in
+this same section, not folded in here.
+
+**Status**: PLATFORM-P0-06.3 done -- all four of PLATFORM-P0-05.1's named entitlement
+functions (`hasModule`, `hasFeature`, `getLimit`, `canConsume`) now exist. Continuing in
+doc order: PLATFORM-P0-06.4 (Graceful Limit UX).

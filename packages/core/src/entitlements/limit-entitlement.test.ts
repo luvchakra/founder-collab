@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLimitEntitlementDecision } from "./limit-entitlement";
+import { buildConsumeEntitlementDecision, buildLimitEntitlementDecision } from "./limit-entitlement";
 
 describe("buildLimitEntitlementDecision (PLATFORM-P0-05.2/05.3/06.1)", () => {
   it("treats an unconfigured (plan, resource) pair as unrestricted, not denied", () => {
@@ -58,6 +58,96 @@ describe("buildLimitEntitlementDecision (PLATFORM-P0-05.2/05.3/06.1)", () => {
   it("source is always 'plan'", () => {
     for (const row of [null, { state: "unlimited", limit_value: null } as const, { state: "limited", limit_value: 1 } as const]) {
       expect(buildLimitEntitlementDecision("users", "free", row).source).toBe("plan");
+    }
+  });
+});
+
+describe("buildConsumeEntitlementDecision (PLATFORM-P0-06.3)", () => {
+  it("denies outright when the resource is disabled on the plan, with no side effect reported", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "automation_runs",
+      "free",
+      { state: "disabled", limit_value: null, usage_before: 3, usage_after: 3, granted: false },
+      1,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe("automation_runs is disabled on the free plan.");
+    expect(decision.limit).toBeNull();
+    expect(decision.usage).toBeNull();
+  });
+
+  it("allows and reports post-consumption usage when the resource has no configured limit yet", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "contacts",
+      "free",
+      { state: "unrestricted", limit_value: null, usage_before: 10, usage_after: 12, granted: true },
+      2,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBeNull();
+    expect(decision.usage).toBe(12);
+    expect(decision.remaining).toBeNull();
+  });
+
+  it("allows and reports post-consumption usage when the resource is unlimited on the plan", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "ai_credits",
+      "max",
+      { state: "unlimited", limit_value: null, usage_before: 100, usage_after: 105, granted: true },
+      5,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBeNull();
+    expect(decision.usage).toBe(105);
+    expect(decision.remaining).toBeNull();
+  });
+
+  it("grants and reports the real new usage/remaining when consumption fits within a limited plan's limit", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, usage_before: 3, usage_after: 4, granted: true },
+      1,
+    );
+    expect(decision.allowed).toBe(true);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(4);
+    expect(decision.remaining).toBe(1);
+  });
+
+  it("denies and reports the pre-attempt usage/remaining -- unchanged -- when consumption would exceed a limited plan's limit", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, usage_before: 5, usage_after: 5, granted: false },
+      1,
+    );
+    expect(decision.allowed).toBe(false);
+    expect(decision.limit).toBe(5);
+    expect(decision.usage).toBe(5);
+    expect(decision.remaining).toBe(0);
+    expect(decision.reason).toBe("pro plan allows 5 businesses; consuming 1 more would exceed it.");
+  });
+
+  it("never reports a negative remaining on a denial even if usage_before somehow exceeds the limit", () => {
+    const decision = buildConsumeEntitlementDecision(
+      "businesses",
+      "pro",
+      { state: "limited", limit_value: 5, usage_before: 9, usage_after: 9, granted: false },
+      1,
+    );
+    expect(decision.remaining).toBe(0);
+  });
+
+  it("source is always 'plan'", () => {
+    const attempts = [
+      { state: "disabled", limit_value: null, usage_before: 0, usage_after: 0, granted: false },
+      { state: "unrestricted", limit_value: null, usage_before: 0, usage_after: 1, granted: true },
+      { state: "unlimited", limit_value: null, usage_before: 0, usage_after: 1, granted: true },
+      { state: "limited", limit_value: 5, usage_before: 0, usage_after: 1, granted: true },
+    ] as const;
+    for (const attempt of attempts) {
+      expect(buildConsumeEntitlementDecision("users", "free", attempt, 1).source).toBe("plan");
     }
   });
 });

@@ -11,6 +11,9 @@ export type { ResourceKey } from "./resource-keys";
 function platformClient() {
   return createClient({ schema: "platform" });
 }
+function coreClient() {
+  return createClient({ schema: "core" });
+}
 
 /**
  * PLATFORM-P0-05.2/05.3/06.1 -- `getLimit(business, resource)`, the third of
@@ -32,13 +35,9 @@ function platformClient() {
  * entry predicted.
  *
  * `canConsume(business, resource, quantity)` (PLATFORM-P0-05.1's fourth named function) is
- * **still not built**: real usage now exists, but `canConsume` needs to reserve/check
- * against a *prospective* quantity atomically at the point of the action (the same
- * "would consuming N more exceed the limit, right now, without a race" concern
- * PLATFORM-P0-06.3's own "enforce limits server-side" implies) -- a genuinely separate,
- * still-unbuilt piece of work from "read the current state," which is all `getLimit()`
- * does. Left to PLATFORM-P0-06.3 (Limit Enforcement) itself, the doc's own next story for
- * this exact question.
+ * built further down this file, by PLATFORM-P0-06.3 (Limit Enforcement) -- see its own
+ * docstring for why it needed a dedicated atomic SQL function rather than reusing this
+ * one's read-then-decide shape.
  *
  * An unconfigured (plan, resource) pair -- `platform.plan_limits` has no row for it --
  * is treated as **not restricted** (`allowed: true`, `limit: null`), not "not allowed",
@@ -135,5 +134,140 @@ export function buildLimitEntitlementDecision(
     limit,
     usage,
     remaining,
+  };
+}
+
+type ConsumeAttempt = {
+  state: "limited" | "unlimited" | "disabled" | "unrestricted";
+  limit_value: number | null;
+  usage_before: number;
+  usage_after: number;
+  granted: boolean;
+};
+
+/**
+ * PLATFORM-P0-06.3 (Limit Enforcement, §10) -- `canConsume(business, resource, quantity)`,
+ * PLATFORM-P0-05.1's fourth and final named entitlement-service function. "Enforce limits
+ * server-side. UI-only restrictions are not sufficient" (the story's own words) means a
+ * caller must be able to ask, at the exact moment it is about to perform a countable
+ * action, "would this be allowed" and have the answer and the actual reservation of that
+ * usage happen as one atomic step -- not two separate calls (`getLimit()` then
+ * `incrementUsageCounter()`) that could race against a concurrent request for the same
+ * business and resource.
+ *
+ * The atomicity itself lives in `core.try_consume_usage_counter()`
+ * (`20260912100000_core_try_consume_usage_counter.sql`, this same story): one
+ * SECURITY DEFINER function, one transaction, a row-level lock (`for update`) on the
+ * counter row while it decides and (if granted) writes the new count. This function is a
+ * thin wrapper that resolves the business's plan (for the decision's own `reason` text,
+ * matching every sibling entitlement function's convention), calls that RPC once, and
+ * shapes the result through the pure `buildConsumeEntitlementDecision()` below -- the same
+ * "IO-touching caller, pure decision-shaper" split `getLimit()`/
+ * `buildLimitEntitlementDecision()` already established.
+ *
+ * `quantity` defaults to `1` (the common "about to create one more of this" case).
+ * Unlike `getLimit()`, a *granted* call here has a real side effect: it increments
+ * `core.usage_counters` by `quantity`. A *denied* call has no side effect at all -- the
+ * counter is left exactly as it was (the whole point of doing the check and the write in
+ * one atomic step). Callers that only want to inspect current standing without consuming
+ * anything should call `getLimit()` instead.
+ */
+export async function canConsume(businessId: string, resourceKey: ResourceKey, quantity = 1): Promise<EntitlementDecision> {
+  const plan = await getBusinessPlan(businessId);
+  if (!plan) {
+    return {
+      allowed: false,
+      reason: "This business has no resolvable plan.",
+      source: "plan",
+      limit: null,
+      usage: null,
+      remaining: null,
+    };
+  }
+
+  const period = isPeriodicResource(resourceKey) ? currentMonthPeriod() : "current";
+  const core = await coreClient();
+  const { data, error } = await core
+    .rpc("try_consume_usage_counter", {
+      p_business_id: businessId,
+      p_resource_key: resourceKey,
+      p_quantity: quantity,
+      p_period: period,
+    })
+    .single();
+  if (error) throw error;
+
+  return buildConsumeEntitlementDecision(resourceKey, plan.planKey, data as ConsumeAttempt, quantity);
+}
+
+/**
+ * Pure decision-composition logic for `canConsume()`, factored out for direct unit
+ * testing without a database -- the same split `buildLimitEntitlementDecision()`/
+ * `buildFeatureEntitlementDecision()`/`buildModuleEntitlementDecision()` already
+ * established. `attempt` is `core.try_consume_usage_counter()`'s own raw result: it has
+ * already decided `granted` and already performed the write (if granted) by the time this
+ * function sees it -- this only turns that fact into PLATFORM-P0-05.3's own
+ * `{allowed, reason, source, limit, usage, remaining}` shape.
+ *
+ * A denied attempt reports `usage`/`remaining` as of *before* the attempt (`usage_before`)
+ * -- nothing changed, so that is the business's real current standing; a granted attempt
+ * reports `usage_after`, the new real count including this consumption, matching
+ * `getLimit()`'s own "usage is always the real current count" convention.
+ */
+export function buildConsumeEntitlementDecision(
+  resourceKey: ResourceKey,
+  planKey: string,
+  attempt: ConsumeAttempt,
+  quantity: number,
+): EntitlementDecision {
+  if (attempt.state === "disabled") {
+    return {
+      allowed: false,
+      reason: `${resourceKey} is disabled on the ${planKey} plan.`,
+      source: "plan",
+      limit: null,
+      usage: null,
+      remaining: null,
+    };
+  }
+  if (attempt.state === "unrestricted") {
+    return {
+      allowed: true,
+      reason: `${resourceKey} has no configured limit on the ${planKey} plan yet -- treated as unrestricted.`,
+      source: "plan",
+      limit: null,
+      usage: attempt.usage_after,
+      remaining: null,
+    };
+  }
+  if (attempt.state === "unlimited") {
+    return {
+      allowed: true,
+      reason: `${resourceKey} is unlimited on the ${planKey} plan.`,
+      source: "plan",
+      limit: null,
+      usage: attempt.usage_after,
+      remaining: null,
+    };
+  }
+
+  const limit = attempt.limit_value as number;
+  if (attempt.granted) {
+    return {
+      allowed: true,
+      reason: `Consuming ${quantity} ${resourceKey} keeps usage (${attempt.usage_after}) within the ${planKey} plan's limit of ${limit}.`,
+      source: "plan",
+      limit,
+      usage: attempt.usage_after,
+      remaining: Math.max(limit - attempt.usage_after, 0),
+    };
+  }
+  return {
+    allowed: false,
+    reason: `${planKey} plan allows ${limit} ${resourceKey}; consuming ${quantity} more would exceed it.`,
+    source: "plan",
+    limit,
+    usage: attempt.usage_before,
+    remaining: Math.max(limit - attempt.usage_before, 0),
   };
 }
