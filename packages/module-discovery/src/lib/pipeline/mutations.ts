@@ -113,3 +113,21 @@ export async function markPipelineStageSkipped(workspaceId: string, stageKey: Pi
   await recordPipelineStageRun(workspaceId, stageKey, stage.version, "skipped", stage.started_at, completedAt, null);
   return stage;
 }
+
+/** DISC-OFFER-P0-11.3: resets one stage back to `not_started` without recording a
+ * `pipeline_stage_runs` row -- unlike the three terminal mutations above, nothing
+ * actually *finished* here (a manual invalidation isn't an execution attempt with its own
+ * outcome), so there's nothing to preserve as history yet. Deliberately does not touch
+ * `version`/`last_ai_run_id` either -- the next real run through `markPipelineStageRunning`
+ * still increments `version` from wherever it was, so the version sequence itself has no
+ * gap, it just resumes. Exported for `lib/pipeline/invalidate.ts`'s own use, not called
+ * directly from route handlers. */
+export async function resetPipelineStageToNotStarted(workspaceId: string, stageKey: PipelineStageKey): Promise<PipelineStage> {
+  return updateStage(workspaceId, stageKey, {
+    status: "not_started",
+    started_at: null,
+    completed_at: null,
+    failed_at: null,
+    error: null,
+  });
+}

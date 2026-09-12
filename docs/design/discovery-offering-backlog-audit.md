@@ -52,7 +52,7 @@ only genuine architectural/key decisions are raised.
 | | 10.3 | Pipeline Progress UI | Done |
 | | 11.1 | Editable Pipeline Stages | Not started |
 | | 11.2 | Run From This Stage | Not started |
-| | 11.3 | Stage Dependency Graph | Not started |
+| | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Not started |
 | | 12.2 | External Opportunity Research | Not started |
 | | 13.1 | Structured Stage Outputs | Not started |
@@ -77,7 +77,8 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**32 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**33 of 68 in-scope stories done -- Phase E underway.** (11.3 was built ahead of 11.1/11.2
+in that order -- see its own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -2175,3 +2176,74 @@ UI-touching story this run (no seeded demo user/`.env.local` in this environment
 
 **Status**: 32 of 68 in-scope stories done -- Phase E continuing. Next: 11.1, Editable
 Pipeline Stages.
+
+### 11.3 — Stage Dependency Graph (2026-09-12, built ahead of 11.1/11.2)
+
+**Deliberate reordering, flagged up front**: the doc's own §29 sequence lists 11.1 before
+11.2 before 11.3, but 11.1's own worked example ("[Save] [Save & Run Downstream]") and
+11.2's own title ("Run From This Stage") both need a *working* downstream-invalidation
+mechanism to mean anything real -- building either first would mean either a UI button
+that does nothing yet, or reinventing the same mechanism twice. This is the same
+tight-coupling call already made explicitly for DISC-OFFER-P0-10.1/10.2 earlier this
+phase (there, 10.1 needed 10.2's own persisted-state fields to honestly satisfy its own
+acceptance criteria); here the dependency runs the other direction -- 11.3's own graph and
+invalidation function are the foundation 11.2 calls and 11.1 triggers, so this session
+built 11.3 first, then 11.2, then 11.1, each as its own separately verified/committed/
+merged story. Flagging this rather than silently reordering the doc's own numbering.
+
+New `lib/pipeline/dependencies.ts`: `STAGE_DEPENDENCIES`, the doc's own literal ASCII
+dependency diagram (§15/11.3) transcribed as data (each key's own parent stages) --
+followed the diagram exactly rather than a richer graph this module's own code could
+arguably justify (e.g. `buyer_intelligence` informally also depends on `buyer_personas`
+for matching, per `handlers.ts`'s own comments) -- the diagram deliberately leaves
+`buyer_personas` a dead-end branch with nothing downstream of it, and this graph is this
+story's own explicit, literal deliverable, not a place to freelance improvements the doc
+doesn't ask for (CLAUDE.md dev principle #7). `buyer_intelligence` itself (this module's
+own fourteenth technical key, folded into the diagram's coarser "Research" node) was
+given `research` as its one parent, mirroring `display-groups.ts`'s own grouping of the
+two. A module-load assertion checks every stage key has an entry and every named parent
+is a real stage key. `downstreamOf(stageKey)` is a plain, pure BFS over the reversed
+edges -- deterministic, no AI call (CLAUDE.md dev principle #4). 8 new vitest cases cover:
+full graph coverage, a cheap cycle guard (`downstreamOf(website_understanding)` must
+equal every other stage, or a missing edge/cycle would show up as incomplete coverage),
+the empty case at the very end of the pipeline, the dead-end `buyer_personas` branch, and
+the "union, not just one branch" requirement at the two points the diagram itself forks
+(`icp` -> {buyer_personas, discovery_strategy} and `opportunity_scoring` ->
+{why_now, research}).
+
+New `lib/pipeline/invalidate.ts` -- `invalidateDownstreamStages(workspaceId,
+fromStageKey)`, this story's own second explicit line ("only affected downstream stages
+should rerun"): resets exactly `downstreamOf(fromStageKey)`'s own stage rows to
+`not_started` (a new `resetPipelineStageToNotStarted()` mutation -- deliberately records
+no `pipeline_stage_runs` history row, since nothing actually *finished*; a manual
+invalidation isn't an execution attempt with its own outcome) and clears whichever of
+those stages' own `opportunities` columns exist (`signal_correlation_id`/
+`signal_strength_score` for `signal_correlation`, `why_now`/`timing_strength`/
+`why_now_confidence`/`timing_score` for `why_now`, `why_them` for `research`,
+`buyer_fit_score`/`contactability_score` for `buyer_intelligence`,
+`recommended_action`/`recommended_action_reason` for `recommended_action`). Clearing the
+underlying data, not just the stage's own status row, is the real substance of this
+mutation: DISC-OFFER-P0-10.1's own handlers are deliberately idempotent (each one skips
+an opportunity that already has the field it's responsible for, so "leave and return"
+never redoes finished work) -- resetting only the stage row without also clearing that
+data would leave every one of those handlers silently skipping the very opportunities
+this invalidation meant to force back into recomputation. Stages with no clearable
+column of their own (`buyer_personas`/`discovery_strategy`/`account_discovery`/`signals`/
+`opportunity_scoring`/`crm_handoff`) are deliberately omitted -- they either only ever
+*add* rows (nothing to redo) or are pure checkpoint/read-only stages with no column of
+their own (see each one's own comment in `handlers.ts`). A no-op when there's no active
+discovery definition or no open opportunities yet -- an upstream edit before any real
+discovery run has happened has nothing downstream to invalidate.
+
+No migration, no UI this story -- both are 11.1/11.2's own explicit scope; this story's
+job was making the dependency data and the invalidation mechanism themselves correct and
+tested, the same "schema/logic first, no UI ahead of the story that needs it" precedent
+DISC-OFFER-P0-05.1 already established.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1164 files, no violations),
+`npx vitest run --root packages/module-discovery` (176/176, +8 new). No migration this
+story, so no live apply/advisor step. No UI to browser-test.
+
+**Status**: 33 of 68 in-scope stories done -- Phase E continuing. Next: 11.2, Run From
+This Stage (using this story's own graph/invalidation).
