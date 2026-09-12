@@ -53,7 +53,7 @@ only genuine architectural/key decisions are raised.
 | | 11.1 | Editable Pipeline Stages | Done |
 | | 11.2 | Run From This Stage | Done |
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
-| | 12.1 | Offering-Specific Website Research | Not started |
+| | 12.1 | Offering-Specific Website Research | Done |
 | | 12.2 | External Opportunity Research | Not started |
 | | 13.1 | Structured Stage Outputs | Not started |
 | | 14.1 | Discovery Run History | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**35 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+**36 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -2355,3 +2355,59 @@ stories under this phase, 09.1-15.1; eleven are now done -- 09.1-09.4, 10.1-10.3
 13.1 (structured stage output contracts), 14.1/14.2 (run history and versioned results),
 and 15.1 (the final human action gate) still ahead). Next: 12.1, Offering-Specific
 Website Research.
+
+### 12.1 — Offering-Specific Website Research (2026-09-12)
+
+Checked what `website_understanding`'s own existing implementation (`understandProduct()`,
+part of Phase A/B's own already-built AI scaffolding, reused unchanged by this pipeline
+since DISC-OFFER-P0-10.1) actually did before assuming a gap: a *single-page* fetch of the
+offering's own root `website` URL, via `researchWebsite()` directly -- unlike
+DISC-OFFER-P0-09.2's own multi-page `crawlWebsite()`, which has existed since Phase E
+started but was only ever wired into the *business*-onboarding flow
+(`understandBusinessWebsite`). An offering whose own real detail lives on `/services`,
+`/pricing`, or `/case-studies` -- exactly the doc's own worked example categories --
+was never actually read; the single root-page fetch is the concrete gap this story closes,
+not a case of "nothing existed yet."
+
+`understand-product.ts` now calls `crawlWebsite()` (09.2's own orchestrator, unmodified
+in its own crawl-plan/robots/dedup/cap logic -- inheriting "do not repeatedly process
+irrelevant pages" for free rather than reimplementing it) instead of a single
+`researchWebsite()` call. The one real change needed in `crawlWebsite()` itself: it
+previously hardcoded `researchBusinessWebsitePrompt` (a generic "what does this business
+do" question) for every page it visits, home or otherwise -- fine for the whole-business
+onboarding flow it was built for, wrong for a per-offering call where a business site
+might describe several different offerings and a generic question would blur them
+together. Added an optional `buildPageResearchPrompt` parameter (defaulting to the exact
+original `researchBusinessWebsitePrompt` behavior, so DISC-OFFER-P0-09.1/09.2's own
+business-onboarding caller is completely unaffected -- confirmed by grep, it still calls
+`crawlWebsite` with the same five positional arguments as before); `understand-product.ts`
+passes the already-existing, already offering-specific `researchProductWebsitePrompt`
+(product name + the doc's own literal category list: what it is, problem/solution,
+features, differentiators, target industries/roles, use cases, pricing) as that builder,
+so every crawled page -- not just the homepage -- is read with *this offering* in mind.
+Confirmed link-extraction (`extractPageLinks`, which the crawl plan depends on to find
+pages to visit next) is prompt-independent on the common path: `researchWebsite()`'s own
+direct-fetch path returns the raw page text with its anchors already preserved,
+regardless of which prompt is passed -- only the rarer provider-tool fallback path is
+prompt-sensitive, an existing, unrelated characteristic this story didn't change.
+
+No new persisted per-offering "pages crawled" table (unlike DISC-OFFER-P0-09.2's own
+business-level `website_onboarding_pages`) -- this story's own acceptance criteria don't
+ask for a crawl audit trail, only that the *right pages* get read and irrelevant ones
+don't get reprocessed; adding one now would be speculative ahead of any story that
+actually needs it (CLAUDE.md dev principle #7). No new `ProductProfile` schema fields
+either -- the doc's own category list here is about research *input* prioritization
+(which pages get read, what each is asked about), not new output fields to display.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1165 files, no violations),
+`npx vitest run --root packages/module-discovery` (178/178, unchanged -- no pure logic
+added; `crawlWebsite`'s own already-tested `crawl-plan.ts`/`robots.ts` sub-functions are
+untouched, and neither `website-crawl.ts` nor `understand-product.ts` has ever had its
+own unit tests, both being DB/AI-composing functions per this run's own established
+precedent), and a clean `next build`. No migration this story. Same
+live-browser-walkthrough constraint noted in every prior AI-calling story this run (no
+seeded demo user/`.env.local`/real website fetch reachable in this environment).
+
+**Status**: 36 of 68 in-scope stories done -- Phase E continuing. Next: 12.2, External
+Opportunity Research.

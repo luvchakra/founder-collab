@@ -74,6 +74,20 @@ export async function crawlWebsite(
    * understandBusinessWebsite()'s own onProgress already streams structuring progress. */
   onPage?: (page: CrawledPage) => void,
   maxAdditionalPages?: number,
+  /** DISC-OFFER-P0-12.1: "Offering-Specific Website Research" -- what to actually ask
+   * about each fetched page, per page URL. Defaults to the original business-wide
+   * question (`researchBusinessWebsitePrompt`) so DISC-OFFER-P0-09.2's own caller
+   * (`understandBusinessWebsite`, business onboarding) is completely unaffected;
+   * `understand-product.ts`'s own per-offering caller passes the already-existing,
+   * already-offering-specific `researchProductWebsitePrompt` instead, so a business site
+   * describing several different offerings gets pages read with *this offering* in mind
+   * rather than the business in general -- the doc's own "prioritize IAM/security
+   * services... for Managed IAM Services" example, generalized to any offering by asking
+   * every page the same offering-named question `understand-product.ts` already asked a
+   * single page before this story. The crawl-plan/dedup/cap machinery below (already
+   * built for 09.2) is what satisfies this story's other line, "do not repeatedly process
+   * irrelevant pages," unchanged. */
+  buildPageResearchPrompt: (url: string) => string = (url) => researchBusinessWebsitePrompt({ website: url }),
 ): Promise<CrawlResult> {
   let origin: string;
   try {
@@ -93,7 +107,7 @@ export async function crawlWebsite(
   const homeResearch = await researchWebsite(
     model,
     tools,
-    researchBusinessWebsitePrompt({ website: homepageUrl }),
+    buildPageResearchPrompt(homepageUrl),
     homepageUrl,
     provider,
   );
@@ -118,7 +132,7 @@ export async function crawlWebsite(
       const pageResearch = await researchWebsite(
         model,
         tools,
-        researchBusinessWebsitePrompt({ website: entry.url }),
+        buildPageResearchPrompt(entry.url),
         entry.url,
         provider,
       );
