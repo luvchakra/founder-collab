@@ -115,7 +115,7 @@ describe("detectMissingRegistrationSignal", () => {
 });
 
 function item(overrides: Partial<ItemTaxContext> = {}): ItemTaxContext {
-  return { id: "item-1", kind: "good", sku: "SKU1", name: "Widget", unit: "unit", hsnCode: "8471", taxRate: 18, status: "active", ...overrides };
+  return { id: "item-1", kind: "good", sku: "SKU1", name: "Widget", unit: "unit", hsnCode: "8471", taxRate: 18, status: "active", categoryId: null, ...overrides };
 }
 
 describe("detectInvalidClassificationSignals", () => {

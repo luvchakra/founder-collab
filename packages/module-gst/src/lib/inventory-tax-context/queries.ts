@@ -47,6 +47,7 @@ export function mapItemTaxContext(row: {
   hsn_code: string | null;
   tax_rate: number;
   status: string;
+  category_id: string | null;
 }): ItemTaxContext {
   return {
     id: row.id,
@@ -57,6 +58,7 @@ export function mapItemTaxContext(row: {
     hsnCode: row.hsn_code,
     taxRate: row.tax_rate,
     status: row.status,
+    categoryId: row.category_id,
   };
 }
 
@@ -66,7 +68,7 @@ export async function getItemTaxContext(businessId: string, itemId: string): Pro
   const core = await coreClient();
   const { data, error } = await core
     .from("items")
-    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status")
+    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status, category_id")
     .eq("business_id", businessId)
     .eq("id", itemId)
     .maybeSingle();
@@ -82,7 +84,7 @@ export async function listItemTaxContexts(businessId: string, itemIds: string[])
   const core = await coreClient();
   const { data, error } = await core
     .from("items")
-    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status")
+    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status, category_id")
     .eq("business_id", businessId)
     .in("id", itemIds);
   if (error) throw error;
@@ -98,7 +100,7 @@ export async function listAllItemTaxContexts(businessId: string): Promise<ItemTa
   const core = await coreClient();
   const { data, error } = await core
     .from("items")
-    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status")
+    .select("id, kind, sku, name, unit, hsn_code, tax_rate, status, category_id")
     .eq("business_id", businessId)
     .eq("status", "active");
   if (error) throw error;
