@@ -10,6 +10,9 @@ import {
 } from "@cofounderai/module-discovery/lib/knowledge/mutations";
 import { updateProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import { understandProduct } from "@cofounderai/module-discovery/lib/ai/understand-product";
+import { setOpportunityStatus, recordOpportunityHandoffFailure } from "@cofounderai/module-discovery/lib/opportunities/mutations";
+import type { OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
+import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 
@@ -141,6 +144,57 @@ export async function updateSourceAction(
 
   revalidatePath(productPath(businessId, productId));
   return { success: true };
+}
+
+/**
+ * DISC-OFFER-P0-15.1: the Overview page's own "Top Opportunity" gate card's
+ * `Watch`/`Dismiss` buttons -- a plain, self-contained status write, the same
+ * `setOpportunityStatus` (05.1) mutation the Opportunity Detail page's own status
+ * picker already uses, bound to a specific status here instead of read from a form
+ * field (the gate's own buttons are one-click, no dropdown to choose from).
+ */
+export async function updateTopOpportunityStatusAction(
+  businessId: string,
+  productId: string,
+  opportunityId: string,
+  status: OpportunityStatus,
+): Promise<void> {
+  await setOpportunityStatus(opportunityId, status);
+  revalidatePath(productPath(businessId, productId));
+  revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+  revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities/${opportunityId}`);
+}
+
+/**
+ * DISC-OFFER-P0-15.1: the gate card's own "Send to CRM" -- identical logic to
+ * `sendOpportunityToCrmAction` (DISC-OFFER-P0-08.1, the Opportunity Detail route's own
+ * action), duplicated here rather than imported across route files (each route
+ * directory in this app already keeps its own `actions.ts` wrapping the same underlying
+ * module mutations -- `icp/actions.ts` and this file already do the same for their own
+ * concerns) so this file's own `revalidatePath` targets the Overview page instead.
+ */
+export async function sendTopOpportunityToCrmAction(
+  businessId: string,
+  productId: string,
+  opportunityId: string,
+  prospectId: string,
+  partyId: string,
+) {
+  try {
+    const result = await promoteProspectToCrm(businessId, { partyId, prospectId });
+    if (result.ok) {
+      await setOpportunityStatus(opportunityId, "sent_to_crm");
+      revalidatePath(productPath(businessId, productId));
+      revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities`);
+      revalidatePath(`/dashboard/businesses/${businessId}/products/${productId}/opportunities/${opportunityId}`);
+    }
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not send to CRM.";
+    await recordOpportunityHandoffFailure(opportunityId, message);
+    revalidatePath(productPath(businessId, productId));
+    return { ok: false as const, error: message };
+  }
 }
 
 export async function generateProductProfileAction(

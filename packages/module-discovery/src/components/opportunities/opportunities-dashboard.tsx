@@ -4,7 +4,32 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { DASHBOARD_BIN_LABEL, DASHBOARD_BIN_ORDER } from "../../lib/opportunities/dashboard";
 import type { OpportunityDashboardRow } from "../../lib/opportunities/dashboard-queries";
+import { effectiveRecommendedAction } from "../../lib/opportunities/next-best-action";
 import { NEXT_BEST_ACTION_LABEL, type OpportunityPriority } from "../../lib/opportunities/types";
+
+/** DISC-OFFER-P0-15.1: reads through `effectiveRecommendedAction` rather than
+ * `opportunity.recommended_action` directly, so a founder's own override (set from the
+ * Opportunity Detail page or the Overview page's "Top Opportunity" gate) shows here too
+ * instead of this listing silently keeping the stale computed value on screen -- exactly
+ * the "must NOT silently overwrite user-approved values" (§25) risk this function
+ * exists to close. The AI's own `recommended_action_reason` is shown only when its own
+ * `recommended_action` is actually the one in effect -- once a founder has overridden it,
+ * that reason describes a suggestion no longer being acted on, not this one. */
+function RecommendedActionCell({ opportunity }: { opportunity: OpportunityDashboardRow["opportunity"] }) {
+  const action = effectiveRecommendedAction(opportunity);
+  const isOverride = opportunity.recommended_action_override !== null;
+  return (
+    <>
+      <p className="font-medium">
+        {action ? NEXT_BEST_ACTION_LABEL[action] : "No recommendation yet"}
+        {isOverride ? <span className="ml-1 text-xs font-normal text-muted-foreground">(founder override)</span> : null}
+      </p>
+      {!isOverride && opportunity.recommended_action_reason ? (
+        <p className="text-xs text-muted-foreground">{opportunity.recommended_action_reason}</p>
+      ) : null}
+    </>
+  );
+}
 
 const PRIORITY_BADGE_VARIANT: Record<OpportunityPriority, "secondary" | "outline" | "destructive"> = {
   high: "destructive",
@@ -93,14 +118,9 @@ export function OpportunitiesDashboard({
                         {topSignal}
                       </p>
                     ) : null}
-                    <p className="text-xs">
-                      <span className="font-medium">
-                        {opportunity.recommended_action ? NEXT_BEST_ACTION_LABEL[opportunity.recommended_action] : "No recommendation yet"}
-                      </span>
-                      {opportunity.recommended_action_reason ? (
-                        <span className="text-muted-foreground"> — {opportunity.recommended_action_reason}</span>
-                      ) : null}
-                    </p>
+                    <div className="text-xs">
+                      <RecommendedActionCell opportunity={opportunity} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -144,12 +164,7 @@ export function OpportunitiesDashboard({
                         <TruncatedText value={topSignal} />
                       </TableCell>
                       <TableCell className="max-w-48">
-                        <p className="font-medium">
-                          {opportunity.recommended_action ? NEXT_BEST_ACTION_LABEL[opportunity.recommended_action] : "—"}
-                        </p>
-                        {opportunity.recommended_action_reason ? (
-                          <p className="line-clamp-2 text-xs text-muted-foreground">{opportunity.recommended_action_reason}</p>
-                        ) : null}
+                        <RecommendedActionCell opportunity={opportunity} />
                       </TableCell>
                     </TableRow>
                   ))}

@@ -8,6 +8,7 @@ import type { Prospect } from "../prospects/types";
 import { getProspectResearch } from "../research/queries";
 import { getSignalCorrelation } from "../signals/queries";
 import { classifyOpportunityForDashboard, type DashboardBin } from "./dashboard";
+import { selectTopGateOpportunity } from "./gate";
 import { listOpportunities } from "./queries";
 import type { Opportunity } from "./types";
 
@@ -68,4 +69,17 @@ export async function getOpportunityDashboardRows(workspaceId: string): Promise<
   );
 
   return rows.filter((row): row is OpportunityDashboardRow => row !== null);
+}
+
+/**
+ * DISC-OFFER-P0-15.1: "Final Human Action Gate" -- the single opportunity a founder
+ * should decide on right now, or `null` when nothing qualifies (a fresh offering, or
+ * every open opportunity already resolved/watched). Reuses `getOpportunityDashboardRows`
+ * wholesale rather than a second, parallel query -- the gate needs exactly the same
+ * enriched row shape (contact name, top signal) "Today's Opportunities" (07.2) already
+ * computes, just reduced to `selectTopGateOpportunity`'s own single pick.
+ */
+export async function getTopGateOpportunity(workspaceId: string): Promise<OpportunityDashboardRow | null> {
+  const rows = await getOpportunityDashboardRows(workspaceId);
+  return selectTopGateOpportunity(rows.map((row) => ({ ...row, status: row.opportunity.status, score: row.opportunity.score, created_at: row.opportunity.created_at })));
 }

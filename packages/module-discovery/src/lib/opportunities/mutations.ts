@@ -179,6 +179,27 @@ export async function recordOpportunityHandoffFailure(opportunityId: string, mes
 }
 
 /**
+ * DISC-OFFER-P0-15.1: "[Edit Recommendation]" -- sets (or, with `null`, clears) a
+ * founder's own manual override of the recommended next step. Deliberately touches only
+ * `recommended_action_override`, never `recommended_action` itself (the system's own
+ * freely-recomputed guess) or `recommended_action_reason` -- the doc's own "user edits
+ * and AI-generated changes should be distinguishable" (the same line DISC-OFFER-P0-14.2
+ * already built for the ICP) holds here structurally: which column is non-null says
+ * which one is in effect, with no separate flag to drift out of sync.
+ */
+export async function setRecommendedActionOverride(opportunityId: string, override: NextBestAction | null): Promise<Opportunity> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .update({ recommended_action_override: override })
+    .eq("id", opportunityId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/**
  * DISC-OFFER-P0-06.2: "Offering Research Brief" -- writes a freshly-generated brief's
  * own `offering_fit` narrative into the opportunity it supports, mirroring exactly how
  * `setOpportunityWhyNow` (05.4) writes `computeWhyNow`'s summary into `why_now`. No

@@ -90,4 +90,10 @@ export type Opportunity = {
    * longer blocks this opportunity). See `handoff.ts`'s own `computeHandoffStatus`. */
   handoff_failed_at: string | null;
   handoff_error: string | null;
+  /** DISC-OFFER-P0-15.1's own "[Edit Recommendation]" -- a founder's manual choice of
+   * next step, distinct from `recommended_action` above (which stays the system's own
+   * freely-recomputed current guess). Null means no override is set; see
+   * `effectiveRecommendedAction` (next-best-action.ts) for which one a UI should
+   * actually read. */
+  recommended_action_override: NextBestAction | null;
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeNextBestAction, type NextBestActionInput } from "./next-best-action";
+import { computeNextBestAction, effectiveRecommendedAction, type NextBestActionInput } from "./next-best-action";
 
 function input(overrides: Partial<NextBestActionInput>): NextBestActionInput {
   return {
@@ -113,5 +113,19 @@ describe("computeNextBestAction", () => {
       }),
     );
     expect(result.action).toBe("wait");
+  });
+});
+
+describe("effectiveRecommendedAction", () => {
+  it("prefers a founder's override over the computed recommendation", () => {
+    expect(effectiveRecommendedAction({ recommended_action: "wait", recommended_action_override: "send_to_crm" })).toBe("send_to_crm");
+  });
+
+  it("falls back to the computed recommendation when there is no override", () => {
+    expect(effectiveRecommendedAction({ recommended_action: "watch", recommended_action_override: null })).toBe("watch");
+  });
+
+  it("is null when neither has ever been set", () => {
+    expect(effectiveRecommendedAction({ recommended_action: null, recommended_action_override: null })).toBeNull();
   });
 });

@@ -11,7 +11,7 @@ import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scor
 import { OpportunityDetail } from "@cofounderai/module-discovery/components/opportunities/opportunity-detail";
 import { computeHandoffStatus } from "@cofounderai/module-discovery/lib/opportunities/handoff";
 import { classifyExistingRelationship, getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index";
-import { sendOpportunityToCrmAction, updateOpportunityStatusAction } from "./actions";
+import { sendOpportunityToCrmAction, updateOpportunityStatusAction, updateRecommendedActionAction } from "./actions";
 
 export default async function OpportunityDetailPage({
   params,
@@ -79,6 +79,7 @@ export default async function OpportunityDetailPage({
       handoffStatus={handoffStatus}
       updateStatusAction={updateOpportunityStatusAction.bind(null, businessId, productId, opportunity.id)}
       sendToCrmAction={sendOpportunityToCrmAction.bind(null, businessId, productId, opportunity.id, prospect.id, prospect.party_id ?? "")}
+      updateRecommendedActionAction={updateRecommendedActionAction.bind(null, businessId, productId, opportunity.id)}
     />
   );
 }

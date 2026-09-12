@@ -18,9 +18,11 @@ import type { ProspectScore } from "../../lib/scoring/types";
 import { SCORE_COMPONENT_LABEL } from "../../lib/opportunities/scoring";
 import type { Signal } from "../../lib/signals/types";
 import { SIGNAL_TYPE_LABEL } from "../../lib/signals/types";
+import { effectiveRecommendedAction } from "../../lib/opportunities/next-best-action";
 import {
   NEXT_BEST_ACTION_LABEL,
   OPPORTUNITY_STATUS_LABEL,
+  type NextBestAction,
   type Opportunity,
   type OpportunityStatus,
 } from "../../lib/opportunities/types";
@@ -30,6 +32,18 @@ import { SendToCrmButton, type RelationshipMatch } from "./send-to-crm-button";
 type PromoteResult = { ok: true; data: { leadId: string; alreadyPromoted: boolean } } | { ok: false; error: string };
 
 const STATUS_OPTIONS: OpportunityStatus[] = ["new", "reviewing", "action_required", "watching", "dismissed", "expired"];
+
+/** DISC-OFFER-P0-15.1: the doc's own seven-item `NextBestAction` vocabulary, same order
+ * `NEXT_BEST_ACTION_LABEL` (types.ts) already declares it in. */
+const NEXT_BEST_ACTION_OPTIONS: NextBestAction[] = [
+  "research_more",
+  "find_better_contact",
+  "draft_message",
+  "send_to_crm",
+  "watch",
+  "wait",
+  "dismiss",
+];
 
 const CONFIDENCE_BADGE_CLASS: Record<"low" | "medium" | "high", string> = {
   high: "bg-emerald-100 text-emerald-800",
@@ -70,6 +84,7 @@ export function OpportunityDetail({
   handoffStatus,
   updateStatusAction,
   sendToCrmAction,
+  updateRecommendedActionAction,
 }: {
   businessId: string;
   productId: string;
@@ -92,6 +107,9 @@ export function OpportunityDetail({
   handoffStatus: HandoffStatus;
   updateStatusAction: (formData: FormData) => Promise<void>;
   sendToCrmAction: () => Promise<PromoteResult>;
+  /** DISC-OFFER-P0-15.1's own "[Edit Recommendation]" -- `formData.get("override")`
+   * empty clears back to the computed recommendation. */
+  updateRecommendedActionAction: (formData: FormData) => Promise<void>;
 }) {
   const prospectPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospect.id}`;
 
@@ -281,18 +299,50 @@ export function OpportunityDetail({
         )}
       </section>
 
-      <section className="flex flex-col gap-2 rounded-md border p-4">
+      <section id="recommended-action" className="flex flex-col gap-3 rounded-md border p-4">
         <h2 className="font-medium">Recommended Action</h2>
-        {opportunity.recommended_action ? (
-          <>
-            <p className="font-medium">{NEXT_BEST_ACTION_LABEL[opportunity.recommended_action]}</p>
-            {opportunity.recommended_action_reason ? (
-              <p className="text-sm text-muted-foreground">{opportunity.recommended_action_reason}</p>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No recommendation computed yet.</p>
-        )}
+        {(() => {
+          const action = effectiveRecommendedAction(opportunity);
+          const isOverride = opportunity.recommended_action_override !== null;
+          return action ? (
+            <>
+              <p className="font-medium">
+                {NEXT_BEST_ACTION_LABEL[action]}
+                {isOverride ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(founder override)</span> : null}
+              </p>
+              {/* DISC-OFFER-P0-15.1: the AI's own reason describes its own computed
+                  guess -- once a founder has overridden it, that reason no longer
+                  describes what's actually in effect, so it's hidden rather than shown
+                  next to a value it doesn't explain (the same "don't let a stale AI
+                  judgment linger" restraint 13.1's own confidence/evidence reset
+                  already applied). */}
+              {!isOverride && opportunity.recommended_action_reason ? (
+                <p className="text-sm text-muted-foreground">{opportunity.recommended_action_reason}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">No recommendation computed yet.</p>
+          );
+        })()}
+        {/* DISC-OFFER-P0-15.1's own "[Edit Recommendation]" -- a founder can pick any of
+            the seven recommendations directly, independent of what the system last
+            computed; "Clear override" (an empty selection) goes back to that computed
+            value rather than deleting the recommendation outright. */}
+        <form action={updateRecommendedActionAction} className="flex flex-wrap items-center gap-2">
+          <NativeSelect name="override" defaultValue={opportunity.recommended_action_override ?? ""} className="w-auto">
+            <option value="">
+              {opportunity.recommended_action_override ? "Clear override (use AI recommendation)" : "Choose an override..."}
+            </option>
+            {NEXT_BEST_ACTION_OPTIONS.map((action) => (
+              <option key={action} value={action}>
+                {NEXT_BEST_ACTION_LABEL[action]}
+              </option>
+            ))}
+          </NativeSelect>
+          <SubmitButton size="sm" variant="outline" pendingText="Saving...">
+            {opportunity.recommended_action_override ? "Update override" : "Set override"}
+          </SubmitButton>
+        </form>
       </section>
 
       <section className="flex flex-col gap-2 rounded-md border p-4">
