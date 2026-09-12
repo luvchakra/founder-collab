@@ -24,6 +24,7 @@
  */
 
 import { INDIAN_STATES } from "@cofounderai/core/lib/gst";
+import { CA_PROVINCES } from "./ca-provinces";
 import { US_STATES } from "./us-states";
 
 export type JurisdictionLevel = "state" | "province" | "local";
@@ -53,6 +54,11 @@ export type JurisdictionCatalogEntry = {
 const JURISDICTIONS_BY_COUNTRY: Record<string, JurisdictionCatalogEntry[]> = {
   IN: INDIAN_STATES.map((s) => ({ name: s.name, level: "state" })),
   US: US_STATES.map((s) => ({ name: s.code, level: "state" })),
+  // COMPLY-P1-03.1: Canada's own provinces/territories, stored by their own two-letter
+  // Canada Post code -- same "short code, not full name" convention as the US entry above,
+  // for the same reason (lib/tax-rules/ca-gst-hst.ts's own versioned rows are keyed by
+  // this same code).
+  CA: CA_PROVINCES.map((p) => ({ name: p.code, level: "province" })),
 };
 
 export function getJurisdictions(countryCode: string): JurisdictionCatalogEntry[] {

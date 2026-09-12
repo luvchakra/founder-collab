@@ -18,8 +18,11 @@ describe("compliance jurisdiction catalog", () => {
     expect(jurisdictions.map((j) => j.name)).toContain("CA");
   });
 
-  it("returns no jurisdictions for a planned-but-unimplemented country", () => {
-    expect(getJurisdictions("CA")).toEqual([]); // Canada, not to be confused with the "CA" US state code above
+  it("has 13 Canadian provinces/territories (COMPLY-P1-03.1), all at province level, keyed by two-letter code", () => {
+    const jurisdictions = getJurisdictions("CA"); // Canada, not to be confused with the "CA" US state code above
+    expect(jurisdictions.length).toBe(13);
+    expect(jurisdictions.every((j) => j.level === "province")).toBe(true);
+    expect(jurisdictions.map((j) => j.name)).toContain("ON");
   });
 
   it("returns no jurisdictions for an unknown country code", () => {
@@ -42,8 +45,13 @@ describe("compliance jurisdiction catalog", () => {
     expect(isJurisdictionSupported("IN", "Narnia")).toBe(false);
   });
 
-  it("isJurisdictionSupported rejects any name for a country with no catalog yet", () => {
-    expect(isJurisdictionSupported("CA", "Ontario")).toBe(false);
+  it("isJurisdictionSupported matches a Canadian province name OR its own two-letter code case-insensitively", () => {
+    expect(isJurisdictionSupported("CA", "ON")).toBe(true);
+    expect(isJurisdictionSupported("CA", "on")).toBe(true);
+    expect(isJurisdictionSupported("CA", "Ontario")).toBe(false); // the full name, not the catalog's own two-letter code
+  });
+
+  it("isJurisdictionSupported rejects any name for a country with no catalog at all", () => {
     expect(isJurisdictionSupported("ZZ", "Anywhere")).toBe(false);
   });
 
