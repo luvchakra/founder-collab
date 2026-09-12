@@ -42,6 +42,7 @@ describe("compliance country catalog", () => {
     expect(isRegimeSupported("DE", "VAT")).toBe(true);
     expect(isRegimeSupported("DE", "GST")).toBe(false); // real regime, wrong country
     expect(isRegimeSupported("US", "SALES_TAX")).toBe(true);
+    expect(isRegimeSupported("US", "INFORMATION_RETURNS")).toBe(true); // COMPLY-P1-02.8, a second, separate US regime
     expect(isRegimeSupported("CA", "GST_HST")).toBe(false); // real regime, unsupported country (Canada still planned)
     expect(isRegimeSupported("ZZ", "GST")).toBe(false);
   });
