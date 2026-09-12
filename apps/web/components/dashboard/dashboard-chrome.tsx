@@ -13,6 +13,7 @@ import type {
   ShellUser,
 } from "@cofounderai/core/shell/types";
 import { CreateBusinessModal } from "@cofounderai/module-discovery/components/tenancy/create-business-modal";
+import type { CreateBusinessFromWebsiteState } from "@/app/(dashboard)/dashboard/actions";
 import { AiChatWidget } from "@cofounderai/module-discovery/components/chat/ai-chat-widget";
 import { getActiveIdsFromPath } from "@cofounderai/module-discovery/lib/tenancy/active-path";
 import { signOut } from "@/app/(auth)/actions";
@@ -53,7 +54,11 @@ export function DashboardChrome({
   user: ShellUser;
   alerts?: ShellAlert[];
   createBusinessAction: (accountId: string, formData: FormData) => Promise<void>;
-  createBusinessFromWebsiteAction: (accountId: string, formData: FormData) => Promise<void>;
+  createBusinessFromWebsiteAction: (
+    accountId: string,
+    prevState: CreateBusinessFromWebsiteState,
+    formData: FormData,
+  ) => Promise<CreateBusinessFromWebsiteState>;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);

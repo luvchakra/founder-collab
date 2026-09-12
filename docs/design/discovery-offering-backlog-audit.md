@@ -43,7 +43,7 @@ only genuine architectural/key decisions are raised.
 | D | 08.1 | Offering-Aware CRM Handoff | Done |
 | | 08.2 | Existing Relationship Detection | Done |
 | | 08.3 | Handoff Status | Done |
-| E | 09.1 | Website URL Business Onboarding | Not started |
+| E | 09.1 | Website URL Business Onboarding | Done |
 | | 09.2 | Website Crawl & Content Discovery | Not started |
 | | 09.3 | AI Offering Extraction | Not started |
 | | 09.4 | Offering Review Before Activation | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**25 of 68 in-scope stories done -- Phase D complete.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**26 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -1501,3 +1501,54 @@ noted in every prior story this run.
 
 **Status**: 25 of 68 in-scope stories done -- **Phase D complete**. Next: Phase E, 09.1
 Website URL Business Onboarding (the autonomous website-to-offering pipeline).
+
+### 09.1 — Website URL Business Onboarding (2026-09-12)
+
+Phase E's autonomous website-to-offering pipeline starts here: a founder gives a website
+URL, a business is created immediately (never blocked on a website fetch/AI call), and
+a persisted, watchable `discovery.website_onboarding_runs` row tracks the AI extraction
+that follows -- "website inspection runs asynchronously, progress is visible, errors are
+recoverable" only actually holds with a real row, not component-only state that vanishes
+on reload. Business-scoped (`business_id`, not `workspace_id`): a business exists before
+any offering does -- offerings/workspaces aren't created until 09.3/09.4 turn a reviewed
+extraction into real rows -- so this run has no workspace to key off yet, the same
+reasoning `ai_provider_credentials` already established for keying off `account_id`
+instead. No delete policy, append-style like `ai_runs`/`prospect_scores`: a failed run
+stays visible rather than disappearing, and retrying creates a fresh row instead of
+erasing the failed one.
+
+New `WebsiteBusinessProfileSchema` (`lib/ai/schemas.ts`) -- sixteen extracted fields
+(business name, description, products/services, offering categories, industries served,
+customer types, geographies, value propositions, use cases, problems solved, pricing
+hints, case studies, testimonials, customer logos, technology platform, FAQs, contact
+info), each a `WebsiteTextFieldSchema`/`WebsiteListFieldSchema` carrying its own
+explicit/inferred/unknown status alongside its value -- the story's own "every extracted
+item must distinguish explicitly stated / AI interpretation / unknown," not a flat string
+that blurs the two. Also carries candidate page links for 09.2's own future multi-page
+crawl to visit next (this story only fetches the one URL given). New
+`understand-business-website.ts` (`lib/ai`) follows this module's established AI-call
+shape exactly (BYOK model resolution, usage-limit check, `ai_runs` recording via
+`input_hash`+`prompt_version`, structured `generateObject` output) -- no new pattern
+invented for this one call.
+
+New `lib/website-onboarding/{types,queries,mutations,url,sanitize}.ts`: `url.ts`/
+`sanitize.ts` are pure, tested normalization/validation helpers (a bare domain becomes a
+real `https://` URL, obviously-malformed input is rejected before ever reaching a fetch
+or an AI call). UI: a new `website-onboarding-panel.tsx` component and a streaming route
+handler (`apps/web/.../website-onboarding/route.ts`) reusing the exact established shape
+`discover-products/route.ts` already uses elsewhere in this module, wired into
+`create-business-modal.tsx`/`dashboard-chrome.tsx`/the dashboard's own actions as the new
+entry point alongside the existing manual business-creation flow -- this is additive, not
+a replacement; a founder can still create a business the old way.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `lint:boundaries`
+(1125 files, no violations), `lint:migrations` (122 migrations, no violations), `npm run
+lint` (0 errors, 1 pre-existing unrelated warning), `npm run test -w
+@cofounderai/module-discovery` (108/108, +16 new), a live migration apply + `get_advisors`
+for both `security`/`performance` (no new findings), and a clean `next build` (confirmed
+the new `/website-onboarding` route builds and appears in the route list). Same
+live-browser-walkthrough constraint noted in every prior story this run -- particularly
+relevant here given a real website fetch + AI call is the entire point of this story.
+
+**Status**: 26 of 68 in-scope stories done -- Phase E underway. Next: 09.2, Website Crawl
+& Content Discovery.
