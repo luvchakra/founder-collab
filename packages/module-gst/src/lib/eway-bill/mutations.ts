@@ -149,6 +149,7 @@ export async function generateEwayBill(businessId: string, documentId: string): 
       eway_bill_number: response.ewbNo,
       valid_until: response.validUpto,
       qr_code: response.qrCode,
+      raw_response: response.raw,
     })
     .select()
     .single();
@@ -160,7 +161,14 @@ export async function generateEwayBill(businessId: string, documentId: string): 
  * hours of generation -- not enforced here, same reasoning as `cancelEinvoice`).
  * Idempotent: cancelling an already-cancelled row just returns it. COMPLY-P0-06.3
  * refactored this to go through the adapter's own `cancel()`, same request shape as
- * before. */
+ * before.
+ *
+ * **COMPLY-P0-10.2 note**: unlike `generateEwayBill`, this never touches `raw_response` --
+ * `EwayBillAdapter.cancel()` (like `IrpAdapter.cancel()`) returns `Promise<void>`, so
+ * there is no government response body here to capture at all. Changing that would mean
+ * widening the adapter interface's own `cancel()` return type across both e-invoice and
+ * e-way-bill adapters -- a real, plausible future need, out of this narrower "persist
+ * what generate already gives us" story's own scope. */
 export async function cancelEwayBill(businessId: string, documentId: string, reason?: string): Promise<EwayBill> {
   const admin = createAdminClient();
 

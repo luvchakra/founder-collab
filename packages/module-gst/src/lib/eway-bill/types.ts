@@ -31,6 +31,12 @@ export type EwayBill = {
   qr_code: string | null;
   cancel_reason: string | null;
   cancelled_at: string | null;
+  /** COMPLY-P0-10.2 (Government Response Store): the complete, unmodified GENERATE
+   * response body -- `null` for every row created before this column existed (a real
+   * "not captured," never "no response was ever received"), and for the cancel action
+   * too (see `mutations.ts`'s own docstring for why a cancel response is never captured
+   * by anything in this platform today). */
+  raw_response: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

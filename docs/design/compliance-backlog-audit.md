@@ -78,18 +78,23 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 09.4 | Overdue Detection | Done |
 | | 09.5 | Risk Dashboard | Done |
 | P0-10 | 10.1 | Evidence Repository | Done |
-| | 10.2–10.5 | Evidence & Audit (remaining) | Not started |
+| | 10.2 | Government Response Store | Done |
+| | 10.3–10.5 | Evidence & Audit (remaining) | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**49 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
-that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
+**51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
+story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
-.registration_id` itself still isn't written by any UI).
+.registration_id` itself still isn't written by any UI). Note: earlier entries in this log
+used an approximate "~50" denominator that only ever accounted for Epics 01-09 (44 + 5 =
+49) -- corrected here to the real full-backlog total (Epics 01-11, 60 stories minus the
+one absorbed into 01.2 = 59) now that Epic 10 is underway.
 
-**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1 (Evidence
-Repository) is done too. Next: COMPLY-P0-10.2 (Government Response Store).
+**COMPLY-P0-02 through COMPLY-P0-09 are all now fully done**, and COMPLY-P0-10.1/10.2
+(Evidence Repository, Government Response Store) are done too. Next: COMPLY-P0-10.3
+(Audit Trail).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -5182,6 +5187,82 @@ verification of `related_entity_id` itself (see above).
 - **Local Postgres RLS harness actually run this story**: `scripts/test-gst-compliance
   -evidence-rls.mjs`, all assertions passing, most notably the cross-reference guard
   (a genuine Postgres exception, confirmed non-over-blocking).
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 10.2 -- Government Response Store (2026-09-12)
+
+Closes a gap flagged by name TWICE already, by two different prior stories, before this
+one was ever reached: COMPLY-P0-05.4's own `gst.einvoices.raw_response` migration comment
+said outright "left otherwise unused until a future story (COMPLY-P0-10.2 'Government
+Response Store') builds a real evidence view around it," and COMPLY-P0-05.6's own
+`determine.ts` flagged that `gst.eway_bills` never got the equivalent column at all. This
+story does both: builds the view, and closes the missing column on the sibling table.
+
+**Checked the existing implementation first (backlog rule 1) -- the single most important
+finding**: `EwayBillGenerateResponse.raw` (COMPLY-P0-06.3's own adapter interface) has
+ALWAYS carried "the complete, unmodified government response body," but `generateEwayBill`
+never persisted it -- the exact same gap `gst.einvoices` had before COMPLY-P0-05.4 closed
+it, just never closed on this sibling table. Fixed with the identical migration shape (a
+nullable `raw_response jsonb` column, same "null means not captured, not never received"
+reasoning) plus one line wiring it into `generateEwayBill`'s own insert.
+
+**A real, honest limitation restated (not newly discovered, but re-confirmed and now
+formally documented at the VIEW level, not just buried in a prior story's own code
+comment)**: cancel responses are NEVER captured for either e-invoices or e-way bills --
+`IrpAdapter.cancel()`/`EwayBillAdapter.cancel()` both return `Promise<void>`, so there is
+no response body for either cancel mutation to capture in the first place. A `"cancelled"`
+record in this store's own list always shows the GENERATE response (still real evidence),
+never a cancel confirmation -- documented prominently in `queries.ts`'s own docstring
+rather than silently letting a reader assume otherwise.
+
+**Scope, deliberately excluding `gst.gstr2b_statements.raw` (backlog rule 5)**: that
+column already holds a full raw GSTR-2B JSON, but it is a DIFFERENT kind of government
+artifact -- a bulk periodic statement a business downloads/imports (COMPLY-P0-08.1), not a
+per-submission API response this platform's own adapter received synchronously. Folding
+the two together into one list would blur genuinely different concepts for no real
+benefit; that statement's own evidentiary value is already reachable through COMPLY-P0-08's
+own reconciliation screens once COMPLY-P0-11 builds them.
+
+**What was built**:
+- `supabase/migrations/20260912210000_gst_eway_bills_raw_response.sql` -- `alter table
+  gst.eway_bills add column raw_response jsonb`.
+- `lib/eway-bill/types.ts` -- `EwayBill.raw_response`.
+- `lib/eway-bill/mutations.ts` -- `generateEwayBill` now persists `response.raw`;
+  `cancelEwayBill`'s own docstring extended to explain why it never will.
+- `lib/einvoicing/queries.ts` -- `listEinvoicesForBusiness` (new: the whole history, not
+  one document at a time).
+- `lib/eway-bill/queries.ts` -- `listEwayBillsForBusiness` (new, same reasoning).
+- `lib/government-responses/types.ts` -- `GovernmentResponseSource`,
+  `GovernmentResponseRecord`.
+- `lib/government-responses/sort.ts` -- `sortGovernmentResponses` (pure, extracted for
+  testing).
+- `lib/government-responses/queries.ts` -- `listGovernmentResponses(businessId)`: combines
+  both sources into one newest-first list.
+- 3 new vitest cases in `sort.test.ts`.
+- Updated `packages/module-gst/src/lib/eway-bill-document-link/link.test.ts`'s own
+  `makeEwayBill` fixture with the new required field (a pre-existing test fixture, not
+  unrelated code -- kept in sync with the type it constructs).
+
+**What was deliberately left out**: capturing cancel responses (see above -- needs an
+adapter interface change, a different story's job); folding in GSTR-2B statement JSON
+(see above); any UI (COMPLY-P0-11).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1321 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 163 migration files, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 454 tests passing (451 prior + 3 new).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (security): identical finding set
+  before/after -- no new finding (a plain `ALTER TABLE ADD COLUMN`, no new RLS surface).
+- Re-ran the existing `scripts/test-gst-generation-history-rls.mjs` harness locally to
+  confirm the full migration timeline (163 files, including this story's own ALTER)
+  applies cleanly and `gst.eway_bills`' own existing RLS/constraints are unaffected.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
