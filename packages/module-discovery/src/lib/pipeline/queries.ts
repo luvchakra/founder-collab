@@ -1,5 +1,5 @@
 import { createClient } from "../../db/server";
-import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey, type PipelineStageRun } from "./types";
+import { PIPELINE_STAGE_KEYS, type PipelineRun, type PipelineStage, type PipelineStageKey, type PipelineStageRun } from "./types";
 
 /** Seeds every stage key this workspace is still missing a row for, as `not_started` --
  * idempotent (an `on conflict do nothing` upsert keyed on the table's own
@@ -52,6 +52,56 @@ export async function listPipelineStageRuns(workspaceId: string, stageKey: Pipel
     .eq("workspace_id", workspaceId)
     .eq("stage_key", stageKey)
     .order("version", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** DISC-OFFER-P0-14.1: this offering's own "Discovery Run History" -- most recent walk
+ * through the pipeline first. Capped at 50 (a plain, generous recency window -- this is
+ * an audit log a founder scrolls, not a paginated report this story asks for). */
+export async function listPipelineRuns(workspaceId: string, limit = 50): Promise<PipelineRun[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+/** One run, scoped to its own workspace -- used both to render a single run's own detail
+ * and, in `run-ai-discovery/route.ts`, to validate a client-supplied `runId` actually
+ * belongs to the caller's own workspace before trusting it (CLAUDE.md dev principle #8:
+ * never trust a client-supplied tenant-scoped id without server-side authorization) --
+ * RLS already prevents *reading another workspace's row*, but a bare `id` FK on
+ * `pipeline_stage_runs.run_id` would otherwise still accept a syntactically valid id for
+ * a run that exists yet belongs to a workspace the caller has nothing to do with. */
+export async function getPipelineRun(workspaceId: string, runId: string): Promise<PipelineRun | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("id", runId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/** DISC-OFFER-P0-14.1's own "stages executed" -- every technical stage attempt made
+ * during one specific run, in the order they actually ran. Deliberately reads
+ * `pipeline_stage_runs` (10.2's own append-only attempt log) rather than a duplicate
+ * column on `pipeline_runs` -- see that table's own migration comment. */
+export async function listPipelineStageRunsForRun(workspaceId: string, runId: string): Promise<PipelineStageRun[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_stage_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .eq("run_id", runId)
+    .order("created_at", { ascending: true });
   if (error) throw error;
   return data;
 }
