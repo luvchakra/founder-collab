@@ -64,14 +64,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 07.3 | GSTR-9 Preparation | Done |
 | | 07.4 | Return Drill-Down | Done |
 | | 07.5 | Return Review Workflow | Done |
-| | 07.6–07.7 | India Returns (remaining) | Not started |
+| | 07.6 | Return Lock | Done |
+| | 07.7 | Filing/Payment Status | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**35 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**36 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -79,9 +80,9 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and COMPLY-P0-06 (India
-E-Way Bill) are all fully done.** COMPLY-P0-07.5 (Return Review Workflow) is the last
-completed story, epic 07 (India Returns) now five of seven stories in. Next:
-COMPLY-P0-07.6 (Return Lock).
+E-Way Bill) are all fully done.** COMPLY-P0-07.6 (Return Lock) is the last completed
+story, epic 07 (India Returns) now six of seven stories in. Next: COMPLY-P0-07.7
+(Filing/Payment Status).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -3822,6 +3823,108 @@ files, which are out of this run's own scope (`packages/module-gst` only).
   or integration pass next touches that assertion, per this run's own explicit
   "never touch ... module-discovery" boundary and "flag the discrepancy rather than
   silently reconciling" instruction.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 07.6 — Return Lock (2026-09-12)
+
+"Approved/filed periods are protected from silent alteration." This run's own
+instructions were explicit that this must be a REAL protection, not a UI hint -- so this
+story adds a genuine database-level guard, not an application-layer convention that a
+direct write could bypass.
+
+**Design decision -- a `before update` trigger on `gst.return_periods`, not just an RLS
+policy tweak**: RLS's own `with check` clause could, in principle, express some of this
+(e.g. refuse an update that changes `snapshot` when `status` is already `'approved'`), but
+RLS policies apply only to the `authenticated` role's requests -- `service_role` (used by
+this module's own `db/admin.ts`, and by any future migration/backfill/admin tool) bypasses
+RLS entirely by design. A trigger fires for EVERY role, RLS bypass included, which is the
+only way to make this "genuinely protected... not a UI hint" for every write path, not just
+the ordinary request-scoped one. Verified live (see below): even a direct superuser/
+service-role-equivalent write against an approved period's `snapshot` is rejected by the
+trigger itself.
+
+**What is protected, precisely** (deny-by-name, not deny-by-default): once a period's own
+CURRENT (`old`) status is `approved` or `filed`, its defining content --
+`business_id`/`return_type`/`period_start`/`period_end`/`snapshot`/`created_at` -- can
+never change, and its `status` may only ever advance exactly one step forward
+(`approved` -> `filed`; `filed` is fully terminal). `status_history` is deliberately NOT
+locked -- appending an entry (the `filed` transition's own history entry today; a future
+COMPLY-P0-07.7 "payment recorded" entry tomorrow) must keep working on an already-locked
+row; only the row's own computed CONTENT and its terminal status are frozen, never its own
+append-only audit trail.
+
+**A deliberate design choice to avoid foreclosing COMPLY-P0-07.7 before it exists**: the
+trigger names specific columns to protect rather than locking "every column, full stop,
+once approved/filed." COMPLY-P0-07.7 ("Filing/Payment Status") will need to record real
+government-response metadata (an ARN, a payment/challan reference) onto an ALREADY-FILED
+period -- a blanket "no update at all once filed" rule would have foreclosed that story's
+own design before it exists, exactly the kind of implicit future-story decision backlog
+rule 5 warns against. Whatever new columns that story's own migration adds are untouched
+by this trigger unless that story's own migration explicitly extends the check -- a
+deliberate, visible decision made there, not an accidental gap left here.
+
+**What was deliberately left out**: any "supersede an approved/filed period with a
+corrected one" mechanism -- if a genuinely different figure is ever needed after approval,
+this story provides no path for that (the row is simply immutable at that point); a real,
+plausible future need, named here rather than solved, since a versioning/supersession
+scheme is a real design decision on its own, not a one-line addition to a lock trigger. No
+UI -- matches this whole epic's "lib first, UI later" pattern; there is also no application
+code change at all this story (`lib/returns/lifecycle/mutations.ts` was already correct --
+every legitimate call path only ever transitions a period exactly one step forward via
+`assertCanTransition`, so the new trigger never fires for legitimate application traffic;
+it exists purely as the backstop this story's own spec calls for).
+
+**A real advisor finding surfaced and fixed in the same story**: `mcp__Supabase__
+get_advisors` (security) flagged the new `gst.enforce_return_period_lock` function with
+"Function Search Path Mutable" immediately after applying the trigger migration --
+harmless in practice here (the function only reads its own `new`/`old` row fields, no
+unqualified reference that could resolve against a hijacked search path) but pinned
+anyway via an immediate follow-up migration (`alter function ... set search_path = gst`),
+the same discipline every other function in this schema already follows. Kept as its own
+migration file rather than editing the already-applied trigger migration, matching
+COMPLY-P0-02.1's own "one file per `apply_migration` call" precedent for a
+same-session-discovered fix.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean (no application code changed this story).
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1222 files scanned, 0 violations (unchanged
+  from 07.5 -- this story added no new TypeScript file).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 144
+  migration files each, 0 violations (the trigger migration plus its search-path
+  follow-up).
+- `npx vitest run --root packages/module-gst` -- still 318 tests passing (no new vitest
+  file -- this story's whole logic lives in a Postgres trigger, which vitest cannot
+  exercise; the real coverage is the live RLS harness below, the correct tool for a
+  database-level guard, matching how every other schema-only story in this module verifies
+  itself).
+- Both migrations applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): the
+  search-path warning described above was caught and fixed in the same story -- the
+  finding set immediately after the follow-up migration is identical to immediately before
+  this story's own first migration (same 5 pre-existing `rls_enabled_no_policy` infos, the
+  1 pre-existing `auth_leaked_password_protection` warning). Performance: identical
+  unused-index list to before this story (a trigger/function pair introduces no index at
+  all).
+- **Local Postgres RLS harness actually run this story** (this session's cluster was
+  startable again, same as 07.5 -- started, used, stopped back to its found "down" state
+  afterward): extended `scripts/test-gst-return-periods-rls.mjs` with the real lock
+  assertions -- approving a period then attempting to alter its `snapshot` is rejected with
+  a genuine trigger exception (not an RLS no-op, confirmed by reading the value back
+  unchanged); attempting to alter its `period_end` is rejected the same way; attempting to
+  regress `status` from `approved` back to `draft` is rejected; `approved -> filed` (the one
+  legal next step) succeeds with the snapshot untouched; once `filed`, altering the
+  snapshot is rejected again; once `filed`, changing `status` away from `filed` is rejected;
+  critically, a write issued through the harness's own superuser connection (bypassing
+  `authenticated`/RLS entirely, standing in for a `service_role`/admin-client write) is
+  ALSO rejected by the trigger, proving this is a real database-level guard and not
+  something that only happens to hold for ordinary request-scoped writes; and
+  `status_history` can still be appended on an already-filed, locked period, confirming the
+  audit trail itself was deliberately left unlocked. All passing.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).

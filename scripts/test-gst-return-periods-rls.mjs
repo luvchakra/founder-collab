@@ -147,6 +147,64 @@ async function main() {
       `);
       assertEqual(psqlAsAlice(`select jsonb_array_length(status_history) from gst.return_periods where id = '${period}'`), "1", "one history entry recorded so far");
 
+      // --- COMPLY-P0-07.6 (Return Lock) ---------------------------------------------
+      console.log("Approving the period (in_review -> approved)...");
+      psqlAsAlice(`update gst.return_periods set status = 'approved' where id = '${period}'`);
+      assertEqual(psqlAsAlice(`select status from gst.return_periods where id = '${period}'`), "approved", "now approved");
+
+      console.log("Once approved, the snapshot can never be altered, even by the owner with full permission (a real trigger exception, not an RLS no-op)...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set snapshot = '{"tampered": true}'::jsonb where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects altering an approved period's snapshot",
+      );
+      assertEqual(
+        psqlAsAlice(`select snapshot ? 'tampered' from gst.return_periods where id = '${period}'`),
+        "f",
+        "the snapshot is genuinely unchanged after the rejected attempt",
+      );
+
+      console.log("Once approved, the period_end (part of its own defining content) can never be altered either...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set period_end = '2026-09-30' where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects altering an approved period's period_end",
+      );
+
+      console.log("Once approved, status can never move backward to draft/validated/in_review...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set status = 'draft' where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects an approved period regressing to draft",
+      );
+
+      console.log("...but approved -> filed (the one legal next step) is still allowed, snapshot untouched...");
+      psqlAsAlice(`update gst.return_periods set status = 'filed' where id = '${period}'`);
+      assertEqual(psqlAsAlice(`select status from gst.return_periods where id = '${period}'`), "filed", "now filed");
+
+      console.log("Once filed, the snapshot is still permanently locked...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set snapshot = '{"tampered": true}'::jsonb where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects altering a filed period's snapshot",
+      );
+
+      console.log("Once filed, status can never change again -- 'filed' is the terminal stage...");
+      assertThrows(
+        () => psqlAsAlice(`update gst.return_periods set status = 'approved' where id = '${period}'`),
+        "gst.enforce_return_period_lock rejects moving a filed period back to approved",
+      );
+
+      console.log("The lock fires for EVERY role, including service_role/RLS-bypassing writes -- not just ordinary authenticated writes...");
+      assertThrows(
+        () => psql(`update gst.return_periods set snapshot = '{"tampered": true}'::jsonb where id = '${period}'`),
+        "even a superuser/service-role-equivalent write is rejected by the trigger itself",
+      );
+
+      console.log("status_history can still be appended even on a locked, filed period (only content/status are locked, not the audit trail)...");
+      psqlAsAlice(`
+        update gst.return_periods
+        set status_history = status_history || jsonb_build_object('status', 'filed', 'at', now(), 'by', '${ALICE}')
+        where id = '${period}'
+      `);
+      assertEqual(psqlAsAlice(`select jsonb_array_length(status_history) from gst.return_periods where id = '${period}'`), "2", "a new history entry was appended even though the period is filed and locked");
+
       console.log("All gst.return_periods RLS assertions passed.");
     },
   });
