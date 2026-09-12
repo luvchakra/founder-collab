@@ -23,7 +23,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
-| | 06 | Usage & Limits | 06.1/06.2 done (counters + dashboard); 06.3 done (`canConsume()`/`try_consume_usage_counter()`, atomic server-side enforcement); 06.4 done (copy + reusable notice component, not wired into any page yet -- see log); 06.5 next |
+| | 06 | Usage & Limits | 06.1-06.4 done (counters, dashboard, atomic enforcement, graceful copy/UI); 06.5 (Soft vs Hard Limits) **stopped -- genuine architectural ambiguity the doc doesn't resolve, see log entry for the exact open questions** |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
@@ -2480,3 +2480,101 @@ adding it (below), the same as every other change this story made.
 
 **Status**: PLATFORM-P0-06.4 done. Continuing in doc order: PLATFORM-P0-06.5 (Soft vs Hard
 Limits).
+
+### PLATFORM-P0-06.5 — Soft vs Hard Limits (2026-09-12, stopped -- see below)
+
+The doc's own entire text for this story, in full:
+
+```text
+## PLATFORM-P0-06.5 — Soft vs Hard Limits
+
+Support:
+
+Soft Limit
+Hard Limit
+Warning Threshold
+```
+
+Three nouns, no worked example, no defined behavior -- unlike every other story in this
+section (05.3 gives a literal example decision; 06.2 names the exact four fields to show;
+06.4 gives the exact copy and button labels). Read `docs/plan/00-MASTER-PLAN.md` and every
+other section of `09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` (§24 Business-Level Exceptions, §27
+Platform Billing Configuration) looking for a definition of what "soft" vs "hard" actually
+*do* differently, or what a warning threshold triggers -- none exists anywhere in this
+plan package.
+
+**This run's own task brief is explicit that this is exactly the situation to stop on**:
+"Any story whose correct behavior depends on a security/authorization judgment call the
+doc doesn't fully specify AND that isn't resolved by the two decisions given [this run's
+own dispatch] is a genuine architectural decision -- stop and report rather than
+guess-and-merge." `canConsume()`/`try_consume_usage_counter()` (PLATFORM-P0-06.3, already
+shipped and merged) is real entitlement enforcement gating what a tenant can do -- squarely
+the "real entitlement/license enforcement" this run's own higher security bar names. Making
+up what "soft" means and shipping it would mean inventing, unreviewed, a change to that
+already-live enforcement's actual meaning -- not a layout or reuse-pattern call this run is
+free to decide itself.
+
+**The specific questions this doc does not answer, stated precisely (mirroring the same
+"how does a business get assigned to a plan" precision the PLATFORM-P0-05.1 entry above
+used, since answering these vaguely would just move the guess one level down)**:
+
+1. **What does a "soft limit" actually do when reached?** At least three genuinely
+   different products hide behind that one word, and this run has no basis to pick one:
+   (a) the action is *always allowed anyway* -- a soft limit never blocks, it only makes
+   `getLimit()`/`canConsume()`'s own `reason`/a UI surface say "you're over your plan's
+   guideline" without denying anything (in which case `canConsume()`'s own atomic
+   grant/deny machinery, PLATFORM-P0-06.3, is the wrong tool entirely -- a soft limit
+   would need no new backend enforcement at all, only a UI convention reading the
+   `limit`/`usage` fields `getLimit()` already returns today); (b) the action is blocked
+   by default but a business owner or superadmin can explicitly override/dismiss it
+   per-attempt; (c) the action is allowed past the limit up to some separate overage
+   ceiling, presumably with a billing consequence -- which pulls in real pricing/billing
+   decisions §27 (Platform Billing Configuration, "Not started") doesn't define either.
+2. **Is "soft"/"hard" a new, independent dimension on `platform.plan_limits`, or does it
+   reinterpret the tri-state `state` column (`limited`/`unlimited`/`disabled`,
+   PLATFORM-P0-04.5/04.6) that's already live?** If independent (e.g. a `limit_type`
+   column meaningful only when `state = 'limited'`), that's a straightforward additive
+   migration. If instead "hard limit" is meant to retroactively define what `state =
+   'limited'` has meant all along and "soft limit" is a *new* state alongside it, that
+   changes the meaning of already-shipped, already-tested, already-dev-verified
+   enforcement (`try_consume_usage_counter()`'s own denial semantics, PLATFORM-P0-06.3)
+   -- a real regression risk to flag explicitly rather than silently reinterpret. This run
+   has no way to tell which the doc intends.
+3. **What is a "Warning Threshold" a percentage of, who configures it, and what happens
+   when it's crossed?** Candidates with materially different scope: (a) purely
+   presentational -- any caller can already compute "85% of my limit" today from
+   `getLimit()`'s own real `usage`/`limit` fields with zero schema change, so this would
+   be a UI-only story (a "you're approaching your limit" variant of PLATFORM-P0-06.4's
+   `LimitReachedNotice`), not an entitlement-engine change at all; (b) a stored,
+   per-(plan, resource) configurable value (parallel to `plan_limits.limit_value` itself)
+   that a superadmin sets, requiring a new column/table and its own admin UI; (c) a
+   trigger for an actual notification/email to the business, which depends on
+   PLATFORM-P0-11 (Global Email / Notification Configuration), itself listed "Not
+   started" in this backlog's own progress table -- a real cross-section dependency the
+   doc doesn't call out.
+
+**Not implementing any of the above.** Guessing any one answer and shipping it would mean
+either quietly walking back PLATFORM-P0-06.3's already-merged, already-dev-verified
+enforcement semantics, or inventing a notification/billing feature this backlog assigns to
+a different, not-yet-started section -- exactly the "invent unreviewed scope" this run's
+task brief says not to do. PLATFORM-P0-05.1's own precedent (stopped, asked, the user
+answered with two concrete decisions, this run resumed and built exactly those) is the
+model to repeat here: this entry lays out the real questions; a future dispatch with the
+user's own answers can build this story precisely, the same way this run built
+PLATFORM-P0-05.2-06.4 today.
+
+**What is NOT blocked by this**: every other piece of §10 this run already shipped today
+(06.1 counters, 06.2 dashboard, 06.3 enforcement, 06.4 graceful copy/UI) is real, complete,
+verified, and merged to `main` regardless of how 06.5 is eventually answered -- none of
+today's work assumed or hard-coded a particular soft/hard/threshold design, so nothing
+here needs to be revisited once it is.
+
+**Status**: PLATFORM-P0-06.5 **stopped, not built** -- a genuine architectural/product
+ambiguity the doc does not resolve, per this run's own task brief. §10 (Usage & Limits) is
+otherwise complete: 06.1-06.4 done, all merged to `main`. **Stopping here, not
+auto-continuing to §11**, per this run's own task brief's explicit instruction for exactly
+this situation ("stop and report rather than guess-and-merge... end your turn") -- the same
+precedent PLATFORM-P0-05.1's own entry above set (stop, document precisely, wait for the
+user's own decision, resume from exactly this point once it's given). This run's own
+usage-tracking note: well under the 80% stop threshold -- this is a natural, doc-mandated
+stopping point for this one story, not a usage cutoff.
