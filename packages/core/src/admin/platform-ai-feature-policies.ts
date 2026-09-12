@@ -11,8 +11,15 @@ import { AI_PROVIDER_LABELS, type AiProvider } from "../ai-providers/types";
  * per-run token/cost caps, a daily platform budget) -- it does NOT enforce any of it. No
  * function here is called by `packages/core/src/ai/business-router.ts`,
  * `operation-registry.ts`, `model-registry.ts`, or `module-discovery`'s own router, and none
- * of them import from this file. Real enforcement is PLATFORM-P0-10.1/10.2's own later,
- * separate story (§14, "AI Safety / Cost Controls").
+ * of them import from this file.
+ *
+ * **PLATFORM-P0-10.1 extension (§14, "AI Safety / Cost Controls", user-decided, see
+ * `20260912390000_platform_ai_feature_policies_monthly_budget.sql`'s own docstring for the
+ * full reasoning)**: `monthlyBudgetUsd` was added here as the SAME kind of platform-wide,
+ * config-only ceiling as `dailyPlatformBudgetUsd` -- not a new table, not a new mutation
+ * path. Real enforcement (pausing AI, notifying SUPERADMIN when a threshold is exceeded --
+ * PLATFORM-P0-10.2) and any per-business/per-feature budget dimension remain explicitly
+ * deferred and are NOT built by this file.
  *
  * Same authorization shape as every other `platform.*` admin module: the request-scoped,
  * cookie-authenticated client, so `platform.ai_feature_policies`' own RLS (open SELECT, no
@@ -32,6 +39,7 @@ export type AiFeaturePolicy = {
   maxTokensPerRun: number | null;
   maxRunCostUsd: number | null;
   dailyPlatformBudgetUsd: number | null;
+  monthlyBudgetUsd: number | null;
   updatedAt: string;
   updatedBy: string | null;
 };
@@ -43,6 +51,7 @@ type AiFeaturePolicyRow = {
   max_tokens_per_run: number | null;
   max_run_cost_usd: number | string | null;
   daily_platform_budget_usd: number | string | null;
+  monthly_budget_usd: number | string | null;
   updated_at: string;
   updated_by: string | null;
 };
@@ -58,6 +67,7 @@ function toAiFeaturePolicy(row: AiFeaturePolicyRow): AiFeaturePolicy {
     // exact-money arithmetic in this file (display and round-trip into the form only).
     maxRunCostUsd: row.max_run_cost_usd === null ? null : Number(row.max_run_cost_usd),
     dailyPlatformBudgetUsd: row.daily_platform_budget_usd === null ? null : Number(row.daily_platform_budget_usd),
+    monthlyBudgetUsd: row.monthly_budget_usd === null ? null : Number(row.monthly_budget_usd),
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
   };
@@ -117,6 +127,7 @@ export const updateAiFeaturePolicySchema = z.object({
   maxTokensPerRun: optionalPositiveNumberSchema("Maximum tokens per run"),
   maxRunCostUsd: optionalPositiveNumberSchema("Maximum run cost"),
   dailyPlatformBudgetUsd: optionalPositiveNumberSchema("Daily platform budget"),
+  monthlyBudgetUsd: optionalPositiveNumberSchema("Monthly platform budget"),
   reason: reasonSchema,
 });
 export type UpdateAiFeaturePolicyInput = z.input<typeof updateAiFeaturePolicySchema>;
@@ -148,6 +159,7 @@ export async function updateAiFeaturePolicy(
     p_max_tokens_per_run: parsed.data.maxTokensPerRun,
     p_max_run_cost_usd: parsed.data.maxRunCostUsd,
     p_daily_platform_budget_usd: parsed.data.dailyPlatformBudgetUsd,
+    p_monthly_budget_usd: parsed.data.monthlyBudgetUsd,
     p_reason: parsed.data.reason,
   });
   if (error) return { ok: false, error: error.message };

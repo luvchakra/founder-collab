@@ -2,19 +2,21 @@
 /**
  * RLS + behavior test for `platform.ai_feature_policies`/
  * `platform.ai_feature_policy_events` (PLATFORM-P0-09.4, "AI Feature Policies",
- * CONFIG-ONLY, docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13). Same harness and bar
+ * CONFIG-ONLY, docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13; extended in place by
+ * PLATFORM-P0-10.1's `monthly_budget_usd` column, §14, user-decided -- see
+ * `20260912390000_platform_ai_feature_policies_monthly_budget.sql`). Same harness and bar
  * every sibling `platform.*` migration in this backlog has been held to.
  *
  * What this proves that reading the migration's own SQL does not:
  *   - the singleton row is seeded with AI enabled, no provider/model restriction, and no
- *     token/cost/budget ceiling -- no fabricated lockdown;
+ *     token/cost/budget/monthly-budget ceiling -- no fabricated lockdown;
  *   - a non-superadmin can read the open policy row but her mutation attempt is rejected
  *     by the function's own internal check, with zero residue in either table;
- *   - a genuine superadmin can set the full policy, which writes exactly one atomic audit
- *     event carrying a real before/after snapshot;
+ *   - a genuine superadmin can set the full policy (including the monthly budget), which
+ *     writes exactly one atomic audit event carrying a real before/after snapshot;
  *   - an unknown provider inside `allowed_providers` is rejected, with zero residue;
- *   - a non-positive `max_tokens_per_run`/`max_run_cost_usd`/`daily_platform_budget_usd`
- *     is rejected by the table's own CHECK constraints;
+ *   - a non-positive `max_tokens_per_run`/`max_run_cost_usd`/`daily_platform_budget_usd`/
+ *     `monthly_budget_usd` is rejected by the table's own CHECK constraints;
  *   - an empty/whitespace reason is rejected;
  *   - clearing the policy back to no restriction/no ceiling is a valid, honest state;
  *   - the audit trail's own SELECT is superadmin-only;
@@ -64,10 +66,10 @@ async function main() {
       assertEqual(psql(`select count(*) from platform.ai_feature_policies`), "1", "exactly one feature-policy row exists");
       assertEqual(
         psql(
-          `select ai_enabled::text || ':' || (array_length(allowed_providers, 1) is null)::text || ':' || (array_length(allowed_models, 1) is null)::text || ':' || (max_tokens_per_run is null)::text || ':' || (max_run_cost_usd is null)::text || ':' || (daily_platform_budget_usd is null)::text from platform.ai_feature_policies`,
+          `select ai_enabled::text || ':' || (array_length(allowed_providers, 1) is null)::text || ':' || (array_length(allowed_models, 1) is null)::text || ':' || (max_tokens_per_run is null)::text || ':' || (max_run_cost_usd is null)::text || ':' || (daily_platform_budget_usd is null)::text || ':' || (monthly_budget_usd is null)::text from platform.ai_feature_policies`,
         ),
-        "true:true:true:true:true:true",
-        "AI enabled, no provider/model restriction, no token/cost/budget ceiling",
+        "true:true:true:true:true:true:true",
+        "AI enabled, no provider/model restriction, no token/cost/budget/monthly-budget ceiling",
       );
       assertEqual(psql(`select count(*) from platform.ai_feature_policy_events`), "0", "no events seeded");
 
@@ -76,7 +78,7 @@ async function main() {
       assertThrows(
         () =>
           psqlAsAlice(
-            `select platform.update_ai_feature_policies(false, array['openai']::text[], array[]::text[], null, null, null, 'trying to change policy')`,
+            `select platform.update_ai_feature_policies(false, array['openai']::text[], array[]::text[], null, null, null, null, 'trying to change policy')`,
           ),
         "Alice's policy-update attempt is rejected by the function's own internal check",
       );
@@ -87,15 +89,15 @@ async function main() {
       );
       assertEqual(psql(`set local role service_role; select count(*) from platform.ai_feature_policy_events`), "0", "zero residue in the audit trail");
 
-      console.log("Verifying a genuine superadmin (Zoe) can set the full policy...");
+      console.log("Verifying a genuine superadmin (Zoe) can set the full policy, including the monthly budget...");
       psqlAsZoe(
-        `select platform.update_ai_feature_policies(true, array['anthropic', 'openai']::text[], array['claude-sonnet-5']::text[], 8000, 0.5, 100, 'initial platform-wide AI ceilings')`,
+        `select platform.update_ai_feature_policies(true, array['anthropic', 'openai']::text[], array['claude-sonnet-5']::text[], 8000, 0.5, 100, 2500, 'initial platform-wide AI ceilings')`,
       );
       assertEqual(
         psqlAsZoe(
-          `select ai_enabled::text || ':' || array_to_string(allowed_providers, ',') || ':' || array_to_string(allowed_models, ',') || ':' || max_tokens_per_run::text || ':' || max_run_cost_usd::text || ':' || daily_platform_budget_usd::text from platform.ai_feature_policies`,
+          `select ai_enabled::text || ':' || array_to_string(allowed_providers, ',') || ':' || array_to_string(allowed_models, ',') || ':' || max_tokens_per_run::text || ':' || max_run_cost_usd::text || ':' || daily_platform_budget_usd::text || ':' || monthly_budget_usd::text from platform.ai_feature_policies`,
         ),
-        "true:anthropic,openai:claude-sonnet-5:8000:0.5000:100.00",
+        "true:anthropic,openai:claude-sonnet-5:8000:0.5000:100.00:2500.00",
         "the policy was updated with the exact values requested",
       );
       assertEqual(
@@ -111,7 +113,7 @@ async function main() {
       assertThrows(
         () =>
           psqlAsZoe(
-            `select platform.update_ai_feature_policies(true, array['cohere']::text[], array[]::text[], null, null, null, 'unknown provider')`,
+            `select platform.update_ai_feature_policies(true, array['cohere']::text[], array[]::text[], null, null, null, null, 'unknown provider')`,
           ),
         "an unknown provider inside allowed_providers is rejected",
       );
@@ -121,47 +123,61 @@ async function main() {
         "the policy's own allowed_providers is untouched by the rejected attempt above",
       );
 
-      console.log("Verifying non-positive token/cost/budget ceilings are rejected by the table's own CHECK constraints...");
+      console.log("Verifying non-positive token/cost/budget/monthly-budget ceilings are rejected by the table's own CHECK constraints...");
       assertThrows(
         () =>
           psqlAsZoe(
-            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], 0, null, null, 'zero tokens')`,
+            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], 0, null, null, null, 'zero tokens')`,
           ),
         "a zero max_tokens_per_run is rejected",
       );
       assertThrows(
         () =>
           psqlAsZoe(
-            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, -1, null, 'negative cost')`,
+            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, -1, null, null, 'negative cost')`,
           ),
         "a negative max_run_cost_usd is rejected",
       );
       assertThrows(
         () =>
           psqlAsZoe(
-            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, 0, 'zero budget')`,
+            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, 0, null, 'zero budget')`,
           ),
         "a zero daily_platform_budget_usd is rejected",
+      );
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, 0, 'zero monthly budget')`,
+          ),
+        "a zero monthly_budget_usd is rejected",
+      );
+      assertThrows(
+        () =>
+          psqlAsZoe(
+            `select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, -50, 'negative monthly budget')`,
+          ),
+        "a negative monthly_budget_usd is rejected",
       );
 
       console.log("Verifying an empty/whitespace reason is rejected...");
       assertThrows(
-        () => psqlAsZoe(`select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, '')`),
+        () => psqlAsZoe(`select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, null, '')`),
         "an empty reason is rejected",
       );
       assertThrows(
-        () => psqlAsZoe(`select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, '   ')`),
+        () => psqlAsZoe(`select platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null, null, null, '   ')`),
         "a whitespace-only reason is rejected",
       );
 
       console.log("Verifying clearing the policy back to no restriction/no ceiling is a valid, honest state...");
-      psqlAsZoe(`select platform.update_ai_feature_policies(false, array[]::text[], array[]::text[], null, null, null, 'pausing AI while we reconsider limits')`);
+      psqlAsZoe(`select platform.update_ai_feature_policies(false, array[]::text[], array[]::text[], null, null, null, null, 'pausing AI while we reconsider limits')`);
       assertEqual(
         psqlAsZoe(
-          `select ai_enabled::text || ':' || (array_length(allowed_providers, 1) is null)::text || ':' || (max_tokens_per_run is null)::text from platform.ai_feature_policies`,
+          `select ai_enabled::text || ':' || (array_length(allowed_providers, 1) is null)::text || ':' || (max_tokens_per_run is null)::text || ':' || (monthly_budget_usd is null)::text from platform.ai_feature_policies`,
         ),
-        "false:true:true",
-        "the policy can be cleared back to AI-disabled, no restriction, no ceiling",
+        "false:true:true:true",
+        "the policy can be cleared back to AI-disabled, no restriction, no ceiling, no monthly budget",
       );
       assertEqual(psqlAsZoe(`select count(*) from platform.ai_feature_policy_events`), "2", "the clear itself is also audited");
 

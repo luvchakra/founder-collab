@@ -8,6 +8,7 @@ const validInput = {
   maxTokensPerRun: "8000",
   maxRunCostUsd: "0.5",
   dailyPlatformBudgetUsd: "100",
+  monthlyBudgetUsd: "2500",
   reason: "Setting initial platform-wide AI ceilings ahead of rollout.",
 };
 
@@ -20,6 +21,7 @@ describe("updateAiFeaturePolicySchema (PLATFORM-P0-09.4, config-only)", () => {
       expect(result.data.maxTokensPerRun).toBe(8000);
       expect(result.data.maxRunCostUsd).toBe(0.5);
       expect(result.data.dailyPlatformBudgetUsd).toBe(100);
+      expect(result.data.monthlyBudgetUsd).toBe(2500);
     }
   });
 
@@ -31,6 +33,7 @@ describe("updateAiFeaturePolicySchema (PLATFORM-P0-09.4, config-only)", () => {
       maxTokensPerRun: "",
       maxRunCostUsd: "",
       dailyPlatformBudgetUsd: "",
+      monthlyBudgetUsd: "",
       reason: "No ceilings configured yet.",
     });
     expect(result.success).toBe(true);
@@ -40,6 +43,7 @@ describe("updateAiFeaturePolicySchema (PLATFORM-P0-09.4, config-only)", () => {
       expect(result.data.maxTokensPerRun).toBeNull();
       expect(result.data.maxRunCostUsd).toBeNull();
       expect(result.data.dailyPlatformBudgetUsd).toBeNull();
+      expect(result.data.monthlyBudgetUsd).toBeNull();
     }
   });
 
@@ -70,6 +74,11 @@ describe("updateAiFeaturePolicySchema (PLATFORM-P0-09.4, config-only)", () => {
 
   it("rejects a non-positive daily platform budget", () => {
     expect(updateAiFeaturePolicySchema.safeParse({ ...validInput, dailyPlatformBudgetUsd: "0" }).success).toBe(false);
+  });
+
+  it("rejects a non-positive monthly budget", () => {
+    expect(updateAiFeaturePolicySchema.safeParse({ ...validInput, monthlyBudgetUsd: "0" }).success).toBe(false);
+    expect(updateAiFeaturePolicySchema.safeParse({ ...validInput, monthlyBudgetUsd: "-10" }).success).toBe(false);
   });
 
   it("requires a non-empty reason", () => {

@@ -27,7 +27,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.5 all done -- §13 complete (registry, secure key storage, routing policy, feature policies all config-only; 09.5 a read-only usage view, no new table) -- see log |
-| | 10 | AI Safety / Cost Controls | 10.1/10.2 stopped -- overlaps 09.4's own daily_platform_budget_usd, undefined per-business/per-feature granularity, and 10.2 needs real runtime enforcement + an undefined SUPERADMIN-notification mechanism, see log |
+| | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
 | | 13 | Country / Compliance Pack Administration | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 8 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08),
-plus 18.1. P1: 0/9 done.**
+**P0: 9 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09),
+plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -4702,3 +4702,147 @@ substitute for the user answering the three questions above.
 
 **Status**: PLATFORM-P0-10.1/10.2 stopped, open questions written above. Resume once the
 user decides. This run stops here for this workstream.
+
+---
+
+### PLATFORM-P0-10.1 — Platform AI Budget, RESUMED with user decisions (2026-09-12)
+
+**Worktree hazard checked first**: `git fetch origin main feature/platform-admin-portal`
+confirmed `origin/main..origin/feature/platform-admin-portal` empty (the feature branch's
+own history is a strict prefix of `main`'s -- every prior story already landed via the
+scratch-branch merge procedure). `git log --oneline -3` on the fresh worktree's default
+branch showed a local `dad6e76` ("docs: full test-case audit across all modules") sitting
+directly on `origin/main`'s own tip, not a stray scratch-merge commit -- confirmed
+genuinely clean, not the worktree-branch-desync hazard prior entries in this log have hit.
+Reset a local `feature/platform-admin-portal` branch to `origin/main`'s tip (the actual
+up-to-date state, since `origin/feature/platform-admin-portal` itself is stale relative to
+`main` by design of the scratch-branch auto-merge procedure) before writing any code.
+
+**The user has decided all three open questions the prior stop-and-report entry raised, in
+full, not partially** (see the assignment for this run, reproduced in spirit rather than
+verbatim below):
+
+1. §14's "daily budget" for 10.1 IS `platform.ai_feature_policies.daily_platform_budget_usd`
+   (09.4's own field) -- not a duplicate. 10.1 adds ONLY a new `monthly_budget_usd` column on
+   the SAME row, through the SAME audited-mutation function (extended in place, not
+   duplicated) and the SAME UI page.
+2. Per-business budget and per-feature budget are DEFERRED -- no `business_id`-keyed table,
+   no per-`AiOperation`/`ModuleKey`/feature-flag budget dimension, this story or ever until a
+   future story separately scopes the granularity question.
+3. All of PLATFORM-P0-10.2 (the circuit breaker) is DEFERRED -- no runtime enforcement wiring,
+   no threshold-config field beyond the two budget numbers config-only 10.1 stores, no
+   notification mechanism.
+
+This entry implements exactly decision #1 and explicitly builds nothing covered by #2/#3.
+
+**What was built**: `supabase/migrations/20260912390000_platform_ai_feature_policies_monthly_budget.sql`
+-- `alter table platform.ai_feature_policies add column monthly_budget_usd numeric(12, 2)`
+(nullable, `check (monthly_budget_usd is null or monthly_budget_usd > 0)`, the identical
+shape 09.4 already used for `daily_platform_budget_usd`, same USD-denomination reasoning
+that migration already documented in full -- every real AI provider bills WonderArc itself
+in USD regardless of a customer plan's own currency). `platform.update_ai_feature_policies()`
+gains one new parameter, `p_monthly_budget_usd numeric`, positioned right after
+`p_daily_platform_budget_usd` and before `p_reason` (matching §14's own "daily budget /
+monthly budget" field order) -- `CREATE OR REPLACE` cannot add a parameter (a genuine
+signature change), so this drops and recreates the function, the exact same precedent
+`20260912120000_core_try_consume_usage_counter_soft_limits.sql` already established for a
+prior story's own function-signature change. No new table, no second audit table --
+`platform.ai_feature_policy_events`'s existing `to_jsonb(v_row)` snapshot picks up the new
+column automatically since it snapshots the whole row.
+
+**Application/UI, same file, same page, no new route**:
+`packages/core/src/admin/platform-ai-feature-policies.ts` gains `monthlyBudgetUsd` on
+`AiFeaturePolicy`/`AiFeaturePolicyRow` (same numeric-string-from-Postgres -> `number`
+conversion `dailyPlatformBudgetUsd` already used) and on
+`updateAiFeaturePolicySchema`/`updateAiFeaturePolicy()`'s RPC call (same
+`optionalPositiveNumberSchema` empty-string-to-`null` treatment as every other ceiling
+field). `/platform/ai-feature-policies/page.tsx` gets one more read-only `Field` ("Monthly
+platform budget"); `feature-policy-dialog.tsx` gets one more input in the same ceilings
+group -- the three-column ceilings grid became a 2x2 `grid-cols-2` grid to fit the fourth
+field without cramming four columns into one row on a `max-w-lg` dialog (a small
+responsiveness improvement made in passing while touching this exact grid, not a broader
+unrelated redesign of the page).
+
+**Deliberately not built this story, per decisions #2/#3 above**: no `business_id`-keyed
+budget table or column; no per-`AiOperation`/per-`ModuleKey`/per-feature-flag budget
+dimension; no runtime enforcement of either budget number against real spend; no
+"threshold exceeded" check; no pause-AI gate in `business-router.ts` or discovery's own
+router (both untouched, confirmed by `git diff --stat` after this story's changes); no
+SUPERADMIN-notification mechanism (none exists anywhere in this codebase, unchanged from
+the prior stop-and-report entry's own grep). PLATFORM-P0-10.2 (circuit breaker), 10.3
+(Provider Failure Fallback), and 10.4 (AI Feature Kill Switch) all remain **Not started** --
+this run's own assignment says to continue past §14 into §15 next once 10.1 lands, so 10.3
+and 10.4 are left open for a future story rather than picked up here, recorded explicitly
+so the Progress table above doesn't silently imply §14 is fully closed out.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace (this
+worktree needed its own `npm install` first, the same fresh-worktree `node_modules`
+symlink issue every prior entry in this log has documented). `npm run lint
+--workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+(`Package` unused import in a CRM conversations page) every prior entry has logged.
+`node scripts/lint-import-boundaries.mjs` -- 1452 files, no violations.
+`node scripts/lint-migration-schema.mjs` -- 190 migrations (189 -> 190, this story's own
+file; the jump from 09.4/09.5's own entry's migration counts reflects other workstreams'
+concurrent merges into `main` since then, not anything untracked by this story).
+`npx vitest run --root packages/core` -- 24 files / 230 tests (229 -> 230, +1 new
+`monthlyBudgetUsd`-rejection case, plus the existing full-policy/empty-policy cases
+extended in place to also assert the new field rather than adding two more near-duplicate
+tests for it). `apps/web`'s own `vitest run --passWithNoTests` -- 50 tests, unchanged.
+`cd apps/web && rm -rf .next && npm run build` -- clean; `/platform/ai-feature-policies`
+still lists `ƒ` (dynamic), inheriting the outer layout's existing `force-dynamic` with no
+change needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` that the singleton row now carries `monthly_budget_usd = null` (no fabricated
+lockdown the moment the column starts existing, same as every other ceiling column's own
+seed). `mcp__Supabase__get_advisors` (security and performance) -- **zero new findings**:
+the same 6 pre-existing `rls_enabled_no_policy` INFO rows and the pre-existing leaked-
+password-protection warning (security); the same pre-existing "unused index"/"unindexed
+foreign key" INFO rows across every schema in this empty dev database (performance) -- this
+migration added one nullable column and replaced one function body, no new index, no new
+RLS policy, so neither advisor had anything new to flag.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.ai_feature_policies` returned `1` cleanly, and role-switched `select
+platform.update_ai_feature_policies(true, array[]::text[], array[]::text[], null, null,
+null, 500, 'trying to set monthly budget as non-superadmin')` (the new 8-parameter
+signature, monthly budget included) returned the real Postgres `P0001: Forbidden: only a
+SUPERADMIN can change the AI feature policy.` error -- a genuine function-level rejection
+against the actual new signature, not merely against the old one. As with every prior story
+in this log, there is no seeded demo superadmin user in this environment, so the "a real
+superadmin CAN set the monthly budget" half of the live-dev proof was **not** performed
+against dev and is not claimed here -- verified for real only against local Postgres
+(below).
+
+**The dedicated local-Postgres RLS/behavior test, extended in place (per this workstream's
+own rule for "extending an existing table" rather than writing a new script)**:
+`scripts/test-platform-ai-feature-policies-rls.mjs` -- every one of its existing
+`update_ai_feature_policies(...)` calls updated to the new 8-parameter signature (the new
+argument threaded through positionally, matching the migration's own parameter order), plus
+two new assertions (a zero and a negative `monthly_budget_usd` are each rejected by the
+table's own CHECK constraint) and the existing seed/full-set/clear assertions extended to
+also check `monthly_budget_usd` rather than duplicated into parallel tests. **All 26
+assertions passed** (24 -> 26, +2 new), first run clean, against the full current migration
+timeline (190 files) -- proving the extended function's real behavior against a real
+Postgres 16, not merely asserted from reading the SQL. Local Postgres 16 needed starting
+this session (`pg_ctlcluster 16 main start`) before the run.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so a live browser walkthrough of
+`/platform/ai-feature-policies` actually setting a monthly budget through the real UI was
+**not** performed and is **not** claimed here. This entry documents build/typecheck/lint/
+unit-test correctness and a direct read of the applied schema/RLS/function against the live
+dev database (the "SUPERADMIN-only" half proven live; the "a real superadmin succeeds" half
+proven only against local Postgres), not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-10.1 done (config-only, user-decided scope). PLATFORM-P0-10.2
+remains deferred per decision #3 (real runtime enforcement + an undefined SUPERADMIN-
+notification mechanism, neither built here); PLATFORM-P0-10.3 (Provider Failure Fallback)
+and PLATFORM-P0-10.4 (AI Feature Kill Switch) remain **Not started** -- this run's own
+assignment says to continue past §14 into the doc's next section (§15, "Global Email /
+Notification Configuration") once 10.1 lands, so 10.3/10.4 are left open for a future story
+rather than picked up now. Committed and merged to `main`. Continuing per this doc's own
+section order into §15 next.
