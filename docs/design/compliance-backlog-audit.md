@@ -71,23 +71,23 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 08.3 | Match Explanation | Done |
 | | 08.4 | IMS Accept/Reject/Pending | Done |
 | | 08.5 | ITC Availability View | Done |
-| | 08.6 | Exception Queue | Not started |
+| | 08.6 | Exception Queue | Done |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**42 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**43 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
-**COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
-COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
-Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
-Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 through COMPLY-P0-08.5 are
-done. Next: COMPLY-P0-08.6 (Exception Queue), the last story in this epic.
+**COMPLY-P0-02 through COMPLY-P0-08 are all now fully done** -- Generic Tax Framework,
+Existing-Data Integration, India GST, India E-Invoice, India E-Way Bill, India Returns,
+and now India Reconciliation & IMS (COMPLY-P0-08.1 GSTR-2B Fetch/Import through 08.6
+Exception Queue). Next: COMPLY-P0-09 (Compliance Calendar & Risk), starting with
+COMPLY-P0-09.1 (Filing Calendar), per §8's own recommended delivery order (P0 Release 3).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4609,6 +4609,118 @@ future story, not silently done here as a side effect.
 - No Supabase migration, no `get_advisors` re-check, no local Postgres RLS harness -- no
   new schema, no new table, no new RLS policy this story; the underlying reads are
   already covered by `test-gst-gstr2b-rls.mjs`/`test-gst-ims-actions-rls.mjs`.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.6 — Exception Queue (2026-09-12)
+
+The sixth and last story of COMPLY-P0-08 (India Reconciliation & IMS), completing the
+whole epic. The first GENUINELY persisted, resolvable-over-time state in this epic --
+every prior story (08.2 matching, 08.3 explanation, 08.5 ITC view) was deliberately
+schema-free, each one explicitly flagging in its own log entry/code comments that "a real
+exception queue is COMPLY-P0-08.6's own job, not this one's." This is that job.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §4/§5 first (backlog
+rule 1/5)**: §4 names `ComplianceIssue` as one of this backlog's own generic new
+entities, §5 lists "compliance issues" as Compliance-owned -- no existing table anywhere
+covers it.
+
+**Scope, deliberately narrowed to THIS epic's own exception sources (backlog rule 5,
+"do not implement future stories implicitly")**: `exception_type` only allows the four
+kinds COMPLY-P0-08.2/08.4 actually produce (`supplier_mismatch`, `missing_in_2b`,
+`missing_in_books`, `ims_pending`) -- NOT a fully generic "any compliance issue ever"
+queue. Re-read this backlog's own §6 text for COMPLY-P0-09.5 ("Risk Dashboard") first:
+its own example list ("Return not approved, E-invoice deadline approaching, Missing tax
+registration, Invalid classification, Failed submission") is visibly much wider than
+what this epic produces -- that story's own job, when it's built, is either to widen
+this table's own check constraint or read this table alongside its own wider risk
+sources; not decided here ahead of it.
+
+**Design decision -- additive-only sync, no auto-resolution, named as a real limitation
+rather than silently accepted**: `syncReconciliationExceptions` inserts a new `'open'`
+row for a candidate that has no existing row at all for its own natural key
+(`business_id, return_period, exception_type, reference_key`); it never touches an
+existing row's own status. A supplier that goes back to `matched` after a books
+correction does NOT automatically close its own already-open exception -- only a human's
+own `resolveException`/`dismissException` call does that, so a business's own review
+action (or its own still-open backlog) is never silently overwritten by a re-sync.
+Building real auto-resolution (detecting "this candidate no longer applies, close it
+automatically") is a genuine, separate design decision -- does it need its own distinct
+audit-trail entry from a human's own action? should it even be allowed once a human has
+already reviewed something? -- left to a future story rather than guessed at here.
+
+**`summary` is a frozen, human-readable snapshot, not a live-recomputed value** -- the
+underlying reconciliation/ITC numbers can keep changing (a re-imported GSTR-2B statement,
+a later IMS action) but a queue entry a human is actively triaging describes what was
+seen when it was flagged, matching backlog rule 13's "preserve historical filing/evidence
+state" applied to an exception record rather than a filing.
+
+**Resolve/dismiss are terminal-once-decided, matching this module's own established
+lifecycle-mutation shape** (`gst.return_periods`' own forward-only transitions): only
+legal from `'open'`; attempting to resolve/dismiss an already-resolved/dismissed
+exception throws a clear error rather than silently overwriting a prior decision.
+Reopening is a real, plausible future need, deliberately not built here.
+
+**What was built**:
+- `supabase/migrations/20260912170000_gst_reconciliation_exceptions.sql` --
+  `gst.reconciliation_exceptions` (one row per natural key, `status_history` append-only
+  jsonb, same "current state + audit trail" shape this whole module already uses), RLS
+  behind the existing `gst.manage_reconciliation` permission, no delete policy.
+- `lib/exceptions/types.ts` -- `ExceptionType`, `ExceptionStatus`,
+  `ExceptionStatusHistoryEntry`, `ExceptionCandidate`, `ReconciliationException`.
+- `lib/exceptions/derive.ts` -- `deriveReconciliationExceptions` (pure): turns an
+  already-computed COMPLY-P0-08.2 reconciliation result and COMPLY-P0-08.5 ITC summary
+  into candidate exceptions, with a human-readable INR-formatted summary per candidate.
+- `lib/exceptions/queries.ts` -- `listReconciliationExceptions` (optionally filtered by
+  status), `getReconciliationExceptionById`, `getReconciliationExceptionByKey`
+  (deliberately NOT `cache()`-wrapped, same reasoning every mutation-adjacent
+  `queries.ts` in this module already documents).
+- `lib/exceptions/mutations.ts` -- `syncReconciliationExceptions` (reuses
+  `getPurchaseReconciliation`/`getItcAvailability`, no re-derivation of their own logic),
+  `resolveException`, `dismissException`.
+- 7 new vitest cases in `derive.test.ts` covering: an all-matched/no-pending period
+  producing zero candidates, each of the four candidate types individually, a null ITC
+  summary handled gracefully, and combining reconciliation + IMS-pending candidates from
+  the same period.
+- `scripts/test-gst-reconciliation-exceptions-rls.mjs` -- new real-Postgres RLS harness
+  (added to `package.json`'s `test:db` chain), covering: permission gating, the
+  `exception_type` and `status` check constraints, the natural-key unique constraint
+  (including that the SAME `reference_key` under a DIFFERENT `exception_type` is a
+  legitimately separate row), tenant isolation on read, cross-tenant non-collision on an
+  identical reference_key across two different businesses, and no delete policy.
+
+**What was deliberately left out**: any UI (COMPLY-P0-11, "the dedicated UI epic" this
+whole COMPLY-P0-08 epic has consistently deferred to); auto-resolution (see above); a
+`reopen` mutation (see above); widening `exception_type` for COMPLY-P0-09.5's own broader
+risk sources (that story's own job).
+
+**COMPLY-P0-08 (India Reconciliation & IMS) is now fully done** -- GSTR-2B fetch/import,
+supplier-level purchase-to-2B matching, deterministic match explanation with real
+line-item drill-down, IMS accept/reject/pending with a real cross-tenant guard, a
+four-way ITC availability computation matching real GSTR-3B auto-population logic, and
+now a genuine, persisted, resolvable exception queue tying the whole epic together.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1252 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 150
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 374 tests passing (367 prior + 7 new).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security): identical
+  finding set before and after (same 5 pre-existing `rls_enabled_no_policy` infos, the 1
+  pre-existing `auth_leaked_password_protection` warning). Performance: no new
+  `unindexed_foreign_keys` finding (the `business_id` index was included proactively in
+  the same migration) -- only the expected, benign "unused" listing for the new index.
+- **Local Postgres RLS harness actually run this story** (cluster already running from
+  earlier in this session -- reused): `scripts/test-gst-reconciliation-exceptions-rls.mjs`,
+  all assertions above passing. A test-authoring bug (an unescaped apostrophe in a test
+  fixture's own summary string) was caught immediately by the real psql error and fixed
+  in the same pass -- the harness itself did its job.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
