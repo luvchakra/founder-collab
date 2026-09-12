@@ -49,11 +49,17 @@ async function main() {
       assertEqual(psql(`select count(*) from platform.features`), "0", "no features defined yet");
       assertEqual(psql(`select count(*) from platform.plan_features`), "0", "no entitlements configured yet");
 
-      console.log("Verifying a business admin (not a superadmin) cannot see or change the feature catalog...");
+      console.log("Verifying a business admin (not a superadmin) can read (but not change) the feature catalog...");
+      // PLATFORM-P0-05.2/05.3's own migration opened SELECT on this catalog to any
+      // authenticated user (hasFeature() reads it on behalf of ordinary business members).
+      // "0" here is the catalog's own genuine emptiness at this point in the test (no
+      // feature has been created yet, below) confirmed via a successful SELECT with no
+      // permission error -- not RLS denying her; the second SELECT check further down,
+      // after a real feature exists, asserts a non-zero read.
       assertEqual(
         psqlAsAlice(`select count(*) from platform.features`),
         "0",
-        "Alice gets 0 rows on SELECT -- the schema-level grant is present, not just RLS denying her",
+        "Alice's SELECT succeeds (no permission error) and correctly reports the still-empty catalog",
       );
       assertThrows(
         () =>
@@ -93,11 +99,11 @@ async function main() {
         "the Free plan has no row for this feature -- still implicitly not entitled",
       );
 
-      console.log("Verifying a business admin cannot see or change plan_features either...");
+      console.log("Verifying a business admin can read but not change plan_features...");
       assertEqual(
         psqlAsAlice(`select count(*) from platform.plan_features`),
-        "0",
-        "Alice gets 0 rows on SELECT",
+        "1",
+        "Alice can read the one real entitlement row that exists -- SELECT is open to any authenticated user",
       );
       psqlAsAlice(`update platform.plan_features set enabled = false where feature_id = '${featureId}'`);
       assertEqual(

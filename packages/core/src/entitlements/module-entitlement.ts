@@ -25,20 +25,28 @@ import type { EntitlementDecision } from "./types";
  *   backlog's own progress table; there is no `platform.*` row this layer could read yet.
  * - **Plan** (whether the business's current *subscription plan* -- `platform.plans` /
  *   `platform.plan_modules`, PLATFORM-P0-04.1/04.3 -- entitles this module at all) --
- *   **not composed**: nothing in this codebase assigns a business to a
- *   `platform.plans` row. `core.business_settings.plan` is a pre-existing, free-text
- *   column (default `'starter'`, no FK, no matching key in the seeded Free/Pro/Max
- *   catalog) that PLATFORM-P0-04.1's own audit entry already found to be disconnected
- *   from `platform.plans` -- confirmed again here rather than assumed
- *   (`information_schema.columns` still shows no constraint tying it to anything). Which
- *   table/column should carry that link, whether existing businesses need a default
- *   backfilled, and what "no plan assigned" should mean for enforcement are none of them
- *   answered anywhere in `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` -- PLATFORM-P1-04.1
- *   ("Plan Change Rules") is the only place upgrade/downgrade/plan-assignment mechanics are
- *   named at all, and it is explicit P1 scope. Inventing that link here would be exactly
- *   the kind of unreviewed architecture decision this run's own task assignment says to
- *   stop and report on rather than guess into `main` -- flagged in this run's audit-log
- *   entry for PLATFORM-P0-05.1, not silently decided in code.
+ *   **still not composed here, now by deliberate choice rather than missing data**. The
+ *   business<->plan link this docstring originally called a blocker now exists
+ *   (`20260912070000_core_business_settings_plan_fk.sql`, PLATFORM-P0-05.2's own schema
+ *   foundation story -- every business has a real `core.business_settings.plan` value,
+ *   FK'd to a real `platform.plans.key`), and `hasFeature()`/`getLimit()`
+ *   (`feature-entitlement.ts`/`limit-entitlement.ts`, the same story) *do* consult it.
+ *   `hasModule()` itself does not, on purpose: `core.has_module()`/`has_module_write()` --
+ *   the RLS-authoritative gate every module table's own policy already calls -- have no
+ *   equivalent check against `platform.plan_modules`, and PLATFORM-P0-05.4's own
+ *   "integrate with the existing licensing model rather than creating a competing
+ *   licensing system" is explicit that this function must never produce a *more*
+ *   permissive-or-restrictive module answer than RLS itself would. Folding
+ *   `platform.plan_modules` into this function's decision without RLS also consulting it
+ *   would do exactly that -- a UI-only restriction (or grant) PLATFORM-P0-06.3's own
+ *   "enforce limits server-side; UI-only restrictions are not sufficient" already rules
+ *   out for the sibling Usage & Limits section, and the same principle applies here.
+ *   Wiring `platform.plan_modules` into module-level access for real would mean changing
+ *   `core.has_module()`/`has_module_write()` and every module table's own RLS policy --
+ *   a genuine architecture change this run's task assignment requires explicit approval
+ *   for, not something to fold into this story unreviewed. `platform.plan_modules` stays
+ *   catalog/merchandising data (what a plan is sold as including) until that future story
+ *   makes it real.
  * - **Business Override** -- **not composed**: PLATFORM-P1-02.1 ("Business Override") is
  *   explicit, named future P1 scope (`docs/plan/09-...md` §24), not this section's to
  *   build ahead of its own turn.

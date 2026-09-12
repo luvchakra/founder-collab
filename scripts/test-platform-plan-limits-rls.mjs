@@ -52,16 +52,19 @@ async function main() {
 
       const proPlanId = psql(`select id from platform.plans where key = 'pro'`);
 
-      console.log("Verifying a business admin (not a superadmin) cannot see or change limits...");
+      console.log("Verifying a business admin (not a superadmin) can read but not change limits...");
       psql(`
         set local role service_role;
         insert into platform.plan_limits (plan_id, resource_key, state, limit_value)
         values ('${proPlanId}', 'businesses', 'limited', 5);
       `);
+      // PLATFORM-P0-05.2/05.3's own migration opened SELECT on this catalog to any
+      // authenticated user (getLimit() reads it on behalf of ordinary business members) --
+      // write access stays superadmin-only, asserted right below.
       assertEqual(
         psqlAsAlice(`select count(*) from platform.plan_limits`),
-        "0",
-        "Alice gets 0 rows on SELECT -- the schema-level grant is present, not just RLS denying her",
+        "1",
+        "Alice can read the configured limit -- SELECT is open to any authenticated user",
       );
       assertThrows(
         () =>

@@ -53,11 +53,18 @@ async function main() {
       console.log("Verifying the seeded catalog is really there (service_role read)...");
       assertEqual(psql(`select count(*) from platform.plans`), "3", "the migration seeded exactly Free/Pro/Max");
 
-      console.log("Verifying a business admin (not a superadmin) cannot see or change plans...");
+      console.log("Verifying a business admin (not a superadmin) can read but not change plans...");
+      // PLATFORM-P0-05.2/05.3's own migration (20260912080000_platform_catalog_
+      // authenticated_read.sql) opened SELECT on this non-sensitive commercial catalog to
+      // any authenticated user -- the Entitlement Engine's hasFeature()/getLimit() run as
+      // an ordinary business member, not a superadmin, and need to read it. Alice getting
+      // real rows back here now proves that fix (and the underlying schema-level grant
+      // PLATFORM-P0-03.4 already established) both hold; write access stays superadmin-only,
+      // asserted right below.
       assertEqual(
         psqlAsAlice(`select count(*) from platform.plans`),
-        "0",
-        "Alice (core.business_members.role = 'admin', not a superadmin) gets 0 rows on SELECT -- proves the schema-level grant this table needs (PLATFORM-P0-03.4's own fix) is not missing again, not just that RLS denies her",
+        "3",
+        "Alice (core.business_members.role = 'admin', not a superadmin) can read the plan catalog -- SELECT is open to any authenticated user",
       );
       assertThrows(
         () => psqlAsAlice(`insert into platform.plans (key, name) values ('rogue', 'Rogue Plan')`),

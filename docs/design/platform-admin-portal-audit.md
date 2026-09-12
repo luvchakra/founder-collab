@@ -22,7 +22,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 16 | Platform Audit | Not started |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
-| | 05 | Entitlement Engine | 05.1 partial (module-level `hasModule()` built); business&lt;-&gt;plan link shipped (schema foundation story, 2026-09-12) unblocking 05.2 onward -- 05.2/05.3/05.4 next |
+| | 05 | Entitlement Engine | 05.1 done (module-level `hasModule()`); 05.2/05.3 done for `hasFeature()`/`getLimit()` (Plan layer composed via the new business&lt;-&gt;plan link); 05.4 confirmed (`hasModule()` deliberately still license-only); `canConsume()` deferred to right after PLATFORM-P0-06.1 ships real usage counters |
 | | 06 | Usage & Limits | Not started |
 | | 07 | Module Administration | Not started |
 | | 08 | Feature Flags | Not started |
@@ -1941,3 +1941,153 @@ and this run's own task assignment, which named that split explicitly.
 
 **Status**: done. Resuming the doc's own sequence: PLATFORM-P0-05.2 (Entitlement
 Precedence) next.
+
+### PLATFORM-P0-05.2 / 05.3 / 05.4 — Entitlement Precedence, Evaluation, Licensing Integration (2026-09-12)
+
+Folded into one story/commit, the same way this backlog has folded tightly-coupled
+sub-stories before (04.5/04.6, 04.7-into-04.1): 05.2 (precedence) and 05.3 (evaluation
+shape) are not separable in practice -- there is no way to define a real precedence order
+without simultaneously building the functions that actually evaluate it, and 05.4
+("integrate with the existing licensing model") turned out to be a design constraint on
+*how* to build 05.2/05.3, not a separate deliverable.
+
+**Reconnaissance**: re-read §9 in full, then `packages/core/src/entitlements/{types,
+module-entitlement}.ts` (05.1's own output) and `packages/core/src/licensing/queries.ts`
+to confirm exactly what `hasModule()` already composes before adding anything alongside
+it, plus `platform.plan_features`/`plan_limits`' own migrations (04.4/04.5-04.6) for their
+real column shapes and already-documented default semantics.
+
+**A live permission gap found and fixed, per this run's own "proactively check" mandate
+(the PLATFORM-P0-03.4 precedent)**: every plan-catalog table (`platform.plans`,
+`plan_modules`, `features`, `plan_features`, `plan_limits`) had a SELECT policy scoped to
+`platform.is_superadmin()` only -- correct for §8's own story (a superadmin managing the
+catalog), wrong for this one: `hasFeature()`/`getLimit()` need to answer "is *this
+business*, via *its own plan*, entitled to X" for an ordinary signed-in business member,
+not a superadmin. Confirmed directly (not assumed): every sibling
+`test-platform-plan-*-rls.mjs` already proved a non-superadmin gets 0 rows from these
+tables. Left as-is, `hasFeature()`/`getLimit()` would have silently and incorrectly
+reported "not entitled"/"no limit" for every real business, every time, regardless of
+their actual plan -- a wrong-but-plausible-looking answer, exactly the failure mode this
+backlog's own "never fabricate data" stance rules out elsewhere.
+
+**The fix** (`supabase/migrations/20260912080000_platform_catalog_authenticated_read.sql`):
+these five tables' *contents* are not sensitive tenant data -- they describe what a
+Free/Pro/Max plan includes, the commercial-catalog equivalent of a public pricing page,
+not any one business's private information. SELECT widens to any authenticated user
+(dropping the superadmin-only SELECT policy, replacing it with an open one, the same
+"read is open, write stays gated" shape `core.modules`' own existing policy already uses
+for an analogous non-sensitive catalog); INSERT/UPDATE/DELETE are untouched -- still
+superadmin-only, exactly as §8's own stories left them. Verified this precisely on the
+live dev project via `pg_policies`: every table now shows exactly one `SELECT` policy
+scoped to `{authenticated}` with `using (true)`, and the original `INSERT`/`UPDATE`/
+`DELETE` policies (still superadmin-gated) are unchanged.
+
+**Judgment call, made and documented rather than guessed past silently**: PLATFORM-P0-04.5's
+own migration explicitly left "what a missing (plan, resource_key) row should mean for a
+real authorization decision" to this section to decide. Decided: an *unconfigured* limit
+means **unrestricted** (`allowed: true`, `limit: null`), not denied -- the one consistent
+precedent every prior "config doesn't exist yet" call in this exact backlog has already
+set (PLATFORM-P0-04.3 seeded every plan x module pair `enabled = true` specifically so the
+table's mere existence changed nothing until a superadmin acted; PLATFORM-P0-03.3's login
+branding override is opt-in, defaulting to today's look). Defaulting an unconfigured limit
+to *deny* would silently break every business's use of a resource the instant this table
+exists, before any superadmin has configured anything -- the opposite of "safe, additive,
+non-speculative." This is treated as applying an already-established codebase convention
+consistently, not inventing a new one -- unlike the plan-assignment/FK-location/usage-
+counter-location questions the previous entry correctly stopped on, nothing here invents a
+*real pricing number* (no "Free plan allows 3 businesses" was fabricated; `plan_limits`
+stays empty except where a superadmin explicitly configures it, exactly as 04.5 left it).
+
+**What was built** (`packages/core/src/entitlements/`):
+- `plan-lookup.ts`: `getBusinessPlan(businessId)` -- resolves `core.business_settings.plan`
+  (guaranteed present and FK-valid since the previous story) to its `platform.plans` row,
+  through the request-scoped RLS client both reads run under. Returns `null` (never
+  throws) if either read comes back empty, so a caller degrades to "not entitled" instead
+  of crashing.
+- `feature-entitlement.ts`: `hasFeature(business, moduleKey, featureKey)` -- composes
+  exactly two layers, in order: **License** (`hasModule()`, 05.1 -- if the feature's own
+  module isn't licensed/is in grace, returns that decision as-is, `source: "license"`,
+  since there's no point asking about a sub-capability of a module the business can't use
+  at all) then **Plan** (`platform.plan_features` -- no row for (plan, feature) means "not
+  entitled", the exact default 04.4's own migration and RLS test already established).
+  Platform Global (07.2, not started) and Business Override (P1-02.1) are not composed,
+  same reasoning `hasModule()`'s own docstring already gives; User Permission stays a
+  separate, independently-enforced axis (`has_permission()`/`requirePermission()`), not
+  folded in here, also matching `hasModule()`'s own precedent. `buildFeatureEntitlementDecision()`
+  is the pure, directly-unit-tested composition helper (5 test cases), same split
+  `buildModuleEntitlementDecision()` already established.
+- `limit-entitlement.ts`: `getLimit(business, resourceKey)` -- **deliberately partial**,
+  the same honest-gap shape `hasModule()` itself set as precedent in 05.1: `limit` is real
+  (read from `platform.plan_limits` via the business's own plan), but `usage`/`remaining`
+  are always `null` -- PLATFORM-P0-06.1 (Usage Counters) is this run's own very next
+  section and has not shipped, so there is no real usage number to report; returning `0`
+  or any other number here would be fabricated data. `RESOURCE_KEYS`/`ResourceKey` mirror
+  `plan_limits`' own closed 13-value CHECK constraint by hand (kept in sync manually --
+  both lists are short and static; a codegen pipeline is more machinery than this needs).
+  `buildLimitEntitlementDecision()` is the pure composition helper (5 test cases): no row
+  -> unrestricted (the judgment call above); `disabled` -> denied outright; `unlimited` ->
+  allowed with `limit: null` (never a fake huge number); `limited` -> the real
+  `limit_value`, with an honest "usage tracking is not yet available" note in `reason`.
+- **`canConsume(business, resource, quantity)` -- not built in this story.** Its entire
+  purpose ("would consuming N more exceed the limit") is unanswerable without a real usage
+  number; a stub that always returned `true` (the only honest answer with `usage: null`)
+  would be actively unsafe once a caller relied on it for PLATFORM-P0-06.3's own "enforce
+  limits server-side" -- worse than not existing. Deferred to immediately after
+  PLATFORM-P0-06.1 lands real usage counters, at which point `getLimit()` itself also gets
+  `usage`/`remaining` filled in for the first time (an addition to the same function, not
+  a rewrite).
+- `module-entitlement.ts`'s own docstring updated: the "Plan is not composed because
+  nothing links a business to a plan" reasoning is now stale (the link exists), replaced
+  with the real, current reasoning -- `hasModule()` still doesn't consult
+  `platform.plan_modules`, now by deliberate choice: RLS itself (`core.has_module()`/
+  `has_module_write()`) has no equivalent check, and folding a plan-level module toggle
+  into this function's decision without RLS also enforcing it would make this function
+  produce a different answer than the database's own authoritative gate -- exactly the
+  "competing licensing system" PLATFORM-P0-05.4 says not to build. Wiring
+  `platform.plan_modules` into real module-level enforcement would mean changing RLS and
+  every module table's own policy -- a genuine architecture change needing its own
+  explicit approval, not something to fold in here unreviewed.
+
+**Existing test fixes, direct consequences of the RLS widening (not unrelated
+refactoring)**: `test-platform-plans-rls.mjs`, `test-platform-plan-modules-rls.mjs`,
+`test-platform-plan-limits-rls.mjs`, `test-platform-plan-features-rls.mjs` -- each had an
+assertion that a non-superadmin business member gets exactly 0 rows on SELECT; each
+updated to assert the real, now-correct row count instead (write-side assertions --
+INSERT rejected, UPDATE/DELETE silent no-ops for a non-superadmin -- are untouched, since
+write policies were not touched by this story).
+
+**New tests**: `feature-entitlement.test.ts` (5 cases) and `limit-entitlement.test.ts` (5
+cases) unit-test the pure decision helpers with no database, mirroring
+`module-entitlement.test.ts`'s own shape. `scripts/test-core-plan-entitlement-lookup.mjs`
+(wired into `test:db`, 7 assertions) is a DB-backed behavior test for the actual join
+chain (`business_settings.plan -> plans.key -> plan_features`/`plan_limits`) as an
+ordinary authenticated business member (not a superadmin) -- new query composition this
+story introduces, distinct from what any single table's own pre-existing RLS test already
+covers alone.
+
+**Verification**: applied live via `mcp__Supabase__apply_migration` against the dev
+project (`jazdtomcgqjxjueedmck`); confirmed via a direct `pg_policies` query that all five
+tables now carry exactly the intended SELECT-open/write-gated policy set.
+`mcp__Supabase__get_advisors` (security) -- zero new findings, same 5 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning
+every prior entry has logged (widening a SELECT policy adds no new advisor class).
+Full monorepo `npm run typecheck --workspaces --if-present` -- clean across every
+workspace. `npm run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing
+unrelated warning every prior entry has logged. `node scripts/lint-import-boundaries.mjs`
+-- 1181 files, no violations (the new entitlement files import only `../db/server`,
+`../licensing/queries`... themselves already-allowed dependencies). `node
+scripts/lint-migration-schema.mjs` -- 138 migrations (137 -> 138, this story's own file;
+touches `platform` only), no violations. `npx vitest run --root packages/core` -- 103
+tests (94 -> 103, this story's own 9 new unit cases: 4 in `feature-entitlement.test.ts` +
+5 in `limit-entitlement.test.ts`), all passing. `npm run test:db`
+-- re-ran all four edited `platform.plan_*` RLS scripts plus the new
+`test-core-plan-entitlement-lookup.mjs` individually, all pass. `cd apps/web && rm -rf
+.next && npm run build` -- clean (run despite no route/page being touched, given this
+story widens RLS on tables several existing pages may depend on).
+
+**Status**: PLATFORM-P0-05.2/05.3 done for `hasFeature()`/`getLimit()`; 05.4 confirmed
+(existing licensing model, `core.has_module()`/`has_module_write()`, untouched and
+undegraded). `canConsume()` explicitly deferred to right after §10's own PLATFORM-P0-06.1.
+Moving to the next doc section in order: §10 Usage & Limits (PLATFORM-P0-06), starting
+with 06.1 (Usage Counters, `core.usage_counters` -- decision #3 from this run's task
+brief, deferred here specifically for this moment).
