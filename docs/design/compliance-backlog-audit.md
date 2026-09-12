@@ -47,7 +47,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 04.3 | HSN/SAC | Done |
 | | 04.4 | Place of Supply | Done |
 | | 04.5 | GST Tax Determination | Done |
-| | 04.6 | GST Invoice Validation | Not started |
+| | 04.6 | GST Invoice Validation | Done |
 | | 04.7 | GST Rule Versioning | Not started |
 | P0-05 | 05.1–05.6 | India E-Invoice | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
@@ -58,15 +58,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**18 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**19 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework) and COMPLY-P0-03 (Existing-Data Integration) are
-both now fully done.** COMPLY-P0-04.5 (GST Tax Determination) is the last completed story;
-COMPLY-P0-04.6 (GST Invoice Validation) is next.
+both now fully done.** COMPLY-P0-04.6 (GST Invoice Validation) is the last completed
+story; COMPLY-P0-04.7 (GST Rule Versioning) is next, and finishes epic 04.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -1764,3 +1764,58 @@ a future story, not implied here); and any UI.
   convention.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 04.6 — GST Invoice Validation (2026-09-12)
+
+"Validate mandatory transaction/invoice fields before downstream submission" -- a
+checklist of software-rule checks against a document already read via 03.1's
+`DocumentContext`, never a claim that a document passing every check is legally "GST
+compliant" (backlog rule 11): this validates that the fields a GST tax invoice needs are
+present and internally consistent, necessary but not sufficient for compliance (e.g. it
+says nothing about whether the amounts themselves were computed under the correct,
+currently-effective rate -- that's 04.5's own job, already done).
+
+New `lib/gst-invoice-validation/{types,validate,queries}.ts`. `validateGstInvoiceFields()`
+is pure (every fact it needs -- the document, each line's item `kind` for HSN/SAC
+purposes, and the already-resolved place-of-supply treatment -- is resolved by the caller
+and passed in, matching this module's established "pure core function, thin orchestrator"
+convention). Checks: invoice number present, invoice date present, at least one line,
+every taxable line's HSN/SAC present and valid for its item kind (reusing 04.3's own
+`validateHsnSacCode` -- a non-taxable line, e.g. a note/discount line, is skipped
+entirely, since it was never meant to carry a tax classification), place of supply
+resolvable (reusing 04.4's own `getPlaceOfSupplyForParty`). A tax-split-vs-place-of-supply
+cross-check (IGST charged but place of supply now looks intra-state, or vice versa) is
+deliberately a WARNING, not an error -- the document's cgst/sgst/igst totals are a
+snapshot from whenever it was created, while place of supply is computed from the party's
+*current* address; the two disagreeing doesn't mean the original invoice was wrong at the
+time, just worth a human's attention, never a hard validation failure on its own.
+
+`getGstInvoiceValidation(businessId, documentId)` is the orchestrator: reads the document
+(03.1), the current classification of every item its lines reference in one batched call
+(03.2's `listItemTaxContexts`, not one read per line), and the party's place-of-supply
+treatment (04.4), then hands all three to the pure function. Returns `null` when the
+document itself doesn't exist for this business -- "nothing to validate," not a
+validation failure of its own. Deliberately generic over `doc_type`: this doesn't gate on
+which document types are "invoice-shaped enough" to need GST validation -- that's a
+business-rule decision for whichever future story actually calls this before a real
+submission action (05's own e-invoice eligibility/schema validation), not this story's
+job to guess at.
+
+13 new vitest cases: the fully-valid pass-through, each error condition individually,
+that non-taxable/unresolvable-item lines skip HSN/SAC checking, that labour/expense items
+never need an HSN/SAC at all (04.3's own item-kind distinction), both directions of the
+tax-split warning, that no tax charged at all produces no warning, and that multiple
+independent issues accumulate together rather than short-circuiting on the first one
+found.
+
+**How verified**:
+- `npm run typecheck` (full monorepo) -- clean across all 9 workspaces.
+- `npm run lint` -- 0 errors, same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1035 files scanned, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 108 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 14 files / 104 tests passed (91
+  pre-existing + 13 new in `validate.test.ts`).
+- No migration to apply, no `get_advisors` re-check, no `apps/web` change -- another
+  pure-library story, same convention as 04.5.
+- No live browser walkthrough -- moot, no UI shipped.
