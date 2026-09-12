@@ -56,7 +56,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 05.5 | Reporting Deadline Control | Done |
 | | 05.6 | E-Invoice Status | Done |
 | P0-06 | 06.1 | Eligibility Engine | Done |
-| | 06.2–06.4 | India E-Way Bill (remaining) | Not started |
+| | 06.2 | Movement Data | Done |
+| | 06.3–06.4 | India E-Way Bill (remaining) | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
@@ -64,7 +65,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**27 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**28 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -72,8 +73,8 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), and COMPLY-P0-05 (India E-Invoice) are all fully done.**
-COMPLY-P0-06.1 (Eligibility Engine, India E-Way Bill) is the last completed story. Next:
-COMPLY-P0-06.2 (Movement Data), continuing epic 06.
+COMPLY-P0-06.2 (Movement Data, India E-Way Bill) is the last completed story. Next:
+COMPLY-P0-06.3 (E-Way Adapter), continuing epic 06.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2600,8 +2601,207 @@ flagged above as documented, extensible gaps, not silent omissions).
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
 
-**Session note**: this story is the last one completed in this run -- stopped here per an
-explicit mid-session instruction to finish the in-progress story and then stop (rather than
-continuing automatically story-by-story per the run's original standing policy), regardless
-of remaining usage budget. COMPLY-P0-06.2 (Movement Data) is next for whoever resumes this
-workstream.
+### 06.2 — Movement Data (2026-09-12)
+
+"Consignor/consignee/transport/vehicle/distance/supply details" -- the second story of
+COMPLY-P0-06, and the piece COMPLY-P0-06.1's own `generateEwayBill` docstring already
+flagged as missing: "the real request also needs transport details (vehicle number,
+transporter id, distance) this schema has nowhere to capture."
+
+**Environment finding, worth recording prominently before the story details**: this
+session's own `git branch -vv`/`pg_lsclusters` sanity check found local Postgres 16
+actually running and connectable (`psql -U postgres`) in this worktree -- the first time
+in this whole backlog's history that `npm run test:db`'s real RLS harness has been
+available at all (every prior story's own log, back through 01.2, recorded it as
+unavailable and relied on Supabase MCP `apply_migration`/`get_advisors` alone). Running
+the pre-existing suite to get a baseline before adding this story's own script surfaced
+**two real, pre-existing bugs in earlier stories' own test files**, neither touched or
+introduced by this story (CLAUDE.md non-negotiable "do not refactor unrelated code" --
+flagged here, not fixed):
+- `test-discovery-rls.mjs` asserts the permission catalogue has exactly 43 rows; many
+  later stories (F-6 onward) have added permissions since that assertion was written, so
+  the real count is now 53 and the whole `npm run test:db` chain aborts on this script,
+  before ever reaching any `gst`-schema script.
+- `test-gst-tax-registrations-rls.mjs` and `test-gst-compliance-profile-rls.mjs` both wrap
+  a cross-tenant `UPDATE ... WHERE business_id = '<other tenant>'` in `assertThrows` --
+  but Postgres does not raise an error for an UPDATE whose RLS-filtered WHERE clause
+  matches zero rows; it silently reports "UPDATE 0" and succeeds. The correct assertion
+  (re-read the value afterward and confirm it's unchanged) is what this story's own new
+  script uses instead (see its own top-of-file comment for the full explanation).
+
+Both are pre-existing test-authoring bugs, not RLS policy bugs (the policies themselves
+correctly hide/reject the cross-tenant rows in both cases) -- flagged here as a concrete,
+scoped follow-up for a future story (or a dedicated test-suite hygiene pass) to fix, since
+this run's own mandate is one story at a time and neither file belongs to COMPLY-P0-06.2.
+This story's own new RLS script (`scripts/test-gst-eway-bill-movements-rls.mjs`) was
+written and actually run against a real local Postgres from the start, avoiding both
+mistakes.
+
+**Checked against `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §5 first**
+(backlog rule 1 / CLAUDE.md non-negotiable #5): the CONSIGNOR (the filing business's own
+GSTIN/state) is already `gst.tax_registrations` (COMPLY-P0-02.1) and the CONSIGNEE (the
+document's own party) is already `core.parties`/`core.tax_identities`/`core.addresses`,
+read via COMPLY-P0-03.1/03.4's own `getDocumentContext`/`getPartyTaxContext` -- neither is
+duplicated here. What has genuinely no existing home anywhere in `core`/`inventory`/`fsm`
+(the entity-ownership map has no shipment/transport/vehicle concept at all) is: the
+transaction sub-type, the sub-supply-type classification, transport mode/vehicle/
+transporter facts, distance, and -- only when it genuinely differs from the consignor's
+registered address or the consignee's own address on file -- an explicit dispatch-from/
+ship-to override. That is what the new table holds.
+
+**Research, not assumption** (same discipline as every prior rule row in this backlog):
+used `WebSearch`/`WebFetch` to verify, rather than guess from memory:
+- The 4 e-way bill transaction types (Regular / Bill To - Ship To / Bill From - Dispatch
+  From / their combination) -- confirmed via the NIC e-Way Bill portal's own vocabulary as
+  documented by Avalara's knowledge base and ClearTax's generation guide.
+- The 9 outward-movement sub-supply-type categories (Supply, Export, Job Work, SKD/CKD/
+  Lots, Recipient Not Known, For Own Use, Exhibition or Fair, Line Sales, Others) --
+  confirmed via GSTRobo's own user manual and Tally Academy's e-way-bill FAQ, two
+  independent sources describing the same nine categories with matching definitions. The
+  INWARD-movement vocabulary (Purchase, Sales Return, etc.) was deliberately NOT modeled --
+  this session's research did not turn up equally solid sourcing for it, and guessing
+  wording that "sounds right" would violate this backlog's own verify-don't-assume
+  discipline. Flagged as a documented, extensible gap (`sub_supply_type` is unconstrained
+  free text at the database level for exactly this reason).
+- Rule 138(10) of the CGST Rules' own validity-period formula, with a real effective-date
+  transition: as originally enacted (in force 01-Apr-2018 per the same CBIC Notification
+  No. 15/2018-Central Tax COMPLY-P0-06.1's own threshold cites), one day of validity per
+  100 km (or part thereof) for non-ODC cargo and one day per 20 km for Over Dimensional
+  Cargo (ODC); widened for non-ODC cargo to 200 km/day by the CGST (Fourteenth Amendment)
+  Rules, 2020 (CBIC Notification No. 94/2020-Central Tax, dated 22-Dec-2020, effective
+  01-Jan-2021) -- the ODC figure (20 km/day) is unchanged by that amendment. Confirmed
+  across five independent sources (taxguru.in, a2ztaxcorp.com, caclubindia.com,
+  gstextract.com, simpletaxindia.net), all describing the same amendment consistently, and
+  cross-checked against the pre-amendment figure (100 km/day) separately to confirm only
+  the non-ODC number changed. Direct `WebFetch` of the CBIC's own rule-text page
+  (`taxinformation.cbic.gov.in`) and ClearTax's own rules page was attempted first but
+  blocked by this environment's egress policy (neither domain is on the CDN/fetch
+  allowlist) -- `WebSearch`'s own synthesized, multiply-sourced answer was used instead,
+  same fallback this session used for COMPLY-P0-06.1's own research.
+
+**What was built**:
+- `supabase/migrations/20260912070000_gst_tax_rules_eway_bill_validity_seed.sql` -- seeds
+  `gst.tax_rules` with TWO versions of a new `eway_bill_validity_km_per_day` lineage
+  (`country: IN`, `regime: GST`, `jurisdiction: null`, `treatment: null`): v1 (100 km/day
+  non-ODC, 20 km/day ODC) effective 2018-04-01 to 2021-01-01, and v2 (200 km/day non-ODC,
+  20 km/day ODC) effective 2021-01-01 onward -- a genuine effective-date transition, unlike
+  COMPLY-P0-06.1's own single-version threshold seed, giving `getEffectiveTaxRule`'s own
+  as-of-date resolution a real second version to pick between (exercised by this story's
+  own `validity.test.ts`).
+- `supabase/migrations/20260912071000_gst_eway_bill_movements.sql` -- the new
+  `gst.eway_bill_movements` table (see its own extensive comment for the full ownership
+  reasoning above): `transaction_type`/`vehicle_type`/`transport_mode` are DB-`check`-
+  validated closed vocabularies; `sub_supply_type` is free text, application-validated
+  only (the documented, extensible gap); `distance_km` (`>= 0` check);
+  `transporter_id`/`transporter_name`/`transporter_doc_number`/`transporter_doc_date`/
+  `vehicle_number`; `dispatch_from_override`/`ship_to_override` (jsonb, null meaning
+  "use the live default"). One row per document (`unique(business_id, document_id)`),
+  editable in place (unlike the append-only `gst.einvoices`/`gst.eway_bills` generation
+  history) -- reuses the existing `gst.enforce_document_business_id()` cross-tenant guard
+  function via a new trigger, same pattern `gst.eway_bills` itself already established.
+  RLS: tenant+licensed SELECT (any business member, matching `gst.eway_bills`); tenant+
+  write-licensed+`gst.generate` INSERT/UPDATE (the SAME permission generation itself uses,
+  not `settings.manage` -- this is preparatory data for the generation workflow, not a
+  settings change); no DELETE policy (corrected via UPDATE, never removed).
+- `supabase/migrations/20260912072000_gst_eway_bill_movements_document_id_index.sql` --
+  a live `mcp__Supabase__get_advisors` (performance) re-check after applying the table
+  migration surfaced one real, new finding: `eway_bill_movements_document_id_fkey` had no
+  covering index. Fixed immediately as its own follow-up migration, same
+  one-file-per-`apply_migration`-call precedent COMPLY-P0-02.1 already established. Re-ran
+  `get_advisors` afterward: the finding is gone; only the expected pre-existing/new
+  "unused index" info-level findings remain (a brand-new table with zero query traffic).
+- `packages/module-gst/src/lib/eway-bill-movement/`:
+  - `types.ts` -- `EwayBillMovement`/`EwayBillMovementInput`/`LocationOverride`/
+    `ConsignorDetails` and the 4 closed union types.
+  - `catalog.ts` (+ 8 test cases) -- the application-level `TRANSACTION_TYPE_CATALOG`
+    (4)/`SUB_SUPPLY_TYPE_CATALOG` (9, outward only)/`TRANSPORT_MODE_CATALOG` (4)/
+    `VEHICLE_TYPE_CATALOG` (2), each entry a `{code, label, description}`, plus
+    `isSupported`/`get` lookups -- same shape/placement as `lib/compliance/treatments.ts`'s
+    own `TAX_TREATMENT_CATALOG` (a small, closed, near-universal vocabulary is safe as an
+    application-code catalog, not a rate, so this doesn't conflict with "never hard-code
+    tax rates into UI components").
+  - `validity.ts` (+ 12 test cases) -- `EWAY_BILL_VALIDITY_RULE` lineage,
+    `parseEwayBillValidityValue`, `getEffectiveEwayBillValidityRule`, and the pure
+    `computeEwayBillValidityDays` (Rule 138(10)'s own "one day per band, or part thereof"
+    formula, selecting the ODC or non-ODC figure by `vehicleType`). Deliberately does NOT
+    model the separate "movement within 50 km in the same state doesn't require Part-B
+    details" provision -- a different sub-rule about which FIELDS are mandatory, not
+    validity duration, and one this session's research could not source with the same
+    confidence as the km-per-day figures; flagged as a gap for COMPLY-P0-06.3's own
+    adapter (which must decide what's mandatory before submission) to add with a real
+    citation.
+  - `queries.ts` -- `getEwayBillMovement` (the stored row or null), `getConsignorDetails`
+    (the business's own primary India/GST registration + name, read live, never
+    duplicated), and `getEwayBillMovementContext` (the combined orchestrator: document
+    context, stored movement, consignor, consignee via COMPLY-P0-03.4's own
+    `getPartyTaxContext`, and the computed validity period). No test file for the
+    orchestrator (thin orchestrator over already-tested pieces, this module's established
+    convention).
+  - `mutations.ts` -- `upsertEwayBillMovement`, gated on `requireModule`/
+    `requirePermission(businessId, 'gst.generate')`, validating every classification field
+    against its own catalog before writing (defense in depth backing the DB's own `check`
+    constraints, and the ONLY gate at all for `sub_supply_type`, which has no DB check).
+    `undefined` on an optional input field leaves the stored value alone; explicit `null`
+    clears it -- built by only including keys actually present in the caller's input in
+    the upsert payload.
+- `scripts/test-gst-eway-bill-movements-rls.mjs` (wired into `test:db`): license-gating
+  (no license / grace-period-read-only-not-write / active), `gst.generate` permission
+  gating (viewer denied), column defaults (`transaction_type`/`vehicle_type` both
+  `'regular'`), all three DB `check` constraints (vehicle_type/transaction_type/
+  transport_mode) and the `distance_km >= 0` check, jsonb override round-trip, the
+  one-row-per-document unique constraint, the cross-tenant document_id-smuggling trigger,
+  tenant isolation on SELECT, tenant isolation on UPDATE (via the correct "unchanged after
+  attempted update" assertion, not the pre-existing suite's `assertThrows` mistake), and
+  no delete policy. **Actually run against a real local Postgres this session** (see the
+  environment finding above) -- every assertion passed.
+
+**What was deliberately left out** (future stories, not implemented implicitly per rule
+5): the inward-movement sub-supply-type vocabulary (no solid source found this session);
+the "50 km same-state, Part-B not mandatory" provision; wiring this movement data into
+`generateEwayBill` itself, or deciding what's mandatory before submission (COMPLY-P0-06.3's
+own job, "E-Way Adapter" -- naturally the story that must decide what's required, the same
+way COMPLY-P0-05.2's Schema Validation preceded COMPLY-P0-05.3's IRP Adapter); linking a
+movement record to an actual generated `gst.eway_bills` row, and whether it should become
+read-only once linked (COMPLY-P0-06.4, "Document Link"); any UI (matches this whole epic's
+"lib first, UI later" pattern established by COMPLY-P0-06.1 and every COMPLY-P0-05.x
+story); and fixing the two pre-existing test-harness bugs found above (out of this story's
+scope, flagged for a future dedicated fix).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `node scripts/lint-import-boundaries.mjs` -- 1185 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 139 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 139 migration files scanned, 0
+  violations.
+- `npx vitest run` in `module-gst` -- 27 files / 212 tests passed (192 pre-existing + 20
+  new: 8 in `catalog.test.ts`, 12 in `validity.test.ts`).
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story (`crm/conversations/page.tsx`'s unused `Package` import).
+- All three migrations applied live to the **dev** Supabase project
+  (`jazdtomcgqjxjueedmck`) via `mcp__Supabase__apply_migration`, in the order above.
+  `mcp__Supabase__get_advisors` (security): identical finding set to immediately before
+  this story (same pre-existing `rls_enabled_no_policy` infos and the one
+  `auth_leaked_password_protection` warning) -- no new findings. Performance: one real new
+  finding (the unindexed `document_id` FK) found and fixed via the follow-up migration
+  above, confirmed gone on re-check.
+- **`node scripts/test-gst-eway-bill-movements-rls.mjs` -- run against a real local
+  Postgres 16 in this environment (see the environment finding above) and passed in
+  full**, the first genuinely-executed (not merely "written for a future environment")
+  local RLS test in this entire backlog's history. Also ran the full pre-existing
+  `npm run test:db` chain once for a baseline, surfacing the two pre-existing bugs flagged
+  above (not fixed, out of scope) -- this story's own migrations applied and integrated
+  cleanly into that same run before the pre-existing `test-discovery-rls.mjs` assertion
+  aborted the chain.
+- `node --test scripts/*.test.mjs` -- 11/11 passing (confirms the `package.json` `test:db`
+  chain edit -- adding this story's own script -- didn't break the lint scripts' own
+  self-tests).
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story,
+  matching COMPLY-P0-06.1 and every COMPLY-P0-05.x story before it. (A full-monorepo
+  `npm run typecheck` was attempted and found pre-existing, unrelated failures entirely in
+  `module-discovery` and `apps/web`'s Discovery/Platform-Admin-Portal routes -- concurrent
+  workstreams' own in-progress work already merged into `main` before this session started,
+  confirmed by path alone: none of the failing files are under `module-gst` or `/gst`
+  routes. `module-gst`'s own `tsc --noEmit` above is clean, which is this story's actual
+  verification scope per the run's own per-story workflow.)
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed from the prior session).
