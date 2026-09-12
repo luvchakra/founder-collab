@@ -31,3 +31,12 @@ export const getEinvoiceForDocument = cache(
     return data;
   },
 );
+
+/** Every e-invoice generation-history row for a business, newest first -- COMPLY-P0-10.2
+ * (Government Response Store) needs the whole history, not one document at a time. */
+export async function listEinvoicesForBusiness(businessId: string): Promise<Einvoice[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("einvoices").select("*").eq("business_id", businessId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}

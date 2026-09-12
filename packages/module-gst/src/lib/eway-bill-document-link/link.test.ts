@@ -13,6 +13,7 @@ function makeEwayBill(overrides: Partial<EwayBill> = {}): EwayBill {
     qr_code: null,
     cancel_reason: null,
     cancelled_at: null,
+    raw_response: null,
     created_at: "2026-09-12T00:00:00Z",
     updated_at: "2026-09-12T00:00:00Z",
     ...overrides,

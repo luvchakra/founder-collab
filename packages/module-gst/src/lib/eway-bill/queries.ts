@@ -31,3 +31,12 @@ export const getEwayBillForDocument = cache(
     return data;
   },
 );
+
+/** Every e-way-bill generation-history row for a business, newest first -- COMPLY-P0-10.2
+ * (Government Response Store) needs the whole history, not one document at a time. */
+export async function listEwayBillsForBusiness(businessId: string): Promise<EwayBill[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("eway_bills").select("*").eq("business_id", businessId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
