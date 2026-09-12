@@ -58,7 +58,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-06 | 06.1 | Eligibility Engine | Done |
 | | 06.2 | Movement Data | Done |
 | | 06.3 | E-Way Adapter | Done |
-| | 06.4 | Document Link | Not started |
+| | 06.4 | Document Link | Done |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
@@ -66,16 +66,17 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**29 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**30 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
-COMPLY-P0-04 (India GST), and COMPLY-P0-05 (India E-Invoice) are all fully done.**
-COMPLY-P0-06.3 (E-Way Adapter, India E-Way Bill) is the last completed story. Next:
-COMPLY-P0-06.4 (Document Link), the last story in epic 06.
+COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), and now COMPLY-P0-06 (India
+E-Way Bill) are all fully done.** COMPLY-P0-06.4 (Document Link) is the last completed
+story. Next: COMPLY-P0-07 (India Returns), starting with COMPLY-P0-07.1 (GSTR-1
+Preparation).
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2977,3 +2978,88 @@ inward-movement e-way-bill vocabulary (not this story's concern at all); and rec
 
 **COMPLY-P0-06 (India E-Way Bill) now has one story left: COMPLY-P0-06.4 (Document
 Link).**
+
+### 06.4 — Document Link (2026-09-12)
+
+"Link e-way bill to source transaction" -- the last story of COMPLY-P0-06, and exactly the
+tie-together this epic's own prior two stories both explicitly deferred to it:
+COMPLY-P0-06.2's own migration comment named "linking this row to an actual generated
+`gst.eway_bills` row, and deciding whether a movement record should become read-only once
+linked" as this story's job; COMPLY-P0-06.3's own log named "wiring eligibility/movement
+data into `generateEwayBill`... deliberately deferred to COMPLY-P0-06.4" too.
+
+**Checked existing code first** (backlog rule 1): at the raw-data level, `gst.eway_bills`
+already has a `document_id` FK into `core.documents` -- the "source transaction" link
+literally exists in the schema since S-2. What's missing is everything ABOVE that: no
+query anywhere combines COMPLY-P0-06.1's eligibility determination, COMPLY-P0-06.2's own
+movement data, and this generation-history row into one coherent picture for a document
+(backlog rule 14, traceability), and nothing enforces any real relationship between "the
+movement facts recorded" and "the e-way bill actually generated from them" -- a business
+could keep editing distance/vehicle/consignee overrides indefinitely even after a real
+government e-way bill already exists describing the OLD facts, silently making the
+recorded movement data diverge from what was actually filed.
+
+**Two concrete pieces, not a vague "tie things together"**:
+1. **A combined read** (`lib/eway-bill-document-link/`): `getEwayBillDocumentLink`
+   assembles COMPLY-P0-06.1's `getEwayBillEligibility`, COMPLY-P0-06.2's
+   `getEwayBillMovementContext`, and the `gst.eway_bills` row (via the existing
+   `getEwayBillForDocument`) for one document, in parallel, into one
+   `EwayBillDocumentLink` object -- `eligibility`/`movement`/`generation` are surfaced as
+   the separate facts each of those stories already defined them to be, never smoothed
+   into one verdict (backlog rule 11/12) -- plus a derived `locked` flag.
+2. **A real enforcement, not just a read**: `upsertEwayBillMovement` (COMPLY-P0-06.2's own
+   mutation) now refuses to edit movement data once a real (non-cancelled) e-way bill has
+   actually been generated for that document -- the point at which the movement facts
+   become LINKED to that generated e-way bill and preserving what they said at generation
+   time matters more than letting them keep changing (backlog rule 13, "preserve
+   historical filing/evidence state"). Cancelling the e-way bill unlocks editing again,
+   since a cancelled bill's own movement facts are no longer binding on anything real.
+   `isEwayBillGenerated` (`lib/eway-bill-document-link/link.ts`, + 3 test cases) is the one
+   shared, pure, tested definition of "generated" both the combined read's `locked` field
+   and this mutation's own guard call into -- extracted specifically so the two can never
+   silently drift out of sync on what counts.
+
+**What was deliberately left out**: wiring COMPLY-P0-06.2's own movement data (consignor/
+consignee/transport/vehicle/distance/supply-type) into `generateEwayBill`'s own outbound
+GSP payload -- that would mean building the real, much larger NIC e-way-bill generation
+schema (TranDtls/DocDtls/ItemList/etc.), a genuinely bigger undertaking than "link" implies
+and a deliberate continuation of the SAME "not a fully NIC-compliant payload" simplification
+this schema has carried since S-2 (flagged again here, not silently expanded); gating
+`generateEwayBill` on COMPLY-P0-06.1's own eligibility result (e.g. refusing to generate
+when `required` is `false`) -- a real product decision about whether an ineligible-but-
+requested generation should be blocked or merely warned about, deliberately left to
+whichever future UI story (COMPLY-P0-11) actually surfaces `getEwayBillDocumentLink`'s own
+`eligibility` field to a human who can make that call, per backlog rule 10 ("filing/
+submission is a consequential external action: require explicit user authorization and
+review") -- this story only assembles the facts, it doesn't decide what to do with them;
+and any UI (matches this whole epic's own "lib first, UI later" pattern established by
+every COMPLY-P0-06.x/05.x story before it).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- 100% clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1081 files scanned, 0 violations (confirms
+  the new cross-file imports inside `module-gst` -- `eway-bill-movement/mutations.ts`
+  reading from `eway-bill-document-link/link.ts` and `eway-bill/queries.ts` -- are
+  same-module, not a boundary violation; no circular import either, checked by hand:
+  `eway-bill-document-link/queries.ts` imports `eway-bill-movement/queries.ts` (read-only),
+  never `mutations.ts`, so there is no cycle back).
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 118
+  migration files, 0 violations each (no schema change this story -- same count as after
+  COMPLY-P0-06.3, confirming nothing new was added).
+- `npx vitest run` in `module-gst` -- 29 files / 237 tests passed (234 pre-existing + 3 new
+  in `eway-bill-document-link/link.test.ts`). No new test file for
+  `getEwayBillDocumentLink` itself (thin orchestrator over three already-tested reads, this
+  module's established convention) or for `upsertEwayBillMovement`'s own new lock check
+  (a straightforward call into the already-tested `isEwayBillGenerated`, same reasoning
+  applied to a mutation's own real branch logic throughout this module, e.g.
+  `createTaxRegistration`'s own `isRegimeSupported` check).
+- No schema change -- no migration to apply, no new `get_advisors` findings possible.
+- No `apps/web` change, so `next build` was not re-run -- matches every other pure-library
+  story in this epic.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` stays installed from COMPLY-P0-06.3's own fix).
+
+**COMPLY-P0-06 (India E-Way Bill) is now fully done.** Next: COMPLY-P0-07 (India Returns).
