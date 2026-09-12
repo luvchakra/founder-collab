@@ -65,6 +65,9 @@ const NAV_LINKS = [
   { href: "/platform/email-templates", label: "Email Templates" },
   // PLATFORM-P0-11.3: the platform-wide default notification channel toggles -- config-only.
   { href: "/platform/notification-policies", label: "Notification Policies" },
+  // PLATFORM-P0-12.1: the platform-wide registry of external integration categories
+  // (AI/Email/WhatsApp/Payments/Government/Analytics/Storage) and their kill switches.
+  { href: "/platform/integrations", label: "Integrations" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
