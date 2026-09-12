@@ -53,7 +53,8 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 05.2 | Schema Validation | Done |
 | | 05.3 | IRP Adapter | Done |
 | | 05.4 | IRN/QR Response | Done |
-| | 05.5–05.6 | India E-Invoice (Reporting Deadline Control, E-Invoice Status) | Not started |
+| | 05.5 | Reporting Deadline Control | Done |
+| | 05.6 | E-Invoice Status | Not started |
 | P0-06 | 06.1–06.4 | India E-Way Bill | Not started |
 | P0-07 | 07.1–07.7 | India Returns | Not started |
 | P0-08 | 08.1–08.6 | India Reconciliation & IMS | Not started |
@@ -62,16 +63,16 @@ offering backlog's own audit log has been documenting the same limitation.
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**24 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**25 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
 .registration_id` itself still isn't written by any UI).
 
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration), and
-COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.4 (IRN/QR Response) is the
-last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
-Next: COMPLY-P0-05.5 (Reporting Deadline Control).
+COMPLY-P0-04 (India GST) are all fully done.** COMPLY-P0-05.5 (Reporting Deadline Control)
+is the last completed story, within epic 05 (India E-Invoice) / P0 Release 2 (epics 05-08).
+Next: COMPLY-P0-05.6 (E-Invoice Status), which finishes epic 05.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -2312,5 +2313,87 @@ for COMPLY-P0-05.6 "E-Invoice Status," unchanged by this story.
   with no FK introduces nothing new to flag.
 - No `apps/web` change this story (unlike 05.3, which added the status/fetch URL form
   fields -- this story is lib+schema only), so `next build` was not re-run.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 05.5 — Reporting Deadline Control (2026-09-12)
+
+"Apply active reporting window rules, including the current 30-day restriction for
+applicable ₹10 crore+ AATO taxpayers." A DIFFERENT regulatory fact from COMPLY-P0-05.1's
+own `einvoice_turnover_threshold_inr` (which decides whether e-invoicing is mandated at
+all, ₹5 crore) -- this one decides whether an ALREADY-mandated e-invoice must reach the
+IRP within a fixed window of its own invoice date, or be refused outright.
+
+**Research, not assumption** (same discipline as 04.7/05.1): used `WebSearch` twice --
+once to confirm the backlog's own §2 citation ("AATO ₹10 crore or more... within 30 days
+from invoice date from 1 April 2025") still holds as of this session's "today"
+(2026-09-12; confirmed current as of July 2026, no further change found), and once to
+verify the rule's own real PRIOR version rather than inventing one: GSTN Advisory dated
+13-Sep-2023 first imposed the 30-day window on AATO ₹100 crore+, effective 01-Nov-2023;
+GSTN Advisory dated 05-Nov-2024 lowered that applicability threshold to AATO ₹10 crore+,
+effective 01-Apr-2025 (the version in effect today). An earlier, never-enforced 7-day
+proposal from 01-May-2023 is deliberately not modeled as its own version -- it never
+actually took effect, so there is no real historical determination that would ever need to
+look it up.
+
+**A precise wording distinction preserved, not smoothed over**: this rule's own real
+language is "AATO of ₹10 crore OR MORE" (`>=`) -- different from COMPLY-P0-05.1's own
+"turnover EXCEEDING ₹5 crore" (`>`) for the separate mandate threshold. `determine.ts`
+uses `>=` for this rule specifically, documented in its own docstring as a deliberate,
+source-driven difference between two distinct real GST rules, not an inconsistency to fix.
+
+**What was built** -- `packages/module-gst/src/lib/einvoice-reporting-window/`:
+- `supabase/migrations/20260912040000_gst_tax_rules_einvoice_reporting_window_seed.sql` --
+  seeds `gst.tax_rules` with a two-version `einvoice_reporting_window_days` lineage (value
+  carries BOTH `aatoThresholdInr` and `windowDays` together, since neither number means
+  anything alone): v1 (₹100 crore, 30 days, 2023-11-01 to 2025-04-01) and v2 (₹10 crore,
+  30 days, 2025-04-01, open). Same seed-via-migration-INSERT precedent as every prior
+  versioned rule content in this epic.
+- `rule.ts` (+ 5 test cases) -- `EINVOICE_REPORTING_WINDOW_RULE` lineage constant,
+  `parseEinvoiceReportingWindowValue` (defensive parse, same convention as
+  `parseEinvoiceThresholdValue`), `getEffectiveEinvoiceReportingWindow(asOf?)` (wraps
+  `getEffectiveTaxRule`).
+- `determine.ts` (+ 9 test cases) -- `addDays` (pure UTC-midnight date arithmetic, its own
+  tested helper) and the pure `determineEinvoiceReportingDeadline`: `"not_restricted"` when
+  turnover is below the AATO threshold, `"within_window"`/`"deadline_breached"` (comparing
+  `asOf` against `invoiceDate + windowDays`) when it applies, `"unknown"` (never a false
+  `"not_restricted"`) when no rule or no turnover figure is available. `asOf` serves two
+  real uses through the same parameter -- pass an e-invoice's own actual generation
+  timestamp to check HISTORICALLY whether it made its deadline, or omit it (defaults to
+  today) to check whether an as-yet-ungenerated invoice still has time -- documented
+  explicitly rather than building two near-identical functions.
+- `queries.ts` -- `getEinvoiceReportingDeadline(businessId, documentId, input?)`: reads the
+  document's own invoice date (COMPLY-P0-03.1), the effective window rule, and either a
+  caller-declared or COMPLY-P0-05.1's own estimated turnover (reusing
+  `estimateTrailingSalesTurnoverInr` directly rather than duplicating that logic), then
+  hands everything to the pure function. Returns `null` when the document doesn't exist,
+  matching every other document-keyed orchestrator in this module. No test file (thin
+  orchestrator over already-tested pieces).
+
+**What was deliberately left out**: any UI; any wiring into `generateEinvoice` to actually
+block a late submission (this story only determines and explains the deadline status --
+gating a real generate action on it, or surfacing it prominently, is a decision for
+COMPLY-P0-05.6 "E-Invoice Status" or a later UI story, not implied here); the never-
+enforced 7-day 2023 proposal (flagged above, deliberately excluded); and persisting a
+computed deadline anywhere (same "compute on demand, don't invent a new stored fact"
+posture as COMPLY-P0-05.1's own eligibility result).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint` -- 0 errors; same 1 pre-existing unrelated warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1057 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 113 migration files checked, 0 violations.
+- `node scripts/lint-gst-no-duplicate-masters.mjs` -- 113 migration files scanned, 0
+  violations.
+- `npx vitest run --root packages/module-gst` -- 22 files / 170 tests passed (156
+  pre-existing + 14 new: 5 in `rule.test.ts`, 9 in `determine.test.ts`).
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `mcp__Supabase__get_advisors` (security + performance):
+  identical finding set to immediately before this story (same 5 pre-existing infos, 1
+  pre-existing warning; the unused-index list dropped by one entry unrelated to this story,
+  a concurrent agent's own index getting its first real use) -- a plain data-only insert
+  introduces nothing new to flag.
+- No `apps/web` change, so `next build` was not re-run -- another pure-library story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
