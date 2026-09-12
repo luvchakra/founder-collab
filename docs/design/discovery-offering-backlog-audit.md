@@ -48,7 +48,7 @@ only genuine architectural/key decisions are raised.
 | | 09.3 | AI Offering Extraction | Done |
 | | 09.4 | Offering Review Before Activation | Done |
 | | 10.1 | Run AI Discovery CTA | Done |
-| | 10.2 | Persistent Pipeline Stage Model | Not started |
+| | 10.2 | Persistent Pipeline Stage Model | Done |
 | | 10.3 | Pipeline Progress UI | Not started |
 | | 11.1 | Editable Pipeline Stages | Not started |
 | | 11.2 | Run From This Stage | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**30 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
+**31 of 68 in-scope stories done -- Phase E underway.** (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -2060,3 +2060,68 @@ story this run (no seeded demo user/`.env.local` in this environment).
 
 **Status**: 30 of 68 in-scope stories done -- Phase E continuing. Next: 10.2, Persistent
 Pipeline Stage Model.
+
+### 10.2 — Persistent Pipeline Stage Model (2026-09-12)
+
+The doc gives this story no "Acceptance criteria" heading at all (unlike every other
+story in this backlog) -- just the field list and "Reruns create new versions rather
+than silently destroying history." Treated as schema-and-behavior-only, no UI, the same
+precedent DISC-OFFER-P0-05.1 already established for a story with real acceptance
+criteria but none of them UI-shaped.
+
+10.1 already built the *current-state* row (`discovery.pipeline_stages`: status/
+started_at/completed_at/failed_at/error/last_ai_run_id) but its own
+`markPipelineStageRunning` **cleared** `failed_at`/`error` on every retry -- exactly the
+"silently destroying history" this story's own explicit line names. Checked the entity
+ownership map (`docs/plan/00-MASTER-PLAN.md` §5) first -- no existing "stage
+run"/"version" concept there (module-internal pipeline machinery, not a `core` entity),
+confirming this is genuinely new rather than a parallel of something already listed.
+
+Migration (`20260912080000_discovery_pipeline_stage_versioning.sql`): adds the doc's own
+named `version`/`input_version`/`output_version` columns to `pipeline_stages`, plus a new
+append-only `discovery.pipeline_stage_runs` table -- one immutable row per finished
+attempt (completed/failed/skipped only; a `running` state has nothing to preserve yet),
+the same "current value on the live row, full history on its own table" pattern
+`discovery.prospect_scores` (history) vs. `prospects.fit_score` (current) already
+established in this schema. `version` is a plain per-stage attempt counter (1st run = 1,
+each retry increments it) -- deliberately **not** yet the richer "ICP v1/v2/v3 with full
+content snapshots" DISC-OFFER-P0-14.2's own "Versioned Stage Results" describes, which
+owns snapshotting a stage's actual *output content*, a distinct and larger concern left
+for that story to build on top of the version numbers introduced here rather than
+duplicated now. `input_version`/`output_version` are the doc's own named fields, added
+now schema-first (the same precedent DISC-OFFER-P0-01.1 set widening `products.status`
+ahead of 01.3) but left nullable and unpopulated with real cross-stage lineage until
+DISC-OFFER-P0-11.3's "Stage Dependency Graph" gives them something real to record --
+populating them with a bare copy of `version` itself now would be redundant, not useful.
+Both tables' FKs indexed from the start; the new table's own `unique (workspace_id,
+stage_key, version)` already covers a "history for this stage" lookup via its own
+leftmost prefix, so no separate index was added for it (confirmed via `get_advisors`
+afterward -- no new findings of any kind, security or performance).
+
+`markPipelineStageRunning` now reads the row's current `version` and writes `version + 1`
+on every entry (a plain read-then-write, not an atomic SQL increment -- the Supabase JS
+client has no such helper, and concurrent runs of the same stage are already excluded by
+the run-ai-discovery panel only ever driving one stage at a time, the same single-flight
+assumption `discoverProspects`' own per-workspace lock formalizes for its own operation).
+`markPipelineStageCompleted`/`Failed`/`Skipped` each now also insert a
+`pipeline_stage_runs` row capturing that exact attempt (version/status/started_at/
+completed_at/error) immediately after updating the current-state row -- the retry no
+longer erases what happened last time, it's simply superseded on the live row while
+staying permanently queryable on its own. New `listPipelineStageRuns()` query, exported
+even though nothing consumes it yet (10.2 itself has no UI criteria) -- the same "export
+it now, a later story wires up the display" precedent DISC-OFFER-P0-02.3's own
+`listBuyerPersonas` already set ahead of DISC-OFFER-P0-06.3 actually consuming it; a
+history table nothing can read back would leave "persistent" only half true.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (unchanged, no new files
+outside module-discovery/apps-web), `lint:migrations` (130 migrations, no violations),
+`npx vitest run --root packages/module-discovery` (163/163, unchanged -- the new
+mutations are DB-composing wrappers, same "no unit test for a DB-composing function"
+precedent 01.1 already established, not pure logic needing its own test), a live
+migration apply + `get_advisors` for both `security`/`performance` (no new findings of
+any kind -- same baseline `rls_enabled_no_policy`/`unused_index` counts as every prior
+story, all on unrelated tables), and a clean `next build`.
+
+**Status**: 31 of 68 in-scope stories done -- Phase E continuing. Next: 10.3, Pipeline
+Progress UI.
