@@ -49,6 +49,9 @@ const NAV_LINKS = [
   { href: "/platform/feature-flags", label: "Feature Flags" },
   // PLATFORM-P0-09.1/09.2: the platform-wide AI provider registry and key storage.
   { href: "/platform/ai-providers", label: "AI Providers" },
+  // PLATFORM-P0-09.3: the platform-wide AI routing policy -- config-only, no runtime
+  // wiring (see the migration's own docstring).
+  { href: "/platform/ai-routing", label: "AI Routing" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
