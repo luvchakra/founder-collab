@@ -202,3 +202,28 @@ anymore. Step 2 contributes nothing (`MODULE_NOT_LICENSED` silently skipped by
 `apps/web/app/(dashboard)/layout.tsx#getOtherModuleAlerts`), not an error banner.
 **Automated coverage:** none yet — same DB-and-rendered-UI gap as most alert-bell/
 dashboard cases in this pass.
+
+## New this pass (2026-09-12) — Cross-Module Integration backlog contract functions
+
+### TC-INVENTORY-017: `createFulfillmentRequest()`/`getFulfillmentStatus()` are idempotent and auto-tag the party as a customer
+**Priority:** P1 · **Story:** INT-02.2
+**Steps:**
+1. Call `createFulfillmentRequest()` twice for the same CRM opportunity.
+2. Call it for a CRM lead party never tagged with the `customer` role.
+**Expected result:** (1) the second call returns the existing `inventory.sales_orders`
+row, never a duplicate. (2) auto-tags `customer` first, so the party isn't silently
+excluded by the `customers` inner-join compat view. Falls back to "first active
+warehouse" when no location is specified.
+
+### TC-INVENTORY-018: `listSubstitutes()` never recommends zero-stock or cross-category items
+**Priority:** P2 (a non-AI function implicitly testing "AI may not bypass required
+validation," CLAUDE.md principle 4) · **Story:** INT-05.2
+**Expected result:** Deterministic same-`category_id`-plus-positive-available-quantity
+lookup — never an AI guess.
+
+### TC-INVENTORY-019: Dashboard and list pages don't overflow on mobile
+**Priority:** P2 · **Story:** `0cb4342`, `74513c0`, `068322c`, `675f462`, `e73e016`,
+`6350dfd`, `7175e26`
+**Update to TC-INVENTORY-014:** that case only covers "doesn't crash," not "doesn't
+overflow/misrender on mobile" — this case covers the latter for Products/Stock/
+Transfers/Suppliers and the dashboard itself.

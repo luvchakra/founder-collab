@@ -50,6 +50,9 @@ onboarding flow promises, user lands on a working dashboard — no dead-end or p
 1. Switch businesses via the shell switcher while on a module page (e.g. inventory products).
 **Expected result:** Navigates to the equivalent page under the new business's
 context, not a stale view still scoped to the old business.
+**Update (2026-09-12):** doesn't yet cover the new pin-a-business feature (`4ee207b`,
+`0e710f8`) — a pinned business should survive a fresh tab/page refresh, not just an
+in-session switch. See TC-SHELL-020.
 
 ### TC-SHELL-005: AI chat widget and alert bell are genuinely wired to real data — and, as of item #13, every licensed module's own data, not just discovery's
 **Feature:** `03a7280` — "Wire real alert bell and AI chat widget into the platform shell."
@@ -94,6 +97,11 @@ for every blocked state described elsewhere in this doc, not just a status table
 **Expected result:** Each works independently; theme change (light/dark, per
 CLAUDE.md's design non-negotiable — light by default) applies platform-wide, not
 just within one module's pages.
+**⚠ Stale (2026-09-12):** "AI provider" is no longer its own settings page —
+`/dashboard/settings/ai-provider` now just `redirect()`s into Billing, which gained a
+collapsible "AI" card (provider connect/disconnect, included-credits fallback, Razorpay
+credit purchase, "Founder Mode" pricing comparison). Step 1's "connect/switch an AI
+provider" as an independent exercise no longer matches reality — see TC-SHELL-022.
 
 ### TC-SHELL-008: Design system consistency — no module brings its own look
 **Feature:** CLAUDE.md non-negotiable #7 — shared design system, light theme, blue
@@ -176,10 +184,15 @@ name — purely visual, easy to silently regress if this page's layout is touche
 without checking this case.
 **Automated coverage:** none — a pure layout/CSS check.
 
-### TC-SHELL-013: Admin & settings hub's Business section: disable/enable and business-wide API keys both work from the same row
+### TC-SHELL-013: Settings hub's Business section: disable/enable and business-wide API keys both work from the same row
 **Feature:** Items #7 and #17 of a UX pass —
 `apps/web/app/(dashboard)/dashboard/settings/page.tsx`.
 **Priority:** P1 · **Story:** this pass
+**⚠ Name drift (2026-09-12):** this page has been renamed twice since — "Admin &
+settings" → "Global Configurations" → current: **"Business Configurations"** (the
+page's own current `<h1>` text). Re-verify step 3's disable/re-enable flow and the
+module-level-Admin-vs-avatar-Settings split against the current page structure rather
+than assuming unchanged — see TC-SHELL-021.
 **Steps:**
 1. From `/dashboard/settings`, find a business's own row under "Business."
 2. Click through to "API keys" (business-wide, not inventory-specific — see
@@ -249,3 +262,51 @@ BYOK-vs-platform-key behavior; this case is the shell's own rendering half.
 before computing the percentage).
 **Automated coverage:** none — pure rendering check, same gap as `discovery.md`
 TC-DISCOVERY-004's own UI half.
+
+## New this pass (2026-09-12) — the `/platform` Superadmin Portal shell
+
+### TC-SHELL-017: The Platform Admin Portal is a genuinely separate top-level shell with zero leaked customer-dashboard chrome
+**Priority:** P0 · **Story:** PLATFORM-P0 (see `platform-admin.md` for the full RLS/
+functional test suite — this file covers only the SHELL itself)
+**Steps:**
+1. Sign in as a superadmin and navigate to `/platform`.
+**Expected result:** Its own `layout.tsx`, outside `(dashboard)` entirely — no
+business switcher, module sidebar, or any other customer-facing chrome bleeds through.
+
+### TC-SHELL-018: SUPERADMIN + MFA gating blocks both a non-superadmin and a superadmin without MFA
+**Priority:** P0 · **Story:** PLATFORM-P0-01/18.1 (see `platform-admin.md`
+TC-PLATFORM-001/002 for the full case — cross-referenced here since it's also a shell
+concern)
+
+### TC-SHELL-019: The `PLATFORM_ADMIN_EMAILS` bootstrap escape hatch still works
+**Priority:** P0 · **Story:** PLATFORM-P0-01 (see `platform-admin.md` TC-PLATFORM-003)
+
+### TC-SHELL-020: A pinned business persists across a fresh tab or page refresh
+**Priority:** P2 · **Story:** `4ee207b`, `0e710f8`
+**Update to TC-SHELL-004.**
+
+### TC-SHELL-021: "Business Configurations" separates module-level Admin from personal avatar Settings with no overlapping content
+**Priority:** P1 · **Story:** `2236ac3`
+**Update to TC-SHELL-013** — worth a dedicated regression case since this page's
+name/structure has changed three times in this window.
+
+### TC-SHELL-022: Billing's collapsible AI card — provider connect/disconnect, credit purchase, and pricing comparison all function on one page
+**Priority:** P1 · **Story:** `dee370a`, `b661cdf`, `fa49e45`, `05ab891`, `9b19bf0`,
+`e39c61f`, `055a6d0`, `c5547b7`
+**Update to TC-SHELL-007.**
+
+### TC-SHELL-023: Platform brand name and the platform-admin Branding tool stay consistent across login, business-facing chrome, and the rest of the shell
+**Priority:** P1 · **Story:** `64e9238` (WonderArc rebrand), branding-form/publish-
+controls/`/preview` route
+**Expected result:** Distinct from TC-SHELL-008 (module design-system consistency),
+which doesn't cover brand-name templating at all.
+
+### TC-SHELL-024: The Discovery business Dashboard/Business-detail split renders correctly (cross-reference, primarily `discovery.md`'s own concern)
+**Priority:** P2 · **Story:** `1e7ca3d`, `e8076e4`, `6bc00ca`, `60d94f1`, `ca83e1f`,
+`e9cda05`
+**Note:** touches the same `businesses/[businessId]/page.tsx`/new `business/page.tsx`
+shell surface TC-SHELL-012 partially covers — flagged so this file and `discovery.md`
+don't each assume the other covers it fully.
+
+### TC-SHELL-025: Create-business modal auto-populates name/description from a provided website URL
+**Priority:** P2 · **Story:** `1b32a0f`

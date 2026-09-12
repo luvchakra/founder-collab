@@ -22,6 +22,14 @@ spec of this page; this case is the first place in the funnel it should appear �
 a prospective user's very first click into a module they haven't turned on yet).
 **Expected result (steps 3-4, after activation):** Route resolves normally, write
 succeeds, and `has_module_write()` returns true.
+**Update (2026-09-12, PLATFORM-P0-07.2/07.3):** step 1's route guard now checks
+`platform.modules.status` *before* the license check even runs — a platform-wide
+`disabled`/`maintenance` module redirects to `not-licensed` with
+`reason=platform_disabled`, a case this test doesn't yet exercise. Add a step 0: with a
+module platform-disabled (as a superadmin), confirm the redirect happens even for a
+business with an otherwise-active license — this now blocks BEFORE the business's own
+license is even read.
+**Covers (new):** `packages/core/src/db/middleware.ts#findPlatformDisabledModuleForRoute`.
 
 ### TC-CORE-002: Cancelling a license starts the 30-day read-only grace, not immediate denial
 **Feature:** ADR-9's core guarantee.
@@ -52,6 +60,19 @@ DB-only harness can't reach a TypeScript-level thrown-error string; would need a
 Supabase-client unit test (no precedent yet in `packages/core`, unlike `module-gst`'s new
 mocked-`fetch` precedent for `callGsp` — worth building next if this message keeps
 changing) or a live-Supabase manual check.
+**Update (2026-09-12, PLATFORM-P0-07.2/07.3):** `requireModule()` now checks THREE
+things in order, most-specific-reason-wins, not just the business's own license: (1)
+platform `disabled`/`maintenance` → throws immediately, before the business's own
+license is even read, with copy explicitly saying "not your licensing problem"
+(`defaultPlatformBlockedMessage`); (2) the business's own license/grace exactly as
+documented above; (3) only if the business's own license would otherwise permit the
+write, platform `read_only` → throws `defaultPlatformReadOnlyMessage` (mirroring
+grace's own "read allowed, write denied" shape, platform-wide instead of per-business).
+Add steps confirming this ordering — e.g. a platform-`read_only` module with a business
+whose own license is in grace should surface the grace message, not the platform one,
+since grace is the MORE specific reason for that particular business.
+**Covers (new):** `packages/core/src/licensing/queries.ts#requireModule`,
+`getPlatformModuleStatus`.
 
 ### TC-CORE-003: Grace period expiry moves to full denial without deleting data
 **Feature:** ADR-9, second half.
@@ -251,3 +272,77 @@ anywhere else. Step 5 immediately restores it to the switcher.
 **Automated coverage:** none yet — needs a live Postgres query plus a rendered nav
 list; a real gap for a feature that's otherwise fully built and live-verified via
 Supabase MCP during development.
+
+## New this pass (2026-09-11/12) — Platform Admin Portal work reaching into `core`
+
+The Platform Admin Portal (`docs/design/platform-admin-portal-audit.md`) is itself
+architecturally distinct — `platform.*` tables are gated on `platform.is_superadmin()`,
+never `tenant AND licensed` (CLAUDE.md's own carve-out) — and gets its own
+`platform-admin.md`. The four cases below are the places that work reached into
+`core`-schema/tenant-scoped territory instead, which DO belong here.
+
+### TC-CORE-017: Every business is assigned a default plan at creation; existing businesses are backfilled, never left unassigned
+**Feature:** `core.business_settings.plan` — now a real FK into `platform.plans.key`
+(was free-text, defaulting `'starter'`, matching no real plan) + `core.
+handle_new_business()` trigger.
+**Priority:** P0 · **Story:** PLATFORM-P0-05.2
+**Steps:**
+1. Create a new business and check `core.business_settings.plan` immediately.
+2. Check an existing business/settings row with a stale or missing plan value.
+**Expected result:** (1) `plan='free'` immediately, not lazily on first module write.
+(2) backfilled to `'free'` by the same migration, never left unassigned.
+**Covers:** `scripts/test-core-business-settings-plan-fk.mjs` (13 assertions).
+
+### TC-CORE-018: `core.usage_counters` + atomic consume never overshoots a configured limit under concurrency
+**Feature:** `core.usage_counters` (new, business-scoped `core`-schema table — real
+tenant data, not `platform.*`), `core.increment_usage_counter()`,
+`core.try_consume_usage_counter()` (row-locked, atomic grant/deny+increment in one
+transaction).
+**Priority:** P0 · **Story:** PLATFORM-P0-06.1/06.3
+**Steps:**
+1. Attempt any direct client write to `core.usage_counters`.
+2. Fire 10 concurrent `try_consume_usage_counter()` calls against an already-exhausted
+   limit of 2.
+3. Fire 10 concurrent callers racing for the last 3 of a limit of 3.
+4. Attempt to decrement a counter below zero.
+**Expected result:** (1) no write path exists — only the two named functions may write
+a row. (2) all 10 denied, counter never overshoots. (3) exactly 3 granted. (4) clamps
+at zero, never negative.
+**Covers:** `scripts/test-core-usage-counters-rls.mjs`,
+`scripts/test-core-try-consume-usage-counter-rls.mjs`.
+
+### TC-CORE-019: The entitlement engine composes license + plan + platform-global layers, never fabricating a number
+**Feature:** `packages/core/src/entitlements/` — `hasModule()`, `hasFeature()`,
+`getLimit()`, `canConsume()`, each backed by a pure decision-builder, plus soft/hard
+limit semantics and the platform-wide kill-switch/maintenance short-circuit.
+**Priority:** P0 · **Story:** PLATFORM-P0-05.1–05.4, 06.1, 06.3, 06.5
+**Steps:**
+1. Check `getLimit()` for a denied module (platform-disabled, or unlicensed).
+2. Check a `soft`-typed limit past its own guideline, and a `hard`-typed limit exactly
+   at capacity.
+3. Check `canConsume()` for a feature with no `plan_limits` row configured at all.
+**Expected result:** (1) `limit`/`usage`/`remaining` are always `null`, never a
+fabricated `0`. (2) soft grants with no ceiling; hard denies exactly at capacity. (3)
+unconfigured means unrestricted (`allowed: true`), never silently denied.
+**Covers:** `module-entitlement.test.ts`, `feature-entitlement.test.ts`,
+`limit-entitlement.test.ts`, `scripts/test-core-plan-entitlement-lookup.mjs`.
+
+### TC-CORE-020: Platform-wide kill switch and maintenance mode pre-empt a business's own license state
+**Feature:** `packages/core/src/licensing/queries.ts#requireModule`/
+`getPlatformModuleStatus`, `packages/core/src/db/middleware.ts#findPlatformDisabledModuleForRoute`.
+**Priority:** P0 · **Story:** PLATFORM-P0-07.2/07.3
+**Steps:**
+1. Platform-disable/maintenance a module as a superadmin; load its route as a business
+   with an active license.
+2. Set the module `read_only` platform-wide; load the route, then attempt a write —
+   unless the business's own license would already deny the write for its own reason.
+3. Attempt to set `platform.modules.enabled` directly, as any role including
+   `service_role`.
+**Expected result:** (1) blocked, distinct copy ("not your licensing problem," no
+"Go to Settings → Licenses" CTA). (2) route loads (unlike `disabled`/`maintenance`);
+write throws `defaultPlatformReadOnlyMessage()` unless the business's own reason is
+more specific. (3) impossible — `enabled` is `GENERATED ALWAYS` derived from `status`.
+**Covers:** `scripts/test-platform-module-kill-switch-rls.mjs`,
+`scripts/test-platform-module-status-rls.mjs`.
+**Open gap:** no automated coverage yet for `requireModule()`'s actual TS-level throw/
+ordering behavior — same DB-only-harness gap TC-CORE-002/013/015 already flag.

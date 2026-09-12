@@ -1,24 +1,38 @@
 # Test cases: `crm`
 
-Covers `packages/module-crm/src/**`. Grew past skeleton status this pass with
-`docs/design/crm-module-design.md`'s Part A/B implementation (channel accounts +
-inbound webhooks, instant-reply, Convert to prospect, Customer 360, ticket enrichment,
-routing-rule conditions, domain events) — extend this file further as CRM keeps
-growing, per `TESTING_STRATEGY.md`'s policy.
+Covers `packages/module-crm/src/**`.
 
-**Current scope, confirmed against the schema (`20260908130000_crm_schema.sql`,
-`20260909080000_crm_channel_accounts.sql`, `20260909090000_crm_tickets_external_sender.sql`,
-`20260909100000_crm_tickets_related_document.sql`,
-`20260909110000_crm_routing_rules_extensions.sql`) and the actual ingestion code
-(`lib/tickets/ingest-inbound-message.ts`):** `channels`/`tickets`/`routing_rules`/
-`channel_accounts` tables, tenant+license RLS, cross-tenant reference-smuggling
-triggers. There is still no fine-grained permission model (unlike `fsm`'s
-`opportunities.edit` etc.). AI-detected-intent routing conditions are schema-only
-(`detected_intent_filter`) — see TC-CRM-001's own note on why.
+**⚠ Architectural supersession (2026-09-12):** TC-CRM-001..011 below document the
+original ticket/channel model (`docs/design/crm-module-design.md` Part A/B, S-1). Since
+2026-09-11 that model was superseded by the WonderArc CRM backlog's full lead/
+opportunity/conversation/interaction model (`docs/design/crm-backlog-audit.md`, 74
+stories, all P0+P1 done) plus 29 cross-module integration stories
+(`docs/design/integration-backlog-audit.md`). The old ticket-creation ingestion path
+(`ingestInboundCrmMessage`) is **now dead code** — WhatsApp moved off it in CRM-07.3,
+Instagram/Messenger in CRM-08.2 — so TC-CRM-001/002/003/007/008/011 describe a flow
+nothing live actually reaches any more. Kept below (not deleted) as a historical record
+per `TESTING_STRATEGY.md`'s "update, don't just delete" policy, each flagged inline; the
+current model starts at TC-CRM-012.
+
+**Current real scope:** `lead`/`opportunity`/`conversation`/`interaction`/`activity`/
+`follow_up`/`product_interest`/`assignment`/`channel_connection`/`review_item`/
+`whatsapp_template`/`opportunity_contact`/`escalation_config`/`customer_summary`/
+`conversation_summary`/`buying_intent_score`/`click_to_chat_link` (19 tables, all
+`tenant AND licensed` RLS), a 14-entry `CrmEventType` domain-event vocabulary, WhatsApp/
+Instagram/Facebook/Google-Business-Profile channel integrations, a deterministic
+`requires_response` rules engine + Lost Business queue, AI-assisted (never
+auto-sending) drafts/summaries/quality-checks, a 9-permission RBAC model
+(`crm_settings.manage`, `channel_connections.manage`, `reviews.publish`, etc.), and
+cross-module contracts into Inventory (fulfillment/availability), FSM (assessments/
+quotes/jobs), and Discovery (relationship detection on handoff).
 
 ### TC-CRM-001: Routing rules route for real on known-sender and business-hours conditions; AI-intent is schema-only
 **Feature:** Part B, B3 (`docs/design/crm-module-design.md`) — extends the S-1 skeleton.
 **Priority:** P1 · **Story:** B3
+**⚠ Superseded (2026-09-12):** the ticket-creation path this case's own steps exercise
+(`ingestInboundCrmMessage`) is now unreachable — no live channel creates tickets any
+more. `crm.routing_rules`/`evaluate.ts` themselves still exist and are still correct as
+described; only the "this fires on a real inbound message" premise is stale.
 **Update (this pass):** this case previously described `crm` as having no routing
 engine at all. It now does, but only for the two conditions
 `lib/routing-rules/evaluate.ts` actually evaluates against a real inbound message —
@@ -56,6 +70,9 @@ gap, not one this pass closed.
 ### TC-CRM-002: Multiple channels feed into one ticket queue without cross-talk
 **Feature:** S-1's channel model.
 **Priority:** P1 · **Story:** S-1
+**⚠ Superseded (2026-09-12):** no active ingestion writes to `crm.tickets` any more —
+see TC-CRM-001's own note. The Conversations inbox (TC-CRM-016) is the current
+equivalent.
 **Steps:**
 1. Create tickets from two different channels for the same business.
 **Expected result:** Both appear in the business's ticket queue, correctly tagged
@@ -73,6 +90,11 @@ real ingestion story landed)
 now creates/appends `core.threads` (`entity_type: 'crm_ticket'`) and `core.messages`
 rows exactly the way F-11's job-scoped threads already do — the same shared store, not
 a parallel CRM-only messages table, per this case's own original expectation.
+**⚠ Superseded again (2026-09-12):** this path itself has since been replaced by
+`ingestInboundWhatsAppMessage()` (CRM-07.3) and `ingestInboundSocialMessage()`/
+`ingestInboundInstagramComment()` (CRM-08.2/08.3/08.4), which write to
+`crm.interaction`/`crm.conversation`, **not** `core.threads`/`core.messages`. See
+TC-CRM-020.
 **Steps:**
 1. POST a first inbound message for a new external sender through
    `ingestInboundCrmMessage` (WhatsApp, Instagram, Facebook Messenger, or Google
@@ -166,6 +188,10 @@ themselves.
 ### TC-CRM-007: Instant-reply mode `instant_ack_then_human` fires once per new conversation, never on a follow-up
 **Feature:** Part A, A3.
 **Priority:** P1 · **Story:** A3
+**⚠ Superseded (2026-09-12):** this auto-acknowledgment behavior was deliberately
+dropped for every new ingestion path (CRM-08.2's own audit note: it "runs against the
+platform's post-CRM-09 human-in-the-loop direction," not merely an unbuilt nice-to-have).
+Nothing live triggers this any more.
 **Steps:**
 1. Connect a channel account with `instant_reply_mode: 'instant_ack_then_human'`.
 2. Ingest a first message from a new sender.
@@ -185,6 +211,9 @@ current harness provides. A real gap.
 ### TC-CRM-008: "Convert to prospect" carries the ticket's own context into a real prospect, reusing an existing party rather than duplicating it
 **Feature:** Part A, A4.
 **Priority:** P0 · **Story:** A4
+**⚠ Superseded (2026-09-12):** `convertTicketToProspectAction` still exists but is
+orphaned from any live inbound flow. The *reverse* direction (Discovery→CRM handoff via
+`promoteProspectToLead()`, CRM-03.1) is now the primary path — see TC-CRM-013.
 **Steps:**
 1. Ingest an inbound message that creates a new lead-only `core.parties` row and an
    open ticket with `external_sender_handle` set.
@@ -208,6 +237,10 @@ for TC-CRM-001/003/007.
 ### TC-CRM-009: Customer 360 shows exactly the licensed modules' data, gracefully omitting the rest
 **Feature:** Part B, B1.
 **Priority:** P1 · **Story:** B1
+**Update (2026-09-12):** core claim still holds but is now incomplete — the panel has
+since grown Contacts (CRM-02.2), Relationship Timeline (CRM-02.3), AI Summary
+(CRM-12.1), Buying Intent Score (CRM-12.5), and an FSM-quote timeline entry (CRM-11.4),
+none of which this case's own steps exercise. See TC-CRM-036/046.
 **Steps:**
 1. Visit `/dashboard/businesses/{id}/crm/customers/{partyId}` for a party with
    Discovery prospect history, Inventory orders/invoices, and FSM jobs, on a business
@@ -246,6 +279,9 @@ further.
 ### TC-CRM-011: `ticket.created`/`ticket.resolved`/`ticket.converted_to_prospect` are emitted at the right moments, through the right client
 **Feature:** Part B, B4 (emit side only — see the note below on the consume side).
 **Priority:** P2 · **Story:** B4
+**⚠ Superseded (2026-09-12):** ticket-lifecycle events are effectively unreachable now
+that no live channel creates tickets. The new model has its own 14-entry `CrmEventType`
+vocabulary (CRM-01.4) — see TC-CRM-014.
 **Note on scope:** B4's own design doc text also calls for *consuming* `prospect.won`
 (surface it on an open ticket) and a generic `document.status_changed`. Deliberately
 not built this pass — `docs/design/crm-module-design.md`'s own prioritization says so
@@ -266,3 +302,236 @@ which covers the same founder-facing need without a push-based consumer duplicat
 session to `publish()` through); the other two go through
 `core/events/mutations.ts#publish()` since both are real signed-in-user actions.
 **Automated coverage:** None yet — same DB-access gap as the cases above.
+
+---
+
+## The current model (WonderArc CRM backlog, 74 stories, `docs/design/crm-backlog-audit.md`)
+
+Primary automated coverage for everything below: **`scripts/test-crm-backlog-rls.mjs`**
+(the tenant-isolation/cross-reference-smuggling/idempotency harness for all 19 backlog
+tables — not mentioned by any case above since it postdates all of them) plus ~20 new
+`packages/module-crm/src/**/*.test.ts` files (`conversations/queue.test.ts`,
+`interactions/response-rules.test.ts`, `escalation/mutations.test.ts`,
+`whatsapp/window.test.ts`, `reviews/google-business-profile-adapter.test.ts`,
+`relationships/detect.test.ts`, `journey/queries.test.ts`,
+`opportunities/fulfillment.test.ts`, and more — see each section below for which).
+
+### CRM-01 — Backlog schema & interaction model
+
+### TC-CRM-012: Inbound/outbound interaction dedup never double-records the same message
+**Priority:** P0 · **Story:** CRM-01.6
+**Steps:**
+1. Call `recordInteraction()` twice with the same `external_message_id`.
+2. Repeat with the same `client_dedupe_key` (an outbound send retried by the client).
+**Expected result:** Both calls are idempotent — no duplicate `crm.interaction` row.
+**Covers:** `lib/interactions/mutations.ts`, `scripts/test-crm-backlog-rls.mjs`.
+
+### TC-CRM-013: Tenant + license RLS holds across all 19 backlog tables
+**Priority:** P0 · **Story:** CRM-15.1
+**Expected result:** 4 policies/table (`tenant AND licensed`), verified for every one of
+the 19 new `crm.*` tables, not spot-checked on a subset.
+**Covers:** `scripts/test-crm-backlog-rls.mjs`.
+
+### TC-CRM-014: The provider-neutral interaction model stores channel detail in metadata, never per-channel columns
+**Priority:** P1 · **Story:** CRM-01.5
+
+### CRM-03/04/05 — Lead → Opportunity pipeline
+
+### TC-CRM-015: Promoting the same Discovery prospect to CRM twice never creates a duplicate lead
+**Priority:** P0 (race-safety, cross-module) · **Story:** CRM-03.1
+**Steps:**
+1. Call `promoteProspectToLead()` twice, concurrently, for the same prospect.
+**Expected result:** Exactly one `crm.lead` row — `lead_source_reference_uq` rejects the
+second insert; the caller treats the conflict as "already promoted," not an error.
+
+### TC-CRM-016: Converting a lead to an opportunity carries source/activity/product-interest history forward
+**Priority:** P0 · **Story:** CRM-03.4
+**Expected result:** `convertLeadToOpportunity()` preserves the lead's own history on
+the resulting opportunity, never starting it from a blank slate.
+
+### TC-CRM-017: Dragging an opportunity onto a won/lost stage writes audit_log and publishes the right event
+**Priority:** P0 · **Story:** CRM-04.2
+**Steps:**
+1. Move an opportunity's Kanban stage to a `won`-flagged stage.
+2. Move a different opportunity to a `lost`-flagged stage.
+**Expected result:** Both write a `core.audit_log` entry and publish
+`crm.opportunity.won`/`crm.opportunity.lost` respectively; `status` flips accordingly.
+
+### TC-CRM-018: Multi-product opportunities are gated on the Inventory license
+**Priority:** P1 · **Story:** CRM-04.4
+**Expected result:** Adding a product line to an opportunity with `inventory`
+unlicensed is refused server-side (`requireModule`), not just hidden in the UI.
+
+### TC-CRM-019: An opportunity can have at most one primary contact
+**Priority:** P1 · **Story:** CRM-04.5
+**Expected result:** Setting a second contact primary demotes the first, never leaving
+two primaries.
+
+### CRM-06 — Conversations & party matching
+
+### TC-CRM-020: Party matching never resolves a sender to another tenant's party
+**Priority:** P0 (RLS/tenant-isolation) · **Story:** CRM-06.1
+**Steps:**
+1. As Bob's business, ingest a message from a phone number that matches Alice's
+   business's own `core.parties` row.
+**Expected result:** `matchPartyForActor()`'s three-tier hierarchy
+(`known_external_id`/`contact_exact`/`unmatched`) never crosses the tenant boundary —
+Bob's lookup creates/matches only within his own business, never Alice's party.
+**Covers:** `lib/interactions/matching.ts`, `scripts/test-crm-backlog-rls.mjs`.
+
+### TC-CRM-021: The Conversations inbox correctly applies its own filter/queue rules
+**Priority:** P1 · **Story:** CRM-06.2
+**Covers:** `conversations/queue.test.ts`.
+
+### CRM-07 — WhatsApp (epic complete, 8/8 P0)
+
+### TC-CRM-022: The WhatsApp webhook resolves the connection via an admin client; an RLS-scoped equivalent query cannot see it cross-tenant
+**Priority:** P0 (tenant-isolation, session-less webhook context) · **Story:**
+CRM-07.3/07.4
+**Steps:**
+1. Ingest a WhatsApp webhook for a connection belonging to Business A.
+2. As Business B's own RLS-scoped session, attempt to read Business A's connection row.
+**Expected result:** (1) succeeds via the admin client (no session exists in a webhook
+context). (2) zero rows — the admin-client override never leaks into a normal session's
+own reach.
+
+### TC-CRM-023: Outside the 24-hour customer-service window, only a template send is permitted
+**Priority:** P0 · **Story:** CRM-07.6/07.7
+**Steps:**
+1. Attempt a free-form reply more than 24h after the customer's last inbound message.
+2. Send a pre-approved template in the same state.
+**Expected result:** (1) blocked client- and server-side, with a hint to use a template
+instead. (2) succeeds.
+**Covers:** `lib/whatsapp/window.test.ts`.
+
+### TC-CRM-024: Connect flow verifies the token against the Graph API before persisting it; it's never rendered back
+**Priority:** P0 (secret handling) · **Story:** CRM-07.2
+**Expected result:** An invalid token is rejected before any row is written. Once
+connected, the UI never displays the stored token value again.
+
+### TC-CRM-025: A sender with no matching party is automatically captured as a new lead
+**Priority:** P0 · **Story:** CRM-07.11
+**Expected result:** `captureLeadFromWhatsAppMessage()` creates exactly one lead per
+unmatched sender; a second inbound message from the same sender does not create a
+second lead.
+
+### CRM-08 — Social + Reviews (epic complete, 6/6)
+
+### TC-CRM-026: A published review reply requires explicit human approval — drafting never publishes
+**Priority:** P0 (external-action safety) · **Story:** CRM-08.6/08.7
+**Steps:**
+1. Generate an AI draft review reply.
+2. Confirm nothing was sent to Google at that point.
+3. Edit the draft, then click "Approve & publish."
+**Expected result:** Step 1/2 — draft-only, gated by `reviews.publish`, no external
+call. Step 3 — publishes exactly the (possibly-edited) approved text, never the raw
+AI output unconditionally.
+**Covers:** `lib/reviews/mutations.ts`.
+
+### TC-CRM-027: Google Business Profile review sync is idempotent
+**Priority:** P1 · **Story:** CRM-08.5
+**Expected result:** Re-syncing the same review never creates a duplicate
+`crm.review_item` row — `unique(business_id, provider, external_review_id)`.
+**Covers:** `lib/reviews/google-business-profile-adapter.test.ts`.
+
+### CRM-09 — Lost Opportunity Engine (epic complete, 8/8 P0)
+
+### TC-CRM-028: A reply clears `requires_response` on every prior unanswered interaction in the conversation, not just the one replied to
+**Priority:** P0 · **Story:** CRM-09.1
+**Covers:** `lib/interactions/response-rules.test.ts` (`evaluateRequiresResponse`).
+
+### TC-CRM-029: One-click convert-to-lead/opportunity/task reuses the existing party, never duplicating it
+**Priority:** P0 · **Story:** CRM-09.5
+
+### TC-CRM-030: An AI-suggested draft reply never auto-fills or auto-sends
+**Priority:** P0 (no-autonomous-send guarantee) · **Story:** CRM-09.6
+**Expected result:** "Use this draft" only writes into the textarea; sending is still a
+separate, explicit human action.
+
+### TC-CRM-031: Response quality pre-send checks never block Send
+**Priority:** P1 · **Story:** CRM-09.7
+**Expected result:** All five LLM checks plus the one deterministic length check are
+advisory only — dismissing or ignoring them still allows Send.
+**Covers:** `lib/conversations/response-quality.test.ts`.
+
+### TC-CRM-032: The escalation ladder only escalates forward, never regresses a stage already reached
+**Priority:** P1 · **Story:** CRM-09.8
+**Covers:** `lib/escalation/mutations.test.ts` (`computeTargetEscalationStage`, 6 cases).
+
+### CRM-10/11 — Inventory & FSM continuity
+
+### TC-CRM-033: Inventory availability in a conversation degrades gracefully when Inventory is unlicensed
+**Priority:** P1 (ADR-10) · **Story:** CRM-10.2
+**Expected result:** Availability reads `null`, never throws; the catalog picker is
+hidden, not broken.
+
+### TC-CRM-034: Out-of-stock waitlist → back-in-stock follow-up fires from a real Inventory event
+**Priority:** P1 · **Story:** CRM-10.3/10.4
+**Expected result:** `inventory.stock.replenished` triggers a suggested follow-up for
+every open waitlist entry for that item; nothing is auto-sent to the customer.
+
+### TC-CRM-035: The CRM↔FSM bridge is a bare pointer, never a cross-schema FK
+**Priority:** P1 · **Story:** CRM-11.1-11.4
+
+### CRM-12 — AI Relationship Intelligence (epic complete, 5/5)
+
+### TC-CRM-036: Buying-intent score recalculation writes a before/after audit entry; viewing the page never recalculates
+**Priority:** P1 (this score is deterministic, not AI — explainable/auditable) ·
+**Story:** CRM-12.5
+**Expected result:** Score changes only on an explicit recalculation action, always
+logged to `core.audit_log`.
+
+### TC-CRM-037: AI summary/conversation-summary generation is cached by input hash
+**Priority:** P2 · **Story:** CRM-12.1/12.2
+**Expected result:** Regenerating with no underlying change performs no second model
+call.
+
+### CRM-14/15 — Dashboards/Analytics + Governance
+
+### TC-CRM-038: A business without the right permission cannot connect/disconnect a channel or edit routing/escalation config
+**Priority:** P0 · **Story:** CRM-15.2/15.3
+**Expected result:** `crm_settings.manage`/`channel_connections.manage` gate every
+listed mutation server-side.
+
+### TC-CRM-039: Every send/connection change is captured in the audit log
+**Priority:** P0 · **Story:** CRM-15.4
+
+### TC-CRM-040: A WhatsApp connection auto-flips to `reauthorization_required` on 401/403 and never auto-resurrects a manual disconnect
+**Priority:** P0 · **Story:** CRM-15.5
+**Covers:** `lib/whatsapp/failure-classification.test.ts`.
+
+### Cross-module Integration backlog (`docs/design/integration-backlog-audit.md`, 29/29 done)
+
+### TC-CRM-041: A won opportunity with an unfulfilled commitment reads `won_in_progress`, not `won_complete`, until Inventory confirms fulfillment
+**Priority:** P0 · **Story:** INT-01/INT-02
+**Covers:** `journey/queries.test.ts`, `opportunities/fulfillment.test.ts`.
+
+### TC-CRM-042 (regression guard): FSM job material requirements read from `fsm.jobs`, never `core.jobs`
+**Priority:** P0 · **Story:** INT-03.1
+**Background:** `listJobPartLines()` originally queried `core.jobs` where jobs actually
+live in `fsm.jobs` — every caller swallowed the resulting throw, so the entire reserve/
+consume/release mechanism silently no-opped from the moment it shipped until this fix.
+**Expected result:** Reservation/consumption/release actually execute — this case exists
+specifically to catch a regression back to the wrong schema.
+
+### TC-CRM-043: An opportunity with `assessment_requirement` set blocks quote creation until an outcome is recorded
+**Priority:** P1 · **Story:** INT-04.2/04.3
+
+### TC-CRM-044: Completing a job with outcome `warranty_revisit_required` auto-creates a fresh revisit job
+**Priority:** P2 · **Story:** INT-06.4
+
+### TC-CRM-045: The business-wide Cross-Module Exception Center auto-closes an exception via audit trigger, never silently
+**Priority:** P1 · **Story:** INT-07
+
+### TC-CRM-046: The Unified Journey Timeline and Linked Object Graph resolve back-navigation links correctly
+**Priority:** P2 · **Story:** INT-08
+**Covers:** `object-graph/queries.test.ts`.
+
+### Discovery → CRM handoff (ships in `module-crm`)
+
+### TC-CRM-047: Sending a Discovery prospect to CRM when a match already exists shows a warning naming it before confirming
+**Priority:** P1 · **Story:** DISC-OFFER-P0-08.2/08.3
+**Expected result:** `classifyExistingRelationship()`'s priority ladder (customer > open
+opportunity > open lead > fuzzy name > new prospect) surfaces the amber warning before
+the founder confirms the handoff — never a silent duplicate creation.
+**Covers:** `relationships/detect.test.ts`.

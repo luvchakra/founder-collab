@@ -143,23 +143,64 @@ Note "My Day" (`Smartphone` icon) is explicitly the mobile/field view per the
 registry comment context -- worth confirming it renders sensibly on an actual phone
 width too, tying into `UX-AUDIT.md`'s mobile-responsiveness finding (#6).
 
-## CRM (all confirmed present on disk)
+### TC-MENU-FSM-009: `/fsm/assessments/[assessmentId]` -- dynamic, reached from a CRM opportunity or Exception Center, not `SERVICE_NAV`
+**Priority:** P1 · **Story:** INT-04.2/04.3
+**Feature:** Same "dynamic nav, same intent" framing as `TC-MENU-CRM-012`/
+`TC-MENU-DISC-001` -- no entry in `module-registry`'s own nav array.
+**Steps:** From a CRM opportunity's Assessment card (or the CRM Exception Center),
+click through to the assessment.
+**Expected result:** Renders without error; see `fsm.md` TC-FSM-024 for the actual
+gating behavior.
 
-### TC-MENU-CRM-001: `crm` → "Inbox" (root nav item)
-**Priority:** P0 · **Status:** route file confirmed present (`crm/page.tsx` exists,
-unlike fsm's equivalent).
-**Steps:** Click "CRM" then "Inbox" (root item).
-**Expected result:** Renders.
+## CRM (registry outgrew this section — 12 items now, was 3)
 
-### TC-MENU-CRM-002: `crm` → "Channels"
+**⚠ Badly stale (2026-09-12):** `packages/module-registry/src/index.ts` now lists
+**12** static CRM nav items plus the dynamic Customer 360 route — this section only
+documented 5. `apps/web/tests/menu-routes.test.ts` already, with zero code changes,
+picks up every new item automatically (it's written generically against
+`moduleRegistry`) — that's the one thing this generic route-existence check gets right
+even while these manual `TC-MENU-*` cases drifted; only the manual render-smoke
+documentation below was missing.
+
+### TC-MENU-CRM-001: `crm` → "Dashboard" (root nav item)
+**Priority:** P0 · **Status:** route confirmed present.
+**Update:** the root item is now "Dashboard," not "Inbox" — "Inbox" is a separate item
+(TC-MENU-CRM-002).
+
+### TC-MENU-CRM-002: `crm` → "Inbox" / "Conversations"
 **Priority:** P0 · **Status:** route confirmed present.
 
-### TC-MENU-CRM-003: `crm` → "Routing Rules"
+### TC-MENU-CRM-003: `crm` → "Potential Lost Business"
+**Priority:** P0 · **Story:** CRM-09.2
+
+### TC-MENU-CRM-004: `crm` → "Reviews"
+**Priority:** P0 · **Story:** CRM-08.5
+
+### TC-MENU-CRM-005: `crm` → "Leads"
+**Priority:** P0 · **Story:** CRM-03
+
+### TC-MENU-CRM-006: `crm` → "Sales Opportunities" (renamed from plain "Opportunities")
+**Priority:** P0 · **Story:** CRM-04, renamed `3f946be`
+
+### TC-MENU-CRM-007: `crm` → "Follow-ups"
+**Priority:** P0 · **Story:** CRM-05.3
+
+### TC-MENU-CRM-008: `crm` → "Exceptions"
+**Priority:** P1 · **Story:** INT-07
+
+### TC-MENU-CRM-009: `crm` → "Channels"
+**Priority:** P0 · **Status:** route confirmed present.
+
+### TC-MENU-CRM-010: `crm` → "WhatsApp"
+**Priority:** P0 · **Story:** CRM-07
+
+### TC-MENU-CRM-011: `crm` → "Routing Rules"
 **Priority:** P0 · **Status:** route confirmed present.
 **Update (this pass):** the Routing Rules page now also has a per-rule "Conditions"
 column (known-vs-new sender, business hours) and its create form gained matching
 fields — see `crm.md` TC-CRM-001 for the actual matching behavior; this case only
-confirms the page itself still renders.
+confirms the page itself still renders. Also now hosts CRM-09.8's escalation-manager
+settings (see `crm.md` TC-CRM-032).
 
 ### TC-MENU-CRM-004: `crm` → Channels page now also shows a "Connected accounts" panel
 **Priority:** P1 · **Status:** built this pass (`docs/design/crm-module-design.md`
@@ -173,26 +214,43 @@ channels table.
 to connect an account to (the connect form itself is hidden with an explanatory
 message until at least one channel exists).
 
-### TC-MENU-CRM-005: Customer 360 (`crm/customers/[partyId]`) -- dynamic, reached from a ticket, not a static nav item
-**Priority:** P1 · **Status:** built this pass (`docs/design/crm-module-design.md`
-Part B, B1) -- same "dynamic nav, same intent" framing as `TC-MENU-DISC-001`: this
-route has no entry in `module-registry`'s own nav array at all, it's a link that
-appears on a ticket row once that ticket has resolved a `party_id`.
-**Steps:** With `crm` licensed and an inbound-webhook-created ticket, click "Customer
-360" from that ticket's own row in the Inbox.
-**Expected result:** Renders the Customer 360 panel for that ticket's party, `404`s
-if the URL's `partyId` belongs to a different business than the URL's `businessId`
-(the page's own `party.business_id !== businessId` check) -- see `crm.md`
-TC-CRM-009 for the panel's own content behavior.
+### TC-MENU-CRM-012: Customer 360 (`crm/customers/[partyId]`) -- dynamic, reached from a conversation, not a static nav item
+**Priority:** P1 · **Status:** built (`docs/design/crm-module-design.md` Part B, B1)
+-- same "dynamic nav, same intent" framing as `TC-MENU-DISC-001`: this route has no
+entry in `module-registry`'s own nav array at all.
+**Steps:** With `crm` licensed, click "Customer 360" from a conversation/interaction
+row.
+**Expected result:** Renders the Customer 360 panel for that party, `404`s if the
+URL's `partyId` belongs to a different business than the URL's `businessId` -- see
+`crm.md` TC-CRM-009 for the panel's own content behavior.
 
-## GST (all confirmed present on disk)
+## GST / Compliance (registry outgrew this section — 9 items now, was 4)
 
-### TC-MENU-GST-001: `gst` → "GST Profile" (`profile`)
-### TC-MENU-GST-002: `gst` → "e-Way Bill" (`eway-bill`)
-### TC-MENU-GST-003: `gst` → "e-Invoicing" (`einvoicing`)
-### TC-MENU-GST-004: `gst` → "GST Filing" (`filing`)
+**⚠ Badly stale (2026-09-12):** the module's display name is now "Compliance"
+(key/schema/routePrefix stay `gst` per CLAUDE.md non-negotiable #1). Its registry nav
+grew from 4 items to **9**, now split into "Overview"/"GST"/"Records" groups.
+
+### TC-MENU-GST-001: Compliance → "Dashboard"
+**Priority:** P0 · **Story:** COMPLY-P0-01/09.5
+
+### TC-MENU-GST-002: Compliance → "GST Registrations"
+**Priority:** P0 · **Story:** COMPLY-P0-04.1
+
+### TC-MENU-GST-003: Compliance → "GST Profile" (`profile`)
+### TC-MENU-GST-004: Compliance → "e-Way Bill" (`eway-bill`)
+### TC-MENU-GST-005: Compliance → "e-Invoicing" (`einvoicing`)
+### TC-MENU-GST-006: Compliance → "GST Filing" (`filing`)
 **Priority:** P0 (all four) · **Status:** route files confirmed present.
 **Expected result:** All four render without error for a business with `gst` licensed.
+
+### TC-MENU-GST-007: Compliance → "Reconciliation"
+**Priority:** P0 · **Story:** COMPLY-P0-08.6
+
+### TC-MENU-GST-008: Compliance → "Evidence"
+**Priority:** P0 · **Story:** COMPLY-P0-10.1
+
+### TC-MENU-GST-009: Compliance → "Audit Log"
+**Priority:** P0 · **Story:** COMPLY-P0-10.3
 
 ## Discovery (dynamic nav -- different shape, same intent)
 
@@ -223,6 +281,10 @@ registry-driven.
 (`/dashboard/settings/appearance`), **AI Provider** (`/dashboard/settings/ai-provider`),
 **Admin** (`/dashboard/admin`) -- all linked from `sidebar-account-menu.tsx`.
 **Expected result:** All six render without error.
+**⚠ Stale (2026-09-12):** "AI Provider" now only `redirect()`s into Billing, which
+gained a collapsible "AI" card — the route still "resolves" (satisfying the letter of
+this case) but no longer renders an independent provider-connection UI at that URL.
+See `platform-shell.md` TC-SHELL-022.
 
 ### TC-MENU-ACCT-007: "Licenses" (linked from the module switcher, not the account menu)
 **Priority:** P1 · **Status:** route confirmed present (`/dashboard/settings/licenses`).
@@ -236,15 +298,43 @@ linked from a different UI element than the other six, easy to miss in a manual 
 account menu's item (TC-MENU-ACCT-001..006 above) links to `/dashboard/admin`, the
 platform-admin demo-seed tool gated by `PLATFORM_ADMIN_EMAILS`; the module switcher's
 own bottom shortcut (`module-selector.tsx`) links to `/dashboard/settings`, the
-"Admin & settings" hub every account member can reach (Account links + a Business
-section per business, including the disable/enable and API-keys items this pass
-added -- see `platform-shell.md` TC-SHELL-013). Documenting the distinction
-explicitly since both are labeled "Admin" and it would be easy to write one test case
-believing it covers both.
+settings hub every account member can reach (Account links + a Business section per
+business, including the disable/enable and API-keys items -- see `platform-shell.md`
+TC-SHELL-013/021). Documenting the distinction explicitly since both are labeled
+"Admin" and it would be easy to write one test case believing it covers both.
 **Steps:** Open the module switcher's own dropdown and click its bottom "Admin" row.
-**Expected result:** Renders `/dashboard/settings` (Executive Dashboard's own
-`Settings2` icon page), not `/dashboard/admin` -- reachable by every account member,
-not gated by `PLATFORM_ADMIN_EMAILS`.
+**Expected result:** Renders `/dashboard/settings` (current `<h1>`: "Business
+Configurations" -- renamed twice since this case was written, see
+`platform-shell.md` TC-SHELL-013), not `/dashboard/admin` -- reachable by every
+account member, not gated by `PLATFORM_ADMIN_EMAILS`.
+**⚠ A THIRD, genuinely different "Admin"-adjacent surface now also exists:** the
+`/platform` Superadmin Portal (below) — distinct from both of the above, gated by
+`platform.is_superadmin()` + mandatory MFA, not `PLATFORM_ADMIN_EMAILS` alone (though
+that env var remains the bootstrap path — see TC-PLATFORM-018 below).
+
+## Platform Admin Portal (superadmin-only — NOT under `module-registry` or `(dashboard)`)
+
+**A structural, by-design blind spot, not an oversight to "fix":** `apps/web/app/
+platform/**` is a route tree that is neither under `BUSINESS_ROUTE_ROOT` nor listed in
+`moduleRegistry`, so it is invisible to both this file's usual "derived from the
+registry" method AND to `apps/web/tests/menu-routes.test.ts` (which only walks
+`BUSINESS_ROUTE_ROOT` × `moduleRegistry`). Documented here as its own section instead.
+See `platform-admin.md` for the full functional/RLS test suite — these are render-
+smoke cases only.
+
+### TC-MENU-PLATFORM-001: `/platform/mfa`
+### TC-MENU-PLATFORM-002: `/platform` (protected root)
+### TC-MENU-PLATFORM-003: `/platform/(protected)/modules`
+### TC-MENU-PLATFORM-004: `/platform/(protected)/plans` + `/plans/[id]/entitlements`
+### TC-MENU-PLATFORM-005: `/platform/(protected)/feature-flags`
+### TC-MENU-PLATFORM-006: `/platform/(protected)/ai-providers`
+### TC-MENU-PLATFORM-007: `/platform/(protected)/ai-routing`
+### TC-MENU-PLATFORM-008: `/platform/(protected)/ai-feature-policies`
+### TC-MENU-PLATFORM-009: `/platform/(protected)/ai-usage`
+### TC-MENU-PLATFORM-010: `/platform/(protected)/branding` + `/branding/preview`
+**Priority:** P0 (all ten) · **Status:** route files confirmed present; zero
+render-smoke coverage, manual or automated, until now.
+**Expected result:** All ten render without error for a genuine superadmin at AAL2.
 
 ## Cross-cutting: licensing interaction with menu visibility
 

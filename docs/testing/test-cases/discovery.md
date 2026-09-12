@@ -1,11 +1,33 @@
 # Test cases: `discovery` (ported from co-founder-ai, stories P-0..P-5 + ongoing)
 
-Covers `packages/module-discovery/src/**` — the customer-acquisition pipeline:
-product intelligence, ICP, prospects, research, scoring, outreach, messages,
-conversations, chat, BYOK. This module keeps `workspace_id` as its tenant (ADR-4,
-distinct from every other module's `business_id`) — several cases below exist
-specifically to pin that down at the feature level, since it's the one place this
-module's tenancy model differs from its siblings.
+Covers `packages/module-discovery/src/**`. Originally the customer-acquisition
+pipeline (product intelligence, ICP, prospects, research, scoring, outreach, messages,
+conversations, chat, BYOK); since 2026-09-11/12 the "Offering-Centric" backlog
+(`docs/design/discovery-offering-backlog-audit.md`, 39/68 stories shipped, Phases A–E)
+grew it into a much larger surface — offerings/buyer-personas/discovery-definitions,
+an Opportunity Intelligence engine (signals/negative-signals/research-briefs/scoring),
+a CRM handoff, and a 14-stage autonomous website-to-offering pipeline. **This module
+keeps `workspace_id` as its tenant for everything pre-dating Phase E** (ADR-4, distinct
+from every other module's `business_id`) — but Phase E's own website-onboarding tables
+(`website_onboarding_runs`/`_pages`/`_offering_candidates`) are deliberately
+`business_id`-scoped instead, since no offering/workspace exists yet at that point in
+the flow — see TC-DISCOVERY-032 for why this is a genuine, documented exception, not an
+inconsistency to "fix."
+
+**⚠ `docs/plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md` remains
+superseded-in-practice**, never independently built — the offering-centric backlog's
+own Phase C (05.1–07.3: opportunities/signals/scoring/why-now/research-briefs/buyer
+intelligence) was explicitly built to satisfy its intent too, confirmed by that session's
+own pre-implementation reconnaissance. No test case should be attributed to `08-...md`
+directly.
+
+**Priority-one gap across this whole file (flagged once here, not repeated per case):**
+13 new tenant/business-scoped tables shipped in Phases A–E with **zero automated
+RLS-script coverage** — `scripts/test-discovery-rls.mjs` is still scoped to
+`products`/`workspaces`/`prospects` only. Per CLAUDE.md dev principle #9 ("tenant-
+isolation tests are mandatory for anything touching workspace- or business-scoped
+data"), every P0 case below that says "Covers: [a new table]" with no accompanying
+`scripts/test-discovery-*-rls.mjs` name is documentation-only until that script exists.
 
 ### TC-DISCOVERY-001: Workspace tenancy, not business tenancy, gates prospect access
 **Feature:** ADR-4's discovery-specific exception.
@@ -165,6 +187,17 @@ case in `is-provider-failure.test.ts` (already had passing-case coverage, but no
 pinning down this specific historical bug's message before this pass) so a future
 change to the regex that accidentally starts matching url_context failures again gets
 caught immediately, not rediscovered by a user hitting the original bug a second time.
+**⚠ Superseded (Story 12.1, 2026-09-12):** the shared failure path moved from
+`understand-product.ts` into `lib/ai/research-website.ts#researchWebsite()`, now shared
+across `understandProduct`, `understandBusinessWebsite`, `researchProspect`, and every
+per-page fetch inside `crawlWebsite()` (09.2). Current wording is prefixed with a
+direct-fetch failure first: `` `A direct fetch of ${website} failed (${directFetchError}),
+and ${provider} could not retrieve ${failedRetrieval.retrievedUrl} either (status:
+${failedRetrieval.urlRetrievalStatus}). ...` `` — still doesn't match
+`isAiProviderFailure`'s own patterns (re-confirmed), so the underlying fix still holds;
+the pinned regression string above is now a historical shape other, older code paths
+might still produce — kept, not replaced. Add the current wording as a second pinned
+string in `is-provider-failure.test.ts`.
 
 ### TC-DISCOVERY-013: "Let AI Auto-populate Products from website" parses a real catalog, not a stub
 **Feature:** Items #10/#12 of a UX pass — `lib/ai/discover-products.ts`
@@ -256,3 +289,237 @@ already enforces this without an extra manual business-id filter in the contract
 function itself).
 **Automated coverage:** none yet — same cross-module-live-data gap as `crm.md`
 TC-CRM-008.
+**Update (2026-09-12):** the contract has grown two more surfaces this case doesn't yet
+cover: `listOfferingsForBusiness()` (Story 01.1, a new `contract/index.ts` export) and
+`getProspectSummaryForParty()`'s new `latestOpportunity: ContractOpportunitySummary |
+null` field (Story 08.1, resolved from the prospect's most-recent opportunity, including
+`researchBriefSummary`/`discoveryDefinitionName`) — add a step 5 for the former and amend
+step 4/expected-result for the latter (`null` for a prospect with no opportunity;
+most-recent-first when several exist).
+
+---
+
+## Phase A — Offering foundation (Story 01.1–02.3)
+
+### TC-DISCOVERY-017: Three-way offering status transitions and duplication don't corrupt tenant/product state
+**Priority:** P0 · **Story:** 01.1/01.3
+**Steps:**
+1. Cycle an offering through `active`→`inactive`→`archived`→`active` via
+   `setOfferingStatus`.
+2. Call `duplicateOffering()` on it.
+**Expected result:** (1) all transitions succeed. (2) the clone gets a fresh
+`product_profile` (never copied — cloning stale research onto a new row would
+misrepresent it as current) and its own workspace.
+**Covers:** `lib/offerings/mutations.ts`, `discovery.products.status` constraint.
+
+### TC-DISCOVERY-018: Pre-existing products backfilled with `offering_type='product'` never silently regress to null
+**Priority:** P1 · **Story:** 01.2
+**Covers:** `20260911003700_discovery_offering_type_backfill.sql`.
+
+### TC-DISCOVERY-019: AI-suggested offering fields are proposals only, never auto-persisted
+**Priority:** P0 · **Story:** 02.1
+**Steps:**
+1. Call `suggestOfferingProfile()` from an offering's Edit flow, review the dialog,
+   close it without saving.
+2. Check Create mode for the same option.
+**Expected result:** (1) nothing written to `discovery.products` until the founder
+explicitly saves the (possibly-edited) dialog. (2) the option is absent — no workspace
+exists yet to charge AI usage against.
+**Covers:** `lib/offerings/ai/suggest-offering-profile.ts`.
+
+### TC-DISCOVERY-020: Cloning an ICP into a workspace that already has one overwrites it, never duplicates
+**Priority:** P1 · **Story:** 02.2
+**Steps:**
+1. Clone ICP A into workspace B, which already has an approved ICP.
+**Expected result:** B ends with exactly one `icp_profiles` row, in `draft` status; A's
+own row is untouched.
+**Covers:** `lib/icp/mutations.ts#cloneIcpProfileToWorkspace`.
+
+### TC-DISCOVERY-021: Buyer personas are workspace-scoped and inaccessible cross-workspace
+**Priority:** P0 (RLS/tenant) · **Story:** 02.3
+**Steps:**
+1. Attempt to read/edit/delete Product A's persona from Product B's workspace context.
+**Expected result:** Denied at RLS; `listBuyerPersonas()` never leaks it.
+**Covers:** `lib/personas/{queries,mutations}.ts`, `discovery.buyer_personas` RLS —
+**currently untested by any `scripts/test-discovery-*.mjs`.**
+
+## Phase B/C — Discovery Definitions & Opportunity Intelligence Engine (Story 04.1–07.3)
+
+### TC-DISCOVERY-022: Discovery Definitions are workspace-scoped; deleting the source ICP doesn't break or cascade-delete the definition
+**Priority:** P0 (RLS/tenant) · **Story:** 04.1
+**Steps:**
+1. Create a definition against an approved ICP, then delete that ICP.
+2. Attempt cross-workspace access as in TC-DISCOVERY-021.
+**Expected result:** (1) the definition still exists and functions (`icp_id` now null,
+`on delete set null`) rather than erroring or vanishing. (2) denied.
+**Covers:** `lib/discovery-definitions/{queries,mutations}.ts`.
+
+### TC-DISCOVERY-023: Discovery Plays pre-fill but never auto-create a definition
+**Priority:** P2 · **Story:** 04.2
+**Expected result:** Clicking a play preset opens the create dialog pre-filled; nothing
+is written until the founder explicitly clicks Create.
+
+### TC-DISCOVERY-024: Every new opportunity-intelligence table is workspace-scoped and denies cross-workspace access
+**Priority:** P0 (single highest-priority gap in this file) · **Story:** 05.1/05.3/05.5/06.2
+**Steps:**
+1. Attempt cross-workspace read of each of: `opportunities`, `signals`,
+   `signal_correlations`, `negative_signals`, `research_briefs`.
+**Expected result:** RLS denial on all five.
+**Recommend promoting to:** a real `scripts/test-discovery-opportunities-rls.mjs` — this
+is documentation-only today.
+
+### TC-DISCOVERY-025: `computeOpportunityScore` never zero-fills a missing component
+**Priority:** P1 · **Story:** 05.2
+**Steps:**
+1. Score an opportunity with zero populated components.
+2. Score one with a partial set.
+**Expected result:** (1) `{score: null, confidence: "low", reason: "Insufficient
+evidence"}`. (2) only populated components averaged.
+**Covers:** `lib/opportunities/scoring.ts` (unit-tested; this documents the same
+guarantee at the feature level).
+
+### TC-DISCOVERY-026: A single weak signal never manufactures a high-confidence correlation
+**Priority:** P1 · **Story:** 05.3
+**Steps:**
+1. Correlate one signal, then two, then three+.
+**Expected result:** One → low confidence with explicit "insufficient corroboration"
+rationale. Two → still cautious. Three+ → medium/high.
+**Covers:** `lib/signals/correlation.ts`.
+
+### TC-DISCOVERY-027: Auto-detected negative signals correct themselves as new evidence arrives; manual-only reasons are never overwritten
+**Priority:** P1 · **Story:** 05.5
+**Steps:**
+1. Trigger `wrong_industry` via an ICP mismatch, then change the ICP so it no longer
+   mismatches, re-sync.
+2. Confirm `existing_active_relationship`/`known_incompatible_solution` (manual-only)
+   never come back from `detectNegativeSignals()`, and a manually recorded one survives
+   an auto-sync pass untouched.
+**Expected result:** (1) the stale auto row is deleted. (2) as stated.
+**Covers:** `lib/negative-signals/{detect,mutations}.ts`.
+
+### TC-DISCOVERY-028: Research Brief generation is a real, metered AI operation that never invents buying-committee people
+**Priority:** P0 · **Story:** 06.2
+**Steps:**
+1. Generate a brief at a workspace's cost ceiling.
+2. Generate one normally and inspect the buying-committee section.
+**Expected result:** (1) blocked like every other AI op (TC-DISCOVERY-005). (2) only
+real `discovery.contacts` rows matched to real `buyer_personas` — never a fabricated
+name.
+**Covers:** `lib/ai/generate-research-brief.ts`, `lib/research-briefs/match-committee.ts`.
+
+### TC-DISCOVERY-029: Buyer intelligence / Next Best Action / dashboard classification never invents a recommendation with no basis
+**Priority:** P2 · **Story:** 06.3/07.1/07.2/07.3
+**Expected result:** A resolved opportunity gets no recommendation; a hard negative
+signal forces Dismiss; a low-contactability/no-contact opportunity recommends "Find
+Better Contact"; dashboard bins match `classifyOpportunityForDashboard`'s own
+precedence (watching-status wins over score; null-score wins over status).
+**Covers:** `lib/buyer-intelligence/`, `lib/opportunities/{next-best-action,dashboard}.ts`.
+
+## Phase D — CRM Handoff (Story 08.1–08.3)
+
+### TC-DISCOVERY-030: Sending an opportunity to CRM carries full context through the existing contract, degrading gracefully when CRM isn't licensed
+**Priority:** P0 (licensing/cross-module) · **Story:** 08.1
+**Steps:**
+1. Send an opportunity to CRM with `crm` licensed.
+2. Repeat with `crm` unlicensed.
+**Expected result:** (1) Customer 360's "Opportunity" block shows score/why-them/
+why-now/research-brief/recommended-action/discovery-definition context. (2)
+`sendOpportunityToCrmAction` fails gracefully (ADR-10), never an exception.
+**Covers:** `contract/index.ts#getProspectSummaryForParty`,
+`components/opportunities/send-to-crm-button.tsx`.
+
+### TC-DISCOVERY-031: Handoff status is computed correctly; a failure persists across reload with a working retry
+**Priority:** P1 · **Story:** 08.3
+**Steps:**
+1. Force a handoff failure (the action throws).
+2. Reload the page.
+3. Click Send again.
+**Expected result:** (1)/(2) `handoff_failed_at`/`handoff_error` persist. (3) success
+clears both.
+**Covers:** `lib/opportunities/handoff.ts`, `recordOpportunityHandoffFailure()`.
+**Note:** Story 08.2 (Existing Relationship Detection) is a `module-crm` change
+surfaced inside this page — see `crm.md` TC-CRM-047 for its own case.
+
+## Phase E — Autonomous website-to-offering pipeline (Story 09.1–14.1)
+
+### TC-DISCOVERY-032: Website-onboarding runs/pages/candidates are business-scoped, not workspace-scoped — the one deliberate exception
+**Priority:** P0 (RLS/tenant — a genuine, documented exception to this module's usual
+tenant key) · **Story:** 09.1/09.2/09.3
+**Steps:**
+1. Confirm a run/page/candidate created for Business A is inaccessible from Business
+   B's context.
+**Expected result:** Denied — no offering/workspace exists yet at this point in the
+flow, so `business_id` is deliberately the tenant key here, unlike everywhere else in
+this module.
+**Covers:** `website_onboarding_{runs,pages,offering_candidates}` RLS — untested by any
+script today.
+
+### TC-DISCOVERY-033: Activating reviewed offering candidates cannot create duplicates on a double-click/retry
+**Priority:** P0 (an accepted, untested risk named in the audit log itself) · **Story:** 09.4
+**Steps:**
+1. Click "Create Offerings," then immediately click/retry again.
+2. Test Edit/Merge/Remove on individual candidates before activation.
+**Expected result:** (1) `activated_at` is set server-side (re-checked, never trusted
+from the client); a second click creates nothing further. (2) `mergeOfferingCandidates()`'s
+field-consolidation and `offeringInputFromCandidate()`'s target-market combination
+produce the expected payload each time.
+**Covers:** `lib/website-onboarding/offering-review.ts`,
+`createOfferingsFromWebsiteOnboardingAction`.
+
+### TC-DISCOVERY-034: "Run AI Discovery" runs one stage per request to avoid same-request cache staleness; usage limits still apply per stage
+**Priority:** P0 (licensing/AI-cost) · **Story:** 10.1
+**Steps:**
+1. Generate an ICP, then immediately run the next pipeline stage in the same request
+   flow.
+2. Run a stage at a workspace's cost ceiling.
+3. Confirm `account_discovery`'s auto-approval never sends outbound communication.
+**Expected result:** (1) the next stage sees the freshly-written product profile — the
+exact staleness bug this architecture was redesigned to avoid. (2) blocked, same as
+TC-DISCOVERY-005. (3) `crm_handoff` stays read-only; nothing is sent.
+**Covers:** `lib/pipeline/handlers.ts`, `run-ai-discovery/route.ts`.
+
+### TC-DISCOVERY-035: Retrying a failed pipeline stage preserves history; editing upstream invalidates only genuinely downstream stages
+**Priority:** P1 · **Story:** 10.2/11.3
+**Steps:**
+1. Fail a stage, retry it.
+2. Edit the ICP via "Save & Run Downstream."
+**Expected result:** (1) `pipeline_stage_runs` keeps the failed attempt alongside the
+new success. (2) exactly `downstreamOf("icp")`'s stages reset (their opportunity columns
+actually clear, not just the stage-status row); upstream/unrelated stages untouched.
+**Covers:** `lib/pipeline/{dependencies,invalidate}.ts`.
+
+### TC-DISCOVERY-036: A pipeline run id is re-validated server-side against the caller's own workspace on every per-stage request
+**Priority:** P0 (tenant-safety — a bare FK only checks the row exists, not who it
+belongs to) · **Story:** 14.1
+**Steps:**
+1. Pass a real `runId` belonging to a different workspace's run into a per-stage
+   request.
+**Expected result:** Silently treated as "no run," never attaching that history to the
+wrong tenant's pipeline.
+**Covers:** `run-ai-discovery/route.ts`'s `getPipelineRun(workspaceId, runId)` guard.
+
+### TC-DISCOVERY-037: ICP `confidence`/`evidence` are AI provenance judgments — never editable, cleared on manual edit, never cloned
+**Priority:** P0 (the task's own explicit ICP-confidence callout) · **Story:** 13.1
+**Steps:**
+1. Generate an ICP (expect `confidence`/`evidence` populated).
+2. Manually edit any field via the plain edit form.
+3. Clone this ICP into another workspace via `cloneIcpProfileToWorkspace`.
+**Expected result:** (2) both reset to `null`/`[]`, alongside the existing
+`status→draft` reset. (3) the clone's `confidence`/`evidence` stay `null`/`[]` even
+though every other field copies — evidence about one offering's product must never
+misrepresent support for a different offering.
+**Covers:** `20260912090000_discovery_icp_confidence_evidence.sql`, `lib/icp/mutations.ts`.
+
+### TC-DISCOVERY-038: Prospect research evidence distinguishes first-party from external sources; a missing prospect website degrades gracefully
+**Priority:** P1 · **Story:** 12.2
+**Steps:**
+1. Research a prospect with a live website.
+2. Research one with none/unreachable.
+**Expected result:** (1) `source_type: "first_party"` items alongside `"external"`
+ones. (2) the run still succeeds using external findings only.
+**Covers:** `lib/ai/research-prospect.ts`.
+
+## Phase F / P1 (not yet started)
+
+None of `docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`'s P1-01.1 through P1-05.4
+has shipped — confirmed against that backlog's own progress table. No test cases yet.

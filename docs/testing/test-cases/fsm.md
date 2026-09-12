@@ -103,6 +103,16 @@ one case in this file worth eventually promoting to an automated script, since
 2. Complete the job (should consume the reserved stock).
 **Expected result:** Stock reserved on add, decremented on completion — not double-counted,
 not left reserved-forever if the job is cancelled instead of completed (check that path too).
+**⚠ Historical bug, found and fixed (INT-03.1, 2026-09-12):** `listJobPartLines()`'s
+job lookup queried `.from("jobs")` against the `core`-schema client, but jobs live in
+`fsm.jobs` — every one of its three callers wrapped the resulting throw in
+`.catch(() => {})`, so **this entire reserve/consume/release mechanism silently did
+nothing from the moment F-14 shipped** until this fix. This case's own "expected
+result" above describes the now-correct behavior; treat any regression back to
+querying `core.jobs` here as a P0 release blocker, not a cosmetic issue — it fails
+completely silent.
+**Covers (new, INT-03.2–03.5):** live parts-reservation status/shortage-resolution
+picker and delta-based consumption reporting — see TC-FSM-022/023.
 
 ### TC-FSM-012: Low-stock banner degrades gracefully without inventory licensed
 **Feature:** F-14's other half, ADR-10 applied to FSM's dependency on inventory.
@@ -267,3 +277,73 @@ own text asked for them, but no existing query resolves them without a new looku
 this pass didn't build; flagged rather than approximated.
 **Automated coverage:** none yet — same cross-module-live-data gap as `crm.md`
 TC-CRM-009.
+**Update (2026-09-12):** the same read path is now also consumed by INT-08.2's Unified
+Journey Timeline and INT-06.4's auto-created revisit jobs — widen the cross-reference
+beyond just `crm.md` TC-CRM-009.
+
+## New this pass — Cross-Module Integration backlog (`docs/design/integration-backlog-audit.md`, INT-03/04/06/08)
+
+### TC-FSM-021: Completing a job requires an explicit outcome
+**Priority:** P1 · **Story:** INT-06.1
+**Steps:**
+1. Attempt to complete a job with no `outcome` selected.
+**Expected result:** `completeJob()` rejects the completion — a person must choose one
+of the `JobOutcome` union values. (TC-FSM-005/017's own "complete a job" steps predate
+this and should be re-run including outcome selection.)
+
+### TC-FSM-022: The job Materials tab shows live parts-reservation status with an idempotent, retryable shortage-resolution picker
+**Priority:** P0 · **Story:** INT-03.2/03.3
+**Steps:**
+1. View a job with a `reserved`/`partially_reserved`/`unavailable` line.
+2. Resolve a shortage via each of the 4 options (`await_replenishment`/
+   `substitute_item`/`reschedule_job`/`obtain_manually` + note), retrying one.
+**Expected result:** Status and per-line shortfall render correctly; a retried
+resolution doesn't double-apply.
+
+### TC-FSM-023: Technician-reported parts consumption is delta-based against the last recorded snapshot
+**Priority:** P0 · **Story:** INT-03.4/03.5
+**Steps:**
+1. Submit actual/returned/wasted parts consumption, then resubmit the identical figures.
+2. Submit a correction (different figures).
+3. Complete a job with nobody ever reporting consumption.
+**Expected result:** (1) the resubmission moves zero additional stock. (2) only the
+difference moves. (3) the fallback path snapshots assumed consumption so a later
+correction can't double-consume.
+
+### TC-FSM-024: A new Assessment entity blocks downstream CRM quote creation until an outcome is recorded
+**Priority:** P1 · **Story:** INT-04.2/04.3
+**Expected result:** `/fsm/assessments/[assessmentId]`'s request/record-outcome flow,
+gated on `assessments.manage`, blocks quote creation when the opportunity's
+`assessment_requirement` is set and no outcome exists yet.
+
+### TC-FSM-025: Completing a job with outcome `warranty_revisit_required` creates a fresh, unscheduled follow-up job
+**Priority:** P2 · **Story:** INT-06.4
+**Expected result:** A new job with a real minted job number and `revisit_of_job_id`
+self-FK — never reopens the original.
+
+### TC-FSM-026: `additional_work_required`/recommended-parts outcomes publish domain events exactly once per transition
+**Priority:** P2 · **Story:** INT-06.2/06.3
+**Expected result:** `fsm.job.additional_work_identified`/`fsm.job.parts_recommended`
+publish best-effort, consumed by `module-crm`'s own event handlers; no error surfaces
+to the technician if the publish itself fails.
+
+### TC-FSM-027: FSM detail pages show a working "From CRM opportunity →" back-link
+**Priority:** P2 · **Story:** INT-08.3
+**Expected result:** Resolved from `source`/`source_reference`, or for jobs, from the
+still-set `opportunity_id` even post-conversion.
+
+## New this pass — regression guards and UI fixes
+
+### TC-FSM-028: My Day's "Notify: on the way" buttons don't disable as a group; Schedule supports editing an existing event
+**Priority:** P2 · **Story:** regression (`cb53ff8`/`c56efff`)
+
+### TC-FSM-029: My Day page no longer crashes with React error #441
+**Priority:** P1 · **Story:** regression (`34a5772`)
+
+### TC-FSM-030: Reports page date-range control works alongside the permissions grouping and mobile-safe tables
+**Priority:** P2 · **Story:** `7a762c9`, `cb85107`
+**Update to TC-FSM-010:** the nine MUST-scope reports now also have a date-range
+control this case's own original steps don't mention.
+
+### TC-FSM-031: FSM Customers/invoice-detail/opportunity-detail pages render correctly at mobile widths
+**Priority:** P2 · **Story:** `96b077f`, `350640a`, `93996df`
