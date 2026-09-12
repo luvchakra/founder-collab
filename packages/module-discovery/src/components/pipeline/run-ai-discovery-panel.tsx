@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
 import { computeDisplayGroups, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
@@ -68,9 +69,29 @@ export function RunAiDiscoveryPanel({
   const [runningKey, setRunningKey] = useState<PipelineStageKey | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [expanded, setExpanded] = useState<Set<DisplayGroupKey>>(new Set());
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoRunStarted = useRef(false);
 
   const endpoint = `/dashboard/businesses/${businessId}/products/${productId}/run-ai-discovery`;
   const basePath = `/dashboard/businesses/${businessId}/products/${productId}`;
+
+  // DISC-OFFER-P0-11.2: "Run Discovery From Here" -- a "Save & Run Downstream" edit
+  // elsewhere (e.g. the ICP page) invalidates the affected stages server-side, then sends
+  // the founder back here with `?autorun=1` so the two actions ("save my edit" and "rerun
+  // what depends on it") read as one continuous action rather than a save followed by a
+  // second, separate manual click -- the same auto-start-on-arrival pattern
+  // `WebsiteOnboardingPanel` (DISC-OFFER-P0-09.1) already uses for a freshly-created
+  // `pending` run. The query param is stripped immediately (`router.replace`) so a later
+  // reload of this same URL doesn't re-trigger it.
+  useEffect(() => {
+    if (searchParams.get("autorun") === "1" && !autoRunStarted.current) {
+      autoRunStarted.current = true;
+      router.replace(basePath);
+      void runFrom();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function stageOf(key: PipelineStageKey) {
     return stages.find((s) => s.stage_key === key) ?? null;

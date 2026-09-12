@@ -1,3 +1,4 @@
+import { downstreamOf } from "./dependencies";
 import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey } from "./types";
 
 /** DISC-OFFER-P0-10.3: "Pipeline Progress UI" -- the doc's own mockup shows nine
@@ -94,4 +95,13 @@ export function computeDisplayGroups(stages: PipelineStage[]): DisplayGroupView[
     }
     return { key: group.key, label: group.label, status: "upcoming" as const, stageKeys: group.stageKeys, activeStageKey: null };
   });
+}
+
+/** DISC-OFFER-P0-11.2's own "clear warning before downstream results are replaced" --
+ * the founder-facing group labels (not the fourteen technical stage keys) affected by
+ * invalidating everything downstream of `fromStageKey`, in display order. Used to name
+ * exactly what a "Save & Run Downstream" click is about to reset before it happens. */
+export function downstreamGroupLabels(fromStageKey: PipelineStageKey): string[] {
+  const downstream = new Set(downstreamOf(fromStageKey));
+  return PIPELINE_DISPLAY_GROUPS.filter((group) => group.stageKeys.some((key) => downstream.has(key))).map((group) => group.label);
 }

@@ -51,7 +51,7 @@ only genuine architectural/key decisions are raised.
 | | 10.2 | Persistent Pipeline Stage Model | Done |
 | | 10.3 | Pipeline Progress UI | Done |
 | | 11.1 | Editable Pipeline Stages | Not started |
-| | 11.2 | Run From This Stage | Not started |
+| | 11.2 | Run From This Stage | Done |
 | | 11.3 | Stage Dependency Graph | Done (built first -- see its own log entry) |
 | | 12.1 | Offering-Specific Website Research | Not started |
 | | 12.2 | External Opportunity Research | Not started |
@@ -77,8 +77,8 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**33 of 68 in-scope stories done -- Phase E underway.** (11.3 was built ahead of 11.1/11.2
-in that order -- see its own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
+**34 of 68 in-scope stories done -- Phase E underway.** (11.3 and 11.2 were both built
+ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
 Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
@@ -2247,3 +2247,51 @@ story, so no live apply/advisor step. No UI to browser-test.
 
 **Status**: 33 of 68 in-scope stories done -- Phase E continuing. Next: 11.2, Run From
 This Stage (using this story's own graph/invalidation).
+
+### 11.2 — Run From This Stage (2026-09-12)
+
+Built the generic, reusable mechanism this story asks for -- a concrete edit surface
+actually calling it is DISC-OFFER-P0-11.1's own worked example, done next; this story's
+own job was making "Run Discovery From Here" itself real.
+
+New `downstreamGroupLabels(fromStageKey)` (`lib/pipeline/display-groups.ts`) -- the
+doc's own "user receives a clear warning before downstream results are replaced"
+acceptance criterion needs founder-facing names, not `downstreamOf()`'s own fourteen
+technical stage keys; this maps DISC-OFFER-P0-11.3's own dependency result through
+DISC-OFFER-P0-10.3's own nine display groups, deduped. 2 new vitest cases (the ICP
+branch's own six affected groups in display order; nothing for the very last stage).
+
+`RunAiDiscoveryPanel` (DISC-OFFER-P0-10.1/10.3's own component) gained an auto-resume
+effect: on mount, if the URL carries `?autorun=1`, it strips the param
+(`router.replace`, so a later reload of the same URL doesn't re-trigger it) and
+immediately calls the same `runFrom()` the "Resume AI Discovery" button already uses --
+the exact same auto-start-on-arrival pattern `WebsiteOnboardingPanel`
+(DISC-OFFER-P0-09.1) already established for a freshly-created `pending` run. This is
+deliberately how "Run Discovery From Here" is implemented end-to-end: an edit surface
+elsewhere invalidates the affected stages server-side (DISC-OFFER-P0-11.3's own
+`invalidateDownstreamStages`) and redirects back to the offering Overview page with this
+query param, so "save my edit" and "rerun what depends on it" read as one continuous
+action to the founder rather than a save followed by a second, separate manual click --
+without needing to duplicate the panel's own orchestration loop on a second page.
+
+"Existing results are versioned" and "upstream stages remain intact" were both already
+true by construction before this story touched anything: DISC-OFFER-P0-10.2's own
+version-increment-per-run plus its append-only `pipeline_stage_runs` history already
+means a stage that reruns after an invalidation gets a new version with the prior
+attempt preserved, and `invalidateDownstreamStages` (11.3) only ever resets stages
+`downstreamOf()` names -- the edited stage itself and everything upstream of it is never
+touched. This story's own genuinely new piece was purely the "come back and
+automatically continue" wiring above.
+
+No migration this story. No UI of its own to browser-test yet (the auto-resume effect
+has no trigger until DISC-OFFER-P0-11.1's own edit surface exists) -- verified by reading
+through the exact query-param contract both stories share (`?autorun=1`) rather than a
+live walkthrough.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning), `lint:boundaries` (1165 files, no violations),
+`npx vitest run --root packages/module-discovery` (178/178, +2 new), and a clean `next
+build`.
+
+**Status**: 34 of 68 in-scope stories done -- Phase E continuing. Next: 11.1, Editable
+Pipeline Stages (wiring this mechanism onto the ICP page, the doc's own worked example).
