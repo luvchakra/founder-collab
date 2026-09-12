@@ -68,7 +68,11 @@ export const COUNTRY_CATALOG: CountryCatalogEntry[] = [
       { key: "INFORMATION_RETURNS", name: "1099 Information Returns" },
     ],
   },
-  { code: "CA", name: "Canada", status: "planned", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
+  // COMPLY-P1-03 (Canada): federal GST/HST rates for all 13 provinces/territories, the
+  // separate provincial PST/QST/RST layer for the 4 non-harmonized provinces, place-of-
+  // supply, small-supplier registration threshold, and GST/HST filing-frequency/return
+  // lifecycle reuse now exist -- see that story's own audit-log entry for exact scope.
+  { code: "CA", name: "Canada", status: "supported", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
   { code: "SG", name: "Singapore", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
   // COMPLY-P1-01 (EU VAT Framework): the backlog's own initial member-state focus list
   // (§7, COMPLY-P1-01.2) -- real, versioned, source-cited standard/reduced rate rules

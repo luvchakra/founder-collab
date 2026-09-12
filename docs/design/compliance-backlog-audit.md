@@ -97,7 +97,12 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.6 | Exemption Certificates | Done |
 | | 02.7 | Sales Tax Returns/Remittance | Done (reuses gst.return_periods lifecycle, widened with a jurisdiction column) |
 | | 02.8 | 1099 Information Returns | Done (core.payments only; fsm.expenses flagged as a follow-up) |
-| P1-03 … P1-12 | — | (Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
+| P1-03 | 03.1 | GST/HST | Done (all 13 provinces/territories) |
+| | 03.2 | Provincial PST/QST/RST | Done (the 4 gst_pst provinces) |
+| | 03.3 | Place of Supply | Done (documented simplification -- see story log) |
+| | 03.4 | Filing Periods | Done (reuses gst.return_periods lifecycle) |
+| | 03.5 | CRA Filing Adapter | Done (record-what-happened, same posture as every other regime -- no live CRA API) |
+| P1-04 … P1-12 | — | (Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
 story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
@@ -6907,3 +6912,203 @@ story is the OBLIGATION DETERMINATION a founder would act on, not a filing mecha
 **COMPLY-P1-02 (United States) is now fully done -- all eight sub-stories (02.1 State/Local
 Jurisdictions through 02.8 1099 Information Returns).** Continuing to COMPLY-P1-03 (Canada)
 in this same session.
+
+## Epic 03 -- Canada (COMPLY-P1-03.1 through 03.5, 2026-09-12)
+
+Built as one coherent vertical slice, the same "jurisdictions -> rates -> place of supply
+-> filing lifecycle" shape COMPLY-P1-02.1-02.4's own US work already established, matching
+this backlog's own §8 delivery order (EU -> US -> Canada -> Singapore).
+
+**Research, not assumption, done fresh via WebSearch 2026-09-12** (this backlog's own §2
+Canada section names the right CONCEPTS -- federal GST/HST + provincial layers, place of
+supply, CAD 30,000 small-supplier threshold, CRA mandatory e-filing -- but this session's
+own instruction was to verify every fact independently, not copy that section's own numbers
+blindly, and doing so found the doc's own Nova Scotia figure needed a real update):
+- **All 13 provinces/territories split into exactly three tax models** (ledgerlogic.ca,
+  taxesledger.com, fasttaxcalc.com, taxbycity.com, eeltd.ca, Wikipedia's own "Sales taxes in
+  Canada"/"Sales tax in Alberta," all independently agreeing): `hst` (5 -- Ontario 13%, New
+  Brunswick/Newfoundland and Labrador/Prince Edward Island 15% each, Nova Scotia -- see
+  below), `gst_pst` (4 -- British Columbia 7% PST, Saskatchewan 6% PST, Manitoba 7% RST,
+  Quebec 9.975% QST, each a SEPARATE tax administered by that province's own revenue
+  agency, not the CRA), `gst_only` (4 -- Alberta plus the three territories, plain 5% GST,
+  no provincial/territorial sales tax of any kind).
+- **Nova Scotia is a real, dated regulatory CHANGE the backlog's own §2 section's "14%"
+  figure did NOT explain the origin of** -- this session's own research found it: Nova
+  Scotia's HST rate was CUT from 15% to 14% (the provincial component from 10% to 9%)
+  effective 1-Apr-2025, confirmed by every source above independently agreeing on both the
+  new rate and its effective date -- seeded as a genuine two-version lineage, the same
+  "verify, don't just copy the current number" discipline every economic-nexus/threshold
+  change in COMPLY-P1-02 already followed.
+- **CAD 30,000 small-supplier threshold** -- confirmed via WebSearch 2026-09-12
+  (zenbooks.ca, Canada.ca's own RC4022 "General Information for GST/HST Registrants,"
+  gstcalculator.ca, ibill.ca, insightscpa.ca, mackisen.com, all independently agreeing) --
+  matches the backlog's own pre-supplied figure exactly. Also found (not pre-supplied): the
+  real single-calendar-quarter-vs-rolling-four-quarter registration-DEADLINE distinction,
+  named as a deliberate scope boundary (see below) rather than modeled.
+- **GST/HST filing-frequency assignment** -- confirmed via WebSearch 2026-09-12
+  (batemanmackay.com, ledg.ca, Canada.ca's own RC4022, everstonecpa.com, northos.ca,
+  ainativetax.com, all independently agreeing): annual for CAD 1,500,000 or less in annual
+  taxable supplies, quarterly above that up to CAD 6,000,000, monthly above CAD 6,000,000;
+  a registrant may always elect a MORE frequent period, never less.
+- **CRA mandatory e-filing** -- confirmed via WebSearch 2026-09-12 (CPA Canada, Canada.ca's
+  own "Businesses: are you affected by the change to GST/HST electronic filing
+  requirements?" news release, meruaccounting.com, hrai.ca) -- and found a real correction
+  to the backlog's own pre-supplied framing: the mandate is NOT a revenue threshold at all
+  (the backlog's own §2 section says "requires electronic filing for most... registrants,"
+  without naming the actual mechanism) -- the PRIOR revenue-based threshold was eliminated
+  entirely for reporting periods beginning on or after 1-Jan-2024, and virtually ALL
+  GST/HST registrants (except charities and selected listed financial institutions) must
+  now file electronically regardless of size. This directly shaped this story's own
+  COMPLY-P1-03.5 scope (see below) -- there is no threshold-based "who must e-file" logic
+  to seed at all, since the real rule is "almost everyone."
+- **Place of supply** -- confirmed via WebSearch 2026-09-12 (Canada.ca's own GST/HST
+  Memoranda 3-3-x series, which replaced the older Technical Information Bulletin B-103;
+  Lexology) that the real CRA rules cascade through several tests depending on supply type
+  (goods: generally the delivery address; services: a multi-step test starting with the
+  recipient's own address obtained in the normal course of business; intangible personal
+  property has its own further rules) -- directly informed this story's own documented
+  simplification (see below), the same "simplify, name the real cascade, don't guess it"
+  discipline COMPLY-P0-04.4 already established for India's own place-of-supply.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this epic's own prior US work first**
+(backlog rule 1/5): no schema change needed for rates/thresholds -- the generic
+`gst.tax_rules` engine (COMPLY-P0-02.3) already extends to any country/jurisdiction/regime/
+rule_key combination via more rows, exactly as COMPLY-P1-02.1's own US seed already proved.
+`lib/compliance/countries.ts`'s own `CA` entry already existed (`status: "planned"`,
+regime `GST_HST`) -- flipped to `"supported"`, no regime-catalog change needed (Canada
+genuinely has only the one regime, unlike the US's two).
+
+**Design decision -- `gst_hst_rate` and `provincial_sales_tax_rate` are TWO separate
+rule_keys under the SAME regime**, matching this backlog's own COMPLY-P1-03.1/03.2 story
+split: a province's federal GST/HST number and its own separate provincial PST/QST/RST
+number are genuinely different facts, administered by different governments, with
+different own effective dates and own sources -- forcing them into one combined rule_key
+would lose that real distinction and make it impossible to version either independently.
+
+**Design decision -- reused `gst.return_periods`' own lifecycle a SECOND time this session,
+with an even smaller extension than COMPLY-P1-02.7's US work needed**: added `ca_gst_hst`
+to `return_type`'s own check constraint -- and NOTHING else. Unlike a US sales tax return
+(filed separately PER STATE, needing the whole `jurisdiction` column COMPLY-P1-02.7 added),
+Canada's own GST/HST return is ONE FEDERAL filing per period regardless of how many
+provinces a business sold into -- CRA reallocates the harmonized provincial share
+internally, not the filer's own job -- so a `ca_gst_hst` period keeps `jurisdiction = null`,
+the exact same "national return" shape GSTR-1/3B/9 already use, and needs no widening of
+the `return_periods_us_sales_tax_requires_jurisdiction` check constraint at all (that
+constraint only names `us_sales_tax` specifically). Verified live (see below) that the
+earlier NULL-uniqueness fix (the `coalesce(jurisdiction, '')` expression index,
+COMPLY-P1-02.7's own same-session bug fix) correctly still treats two `ca_gst_hst` periods
+for the same business/period as a real collision, while a `ca_gst_hst` and a `gstr1` period
+for the identical date range do NOT collide (different `return_type`).
+
+**COMPLY-P1-03.5 (CRA Filing Adapter), scoped honestly, no new code needed**: there is no
+live CRA NETFILE/GST/HST Internet File Transfer API this platform drives end-to-end -- CRA's
+own certified-software program is a real, formal certification process this sandboxed
+session has no path to (the same "no live government filing API" posture every regime in
+this backlog follows except India's own real IRP/GSP HTTP adapters, COMPLY-P0-05.3/06.3).
+This story's own "adapter" IS `lib/returns/lifecycle/mutations.ts`'s own already-existing
+`markReturnPeriodFiled`/`recordReturnPeriodPayment` -- recording that a human already filed
+(via NETFILE, certified software, or a CRA-issued confirmation number) and remitted, never
+claiming or automating the filing itself. Confirmed this really needed zero new code: those
+functions' own generic `filingReference`/`paymentReference` columns already accept any
+confirmation-string shape, with no GSTN-specific naming baked in anywhere that would need
+generalizing for CRA's own terminology.
+
+**Never guesses in the risky direction (backlog rule 11), continuing this module's own
+established discipline**: `determineSmallSupplierRegistrationObligation` uses a strict
+EXCEEDS comparison (`>`, not `>=`) matching the CRA's own "exceeds $30,000" statutory
+wording -- a deliberate departure from COMPLY-P1-02.8's own "$600 or more" 1099 threshold,
+whose own DIFFERENT statutory wording really is inclusive; `determineCaPlaceOfSupply` never
+defaults an unset/unrecognized province to domestic, matching `determinePlaceOfSupply`'s
+(India) own "unset country still falls through, never assumed domestic" precedent.
+
+**What was built**:
+- `lib/compliance/ca-provinces.ts` (+ 10 test cases) -- the 13-entry catalog + tax-model
+  classification + `resolveCaProvinceCode` (a free-text-address-to-canonical-code
+  normalizer, the same shape `resolveUsStateCode` already established).
+- `lib/compliance/jurisdictions.ts`/`countries.ts` extended: Canada's own jurisdiction
+  catalog (13 provinces, keyed by two-letter code like the US, not full name like India);
+  `CA` flipped from `planned` to `supported` (+ assertions updated in
+  `countries.test.ts`/`jurisdictions.test.ts`).
+- `supabase/migrations/20260912370000_gst_tax_rules_ca_gst_hst_seed.sql` -- 21 rows: 13
+  `gst_hst_rate` (including Nova Scotia's own two-version lineage), 4
+  `provincial_sales_tax_rate`, 1 `small_supplier_threshold_cad`, 1
+  `gst_hst_filing_frequency_threshold_cad`; `20260912380000_gst_return_periods_ca_gst_hst.sql`
+  (the one-line `return_type` check-constraint widening described above).
+- `lib/canada-gst-hst/{types,rules}.ts` (+ 14 test cases in `rules.test.ts`) -- lineage/
+  parse/effective-lookup functions for all four rule_keys, same shape as every other
+  country pack's own `rules.ts`.
+- `lib/canada-gst-hst/place-of-supply.ts` (+ 7 test cases) -- the pure
+  `determineCaPlaceOfSupply` described above.
+- `lib/canada-gst-hst/registration.ts` (+ 4 test cases) -- the pure
+  `determineSmallSupplierRegistrationObligation`.
+- `lib/canada-gst-hst/filing-frequency.ts` (+ 5 test cases) -- the pure
+  `determineGstHstFilingFrequency`.
+- `lib/canada-gst-hst/tax-determination.ts` (+ 4 test cases) -- the pure
+  `determineCaGstHstTax` combiner (GST/HST rate + provincial rate -> total).
+- `lib/canada-gst-hst/queries.ts` -- `getCaGstHstReturn(businessId, periodStart,
+  periodEnd)`, the one new "prepare" function feeding the reused return lifecycle: reads
+  `core.documents`/`core.document_lines`/`core.addresses` (batched, reusing
+  `mapPartyAddress`/`selectPartyAddress` from COMPLY-P0-03.4 rather than re-deriving
+  address selection), classifies each line via place-of-supply then the GST/HST rate rule,
+  and totals gross/taxable/zero-rated/unresolved sales plus GST/HST collected. Scoped to
+  the FEDERAL return only -- provincial PST/QST/RST is explicitly out of scope (see
+  `notModeled`). No test file (thin DB-touching orchestrator over already-tested pure
+  pieces, this module's established convention).
+- `lib/returns/lifecycle/{types,mutations}.ts` extended: `ReturnType` gained `ca_gst_hst`;
+  `computeReturnSnapshot`'s dispatcher gained a `ca_gst_hst` branch calling
+  `getCaGstHstReturn` (ignoring `jurisdiction`, always null for this return type).
+
+**What was deliberately left out**: provincial PST/QST/RST return preparation/remittance
+(COMPLY-P1-03.2 only covers the RATE; each non-harmonized province's own separate return
+is a real, plausible future need, named here rather than built -- each would need its own
+provincial filing-adapter story); the real single-quarter-vs-rolling-four-quarter
+small-supplier registration TIMING distinction (obligation only, not deadline mechanics,
+matching COMPLY-P1-02.4's own scope boundary); the CRA's own full place-of-supply cascade
+for services/intangible personal property beyond a single resolved buyer province; Input
+Tax Credits / net-tax calculation (this return models outward GST/HST collected only);
+domestic zero-rating/exemption classification beyond cross-border exports (basic groceries
+and other zero-rated/exempt domestic supplies are a real, plausible future need); any UI
+(no Compliance UI epic exists for P1 yet).
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1426 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 180
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 87 files / 674 tests passed (631
+  pre-existing + 43 new across `ca-provinces.test.ts`, `rules.test.ts`,
+  `place-of-supply.test.ts`, `registration.test.ts`, `filing-frequency.test.ts`,
+  `tax-determination.test.ts`, plus updated assertions in `countries.test.ts`/
+  `jurisdictions.test.ts`).
+- Both migrations applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`, then confirmed by directly querying all 21 inserted
+  `gst.tax_rules` rows back (correct `jurisdiction`/`rule_key`/`version`/`effective_from`/
+  `effective_to`/rate for every row, including Nova Scotia's own two-version lineage).
+  `mcp__Supabase__get_advisors` (security): identical finding set to immediately before
+  this story (same 6 pre-existing infos -- the `platform.ai_provider_keys` one flagged by a
+  concurrent Platform Admin Portal workstream migration, already named as such in
+  COMPLY-P1-02.7's own entry -- and the 1 pre-existing warning) -- no new findings. No
+  performance re-check needed for the seed (a plain data insert into an already-indexed
+  table); the `return_type` check-constraint widening introduces no index/FK surface either.
+- **Local Postgres RLS harness actually run this story** (extended the ALREADY-MERGED
+  `scripts/test-gst-return-periods-rls.mjs` again, the same "more facts about the same
+  table" rationale COMPLY-P0-07.7/COMPLY-P1-02.7 already used): a `ca_gst_hst` period is
+  accepted with `jurisdiction` staying null; a second `ca_gst_hst` period for the identical
+  business/period is rejected by the widened unique key (confirming the earlier
+  `coalesce(jurisdiction, '')` NULL-uniqueness fix correctly still applies to this SECOND
+  national-with-null-jurisdiction return type, not just to the `us_sales_tax`/`gstr1`
+  combination that fix was originally written for); a `ca_gst_hst` and a `gstr1` period for
+  the identical date range coexist as separate rows (different `return_type`, confirming no
+  new collision was introduced) -- all passing on the first run, no new bug this time.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched this
+  story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift.
+
+**COMPLY-P1-03 (Canada) is now fully done -- all five sub-stories (03.1 GST/HST through
+03.5 CRA Filing Adapter).** Continuing to COMPLY-P1-04 (Singapore) in this same session, per
+this backlog's own §8 delivery order (EU -> US -> Canada -> Singapore), usage/time
+permitting.

@@ -4,6 +4,7 @@ import { createClient } from "../../../db/server";
 import { getGstr1Return } from "../gstr1/queries";
 import { getGstr3bReturn } from "../gstr3b/queries";
 import { getGstr9Return } from "../gstr9/queries";
+import { getCaGstHstReturn } from "../../canada-gst-hst/queries";
 import { getUsSalesTaxReturn } from "../us-sales-tax/queries";
 import { getReturnPeriod, getReturnPeriodById } from "./queries";
 import { assertCanTransition } from "./transitions";
@@ -68,6 +69,10 @@ async function computeReturnSnapshot(
       // real row -- this guard is defense in depth, not the primary enforcement.
       if (!jurisdiction) throw new Error("A us_sales_tax return period must have a jurisdiction (US state).");
       return getUsSalesTaxReturn(businessId, jurisdiction, periodStart, periodEnd);
+    case "ca_gst_hst":
+      // Deliberately ignores `jurisdiction` (always null for this return type) -- Canada's
+      // own GST/HST return is one federal filing per period, not per province.
+      return getCaGstHstReturn(businessId, periodStart, periodEnd);
   }
 }
 
