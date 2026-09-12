@@ -14,6 +14,10 @@ const validInput = {
   footerText: "© WonderArc",
   supportEmail: "support@wonderarc.com",
   supportUrl: "https://support.wonderarc.com",
+  loginBackgroundStyle: "gradient" as const,
+  loginBackgroundValue: "#0f172a,#312e81",
+  loginTermsUrl: "https://wonderarc.com/terms",
+  loginPrivacyUrl: "https://wonderarc.com/privacy",
 };
 
 describe("platformBrandingInputSchema (PLATFORM-P0-03.1)", () => {
@@ -70,5 +74,78 @@ describe("platformBrandingInputSchema (PLATFORM-P0-03.1)", () => {
     const result = platformBrandingInputSchema.safeParse({ ...validInput, platformName: "  WonderArc  " });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.platformName).toBe("WonderArc");
+  });
+});
+
+describe("platformBrandingInputSchema login background (PLATFORM-P0-03.3)", () => {
+  it("accepts a null background value regardless of style (means 'use the current default')", () => {
+    const result = platformBrandingInputSchema.safeParse({ ...validInput, loginBackgroundValue: "" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.loginBackgroundValue).toBeNull();
+  });
+
+  it("accepts an image URL when style is image", () => {
+    const result = platformBrandingInputSchema.safeParse({
+      ...validInput,
+      loginBackgroundStyle: "image",
+      loginBackgroundValue: "https://cdn.example.com/bg.jpg",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a hex color pair when style is image", () => {
+    const result = platformBrandingInputSchema.safeParse({
+      ...validInput,
+      loginBackgroundStyle: "image",
+      loginBackgroundValue: "#0f172a,#312e81",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a single hex color when style is solid", () => {
+    const result = platformBrandingInputSchema.safeParse({
+      ...validInput,
+      loginBackgroundStyle: "solid",
+      loginBackgroundValue: "#0f172a",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a URL when style is solid", () => {
+    const result = platformBrandingInputSchema.safeParse({
+      ...validInput,
+      loginBackgroundStyle: "solid",
+      loginBackgroundValue: "https://cdn.example.com/bg.jpg",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a single hex color when style is gradient (needs two, comma-separated)", () => {
+    const result = platformBrandingInputSchema.safeParse({
+      ...validInput,
+      loginBackgroundStyle: "gradient",
+      loginBackgroundValue: "#0f172a",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects an unknown background style", () => {
+    const result = platformBrandingInputSchema.safeParse({ ...validInput, loginBackgroundStyle: "video" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a terms/privacy URL without an http(s) scheme", () => {
+    expect(
+      platformBrandingInputSchema.safeParse({ ...validInput, loginTermsUrl: "wonderarc.com/terms" }).success,
+    ).toBe(false);
+  });
+
+  it("turns an empty terms/privacy URL into null", () => {
+    const result = platformBrandingInputSchema.safeParse({ ...validInput, loginTermsUrl: "", loginPrivacyUrl: "" });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.loginTermsUrl).toBeNull();
+      expect(result.data.loginPrivacyUrl).toBeNull();
+    }
   });
 });

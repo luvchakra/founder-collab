@@ -33,6 +33,10 @@ export async function saveBrandingAction(
     footerText: String(formData.get("footerText") ?? ""),
     supportEmail: String(formData.get("supportEmail") ?? ""),
     supportUrl: String(formData.get("supportUrl") ?? ""),
+    loginBackgroundStyle: String(formData.get("loginBackgroundStyle") ?? "gradient") as PlatformBrandingInput["loginBackgroundStyle"],
+    loginBackgroundValue: String(formData.get("loginBackgroundValue") ?? ""),
+    loginTermsUrl: String(formData.get("loginTermsUrl") ?? ""),
+    loginPrivacyUrl: String(formData.get("loginPrivacyUrl") ?? ""),
   };
 
   const result = await updatePlatformBranding(input);
