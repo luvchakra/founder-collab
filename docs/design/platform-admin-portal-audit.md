@@ -24,7 +24,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
-| | 07 | Module Administration | Not started |
+| | 07 | Module Administration | 07.1 (Module Registry) done -- see log; 07.2/07.3 not started |
 | | 08 | Feature Flags | Not started |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
 | | 10 | AI Safety / Cost Controls | Not started |
@@ -2821,3 +2821,199 @@ asserted from reading the code or the SQL.
 **Status**: PLATFORM-P0-06.5 done. §10 (Usage & Limits) is now fully complete: 06.1-06.5 all
 done and merged to `main`. Continuing in doc order, per this run's own task brief: §11
 (Module Administration, PLATFORM-P0-07) next.
+
+### PLATFORM-P0-07.1 — Module Registry (2026-09-12)
+
+**Worktree-reuse hazard checked before writing anything (per this workstream's own standing
+instruction)**: this run's worktree `HEAD` was `6854f7c` ("Merge branch
+'feature/platform-admin-portal' into scratch-plat-06-5"), checked out under a
+`worktree-agent-*` branch name -- the same class of artifact this log has already
+documented and fixed twice. Working tree was clean, so no stash was needed -- fixed with
+`git checkout -B feature/platform-admin-portal origin/feature/platform-admin-portal`, then
+re-verified `git rev-parse HEAD` matched `origin/feature/platform-admin-portal` (`17db0b8`,
+PLATFORM-P0-06.5's own tip) before touching any file. `npm install` run fresh (this
+worktree had no `node_modules`), confirmed via `readlink -f node_modules/@cofounderai/core`
+resolving to this worktree's own `packages/core`.
+
+**Scope, read against §11's own three sub-stories before writing anything**: §11 lists
+07.1 (Module Registry: "Manage: enabled, visible, licensed, minimum_plan, status,
+version"), 07.2 (Platform-Wide Module Kill Switch: "reason, impact confirmation, explicit
+confirmation, audit record" -- explicitly a dangerous operation), and 07.3 (Module
+Maintenance Mode: Available/Read-only/Maintenance/Disabled + optional message). This entry
+is 07.1 only.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5)**: `core.modules` (Epic 2, C-3) is
+the licensing catalog -- `key`/`name`/`description`, the FK target every
+`core.licenses.module_key` and `platform.plan_modules.module_key` already points at.
+`packages/module-registry` is a separate, compile-time, static manifest for nav/routes
+(00-MASTER-PLAN.md §6). Neither is a superadmin's *operational control* over a module
+platform-wide (kill switch, maintenance mode) -- genuinely new control-plane data, hence
+`platform` schema (CLAUDE.md non-negotiable #1's carve-out), one row per `core.modules.key`
+(cross-schema FK into `core`, never a parallel module-identity list) -- the exact shape
+`platform.plan_modules` already established for the same relationship.
+
+**A genuine data-modeling judgment call, decided and documented rather than stopped on
+(non-security, per this run's own task brief)**: of §11's six named fields, two --
+`licensed` and `minimum_plan` -- are deliberately **not** stored columns.
+- `licensed` would be `true` for every row here by construction: every `core.modules` row
+  is, by definition, a licensable module (`core.licenses.module_key` already FKs into it).
+  A stored boolean that is always true today with no independent write path is exactly the
+  speculative-column shape CLAUDE.md development principle #7 rules out -- computed as a
+  literal `true` in `platform-modules.ts` instead.
+- `minimum_plan` is fully derivable from `platform.plan_modules` (PLATFORM-P0-04.3, already
+  the canonical "which plan includes this module" relationship) joined against
+  `platform.plans.display_order`/`status`. Storing it a second time would create exactly
+  the two-independently-writable-sources-of-truth problem CLAUDE.md non-negotiable #5 ("if
+  the concept is already listed, use the canonical table") warns against -- a superadmin
+  could set `minimum_plan = 'pro'` here while `plan_modules` still says Free includes it,
+  and nothing would ever reconcile the two. Computed at read time instead
+  (`computeMinimumPlans()`, the lowest-`display_order` **active** plan whose
+  `plan_modules.enabled = true` row covers the module -- a `draft`/`deprecated`/`archived`
+  plan is never a real "minimum plan" a customer can actually buy today), unit-tested
+  directly (5 cases: lowest-order pick, a disabled row at a lower order correctly ignored,
+  a non-active plan correctly ignored, no active plan at all, multiple modules kept
+  independent).
+
+**What was built**: migration `20260912140000_platform_modules.sql` -- `platform.modules`
+(`module_key` PK/FK into `core.modules`, `enabled` boolean default `true`, `visible`
+boolean default `true`, `status` text default `'available'`, `version` text nullable,
+`created_at`/`updated_at`/`updated_by`). Seeded one row per existing `core.modules` key, all
+defaults. RLS: SELECT open to any authenticated user from the start (not superadmin-only
+then widened later -- this table's own route-guard/`requireModule()` consumer, added in
+PLATFORM-P0-07.2, runs as the signed-in business member, the same reason
+PLATFORM-P0-05.2/05.3's `20260912080000_platform_catalog_authenticated_read.sql` widened
+every sibling plan-catalog table's own SELECT policy), INSERT/UPDATE superadmin-only, no
+DELETE policy or grant at all (every module key this table will ever hold arrives via the
+same migration that adds it to `core.modules`, seeded the same way this migration's own
+insert does -- there is no "remove a module from the registry" operation for the app layer
+to need).
+
+`status`'s four-value CHECK (`available`/`read_only`/`maintenance`/`disabled`) folds in
+PLATFORM-P0-07.3's own enum values now, the same "no placeholder lifecycle column"
+precedent PLATFORM-P0-04.1's own migration already used for `platform.plans.status`
+(04.7's enum folded into 04.1's single migration rather than left as a stub) -- 07.3's own
+remaining scope is the optional customer-facing message column plus real request-time
+behavior for `read_only`/`maintenance`/`disabled`, not this column's existence. `version`
+is a superadmin-set free-text label, not read from any `package.json`: every module
+workspace package (`packages/module-{discovery,inventory,fsm,crm,gst}`) is pinned at the
+placeholder `0.0.0` (confirmed live, not assumed), since ADR-1/ADR-2 make this one
+deployable with modules as packages, not independently released services -- there is no
+real per-module release version anywhere in this monorepo to read from instead. Nullable
+with no default, so an unset module shows nothing rather than a fabricated number (this
+backlog's own repeated "no fabricated data" stance, e.g. PLATFORM-P0-02.1's honest MRR/ARR
+"--").
+
+`packages/core/src/admin/platform-modules.ts` -- `listModuleRegistry()` (joins
+`core.modules` + `platform.modules` + the derived `licensed`/`minimumPlan`),
+`setModuleVisible()` and `setModuleMeta()` (status + version together, one superadmin
+write). **No `setModuleEnabled` export exists in this file, on purpose** -- `enabled` is
+PLATFORM-P0-07.2's own kill switch, and that story's "reason + impact confirmation +
+explicit confirmation + audit record" flow is real, additional scope this file must not
+pre-empt by exposing a plain, confirmation-free toggle for the same column. The UI
+(`/platform/modules`, new nav link in `platform/layout.tsx`) mirrors this exactly:
+`enabled` renders as a read-only badge, never a switch; `visible` is a plain instant-flip
+`Switch` (mirrors `module-entitlements-section.tsx`'s "single boolean, no separate save
+step" shape -- it only affects a not-yet-built marketing/module-picker surface, never
+access, so no confirmation is needed); `status`/`version` are edited together with one Save
+button (mirrors `quantity-limits-section.tsx`'s "two related fields, one Save" shape).
+Desktop table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, following `plans/page.tsx`'s own established
+split exactly.
+
+**Deliberately not built this story, and why**:
+- No real enforcement anywhere: `enabled`/`visible`/`status` are stored and viewable but
+  nothing yet reads them for an actual authorization or UX decision (RLS, `requireModule()`,
+  the middleware route guard, `entitlements/module-entitlement.ts::hasModule()`, or
+  `packages/module-registry`'s own nav-building all remain exactly as they were). This
+  mirrors `platform.plan_modules.enabled`'s own history exactly (PLATFORM-P0-04.3 built the
+  column with zero consumers; PLATFORM-P0-05.x wired it in, deliberately not, three stories
+  later, once the entitlement engine existed to wire it into) -- and
+  `entitlements/module-entitlement.ts`'s own docstring already named PLATFORM-P0-07.2 as
+  exactly the future story that would compose a platform-global kill switch into
+  `hasModule()`'s decision. That wiring -- into `hasModule()`/`requireModule()`/the route
+  guard, explicitly **not** into `core.has_module()`/RLS (a genuine, larger architecture
+  change touching every module table's own policy, which this run's task assignment
+  requires explicit approval for, per CLAUDE.md non-negotiable #10 -- the identical
+  reasoning `module-entitlement.ts`'s own docstring already used for why
+  `platform.plan_modules` isn't composed into RLS either) -- is PLATFORM-P0-07.2's own job.
+- No `setModuleEnabled`/kill-switch mutation, no reason/confirmation/audit-record flow, no
+  new audit table -- all of PLATFORM-P0-07.2's own explicit scope.
+- No maintenance-mode customer-facing message column, no read-only/maintenance/disabled
+  *behavioral* enforcement -- PLATFORM-P0-07.3's own explicit scope (the status enum's
+  *values* are folded in now, per the 04.1/04.7 precedent above, but not their behavior).
+- No wiring into `packages/module-registry`'s own nav-building or any customer-facing
+  module picker for `visible` -- that package is a separate, static, compile-time manifest;
+  wiring a DB-backed flag into it is real integration work this story doesn't need to do to
+  satisfy "manage" (view/set the flag), the same "no consumer yet" boundary this backlog's
+  Usage & Limits stories (06.1/06.4/06.5) drew repeatedly for their own not-yet-wired
+  fields/components.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+(`Package` unused import in a CRM conversations page, untouched by this story). `node
+scripts/lint-import-boundaries.mjs` -- 1198 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 143 migrations (142 -> 143, this story's own file),
+no violations. `npx vitest run --root packages/core` -- 19 files / 161 tests (156 -> 161,
++5 new `platform-modules.test.ts` cases for `computeMinimumPlans()`, the only genuinely new
+pure logic this story adds). `apps/web`'s own `vitest run --passWithNoTests` -- 47 tests,
+unchanged (no new apps/web test file this story -- this story's own logic is
+authorization/RLS + a pure derivation function, covered by the new RLS script and the new
+`packages/core` unit tests respectively). `cd apps/web && rm -rf .next && npm run build` --
+clean; `/platform/modules` lists `ƒ` (dynamic), correctly inheriting the outer layout's
+existing `force-dynamic` with no per-route opt-in needed.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the seed is exactly right
+(5 rows, one per `core.modules` key, `enabled`/`visible` both `true`, `status = 'available'`
+, `version` null on every row -- no fabricated data). `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables and
+the pre-existing leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- zero new findings beyond the same benign
+"unused index" info-level note every sibling FK index already carries in this low-traffic
+dev database (this migration's own `modules_updated_by_idx` included).
+
+**Role-switched live proof against dev's own real data (not a synthetic seed), the standard
+this workstream has held itself to since PLATFORM-P0-03.4**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched
+(`set local role authenticated; set local request.jwt.claim(s)...`) `select count(*) from
+platform.modules` returned `5` (the open-SELECT catalog policy working exactly as intended
+for an ordinary business member, the same shape every sibling plan-catalog table already
+has), and `update platform.modules set visible = false where module_key = 'gst' returning
+module_key` returned **zero rows** (`RETURNING` is the unambiguous proof of rows actually
+written, not just a query response) -- reconfirmed immediately after via a plain
+`service_role` read that `gst.visible` was still `true`, so this real user's write attempt
+against a real row was rejected by RLS with no residue to clean up (nothing was ever
+actually written).
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires for a new
+`platform.*` table**: new `scripts/test-platform-modules-rls.mjs`, wired into
+`package.json`'s `test:db` composite script after
+`test-core-try-consume-usage-counter-rls.mjs`. Same Alice (business admin, not a
+superadmin)/Zoe (real platform superadmin) pair every sibling script in this backlog uses.
+One test-design correction made before it passed: the first draft used `assertThrows` on
+Alice's `UPDATE`, which failed with "expected an error, none was thrown" -- an `UPDATE`
+whose `USING` clause hides every row from a caller does not raise a Postgres error, it
+silently affects zero rows (only a rejected `INSERT`'s `WITH CHECK` genuinely throws) --
+corrected to `assertEqual` against a `service_role` read of the untouched row afterward,
+the same shape `test-platform-plan-modules-rls.mjs` (this table's own closest sibling) had
+already gotten right the first time; this script's own first draft simply copied the wrong
+half of that precedent. **All 15 assertions passed**: the migration's own seed (5 rows, all
+defaults, no fabricated version); the `status` CHECK constraint rejects an unknown value;
+Alice can read all 5 rows but her UPDATE/INSERT attempts are silently rejected by RLS with
+zero residue; Zoe can toggle `visible` and set `status`+`version` together; nobody --
+including Zoe -- can `DELETE` a row (no delete grant exists at all). Local Postgres 16 was
+already running in this environment (`pg_lsclusters` showed it online after a `pg_ctlcluster
+16 main start`, having been stopped between sessions).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "Zoe can" half of the RLS proof above is
+verified for real only against local Postgres (not live dev), and no live browser
+walkthrough of `/platform/modules` was performed. The "Alice cannot" half, and the table's
+own seed/shape, were verified for real against both the live dev Supabase project
+(role-switched, as a real user, against real business data, `RETURNING`-proven zero-row
+write, no residue) and a real local Postgres database running every assertion to
+completion -- not merely asserted from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-07.1 done. Continuing in §11's own story order: PLATFORM-P0-07.2
+(Platform-Wide Module Kill Switch) next.

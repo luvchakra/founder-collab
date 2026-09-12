@@ -43,6 +43,8 @@ const NAV_LINKS = [
   { href: "/platform/branding", label: "Platform Branding" },
   // PLATFORM-P0-04.1: the subscription/pricing catalog admin screen.
   { href: "/platform/plans", label: "Plans" },
+  // PLATFORM-P0-07.1: the module registry / administration screen.
+  { href: "/platform/modules", label: "Modules" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
