@@ -105,6 +105,11 @@ export const EvidenceItemSchema = z.object({
     .describe("The exact text of the buying_signal or recent_event this evidence backs, if any, or null"),
   evidence_type: z.enum(["fact", "inference", "assumption", "unknown"]),
   confidence: z.enum(["low", "medium", "high"]),
+  /** DISC-OFFER-P0-12.2: "Clearly distinguish first-party website evidence from
+   * external evidence" -- which of the two labeled findings blocks
+   * `structureResearchPrompt` (research_prospect_v3) fed the model this claim actually
+   * came from. */
+  source_type: z.enum(["first_party", "external"]),
 });
 
 /**
