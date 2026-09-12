@@ -70,13 +70,14 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 08.2 | Purchase-to-2B Matching | Done |
 | | 08.3 | Match Explanation | Done |
 | | 08.4 | IMS Accept/Reject/Pending | Done |
-| | 08.5–08.6 | ITC Availability View, Exception Queue | Not started |
+| | 08.5 | ITC Availability View | Done |
+| | 08.6 | Exception Queue | Not started |
 | P0-09 | 09.1–09.5 | Compliance Calendar & Risk | Not started |
 | P0-10 | 10.1–10.5 | Evidence & Audit | Not started |
 | P0-11 | 11.1–11.5 | Compliance UI | Not started |
 | P1-01 … P1-12 | — | (EU, US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
-**41 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
+**42 of ~50 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see
 that story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
 01.4's own registration-persistence half, which COMPLY-P0-04.1 below now substantially
 addresses in practice via its primary-registration mirror, though `gst.compliance_profiles
@@ -85,10 +86,8 @@ addresses in practice via its primary-registration mirror, though `gst.complianc
 **COMPLY-P0-02 (Generic Tax Framework), COMPLY-P0-03 (Existing-Data Integration),
 COMPLY-P0-04 (India GST), COMPLY-P0-05 (India E-Invoice), COMPLY-P0-06 (India E-Way
 Bill), and COMPLY-P0-07 (India Returns) are all fully done.** COMPLY-P0-08 (India
-Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 (GSTR-2B Fetch/Import),
-COMPLY-P0-08.2 (Purchase-to-2B Matching), COMPLY-P0-08.3 (Match Explanation) and
-COMPLY-P0-08.4 (IMS Accept/Reject/Pending) are done. Next: COMPLY-P0-08.5 (ITC
-Availability View).
+Reconciliation & IMS) is now IN PROGRESS -- COMPLY-P0-08.1 through COMPLY-P0-08.5 are
+done. Next: COMPLY-P0-08.6 (Exception Queue), the last story in this epic.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
@@ -4537,6 +4536,79 @@ job).
   genuine rejection (a real Postgres exception from the trigger), not a no-op, and
   confirmed the guard doesn't over-block by proving Bob can still act on his own document
   right after Alice's cross-tenant attempt was rejected.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed earlier in this session).
+
+### 08.5 — ITC Availability View (2026-09-12)
+
+Computes how much Input Tax Credit this business can ACTUALLY claim for a period, right
+now -- the real question a founder or bookkeeper cares about, distinct from either
+COMPLY-P0-08.1's raw GSTR-2B totals or COMPLY-P0-08.4's own per-document IMS action alone.
+
+**No new schema -- deliberately schema-free**, mirroring the GSTR-1/3B/9 "prepare"
+precedent and COMPLY-P0-08.2's own matcher: `computeItcAvailability` is a pure function
+combining two facts ALREADY computed by earlier stories (a document's own GSTN-reported
+`itcAvailable`/`ineligibilityReason` from COMPLY-P0-08.1, and this business's own
+`effectiveImsStatus` from COMPLY-P0-08.4) -- no new table, no new persisted state.
+
+**Research, not assumption (backlog rule 6)**: the real GSTR-3B auto-population logic
+(re-confirmed via the same ClearTax/TaxGuru IMS sources already cited in COMPLY-P0-08.4's
+own migration, plus GSTN's GSTR-2B advisory already cited in COMPLY-P0-08.1's) is exactly
+a four-way split, applied in this precedence order: (1) GSTN itself marks a document
+ITC-ineligible (Section 16(4), POS mismatch) -- ALWAYS wins, regardless of any IMS action
+taken on it; (2) otherwise IMS `rejected` -- excluded, "will not auto-populate"; (3)
+otherwise IMS `pending` -- excluded from both available AND rejected, genuinely
+undecided, "will not become part of GSTR-2B and GSTR-3B" until resolved; (4) otherwise
+(`accepted` or deemed-accepted `no_action`) -- available, "auto-populate[s] ITC in
+GSTR-3B." `no_action` is deliberately bucketed identically to `accepted` (real "deemed
+acceptance" practice), while its own underlying fact (nobody explicitly acted) stays
+visible on each row's own `imsStatus` field for a UI to nudge review without changing the
+computed ITC outcome.
+
+**A GSTN-ineligible document is NEVER "available," even if this business explicitly
+accepted it** -- accepting a document GSTN itself flagged ineligible does not manufacture
+real ITC (backlog rule 11, never claim availability that hasn't actually been
+established); tested explicitly (`compute.test.ts`'s own "GSTN-ineligible always wins"
+case).
+
+**What was built**:
+- `lib/itc/types.ts` -- `ItcBucketKind`, `ItcBucketTotals`/`emptyItcBucketTotals`,
+  `ItcAvailabilityRow`, `ItcAvailabilitySummary`.
+- `lib/itc/compute.ts` -- `computeItcAvailability` (pure).
+- `lib/itc/queries.ts` -- `getItcAvailability` (assembles a period's GSTR-2B documents +
+  this business's IMS actions via `getGstr2bStatementWithDocuments`/
+  `listImsActionsForDocuments`, both already built; `null` when no GSTR-2B statement has
+  been imported yet, same "real absence, not an error" convention every other
+  COMPLY-P0-08 query already follows).
+- 8 new vitest cases in `compute.test.ts` covering: accepted -> available,
+  no-explicit-action (deemed) -> available with `imsStatus: "no_action"` visible,
+  rejected -> excluded, pending -> excluded from both available and rejected,
+  GSTN-ineligible overriding an explicit accept, GSTN-ineligible overriding a
+  pending/reject too, a four-document mixed-bucket sum, and the all-zero empty case.
+
+**What was deliberately left out**: any UI (COMPLY-P0-11); persisting a computed
+availability snapshot (this is a live, re-computed-on-read view over already-persisted
+GSTR-2B/IMS data, matching this whole epic's schema-free "prepare" pattern -- there is no
+COMPLY-P0-02.5-style "tax determination snapshot" need here since neither GSTR-2B content
+nor IMS actions are expected to change retroactively in the way a live tax rate would);
+wiring this into GSTR-3B's own ITC section (`lib/returns/gstr3b`) -- that return still
+computes its own provisional, own-books ITC total independently (COMPLY-P0-07.2's
+existing, unchanged behavior); a real integration connecting the two is a plausible
+future story, not silently done here as a side effect.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1247 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` -- 149 migration files, 0 violations (no new
+  migration this story).
+- `npx vitest run --root packages/module-gst` -- 367 tests passing (359 prior + 8 new).
+- No Supabase migration, no `get_advisors` re-check, no local Postgres RLS harness -- no
+  new schema, no new table, no new RLS policy this story; the underlying reads are
+  already covered by `test-gst-gstr2b-rls.mjs`/`test-gst-ims-actions-rls.mjs`.
 - `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI change this story.
 - No live browser walkthrough -- moot, this story shipped no UI.
 - No lockfile drift (`node_modules` already installed earlier in this session).
