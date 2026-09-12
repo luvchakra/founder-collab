@@ -28,3 +28,16 @@ export function computeGstRetentionUntil(financialYearEndDate: string, retention
   const returnDueDate = gstr9DueDate(financialYearEndDate, gstr9Rule);
   return addMonths(returnDueDate, retentionMonths);
 }
+
+/**
+ * COMPLY-P1-04.7 (Singapore -- Five-Year Record Retention): Singapore's own basis
+ * (`"accounting_period_end"`) is genuinely simpler than India's -- it counts straight from
+ * the end of the relevant GST accounting period, with no annual-return-due-date detour at
+ * all (Singapore's GST F5 filing deadline is itself computed relative to the accounting
+ * period end, not a separately-dated annual return the way India's GSTR-9 is) -- so this
+ * is a plain `addMonths`, reusing the same pure helper `computeGstRetentionUntil` already
+ * established rather than a second date-arithmetic implementation.
+ */
+export function computeSgGstRetentionUntil(accountingPeriodEndDate: string, retentionMonths: number): string {
+  return addMonths(accountingPeriodEndDate, retentionMonths);
+}

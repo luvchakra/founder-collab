@@ -7,9 +7,9 @@
  * separate tables yet).
  */
 
-export type ReturnType = "gstr1" | "gstr3b" | "gstr9" | "us_sales_tax" | "ca_gst_hst";
+export type ReturnType = "gstr1" | "gstr3b" | "gstr9" | "us_sales_tax" | "ca_gst_hst" | "sg_gst_f5";
 
-export const RETURN_TYPES: ReturnType[] = ["gstr1", "gstr3b", "gstr9", "us_sales_tax", "ca_gst_hst"];
+export const RETURN_TYPES: ReturnType[] = ["gstr1", "gstr3b", "gstr9", "us_sales_tax", "ca_gst_hst", "sg_gst_f5"];
 
 /** The five stages this epic's own one-line spec names, in the only order a period may
  * move through them (see `transitions.ts`). */

@@ -5,6 +5,7 @@ import { getGstr1Return } from "../gstr1/queries";
 import { getGstr3bReturn } from "../gstr3b/queries";
 import { getGstr9Return } from "../gstr9/queries";
 import { getCaGstHstReturn } from "../../canada-gst-hst/queries";
+import { getSgGstF5Return } from "../../singapore-gst/queries";
 import { getUsSalesTaxReturn } from "../us-sales-tax/queries";
 import { getReturnPeriod, getReturnPeriodById } from "./queries";
 import { assertCanTransition } from "./transitions";
@@ -73,6 +74,11 @@ async function computeReturnSnapshot(
       // Deliberately ignores `jurisdiction` (always null for this return type) -- Canada's
       // own GST/HST return is one federal filing per period, not per province.
       return getCaGstHstReturn(businessId, periodStart, periodEnd);
+    case "sg_gst_f5":
+      // Deliberately ignores `jurisdiction` (always null for this return type) --
+      // Singapore has exactly one nationwide GST return, no sub-national jurisdiction
+      // concept at all.
+      return getSgGstF5Return(businessId, periodStart, periodEnd);
   }
 }
 

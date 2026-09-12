@@ -13,9 +13,9 @@ describe("compliance country catalog", () => {
     }
   });
 
-  it("India, the US, Canada, and COMPLY-P1-01's five EU country packs are the currently-supported countries", () => {
+  it("India, the US, Canada, Singapore, and COMPLY-P1-01's five EU country packs are the currently-supported countries", () => {
     const supported = COUNTRY_CATALOG.filter((c) => c.status === "supported").map((c) => c.code);
-    expect(supported.sort()).toEqual(["BE", "CA", "DE", "FR", "IN", "IT", "PL", "US"]);
+    expect(supported.sort()).toEqual(["BE", "CA", "DE", "FR", "IN", "IT", "PL", "SG", "US"]);
   });
 
   it("getCountry finds a known code and misses an unknown one", () => {
@@ -32,6 +32,7 @@ describe("compliance country catalog", () => {
       expect(isCountrySupported(code)).toBe(true);
     }
     expect(isCountrySupported("CA")).toBe(true); // COMPLY-P1-03, now supported
+    expect(isCountrySupported("SG")).toBe(true); // COMPLY-P1-04, now supported
     expect(isCountrySupported("NL")).toBe(false); // a real EU member state with no country pack yet
     expect(isCountrySupported("ZZ")).toBe(false);
   });
@@ -45,6 +46,8 @@ describe("compliance country catalog", () => {
     expect(isRegimeSupported("US", "INFORMATION_RETURNS")).toBe(true); // COMPLY-P1-02.8, a second, separate US regime
     expect(isRegimeSupported("CA", "GST_HST")).toBe(true); // COMPLY-P1-03, now supported
     expect(isRegimeSupported("CA", "VAT")).toBe(false); // real regime elsewhere, wrong regime for Canada
+    expect(isRegimeSupported("SG", "GST")).toBe(true); // COMPLY-P1-04, now supported
+    expect(isRegimeSupported("SG", "GST_HST")).toBe(false); // real regime elsewhere, wrong regime for Singapore
     expect(isRegimeSupported("ZZ", "GST")).toBe(false);
   });
 
@@ -52,6 +55,7 @@ describe("compliance country catalog", () => {
     expect(defaultRegimeFor("IN")).toBe("GST");
     expect(defaultRegimeFor("DE")).toBe("VAT");
     expect(defaultRegimeFor("US")).toBe("SALES_TAX");
+    expect(defaultRegimeFor("SG")).toBe("GST");
     expect(defaultRegimeFor("ZZ")).toBeUndefined();
   });
 });

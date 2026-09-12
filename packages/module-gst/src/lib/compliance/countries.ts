@@ -73,7 +73,13 @@ export const COUNTRY_CATALOG: CountryCatalogEntry[] = [
   // supply, small-supplier registration threshold, and GST/HST filing-frequency/return
   // lifecycle reuse now exist -- see that story's own audit-log entry for exact scope.
   { code: "CA", name: "Canada", status: "supported", regimes: [{ key: "GST_HST", name: "GST/HST" }] },
-  { code: "SG", name: "Singapore", status: "planned", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
+  // COMPLY-P1-04 (Singapore): GST registration threshold + retrospective/prospective
+  // tests, GST F5 return preparation (reusing the generic return lifecycle a third time),
+  // the phased GST InvoiceNow (Peppol) e-invoicing mandate, a Peppol identifier on the
+  // business's own SG registration, a stub InvoiceNow transmission adapter + persisted
+  // transmission status, and the 5-year record retention rule -- see that story's own
+  // audit-log entry for exact scope.
+  { code: "SG", name: "Singapore", status: "supported", regimes: [{ key: "GST", name: "GST (Goods & Services Tax)" }] },
   // COMPLY-P1-01 (EU VAT Framework): the backlog's own initial member-state focus list
   // (§7, COMPLY-P1-01.2) -- real, versioned, source-cited standard/reduced rate rules
   // (lib/tax-rules/eu-vat-rates.ts), intra-EU B2B/B2C treatment (lib/eu-vat/), OSS/IOSS
