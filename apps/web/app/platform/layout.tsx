@@ -45,6 +45,8 @@ const NAV_LINKS = [
   { href: "/platform/plans", label: "Plans" },
   // PLATFORM-P0-07.1: the module registry / administration screen.
   { href: "/platform/modules", label: "Modules" },
+  // PLATFORM-P0-08.1: the operational feature-flag catalog.
+  { href: "/platform/feature-flags", label: "Feature Flags" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

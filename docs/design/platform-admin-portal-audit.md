@@ -25,7 +25,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
-| | 08 | Feature Flags | Not started |
+| | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
 | P0 Phase 3 | 09 | Internal AI Provider & Keys | Not started |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 7 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07), plus
-18.1. P1: 0/9 done.**
+**P0: 8 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08),
+plus 18.1. P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -3525,3 +3525,198 @@ from reading the code or the SQL.
 **Status**: PLATFORM-P0-07.3 done. §11 (Module Administration) is now fully complete
 (07.1-07.3). This run's own usage-tracking note: well under the 80% stop threshold --
 continuing per the auto-merge-to-main policy and the remaining backlog order.
+
+### PLATFORM-P0-08.1/08.2/08.3/08.4 — Feature Flags (2026-09-12)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at `origin/main`'s tip
+(after other workstreams' merges), not at `feature/platform-admin-portal`'s own tip.
+Working tree was clean (no stash needed) -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing at `46fcc52`
+(PLATFORM-P0-07.3's own commit), then re-verified `git log --oneline -3` matched before
+touching any file. `npm install` run fresh (no `node_modules` in this worktree), confirmed
+via `readlink -f node_modules/@cofounderai/core` resolving to this worktree's own
+`packages/core`.
+
+**Read first, per this run's own task brief**: this whole audit log's "Progress" table and
+"Pre-implementation reconnaissance" section, plus every §11 (07.1-07.3) entry above in
+full -- the module-registry/kill-switch/status-reconciliation precedent this story mirrors
+most closely -- and `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §12 (08.1-08.4) in
+full, plus PLATFORM-P0-04.4's own migration and audit-log entry for
+`platform.features`/`platform.plan_features`, since that story's own docstring had already
+named this exact future table and pre-emptively distinguished it.
+
+**Confirmed genuinely distinct from `platform.features`/`platform.plan_features`
+(PLATFORM-P0-04.4)**: that table is a *commercial* packaging fact (what a paying plan
+entitles a customer to use at all); `platform.feature_flags` (this story) is an
+*operational* on/off control for reliability, staged rollout, and emergency kill switches
+-- §12.3's own named examples (AI research, outbound messaging, WhatsApp integration,
+government submission, expensive external APIs) are all infrastructure/safety concerns,
+not pricing-tier concerns. Neither table touches or extends the other. Entity-ownership
+check against `docs/plan/00-MASTER-PLAN.md` §5 also passed: no "feature flag" concept
+listed there at all -- genuinely new.
+
+**This run's own workstream-boundary check, done before writing anything**: the task
+assignment explicitly flagged §12 in advance as "introducing kill-switch-style wiring
+across several subsystems (AI research, outbound messaging, WhatsApp, government
+submission) -- read carefully before assuming scope," and separately forbids touching
+`module-discovery`, `module-gst`, or any other workstream's files. Read against §12's own
+literal text, 08.1-08.4 ask only for the flag catalog (key/description/enabled/effective
+window), Global/Plan/Module/Country scope, and an audit trail -- never for real
+enforcement wired into any specific subsystem, and no PLATFORM-P0-08.5 "wire kill switches
+into AI/WhatsApp/government-submission code" story exists anywhere in this backlog. This
+mirrors the same "table now, real enforcement in a later, separate story" sequencing
+`platform.plan_modules.enabled` (04.3) and `platform.modules.enabled`/`status`
+(07.1/07.2/07.3) each went through. Even if the doc had asked for it, this run's own
+file-scope restriction would forbid building it here regardless, since every one of
+§12.3's named subsystems lives inside another workstream's module packages -- not a
+security-authorization ambiguity to stop and report on, a plain scope boundary already
+settled by this run's own task assignment. So this story builds the catalog, scope, and
+audit trail only, and the application layer's own docstring says so explicitly.
+
+**A non-security data-modeling judgment call, decided per this run's own task brief**:
+§12.2 names four scope kinds but not how one flag row expresses one. Modeled as a single
+`scope_type` discriminator (`global`/`plan`/`module`/`country`) plus three nullable
+scope-value columns, with a CHECK enforcing exactly the one matching column is set --
+verified directly (not just read from the constraint) for all three non-global scopes,
+plus the "global must have no scope value" direction, in the new RLS script below.
+`scope_country_code` is a plain ISO-3166-1-alpha-2-shaped text column, not an FK -- no
+country/compliance-pack registry table exists yet (§17 is still "Not started"). Business/
+user-level scope is explicitly named "P1" by §12.2 itself, so no
+`scope_business_id`/`scope_user_id` column exists at all.
+
+**Why every mutation goes through a SECURITY DEFINER function, unlike PLATFORM-P0-07.1's
+plain `visible`/`version` columns**: §12.4 requires *every* change (not only a kill-switch
+flip) to be audited with who/what/old value/new value/reason/timestamp -- a stricter,
+first-class requirement from 08.1 onward, not something layered on after the fact the way
+07.2 added it for `platform.modules.enabled` alone. So `platform.feature_flags` gets no
+direct INSERT/UPDATE/DELETE grant to `authenticated` at all; `platform.create_feature_flag()`/
+`update_feature_flag()`/`delete_feature_flag()` (migration
+`20260912270000_platform_feature_flags.sql`) are the only paths to a row, each requiring a
+non-empty `reason` unconditionally and writing one atomic `platform.feature_flag_events`
+row per call -- mirroring `platform.set_module_status()`'s own shape. Unlike
+`platform.module_status_events`' explicit `previous_status`/`new_status` columns (only two
+mutable fields there), this audit table stores full `previous_value`/`new_value` JSONB
+snapshots, since `platform.feature_flags` has five mutable-or-identity fields worth
+capturing on create/delete and four on update -- `feature_key` is denormalized onto the
+event row so history stays readable by key after a flag is deleted (`flag_id` is `on
+delete set null`, deliberately not `cascade`, so the deletion's own audit row survives the
+deletion it records).
+
+**Scope and `feature_key` are immutable after creation** -- `update_feature_flag()` only
+ever touches `description`/`enabled`/`effective_from`/`effective_to`, the same "no edit
+path for identity fields, delete-and-recreate instead" reasoning PLATFORM-P0-04.4 already
+used for `platform.features.key`.
+
+**RLS read policy**: SELECT open to any authenticated user from the start (the same
+reasoning PLATFORM-P0-07.1's `platform.modules` migration used in advance, avoiding a
+second widening migration later) -- a kill-switch-style flag is meaningless unless
+ordinary request-time application code, running as `authenticated`, can eventually read
+it. `platform.feature_flag_events` stays superadmin-only SELECT, matching
+`platform.module_status_events`' own sensitive-history trust level.
+
+**Application layer** (`packages/core/src/admin/platform-feature-flags.ts`):
+`listFeatureFlags()` (joins in plan/module display names), `listFeatureFlagScopeOptions()`
+(for the UI's own scope dropdowns), `createFeatureFlag()`/`updateFeatureFlag()`/
+`deleteFeatureFlag()` (each Zod-validated, each calling its one RPC, never a plain
+`.insert()`/`.update()`/`.delete()`), and `isFeatureFlagActive()` -- a pure, unit-tested
+derivation of a flag's *current* effective state from its own `enabled`/
+`effectiveFrom`/`effectiveTo` fields, used only by this story's own admin UI status badge
+(Active/Scheduled/Expired/Disabled). 21 new unit tests (Zod schema edge cases -- scope
+requiredness per scope type, country-code shape, effective-window ordering, reason
+requiredness -- plus 6 `isFeatureFlagActive()` cases).
+
+**UI**: new `/platform/feature-flags` route (added to the platform nav). One combined
+Add/Edit dialog (`FeatureFlagDialog`, mirrors `plan-dialog.tsx`'s established pattern) --
+scope is editable only at creation (read-only text in Edit mode), and a reason `Textarea`
+is required for every submission, create or edit, with the confirm button disabled until
+it's non-empty. A separate `DeleteFlagDialog` (`AlertDialog` + its own required reason)
+mirrors `feature-entitlements-section.tsx`'s own delete-confirmation pattern. Desktop
+table / mobile card split per CLAUDE.md development principle #12 and
+docs/design/claude-ui-design-rules.md rule 5, mirroring `plans/page.tsx`'s own established
+split.
+
+**Deliberately not built this story**: no real kill-switch wiring into any subsystem
+(AI research, outbound messaging, WhatsApp, government submission, or any other module) --
+see the workstream-boundary reasoning above; no business/user-level scope (§12.2's own
+explicit P1); no dedicated audit-browsing UI for `platform.feature_flag_events` (§16,
+Platform Audit, remains that future, broader story, the same deferral 07.2/07.3 already
+made for `platform.module_status_events`); no scope-editing after creation (see the
+immutability reasoning above); no automatic enable/disable at `effective_from`/
+`effective_to` boundaries -- `isFeatureFlagActive()` is a pure read-time derivation for
+display only, not a scheduled job, since nothing in §12 asks for one and no consumer reads
+it outside this story's own status badge.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated
+warning every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1206
+files, no violations. `node scripts/lint-migration-schema.mjs` -- 146 migrations (145 ->
+146, this story's own file). `npx vitest run --root packages/core` -- 20 files / 193 tests
+(172 -> 193, +21 this story's own). `apps/web`'s own `vitest run --passWithNoTests` -- 47
+tests, unchanged. `cd apps/web && rm -rf .next && npm run build` -- clean;
+`/platform/feature-flags` lists `ƒ` (dynamic), correctly inheriting the outer layout's
+existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` the catalog and audit trail
+both start empty (0 rows each) -- no fabricated seed. `mcp__Supabase__get_advisors`
+(security) -- zero new findings, the same 5 pre-existing `rls_enabled_no_policy` tables
+and the pre-existing leaked-password-protection warning every prior entry has logged.
+`mcp__Supabase__get_advisors` (performance) -- only the same benign "unused index"
+info-level class every sibling FK index already carries in this low-traffic dev database,
+this migration's own five new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched
+`select count(*) from platform.feature_flags` returned `0` cleanly (the open-SELECT
+catalog policy working as intended for an ordinary business member), and role-switched
+`select platform.create_feature_flag('live_dev_test', ..., 'live dev test - should be
+rejected')` returned a real Postgres error -- `P0001: Forbidden: only a SUPERADMIN can
+create a feature flag.` -- raised by the function's own internal check, not a generic RLS
+denial. Reconfirmed immediately after via a plain read that both `platform.feature_flags`
+and `platform.feature_flag_events` still had `0` rows -- this real user's attempt left
+zero residue. As with every prior story in this log, there is no seeded demo superadmin
+user in this environment, so the "a real superadmin CAN" half of this proof is verified
+for real only against local Postgres (below), not live dev.
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-feature-flags-rls.mjs`, wired into `package.json`'s
+`test:db` composite script after `test-platform-module-status-rls.mjs`. Same Alice
+(business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling
+script uses. **All 35 assertions passed on the first run** against the full current
+migration timeline (146 files): the catalog and audit trail both start empty; Alice can
+read the (empty) catalog but every one of her create/update/delete attempts is rejected by
+the functions' own internal checks with zero residue in either table; a genuine superadmin
+can create global/plan/module/country-scoped flags, each storing its scope value
+correctly; `feature_key` uniqueness holds even for a superadmin; the scope CHECK
+constraint rejects all three "missing scope value for this scope_type" mistakes plus the
+"global with a stray scope value" mistake; the effective-window CHECK rejects
+`effective_to` at or before `effective_from`; an empty or whitespace-only reason is
+rejected by all three functions with no partial writes; `update_feature_flag()` provably
+touches only `description`/`enabled`/`effective_from`/`effective_to` (scope untouched,
+matching the function's own signature having no scope parameters at all); a create/update/
+delete each write exactly one atomic audit event with a real JSONB before/after snapshot;
+deleting a flag nulls the audit row's own `flag_id` (via `on delete set null`) while
+`feature_key`/`previous_value` survive intact; the audit trail's own SELECT is
+superadmin-only, unlike the open `platform.feature_flags` catalog; and nobody -- including
+a superadmin -- can bypass any of the three functions with a direct INSERT/UPDATE/DELETE
+on either table. Local Postgres 16 was already installed in this environment; started via
+`pg_ctlcluster 16 main start` (it had stopped between sessions, confirmed via
+`pg_lsclusters` both before and after).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully creates/edits/
+deletes a feature flag" half of the live-dev proof, and any live browser walkthrough of
+the new `/platform/feature-flags` page (opening the Add dialog, picking a scope, seeing
+the Active/Scheduled/Expired/Disabled badge render, deleting a flag), were **not**
+performed against dev and are not claimed here. That half was verified for real only
+against local Postgres (all 35 assertions above) -- the "a non-superadmin is rejected,
+with zero residue" half, and the underlying schema/function/RLS shape, were verified for
+real against both the live dev Supabase project (role-switched, as a real user, a real
+Postgres error raised by the function's own check) and local Postgres, not merely asserted
+from reading the code or the SQL.
+
+**Status**: PLATFORM-P0-08.1/08.2/08.3/08.4 done -- §12 (Feature Flags) is now fully
+complete. This run's own usage-tracking note: well under the 80% stop threshold. Moving to
+the next doc section in order: §13 Internal AI Provider & Keys (PLATFORM-P0-09).
