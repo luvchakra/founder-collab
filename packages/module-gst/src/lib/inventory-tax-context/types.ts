@@ -17,4 +17,8 @@ export type ItemTaxContext = {
   hsnCode: string | null;
   taxRate: number;
   status: string;
+  /** `core.items.category_id` -- COMPLY-P1-02.5 (Product/Service Taxability) reads this to
+   * look up a business's own `gst.item_category_tax_classifications` mapping. `null` when
+   * the item has no category assigned at all (not every item needs one). */
+  categoryId: string | null;
 };

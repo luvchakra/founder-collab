@@ -93,7 +93,7 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 02.2 | Economic Nexus Tracker | Done (initial focus list; generic engine extends to any state) |
 | | 02.3 | Physical Nexus Inputs | Done |
 | | 02.4 | Sales Tax Registration Obligations | Done |
-| | 02.5 | Product/Service Taxability | Not started |
+| | 02.5 | Product/Service Taxability | Done (clothing + groceries seeded across the 10-state focus list; prepared_food/digital_goods/saas/services are catalog-only) |
 | | 02.6 | Exemption Certificates | Not started |
 | | 02.7 | Sales Tax Returns/Remittance | Not started |
 | | 02.8 | 1099 Information Returns | Not started |
@@ -6257,3 +6257,231 @@ under the One Big Beautiful Bill Act, and the IRS e-file aggregate threshold is 
 per filer, effective 1-January-2024 per TD 9972 -- both verified via WebSearch 2026-09-12
 but not yet built into any code this session). Left for a follow-up session/story rather
 than rushed in the remaining time, per backlog rule 4 ("one story at a time").
+
+### 02.5 -- Product/Service Taxability (2026-09-12)
+
+Resumed this run. `npm install` run first (fresh worktree, no `node_modules`, per this
+run's own instruction to avoid the documented stale-`@cofounderai/*`-resolution artifact).
+`git fetch origin main comply-backlog` confirmed `origin/main..origin/comply-backlog` empty
+(fully merged) -- but `git branch -vv` showed this worktree's checked-out branch was an
+auto-generated `worktree-agent-...` branch pointing at the SAME commit as `main`, not the
+real `comply-backlog` branch itself (this run's own start-of-session warning that this
+exact artifact "has hit every workstream in this repo, including this one, at least once"
+-- it did again here). Fixed by `git checkout comply-backlog` (the local branch already
+existed, unchecked-out elsewhere, tracking `origin/comply-backlog` at the correct tip)
+before touching anything.
+
+The backlog's own §2 US section names "product/service taxability" as a key concept; this
+story is the first of 02.5-02.8 to actually need it. **Checked
+`docs/plan/00-MASTER-PLAN.md` §5 first** (backlog rule 1/5, CLAUDE.md non-negotiable #5, and
+this run's own explicit instruction to check what P0's India work already built for the
+equivalent generic concept): "Item category | `core.item_categories` | inventory, fsm" is
+already the canonical home for a business's own product categories -- this story does NOT
+invent a parallel product taxonomy. The gap is real, though: `core.item_categories` is a
+free-text, per-business name ("Kids Apparel"), meaningless to a Pennsylvania
+clothing-exemption rule until it's tagged with this platform's own fixed vocabulary.
+`lib/inventory-tax-context/hsn-sac.ts` (COMPLY-P0-04.3) was also checked and confirmed NOT
+reusable as-is: HSN/SAC is a single numeric-code classification an India GST invoice
+needs; US sales tax carve-outs are named by everyday product CATEGORY (clothing, groceries,
+...), a structurally different concept needing its own small vocabulary, not a code format
+validator.
+
+**Design decision -- reuse `TreatmentCode` (COMPLY-P0-02.4), don't invent a new
+standard/reduced/exempt vocabulary**: a US product-taxability rule's value is
+`{treatment, ratePercent, label}` using the SAME closed `standard`/`reduced`/`exempt`
+codes `lib/compliance/treatments.ts` already established for every VAT/GST regime in this
+module -- "clothing is exempt" and "a supply is zero-rated" are the same kind of fact
+(a classification, never a rate), so there was no reason to define a second, parallel
+vocabulary just because the regime is US sales tax rather than GST/VAT.
+
+**Design decision -- a new small link table, `gst.item_category_tax_classifications`,
+not a column on `core.items`/`core.item_categories`**: a business's own tax-category tag
+for one of its categories is a Compliance-owned interpretation (backlog §5: "Compliance
+owns tax interpretation"), not a `core`-owned fact about the category itself -- adding a
+`tax_category` column to `core.item_categories` would put a US-specific (and, later,
+other-regime-specific) concept on a table every module reads, and would need a `core`
+schema change this story's "read what exists" scope doesn't license (CLAUDE.md
+mechanism-1 reads shared data; it doesn't authorize inventing new shared columns
+implicitly). The new table is genuinely small and Compliance-owned, the same relationship
+`gst.us_physical_nexus_facts` (COMPLY-P1-02.3) already has to a registration decision.
+Unlike that table (an immutable-ish fact-of-record) and `gst.tax_determinations`
+(append-only evidence), this one is a mutable CONFIGURATION choice -- a business may
+reclassify or remove a mapping at any time with nothing worth preserving about the old
+value -- so it supports UPDATE and DELETE, matching `gst.compliance_profiles`/
+`gst.tax_registrations`'s own mutable-config precedent instead. A `before insert or
+update` trigger closes the same "confused deputy" gap `core.items.supplier_party_id`'s own
+trigger already closed for a different FK: nothing but a trigger stops a member of
+business B from pointing `category_id` at a `core.item_categories` row that actually
+belongs to business A while `business_id` correctly says B (RLS's own `with check` only
+inspects the row's own `business_id` column) -- verified live (see below).
+
+**Design decision -- category-aware fallback, never a one-size-fits-all default (backlog
+rule 11, "never guess in the risky direction")**: `lib/us-product-taxability/categories.ts`
+marks each of its seven categories `defaultsToGeneralRate: true` (general, clothing,
+groceries, prepared_food, digital_goods) or `false` (saas, services). Absent a
+category-specific override row, a GOODS-like category safely falls back to "taxed like
+general tangible personal property at the state's own general rate" -- a safe default
+because US sales tax statutes tax TPP by default unless a specific carve-out exists (the
+same default direction every unseeded state in COMPLY-P1-02.1's own rate seed already
+relies on implicitly). A SERVICE-like category (`saas`/`services`) never falls back that
+way: whether a state taxes services or SaaS at all varies unpredictably state-by-state
+with no safe universal default, so absent a specific rule this platform reports
+`resolved: false` rather than guessing either taxable or exempt -- guessing wrong in
+EITHER direction here would misrepresent a real obligation, not just under- or
+over-state one the way a single-sided "never guess false" rule would prevent.
+
+**Research, not assumption** (backlog rule 6, and this run's own instruction to verify
+the facts named in the audit log before using them -- these two facts were NOT
+pre-supplied, so this story did its own search from scratch): `WebSearch` 2026-09-12
+against Kiplinger's, Zamp's, TaxHero's, and LegalClarity's own 2026 state-by-state
+grocery-tax guides confirmed groceries (unprepared food for home consumption) are exempt
+from STATE-level sales tax in all ten states in COMPLY-P1-02.1's own focus list -- none of
+them appear on the current, much shorter 2026 list of states that still tax groceries
+(Alabama, Arkansas, Hawaii, Idaho, Mississippi, Missouri, South Dakota, Tennessee, Utah,
+Virginia). **Illinois is a real, dated regulatory CHANGE, seeded as a genuine two-version
+lineage**: Illinois' own long-standing 1% statewide grocery tax was eliminated effective
+1-January-2026 (Illinois Department of Revenue's own FY 2026-03 bulletin, corroborated by
+TaxCloud's and Avalara's independent coverage of the same law) -- version 1 (`reduced`,
+1%) superseded by version 2 (`exempt`) at that exact date. Illinois' own new law ALSO
+authorizes municipalities/counties to impose their own local 1% grocery tax by ordinance
+(TaxCloud/Avalara both note over 600 localities already had by this migration's own
+"today") -- NOT modeled, the same local-rate gap COMPLY-P1-02.1 already flagged for
+general sales tax; this row records the STATE-level treatment only. Georgia and North
+Carolina's own state-level grocery exemptions carry the same named local-rate caveat.
+
+For clothing, `WebSearch` confirmed only two of the ten focus-list states carve out a
+real exemption: **Pennsylvania** (a broad, longstanding exemption for everyday clothing/
+footwear -- formal wear, sporting goods, and protective gear remain taxable -- per 61 Pa.
+Code Chapter 53 and the PA Department of Revenue's own REV-717 bulletin, cited
+consistently by TaxJar/Commenda/Stripe/Kintsugi/Sovos/SalesTaxHandbook) and **New York**
+(clothing/footwear under $110 per item exempt from the state's 4% tax, restored to that
+threshold effective 1-Apr-2012 per NYSenate.gov's own press release and NY Department of
+Taxation and Finance Publication 718-C). **A real simplification named explicitly, not
+silently absorbed**: New York's exemption is a PER-ITEM PRICE threshold, but this
+platform's taxability engine resolves per ITEM CATEGORY, not per specific unit price (no
+such field exists in `UsProductTaxabilityRuleValue`) -- an actual clothing item priced at
+or above $110 would be taxed under real NY law but reported exempt by this row. Flagged in
+the row's own `source` text and this migration's own header comment as a concrete,
+named gap for a future story (adding a price-threshold field), not worked around here. The
+other eight focus-list states (California, Texas, Florida, Illinois, Ohio, Georgia, North
+Carolina, Washington) have no general clothing exemption -- no override row is seeded for
+them; the generic engine's own goods-category fallback to the general state rate already
+produces the correct answer without a redundant "standard" row per state.
+
+**Scoped to two of the seven catalog categories this session** (backlog rule 6: real,
+versioned, source-cited content over a sprawling, thinly-verified one, the same
+"narrower-than-the-whole-space" precedent every prior COMPLY-P1-02 story already set for
+states/categories/regime shapes) -- `prepared_food`/`digital_goods`/`saas`/`services` ship
+as catalog entries with NO seeded rule rows yet, the same "vocabulary ships before every
+country has real content" precedent `lib/compliance/treatments.ts` (COMPLY-P0-02.4)
+already established. A caller resolving one of those four for any state correctly gets
+`resolved: false` (never a guessed treatment), not an error.
+
+**What was built**:
+- `lib/inventory-tax-context/types.ts`/`queries.ts` extended: `ItemTaxContext` gained
+  `categoryId` (`core.items.category_id`, already existed, simply not previously
+  selected) -- a minimal, safe read extension, not a schema change.
+- `lib/us-product-taxability/{types,categories}.ts` (+ 8 test cases) -- the closed
+  seven-category vocabulary and its kind-based default (`good`/`part` -> `general`,
+  `service`/`labour` -> `services`, `expense` -> `null`, since an internal expense line is
+  never itself sold/invoiced -- product taxability is a non-question for it, distinct from
+  `resolved: false`, a real question this platform just has no rule to answer yet).
+- `lib/us-product-taxability/rules.ts` (+ 7 test cases) -- `usProductTaxabilityRule`/
+  `parseUsProductTaxabilityRuleValue`/`getEffectiveUsProductTaxabilityRule`, reading
+  `gst.tax_rules` rows keyed `rule_key = product_taxability_<category>`, same shape as
+  `lib/tax-rules/us-sales-tax.ts`.
+- `lib/us-product-taxability/determine.ts` (+ 8 test cases) -- the pure
+  `determineUsProductTaxability` combiner described above, DB-independent.
+- `lib/us-product-taxability/classification.ts` -- CRUD over
+  `gst.item_category_tax_classifications`, gated by `settings.manage` (a tax-configuration
+  decision, same shape `declareUsPhysicalNexusFact` already established), validating
+  `taxCategory` against the catalog in application code (not a DB enum, matching every
+  other free-text classification column in this schema).
+- `lib/us-product-taxability/queries.ts` -- `resolveItemTaxCategory`/
+  `getUsProductTaxability(businessId, itemId, stateCode, asOf?)`, the orchestrator tying
+  an item's classification, the category rule, and the state's general rate together. No
+  test file (thin orchestrator over already-tested pure pieces plus already-tested
+  queries, this module's established convention).
+- `supabase/migrations/20260912290000_gst_item_category_tax_classifications.sql` (the new
+  table + confused-deputy trigger + tenant/licensed/settings.manage RLS, DELETE included);
+  `20260912300000_gst_tax_rules_us_product_taxability_seed.sql` (13 rows: 2 clothing, 11
+  groceries including Illinois' own two-version lineage); `20260912310000_..._category_id_
+  index.sql` (a same-session follow-up fix -- see below).
+
+**A real advisor finding caught and fixed in the same story**: `mcp__Supabase__
+get_advisors` (performance) flagged `gst.item_category_tax_classifications`'s own
+`category_id` foreign key as unindexed immediately after applying the table migration --
+its `unique(business_id, category_id)` index has `business_id` as the LEADING column,
+which doesn't cover a lookup keyed by `category_id` alone. Fixed via an immediate
+follow-up migration (`create index ... (category_id)`), kept as its own file rather than
+editing the already-applied table migration, matching COMPLY-P0-07.6's own
+same-session-discovered-fix precedent.
+
+**What was deliberately left out**: `prepared_food`/`digital_goods`/`saas`/`services`
+rule content for any state (catalog-only, see above); a per-item-price threshold field
+(New York's own real simplification, named above); any state outside the existing
+10-state focus list; any UI (no Compliance UI epic exists for P1 yet, matching
+COMPLY-P1-02.3/02.4's own "backend before UI" precedent) or wiring into `core.documents`
+line creation (COMPLY-P1-12.1-shaped future work, the same "flag the missing cross-module
+wiring, don't build it speculatively" call COMPLY-P0-04.3 already made for HSN/SAC);
+local (county/city/district) grocery/clothing rate variation (Illinois' own new local
+grocery-tax option, Georgia/North Carolina's own local rates on groceries) -- this schema
+still has no local-rate concept at all, the same gap COMPLY-P1-02.1 already flagged.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-gst` -- clean.
+- `npm run typecheck` (full monorepo) -- clean across all 8 workspaces.
+- `npm run lint --workspaces --if-present` -- 0 errors; same 1 pre-existing unrelated
+  warning as every prior story.
+- `node scripts/lint-import-boundaries.mjs` -- 1396 files scanned, 0 violations.
+- `node scripts/lint-migration-schema.mjs` / `lint-gst-no-duplicate-masters.mjs` -- 173
+  migration files each, 0 violations.
+- `npx vitest run --root packages/module-gst` -- 76 files / 594 tests passed (571
+  pre-existing + 23 new: 8 in `categories.test.ts`, 7 in `rules.test.ts`, 8 in
+  `determine.test.ts`; `inventory-tax-context/queries.test.ts` extended in place, not
+  added to, for the new `categoryId` field).
+- All three migrations applied live to the **dev** Supabase project
+  (`jazdtomcgqjxjueedmck`) via `mcp__Supabase__apply_migration`, then confirmed by
+  directly querying the 13 inserted `gst.tax_rules` rows back (correct
+  `jurisdiction`/`version`/`effective_from`/`effective_to`/`treatment`/`value` for every
+  row, including Illinois' own two-version lineage). `mcp__Supabase__get_advisors`
+  (security): identical finding set to immediately before this story (same 5 pre-existing
+  `rls_enabled_no_policy` infos, the 1 pre-existing `auth_leaked_password_protection`
+  warning) -- no new findings. Performance: one new finding (the unindexed `category_id`
+  FK, described above) caught and fixed in the same story; the re-check afterward showed
+  only the expected new "unused index" info-list entries for this table's own two new
+  indexes (a traffic-free dev project, same as every prior story's own new index).
+- **Local Postgres RLS harness actually run this story** (`pg_ctlcluster 16 main start`
+  succeeded immediately, per this run's own "check first whether you have a working local
+  Postgres" instruction -- available this session, unlike some prior sessions in this
+  log): new `scripts/test-gst-item-category-tax-classifications-rls.mjs`, added to
+  `package.json`'s `test:db` chain -- tenant isolation, `settings.manage` gating (Carol,
+  a viewer, cannot create/update/delete a classification; Alice, an owner, can), the
+  confused-deputy guard (Alice cannot point `category_id` at Bob's own `core.
+  item_categories` row while claiming `business_id` = Alice's -- rejected by the trigger),
+  the `unique(business_id, category_id)` constraint (a second insert for the same pair is
+  rejected; an UPDATE to the existing row works), and DELETE actually removing the row
+  (unlike an append-only evidence table) -- all passing. One assertion needed the SAME
+  corrected cross-tenant-UPDATE pattern COMPLY-P0-07.5's own audit entry already
+  documented (RLS's `USING` clause makes an unauthorized row invisible to the statement
+  entirely, so Postgres matches zero rows and returns successfully rather than raising --
+  `assertThrows` is the wrong assertion for that case; fixed by asserting the row is
+  unchanged via a read as the rightful owner instead, both for Carol's own UPDATE and
+  DELETE attempts on Alice's classification).
+- Re-ran two adjacent already-merged RLS scripts to confirm no regression from this
+  story's two new migrations: `test-gst-us-physical-nexus-facts-rls.mjs` (all passing,
+  unaffected) and `test-gst-tax-rules-rls.mjs` (failed at its own pre-existing
+  `jurisdiction is null` uniqueness assertion -- confirmed via `git status` that this
+  script was untouched by this story, and the failing assertion is exactly the
+  NULL-uniqueness gap in `gst.tax_rules` this run's own start-of-session briefing already
+  named as a known, pre-existing, out-of-scope issue -- not introduced or touched by this
+  story's own two new `gst.tax_rules` rows, which all have a non-null `jurisdiction`). The
+  full `npm run test:db` chain was not re-run end-to-end this story (it is already known
+  to fail partway through, before reaching this story's own new script, at the
+  also-pre-existing `test-discovery-rls.mjs` permission-count assertion this run's own
+  briefing separately named as out of scope) -- both gaps are named here again only to
+  confirm this story didn't touch or worsen either, not to re-litigate ownership.
+- `cd apps/web && npm run build` -- not re-run; no `apps/web` route/UI file touched this
+  story, matching every prior lib-only story's own verification convention.
+- No live browser walkthrough -- moot, this story shipped no UI.
+- No lockfile drift (`node_modules` already installed at the start of this session).

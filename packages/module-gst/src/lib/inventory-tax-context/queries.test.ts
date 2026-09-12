@@ -12,6 +12,7 @@ describe("inventory tax context mapping", () => {
       hsn_code: "8471",
       tax_rate: 18,
       status: "active",
+      category_id: "cat-1",
     });
     expect(item).toEqual({
       id: "item-1",
@@ -22,10 +23,11 @@ describe("inventory tax context mapping", () => {
       hsnCode: "8471",
       taxRate: 18,
       status: "active",
+      categoryId: "cat-1",
     });
   });
 
-  it("passes through a null sku/hsn_code (a service item, say, has neither)", () => {
+  it("passes through a null sku/hsn_code/category_id (a service item, say, has none)", () => {
     const item = mapItemTaxContext({
       id: "item-2",
       kind: "service",
@@ -35,9 +37,11 @@ describe("inventory tax context mapping", () => {
       hsn_code: null,
       tax_rate: 18,
       status: "active",
+      category_id: null,
     });
     expect(item.sku).toBeNull();
     expect(item.hsnCode).toBeNull();
+    expect(item.categoryId).toBeNull();
     expect(item.kind).toBe("service");
   });
 
@@ -52,6 +56,7 @@ describe("inventory tax context mapping", () => {
         hsn_code: null,
         tax_rate: 0,
         status: "active",
+        category_id: null,
       });
       expect(item.kind).toBe(kind);
     }
