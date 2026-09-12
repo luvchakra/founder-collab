@@ -24,6 +24,7 @@
  */
 
 import { INDIAN_STATES } from "@cofounderai/core/lib/gst";
+import { US_STATES } from "./us-states";
 
 export type JurisdictionLevel = "state" | "province" | "local";
 
@@ -34,14 +35,24 @@ export type JurisdictionCatalogEntry = {
 };
 
 /**
- * Only India (P0's one supported country/regime) has real jurisdiction data. Every other
- * country in `countries.ts` -- all still `status: "planned"` -- has no jurisdiction
- * catalog yet either; its own country pack (P1) is responsible for adding one (e.g.
- * Canada's provinces, US states/local jurisdictions) alongside the rest of that regime's
- * working logic, not this story reaching ahead to guess their shape.
+ * India and (as of COMPLY-P1-02.1) the United States have real jurisdiction data. Every
+ * other country in `countries.ts` -- still `status: "planned"` -- has no jurisdiction
+ * catalog yet either; its own country pack (a later P1 story) is responsible for adding one
+ * (e.g. Canada's provinces) alongside the rest of that regime's working logic, not this
+ * story reaching ahead to guess their shape.
+ *
+ * The value stored for a US jurisdiction is its own two-letter USPS code (e.g. "CA"), NOT
+ * the full state name the way India's own convention stores "Maharashtra" -- deliberately
+ * different from India's own `name` convention because `lib/tax-rules/us-sales-tax.ts`'s
+ * own versioned `gst.tax_rules` rows are keyed by that same two-letter code (matching
+ * `gst.tax_registrations.jurisdiction`'s own eventual match target), and because a US
+ * state's own two-letter code is already the unambiguous, universally-recognized identifier
+ * for it (unlike India, which has no equivalent short-code convention already in use
+ * anywhere else in this platform).
  */
 const JURISDICTIONS_BY_COUNTRY: Record<string, JurisdictionCatalogEntry[]> = {
   IN: INDIAN_STATES.map((s) => ({ name: s.name, level: "state" })),
+  US: US_STATES.map((s) => ({ name: s.code, level: "state" })),
 };
 
 export function getJurisdictions(countryCode: string): JurisdictionCatalogEntry[] {

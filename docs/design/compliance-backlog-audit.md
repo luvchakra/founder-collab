@@ -89,7 +89,15 @@ offering backlog's own audit log has been documenting the same limitation.
 | | 01.4 | OSS/IOSS | Done |
 | | 01.5 | VAT ID Validation / VIES Where Supported | Done (format+checksum; VIES itself stubbed -- ec.europa.eu unreachable, see story log) |
 | | 01.6 | Country-Specific E-Invoicing | Done |
-| P1-02 … P1-12 | — | (US, Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
+| P1-02 | 02.1 | State/Local Jurisdictions | Done (50 states + DC catalog; rates seeded for a 10-state initial focus list) |
+| | 02.2 | Economic Nexus Tracker | Done (initial focus list; generic engine extends to any state) |
+| | 02.3 | Physical Nexus Inputs | Done |
+| | 02.4 | Sales Tax Registration Obligations | Done |
+| | 02.5 | Product/Service Taxability | Not started |
+| | 02.6 | Exemption Certificates | Not started |
+| | 02.7 | Sales Tax Returns/Remittance | Not started |
+| | 02.8 | 1099 Information Returns | Not started |
+| P1-03 … P1-12 | — | (Canada, Singapore, UAE, Saudi, ANZ, Asia, gov adapters, AI assistant, risk center, cross-module intelligence) | Not started |
 
 **51 of 59 in-scope P0 stories done** (01.4's own scope was absorbed into 01.2 -- see that
 story's log entry for why; COMPLY-P0-01, the shell epic, is now fully covered except
@@ -6030,3 +6038,222 @@ COMPLY-P1-01) or `scripts/test-discovery-rls.mjs`'s own count.
 **COMPLY-P1-01 (EU VAT Framework) is now fully done.** Per §8's "P1 Release 1" ordering,
 next is COMPLY-P1-02 (United States -- state/local sales tax jurisdictions, economic nexus,
 physical nexus, taxability, exemption certificates, sales tax returns, 1099s).
+
+## Epic 02 -- United States (COMPLY-P1-02.1 through 02.4, 2026-09-12)
+
+The backlog's own §2 US section states the key architectural difference from every VAT
+country pack (COMPLY-P1-01): "the US is not a GST/VAT model... the US country pack needs a
+jurisdiction engine rather than one tax rate." Built COMPLY-P1-02.1 through 02.4 as one
+coherent vertical slice this session (jurisdictions -> economic nexus -> physical nexus ->
+combined registration-obligation determination) -- the real "do I need to register in this
+state" engine, mirroring how COMPLY-P0-04.1's own GSTIN Management was the anchor story for
+India. COMPLY-P1-02.5 (Product/Service Taxability), 02.6 (Exemption Certificates), 02.7
+(Sales Tax Returns/Remittance) and 02.8 (1099 Information Returns) are NOT started --
+flagged explicitly below with why they were left for a follow-up session rather than
+rushed.
+
+**Checked `docs/plan/00-MASTER-PLAN.md` §5 and this backlog's own §4/§5 first (backlog rule
+1/5)**: the generic `gst.tax_rules` engine (COMPLY-P0-02.3) again needed zero schema
+changes -- US state sales tax rates and economic nexus thresholds are just more rows, keyed
+by `country='US'`, `jurisdiction=<two-letter state code>`, `regime='SALES_TAX'` (already
+named as a "planned" catalog entry since COMPLY-P0-01.2's own placeholder list). Physical
+nexus (COMPLY-P1-02.3) is the one genuinely NEW small table this epic adds -- see that
+story's own entry below for why nothing existing already covers it.
+
+### 02.1 -- State/Local Jurisdictions (2026-09-12)
+
+`lib/compliance/us-states.ts` -- all 50 states + DC, the same "fixed application-code
+catalog, not a versioned rule" shape `lib/compliance/eu.ts`'s own EU member-state list
+already established for a structural, decades-stable geographic/legal-status fact.
+Verified via WebSearch 2026-09-12 (commenda.io, kiplinger.com, taxfoundation.org,
+galvix.com, reversesalestaxcalc.org) which five states have NO state-level sales tax at all
+("NOMAD": Alaska, Delaware, Montana, New Hampshire, Oregon) -- Alaska is a real, named
+partial exception (over 100 of its own municipalities impose LOCAL sales tax up to 7.5%
+despite no state tax), recorded as a flag (`hasLocalSalesTaxWithNoStateTax`) without
+attempting to catalog any specific municipality's own rate.
+
+**The backlog's own "don't compete on the size of a proprietary tax database" conclusion
+(§1) applied concretely here**: this epic deliberately does NOT attempt Avalara's own
+12,000+-US-jurisdiction county/city/special-district granularity. Real, versioned,
+source-cited content exists only for an **initial focus list of 10 states** (the same
+narrower-than-the-whole-country-pack precedent COMPLY-P1-01.2 already established for the
+EU's own 5-of-27 states): California, Texas, New York, Florida, Illinois, Pennsylvania,
+Ohio, Georgia, North Carolina, Washington -- chosen to exercise every real economic-nexus
+threshold SHAPE this backlog's own research names (a plain $100k-revenue-only state, three
+$500k states, the one AND-test state, two OR-test states), not just the single most common
+one.
+
+`lib/compliance/jurisdictions.ts` extended with a `US` entry (COMPLY-P0-02.2's own
+catalog) -- unlike India's own convention (`gst.tax_registrations.jurisdiction` stores the
+full state NAME, e.g. "Maharashtra"), the US entry stores the two-letter USPS CODE (e.g.
+"CA"), matching `lib/tax-rules/us-sales-tax.ts`'s own rule-lineage convention -- a
+deliberate, named departure from India's own convention, not an inconsistency.
+
+Flipped `US` from `"planned"` to `"supported"` in `lib/compliance/countries.ts` -- the
+existing country bar/registrations UI needed no code changes to make US selectable, the
+same pleasant surprise COMPLY-P1-01.1 already found for the five EU countries.
+
+**What was deliberately left out**: the 40 other states + DC's own real rate/threshold
+content (a real, plausible follow-up -- the generic engine already extends to them via more
+rows, no code change); any LOCAL (county/city/district) rate modeling at all (see above).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/compliance/` -- covers
+`us-states.test.ts` (6 new cases) and updated `jurisdictions.test.ts`/`countries.test.ts`
+assertions (2 new cases added to `jurisdictions.test.ts` for the US catalog; `countries.test.ts`'s
+existing cases were extended in place, not added to).
+
+### 02.2 -- Economic Nexus Tracker (2026-09-12)
+
+`lib/tax-rules/us-sales-tax.ts` -- generic (state-code-parametrized) rate/threshold lookup
+helpers, mirroring `eu-vat-rates.ts`'s own shape. `lib/us-nexus/economic.ts` --
+`determineEconomicNexus`, a pure function implementing the South Dakota v. Wayfair, Inc.,
+138 S. Ct. 2080 (2018) doctrine every state's own economic nexus statute implements: a
+strict EXCEED (not "meets or exceeds") comparison against a state's own revenue and/or
+transaction-count threshold, with three real threshold SHAPES this session found actually
+exist and modeled explicitly:
+- `revenue_only` (most common -- Florida, Illinois since 2026, Pennsylvania, North
+  Carolina since 2024, Washington, plus California/Texas at a higher $500k figure).
+- `revenue_or_transactions` (Ohio, Georgia, and Illinois/North Carolina's own PRIOR rule
+  before each state's own 2024/2026 amendment) -- either prong alone proves nexus; both
+  known and both below their own threshold is the only way to disprove it.
+- `revenue_and_transactions` (New York's own genuinely unusual AND test -- $500,000 AND
+  100 transactions, confirmed the only other state besides Connecticut, not in this
+  initial focus list, to use this shape) -- a known "false" on EITHER side already proves
+  NO nexus regardless of the other; both known "true" is required to prove nexus.
+
+**Two real, dated regulatory CHANGES found and modeled as genuine two-version rule
+lineages (backlog rule 6, the same versioning precedent COMPLY-P0-04.7's own India GST 2.0
+seed established)**, not just static current-state snapshots:
+- **Illinois** removed its own 200-transaction prong effective 1-January-2026 (confirmed
+  via WebSearch 2026-09-12, taxcloud.com and this session's own broader research) --
+  seeded as version 1 (OR-test, from Illinois' own original 1-Oct-2018 economic-nexus
+  effective date) superseded by version 2 (revenue-only) at that exact date.
+- **North Carolina** removed its own 200-transaction prong effective 1-July-2024
+  (confirmed via WebSearch 2026-09-12, taxjar.com/salestaxinstitute.com/galvix.com/
+  numeral.com/trykintsugi.com/taxcloud.com all independently agreeing) -- seeded the same
+  two-version way, from North Carolina's own original 1-Nov-2018 effective date.
+
+Both states' own ORIGINAL 2018 effective dates are widely documented across secondary
+sources but were NOT independently re-verified against either state's own Department of
+Revenue this session -- named explicitly in the migration's own comment and each of those
+two rows' own `source` column, the same "verify before production use" caveat every prior
+rate/threshold seed in this module already carries.
+
+**What was deliberately left out**: economic nexus threshold content for any state outside
+the 10-state initial focus list (a caller resolving one of the other 40+ states' own
+threshold correctly gets `null` -- "no rule found" -- never a guessed default); wiring a
+real per-state sales AGGREGATION from this platform's own `core.documents` history (no
+buyer-state-level sales tracking exists in this platform yet -- `salesUsd`/
+`transactionCount` are caller-DECLARED inputs, the same "self-declared, not computed"
+posture COMPLY-P1-01.3's own `cumulativeEuDistanceSalesEur` already established, not a new
+gap this story introduces).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/tax-rules/
+src/lib/us-nexus/` -- 10 new cases for `us-sales-tax.ts`'s own parse functions (including the
+internal-consistency checks: a `revenue_only` row may never also carry a transaction
+threshold, and vice versa) plus 12 new cases for `determineEconomicNexus` covering all
+three threshold shapes' own positive/negative/unknown branches explicitly (the OR test's
+"either known true settles it," the AND test's "either known false settles it," and both
+tests' own "insufficient information" null cases). Migration
+(`20260912270000_gst_tax_rules_us_sales_tax_seed.sql`, 22 rows across 10 states) applied
+live to the dev Supabase project; `get_advisors` (security) identical finding set
+before/after.
+
+### 02.3 -- Physical Nexus Inputs (2026-09-12)
+
+**The one genuinely NEW table this epic adds, checked against the entity-ownership map
+first (backlog rule 1/5)**: nothing existing captures "which US states does this business
+have a physical presence in" -- `core.addresses` is a PARTY's own address, not a
+WonderArc business's own multi-state footprint; `gst.tax_registrations` records an
+ALREADY-obtained registration, not the underlying fact that might justify needing one.
+`gst.us_physical_nexus_facts` is genuinely Compliance-owned (backlog §5), the input side of
+a registration-obligation decision the same way `gst.tax_registrations` itself is an input
+to `gst.compliance_profiles`.
+
+**Deliberately caller-DECLARED, not derived from `core.employees`/`inventory.warehouses`
+(backlog rule 12)**: physical nexus is a LEGAL classification, not a mechanical row count
+-- `core.employees` has no state field at all today, and inferring nexus from
+`inventory.warehouses` would silently miss the real, common FBA/third-party-fulfillment
+case where inventory sits in a state without WonderArc's own warehouse record ever
+existing.
+
+**`ended_at` (nullable date), never a hard DELETE (backlog rule 13)** -- a business that
+closed a warehouse last year still needs to show it HAD physical nexus there during the
+period it operated. The one-active-declaration-per-state/type constraint is a PARTIAL
+unique index (`where ended_at is null`), the same shape `tax_registrations_one_primary_per_
+regime` already uses -- chosen specifically to sidestep the documented NULL-in-a-plain-
+unique-index gap COMPLY-P1-01.6's own audit entry flagged as a real, unfixed limitation in
+`gst.tax_rules`' sibling constraint, rather than repeating that same gap in a brand-new
+table.
+
+**What was deliberately left out**: any UI to declare a fact (no Compliance UI epic for P1
+exists yet, the same "backend before UI" precedent most of P0's own Epics 05-10 already
+set); inferring physical presence from any other module's own data (see above).
+
+**How verified**: `npx tsc --noEmit` clean; `node scripts/lint-migration-schema.mjs` -- 170
+migration files, 0 violations. Migration (`20260912280000_gst_us_physical_nexus_facts.sql`)
+applied live to the dev Supabase project; `get_advisors` (security) identical finding set
+before/after; performance advisor shows only the expected, benign "unused index" listing
+for the new table's own index (a traffic-free dev project, same as every prior story's own
+new index). **Local Postgres RLS harness actually run this story** (new
+`scripts/test-gst-us-physical-nexus-facts-rls.mjs`, added to `package.json`'s `test:db`
+chain): all assertions passing, including the two invariants that matter most for this
+table -- the partial unique index (rejects a second ACTIVE declaration for the same
+business/state/presence_type, but correctly allows a new one after the prior one is ended)
+and the no-delete policy (ended via `ended_at`, never removed) -- plus settings.manage
+permission gating, check constraints, and tenant isolation. Confirms the full 170-file
+migration timeline (through this epic's own two new migrations, on top of the three EU
+migrations before them) applies cleanly.
+
+### 02.4 -- Sales Tax Registration Obligations -- completes this session's US work (2026-09-12)
+
+`lib/us-nexus/obligations.ts` -- `determineRegistrationObligation`, a pure combiner: a
+business owes a state registration if EITHER economic or physical nexus is established
+(independent, alternative legal bases, never both required). `obligated: false` only when
+BOTH are confirmed `false`; `null` (never a guessed `false`) whenever at least one is
+unknown and neither known signal alone already proves an obligation -- the same "never
+understate an obligation" posture (backlog rule 11) every threshold determination in this
+module already follows.
+
+`lib/us-nexus/queries.ts#getUsRegistrationObligations` -- the orchestrator: evaluates the
+union of every state a caller declared sales figures for AND every state this business has
+an active physical-presence fact for (a business with a declared warehouse in a state it
+hasn't yet shipped from must still surface as a real signal, not be silently skipped for
+lack of a sales number). A state with no state-level sales tax at all (COMPLY-P1-02.1's own
+five NOMAD states) is reported `obligated: false` outright, a structural fact, not an
+unresolved threshold.
+
+**What was deliberately left out**: any UI (see 02.3's own note); wiring this into
+COMPLY-P0-09.5's own cross-epic Risk Dashboard (that dashboard's own five detectors are all
+India/GST-specific today -- extending it to a second regime is a real, plausible future
+need but a `packages/module-gst/src/lib/risk/` change beyond this already-large session's
+own remaining scope, not attempted here); a real registration-CREATION action wired to this
+signal (`gst.tax_registrations` already supports creating a `country='US'` registration
+generically via COMPLY-P0-02.1's own `createTaxRegistration` -- this story's job was the
+DETERMINATION a founder acts on, not a new mutation to wrap it).
+
+**How verified**: `npx tsc --noEmit` clean; `npx vitest run src/lib/us-nexus/` -- 7 new
+cases for `determineRegistrationObligation` covering every combination of known-true/known-
+false/unknown on both sides. `npx vitest run` (full `module-gst` suite) -- **571 tests
+passing** (534 prior end-of-COMPLY-P1-01 + 37 new across all four COMPLY-P1-02 sub-stories
+so far). `npm run lint --workspaces --if-present` -- 0 errors, same 1 pre-existing unrelated
+warning. `node scripts/lint-import-boundaries.mjs` -- 1387 files scanned, 0 violations.
+`cd apps/web && npx tsc --noEmit` -- clean (no route/UI file touched this epic, so a full
+`next build` was not re-run -- the country-flip alone was already confirmed sufficient by
+COMPLY-P1-01.1's own build verification, and no US-specific page exists yet to newly
+exercise). No live browser walkthrough -- same documented limitation as every prior story
+in this log.
+
+**COMPLY-P1-02.1 through 02.4 (United States -- jurisdictions, economic nexus, physical
+nexus, registration obligations) are done.** COMPLY-P1-02.5 (Product/Service Taxability),
+02.6 (Exemption Certificates), 02.7 (Sales Tax Returns/Remittance), and 02.8 (1099
+Information Returns) remain -- each is a substantial story in its own right (taxability
+alone would need its own real product-category research the way EU country packs needed
+per-country rate research; exemption certificates need real party-facing document
+handling; 1099s are a genuinely separate federal-income-reporting concern, not sales tax,
+with their own real 2026 regulatory change already found this session -- the 1099-NEC/MISC
+reporting threshold rises from $600 to $2,000 for payments made on or after 1-January-2026
+under the One Big Beautiful Bill Act, and the IRS e-file aggregate threshold is 10 returns
+per filer, effective 1-January-2024 per TD 9972 -- both verified via WebSearch 2026-09-12
+but not yet built into any code this session). Left for a follow-up session/story rather
+than rushed in the remaining time, per backlog rule 4 ("one story at a time").
