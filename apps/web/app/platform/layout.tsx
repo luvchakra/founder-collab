@@ -52,6 +52,9 @@ const NAV_LINKS = [
   // PLATFORM-P0-09.3: the platform-wide AI routing policy -- config-only, no runtime
   // wiring (see the migration's own docstring).
   { href: "/platform/ai-routing", label: "AI Routing" },
+  // PLATFORM-P0-09.4: the platform-wide AI feature/usage-ceiling policy -- config-only,
+  // no runtime enforcement (see the migration's own docstring).
+  { href: "/platform/ai-feature-policies", label: "AI Feature Policies" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

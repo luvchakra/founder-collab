@@ -26,7 +26,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 06 | Usage & Limits | All of §10 done (06.1-06.5) -- 06.5 (Soft vs Hard Limits, Warning Threshold) resumed and built once the user answered the three open questions -- see log |
 | | 07 | Module Administration | 07.1-07.3 all done (Registry, Kill Switch, Maintenance Mode + reconciliation) -- §11 complete, see log |
 | | 08 | Feature Flags | All of §12 done (08.1-08.4) -- see log |
-| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1/09.2 done (registry + secure key storage); 09.3 done config-only per user decision (routing policy, no runtime wiring); 09.4/09.5 remaining |
+| P0 Phase 3 | 09 | Internal AI Provider & Keys | 09.1-09.4 done (registry, secure key storage, routing policy, feature policies -- all config-only, no runtime wiring); 09.5 remaining |
 | | 10 | AI Safety / Cost Controls | Not started |
 | | 11 | Global Email / Notification Configuration | Not started |
 | | 12 | Global Integrations | Not started |
@@ -4365,3 +4365,136 @@ SQL.
 
 **Status**: PLATFORM-P0-09.3 (Provider Routing, config-only) done. Committed and merged to
 `main`. Continuing in §13's own story order: PLATFORM-P0-09.4 (AI Feature Policies) next.
+
+---
+
+### PLATFORM-P0-09.4 — AI Feature Policies (2026-09-12)
+
+**Worktree hazard checked first**: `git log --oneline -3` confirmed `HEAD` genuinely on
+`feature/platform-admin-portal`'s real tip (`db5034a`, this session's own prior
+worktree-branch fix) before writing any code -- no repeat of the earlier hazard this
+session.
+
+**Scoped as config-only, matching 09.3's own explicit decision and 09.1/09.2's own
+precedent -- not a fresh stop-and-report**: §13's own text for 09.4 is six flat fields ("AI
+enabled / allowed providers / allowed models / maximum tokens / maximum run cost / daily
+platform budget") with no worked example implying a specific enforcement algorithm, unlike
+09.3's own Discovery/CRM/Compliance routing example that drove that story's genuine
+ambiguity. Every field here is a plain, single-meaning settable value (a boolean, two lists
+against a known/free-text catalog, three positive numbers) -- there is no BYOK-precedence,
+failover-semantics, or module-vs-operation-granularity question analogous to 09.3's. Real
+enforcement is explicitly PLATFORM-P0-10.1/10.2's own later, separate section (§14, "AI
+Safety / Cost Controls": "Pause AI... and notify SUPERADMIN" when a threshold is exceeded)
+-- this story only lays the policy down, the same "table now, enforcement in a later,
+separate story" sequencing `platform.ai_providers.rate_limits`/`cost_controls` and
+`platform.modules.enabled` (wired two stories later by 07.2) already used in this exact
+backlog.
+
+**New migration**: `supabase/migrations/20260912380000_platform_ai_feature_policies.sql` --
+`platform.ai_feature_policies` (singleton, same boolean-PK-fixed-to-true trick) with
+`ai_enabled` (default `true`, preserving today's actual behavior -- there is no existing
+global AI kill switch anywhere in this codebase to turn off by surprise), `allowed_providers`
+(text array, each entry validated inside the mutation function against `platform.
+ai_providers.provider`; empty means "no restriction configured," not "block everything"),
+`allowed_models` (text array, deliberately unvalidated against any catalog -- `platform.
+ai_providers.models` is itself just free text with no cross-provider validation of its own,
+so there is no narrower list for this column to check against either), and
+`max_tokens_per_run`/`max_run_cost_usd`/`daily_platform_budget_usd` (all nullable, each
+CHECKed positive-when-set, `null` meaning "no ceiling configured" -- not a fabricated
+default cap). The two money columns are denominated in USD, not `platform.plans.currency`'s
+own per-plan currency (which defaults to INR) -- documented reasoning: every one of the
+three real AI providers bills WonderArc itself in USD regardless of which currency a
+customer's own plan is priced in, so USD is the only unit that maps onto a real invoice, not
+an assumption about customer-facing pricing. A dedicated `platform.ai_feature_policy_events`
+audit table, same "a policy-wide change doesn't belong in a per-provider audit table, and
+there is exactly one kind of event so no `action` column" reasoning `platform.
+ai_provider_routing_events` already established. Audited-mutation pattern identical to
+09.1-09.3: no INSERT/UPDATE/DELETE grant to `authenticated` on either table; every change
+goes through `platform.update_ai_feature_policies()` (SUPERADMIN + non-empty `reason`
+required, validates every `allowed_providers` entry, writes one atomic before/after
+snapshot). SELECT on the policy is open to any authenticated user (same "avoid a second
+widening migration later" reasoning, since a future PLATFORM-P0-10.x enforcement consumer
+will most likely run as an ordinary signed-in business member); SELECT on the audit trail is
+SUPERADMIN-only.
+
+**New application code**: `packages/core/src/admin/platform-ai-feature-policies.ts` --
+`getAiFeaturePolicy()`, `listAiFeaturePolicyProviderOptions()`, and
+`updateAiFeaturePolicySchema`/`updateAiFeaturePolicy()` (empty numeric-field strings
+normalize to `null`; a non-positive or non-numeric value is rejected client-side before the
+RPC call). Postgres `numeric` columns come back from `@supabase/ssr` as strings (avoiding
+float precision loss on the wire) -- converted to `number` in `toAiFeaturePolicy()` since
+neither value is ever used for exact-money arithmetic in this file, only display and
+round-trip into the edit form.
+
+**New UI**: `/platform/ai-feature-policies` -- a single settings surface (one singleton
+row), no table/mobile-card split needed, same reasoning `/platform/ai-routing` already
+documented. One `FeaturePolicyDialog` edits the whole policy at once (an AI-enabled
+checkbox, a checkbox per known provider, a comma-separated allowed-models field, and three
+numeric ceiling fields). Added to `/platform`'s nav strip as "AI Feature Policies," directly
+after "AI Routing."
+
+**Deliberately not built this story**: no runtime enforcement of any kind (this story's
+entire point, not an oversight -- see above); no AI usage dashboard (PLATFORM-P0-09.5,
+next); no per-module/per-plan scoping of the policy (the doc's own field list is flat and
+platform-wide, matching `platform.ai_provider_routing`'s own singleton shape, not a list
+scoped by module or plan); no re-validation that `allowed_models` entries are real,
+existing model IDs for any provider (same "opaque, no consumer enforces it yet" treatment
+`platform.ai_providers.models` itself already uses, and there is no per-provider model
+catalog this column could even be scoped against without inventing a `provider ->
+model` pairing the doc's own flat field list doesn't ask for).
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1223 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 149 migrations (148 -> 149, this
+story's own file). `npx vitest run --root packages/core` -- 23 files / 226 tests (218 ->
+226, +8 this story's own). `cd apps/web && rm -rf .next && npm run build` -- clean;
+`/platform/ai-feature-policies` lists `ƒ` (dynamic).
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only, applied clean on the first attempt. Confirmed via
+`execute_sql` after apply that the singleton row seeded with `ai_enabled = true`,
+`allowed_providers = {}`, `allowed_models = {}`, and all three ceiling columns `null` -- no
+fabricated lockdown -- and that `platform.ai_feature_policy_events` started empty.
+`mcp__Supabase__get_advisors` (security) -- no new finding: the same 6 pre-existing
+`rls_enabled_no_policy` INFO-level rows and the same pre-existing leaked-password-protection
+warning every prior entry has logged; nothing new from this migration, since both new tables
+have real RLS policies.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.ai_feature_policies` returned `1` cleanly, and role-switched `select
+platform.update_ai_feature_policies(...)` returned a real Postgres `P0001: Forbidden: only
+a SUPERADMIN can change the AI feature policy` error -- a genuine function-level rejection.
+As with every prior story in this log, there is no seeded demo superadmin user in this
+environment, so the "a real superadmin CAN set the policy" half of the live-dev proof was
+**not** performed against dev and is not claimed here -- verified for real only against
+local Postgres (below).
+
+**The dedicated local-Postgres RLS/behavior test this workstream's own higher bar
+requires**: new `scripts/test-platform-ai-feature-policies-rls.mjs`, wired into
+`package.json`'s `test:db` composite script immediately after
+`test-platform-ai-provider-routing-rls.mjs`. Same Alice/Zoe pair every sibling script uses.
+**All 24 assertions passed**, first run clean, against the full current migration timeline
+(149 files): the singleton row starts seeded AI-enabled with no restriction/ceiling; Alice
+can read the open policy row but her mutation attempt is rejected with zero residue; a
+genuine superadmin can set the full policy (providers, models, all three ceilings), writing
+exactly one atomic audit event; an unknown provider inside `allowed_providers` is rejected
+with zero residue; a zero/negative token count, run cost, or daily budget is rejected by the
+table's own CHECK constraints; an empty/whitespace reason is rejected; clearing the policy
+back to disabled/no-restriction/no-ceiling is accepted as a valid, honest state (and is
+itself audited); the audit trail's own SELECT is superadmin-only; and nobody -- including a
+superadmin -- can bypass `update_ai_feature_policies()` with a direct
+INSERT/UPDATE/DELETE on either table. Local Postgres 16 was already running in this
+environment.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this environment, so the "a real superadmin successfully configures the
+feature policy" half of the live-dev proof, and any live browser walkthrough of the new
+`/platform/ai-feature-policies` page, were **not** performed against dev and are not
+claimed here. That half was verified for real only against local Postgres (all 24
+assertions above).
+
+**Status**: PLATFORM-P0-09.4 (AI Feature Policies, config-only) done. Committed and merged
+to `main`. Continuing in §13's own story order: PLATFORM-P0-09.5 (AI Usage) next.
