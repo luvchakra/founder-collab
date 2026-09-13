@@ -32,16 +32,18 @@ verification in full regardless of which mode was in effect when it landed.
 | | 12 | Global Integrations | All of §16 done (12.1-12.4) -- see log |
 | | 13 | Country / Compliance Pack Administration | All of §17 resolved (13.1/13.2/13.4 done; 13.3 closed 2026-09-13 -- user decision: already satisfied by `gst.tax_rules`, no platform-layer counterpart needed) -- see log |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
-| | 14 | Platform Policies | Not started |
+| | 14 | Platform Policies | Done -- 14.1/14.2/14.3 (all of §18) built config-only, see log |
 | | 15 | Global Announcements / Maintenance | Not started |
 | | 17 | Configuration Versioning | Not started |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 12 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
-11, 12, 13), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). §17 (13) is fully
-resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by user decision
-(satisfied-by-existing-code, no platform-layer counterpart needed).
+**P0: 13 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11, 12, 13, 14), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within the AI Safety
+section). §17 (13) is fully resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by
+user decision (satisfied-by-existing-code, no platform-layer counterpart needed). §18 (14,
+Platform Policies) is fully resolved as of 2026-09-13 -- 14.1/14.2/14.3 all built,
+config-only.
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -5944,3 +5946,233 @@ was written -- there is nothing new for one to test.
 **Status**: PLATFORM-P0-13.3 CLOSED (satisfied-by-existing-code, user-decided). §17 fully
 resolved. Committed and merged to `main` as its own small commit, then this run continued
 sequentially into §18 per its task brief.
+
+### PLATFORM-P0-14.1/14.2/14.3 — Platform Policies (2026-09-13)
+
+**Worktree hazard checked first**: `git log --oneline -3` on this fresh worktree showed
+`HEAD` detached at `origin/main`'s own tip (a sibling workstream's merge commit), not
+`feature/platform-admin-portal`'s real tip. Fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing on
+`6100433` (PLATFORM-P0-13.1/13.2/13.4's own commit), reconfirmed via `git log --oneline -3`
+before touching any file. `npm install` run fresh (no `node_modules` in this worktree).
+The PLATFORM-P0-13.3 closure above was committed and merged to `main` first, as its own
+small commit, per the task brief's own instruction to treat it as a story in its own right.
+
+**§18's own text in full** -- three stories, each a flat field list plus a one-sentence
+precedence warning:
+
+```text
+PLATFORM-P0-14.1 -- Global System Policies
+Configure: session duration / password policy / file size limits / API rate limits /
+default timezone / default currency / data retention defaults / audit retention.
+Country-specific/legal rules must not be incorrectly overridden by generic platform
+settings.
+
+PLATFORM-P0-14.2 -- Data Retention Policy
+Configure platform-level defaults. Country/regulatory-specific retention must take
+precedence where applicable.
+
+PLATFORM-P0-14.3 -- Rate Limits
+Configure: API / AI / webhooks / imports / exports / automation.
+```
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5), done first**: grepped the full
+migration timeline, `docs/plan/00-MASTER-PLAN.md` §5, and the whole repo for
+"system_polic"/"session_duration"/"password_policy"/"data_retention"/"audit_retention" --
+zero hits anywhere. Genuinely new concept. Widened the grep per this run's own standing
+"widen your grep" discipline (established by PLATFORM-P0-12.1-12.4's own entry, reused most
+recently by 13.1-13.4's) to find every *real, already-enforced* value in this codebase that
+one of §18's field names might duplicate or should mirror, rather than assuming every field
+starts from nothing:
+- `core.business_settings.timezone`/`.currency` -- a **specific business's own** setting
+  (columns default `'Asia/Kolkata'`/`'INR'`). Not the same concept as a platform-wide
+  default (14.1's own "default timezone"/"default currency"), but the same real fact --
+  recording it administratively in `platform.system_policies` (seeded to the identical
+  values) is not inventing a new fact, the same "seed from the live catalog, not invented"
+  reasoning PLATFORM-P0-13.1's own country-registry seed already used. No runtime code is
+  wired to read the new table to set this default -- `core.business_settings`'s own column
+  DEFAULT keeps doing that job, unchanged.
+- `core.check_api_rate_limit(_business_id, _limit default 120)` -- a real, live,
+  already-enforced per-business-per-minute API rate limiter (`supabase/migrations/
+  20260907210000_core_api_keys.sql`). `rate_limit_api_per_minute` mirrors that function's
+  own real hardcoded default (120); this migration does not alter, call, or get called by
+  that function.
+- `apps/web/app/(auth)/actions.ts`'s hardcoded `password.length < 8` (both signup and
+  password-reset) -- `password_min_length` mirrors that real enforced value; this table is
+  not read by that file.
+No other field in §18's three lists (session duration; password complexity beyond minimum
+length; file size limit; the AI/webhooks/imports/exports/automation rate limits; data/audit
+retention) has any existing enforced value anywhere in this codebase -- confirmed by grep,
+not assumed -- so those columns are left nullable ("not yet configured"), the same
+"no fabricated ceiling" discipline `platform.ai_feature_policies`'s own token/cost/budget
+columns already established. Not a stop-and-report case: every field either mirrors a real,
+already-identified value or is an honestly-nullable new ceiling; no unstated runtime
+algorithm needed inventing (unlike 09.3/10.2's own routing/circuit-breaker questions).
+
+**Two overlapping-doc-text judgment calls, resolved the same way this backlog has resolved
+every prior one (PLATFORM-P0-09.4/10.1's "daily budget", PLATFORM-P0-13.1-13.4's three-table
+hierarchy)**: 14.1's own single "API rate limits" field is superseded, not duplicated, by
+14.3's more granular six-field list (API/AI/webhooks/imports/exports/automation) -- one
+column per 14.3's own named domain, not a generic column plus a separate table. 14.2 ("Data
+Retention Policy") names no field 14.1 doesn't already list ("data retention defaults, audit
+retention") -- 14.2's own text is the identical concept restated with the precedence caveat,
+not a second table; `data_retention_default_days`/`audit_retention_days` satisfy both at
+once.
+
+**§18's own two "must take precedence" sentences are a documented design constraint, not an
+ask to build a precedence-resolution engine**: this table's values are platform-wide
+*fallback defaults*, never an override of a country/regime-specific rule. Nothing in this
+migration or its application layer reads, writes, or composes against `gst.*` in any way --
+the file-scope boundary this workstream has held throughout (most recently PLATFORM-P0-13's
+own entry) is unbroken. Recorded explicitly so a future reader does not mistake the absence
+of a precedence engine for an oversight.
+
+**A non-security, resolvable data-modeling judgment call (this run's own task brief marks
+"which existing pattern to reuse, exact naming" as non-security)**: §18 names "password
+policy" as one flat item with no sub-fields. Modeled as minimum length plus three complexity
+flags (uppercase/number/symbol) -- the ordinary shape this concept takes everywhere, and an
+extension of the one real password rule this codebase already enforces (minimum length) --
+not an invention.
+
+**Audited-mutation pattern, mirroring `platform.ai_feature_policies` exactly, not
+`platform.notification_policies`'s lighter plain-RLS shape**: unlike three notification
+toggles nobody could weaponize, several of these fields are genuinely security-postured by
+name (session duration, password complexity) even though none is enforced by any runtime
+code yet -- a future reader auditing "who loosened the password policy and why" needs a real
+trail, matching this workstream's own higher security bar. No INSERT/UPDATE/DELETE grant to
+`authenticated` at all; every change goes through `platform.update_system_policies()`, which
+requires a genuine SUPERADMIN and a non-empty `reason`, and writes one atomic audit-trail row
+to a dedicated `platform.system_policy_events` table.
+
+**What was built**: migration `20260912450000_platform_system_policies.sql` -- singleton
+`platform.system_policies` (boolean PK fixed to `true`, same construction as
+`platform.branding`/`platform.ai_feature_policies`): `session_duration_minutes` (nullable,
+`> 0`), `password_min_length` (not null, default `8`, `> 0`),
+`password_require_uppercase`/`_number`/`_symbol` (not null, default `false` each -- no
+fabricated stricter-than-today policy), `max_file_size_mb` (nullable, `> 0`),
+`default_timezone` (not null, default `'Asia/Kolkata'`), `default_currency` (not null,
+default `'INR'`), `data_retention_default_days`/`audit_retention_days` (nullable, `> 0`),
+`rate_limit_api_per_minute` (not null, default `120`),
+`rate_limit_ai_per_minute`/`_webhooks_per_minute`/`_imports_per_hour`/`_exports_per_hour`/
+`_automation_per_minute` (all nullable, `> 0`), plus `created_at`/`updated_at`/`updated_by`.
+Seeded with exactly the real values identified above, everything else null. Dedicated
+`platform.system_policy_events` audit table (`previous_value`/`new_value` jsonb,
+non-empty `reason`, `performed_by`/`performed_at`), same shape as
+`platform.ai_feature_policy_events`. RLS: open `SELECT` to any `authenticated` user on the
+policy row (a future consumer -- a signup form showing live password requirements, an
+upload dialog checking a file-size ceiling -- will most likely need this as an ordinary
+signed-in member, the same "avoid a second widening migration later" reasoning every
+sibling policy table already used); superadmin-only `SELECT` on the audit table; no direct
+write grant to `authenticated` on either table. `platform.update_system_policies()` --
+`security definer`, requires `platform.is_superadmin()` and a non-empty reason, additionally
+rejects a null `password_min_length`/blank `default_timezone`/blank `default_currency`/null
+`rate_limit_api_per_minute` (the table's own required fields), upper-cases the stored
+currency code, and writes one atomic before/after audit event.
+
+**Application layer** (`packages/core/src/admin/platform-system-policies.ts`):
+`getSystemPolicies()`/`updateSystemPolicies()`, mirroring `platform-ai-feature-policies.ts`'s
+exact shape -- request-scoped client, `requireSuperadmin()` first, RLS authoritative. Two
+Zod numeric-string helpers: `optionalPositiveIntSchema` (empty string -> `null`, otherwise a
+positive whole number, for every nullable ceiling) and `requiredPositiveIntSchema` (rejects
+empty, for the four `not null` fields). `defaultCurrency` is validated as exactly 3 letters
+and upper-cased client-side too (`z.string().toUpperCase().regex(/^[A-Z]{3}$/)`), matching
+the RPC's own normalization. 9 new unit tests (`platform-system-policies.test.ts`) covering a
+fully-populated policy, currency upper-casing/format rejection, blank-timezone rejection,
+empty-optional-field-to-null normalization across all nine nullable fields at once,
+empty-required-field rejection, non-positive-value rejection, non-integer rejection, and
+empty/whitespace-reason rejection.
+
+**UI**: `/platform/system-policies` (new nav link, labeled "Platform Policies") -- a single
+settings surface (singleton row, no table/mobile-card split needed, mirroring
+`/platform/ai-feature-policies`'s own identical reasoning), fields grouped into four labeled
+sections (Session & password; Files & retention; Rate limits; Defaults for new businesses)
+per docs/design/claude-ui-design-rules.md rule 1 ("group related information logically")
+rather than one flat sixteen-row list. One `SystemPoliciesDialog` edits the whole singleton
+at once, its body grouped into the same four sections and scrollable
+(`max-h-[70vh] overflow-y-auto`) with a fixed header/footer, since sixteen fields plus a
+reason don't fit one phone-width screen -- satisfies design-rules rule 5's "adapt ... to the
+available viewport" for a form, not a table, the shape rule 12/rule 5's own table-vs-card
+split doesn't directly address. Mirrors `FeaturePolicyDialog`'s reason-required,
+disabled-until-reason-entered Save button.
+
+**Deliberately not built this story**:
+- **No runtime enforcement of any field.** `session_duration_minutes` does not configure
+  Supabase Auth's own JWT expiry (a project-level setting this table cannot reach);
+  `password_min_length`/the three complexity flags are not read by
+  `apps/web/app/(auth)/actions.ts`; `max_file_size_mb` is not read by any attachment-upload
+  path; none of the six rate-limit columns is read by `core.check_api_rate_limit()` or any
+  AI/webhook/import/export/automation code path; `default_timezone`/`default_currency` do
+  not change what a newly-created `core.business_settings` row gets; `data_retention_
+  default_days`/`audit_retention_days` trigger no purge job. Confirmed by `git diff --stat`
+  that none of those files were touched by this story.
+- **No precedence-resolution engine** composing this table's defaults against any
+  country/regime-specific rule (`gst.tax_rules` or any future one) -- see the design-
+  constraint reasoning above. No `gst.*` file read, written, or imported.
+- **No password-policy enforcement UI** on the signup/reset forms reading the complexity
+  flags -- those forms are unchanged.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1507 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 200 migrations (199 -> 200, this
+story's own file). `npx vitest run --root packages/core` -- 30 files / 283 tests (29/274 ->
+30/283, +9 new). `apps/web`'s own `vitest run --passWithNoTests` -- 50 tests, unchanged. `cd
+apps/web && rm -rf .next && npm run build` -- clean, zero warnings; route listing includes
+`ƒ /platform/system-policies`, correctly dynamic, inheriting the outer `/platform` layout's
+existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the singleton row seeded
+with exactly `password_min_length=8`, `default_timezone='Asia/Kolkata'`,
+`default_currency='INR'`, `rate_limit_api_per_minute=120`, and every other field null.
+`mcp__Supabase__get_advisors` (security) -- zero new findings, the same 6 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning every
+prior entry has logged. `mcp__Supabase__get_advisors` (performance) -- only the same benign
+"unused index" INFO class every sibling table's own index already carries in this
+low-traffic dev database, this migration's own two new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched
+(`set local role authenticated; set local request.jwt.claims = '{"sub": ..., "role":
+"authenticated"}'`) `select count(*) from platform.system_policies` returned `1` (the
+open-SELECT policy working exactly as intended for an ordinary business member), and a
+role-switched call to `platform.update_system_policies(...)` was rejected outright with
+`ERROR P0001: Forbidden: only a SUPERADMIN can change platform policies.` -- reconfirmed
+immediately after via a plain read that `rate_limit_api_per_minute` was still `120`, so this
+real user's write attempt left zero residue. As `anon` (no session at all),
+`select count(*) from platform.system_policies` correctly failed with `ERROR 42501:
+permission denied for schema platform` -- no schema-level grant to `anon` exists, matching
+the `platform` schema's existing grant scope. As with every prior story in this log, there
+is no seeded demo superadmin user in this dev project, so the "a real superadmin CAN change
+this policy" half of the proof is verified for real only against local Postgres, below.
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires**: new
+`scripts/test-platform-system-policies-rls.mjs`, wired into `package.json`'s `test:db`
+composite script after `test-platform-compliance-registry-rls.mjs`. Same Alice (business
+admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling script uses.
+**All 27 assertions passed**: the seed is exactly the real values identified above with
+everything else unconfigured; Alice can read the singleton row in full but her mutation
+attempt is rejected by the function's own internal check with zero residue in either table;
+Zoe can set the full policy (including upper-casing a lowercase currency code entered) which
+writes exactly one atomic before/after audit event; a missing/blank value for any of the
+four required fields (password min length, default timezone, default currency, API rate
+limit) is rejected; a non-positive value for any nullable ceiling/rate-limit/retention field
+is rejected by the table's own CHECK constraints; an empty/whitespace reason is rejected;
+clearing every nullable field back to "not configured" is a valid, honest state and is
+itself audited; the audit trail's own SELECT is superadmin-only; and nobody -- including
+Zoe -- can bypass the function with a direct INSERT/UPDATE/DELETE on either table. Local
+Postgres 16 needed starting (`pg_ctlcluster 16 main start`) before this run; confirmed
+online via `pg_lsclusters` first.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed dev environment, so a live browser walkthrough of
+`/platform/system-policies` actually adding/editing a row through the real UI was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness, a direct read/reject proof against the live dev database for the
+non-superadmin path, and the full positive-and-negative matrix against local Postgres -- not
+an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-14.1/14.2/14.3 done. §18 (Platform Policies) is now fully resolved.
+Committing and merging to `main`, then continuing to §19 (Global Announcements /
+Maintenance, PLATFORM-P0-15) next, per this doc's own section order.

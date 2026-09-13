@@ -69,9 +69,13 @@ const NAV_LINKS = [
   // (AI/Email/WhatsApp/Payments/Government/Analytics/Storage) and their kill switches.
   { href: "/platform/integrations", label: "Integrations" },
   // PLATFORM-P0-13.1/13.2/13.4: the country/compliance-pack registry and per-pack feature
-  // flags. PLATFORM-P0-13.3 (Rule Version) is deliberately not built -- see that
-  // migration's own docstring.
+  // flags. PLATFORM-P0-13.3 (Rule Version) is CLOSED (satisfied by `gst.tax_rules`,
+  // user-decided) -- see docs/design/platform-admin-portal-audit.md's own dated entry.
   { href: "/platform/compliance", label: "Compliance Packs" },
+  // PLATFORM-P0-14.1/14.2/14.3: platform-wide default/ceiling policy values (session,
+  // password, files, retention, rate limits, business defaults) -- config-only, no
+  // runtime enforcement (see the migration's own docstring).
+  { href: "/platform/system-policies", label: "Platform Policies" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
