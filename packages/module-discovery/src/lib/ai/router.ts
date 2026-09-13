@@ -11,6 +11,19 @@ import { createLanguageModel } from "@cofounderai/core/ai/provider-factory";
  * The AI Router (docs/byok-ai-requirements.md §9): the one place that turns
  * "operation" + "workspace" into a concrete, provider-bound language model. Callers in
  * lib/ai/*.ts never choose a model or a provider -- see resolveAiModel below.
+ *
+ * DISC-OFFER-P1 §7-03.3 "Provider-Agnostic Data Contracts" -- this router, plus
+ * `AiErrorCode` above (normalized, provider-shape-free failure codes) and
+ * `provider-factory.ts`'s own model/tool factories, IS this platform's provider-agnostic
+ * contract for the doc's own "company enrichment / person enrichment / signals" bullets:
+ * every one of those, in this codebase, is produced by an AI web-search call routed
+ * through here, and no caller in `lib/*.ts` or any component ever branches on which of
+ * the three BYOK providers actually served a request. "Technology detection" and
+ * "contact verification" are the doc's remaining two bullets and are genuinely NOT
+ * built here, by any provider, AI-based or otherwise -- there is nothing to abstract yet.
+ * Defining a provider interface for a capability with zero real implementations would be
+ * speculative scaffolding (CLAUDE.md dev principle #7); see the audit log's own entry
+ * for this story for the full reasoning.
  */
 
 export type AiErrorCode =
