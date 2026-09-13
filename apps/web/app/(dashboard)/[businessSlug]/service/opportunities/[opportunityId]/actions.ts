@@ -22,7 +22,7 @@ import type { AddChargeLineInput, UpdateChargeLineInput } from "@cofounderai/mod
 const TAGGABLE_TYPE = "opportunity";
 
 async function detailPath(businessId: string, opportunityId: string) {
-  return `${await businessPath(businessId)}/fsm/opportunities/${opportunityId}`;
+  return `${await businessPath(businessId)}/service/opportunities/${opportunityId}`;
 }
 
 export async function updateOpportunityAction(

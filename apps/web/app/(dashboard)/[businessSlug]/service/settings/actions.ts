@@ -9,7 +9,7 @@ import { updateFsmSettings } from "@cofounderai/module-fsm/lib/settings/mutation
 import type { UpdateFsmSettingsInput } from "@cofounderai/module-fsm/lib/settings/types";
 
 async function settingsPath(businessId: string) {
-  return `${await businessPath(businessId)}/fsm/settings`;
+  return `${await businessPath(businessId)}/service/settings`;
 }
 
 export async function createServiceTypeAction(businessId: string, name: string, description?: string): Promise<void> {

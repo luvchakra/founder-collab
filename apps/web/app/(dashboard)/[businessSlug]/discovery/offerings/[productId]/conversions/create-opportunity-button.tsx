@@ -55,7 +55,7 @@ export function CreateOpportunityButton({
   if (state.kind === "exists") {
     return (
       <Link
-        href={`/dashboard/businesses/${businessId}/fsm/opportunities/${state.opportunityId}`}
+        href={`/dashboard/businesses/${businessId}/service/opportunities/${state.opportunityId}`}
         className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary hover:underline"
       >
         Opportunity: {OPPORTUNITY_STATUS_LABEL[state.opportunityStatus] ?? state.opportunityStatus}
@@ -103,7 +103,7 @@ export function CreateOpportunityButton({
             // instead of leaving the founder on Conversions to find and click the link
             // this same button turns into once an opportunity exists.
             toast.success("Opportunity created.");
-            router.push(`/dashboard/businesses/${businessId}/fsm/opportunities/${result.data.opportunityId}`);
+            router.push(`/dashboard/businesses/${businessId}/service/opportunities/${result.data.opportunityId}`);
           } else {
             toast.error(result.error);
           }

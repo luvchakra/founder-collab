@@ -23,7 +23,7 @@ import {
 import type { ContractResult } from "@cofounderai/module-gst/contract/types";
 
 async function detailPath(businessId: string, invoiceId: string) {
-  return `${await businessPath(businessId)}/fsm/invoices/${invoiceId}`;
+  return `${await businessPath(businessId)}/service/invoices/${invoiceId}`;
 }
 
 export async function addInvoiceChargeLineAction(businessId: string, invoiceId: string, input: AddChargeLineInput): Promise<void> {

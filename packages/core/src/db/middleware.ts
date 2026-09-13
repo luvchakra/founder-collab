@@ -61,6 +61,14 @@ const LEGACY_BUSINESS_PATH = /^\/dashboard\/businesses\/([^/]+)((?:\/.*)?)$/;
  * handled with plain string replacement in `updateSession()` rather than a DB round trip. */
 const LEGACY_PRODUCTS_PATH = /^\/([^/]+)\/products(\/.*)?$/;
 
+/** FSM's own route prefix moved from /[businessSlug]/fsm/... to /[businessSlug]/service/...
+ * (the module key/schema/package stay "fsm" -- ADR/CLAUDE.md non-negotiables, only the
+ * URL segment changes, matching `name: "Service"` the module already used everywhere
+ * else). Same pure-rewrite shape as `LEGACY_PRODUCTS_PATH` above: no id/slug lookup
+ * needed, just the segment swap, so any link or bookmark still carrying /fsm/ keeps
+ * working instead of 404ing. */
+const LEGACY_FSM_PATH = /^\/([^/]+)\/fsm(\/.*)?$/;
+
 /** Business slug embedded in the URL -- the first path segment, once `isProtectedPath`
  * has already ruled out every static top-level route it could otherwise be. Kept as its
  * own function (rather than inlined into the business-scoped regex below) for the same
@@ -240,6 +248,16 @@ export async function updateSession(request: NextRequest) {
     const [, businessSlugSegment, rest] = productsMatch;
     const url = request.nextUrl.clone();
     url.pathname = `/${businessSlugSegment}/discovery/offerings${rest ?? ""}`;
+    return NextResponse.redirect(url, 308);
+  }
+
+  // Same idea for FSM's own route prefix, which moved from /[businessSlug]/fsm/... to
+  // /[businessSlug]/service/... -- another pure segment rewrite, no DB lookup needed.
+  const fsmMatch = pathname.match(LEGACY_FSM_PATH);
+  if (fsmMatch) {
+    const [, businessSlugSegment, rest] = fsmMatch;
+    const url = request.nextUrl.clone();
+    url.pathname = `/${businessSlugSegment}/service${rest ?? ""}`;
     return NextResponse.redirect(url, 308);
   }
 

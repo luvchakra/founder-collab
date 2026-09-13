@@ -63,16 +63,16 @@ describe("buildLinkedObjectGraph", () => {
     );
     expect(graph.nodes).toEqual([
       { id: "inventory:fulfillment_request:so-1", module: "inventory", entityType: "fulfillment_request", label: "Inventory fulfillment request", href: null },
-      { id: "fsm:opportunity:fsm-opp-1", module: "fsm", entityType: "opportunity", label: "FSM opportunity", href: "/dashboard/businesses/biz-1/fsm/opportunities/fsm-opp-1" },
-      { id: "fsm:job:job-1", module: "fsm", entityType: "job", label: "FSM job", href: "/dashboard/businesses/biz-1/fsm/jobs/job-1" },
-      { id: "fsm:assessment:assess-1", module: "fsm", entityType: "assessment", label: "FSM assessment", href: "/dashboard/businesses/biz-1/fsm/assessments/assess-1" },
+      { id: "fsm:opportunity:fsm-opp-1", module: "fsm", entityType: "opportunity", label: "FSM opportunity", href: "/dashboard/businesses/biz-1/service/opportunities/fsm-opp-1" },
+      { id: "fsm:job:job-1", module: "fsm", entityType: "job", label: "FSM job", href: "/dashboard/businesses/biz-1/service/jobs/job-1" },
+      { id: "fsm:assessment:assess-1", module: "fsm", entityType: "assessment", label: "FSM assessment", href: "/dashboard/businesses/biz-1/service/assessments/assess-1" },
     ]);
   });
 
   it("omits an FSM job node when a quote exists but no job has been created yet", () => {
     const graph = buildLinkedObjectGraph("biz-1", opportunity(), null, { fsmOpportunityId: "fsm-opp-1", jobId: null } as never, []);
     expect(graph.nodes).toEqual([
-      { id: "fsm:opportunity:fsm-opp-1", module: "fsm", entityType: "opportunity", label: "FSM opportunity", href: "/dashboard/businesses/biz-1/fsm/opportunities/fsm-opp-1" },
+      { id: "fsm:opportunity:fsm-opp-1", module: "fsm", entityType: "opportunity", label: "FSM opportunity", href: "/dashboard/businesses/biz-1/service/opportunities/fsm-opp-1" },
     ]);
   });
 });

@@ -6,7 +6,7 @@ import { recordAssessmentOutcome } from "@cofounderai/module-fsm/lib/assessments
 import type { AssessmentOutcome } from "@cofounderai/module-fsm/lib/assessments/types";
 
 async function assessmentPath(businessId: string, assessmentId: string) {
-  return `${await businessPath(businessId)}/fsm/assessments/${assessmentId}`;
+  return `${await businessPath(businessId)}/service/assessments/${assessmentId}`;
 }
 
 /** INT-04.3's outcome-recording form action. */

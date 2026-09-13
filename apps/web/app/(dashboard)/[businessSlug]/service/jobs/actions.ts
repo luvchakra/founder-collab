@@ -3,25 +3,21 @@
 import { businessPath } from "@/lib/business-path";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import { createOpportunity } from "@cofounderai/module-fsm/lib/opportunities/mutations";
-import type { CreateOpportunityActionState } from "@cofounderai/module-fsm/components/opportunities/create-opportunity-dialog";
+import { createJob } from "@cofounderai/module-fsm/lib/jobs/mutations";
+import type { CreateJobActionState } from "@cofounderai/module-fsm/components/jobs/create-job-dialog";
 
-async function opportunitiesPath(businessId: string) {
-  return `${await businessPath(businessId)}/fsm/opportunities`;
+async function jobsPath(businessId: string) {
+  return `${await businessPath(businessId)}/service/jobs`;
 }
 
-export async function createOpportunityAction(
-  businessId: string,
-  _prevState: CreateOpportunityActionState,
-  formData: FormData,
-): Promise<CreateOpportunityActionState> {
+export async function createJobAction(businessId: string, _prevState: CreateJobActionState, formData: FormData): Promise<CreateJobActionState> {
   try {
-    await requirePermission(businessId, "opportunities.edit");
+    await requirePermission(businessId, "jobs.edit");
 
     const partyId = String(formData.get("party_id") ?? "").trim();
     const newCustomerName = String(formData.get("new_customer_name") ?? "").trim();
 
-    const id = await createOpportunity(businessId, {
+    const id = await createJob(businessId, {
       partyId: partyId || undefined,
       newCustomer: newCustomerName
         ? {
@@ -35,9 +31,9 @@ export async function createOpportunityAction(
       scopeOfWork: String(formData.get("scope_of_work") ?? "").trim(),
     });
 
-    revalidatePath(await opportunitiesPath(businessId));
+    revalidatePath(await jobsPath(businessId));
     return { success: true, id };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not create opportunity." };
+    return { error: error instanceof Error ? error.message : "Could not create job." };
   }
 }

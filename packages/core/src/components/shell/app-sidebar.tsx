@@ -130,7 +130,7 @@ function ModuleContent({
   productsByBusiness?: Record<string, ShellProduct[]>;
   onCreateBusiness?: () => void;
   onNavigate: () => void;
-  /** This module's own route prefix (e.g. "/fsm") -- unused for discovery, whose
+  /** This module's own route prefix (e.g. "/service") -- unused for discovery, whose
    * content below is its live product list, not a nav tree. */
   routePrefix?: string;
   /** This module's own nav groups, straight from its manifest (module-registry, via

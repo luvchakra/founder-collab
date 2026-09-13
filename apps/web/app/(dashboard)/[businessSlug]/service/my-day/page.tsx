@@ -50,8 +50,8 @@ export default async function MyDayPage({ params }: { params: Promise<{ business
         openTimeEntry={openTimeEntry}
         canManageEvents={canManageEvents}
         canClockInOut={canClockInOut}
-        jobsBasePath={`/${businessSlug}/fsm/jobs`}
-        opportunitiesBasePath={`/${businessSlug}/fsm/opportunities`}
+        jobsBasePath={`/${businessSlug}/service/jobs`}
+        opportunitiesBasePath={`/${businessSlug}/service/opportunities`}
         notifyOnTheWayAction={notifyOnTheWayAction.bind(null, businessId)}
         markArrivedAction={markEventArrivedAction.bind(null, businessId)}
         markDoneAction={markEventDoneAction.bind(null, businessId)}

@@ -14,5 +14,5 @@ export async function updateFsmCustomerAction(
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Something went wrong." };
   }
-  revalidatePath(`${await businessPath(businessId)}/fsm/customers`);
+  revalidatePath(`${await businessPath(businessId)}/service/customers`);
 }

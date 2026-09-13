@@ -14,7 +14,7 @@ export const fsmManifest: ModuleManifest = {
   key: "fsm",
   name: "Service",
   icon: "Wrench",
-  routePrefix: "/fsm",
+  routePrefix: "/service",
   nav: [
     { heading: "Overview", items: [{ label: "Dashboard", slug: "", icon: "LayoutDashboard" }] },
     {

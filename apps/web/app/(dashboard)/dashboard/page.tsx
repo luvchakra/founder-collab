@@ -75,7 +75,7 @@ async function computeModuleWidgets(
   if (fsmBusinesses.length > 0) {
     const openJobs = await getOpenJobsCount(fsmBusinesses.map((b) => b.id));
     const slug = soleSlug(fsmBusinesses);
-    widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs", href: slug ? `/${slug}/fsm/jobs` : undefined });
+    widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs", href: slug ? `/${slug}/service/jobs` : undefined });
   }
 
   const inventoryBusinesses = licensedBusinessesByModule.get("inventory") ?? [];

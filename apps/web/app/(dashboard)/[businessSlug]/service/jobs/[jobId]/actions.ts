@@ -34,7 +34,7 @@ import type { JobOutcome, JobPartsShortageResolution } from "@cofounderai/module
 const TAGGABLE_TYPE = "job";
 
 async function detailPath(businessId: string, jobId: string) {
-  return `${await businessPath(businessId)}/fsm/jobs/${jobId}`;
+  return `${await businessPath(businessId)}/service/jobs/${jobId}`;
 }
 
 export async function updateJobAction(businessId: string, jobId: string, description: string, scopeOfWork: string): Promise<void> {

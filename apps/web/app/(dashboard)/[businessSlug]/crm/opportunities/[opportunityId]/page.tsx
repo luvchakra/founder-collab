@@ -580,7 +580,7 @@ export default async function OpportunityDetailPage({
                     </Badge>
                   ) : null}
                 </div>
-                <Link href={`/${businessSlug}/fsm/assessments/${opportunity.assessment_request_id}`} className="text-sm text-primary underline w-fit">
+                <Link href={`/${businessSlug}/service/assessments/${opportunity.assessment_request_id}`} className="text-sm text-primary underline w-fit">
                   Open in FSM
                 </Link>
               </div>

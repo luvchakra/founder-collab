@@ -84,7 +84,7 @@ export async function listRelationshipTimeline(businessId: string, partyId: stri
         occurredAt: job.scheduledAt ?? job.createdAt,
         label: `${job.number ? `Job ${job.number}` : "Job"} -- ${job.status}`,
         detail: job.description,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${job.id}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/jobs/${job.id}`,
       });
     }
   }
@@ -249,7 +249,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         occurredAt: fsmQuoteStatus.jobCreatedAt,
         label: "FSM job created",
         detail: null,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/jobs/${fsmQuoteStatus.jobId}`,
       });
     }
     if (fsmQuoteStatus.jobId && fsmQuoteStatus.jobCompletedAt) {
@@ -261,7 +261,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         // alone doesn't say whether that meant done, needs a revisit, or unresolved.
         label: fsmQuoteStatus.jobOutcome ? `FSM job completed -- ${fsmQuoteStatus.jobOutcome.replace(/_/g, " ")}` : "FSM job completed",
         detail: null,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/jobs/${fsmQuoteStatus.jobId}`,
       });
     }
     // INT-08.2: INT-03.3's own resolution of a job's parts shortage -- a real state
@@ -274,7 +274,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         occurredAt: fsmQuoteStatus.jobPartsShortageResolvedAt,
         label: `FSM job parts shortage resolved -- ${fsmQuoteStatus.jobPartsShortageResolution.replace(/_/g, " ")}`,
         detail: null,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/jobs/${fsmQuoteStatus.jobId}`,
       });
     }
     // INT-08.2: INT-06.4's automatically-created follow-up job -- not commercial work
@@ -287,7 +287,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         occurredAt: fsmQuoteStatus.revisitJobCreatedAt,
         label: "Warranty revisit job created",
         detail: null,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${fsmQuoteStatus.revisitJobId}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/jobs/${fsmQuoteStatus.revisitJobId}`,
       });
     }
   }
@@ -303,7 +303,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
       occurredAt: assessmentStatus?.createdAt ?? opportunity.created_at,
       label: "FSM assessment requested",
       detail: null,
-      detailHref: `/dashboard/businesses/${businessId}/fsm/assessments/${opportunity.assessment_request_id}`,
+      detailHref: `/dashboard/businesses/${businessId}/service/assessments/${opportunity.assessment_request_id}`,
     });
     if (assessmentStatus?.outcome) {
       entries.push({
@@ -312,7 +312,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         occurredAt: assessmentStatus.completedAt ?? assessmentStatus.createdAt,
         label: `FSM assessment outcome: ${assessmentStatus.outcome.replace(/_/g, " ")}`,
         detail: assessmentStatus.outcomeNotes,
-        detailHref: `/dashboard/businesses/${businessId}/fsm/assessments/${opportunity.assessment_request_id}`,
+        detailHref: `/dashboard/businesses/${businessId}/service/assessments/${opportunity.assessment_request_id}`,
       });
     }
   }

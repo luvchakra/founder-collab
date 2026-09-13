@@ -59,7 +59,7 @@ export function buildLinkedObjectGraph(
       module: "fsm",
       entityType: "opportunity",
       label: "FSM opportunity",
-      href: `${base}/fsm/opportunities/${fsmQuoteStatus.fsmOpportunityId}`,
+      href: `${base}/service/opportunities/${fsmQuoteStatus.fsmOpportunityId}`,
     });
   }
 
@@ -69,7 +69,7 @@ export function buildLinkedObjectGraph(
       module: "fsm",
       entityType: "job",
       label: "FSM job",
-      href: `${base}/fsm/jobs/${fsmQuoteStatus.jobId}`,
+      href: `${base}/service/jobs/${fsmQuoteStatus.jobId}`,
     });
   }
 
@@ -79,7 +79,7 @@ export function buildLinkedObjectGraph(
       module: "fsm",
       entityType: "assessment",
       label: "FSM assessment",
-      href: `${base}/fsm/assessments/${opportunity.assessment_request_id}`,
+      href: `${base}/service/assessments/${opportunity.assessment_request_id}`,
     });
   }
 

@@ -16,7 +16,7 @@ import type { EventKind } from "@cofounderai/module-fsm/lib/events/types";
 import type { CreateEventActionState } from "@cofounderai/module-fsm/components/schedule/create-event-dialog";
 
 async function schedulePath(businessId: string) {
-  return `${await businessPath(businessId)}/fsm/schedule`;
+  return `${await businessPath(businessId)}/service/schedule`;
 }
 
 function toIso(value: FormDataEntryValue | null): string | null {

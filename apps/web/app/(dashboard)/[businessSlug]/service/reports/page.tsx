@@ -56,7 +56,7 @@ export default async function ReportsPage({
           <h1 className="text-xl font-semibold">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">{business.name}</p>
         </div>
-        <DateRangeControl basePath={`/${businessSlug}/fsm/reports`} active={activePreset} />
+        <DateRangeControl basePath={`/${businessSlug}/service/reports`} active={activePreset} />
       </div>
 
       <ReportsView

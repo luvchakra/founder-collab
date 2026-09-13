@@ -64,14 +64,14 @@ export default async function SchedulePage({
   ]);
 
   // F-14: "stock.low surfaced to the dispatcher" -- the schedule page is this platform's
-  // own dispatcher surface (no dedicated /fsm dashboard route exists yet). Degrades to
+  // own dispatcher surface (no dedicated /service dashboard route exists yet). Degrades to
   // nothing when inventory isn't licensed (ADR-10's own normal-result contract, not an
   // exception) rather than showing an error.
   const lowStockResult = await listLowStockAlerts(businessId);
   const lowStockAlerts = lowStockResult.ok ? lowStockResult.data : [];
 
   const stepBy = view === "week" ? 7 : 1;
-  const href = (d: string, v: "day" | "week") => `/${businessSlug}/fsm/schedule?date=${d}&view=${v}`;
+  const href = (d: string, v: "day" | "week") => `/${businessSlug}/service/schedule?date=${d}&view=${v}`;
 
   return (
     <div className="flex flex-col gap-6">

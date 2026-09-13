@@ -7,7 +7,7 @@ import { notifyOnTheWay, markEventArrived, markEventDone } from "@cofounderai/mo
 import { clockIn, clockOut } from "@cofounderai/module-fsm/lib/time-entries/mutations";
 
 async function myDayPath(businessId: string) {
-  return `${await businessPath(businessId)}/fsm/my-day`;
+  return `${await businessPath(businessId)}/service/my-day`;
 }
 
 export async function notifyOnTheWayAction(businessId: string, eventId: string): Promise<void> {

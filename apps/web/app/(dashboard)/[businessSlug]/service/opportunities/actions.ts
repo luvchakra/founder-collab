@@ -3,21 +3,25 @@
 import { businessPath } from "@/lib/business-path";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
-import { createJob } from "@cofounderai/module-fsm/lib/jobs/mutations";
-import type { CreateJobActionState } from "@cofounderai/module-fsm/components/jobs/create-job-dialog";
+import { createOpportunity } from "@cofounderai/module-fsm/lib/opportunities/mutations";
+import type { CreateOpportunityActionState } from "@cofounderai/module-fsm/components/opportunities/create-opportunity-dialog";
 
-async function jobsPath(businessId: string) {
-  return `${await businessPath(businessId)}/fsm/jobs`;
+async function opportunitiesPath(businessId: string) {
+  return `${await businessPath(businessId)}/service/opportunities`;
 }
 
-export async function createJobAction(businessId: string, _prevState: CreateJobActionState, formData: FormData): Promise<CreateJobActionState> {
+export async function createOpportunityAction(
+  businessId: string,
+  _prevState: CreateOpportunityActionState,
+  formData: FormData,
+): Promise<CreateOpportunityActionState> {
   try {
-    await requirePermission(businessId, "jobs.edit");
+    await requirePermission(businessId, "opportunities.edit");
 
     const partyId = String(formData.get("party_id") ?? "").trim();
     const newCustomerName = String(formData.get("new_customer_name") ?? "").trim();
 
-    const id = await createJob(businessId, {
+    const id = await createOpportunity(businessId, {
       partyId: partyId || undefined,
       newCustomer: newCustomerName
         ? {
@@ -31,9 +35,9 @@ export async function createJobAction(businessId: string, _prevState: CreateJobA
       scopeOfWork: String(formData.get("scope_of_work") ?? "").trim(),
     });
 
-    revalidatePath(await jobsPath(businessId));
+    revalidatePath(await opportunitiesPath(businessId));
     return { success: true, id };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not create job." };
+    return { error: error instanceof Error ? error.message : "Could not create opportunity." };
   }
 }

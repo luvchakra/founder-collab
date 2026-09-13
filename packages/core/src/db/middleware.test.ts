@@ -74,18 +74,18 @@ describe("isUnlicensedModuleRoute", () => {
   });
 
   it("blocks the [businessSlug]/<prefix> shape when unlicensed", () => {
-    expect(isUnlicensedModuleRoute("/acme-hvac/fsm/jobs", new Set())).toBe(true);
-    expect(isUnlicensedModuleRoute("/acme-hvac/fsm/jobs", new Set(["fsm"]))).toBe(false);
+    expect(isUnlicensedModuleRoute("/acme-hvac/service/jobs", new Set())).toBe(true);
+    expect(isUnlicensedModuleRoute("/acme-hvac/service/jobs", new Set(["fsm"]))).toBe(false);
   });
 
   it("does not match a bare module prefix with no business slug segment ahead of it", () => {
-    expect(isUnlicensedModuleRoute("/fsm/jobs", new Set())).toBe(false);
+    expect(isUnlicensedModuleRoute("/service/jobs", new Set())).toBe(false);
   });
 
   it("does not false-positive on a path that merely contains a prefix as a substring", () => {
-    // "/acme-hvac/fsmxyz" should not match the "/fsm" prefix -- the regex requires a path
-    // boundary (end of string or "/") right after the prefix.
-    expect(isUnlicensedModuleRoute("/acme-hvac/fsmxyz", new Set())).toBe(false);
+    // "/acme-hvac/servicexyz" should not match the "/service" prefix -- the regex requires
+    // a path boundary (end of string or "/") right after the prefix.
+    expect(isUnlicensedModuleRoute("/acme-hvac/servicexyz", new Set())).toBe(false);
   });
 });
 
@@ -113,10 +113,10 @@ describe("findPlatformDisabledModuleForRoute (PLATFORM-P0-07.2)", () => {
   });
 
   it("is independent of any license -- a platform-disabled module blocks even with no licensed-module context at all", () => {
-    expect(findPlatformDisabledModuleForRoute("/acme-hvac/fsm/jobs", new Set(["fsm"]))).toBe("fsm");
+    expect(findPlatformDisabledModuleForRoute("/acme-hvac/service/jobs", new Set(["fsm"]))).toBe("fsm");
   });
 
   it("does not false-positive on a path that merely contains a prefix as a substring", () => {
-    expect(findPlatformDisabledModuleForRoute("/acme-hvac/fsmxyz", new Set(["fsm"]))).toBeNull();
+    expect(findPlatformDisabledModuleForRoute("/acme-hvac/servicexyz", new Set(["fsm"]))).toBeNull();
   });
 });

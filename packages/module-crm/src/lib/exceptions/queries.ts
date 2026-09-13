@@ -59,7 +59,7 @@ export async function listCrossModuleExceptions(businessId: string): Promise<Cro
       module: "fsm",
       label: `${partyNameById.get(job.partyId) ?? "Unknown customer"} -- job short on parts`,
       detail: job.jobNumber,
-      detailHref: `/dashboard/businesses/${businessId}/fsm/jobs/${job.jobId}`,
+      detailHref: `/dashboard/businesses/${businessId}/service/jobs/${job.jobId}`,
       entityId: job.jobId,
       assessmentRequested: null,
     });
