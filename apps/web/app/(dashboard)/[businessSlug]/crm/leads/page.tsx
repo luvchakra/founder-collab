@@ -29,17 +29,32 @@ const LEAD_STATUSES: LeadStatus[] = [
   "disqualified",
 ];
 
-function StatusForm({ businessId, leadId, status }: { businessId: string; leadId: string; status: LeadStatus }) {
+function StatusForm({
+  businessId,
+  leadId,
+  status,
+  selectClassName = "w-auto",
+  align = "end",
+}: {
+  businessId: string;
+  leadId: string;
+  status: LeadStatus;
+  selectClassName?: string;
+  align?: "start" | "end";
+}) {
   return (
-    <form action={updateLeadStatusAction.bind(null, businessId, leadId)} className="flex items-center justify-end gap-2">
-      <NativeSelect name="status" defaultValue={status} className="w-auto">
+    <form
+      action={updateLeadStatusAction.bind(null, businessId, leadId)}
+      className={`flex items-center gap-2 ${align === "end" ? "justify-end" : "justify-start"}`}
+    >
+      <NativeSelect name="status" defaultValue={status} className={`h-9 capitalize ${selectClassName}`} aria-label="Status">
         {LEAD_STATUSES.map((s) => (
-          <option key={s} value={s}>
+          <option key={s} value={s} className="capitalize">
             {s}
           </option>
         ))}
       </NativeSelect>
-      <SubmitButton size="sm" variant="outline" pendingText="Updating...">
+      <SubmitButton size="sm" variant="outline" pendingText="Updating..." className="shrink-0">
         Update
       </SubmitButton>
     </form>
@@ -54,19 +69,21 @@ function AssignForm({
   ownerId,
   employees,
   align = "start",
+  selectClassName = "w-auto",
 }: {
   businessId: string;
   leadId: string;
   ownerId: string | null;
   employees: EmployeeOption[];
   align?: "start" | "end";
+  selectClassName?: string;
 }) {
   return (
     <form
       action={assignLeadAction.bind(null, businessId, leadId)}
       className={`flex items-center gap-2 ${align === "end" ? "justify-end" : "justify-start"}`}
     >
-      <NativeSelect name="ownerId" defaultValue={ownerId ?? ""} className="w-auto">
+      <NativeSelect name="ownerId" defaultValue={ownerId ?? ""} className={`h-9 ${selectClassName}`} aria-label="Owner">
         <option value="">Unassigned</option>
         {employees.map((e) => (
           <option key={e.id} value={e.id}>
@@ -74,7 +91,7 @@ function AssignForm({
           </option>
         ))}
       </NativeSelect>
-      <SubmitButton size="sm" variant="outline" pendingText="Assigning...">
+      <SubmitButton size="sm" variant="outline" pendingText="Assigning..." className="shrink-0">
         Assign
       </SubmitButton>
     </form>
@@ -114,23 +131,33 @@ export default async function CrmLeadsPage({ params }: { params: Promise<{ busin
         <EmptyState icon={Users} message="No leads yet. Leads are created manually or promoted from a Discovery prospect." />
       ) : (
         <div className="rounded-2xl border border-border">
-          <ul className="divide-y md:hidden">
+          <ul className="divide-y divide-border md:hidden">
             {leads.map((lead) => (
-              <li key={lead.id} className="flex flex-col gap-2 p-3 text-sm">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <Link href={`/${businessSlug}/crm/customers/${lead.party_id}`} className="min-w-0 font-medium break-words hover:underline">
-                    {partyNameById.get(lead.party_id) ?? "Unknown contact"}
-                  </Link>
-                  <Badge variant="outline" className="shrink-0">
-                    {lead.source}
-                  </Badge>
+              <li key={lead.id} className="flex flex-col gap-3 p-4 text-sm">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <Link href={`/${businessSlug}/crm/customers/${lead.party_id}`} className="min-w-0 font-medium break-words hover:underline">
+                      {partyNameById.get(lead.party_id) ?? "Unknown contact"}
+                    </Link>
+                    <Badge variant="outline" className="shrink-0">
+                      {lead.source}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>Created {formatDate(lead.created_at)}</span>
+                    <Badge variant={lead.owner_id ? "secondary" : "outline"}>{employeeById.get(lead.owner_id ?? "")?.full_name ?? "Unassigned"}</Badge>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Created {formatDate(lead.created_at)}</span>
-                  <Badge variant={lead.owner_id ? "secondary" : "outline"}>{employeeById.get(lead.owner_id ?? "")?.full_name ?? "Unassigned"}</Badge>
+                <div className="flex flex-col gap-2 border-t border-border pt-3">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Status</span>
+                    <StatusForm businessId={businessId} leadId={lead.id} status={lead.status} align="start" selectClassName="flex-1 min-w-0" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Owner</span>
+                    <AssignForm businessId={businessId} leadId={lead.id} ownerId={lead.owner_id} employees={employees} selectClassName="flex-1 min-w-0" />
+                  </div>
                 </div>
-                <StatusForm businessId={businessId} leadId={lead.id} status={lead.status} />
-                <AssignForm businessId={businessId} leadId={lead.id} ownerId={lead.owner_id} employees={employees} />
               </li>
             ))}
           </ul>

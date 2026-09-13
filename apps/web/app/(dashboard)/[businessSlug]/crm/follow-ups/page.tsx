@@ -69,6 +69,8 @@ export default async function CrmFollowUpsPage({
 
   const basePath = `/${businessSlug}/crm/follow-ups`;
   const hasActiveFilters = Boolean(search.ownerId || search.source || search.channel || search.priority);
+  const todayStart = new Date(new Date().setHours(0, 0, 0, 0)).getTime();
+  const isOverdue = (dueAt: string) => new Date(dueAt).getTime() < todayStart;
 
   return (
     <div className="flex flex-col gap-6">
@@ -143,27 +145,52 @@ export default async function CrmFollowUpsPage({
         <EmptyState icon={ListTodo} message="No follow-ups match this view." />
       ) : (
         <div className="rounded-2xl border border-border">
-          <ul className="divide-y md:hidden">
-            {rows.map((row) => (
-              <li key={row.id} className="flex flex-col gap-2 p-3 text-sm">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <p className="min-w-0 truncate font-medium">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</p>
-                  <Badge variant={row.priority === "high" ? "destructive" : "outline"} className="shrink-0 capitalize">
-                    {row.priority}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Due {formatDate(row.due_at)}</span>
-                  <span>{employeeById.get(row.owner_id ?? "")?.full_name ?? "Unassigned"}</span>
-                </div>
-                <form action={completeFollowUpAction.bind(null, businessId, row.id)}>
-                  <SubmitButton variant="outline" size="sm" pendingText="Completing...">
-                    <CheckCircle2 className="size-4" aria-hidden="true" />
-                    Complete
-                  </SubmitButton>
-                </form>
-              </li>
-            ))}
+          <ul className="divide-y divide-border md:hidden">
+            {rows.map((row) => {
+              const overdue = isOverdue(row.due_at);
+              // partyName is the row's identity when there is a real contact; when there
+              // isn't (a review- or waitlist-triggered follow-up), reviewSummary/
+              // productInterestSummary carry the only explanation of what this row is
+              // about -- shown as context under the name whenever both exist, instead of
+              // silently dropping whichever one isn't picked as the title.
+              const context = row.partyName ? (row.reviewSummary ?? row.productInterestSummary) : null;
+              return (
+                <li key={row.id} className="flex flex-col gap-2 p-4 text-sm">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <p className="min-w-0 truncate font-medium">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</p>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {overdue ? <Badge variant="destructive">Overdue</Badge> : null}
+                      <Badge variant={row.priority === "high" ? "destructive" : "outline"} className="capitalize">
+                        {row.priority}
+                      </Badge>
+                    </div>
+                  </div>
+                  {context ? <p className="truncate text-xs text-muted-foreground">{context}</p> : null}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {row.source ? (
+                      <Badge variant="outline" className="capitalize">
+                        {row.source}
+                      </Badge>
+                    ) : null}
+                    {row.channel ? (
+                      <Badge variant="outline" className="capitalize">
+                        {row.channel}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className={overdue ? "font-medium text-destructive" : undefined}>Due {formatDate(row.due_at)}</span>
+                    <Badge variant={row.owner_id ? "secondary" : "outline"}>{employeeById.get(row.owner_id ?? "")?.full_name ?? "Unassigned"}</Badge>
+                  </div>
+                  <form action={completeFollowUpAction.bind(null, businessId, row.id)} className="border-t border-border pt-2">
+                    <SubmitButton variant="outline" size="sm" pendingText="Completing...">
+                      <CheckCircle2 className="size-4" aria-hidden="true" />
+                      Complete
+                    </SubmitButton>
+                  </form>
+                </li>
+              );
+            })}
           </ul>
 
           <Table className="hidden md:table">
@@ -179,28 +206,40 @@ export default async function CrmFollowUpsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {rows.map((row) => {
+                const overdue = isOverdue(row.due_at);
+                const context = row.partyName ? (row.reviewSummary ?? row.productInterestSummary) : null;
+                return (
                 <TableRow key={row.id}>
-                  <TableCell className="max-w-xs truncate font-medium">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</TableCell>
-                  <TableCell className="text-muted-foreground">{row.source ?? "--"}</TableCell>
+                  <TableCell className="max-w-xs font-medium">
+                    <p className="truncate">{row.partyName ?? row.reviewSummary ?? row.productInterestSummary ?? "Unknown contact"}</p>
+                    {context ? <p className="truncate text-xs font-normal text-muted-foreground">{context}</p> : null}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground capitalize">{row.source ?? "--"}</TableCell>
                   <TableCell className="text-muted-foreground capitalize">{row.channel ?? "--"}</TableCell>
                   <TableCell>
-                    <Badge variant={row.priority === "high" ? "destructive" : "outline"} className="capitalize">
-                      {row.priority}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {overdue ? <Badge variant="destructive">Overdue</Badge> : null}
+                      <Badge variant={row.priority === "high" ? "destructive" : "outline"} className="capitalize">
+                        {row.priority}
+                      </Badge>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(row.due_at)}</TableCell>
-                  <TableCell className="text-muted-foreground">{employeeById.get(row.owner_id ?? "")?.full_name ?? "Unassigned"}</TableCell>
+                  <TableCell className={overdue ? "font-medium text-destructive" : "text-muted-foreground"}>{formatDate(row.due_at)}</TableCell>
+                  <TableCell>
+                    <Badge variant={row.owner_id ? "secondary" : "outline"}>{employeeById.get(row.owner_id ?? "")?.full_name ?? "Unassigned"}</Badge>
+                  </TableCell>
                   <TableCell className="text-right">
                     <form action={completeFollowUpAction.bind(null, businessId, row.id)}>
-                      <SubmitButton variant="ghost" size="sm">
+                      <SubmitButton variant="outline" size="sm">
                         <CheckCircle2 className="size-4" aria-hidden="true" />
                         Complete
                       </SubmitButton>
                     </form>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </div>
