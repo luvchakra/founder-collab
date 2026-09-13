@@ -66,11 +66,11 @@ function formatTime(iso: string | null): string {
  * the one technical stage that actually failed, not the whole group.
  */
 export function RunAiDiscoveryPanel({
-  businessId,
+  businessSlug,
   productId,
   initialStages,
 }: {
-  businessId: string;
+  businessSlug: string;
   productId: string;
   initialStages: PipelineStage[];
 }) {
@@ -94,8 +94,8 @@ export function RunAiDiscoveryPanel({
   const searchParams = useSearchParams();
   const autoRunStarted = useRef(false);
 
-  const endpoint = `/dashboard/businesses/${businessId}/products/${productId}/run-ai-discovery`;
-  const basePath = `/dashboard/businesses/${businessId}/products/${productId}`;
+  const endpoint = `/${businessSlug}/products/${productId}/run-ai-discovery`;
+  const basePath = `/${businessSlug}/products/${productId}`;
 
   // DISC-OFFER-P0-11.2: "Run Discovery From Here" -- a "Save & Run Downstream" edit
   // elsewhere (e.g. the ICP page) invalidates the affected stages server-side, then sends

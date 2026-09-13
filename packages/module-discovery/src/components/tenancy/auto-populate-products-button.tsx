@@ -26,21 +26,21 @@ import type { ProductImportRow } from "../../lib/tenancy/parse-products-import";
  * 2, the same one the file-import wizard already uses) is what actually creates the
  * rows, called directly with the list already in state.
  */
-/** One line of the newline-delimited stream `/dashboard/businesses/[businessId]/discover-
- * products` sends back -- see that Route Handler's own doc comment for why this needs to
- * be a plain streamed `Response` rather than a Server Action. */
+/** One line of the newline-delimited stream `/[businessSlug]/discover-products` sends
+ * back -- see that Route Handler's own doc comment for why this needs to be a plain
+ * streamed `Response` rather than a Server Action. */
 type DiscoverProductsEvent =
   | { type: "progress"; products: Partial<DiscoveredProduct>[] }
   | { type: "done"; products: DiscoveredProduct[] }
   | { type: "error"; error: string };
 
 export function AutoPopulateProductsButton({
-  businessId,
+  businessSlug,
   disabled,
   disabledReason,
   importAction,
 }: {
-  businessId: string;
+  businessSlug: string;
   /** True when the business has no website configured yet -- there's nothing to
    * research against. */
   disabled: boolean;
@@ -68,7 +68,7 @@ export function AutoPopulateProductsButton({
     startDiscovering(async () => {
       let response: Response;
       try {
-        response = await fetch(`/dashboard/businesses/${businessId}/discover-products`, { method: "POST" });
+        response = await fetch(`/${businessSlug}/discover-products`, { method: "POST" });
       } catch {
         setError("Could not reach the server. Check your connection and try again.");
         return;

@@ -5,15 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createBusiness, createProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import { normalizeWebsiteUrl } from "@cofounderai/module-discovery/lib/website-onboarding/url";
 import { createWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
-import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
-
-/** core.handle_new_business() (the AFTER INSERT trigger on core.businesses) generates
- * and stores the slug synchronously as part of the same insert createBusiness() already
- * awaited -- by the time this runs, it's guaranteed to exist. */
-async function businessPath(businessId: string): Promise<string> {
-  const slug = await resolveBusinessSlugById(businessId);
-  return `/${slug}`;
-}
+import { businessPath } from "@/lib/business-path";
 
 export async function createBusinessAction(accountId: string, formData: FormData) {
   const business = await createBusiness(accountId, {

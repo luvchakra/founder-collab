@@ -1,4 +1,5 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { inr } from "@cofounderai/core/lib/format";
 import { getEinvoiceForDocument } from "../lib/einvoicing/queries";
 import { generateEinvoice, cancelEinvoice } from "../lib/einvoicing/mutations";
@@ -135,7 +136,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
         id: `gst-risk-${businessId}`,
         severity: "warning",
         message: `${dashboard.riskCount} supplier/customer this month with a missing or invalid GSTIN.`,
-        href: `/dashboard/businesses/${businessId}/gst/filing`,
+        href: `/${await resolveBusinessSlugById(businessId)}/gst/filing`,
         businessId,
       },
     ],

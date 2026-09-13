@@ -13,15 +13,7 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 // every item now asserts for real; no KNOWN_FAILING set is needed until the next gap.
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const BUSINESS_ROUTE_ROOT = join(
-  __dirname,
-  "..",
-  "app",
-  "(dashboard)",
-  "dashboard",
-  "businesses",
-  "[businessId]",
-);
+const BUSINESS_ROUTE_ROOT = join(__dirname, "..", "app", "(dashboard)", "[businessSlug]");
 
 describe("every module-registry nav item resolves to a real page", () => {
   for (const mod of moduleRegistry) {

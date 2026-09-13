@@ -119,7 +119,7 @@ function fromStreamedOffering(offering: WebsiteOfferingCandidate): OfferingCandi
  * themselves, which starts a brand-new run.
  */
 export function WebsiteOnboardingPanel({
-  businessId,
+  businessSlug,
   initialRun,
   initialPages = [],
   initialOfferings = [],
@@ -127,7 +127,7 @@ export function WebsiteOnboardingPanel({
   applyAction,
   activateOfferingsAction,
 }: {
-  businessId: string;
+  businessSlug: string;
   initialRun: WebsiteOnboardingRun;
   /** The prior crawl's own pages (DISC-OFFER-P0-09.2), loaded from
    * discovery.website_onboarding_pages -- empty for a `pending` run that hasn't crawled
@@ -166,7 +166,7 @@ export function WebsiteOnboardingPanel({
     setOfferings([]);
 
     try {
-      const response = await fetch(`/dashboard/businesses/${businessId}/website-onboarding`, {
+      const response = await fetch(`/${businessSlug}/website-onboarding`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ runId }),

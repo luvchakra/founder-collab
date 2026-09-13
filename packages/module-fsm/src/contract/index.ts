@@ -1,5 +1,6 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import { inr, num } from "@cofounderai/core/lib/format";
 import { createClient } from "../db/server";
@@ -262,7 +263,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
   if (licenseError) return { ok: false, error: licenseError };
 
   const dashboard = await getDispatcherDashboard(businessId, "today");
-  const basePath = `/dashboard/businesses/${businessId}/fsm`;
+  const basePath = `/${await resolveBusinessSlugById(businessId)}/fsm`;
   const alerts: Omit<ShellAlert, "businessId">[] = [];
 
   if (dashboard.overdueInvoices.length > 0) {

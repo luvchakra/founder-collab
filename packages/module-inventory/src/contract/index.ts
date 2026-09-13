@@ -1,5 +1,6 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { publish } from "@cofounderai/core/events/mutations";
 import { addPartyRole } from "@cofounderai/core/parties/mutations";
 import { createClient } from "../db/server";
@@ -391,7 +392,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
   if (licenseError) return { ok: false, error: licenseError };
 
   const summary = await getDashboardSummary(businessId, false);
-  const basePath = `/dashboard/businesses/${businessId}/inventory`;
+  const basePath = `/${await resolveBusinessSlugById(businessId)}/inventory`;
   const alerts: Omit<ShellAlert, "businessId">[] = [];
 
   if (summary.stockout > 0) {

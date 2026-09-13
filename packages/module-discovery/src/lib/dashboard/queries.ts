@@ -9,7 +9,7 @@ import {
 } from "../prospects/queries";
 import { getWorkspaceUsageForWorkspaces } from "../usage/queries";
 
-export type AccountWorkspaceEntry = { workspace: Workspace; product: Product; business: Business };
+export type AccountWorkspaceEntry = { workspace: Workspace; product: Product; business: Business & { slug: string } };
 
 /**
  * Every business/product/workspace on an account. Two queries, not one embedded
@@ -57,7 +57,7 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
   const productsByBusiness: Record<string, Product[]> = {};
   const allProducts: Product[] = [];
   const entries: AccountWorkspaceEntry[] = [];
-  const businessById = new Map<string, Business>(businesses.map((b) => [b.id, b]));
+  const businessById = new Map<string, Business & { slug: string }>(businesses.map((b) => [b.id, b]));
   for (const business of businesses) {
     productsByBusiness[business.id] = [];
   }

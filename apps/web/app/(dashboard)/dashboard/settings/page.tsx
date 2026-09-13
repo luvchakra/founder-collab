@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Building2, KeyRound, Receipt, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
 import { BusinessLicensesExpander } from "@/components/settings/business-licenses-expander";
 import { activateModuleAction, cancelModuleAction } from "./licenses/actions";
@@ -30,6 +31,9 @@ export default async function SettingsHubPage() {
   const licensesByBusiness = await Promise.all(
     businesses.map((business) => listLicensesForBusiness(business.id)),
   );
+  const slugsByBusiness = await Promise.all(
+    businesses.map((business) => resolveBusinessSlugById(business.id)),
+  );
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 p-4 sm:p-8">
@@ -49,6 +53,7 @@ export default async function SettingsHubPage() {
                 licenses.filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key),
               );
               const isDisabled = business.disabled_at !== null;
+              const businessSlug = slugsByBusiness[i] ?? business.id;
               return (
                 <div key={business.id} className="flex flex-col gap-3 p-4 sm:p-5">
                   {/* Header: identity (left) vs. the one destructive/state-changing
@@ -58,7 +63,7 @@ export default async function SettingsHubPage() {
                     <div className="flex min-w-0 items-start gap-2">
                       <Building2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                       <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <Link href={`/dashboard/businesses/${business.id}`} className="font-medium hover:underline">
+                        <Link href={`/${businessSlug}`} className="font-medium hover:underline">
                           {business.name}
                         </Link>
                         {isDisabled ? (
@@ -83,7 +88,7 @@ export default async function SettingsHubPage() {
                   <div className="flex flex-wrap items-start gap-2 pl-6">
                     {modules.has("inventory") ? (
                       <Link
-                        href={`/dashboard/businesses/${business.id}/inventory/team`}
+                        href={`/${businessSlug}/inventory/team`}
                         className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
                       >
                         <Users className="size-3" aria-hidden="true" />
@@ -91,7 +96,7 @@ export default async function SettingsHubPage() {
                       </Link>
                     ) : null}
                     <Link
-                      href={`/dashboard/businesses/${business.id}/admin/api-keys`}
+                      href={`/${businessSlug}/admin/api-keys`}
                       className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
                     >
                       <KeyRound className="size-3" aria-hidden="true" />
@@ -99,7 +104,7 @@ export default async function SettingsHubPage() {
                     </Link>
                     {modules.has("gst") ? (
                       <Link
-                        href={`/dashboard/businesses/${business.id}/gst/profile`}
+                        href={`/${businessSlug}/gst/profile`}
                         className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
                       >
                         <Receipt className="size-3" aria-hidden="true" />

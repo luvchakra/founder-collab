@@ -102,7 +102,7 @@ type AttentionItem = { key: string; message: string; href: string; actionLabel: 
  * is meant to be a short, scannable to-do list, not a status report.
  */
 async function buildAttentionItems(
-  businesses: { id: string; name: string }[],
+  businesses: { id: string; name: string; slug: string }[],
   licensesByBusiness: License[][],
 ): Promise<AttentionItem[]> {
   const items: AttentionItem[] = [];
@@ -144,7 +144,7 @@ async function buildAttentionItems(
       items.push({
         key: `gst-profile-${business.id}`,
         message: `${business.name} has Compliance licensed but no GSTIN set.`,
-        href: `/dashboard/businesses/${business.id}/gst/profile`,
+        href: `/${business.slug}/gst/profile`,
         actionLabel: "Set up",
         severity: "info",
       });
@@ -483,7 +483,7 @@ export default async function DashboardPage({
                 </CardHeader>
                 <CardContent className="flex flex-col divide-y">
                   {productRows.map(({ entry, total, won }) => {
-                    const basePath = `/dashboard/businesses/${entry.business.id}/products/${entry.product.id}`;
+                    const basePath = `/${entry.business.slug}/products/${entry.product.id}`;
                     return (
                       <div key={entry.product.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
                         <div className="min-w-0">

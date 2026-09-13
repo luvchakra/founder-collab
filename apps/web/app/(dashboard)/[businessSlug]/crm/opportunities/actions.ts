@@ -1,0 +1,39 @@
+"use server";
+
+import { businessPath } from "@/lib/business-path";
+import { revalidatePath } from "next/cache";
+import { updateOpportunityStage, updateOpportunityValue } from "@cofounderai/module-crm/lib/opportunities/mutations";
+import { assignEntity } from "@cofounderai/module-crm/lib/assignment/mutations";
+
+async function opportunitiesPath(businessId: string) {
+  return `${await businessPath(businessId)}/crm/opportunities`;
+}
+
+/** CRM-04.2: "Drag/drop stage change with audit event" -- the mutation itself does the
+ * auditing (writeAuditLog) and event publishing; this action is just the revalidation
+ * wrapper the Kanban board's client component calls. */
+export async function updateOpportunityStageAction(businessId: string, opportunityId: string, stageId: string): Promise<void> {
+  await updateOpportunityStage(businessId, opportunityId, stageId);
+  revalidatePath(await opportunitiesPath(businessId));
+}
+
+/** CRM-05.4's inline assign form action. */
+export async function assignOpportunityAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const ownerId = String(formData.get("ownerId") || "") || null;
+  await assignEntity(businessId, "opportunity", opportunityId, ownerId);
+  revalidatePath(await opportunitiesPath(businessId));
+}
+
+/** CRM-04.3's edit-value dialog action. */
+export async function updateOpportunityValueAction(businessId: string, opportunityId: string, formData: FormData): Promise<void> {
+  const rawValue = formData.get("estimatedValue");
+  const rawProbability = formData.get("probability");
+  const rawCloseDate = formData.get("expectedCloseDate");
+  await updateOpportunityValue(businessId, opportunityId, {
+    estimatedValue: rawValue ? Number(rawValue) : null,
+    currency: String(formData.get("currency") || "INR"),
+    probability: rawProbability ? Number(rawProbability) : null,
+    expectedCloseDate: rawCloseDate ? String(rawCloseDate) : null,
+  });
+  revalidatePath(await opportunitiesPath(businessId));
+}

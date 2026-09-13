@@ -1,4 +1,5 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { num } from "@cofounderai/core/lib/format";
 import { getOpenTicketsCount } from "../lib/dashboard/queries";
 import { createActivity as createActivityMutation } from "../lib/activities/mutations";
@@ -82,7 +83,7 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
         id: `crm-open-tickets-${businessId}`,
         severity: "info",
         message: `${num.format(openTickets)} open/pending ticket(s) in the inbox.`,
-        href: `/dashboard/businesses/${businessId}/crm`,
+        href: `/${await resolveBusinessSlugById(businessId)}/crm`,
         businessId,
       },
     ],

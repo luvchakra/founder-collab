@@ -1,0 +1,85 @@
+import { notFound } from "next/navigation";
+import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
+import { getInvoice, listInvoiceLines } from "@cofounderai/module-fsm/lib/invoices/queries";
+import { listChargeableItemOptions } from "@cofounderai/module-fsm/lib/estimates/queries";
+import { listActiveJobChargeTypeOptions } from "@cofounderai/module-fsm/lib/job-charge-types/queries";
+import { getDocumentBalance, listPaymentsForDocument } from "@cofounderai/core/payments/queries";
+import { hasPermission } from "@cofounderai/core/rbac/require-permission";
+import { InvoiceEditor } from "@cofounderai/module-fsm/components/invoices/invoice-editor";
+import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
+import { GstDocumentPanel } from "@/components/gst/gst-document-panel";
+import {
+  addInvoiceChargeLineAction,
+  cancelInvoiceEinvoiceAction,
+  cancelInvoiceEwayBillAction,
+  deleteInvoiceChargeLineAction,
+  generateInvoiceEinvoiceAction,
+  generateInvoiceEwayBillAction,
+  markInvoicePaidAction,
+  markInvoiceUnpaidAction,
+  recordInvoicePaymentAction,
+  reorderInvoiceChargeLinesAction,
+  sendInvoiceAction,
+  updateInvoiceChargeLineAction,
+  voidInvoiceAction,
+} from "./actions";
+
+export default async function InvoiceDetailPage({ params }: { params: Promise<{ businessSlug: string; invoiceId: string }> }) {
+  const { businessSlug, invoiceId } = await params;
+  const businessId = await resolveBusinessIdBySlug(businessSlug);
+  if (!businessId) notFound();
+  const [business, invoice] = await Promise.all([getBusiness(businessId), getInvoice(businessId, invoiceId)]);
+  if (!business || !invoice) notFound();
+
+  const [lines, items, jobChargeTypes, balance, payments, canEdit, canVoid, gstStatus, canGenerateGst] = await Promise.all([
+    listInvoiceLines(businessId, invoiceId),
+    listChargeableItemOptions(businessId),
+    listActiveJobChargeTypeOptions(businessId),
+    getDocumentBalance(invoiceId),
+    listPaymentsForDocument(invoiceId),
+    hasPermission(businessId, "invoices.edit"),
+    hasPermission(businessId, "invoices.cancel"),
+    getGstDocumentStatus(businessId, invoiceId),
+    hasPermission(businessId, "gst.generate"),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <InvoiceEditor
+        invoice={invoice}
+        businessName={business.name}
+        lines={lines}
+        items={items}
+        jobChargeTypes={jobChargeTypes}
+        payments={payments}
+        balanceAmount={balance?.balance_amount ?? invoice.total_amount}
+        paidAmount={balance?.paid_amount ?? 0}
+        canEdit={canEdit}
+        canRecordPayment={canEdit}
+        canVoid={canVoid}
+        addLineAction={addInvoiceChargeLineAction.bind(null, businessId, invoiceId)}
+        updateLineAction={updateInvoiceChargeLineAction.bind(null, businessId, invoiceId)}
+        deleteLineAction={deleteInvoiceChargeLineAction.bind(null, businessId, invoiceId)}
+        reorderAction={reorderInvoiceChargeLinesAction.bind(null, businessId, invoiceId)}
+        sendAction={sendInvoiceAction.bind(null, businessId, invoiceId)}
+        recordPaymentAction={recordInvoicePaymentAction.bind(null, businessId, invoiceId)}
+        markPaidAction={markInvoicePaidAction.bind(null, businessId, invoiceId)}
+        markUnpaidAction={markInvoiceUnpaidAction.bind(null, businessId, invoiceId)}
+        voidAction={voidInvoiceAction.bind(null, businessId, invoiceId)}
+      />
+
+      {gstStatus.ok ? (
+        <GstDocumentPanel
+          canGenerate={canGenerateGst}
+          einvoice={gstStatus.data.einvoice}
+          ewayBill={gstStatus.data.ewayBill}
+          generateEinvoiceAction={generateInvoiceEinvoiceAction.bind(null, businessId, invoiceId)}
+          cancelEinvoiceAction={cancelInvoiceEinvoiceAction.bind(null, businessId, invoiceId)}
+          generateEwayBillAction={generateInvoiceEwayBillAction.bind(null, businessId, invoiceId)}
+          cancelEwayBillAction={cancelInvoiceEwayBillAction.bind(null, businessId, invoiceId)}
+        />
+      ) : null}
+    </div>
+  );
+}
