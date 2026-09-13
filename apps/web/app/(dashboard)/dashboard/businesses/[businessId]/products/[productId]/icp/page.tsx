@@ -173,6 +173,7 @@ export default async function IcpPage({
       ) : null}
 
       <form
+        id="icp-edit-form"
         action={updateIcpAction.bind(null, businessId, productId, icp.id)}
         className="flex flex-col gap-4"
       >
@@ -233,7 +234,9 @@ export default async function IcpPage({
             Save changes
           </SubmitButton>
           <SaveAndRunDownstreamButton
-            formAction={updateIcpAndRunDownstreamAction.bind(null, businessId, productId, icp.id)}
+            formId="icp-edit-form"
+            runDownstreamAction={updateIcpAndRunDownstreamAction.bind(null, businessId, productId, icp.id)}
+            saveOnlyAction={updateIcpAction.bind(null, businessId, productId, icp.id)}
             affectedLabels={downstreamGroupLabels("icp")}
           />
         </div>

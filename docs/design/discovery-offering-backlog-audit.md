@@ -62,7 +62,7 @@ only genuine architectural/key decisions are raised.
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Done |
 | | P1-01.2 | Incremental Re-Run | Done |
 | | P1-02.1 | Review Required Indicators | Done |
-| | P1-02.2 | Rerun Impact Confirmation | Not started |
+| | P1-02.2 | Rerun Impact Confirmation | Done |
 | | P1-03.1 | Offering Definition Quality | Not started |
 | | P1-03.2 | Missing Information Suggestions | Not started |
 | | P1-04.1 | Learn From User Edits | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**44 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**45 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3334,3 +3334,84 @@ way to be visually confirmed beyond the typecheck/build/test evidence above.
 
 **Status**: 44 of 68 in-scope stories done -- Phase F continuing. Next: P1-02.2, Rerun
 Impact Confirmation.
+
+### P1-02.2 — Rerun Impact Confirmation (2026-09-13)
+
+The doc gives this story no "Acceptance criteria" heading either -- just the one worked
+example itself (`"Changing ICP will update:"` followed by a ✓-per-line checklist of seven
+founder-facing groups, then `[Save & Run Downstream] [Save Only] [Cancel]`).
+
+**Checked what already existed before building anything**: DISC-OFFER-P0-11.1 ("Editable
+Pipeline Stages") already built almost exactly this flow for the doc's own single worked
+example (the ICP page) -- a "Save & Run Downstream" button guarded by a plain
+`window.confirm()` that named the same affected groups
+(`downstreamGroupLabels("icp")`, DISC-OFFER-P0-11.3) as a sentence, alongside a separate,
+always-visible plain "Save" button. That confirm() is a real, if approximate, prior
+implementation of "the user receives a clear warning before downstream results are
+replaced" -- but it's genuinely short of this story's own worked example in two concrete
+ways: a native confirm renders one plain sentence, not the doc's own named per-line
+checklist, and it only ever offers a binary choice (proceed with the one button already
+clicked, or abort it) -- there is no way, once that dialog is open, to instead choose
+"Save Only" without first cancelling and clicking a different button. This story closes
+exactly that gap rather than rebuilding the whole flow from scratch.
+
+**Replaced the native `confirm()` with a real `AlertDialog`** (`save-and-run-downstream-
+button.tsx`, the same vendored dialog primitive already used throughout this module):
+opens on clicking "Save & Run Downstream", renders the doc's own literal heading and a
+`✓`-prefixed list of every affected group by name (or, when nothing downstream depends on
+this yet -- an empty `downstreamGroupLabels` result -- a plain sentence saying so, the
+same "no false precision" restraint every confidence-shaped display in this module
+already applies), and offers all three of the doc's own actions together in its own
+footer: **Cancel** (`AlertDialogCancel`, closes with no submission -- genuinely new; the
+old confirm's only "no" path aborted the one button already clicked, it never offered a
+neutral third option), **Save Only** (genuinely new -- previously only reachable by
+first cancelling the confirm and clicking the *other*, separate button), and **Save &
+Run Downstream** (the same action as before, now reachable from inside the dialog
+instead of triggering it).
+
+**The one real technical wrinkle**: Radix renders `AlertDialogContent` into a portal
+(`document.body`), so the two real submit buttons living inside it are no longer DOM
+descendants of the ICP edit `<form>` the way both original buttons were. Solved with the
+standard HTML `form` attribute (exactly what it exists for -- a submit control anywhere
+in the document, portal included, can still submit a specific form by id), rather than
+manually reconstructing `FormData` from a ref: gave the form a stable `id`
+(`icp-edit-form`) and each dialog button `form={formId}` plus its own `formAction`
+override, so a click still submits the form's own live field values (including whatever
+the founder had already typed) through whichever server action that specific button
+names -- identical semantics to when both buttons lived directly inside the form, just
+reassociated rather than reimplemented. `SaveAndRunDownstreamButton` gained
+`saveOnlyAction`/`formId` props alongside its existing `runDownstreamAction`
+(renamed from `formAction` for clarity now that the component drives two actions, not
+one); the ICP page passes the exact same `updateIcpAction` binding to `saveOnlyAction`
+that its own always-visible "Save changes" button already submits -- "Save Only" inside
+the dialog is a second way to reach that identical, already-existing outcome, not a new
+code path.
+
+Scoped to the ICP alone, matching the doc's own single worked example and
+DISC-OFFER-P0-11.1's own already-established precedent for scoping this exact flow --
+buyer personas/discovery strategy/offering profile still have no "Save & Run Downstream"
+affordance of their own yet (11.1's own log entry already explains why: each is currently
+either upstream of everything or a dead-end branch in DISC-OFFER-P0-11.3's dependency
+graph, so the button would presently invalidate either everything or nothing) --
+unaffected by this story, which only replaces the *confirmation* step of the one flow
+that already exists.
+
+No migration, no new pure domain logic (a presentation/wiring change over
+DISC-OFFER-P0-11.3's own already-tested `downstreamGroupLabels`, matching this run's own
+"no unit test for a DB-composing/UI-wiring function" precedent -- the only genuinely new
+logic here is which HTML attributes connect a button to a form, not a computation).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1181 files, no
+violations), `lint:migrations` (136 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (209/209, unchanged -- no new pure logic per
+the note above), and a clean `next build` (confirmed the ICP route, which now renders the
+new dialog, still builds with no errors and appears in the route manifest). Same
+live-browser-walkthrough constraint noted in every prior UI-touching story this run (no
+seeded demo user/`.env.local` in this environment) -- particularly relevant here given
+the portal/`form`-attribute association is exactly the kind of interactive behavior a
+real browser click-through would most directly confirm; flagged rather than silently
+assumed to work.
+
+**Status**: 45 of 68 in-scope stories done -- Phase F continuing. Next: P1-03.1,
+Offering Definition Quality.
