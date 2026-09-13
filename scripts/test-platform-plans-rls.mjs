@@ -10,6 +10,15 @@
  * (Alice) querying `platform.plans` must get 0 rows from RLS, never a schema-level
  * "permission denied" thrown before RLS is even evaluated -- the class of bug
  * PLATFORM-P0-03.4 found and `20260912010000_platform_schema_grants.sql` fixed.
+ *
+ * **Updated for PLATFORM-P0-17.1/17.3 (`20260913470000_platform_plan_events.sql`)**:
+ * `platform.plans` no longer grants INSERT/UPDATE to `authenticated` at all -- every
+ * mutation now goes through `platform.create_plan()`/`platform.update_plan()` so a
+ * `reason` is captured in the new `platform.plan_events` audit trail. This script's own
+ * write-path assertions below were updated to match (a direct INSERT/UPDATE is now a flat
+ * permission error for everyone, superadmin included, rather than a silently-filtered
+ * RLS no-op) -- see `test-platform-config-versioning-rls.mjs` for the full behavior test
+ * of the two new functions and their audit trail.
  */
 import { join } from "node:path";
 import { withTestDatabase } from "./lib/rls-test-harness.mjs";
@@ -68,40 +77,48 @@ async function main() {
       );
       assertThrows(
         () => psqlAsAlice(`insert into platform.plans (key, name) values ('rogue', 'Rogue Plan')`),
-        "Alice's INSERT is rejected by the WITH CHECK clause (platform.is_superadmin() is false for her)",
+        "Alice's direct INSERT is rejected -- no INSERT grant to authenticated at all anymore",
       );
-      psqlAsAlice(`update platform.plans set price = 0 where key = 'max'`);
+      assertThrows(
+        () => psqlAsAlice(`update platform.plans set price = 0 where key = 'max'`),
+        "Alice's direct UPDATE is rejected -- no UPDATE grant to authenticated at all anymore",
+      );
       assertEqual(
         psql(`set local role service_role; select price from platform.plans where key = 'max'`),
         "9999.00",
-        "Alice's UPDATE silently affects zero rows -- the Max plan's price is untouched",
+        "the Max plan's price is untouched",
       );
 
-      console.log("Verifying a genuine superadmin (Zoe) CAN read, create, and update plans...");
-      assertEqual(psqlAsZoe(`select count(*) from platform.plans`), "3", "Zoe can SELECT the seeded catalog");
-      psqlAsZoe(`insert into platform.plans (key, name, price, status) values ('enterprise', 'Enterprise', 49999, 'draft')`);
-      assertEqual(psqlAsZoe(`select count(*) from platform.plans`), "4", "Zoe's INSERT succeeds");
-      psqlAsZoe(`update platform.plans set status = 'active' where key = 'enterprise'`);
-      assertEqual(
-        psqlAsZoe(`select status from platform.plans where key = 'enterprise'`),
-        "active",
-        "Zoe's UPDATE succeeds",
+      console.log("Verifying even a genuine superadmin (Zoe) cannot write to platform.plans directly anymore...");
+      assertEqual(psqlAsZoe(`select count(*) from platform.plans`), "3", "Zoe can still SELECT the seeded catalog");
+      assertThrows(
+        () =>
+          psqlAsZoe(`insert into platform.plans (key, name, price, status) values ('enterprise', 'Enterprise', 49999, 'draft')`),
+        "even Zoe's direct INSERT is rejected -- platform.create_plan() is the only path to a row now (PLATFORM-P0-17.1)",
       );
+      assertThrows(
+        () => psqlAsZoe(`update platform.plans set status = 'active' where key = 'pro'`),
+        "even Zoe's direct UPDATE is rejected -- platform.update_plan() is the only path to a row now (PLATFORM-P0-17.1)",
+      );
+      assertEqual(psql(`set local role service_role; select count(*) from platform.plans`), "3", "no residue from either rejected direct write");
 
       console.log("Verifying nobody -- superadmin included -- can DELETE a plan (PLATFORM-P0-04.7's own rule)...");
       assertThrows(
-        () => psqlAsZoe(`delete from platform.plans where key = 'enterprise'`),
+        () => psqlAsZoe(`delete from platform.plans where key = 'pro'`),
         "even a superadmin cannot DELETE a plan -- no DELETE policy or grant to authenticated, by design (04.7: never delete a plan)",
       );
-      assertEqual(psql(`set local role service_role; select count(*) from platform.plans`), "4", "still 4 rows -- the delete attempt was a no-op");
+      assertEqual(psql(`set local role service_role; select count(*) from platform.plans`), "3", "still 3 rows -- the delete attempt was a no-op");
 
-      console.log("Verifying the key uniqueness constraint holds for a superadmin too...");
+      console.log("Verifying the key uniqueness constraint holds through platform.create_plan() too...");
       assertThrows(
-        () => psqlAsZoe(`insert into platform.plans (key, name) values ('pro', 'Duplicate Pro')`),
-        "a duplicate key is rejected by the unique constraint even for a superadmin",
+        () =>
+          psqlAsZoe(
+            `select * from platform.create_plan('pro', 'Duplicate Pro', null, 1, 'month', 'INR', 'draft', 9, true, 'duplicate attempt')`,
+          ),
+        "a duplicate key is rejected by the unique constraint even through create_plan()",
       );
 
-      console.log("\nAll platform.plans RLS checks passed.");
+      console.log("\nAll platform.plans RLS checks passed. See test-platform-config-versioning-rls.mjs for platform.create_plan()/update_plan()/plan_events' own full behavior test.");
     },
   });
 }

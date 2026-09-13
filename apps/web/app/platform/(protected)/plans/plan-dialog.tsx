@@ -251,6 +251,29 @@ export function PlanDialog({ plan }: { plan?: PlatformPlan }) {
             </div>
           </div>
 
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="reason" className={LABEL_CLASS}>
+              Reason (required)
+            </Label>
+            <Textarea
+              id="reason"
+              name="reason"
+              placeholder="e.g. Raising Pro's price for new subscribers"
+              className={FIELD_CLASS}
+              rows={2}
+              aria-invalid={Boolean(fieldErrors.reason)}
+            />
+            {fieldErrors.reason ? (
+              <p role="alert" className="text-xs text-red-400">
+                {fieldErrors.reason}
+              </p>
+            ) : (
+              <p className="text-xs text-zinc-500">
+                Every plan change is recorded -- PLATFORM-P0-17.1 Configuration Versioning.
+              </p>
+            )}
+          </div>
+
           <DialogFooter>
             <Button
               type="button"

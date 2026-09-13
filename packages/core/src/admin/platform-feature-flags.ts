@@ -302,6 +302,30 @@ export async function deleteFeatureFlag(
 }
 
 /**
+ * PLATFORM-P0-17.3 ("Rollback"): restores a feature flag to a previous version by
+ * re-invoking `updateFeatureFlag()` with that version's own `feature_flag_events.new_value`
+ * snapshot -- see `restorePlanFromSnapshot()` in `platform-plans.ts` for why this is
+ * genuinely just another edit, not a separate mechanism. `featureKey`/scope are immutable
+ * and not part of `updateFeatureFlagSchema` at all, so nothing here can restore them even
+ * if a snapshot predates the flag's current scope. Called only from `config-history.ts`'s
+ * generic restore dispatcher.
+ */
+export async function restoreFeatureFlagFromSnapshot(
+  id: string,
+  snapshot: Record<string, unknown>,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> }> {
+  return updateFeatureFlag({
+    id,
+    description: String(snapshot.description ?? ""),
+    enabled: Boolean(snapshot.enabled),
+    effectiveFrom: (snapshot.effective_from as string | null) ?? "",
+    effectiveTo: (snapshot.effective_to as string | null) ?? "",
+    reason,
+  });
+}
+
+/**
  * Pure, unit-testable derivation of a flag's *current* effective state from its own stored
  * `enabled`/`effectiveFrom`/`effectiveTo` fields (CLAUDE.md development principle #9 --
  * non-trivial logic testable without a database). Deliberately **not** called from

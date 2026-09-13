@@ -197,3 +197,36 @@ export async function updateSystemPolicies(
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+/**
+ * PLATFORM-P0-17.3 ("Rollback"): restores the (singleton) system policy row to a previous
+ * version by re-invoking `updateSystemPolicies()` with that version's own
+ * `system_policy_events.new_value` snapshot -- see `restorePlanFromSnapshot()` in
+ * `platform-plans.ts` for why this is genuinely just another edit, not a separate
+ * mechanism. Called only from `config-history.ts`'s generic restore dispatcher.
+ */
+export async function restoreSystemPoliciesFromSnapshot(
+  snapshot: Record<string, unknown>,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> }> {
+  const num = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+  return updateSystemPolicies({
+    sessionDurationMinutes: num(snapshot.session_duration_minutes),
+    passwordMinLength: num(snapshot.password_min_length),
+    passwordRequireUppercase: Boolean(snapshot.password_require_uppercase),
+    passwordRequireNumber: Boolean(snapshot.password_require_number),
+    passwordRequireSymbol: Boolean(snapshot.password_require_symbol),
+    maxFileSizeMb: num(snapshot.max_file_size_mb),
+    defaultTimezone: String(snapshot.default_timezone ?? ""),
+    defaultCurrency: String(snapshot.default_currency ?? ""),
+    dataRetentionDefaultDays: num(snapshot.data_retention_default_days),
+    auditRetentionDays: num(snapshot.audit_retention_days),
+    rateLimitApiPerMinute: num(snapshot.rate_limit_api_per_minute),
+    rateLimitAiPerMinute: num(snapshot.rate_limit_ai_per_minute),
+    rateLimitWebhooksPerMinute: num(snapshot.rate_limit_webhooks_per_minute),
+    rateLimitImportsPerHour: num(snapshot.rate_limit_imports_per_hour),
+    rateLimitExportsPerHour: num(snapshot.rate_limit_exports_per_hour),
+    rateLimitAutomationPerMinute: num(snapshot.rate_limit_automation_per_minute),
+    reason,
+  });
+}

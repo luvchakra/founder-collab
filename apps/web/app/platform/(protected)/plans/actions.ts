@@ -26,6 +26,7 @@ function readCommonFields(formData: FormData) {
     status: String(formData.get("status") ?? "draft") as CreatePlatformPlanInput["status"],
     displayOrder: String(formData.get("displayOrder") ?? "0"),
     marketingVisible: formData.get("marketingVisible") === "on",
+    reason: String(formData.get("reason") ?? ""),
   };
 }
 

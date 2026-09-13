@@ -334,6 +334,33 @@ export async function deleteAnnouncement(
 }
 
 /**
+ * PLATFORM-P0-17.3 ("Rollback"): restores an announcement to a previous version by
+ * re-invoking `updateAnnouncement()` with that version's own `announcement_events.new_value`
+ * snapshot -- see `restorePlanFromSnapshot()` in `platform-plans.ts` for why this is
+ * genuinely just another edit, not a separate mechanism. Called only from
+ * `config-history.ts`'s generic restore dispatcher.
+ */
+export async function restoreAnnouncementFromSnapshot(
+  id: string,
+  snapshot: Record<string, unknown>,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> }> {
+  return updateAnnouncement({
+    id,
+    type: snapshot.type as AnnouncementType,
+    title: String(snapshot.title ?? ""),
+    message: String(snapshot.message ?? ""),
+    publishAt: (snapshot.publish_at as string | null) ?? "",
+    expireAt: (snapshot.expire_at as string | null) ?? "",
+    maintenanceStart: (snapshot.maintenance_start as string | null) ?? "",
+    maintenanceEnd: (snapshot.maintenance_end as string | null) ?? "",
+    affectedModules: ((snapshot.affected_modules as ModuleKey[] | null) ?? []).join(","),
+    enabled: Boolean(snapshot.enabled),
+    reason,
+  });
+}
+
+/**
  * Pure, unit-testable derivation of an announcement's *current* effective state from its
  * own stored `enabled`/`publishAt`/`expireAt` fields (CLAUDE.md development principle #9).
  * Mirrors `isFeatureFlagActive()` exactly. Deliberately **not** called from anywhere
