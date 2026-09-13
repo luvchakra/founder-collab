@@ -76,7 +76,12 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
           detail="awaiting a reply"
           href={`/${businessSlug}/crm/lost-business`}
         />
-        <KpiCard label="Reviews requiring action" value={metrics.unansweredReviewsRequiringAction} detail="new or in progress" />
+        <KpiCard
+          label="Reviews requiring action"
+          value={metrics.unansweredReviewsRequiringAction}
+          detail="new or in progress"
+          href={`/${businessSlug}/crm/reviews`}
+        />
         <KpiCard
           label="Overdue leads"
           value={metrics.overdueLeads}
@@ -144,6 +149,7 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
             label="Response SLA"
             value={kpis.responseSlaPercent === null ? "--" : `${kpis.responseSlaPercent}%`}
             detail="on-time replies, last 30 days"
+            href={`/${businessSlug}/crm/conversations`}
           />
         </div>
       </div>

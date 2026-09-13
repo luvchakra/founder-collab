@@ -51,7 +51,7 @@ export function ChannelsView({
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <form
-        className="flex items-end gap-2"
+        className="flex flex-wrap items-end gap-3 rounded-2xl border border-border p-4"
         onSubmit={(e) => {
           e.preventDefault();
           run(async () => {
@@ -70,7 +70,7 @@ export function ChannelsView({
             ))}
           </NativeSelect>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-1 min-w-40 flex-col gap-1.5">
           <Label htmlFor="channel-name">Name</Label>
           <Input id="channel-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Support inbox" required />
         </div>
@@ -82,37 +82,65 @@ export function ChannelsView({
       {channels.length === 0 ? (
         <EmptyState variant="inline" message="No channels yet. Add one above." />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Kind</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below md -- a 4-column table with a bare icon-only action
+              column doesn't fit a phone width, per this platform's own mobile-card
+              rule for any page whose primary content is a table of rows. */}
+          <ul className="divide-y md:hidden">
             {channels.map((channel) => (
-              <TableRow key={channel.id}>
-                <TableCell>{channel.name}</TableCell>
-                <TableCell className="text-muted-foreground">{CHANNEL_KIND_LABEL[channel.kind]}</TableCell>
-                <TableCell>
-                  <Badge variant={channel.is_active ? "secondary" : "outline"}>{channel.is_active ? "Active" : "Inactive"}</Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => run(() => setActiveAction(channel.id, !channel.is_active))}
-                  >
-                    {channel.is_active ? "Deactivate" : "Reactivate"}
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <li key={channel.id} className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{channel.name}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{CHANNEL_KIND_LABEL[channel.kind]}</span>
+                    <Badge variant={channel.is_active ? "secondary" : "outline"}>
+                      {channel.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  onClick={() => run(() => setActiveAction(channel.id, !channel.is_active))}
+                >
+                  {channel.is_active ? "Deactivate" : "Reactivate"}
+                </Button>
+              </li>
             ))}
-          </TableBody>
-        </Table>
+          </ul>
+          <Table className="hidden md:table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Kind</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {channels.map((channel) => (
+                <TableRow key={channel.id}>
+                  <TableCell className="font-medium">{channel.name}</TableCell>
+                  <TableCell className="text-muted-foreground">{CHANNEL_KIND_LABEL[channel.kind]}</TableCell>
+                  <TableCell>
+                    <Badge variant={channel.is_active ? "secondary" : "outline"}>{channel.is_active ? "Active" : "Inactive"}</Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => run(() => setActiveAction(channel.id, !channel.is_active))}
+                    >
+                      {channel.is_active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

@@ -40,9 +40,9 @@ export default async function CrmChannelsPage({ params }: { params: Promise<{ bu
       <ChannelAccountsPanel
         channels={channels}
         accounts={accounts}
-        connectAction={(input) => connectChannelAccountAction(businessId, input)}
+        connectAction={connectChannelAccountAction.bind(null, businessId)}
         disconnectAction={disconnectChannelAccountAction.bind(null, businessId)}
-        setInstantReplyModeAction={(channelAccountId, mode) => setInstantReplyModeAction(businessId, channelAccountId, mode)}
+        setInstantReplyModeAction={setInstantReplyModeAction.bind(null, businessId)}
       />
     </div>
   );

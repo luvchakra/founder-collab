@@ -61,7 +61,7 @@ export function ChannelAccountsPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 border-t pt-4">
+    <div className="flex flex-col gap-4 border-t border-border pt-4">
       <div>
         <h2 className="font-medium">Connected accounts</h2>
         <p className="text-sm text-muted-foreground">
@@ -76,7 +76,7 @@ export function ChannelAccountsPanel({
         <p className="text-sm text-muted-foreground">Add a channel above before connecting an account to it.</p>
       ) : (
         <form
-          className="flex flex-wrap items-end gap-2"
+          className="flex flex-wrap items-end gap-3 rounded-2xl border border-border p-4"
           onSubmit={(e) => {
             e.preventDefault();
             run(async () => {
@@ -106,7 +106,7 @@ export function ChannelAccountsPanel({
               ))}
             </NativeSelect>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-1 min-w-40 flex-col gap-1.5">
             <Label htmlFor="account-external-id">Page/number/location ID</Label>
             <Input
               id="account-external-id"
@@ -116,7 +116,7 @@ export function ChannelAccountsPanel({
               required
             />
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-1 min-w-40 flex-col gap-1.5">
             <Label htmlFor="account-token">Access token</Label>
             <Input
               id="account-token"
@@ -136,48 +136,89 @@ export function ChannelAccountsPanel({
       {accounts.length === 0 ? (
         <EmptyState variant="inline" message="No accounts connected yet." />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Provider</TableHead>
-              <TableHead>External ID</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Instant reply</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <div className="rounded-2xl border border-border">
+          {/* Compact cards below md -- the desktop table below has 5 columns
+              including two inline controls, which does not fit a phone width. */}
+          <ul className="divide-y md:hidden">
             {accounts.map((account) => (
-              <TableRow key={account.id}>
-                <TableCell>{CHANNEL_PROVIDER_LABELS[account.provider]}</TableCell>
-                <TableCell className="text-muted-foreground">{account.external_account_id}</TableCell>
-                <TableCell>
-                  <Badge variant={account.status === "connected" ? "secondary" : "outline"}>{account.status}</Badge>
-                </TableCell>
-                <TableCell>
-                  <NativeSelect
-                    value={account.instant_reply_mode}
-                    disabled={pending || account.status !== "connected"}
-                    onChange={(e) => run(() => setInstantReplyModeAction(account.id, e.target.value as InstantReplyMode))}
+              <li key={account.id} className="flex flex-col gap-2 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{CHANNEL_PROVIDER_LABELS[account.provider]}</p>
+                    <p className="truncate text-xs text-muted-foreground">{account.external_account_id}</p>
+                  </div>
+                  <Badge variant={account.status === "connected" ? "secondary" : "outline"} className="shrink-0">
+                    {account.status}
+                  </Badge>
+                </div>
+                <NativeSelect
+                  value={account.instant_reply_mode}
+                  disabled={pending || account.status !== "connected"}
+                  onChange={(e) => run(() => setInstantReplyModeAction(account.id, e.target.value as InstantReplyMode))}
+                >
+                  {Object.entries(INSTANT_REPLY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </NativeSelect>
+                {account.status === "connected" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={pending}
+                    className="self-end"
+                    onClick={() => run(() => disconnectAction(account.id))}
                   >
-                    {Object.entries(INSTANT_REPLY_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </TableCell>
-                <TableCell className="text-right">
-                  {account.status === "connected" ? (
-                    <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(() => disconnectAction(account.id))}>
-                      Disconnect
-                    </Button>
-                  ) : null}
-                </TableCell>
-              </TableRow>
+                    Disconnect
+                  </Button>
+                ) : null}
+              </li>
             ))}
-          </TableBody>
-        </Table>
+          </ul>
+          <Table className="hidden md:table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Provider</TableHead>
+                <TableHead>External ID</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Instant reply</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accounts.map((account) => (
+                <TableRow key={account.id}>
+                  <TableCell className="font-medium">{CHANNEL_PROVIDER_LABELS[account.provider]}</TableCell>
+                  <TableCell className="text-muted-foreground">{account.external_account_id}</TableCell>
+                  <TableCell>
+                    <Badge variant={account.status === "connected" ? "secondary" : "outline"}>{account.status}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <NativeSelect
+                      value={account.instant_reply_mode}
+                      disabled={pending || account.status !== "connected"}
+                      onChange={(e) => run(() => setInstantReplyModeAction(account.id, e.target.value as InstantReplyMode))}
+                    >
+                      {Object.entries(INSTANT_REPLY_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {account.status === "connected" ? (
+                      <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(() => disconnectAction(account.id))}>
+                        Disconnect
+                      </Button>
+                    ) : null}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );
