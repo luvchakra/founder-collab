@@ -30,13 +30,25 @@ import { listOpportunities } from "../opportunities/queries";
 import type { NextBestActionInput } from "../opportunities/next-best-action";
 import type { DiscoveryDefinition } from "../discovery-definitions/types";
 import type { Opportunity } from "../opportunities/types";
+import {
+  classifyEnumConfidence,
+  classifyEvidenceConfidences,
+  classifyNumericConfidence,
+  worstReviewLevel,
+  type StageReviewLevel,
+} from "./review";
 
 export type StageContext = {
   workspaceId: string;
   productId: string;
 };
 
-export type StageOutcome = { outcome: "completed" | "skipped"; detail: string };
+/** DISC-OFFER-P1-02.1: `reviewLevel` is undefined for a stage with no confidence-bearing
+ * result of its own (the several deterministic, rule-based stages -- buyer personas,
+ * discovery strategy, account discovery, CRM handoff -- have nothing an AI judged
+ * uncertain to flag); `run-ai-discovery/route.ts` treats an undefined level exactly like
+ * `"automated"` (write `completed`, not `needs_review`/`insufficient_evidence`). */
+export type StageOutcome = { outcome: "completed" | "skipped"; detail: string; reviewLevel?: StageReviewLevel };
 
 const ACCOUNT_DISCOVERY_MAX = 10;
 const RESEARCH_TOP_N = 3;
@@ -57,8 +69,12 @@ export async function runWebsiteUnderstandingStage(ctx: StageContext): Promise<S
   if (!product.website) {
     throw new Error("Add a website to this offering before running AI Discovery.");
   }
-  await understandProduct(ctx.productId);
-  return { outcome: "completed", detail: "Website researched and offering profile updated." };
+  const profile = await understandProduct(ctx.productId);
+  return {
+    outcome: "completed",
+    detail: "Website researched and offering profile updated.",
+    reviewLevel: classifyNumericConfidence(profile.confidence),
+  };
 }
 
 /** No AI call of its own -- `website_understanding` (above) already wrote
@@ -73,7 +89,11 @@ export async function runOfferingProfileStage(ctx: StageContext): Promise<StageO
   if (!product?.product_profile) {
     throw new Error("No offering profile yet -- run Research Website first.");
   }
-  return { outcome: "completed", detail: "Offering profile confirmed." };
+  return {
+    outcome: "completed",
+    detail: "Offering profile confirmed.",
+    reviewLevel: classifyNumericConfidence(product.product_profile.confidence),
+  };
 }
 
 /** DISC-OFFER-P0-10.1: "Build / Refine ICP". Generates (or reuses an already-approved)
@@ -87,7 +107,17 @@ export async function runOfferingProfileStage(ctx: StageContext): Promise<StageO
 export async function runIcpStage(ctx: StageContext): Promise<StageOutcome> {
   const icp = await generateIcp(ctx.productId);
   if (icp.status !== "approved") await approveIcpProfile(icp.id);
-  return { outcome: "completed", detail: `ICP ready (${icp.industries.length} industries, ${icp.roles.length} roles).` };
+  // DISC-OFFER-P1-02.1: `confidence` is null when this run reused an already-approved
+  // ICP untouched (generateIcp's own freshness check) or the ICP was last written by a
+  // founder's own manual edit (updateIcpProfile clears it -- see icp/types.ts's own
+  // comment) -- in both cases this run made no fresh automated claim of its own to
+  // second-guess, so there's nothing to flag. Only a genuinely freshly-generated ICP
+  // (always a real 0-1 number per IcpProfileSchema) gets classified.
+  return {
+    outcome: "completed",
+    detail: `ICP ready (${icp.industries.length} industries, ${icp.roles.length} roles).`,
+    reviewLevel: icp.confidence === null ? "automated" : classifyNumericConfidence(icp.confidence),
+  };
 }
 
 /** DISC-OFFER-P0-10.1: "Identify Buyer Personas" -- deterministic (see
@@ -165,9 +195,15 @@ export async function runSignalsStage(ctx: StageContext): Promise<StageOutcome> 
 
   let succeeded = 0;
   let lastError: string | null = null;
+  // DISC-OFFER-P1-02.1: one flat pool of every evidence item's own confidence across
+  // every account this run actually researched -- an account whose research turned up
+  // no evidence at all (not the same as one that failed outright, handled below) counts
+  // as its own empty contribution via classifyEvidenceConfidences, not silently ignored.
+  const evidenceConfidences: ("low" | "medium" | "high")[] = [];
   for (const prospect of pending) {
     try {
-      await researchProspect(prospect.id);
+      const research = await researchProspect(prospect.id);
+      evidenceConfidences.push(...research.evidence.map((e) => e.confidence));
       await syncSignalsFromResearch(ctx.workspaceId, prospect.id);
       await syncNegativeSignalsForProspect(ctx.workspaceId, prospect.id);
       await createOpportunity(ctx.workspaceId, {
@@ -183,7 +219,11 @@ export async function runSignalsStage(ctx: StageContext): Promise<StageOutcome> 
     }
   }
   if (succeeded === 0) throw new Error(lastError ?? "Signal collection failed for every account.");
-  return { outcome: "completed", detail: `Signals collected for ${succeeded} of ${pending.length} account(s).` };
+  return {
+    outcome: "completed",
+    detail: `Signals collected for ${succeeded} of ${pending.length} account(s).`,
+    reviewLevel: classifyEvidenceConfidences(evidenceConfidences),
+  };
 }
 
 /** Every open opportunity under the active definition -- the shared selector the
@@ -207,14 +247,25 @@ export async function runSignalCorrelationStage(ctx: StageContext): Promise<Stag
   if (opportunities.length === 0) return { outcome: "skipped", detail: "Nothing new to correlate." };
 
   let correlated = 0;
+  // DISC-OFFER-P1-02.1: an opportunity whose account has no correlatable signals yet is
+  // itself a real "insufficient evidence" reading for this stage, worth flagging -- not
+  // excluded from the aggregate just because nothing was attached this time.
+  const reviewLevels: StageReviewLevel[] = [];
   for (const opportunity of opportunities) {
     const correlation = await correlateSignalsForProspect(ctx.workspaceId, opportunity.prospect_id);
     if (correlation) {
       await attachSignalCorrelation(opportunity.id, correlation);
       correlated += 1;
+      reviewLevels.push(classifyEnumConfidence(correlation.confidence, true));
+    } else {
+      reviewLevels.push("insufficient_evidence");
     }
   }
-  return { outcome: "completed", detail: `${correlated} of ${opportunities.length} opportunity(ies) correlated.` };
+  return {
+    outcome: "completed",
+    detail: `${correlated} of ${opportunities.length} opportunity(ies) correlated.`,
+    reviewLevel: worstReviewLevel(reviewLevels),
+  };
 }
 
 /** DISC-OFFER-P0-10.1: "Score Opportunities" -- a checkpoint/reporting stage, not a new
@@ -232,7 +283,15 @@ export async function runOpportunityScoringStage(ctx: StageContext): Promise<Sta
   const opportunities = await activeOpportunities(ctx.workspaceId, definition.id);
   if (opportunities.length === 0) return { outcome: "skipped", detail: "No open opportunities to score." };
   const scored = opportunities.filter((o) => o.score !== null).length;
-  return { outcome: "completed", detail: `${scored} of ${opportunities.length} opportunity(ies) have a score.` };
+  // DISC-OFFER-P1-02.1: a null score is DISC-OFFER-P0-05.2's own literal "Insufficient
+  // evidence" case (zero score components populated) -- a genuinely different fact from
+  // a real, if low, `confidence` reading on a score that *did* get computed.
+  const reviewLevels = opportunities.map((o) => (o.score === null ? "insufficient_evidence" as const : classifyEnumConfidence(o.confidence, true)));
+  return {
+    outcome: "completed",
+    detail: `${scored} of ${opportunities.length} opportunity(ies) have a score.`,
+    reviewLevel: worstReviewLevel(reviewLevels),
+  };
 }
 
 /** DISC-OFFER-P0-10.1: "Generate Why Now" -- DISC-OFFER-P0-05.4's own `computeWhyNow`,
@@ -245,12 +304,17 @@ export async function runWhyNowStage(ctx: StageContext): Promise<StageOutcome> {
   if (opportunities.length === 0) return { outcome: "skipped", detail: "Nothing new to explain." };
 
   let updated = 0;
+  const reviewLevels: StageReviewLevel[] = [];
   for (const opportunity of opportunities) {
     const correlation = await correlateSignalsForProspect(ctx.workspaceId, opportunity.prospect_id);
-    await setOpportunityWhyNow(opportunity.id, correlation);
+    const result = await setOpportunityWhyNow(opportunity.id, correlation);
+    // DISC-OFFER-P1-02.1: `timing_strength` is null exactly when `computeWhyNow` had no
+    // correlation to work with (why-now.ts's own comment) -- a genuinely different fact
+    // from a real, if low, `why_now_confidence` reading on a claim that *was* computed.
+    reviewLevels.push(result.timing_strength === null ? "insufficient_evidence" : classifyEnumConfidence(result.why_now_confidence, true));
     updated += 1;
   }
-  return { outcome: "completed", detail: `Why Now generated for ${updated} opportunity(ies).` };
+  return { outcome: "completed", detail: `Why Now generated for ${updated} opportunity(ies).`, reviewLevel: worstReviewLevel(reviewLevels) };
 }
 
 /** DISC-OFFER-P0-10.1: "Research Top Opportunities" -- bounded to the top-scoring few
@@ -272,16 +336,22 @@ export async function runResearchStage(ctx: StageContext): Promise<StageOutcome>
 
   let succeeded = 0;
   let lastError: string | null = null;
+  const reviewLevels: StageReviewLevel[] = [];
   for (const opportunity of opportunities) {
     try {
-      await generateResearchBrief(opportunity.prospect_id);
+      const brief = await generateResearchBrief(opportunity.prospect_id);
+      reviewLevels.push(classifyEnumConfidence(brief.confidence, true));
       succeeded += 1;
     } catch (error) {
       lastError = error instanceof Error ? error.message : "Something went wrong.";
     }
   }
   if (succeeded === 0) throw new Error(lastError ?? "Research failed for every selected opportunity.");
-  return { outcome: "completed", detail: `Researched ${succeeded} of ${opportunities.length} top opportunity(ies).` };
+  return {
+    outcome: "completed",
+    detail: `Researched ${succeeded} of ${opportunities.length} top opportunity(ies).`,
+    reviewLevel: worstReviewLevel(reviewLevels),
+  };
 }
 
 /** DISC-OFFER-P0-10.1: "Identify Buying Committee" -- `research` (above) already computes
@@ -301,15 +371,17 @@ export async function runBuyerIntelligenceStage(ctx: StageContext): Promise<Stag
   const personas = await listBuyerPersonas(ctx.workspaceId);
   const icp = await getIcpProfile(ctx.workspaceId);
   let updated = 0;
+  const reviewLevels: StageReviewLevel[] = [];
   for (const opportunity of opportunities) {
     const contacts = await listContacts(opportunity.prospect_id);
     if (contacts.length === 0) continue;
     const candidates = computeBuyerIntelligence(contacts, personas, icp?.roles ?? [], []);
     await setOpportunityBuyerIntelligence(opportunity.id, candidates);
+    reviewLevels.push(classifyEvidenceConfidences(candidates.map((c) => c.confidence)));
     updated += 1;
   }
   return updated > 0
-    ? { outcome: "completed", detail: `Buying committee identified for ${updated} opportunity(ies).` }
+    ? { outcome: "completed", detail: `Buying committee identified for ${updated} opportunity(ies).`, reviewLevel: worstReviewLevel(reviewLevels) }
     : { outcome: "skipped", detail: "No contacts on file yet for the remaining opportunities." };
 }
 
@@ -358,10 +430,21 @@ export async function runRecommendedActionStage(ctx: StageContext): Promise<Stag
   if (opportunities.length === 0) return { outcome: "skipped", detail: "Nothing new to recommend." };
 
   let updated = 0;
+  const reviewLevels: StageReviewLevel[] = [];
   for (const opportunity of opportunities) {
     const input = await buildNextBestActionInput(ctx.workspaceId, opportunity);
+    // DISC-OFFER-P1-02.1: the recommendation itself is deterministic (07.1), so it's
+    // the confidence of the opportunity data it was computed from -- already gathered
+    // above -- that decides whether this particular recommendation is worth a founder's
+    // second look, the same "score is null" -> insufficient-evidence reading 05.2's own
+    // opportunity-scoring stage already established.
+    reviewLevels.push(input.score === null ? "insufficient_evidence" : classifyEnumConfidence(input.confidence, true));
     await setOpportunityNextBestAction(opportunity.id, input);
     updated += 1;
   }
-  return { outcome: "completed", detail: `Next best action recommended for ${updated} opportunity(ies).` };
+  return {
+    outcome: "completed",
+    detail: `Next best action recommended for ${updated} opportunity(ies).`,
+    reviewLevel: worstReviewLevel(reviewLevels),
+  };
 }

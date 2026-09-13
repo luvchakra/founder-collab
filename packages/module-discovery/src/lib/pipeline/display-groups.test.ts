@@ -95,6 +95,27 @@ describe("computeDisplayGroups", () => {
     const groups = computeDisplayGroups(stagesWith(allCompleted));
     expect(groups.every((g) => g.status === "completed")).toBe(true);
   });
+
+  it("every group defaults to an automated review level when nothing is flagged", () => {
+    const allCompleted = Object.fromEntries(PIPELINE_STAGE_KEYS.map((k) => [k, "completed" as const]));
+    const groups = computeDisplayGroups(stagesWith(allCompleted));
+    expect(groups.every((g) => g.reviewLevel === "automated")).toBe(true);
+  });
+
+  it("DISC-OFFER-P1-02.1: treats needs_review/insufficient_evidence exactly like completed for group-done and pipeline-progression purposes", () => {
+    const allCompleted = Object.fromEntries(PIPELINE_STAGE_KEYS.map((k) => [k, "completed" as const]));
+    const groups = computeDisplayGroups(stagesWith({ ...allCompleted, icp: "needs_review", why_now: "insufficient_evidence" }));
+    expect(groups.every((g) => g.status === "completed")).toBe(true);
+  });
+
+  it("DISC-OFFER-P1-02.1: surfaces the worst review level within an otherwise-completed group", () => {
+    const allCompleted = Object.fromEntries(PIPELINE_STAGE_KEYS.map((k) => [k, "completed" as const]));
+    const groups = computeDisplayGroups(stagesWith({ ...allCompleted, why_now: "insufficient_evidence" }));
+    const opportunityScoring = groups.find((g) => g.key === "opportunity_scoring");
+    expect(opportunityScoring).toMatchObject({ status: "completed", reviewLevel: "insufficient_evidence" });
+    const icp = groups.find((g) => g.key === "icp");
+    expect(icp).toMatchObject({ status: "completed", reviewLevel: "automated" });
+  });
 });
 
 describe("downstreamGroupLabels", () => {

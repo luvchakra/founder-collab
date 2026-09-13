@@ -57,15 +57,17 @@ export const PIPELINE_STAGE_LABEL: Record<PipelineStageKey, string> = {
   crm_handoff: "Prepare CRM Handoff",
 };
 
-/** DISC-OFFER-P0-10.2's own exact six-state vocabulary. `needs_review` is defined by the
- * doc for this epic but has no producer yet in DISC-OFFER-P0-10.1's own handlers (every
- * handler here either completes or fails outright) -- DISC-OFFER-P1-02.1 "Review
- * Required Indicators" is the story that actually decides when a stage's own result is
- * uncertain enough to land there instead of `completed`. Included in the check
- * constraint now (schema-first, per this module's own established precedent -- e.g.
- * DISC-OFFER-P0-01.1 widening `products.status` ahead of 01.3 needing it) rather than
- * added later as a second migration. */
-export type PipelineStageStatus = "not_started" | "running" | "completed" | "failed" | "needs_review" | "skipped";
+/** DISC-OFFER-P0-10.2's own original six-state vocabulary, plus `insufficient_evidence`
+ * (DISC-OFFER-P1-02.1's own additive widening -- see `review.ts`'s own comment for why a
+ * stage that found genuinely nothing is a different, narrower fact than one that found
+ * something but it's weak). `needs_review` was defined by 10.2 for this epic but had no
+ * producer until DISC-OFFER-P1-02.1 "Review Required Indicators" -- the story that
+ * actually decides when a stage's own result is uncertain enough to land there (or in
+ * the narrower `insufficient_evidence`) instead of `completed`. `display-groups.ts`'s own
+ * `isStageStatusDone` treats all three of `completed`/`needs_review`/
+ * `insufficient_evidence` (and `skipped`) alike for "has this stage finished and can the
+ * pipeline move on" purposes -- review is advisory, never a gate. */
+export type PipelineStageStatus = "not_started" | "running" | "completed" | "failed" | "needs_review" | "skipped" | "insufficient_evidence";
 
 export type PipelineStage = {
   id: string;
