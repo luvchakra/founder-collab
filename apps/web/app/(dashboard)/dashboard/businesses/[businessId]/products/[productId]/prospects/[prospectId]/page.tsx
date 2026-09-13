@@ -39,7 +39,10 @@ import { WatchlistToggle } from "@cofounderai/module-discovery/components/prospe
 import { getWatchlistEntryForProspect } from "@cofounderai/module-discovery/lib/watchlist/queries";
 import { ProspectFeedbackSection } from "@cofounderai/module-discovery/components/prospects/prospect-feedback-section";
 import { listProspectFeedback } from "@cofounderai/module-discovery/lib/prospect-feedback/queries";
+import { DiscoveryOutcomeBadge } from "@cofounderai/module-discovery/components/prospects/discovery-outcome-badge";
+import { computeDiscoveryOutcomeStage } from "@cofounderai/module-discovery/lib/prospects/outcome";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
+import { getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index";
 import { PromoteToCrmButton } from "./promote-to-crm-button";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
@@ -377,6 +380,12 @@ export default async function ProspectDetailPage({
   const showHandoffPanel = handoffResult !== null && !(handoffResult.ok === false && handoffResult.error === "MODULE_NOT_LICENSED");
   const handoffStatus = handoffResult?.ok ? handoffResult.data : null;
 
+  // DISC-OFFER-P1 §7-02.2 "Discovery Outcome Tracking" -- read-only reference to the CRM
+  // lead's own downstream status, degrading cleanly (ADR-10) when crm isn't licensed or
+  // no lead exists yet for this prospect.
+  const crmHandoffLeadResult = await getDiscoveryHandoffLead(businessId, prospect.id);
+  const crmHandoffLead = crmHandoffLeadResult.ok ? crmHandoffLeadResult.data : null;
+
   const latestConversation = conversations.reduce<(typeof conversations)[number] | null>(
     (latest, c) => (!latest || c.last_message_at > latest.last_message_at ? c : latest),
     null,
@@ -397,6 +406,16 @@ export default async function ProspectDetailPage({
       ...messages.map((m) => m.created_at),
       latestConversation?.last_message_at,
     ),
+  });
+
+  const discoveryOutcomeStage = computeDiscoveryOutcomeStage({
+    hasResearch: research !== null,
+    prospectStatus: prospect.status,
+    hasSentMessage: messages.some((m) => m.status === "sent"),
+    hasConversation: conversations.length > 0,
+    handedOffToCrm: crmHandoffLead !== null,
+    downstreamLeadStatus: crmHandoffLead?.status ?? null,
+    prospectOutcome: prospect.outcome,
   });
 
   return (
@@ -424,6 +443,7 @@ export default async function ProspectDetailPage({
             <p className="font-medium">No action needed right now</p>
           )}
         </div>
+        <DiscoveryOutcomeBadge stage={discoveryOutcomeStage} />
       </div>
 
       {showHandoffPanel ? <FsmHandoffPanel status={handoffStatus} /> : null}

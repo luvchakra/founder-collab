@@ -75,7 +75,7 @@ only genuine architectural/key decisions are raised.
 | | P1-01.3 | Account Watchlist | Done |
 | | P1-01.4 | Grouped Opportunity Alerts | Blocked (see below) |
 | | P1-02.1 | Prospect Feedback | Done |
-| | P1-02.2 | Discovery Outcome Tracking | Out of scope |
+| | P1-02.2 | Discovery Outcome Tracking | Done |
 | | P1-02.3 | Offering Performance Analysis | Out of scope |
 | | P1-03.1 | Progressive Intelligence | Out of scope |
 | | P1-03.2 | Research Cache | Out of scope |
@@ -4302,3 +4302,66 @@ deterministic computation). Checked the dev project (`jazdtomcgqjxjueedmck`) fir
 any pre-existing `%feedback%` table (found only the already-known `offering_feedback`,
 no collision), then live-applied via `apply_migration` -- succeeded cleanly.
 `get_advisors` (security + performance): zero new findings tied to `prospect_feedback`.
+
+---
+
+### DISC-OFFER-P1 §7-02.2 -- Discovery Outcome Tracking (2026-09-13)
+
+Doc's own ten-stage list: Discovered, Reviewed, Accepted, Contacted, Conversation, CRM
+Handoff, Qualified, Won, Lost, Nurture. "Discovery should retain downstream outcome
+references but not own CRM lifecycle."
+
+**This one nearly got flagged as blocked.** The last four stages (Qualified/Won/Lost/
+Nurture) are literally `crm.lead.status` values (`packages/module-crm/src/lib/leads/
+types.ts`'s own `LeadStatus` union) -- a CRM-owned concept Discovery has no native
+representation of, which looked at first like the same kind of missing-infrastructure gap
+that blocked §7-01.2/01.4. Checked before writing that up, though, and found the
+infrastructure already exists: `getDiscoveryHandoffLead(businessId, prospectId)`
+(module-crm's own `contract/index.ts`) already returns the CRM lead's full row --
+currently used elsewhere (opportunity detail page, `run-ai-discovery/route.ts`) only to
+check existence, never to read `.status` -- and `module-crm`'s own `getDiscoveryCrmFunnel`
+already established the exact "read the other module's own reference data via its
+contract, never own it" pattern this story's own instruction describes, just in the
+opposite direction (CRM reading Discovery's `getProspectFunnelCounts` contract instead of
+querying Discovery's tables directly). No new cross-module mechanism needed -- an
+existing, already-legal contract call just wasn't being read all the way.
+
+**Design decisions**:
+- `computeDiscoveryOutcomeStage` (`lib/prospects/outcome.ts`) is a pure function, never
+  stored -- same "derive, don't add a column nothing would sync" precedent as
+  `deriveProspectPipelineState` (pipeline.ts) and `computeHandoffStatus` (opportunities/
+  handoff.ts), both already in this exact codebase. Takes `downstreamLeadStatus` as a
+  plain `string | null`, not CRM's own `LeadStatus` type -- module-discovery may only
+  import module-crm's `contract/index.ts` (CLAUDE.md rule #3), and comparing against the
+  four literal values this function cares about needs no shared type.
+- Priority order, furthest-downstream-wins (same shape as the two precedents above): the
+  CRM lead's own won/lost/nurture/qualified status is checked first (most current,
+  authoritative once it exists) → Discovery's own `prospects.outcome` (won/lost set
+  locally when a conversation closes, independent of any CRM handoff -- a deal can close
+  entirely within Discovery before ever touching CRM) → CRM handoff happened → has a
+  conversation → has a sent message → founder accepted it (`status = 'qualified'`) → has
+  research → else Discovered.
+- Deliberately a SECOND badge next to the existing `PROSPECT_STAGE_LABEL` one, not a
+  replacement -- that one tracks Discovery's own upstream working stages (research/score/
+  strategy/messages); conflating the two would blur exactly the "not own CRM lifecycle"
+  line the doc itself draws between Discovery's own pipeline and CRM's downstream one.
+- New pure logic this time (unlike §7-01.3/02.1's straightforward CRUD), so it got real
+  unit tests -- 10 cases covering the default case and every priority-order interaction
+  (CRM won/lost outranking a mere handoff, Discovery's own outcome field still reporting
+  correctly with no CRM lead at all, an unrecognized/irrelevant lead status like
+  "opportunity" correctly falling back to crm_handoff rather than being misread as a
+  reportable outcome).
+
+**What was built**: `lib/prospects/outcome.ts` + `outcome.test.ts` (10 cases);
+`DiscoveryOutcomeBadge` component; wired into the prospect detail page next to the
+existing pipeline-stage indicator, backed by one new `getDiscoveryHandoffLead` call
+(already used on that page's neighbor, the opportunity detail page -- not a new
+cross-module dependency). No migration -- no new table or column.
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` and `apps/web`.
+`lint:boundaries` (1576 files, no violations -- confirms the new `@cofounderai/module-crm/
+contract/index` import from `apps/web` and the plain-string (not `LeadStatus`) parameter
+choice in `module-discovery` both stay on the legal side of the module-boundary rule).
+`lint:migrations` unchanged at 211 (no schema change this story). `npx vitest run` in
+`module-discovery`: 35 files / 258 tests, all passing (10 new). No live migration to
+apply or `get_advisors` to re-run -- nothing in the database changed.
