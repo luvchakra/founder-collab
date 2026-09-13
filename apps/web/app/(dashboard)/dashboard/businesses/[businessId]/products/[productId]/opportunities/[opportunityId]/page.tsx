@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getOpportunity } from "@cofounderai/module-discovery/lib/opportunities/queries";
 import { getProspect } from "@cofounderai/module-discovery/lib/prospects/queries";
-import { listSignalsForProspect } from "@cofounderai/module-discovery/lib/signals/queries";
+import { listSignalsForProspect, getSignalCorrelation } from "@cofounderai/module-discovery/lib/signals/queries";
 import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/queries";
 import { getResearchBrief } from "@cofounderai/module-discovery/lib/research-briefs/queries";
 import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
@@ -38,6 +38,10 @@ export default async function OpportunityDetailPage({
     getBuyerIntelligenceForProspect(workspace.id, prospect.id),
     listRecentProspectScores(prospect.id, 10),
   ]);
+  // DISC-OFFER-P1-05.2: the one correlation that actually justified this opportunity's
+  // own `signal_strength_score` (05.3) -- null for an opportunity that predates
+  // correlation, or hasn't had signals collected yet.
+  const signalCorrelation = opportunity.signal_correlation_id ? await getSignalCorrelation(opportunity.signal_correlation_id) : null;
 
   const { primaryContactId } = computeBuyerFitScores(buyerIntelligence);
   const primaryContact = buyerIntelligence.find((person) => person.contact.id === primaryContactId) ?? buyerIntelligence[0] ?? null;
@@ -70,6 +74,7 @@ export default async function OpportunityDetailPage({
       opportunity={opportunity}
       prospect={prospect}
       signals={signals}
+      signalCorrelation={signalCorrelation}
       research={research}
       researchBrief={researchBrief}
       primaryContact={primaryContact}

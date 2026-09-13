@@ -16,8 +16,8 @@ import { EVIDENCE_TYPE_LABEL } from "../../lib/research/types";
 import type { ProspectResearch } from "../../lib/research/types";
 import type { ProspectScore } from "../../lib/scoring/types";
 import { SCORE_COMPONENT_LABEL } from "../../lib/opportunities/scoring";
-import type { Signal } from "../../lib/signals/types";
-import { SIGNAL_TYPE_LABEL } from "../../lib/signals/types";
+import type { Signal, SignalCorrelation } from "../../lib/signals/types";
+import { SignalTable } from "./signal-table";
 import { effectiveRecommendedAction } from "../../lib/opportunities/next-best-action";
 import {
   NEXT_BEST_ACTION_LABEL,
@@ -75,6 +75,7 @@ export function OpportunityDetail({
   opportunity,
   prospect,
   signals,
+  signalCorrelation,
   research,
   researchBrief,
   primaryContact,
@@ -91,6 +92,11 @@ export function OpportunityDetail({
   opportunity: Opportunity;
   prospect: Prospect;
   signals: Signal[];
+  /** DISC-OFFER-P1-05.2: the correlation this opportunity's own `signal_correlation_id`
+   * points to (05.3), if any -- lets the Signals table show which of `signals` it
+   * actually covers, and with what confidence/rationale, rather than a per-signal value
+   * that doesn't exist on the raw row itself. */
+  signalCorrelation: SignalCorrelation | null;
   research: ProspectResearch | null;
   researchBrief: ResearchBrief | null;
   primaryContact: BuyerPersonIntelligence | null;
@@ -232,18 +238,7 @@ export function OpportunityDetail({
 
       <section className="flex flex-col gap-2 rounded-md border p-4">
         <h2 className="font-medium">Signals</h2>
-        {signals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No signals recorded yet.</p>
-        ) : (
-          <ul className="flex flex-col gap-1 text-sm">
-            {signals.map((signal) => (
-              <li key={signal.id} className="text-muted-foreground">
-                <span className="rounded bg-muted px-1 text-xs">{SIGNAL_TYPE_LABEL[signal.signal_type]}</span> {signal.description}{" "}
-                <span className="text-xs">({formatDateTime(signal.observed_at)})</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <SignalTable signals={signals} correlation={signalCorrelation} />
       </section>
 
       <section className="flex flex-col gap-2 rounded-md border p-4">
