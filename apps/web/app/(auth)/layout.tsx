@@ -1,10 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
 import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
-import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 // Every page under `(auth)` was previously a static-prerendering candidate (no dynamic
 // API used) -- now that this shared layout reads live `platform.branding` config on every
@@ -33,7 +33,18 @@ export const dynamic = "force-dynamic";
  * PLATFORM-P0-03.5: `backgroundStyleFor()` moved to `@/lib/login-branding` so the new
  * branding preview page (`/platform/branding/preview`) can apply the exact same treatment
  * to a *draft* value without duplicating this logic.
+ *
+ * The published Platform Name also drives this page's own metadata and the logo's
+ * accessible name below -- both previously hardcoded to the static `BRAND_NAME` constant
+ * even though `branding.platformName` was already being fetched right here, so a
+ * superadmin publishing a new Platform Name had no visible (or accessible) effect
+ * anywhere on the one page group that already reads live branding.
  */
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getPublicLoginBranding();
+  return { title: { absolute: branding.platformName } };
+}
+
 export default async function AuthLayout({ children }: { children: ReactNode }) {
   const branding = await getPublicLoginBranding();
   const backgroundStyle = backgroundStyleFor(branding.loginBackgroundStyle, branding.loginBackgroundValue);
@@ -44,14 +55,21 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       style={backgroundStyle}
     >
       <header className="landing-grid flex items-center justify-between px-6 py-6 sm:px-10">
-        <Link href="/" aria-label={BRAND_NAME} className="flex items-center gap-2">
+        <Link href="/" aria-label={branding.platformName} className="flex items-center gap-2">
           {branding.logoUrl ? (
             // Superadmin-configured, arbitrary external URL -- next/image would need a
             // build-time domain allowlist for a value that changes at runtime.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={branding.logoUrl} alt={branding.platformName} className="h-7 w-auto" />
           ) : (
-            <Image src="/logo-lockup.png" alt={BRAND_NAME} width={900} height={218} priority className="h-7 w-auto" />
+            <Image
+              src="/logo-lockup.png"
+              alt={branding.platformName}
+              width={900}
+              height={218}
+              priority
+              className="h-7 w-auto"
+            />
           )}
         </Link>
         <AuthTabs />
