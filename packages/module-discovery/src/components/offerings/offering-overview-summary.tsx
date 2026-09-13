@@ -17,6 +17,7 @@ import { PERSONA_PRIORITY_LABEL, PERSONA_ROLE_LABEL } from "../../lib/personas/t
 import type { BuyerPersona } from "../../lib/personas/types";
 import type { IcpProfile } from "../../lib/icp/types";
 import type { ProspectCounts } from "../../lib/prospects/queries";
+import type { OpportunityOutcomeFunnel } from "../../lib/opportunities/outcome-funnel";
 
 const QUALITY_DIMENSION_ORDER: OfferingDefinitionQualityDimension[] = [
   "description",
@@ -67,6 +68,7 @@ export function OfferingOverviewSummary({
   icp,
   personas,
   prospectCounts,
+  outcomeFunnel,
   researchFurtherAction,
 }: {
   businessId: string;
@@ -74,6 +76,10 @@ export function OfferingOverviewSummary({
   icp: IcpProfile | null;
   personas: BuyerPersona[];
   prospectCounts: ProspectCounts;
+  /** DISC-OFFER-P1-04.2: "Learn From Outcomes" -- null reads as "not computed for this
+   * render," same treatment `icp`/other optional props already get; the card itself
+   * additionally hides whenever there are zero opportunities yet (see below). */
+  outcomeFunnel: OpportunityOutcomeFunnel | null;
   /** DISC-OFFER-P1-03.2: the missing-information callout's own "[Research Further]" --
    * a forced ICP regeneration, identical to the ICP page's own "Regenerate" button. */
   researchFurtherAction: (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
@@ -214,6 +220,33 @@ export function OfferingOverviewSummary({
           </div>
         )}
       </div>
+
+      {outcomeFunnel && outcomeFunnel.totalOpportunities > 0 ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Discovery effectiveness</p>
+            <span className="text-sm font-semibold">{outcomeFunnel.winRate}% win rate</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-lg font-semibold">{outcomeFunnel.totalOpportunities}</span>
+              <span className="text-xs text-muted-foreground">Opportunities</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-lg font-semibold">{outcomeFunnel.withConversation}</span>
+              <span className="text-xs text-muted-foreground">Conversations</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-lg font-semibold">{outcomeFunnel.sentToCrm}</span>
+              <span className="text-xs text-muted-foreground">Sent to CRM</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-lg font-semibold">{outcomeFunnel.won}</span>
+              <span className="text-xs text-muted-foreground">Won</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -66,7 +66,7 @@ only genuine architectural/key decisions are raised.
 | | P1-03.1 | Offering Definition Quality | Done |
 | | P1-03.2 | Missing Information Suggestions | Done |
 | | P1-04.1 | Learn From User Edits | Done |
-| | P1-04.2 | Learn From Outcomes | Not started |
+| | P1-04.2 | Learn From Outcomes | Done |
 | | P1-05.1 | Offering Pipeline Workspace | Not started |
 | | P1-05.2 | Desktop Stage Tables | Not started |
 | | P1-05.3 | Editable Stage Rows | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**48 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**49 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3685,3 +3685,93 @@ signed-in founder session to produce a genuine AI-generated-then-edited ICP to o
 
 **Status**: 48 of 68 in-scope stories done -- Phase F continuing. Next: P1-04.2, Learn
 From Outcomes.
+
+### P1-04.2 — Learn From Outcomes (2026-09-13)
+
+The doc gives this story no "Acceptance criteria" heading and no worked-example UI text
+either -- just a plain data-flow diagram ("Offering → Discovery → Opportunity → Contact →
+Conversation → CRM → Outcome") and one goal: "Measure whether Discovery produces useful
+opportunities."
+
+**Checked what already existed before building anything, per this run's own "inspect
+before changing" discipline**: every link in the doc's own chain already exists
+structurally in this schema -- `opportunities.prospect_id` → `prospects` (DISC-OFFER-
+P0-05.1), `contacts.prospect_id`/`conversations.prospect_id` → `prospects` (both predate
+this epic), `opportunities.status === "sent_to_crm"` for the CRM handoff (DISC-OFFER-
+P0-08.1), and `prospects.outcome` (`"open" | "won" | "lost"`, also predating this epic)
+for the deal result. Nothing needed connecting that wasn't already connected -- this
+story is purely the *measurement* the doc's own one line asks for, over data that already
+exists (CLAUDE.md dev principle #7).
+
+**Distinguished from the pre-existing `lib/prospects/pipeline.ts`
+`computeConversionFunnel`**, found during reconnaissance and worth naming explicitly since
+it looks similar at a glance: that one tracks per-prospect *outreach engagement*
+(research → score → strategize → message → sent → replied → closed), predates the
+Opportunity model entirely, and never reaches CRM handoff or deal outcome -- a materially
+different, narrower axis than this story's own opportunity-level chain ending at the
+actual business result. Built as its own new module rather than extending that one.
+
+**New `lib/opportunities/outcome-funnel.ts`** -- `computeOpportunityOutcomeFunnel()`, pure
+and deterministic (CLAUDE.md dev principle #4): counts, across a set of per-opportunity
+facts (`sentToCrm`/`hasContact`/`hasConversation`/`outcome`), how many reached each stage
+of the doc's own chain, plus a `winRate` (share of every opportunity that became a won
+deal -- "Measure whether Discovery produces useful opportunities" answered literally).
+Each stage's count is independent, not a strict "furthest stage reached" ladder the way
+`computeConversionFunnel`'s prospect stages are -- an opportunity can be sent to CRM
+before this module ever logs a conversation for it, so nesting would misrepresent real
+data. `winRate` is `null` for zero opportunities (no false precision -- the same
+restraint every other score/percentage in this module already applies) but a real `0` once
+there's at least one opportunity and none have won, since "Discovery produced
+opportunities that all lost" is a genuine, reportable measurement, not an absence of one.
+5 new vitest cases: the zero-opportunity null case, independent (non-nested) stage
+counting, the won/lost/open split with its win-rate arithmetic, the real-zero-percent
+case, and a rounding check.
+
+**New `getOpportunityOutcomeFunnel(workspaceId)`** (`lib/opportunities/queries.ts`) --
+four flat, workspace-scoped queries (`opportunities`, `prospects`, `contacts`,
+`conversations`) run in parallel and correlated in application code via `Map`/`Set`
+lookups, rather than an N+1 per-opportunity lookup (`listContacts`/`listConversations`
+are both per-prospect today) or a multi-level PostgREST embed (no existing precedent in
+this codebase for embedding `prospects` from `opportunities`, and no evidence the
+relationship is even named for embedding). The same "separate flat queries, joined in
+memory" shape `listProspects`' own pipeline join already uses, just doing the join by
+hand instead of via PostgREST's embed syntax. No new migration -- every column read here
+already exists. DB-composing, not pure -- no unit test of its own, matching this run's
+own established precedent (`applyIncrementalSignalUpdate`, DISC-OFFER-P1-01.2, and
+others).
+
+**UI**: added to `OfferingOverviewSummary` as a new "Discovery effectiveness" card
+(same treatment as P1-03.1/P1-03.2's own cards), placed last -- after Buyer personas --
+since it summarizes the offering's *results*, the natural final word after everything
+else on the page describes its *setup*. Renders only when `outcomeFunnel.totalOpportunities
+> 0` -- the same "empty means don't render" restraint P1-03.2's own callout already
+applies: a fresh offering with zero opportunities has nothing yet to measure, so showing
+a "0% win rate" card would misreport "not yet started" as "failing." Shows opportunity
+count, conversations, sent-to-CRM count, and won count as a four-up stat row, with the
+win rate in the card's own header -- deliberately not every field `outcome-funnel.ts`
+computes (`withContact`/`lost`/`open` are omitted from the card, though the type carries
+them for a future story to use): the doc's own worked example is a single-sentence goal,
+not a mockup, so this is a flagged scope call rather than something the doc itself
+specified, kept to the smallest set that actually answers "is Discovery producing useful
+opportunities" at a glance.
+
+**Wiring**: `apps/web/.../products/[productId]/page.tsx` fetches `getOpportunityOutcomeFunnel`
+alongside the other Overview data, gated on the exact same `product.product_profile`
+condition as `icp`/`personas`/`prospectCounts` -- an offering with no profile yet has no
+opportunities either, so there is nothing this query could return worth an extra
+round trip.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1189 files, no
+violations), `lint:migrations` (137 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (237/237, +5 new), and a clean `next build`
+(confirmed the offering Overview route, which now fetches and renders the new card,
+still builds with no errors). No live migration/advisors step this story -- no schema
+change. Same live-browser-walkthrough constraint noted in every prior UI-touching story
+this run (no seeded demo user/`.env.local` in this environment); particularly relevant
+here since a genuine non-empty funnel needs real opportunities with contacts,
+conversations, a CRM handoff, and a won/lost outcome all present to see the full card
+populated, which this environment cannot produce a live signed-in walkthrough of.
+
+**Status**: 49 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.1, Offering
+Pipeline Workspace.
