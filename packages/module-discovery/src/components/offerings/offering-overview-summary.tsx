@@ -2,10 +2,31 @@ import Link from "next/link";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { OFFERING_STATUS_LABEL, OFFERING_TYPE_LABEL } from "../../lib/offerings/types";
 import type { Offering } from "../../lib/offerings/types";
+import {
+  computeOfferingDefinitionQuality,
+  QUALITY_DIMENSION_LABEL,
+  QUALITY_LEVEL_LABEL,
+  type OfferingDefinitionQualityDimension,
+  type QualityLevel,
+} from "../../lib/offerings/definition-quality";
 import { PERSONA_PRIORITY_LABEL, PERSONA_ROLE_LABEL } from "../../lib/personas/types";
 import type { BuyerPersona } from "../../lib/personas/types";
 import type { IcpProfile } from "../../lib/icp/types";
 import type { ProspectCounts } from "../../lib/prospects/queries";
+
+const QUALITY_DIMENSION_ORDER: OfferingDefinitionQualityDimension[] = [
+  "description",
+  "target_customer",
+  "icp_evidence",
+  "buyer_evidence",
+  "differentiation",
+];
+
+const QUALITY_LEVEL_BADGE_VARIANT: Record<QualityLevel, "default" | "secondary" | "outline"> = {
+  strong: "default",
+  medium: "secondary",
+  weak: "outline",
+};
 
 const ICP_LIST_FIELDS = [
   "industries",
@@ -51,6 +72,18 @@ export function OfferingOverviewSummary({
 }) {
   const basePath = `/dashboard/businesses/${businessId}/products/${offering.id}`;
   const icpFieldsCount = icp ? icpFieldsDefined(icp) : 0;
+  // DISC-OFFER-P1-03.1: "Offering Definition Quality" -- shown right here rather than a
+  // new section elsewhere, since this component already only renders once
+  // `product.product_profile` exists (the page's own gate above), which is exactly the
+  // doc's own "after website analysis" trigger -- no new data fetching needed, every
+  // input this diagnostic reads (`offering.detailed_description`/`offering.product_profile`,
+  // `icp`, `personas`) is already a prop here.
+  const quality = computeOfferingDefinitionQuality({
+    detailedDescription: offering.detailed_description,
+    icp,
+    personas,
+    productProfile: offering.product_profile,
+  });
 
   const nextAction = !icp
     ? { label: "Define your ICP", href: `${basePath}/icp` }
@@ -69,6 +102,23 @@ export function OfferingOverviewSummary({
         <Link href={nextAction.href} className="text-sm font-medium text-primary hover:underline">
           {nextAction.label} &rarr;
         </Link>
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Offering definition quality</p>
+          <span className="text-sm font-semibold">{quality.overall}/100</span>
+        </div>
+        <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
+          {QUALITY_DIMENSION_ORDER.map((dimension) => (
+            <div key={dimension} className="flex items-center justify-between gap-2">
+              <span className="text-sm text-muted-foreground">{QUALITY_DIMENSION_LABEL[dimension]}</span>
+              <Badge variant={QUALITY_LEVEL_BADGE_VARIANT[quality.dimensions[dimension]]}>
+                {QUALITY_LEVEL_LABEL[quality.dimensions[dimension]]}
+              </Badge>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
