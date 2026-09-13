@@ -12,8 +12,6 @@ import { ProductNav } from "@cofounderai/module-discovery/components/tenancy/pro
 import { AutoPopulateProgressProvider } from "@cofounderai/module-discovery/components/tenancy/auto-populate-progress";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
-import { OfferingSwitcher } from "@cofounderai/module-discovery/components/offerings/offering-switcher";
-import { listOfferings } from "@cofounderai/module-discovery/lib/offerings/queries";
 import { renameProductAction } from "./actions";
 
 export default async function ProductLayout({
@@ -28,11 +26,7 @@ export default async function ProductLayout({
   if (!businessId) notFound();
   // Independent lookups (neither depends on the other's result) -- fetched in parallel
   // rather than as two sequential round trips, same pattern as the dashboard layout.
-  const [product, business, offerings] = await Promise.all([
-    getProduct(productId),
-    getBusiness(businessId),
-    listOfferings(businessId),
-  ]);
+  const [product, business] = await Promise.all([getProduct(productId), getBusiness(businessId)]);
   if (!product || product.business_id !== businessId) notFound();
   if (!business) notFound();
 
@@ -70,14 +64,11 @@ export default async function ProductLayout({
           same race the fieldset in product-overview-shell.tsx already guards against
           for every other control on the Overview step. */}
       <AutoPopulateProgressProvider>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <EditableName
-            name={product.name}
-            action={renameProductAction.bind(null, businessId, productId)}
-            headingClassName="text-xl font-semibold"
-          />
-          <OfferingSwitcher businessId={businessId} currentOfferingId={productId} offerings={offerings} />
-        </div>
+        <EditableName
+          name={product.name}
+          action={renameProductAction.bind(null, businessId, productId)}
+          headingClassName="text-xl font-semibold"
+        />
         <ProductNav basePath={basePath} completed={completed} />
         {children}
       </AutoPopulateProgressProvider>
