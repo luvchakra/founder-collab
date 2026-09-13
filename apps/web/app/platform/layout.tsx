@@ -68,6 +68,10 @@ const NAV_LINKS = [
   // PLATFORM-P0-12.1: the platform-wide registry of external integration categories
   // (AI/Email/WhatsApp/Payments/Government/Analytics/Storage) and their kill switches.
   { href: "/platform/integrations", label: "Integrations" },
+  // PLATFORM-P0-13.1/13.2/13.4: the country/compliance-pack registry and per-pack feature
+  // flags. PLATFORM-P0-13.3 (Rule Version) is deliberately not built -- see that
+  // migration's own docstring.
+  { href: "/platform/compliance", label: "Compliance Packs" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
