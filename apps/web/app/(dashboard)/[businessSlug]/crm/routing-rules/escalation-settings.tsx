@@ -16,17 +16,17 @@ import type { EmployeeOption } from "@cofounderai/module-crm/lib/routing-rules/t
  */
 export function EscalationSettings({ config, employees, action }: { config: EscalationConfig; employees: EmployeeOption[]; action: (formData: FormData) => Promise<void> }) {
   return (
-    <Card>
+    <Card className="border-border">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Escalation</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <ul className="flex flex-col gap-1 text-sm text-muted-foreground">
+        <ul className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
           <li>New inquiry unanswered for {config.reminderDelayMinutes}m -&gt; reminder</li>
           <li>Unanswered for {config.ownerEscalationDelayMinutes}m -&gt; owner escalation</li>
           <li>Unanswered for {config.managerEscalationDelayMinutes}m -&gt; manager escalation</li>
         </ul>
-        <form action={action} className="flex flex-col gap-1.5">
+        <form action={action} className="flex flex-col gap-1.5 border-t border-border pt-4">
           <Label htmlFor="managerEmployeeId">Escalation manager</Label>
           <div className="flex flex-wrap items-center gap-2">
             <NativeSelect id="managerEmployeeId" name="managerEmployeeId" defaultValue={config.managerEmployeeId ?? ""} className="w-auto">

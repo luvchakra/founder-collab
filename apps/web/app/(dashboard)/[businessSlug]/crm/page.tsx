@@ -27,7 +27,7 @@ export default async function CrmInboxPage({ params }: { params: Promise<{ busin
       </div>
 
       <InboxView
-        businessId={businessId}
+        businessSlug={businessSlug}
         tickets={tickets}
         channels={channels}
         employees={employees}

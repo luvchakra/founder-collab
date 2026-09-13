@@ -24,7 +24,7 @@ const STATUS_VARIANT: Record<TicketStatus, "default" | "secondary" | "outline"> 
  * reads `core.messages`/`core.threads` and is a later story's own scope, per
  * 00-MASTER-PLAN.md §5's "message.received | core | crm (triage)" event row). */
 export function InboxView({
-  businessId,
+  businessSlug,
   tickets,
   channels,
   employees,
@@ -33,7 +33,7 @@ export function InboxView({
   assignAction,
   convertToProspectAction,
 }: {
-  businessId: string;
+  businessSlug: string;
   tickets: Ticket[];
   channels: Channel[];
   employees: EmployeeOption[];
@@ -76,115 +76,169 @@ export function InboxView({
 
   const channelById = new Map(channels.map((c) => [c.id, c]));
 
-  return (
-    <div className="flex flex-col gap-4">
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-      <form
-        className="flex flex-wrap items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          run(async () => {
-            await createAction(subject, channelId || undefined);
-            setSubject("");
-          });
-        }}
+  function statusSelect(ticket: Ticket, className: string) {
+    return (
+      <NativeSelect
+        className={className}
+        value={ticket.status}
+        disabled={pending}
+        aria-label={`Status for ${ticket.subject || "ticket"}`}
+        onChange={(e) => run(() => updateStatusAction(ticket.id, e.target.value as TicketStatus))}
       >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ticket-subject">New ticket</Label>
-          <Input id="ticket-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" required />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="ticket-channel">Channel</Label>
-          <NativeSelect id="ticket-channel" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
-            <option value="">No channel</option>
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-        <Button type="submit" size="sm" disabled={pending}>
-          Create ticket
-        </Button>
-      </form>
+        <option value="open">Open</option>
+        <option value="pending">Pending</option>
+        <option value="closed">Closed</option>
+      </NativeSelect>
+    );
+  }
+
+  function assignSelect(ticket: Ticket, className: string) {
+    return (
+      <NativeSelect
+        className={className}
+        value={ticket.assigned_to ?? ""}
+        disabled={pending}
+        aria-label={`Assignee for ${ticket.subject || "ticket"}`}
+        onChange={(e) => run(() => assignAction(ticket.id, e.target.value || null))}
+      >
+        <option value="">Unassigned</option>
+        {employees.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.full_name ?? e.email ?? "Unnamed"}
+          </option>
+        ))}
+      </NativeSelect>
+    );
+  }
+
+  function rowActions(ticket: Ticket) {
+    return (
+      <>
+        {ticket.party_id ? (
+          <Link
+            href={`/${businessSlug}/crm/customers/${ticket.party_id}?ticketId=${ticket.id}`}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Customer 360
+          </Link>
+        ) : null}
+        {ticket.external_sender_handle ? (
+          converted.has(ticket.id) ? (
+            <Badge variant="secondary">Converted</Badge>
+          ) : (
+            <Button variant="outline" size="sm" disabled={pending} onClick={() => runConvert(ticket.id)}>
+              Convert to prospect
+            </Button>
+          )
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border p-4">
+        <p className="text-sm font-medium">New ticket</p>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <form
+          className="flex flex-wrap items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            run(async () => {
+              await createAction(subject, channelId || undefined);
+              setSubject("");
+            });
+          }}
+        >
+          <div className="flex min-w-48 flex-1 flex-col gap-1.5">
+            <Label htmlFor="ticket-subject">Subject</Label>
+            <Input id="ticket-subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="What's this about?" required />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ticket-channel">Channel</Label>
+            <NativeSelect id="ticket-channel" className="w-40" value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+              <option value="">No channel</option>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
+          <Button type="submit" disabled={pending}>
+            Create ticket
+          </Button>
+        </form>
+      </div>
 
       {tickets.length === 0 ? (
         <EmptyState variant="inline" message="No tickets yet." />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Subject</TableHead>
-              <TableHead>Channel</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Assigned to</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <div className="overflow-hidden rounded-2xl border border-border">
+          {/* Compact cards below md, per this platform's own rule that a table of rows
+              never scrolls horizontally or gets cramped on a small screen. */}
+          <div className="divide-y divide-border md:hidden">
             {tickets.map((ticket) => (
-              <TableRow key={ticket.id}>
-                <TableCell>{ticket.subject || "(no subject)"}</TableCell>
-                <TableCell className="text-muted-foreground">{ticket.channel_id ? channelById.get(ticket.channel_id)?.name ?? "—" : "—"}</TableCell>
-                <TableCell>
-                  <NativeSelect
-                    className="h-8 w-28"
-                    value={ticket.status}
-                    disabled={pending}
-                    onChange={(e) => run(() => updateStatusAction(ticket.id, e.target.value as TicketStatus))}
-                  >
-                    <option value="open">Open</option>
-                    <option value="pending">Pending</option>
-                    <option value="closed">Closed</option>
-                  </NativeSelect>
-                  <Badge variant={STATUS_VARIANT[ticket.status]} className="ml-2 hidden sm:inline-flex">
+              <div key={ticket.id} className="flex flex-col gap-3 p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="min-w-0 truncate font-medium">{ticket.subject || "(no subject)"}</p>
+                  <Badge variant={STATUS_VARIANT[ticket.status]} className="shrink-0 capitalize">
                     {ticket.status}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <NativeSelect
-                    className="h-8 w-36"
-                    value={ticket.assigned_to ?? ""}
-                    disabled={pending}
-                    onChange={(e) => run(() => assignAction(ticket.id, e.target.value || null))}
-                  >
-                    <option value="">Unassigned</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.full_name ?? e.email ?? "Unnamed"}
-                      </option>
-                    ))}
-                  </NativeSelect>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{formatDateTime(ticket.created_at)}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {ticket.party_id ? (
-                      <Link
-                        href={`/dashboard/businesses/${businessId}/crm/customers/${ticket.party_id}?ticketId=${ticket.id}`}
-                        className="text-sm font-medium text-primary hover:underline"
-                      >
-                        Customer 360
-                      </Link>
-                    ) : null}
-                    {ticket.external_sender_handle ? (
-                      converted.has(ticket.id) ? (
-                        <Badge variant="secondary">Converted</Badge>
-                      ) : (
-                        <Button variant="outline" size="sm" disabled={pending} onClick={() => runConvert(ticket.id)}>
-                          Convert to prospect
-                        </Button>
-                      )
-                    ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {ticket.channel_id ? channelById.get(ticket.channel_id)?.name ?? "—" : "No channel"} &middot;{" "}
+                  {formatDateTime(ticket.created_at)}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Status</span>
+                    {statusSelect(ticket, "h-9 w-full")}
                   </div>
-                </TableCell>
-              </TableRow>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Assigned to</span>
+                    {assignSelect(ticket, "h-9 w-full")}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">{rowActions(ticket)}</div>
+              </div>
             ))}
-          </TableBody>
-        </Table>
+          </div>
+
+          <Table className="hidden md:table">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Subject</TableHead>
+                <TableHead>Channel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned to</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tickets.map((ticket) => (
+                <TableRow key={ticket.id}>
+                  <TableCell className="font-medium">{ticket.subject || "(no subject)"}</TableCell>
+                  <TableCell className="text-muted-foreground">{ticket.channel_id ? channelById.get(ticket.channel_id)?.name ?? "—" : "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {statusSelect(ticket, "h-8 w-28")}
+                      <Badge variant={STATUS_VARIANT[ticket.status]} className="hidden lg:inline-flex">
+                        {ticket.status}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell>{assignSelect(ticket, "h-8 w-36")}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(ticket.created_at)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-3">{rowActions(ticket)}</div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );
