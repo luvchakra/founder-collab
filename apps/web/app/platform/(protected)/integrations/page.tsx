@@ -1,4 +1,5 @@
 import { listIntegrationRegistry } from "@cofounderai/core/admin/platform-integrations";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { IntegrationRegistryTable } from "./integration-registry-table";
 
 /**
@@ -25,6 +26,8 @@ export default async function PlatformIntegrationsPage() {
           Every external integration category the platform offers, and its platform-wide operational status.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <IntegrationRegistryTable integrations={integrations} />
     </div>

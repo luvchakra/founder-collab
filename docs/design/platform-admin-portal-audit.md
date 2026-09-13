@@ -35,11 +35,11 @@ verification in full regardless of which mode was in effect when it landed.
 | | 14 | Platform Policies | Done -- 14.1/14.2/14.3 (all of §18) built config-only, see log |
 | | 15 | Global Announcements / Maintenance | Done -- 15.1/15.2/15.3/15.4 (all of §19) built config-only, see log |
 | | 17 | Configuration Versioning | 17.1/17.2 done; 17.3 (Rollback) done for 4 of 11 resource types, rest deferred -- §22 substantially resolved, see log |
-| | 19 | Platform Administration UI | Not started |
+| | 19 | Platform Administration UI | Done -- 19.1/19.2/19.3/19.4/19.5 (all of §33) resolved 2026-09-13, see log |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 13 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
-11, 12, 13, 14), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within the AI Safety
+**P0: 14 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11, 12, 13, 14, 19), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within the AI Safety
 section). §17 (13) is fully resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by
 user decision (satisfied-by-existing-code, no platform-layer counterpart needed). §18 (14,
 Platform Policies) is fully resolved as of 2026-09-13 -- 14.1/14.2/14.3 all built,
@@ -47,7 +47,12 @@ config-only. §22 (17, Configuration Versioning) is substantially resolved as of
 2026-09-13 -- 17.1 (version numbers) and 17.2 (Draft vs Published, already satisfied by
 existing Plans/Branding lifecycle work) done for every audited resource type; 17.3
 (Rollback) done for 4 of 11 (Plans, Feature Flags, Announcements, Platform Policies), the
-remaining 7 left as a documented, mechanical follow-up.
+remaining 7 left as a documented, mechanical follow-up. §33 (19, Platform Administration
+UI) is fully resolved as of 2026-09-13 -- 19.1 (real grouped sidebar shell, replacing the
+flat nav strip), 19.2 (static Global Impact Banner, rolled out to every mutation page whose
+own rendered copy doesn't already disclaim "not enforced yet"), and 19.3/19.4/19.5
+confirmed already satisfied by every prior story's own established desktop-table/
+mobile-card/layout-planning discipline (no new code needed for those three).
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -6582,3 +6587,205 @@ the non-superadmin path, and the full positive-and-negative matrix against local
 Versioning) resolved with 17.3's own scope explicitly narrowed to 4 of 11 resource types,
 named above. Continuing next to the doc's own "Platform Administration UI" section per
 this run's own task brief.
+
+---
+
+## 2026-09-13 — PLATFORM-P0-19.1/19.2/19.3/19.4/19.5 (Platform Administration UI, §33)
+
+Resumed per this run's own assignment at "§33, Platform Administration UI" -- the
+last-remaining P0 section. Read §33 in full before starting, plus this file's most recent
+entry (17, Configuration Versioning) for the established rigor bar, plus the current
+`apps/web/app/platform/layout.tsx` closely, per the assignment's own instruction (that
+file's comment block had flagged the flat `NAV_LINKS` nav strip as a stopgap "ahead of
+[19's] own turn" since PLATFORM-P0-03.1 -- that turn is this story).
+
+**19.1 — Dedicated Admin Layout.** Replaced the one-line `NAV_LINKS` text strip with a
+real, grouped, responsive sidebar:
+
+- `apps/web/app/platform/platform-nav.ts` (new) -- the grouped nav data model. Every one
+  of the pre-existing 17 routes the flat strip listed is preserved verbatim (same href,
+  same label, none dropped) -- grouping only adds structure. Groups follow §33's own
+  mockup ("Dashboard / Branding / Plans / Entitlements / Modules / AI / Countries /
+  Integrations / Policies / Operations / Audit") where a group matches a page we've
+  actually built, and otherwise groups adjacent shipped pages under a heading not
+  literally in the mockup (the mockup is illustrative, not exhaustive):
+  - "Entitlements" isn't a separate top-level route -- it's `/platform/plans/[id]/
+    entitlements`, reached from a plan's own detail page (same as the mockup's own
+    Plans/Entitlements split implies), so no separate nav entry.
+  - The mockup's "Countries" is grouped as "Compliance", matching the label the page's
+    own `<h1>` already shows users ("Country / Compliance Pack Administration").
+  - "Modules & Features" (not in the mockup) groups Modules + Feature Flags -- both are
+    operational on/off toggles over platform capability, distinct from AI/Communications
+    policy config.
+  - "Communications" (not in the mockup) groups Email Provider + Email Templates +
+    Notification Policies -- three shipped pages the mockup doesn't name individually.
+  - "Operations" holds Announcements + Configuration History, matching the mockup's own
+    "Operations" group.
+  - The mockup's own "Audit" group is deliberately **omitted**: story 16 ("Platform
+    Audit") is still "Not started" per this log's own Progress table -- there is no audit
+    page to link yet, and an empty/placeholder nav group would misrepresent what's built.
+    Configuration History (17) covers versioned config auditing in the meantime, which is
+    why it sits in Operations instead of a separate Audit group.
+  Full reasoning (including why each judgment call is non-security) lives in this file's
+  own top-of-file docstring, not just here.
+- `apps/web/app/platform/platform-shell.tsx` (new, `"use client"`) -- the actual shell:
+  header (unchanged: `{BRAND_NAME} Platform Administration` + `Badge variant="destructive"`
+  "SUPERADMIN" + the signed-in email, byte-for-byte the same JSX PLATFORM-P0-01/02 already
+  established) plus a grouped left sidebar. Desktop (`md:` and up): a normal-flow,
+  `sticky top-0` sidebar, all 10 groups always expanded (collapsing them buys nothing at
+  this size per CLAUDE.md development principle #1 -- "prefer the simplest implementation
+  that works"). Mobile: a **separate**, independent `fixed`, `md:hidden` drawer + backdrop
+  behind a hamburger button in the header (`lucide-react`'s `Menu`/`X`), rather than one
+  `<aside>` whose position/transform is toggled by breakpoint -- deliberately two DOM
+  instances of `<PlatformNav>` (desktop static, mobile drawer) so the mobile drawer can be
+  `fixed inset-y-0` covering the full viewport height (including behind the header) without
+  ever having to know the header's actual rendered height, which varies by content/wrapping
+  -- a `top-[57px]`-style pixel-coupled single-drawer approach was tried first and rejected
+  for exactly that fragility before this file was written. Active-route highlighting via
+  `usePathname()` + `aria-current="page"`, matching on exact path or path-prefix (so
+  `/platform/plans/[id]/entitlements` still highlights "Plans").
+- `apps/web/app/platform/layout.tsx` -- now only does the authorization/session work
+  (`requireSuperadmin()`, exactly as before, still the real boundary; `createClient()` +
+  `auth.getUser()` for the email) and hands off rendering to `<PlatformShell>`. The
+  `export const dynamic = "force-dynamic"` line is untouched.
+
+**Every one of the 17 pre-existing `/platform/*` top-level routes was confirmed still
+present** in the `next build` route manifest after this change (see Verification) --
+nothing broken, nothing orphaned.
+
+**19.2 — Global Impact Banner.** Per this run's own instruction to check entity-ownership/
+scope for this piece specifically before building it: **no existing computed "impact"
+figure needed reuse or building here, with one caveat.** `platform.modules`/
+`platform.system_policies`/`platform.announcements`/every integration's kill-switch state
+are all *configuration*, not precomputed blast-radius numbers -- and §33's own mockup shows
+only a static, two-line message ("⚠ Platform-wide change / This configuration affects all
+customers using this feature."), not a dynamic "N customers" count. The one caveat: one
+resource type (module status) already HAS a real, live-computed affected-business count --
+`getModuleImpact()` (`packages/core/src/admin/platform-modules.ts`, built for
+PLATFORM-P0-07.2/18.4) and `ModuleStatusDialog`'s own "reason + live impact count +
+explicit acknowledgement checkbox" ceremony, fetched fresh whenever a superadmin moves a
+module into `maintenance`/`disabled`. That is a **per-action, per-resource-type**
+"destructive action protection" mechanism (18.4's own job, purpose-built for one genuinely
+destructive mutation), not a generic page-level fixture -- generalizing a live count query
+to every other resource type (feature flags, integrations, AI providers, system policies,
+...) would be new, nontrivial, per-resource logic nowhere asked for by §33's own text, and
+PLATFORM-P0-18.2/18.4 (reauthentication + destructive-action protection for every *other*
+mutation) remain open, tracked separately in this same log's own Progress table, for
+exactly that future work. Also, separately: §21 ("Safe Global Change Workflow" --
+"Estimated impact: 2,840 active businesses" / Edit→Validate→Show Impact→Confirm→
+Publish→Audit) is its OWN doc section, un-numbered as a PLATFORM-P0-XX story and not part
+of §33 or this run's assignment -- confirmed by reading it, not assumed, and left alone.
+
+Built `apps/web/app/platform/impact-banner.tsx` (new) -- a small, static, reusable
+`<PlatformImpactBanner description={...optional} />` component (Alert + `TriangleAlert`
+icon, explicit amber-on-dark classes since `/platform` never opts into the vendored
+`Alert`'s light-theme tokens, same class of override every prior story in this log has
+needed for this hardcoded dark chrome). Per CLAUDE.md development principle #7 ("never
+implement speculative functionality"), it stays static -- the `description` prop exists
+only so a page can swap in a more specific one-line consequence, never a computed value.
+
+**Rollout, and the one real judgment call in this story**: rather than stamping the same
+banner onto all seventeen pages uniformly, each candidate page's own *rendered* subtitle
+(the `<p>` under its `<h1>` -- what a superadmin actually reads, not a source-code comment)
+was checked for a contradiction first. Several pages explicitly tell the admin, in the UI
+itself, that nothing here is live-enforced yet ("Configuration only: no AI call is actually
+routed by this yet", "no real notification ever reads these", "Real outbound email...is not
+affected by this page", etc.) -- stacking "⚠ Platform-wide change: this affects all
+customers" directly below a sentence saying the opposite would be an actual, visible
+contradiction on the same screen, not mere redundancy, and would undermine trust in the
+banner everywhere else it's accurate. So:
+- **Banner added** (10 pages -- rendered copy makes no "not enforced" claim): Branding,
+  Plans, Plans → Entitlements, Modules, Feature Flags, AI Providers, Integrations,
+  Compliance Packs, Compliance Pack → Feature Flags, Configuration History (this last one
+  with a custom `description`, since restoring a version is the one real destructive
+  action on that page: "Restoring a prior version replaces the live configuration for
+  every business using it right now.").
+- **Banner deliberately withheld** (7 pages -- rendered copy already says "not enforced /
+  not wired yet", so adding it would contradict the page's own text): AI Routing, AI
+  Feature Policies, Email Provider, Email Templates, Notification Policies, Platform
+  Policies (system-policies), Announcements.
+- **Not applicable** (read-only or non-mutating): the Dashboard (no edit surface), AI Usage
+  (explicitly read-only per its own docstring), and `/platform/mfa` (an auth step, not
+  platform config).
+
+This is a non-security, copy-accuracy judgment call (which existing pattern/wording to use,
+not an authorization or entity-ownership decision), decided and documented here per the
+assignment's own instruction that such calls are mine to make.
+
+**19.3 (Desktop Tables) / 19.4 (Responsive Mobile) — confirmed already satisfied, no new
+code.** Every page whose primary content is a table of rows already has the
+`<ul className="divide-y ... md:hidden">` / `<Table className="hidden md:table">` (or
+equivalent) split, verified by grep across every `*-table.tsx`/`page.tsx` under
+`/platform` that renders a `Table` (`module-registry-table.tsx`,
+`country-registry-table.tsx`, `compliance-pack-table.tsx`,
+`integration-registry-table.tsx`, `plans/page.tsx`, `feature-flags/page.tsx`,
+`ai-providers/page.tsx`, `email-templates/page.tsx`, `announcements/page.tsx`) -- each has
+been building this split since PLATFORM-P0-04.1 first established it, per CLAUDE.md
+development principle #12 and `docs/design/claude-ui-design-rules.md` rule 5. Nothing here
+needed retrofitting.
+
+**19.5 (Professional Layout Rule) — confirmed already satisfied, no new code.**
+`docs/design/claude-ui-design-rules.md` already exists in this repo and is already a
+standing, cited rule (CLAUDE.md development principle #13: "Before building or changing
+any page's UI, follow `docs/design/claude-ui-design-rules.md` in full") -- §33's own text
+("This is a generic WonderArc UI rule and should be added to the project's permanent
+generic development rules") describes exactly that file and that CLAUDE.md line, which
+already existed before this story. No new doc, no new rule needed.
+
+**What was deliberately NOT built this story** (named explicitly): no generalization of
+`getModuleImpact()`'s live-count mechanism to any other resource type (that's 18.2/18.4's
+own still-open scope, not 19's); no §21 "Safe Global Change Workflow" (Estimated impact /
+Validate / Confirm & Publish ceremony) -- a separate, later, un-numbered doc section, not
+part of §33; no collapsible/expandable sidebar groups (10 always-expanded groups covering
+17 routes doesn't need it, CLAUDE.md principle #1); no new `platform.*` table or migration
+-- this is a pure layout/UI story, so **no local Postgres RLS harness or live `dev`-project
+migration was needed or run**, per this workstream's own "use your judgment and document
+either way" instruction for stories that don't touch the database.
+
+**No security/authorization/entity-ownership judgment call was left unresolved.**
+`requireSuperadmin()` (the real authorization boundary) and the `(protected)` route
+group's AAL2 MFA gate are both **completely untouched** -- `layout.tsx` still calls
+`requireSuperadmin()` exactly as before and still redirects to `/dashboard` on failure;
+`(protected)/layout.tsx` was not touched at all. The SUPERADMIN badge, brand name, and
+signed-in email in the header are byte-for-byte the same JSX, just relocated into
+`platform-shell.tsx`.
+
+**Verification**: full monorepo `npm install` (fresh worktree, no `node_modules` --
+confirmed `readlink -f node_modules/@cofounderai/core` resolves to this worktree's own
+`packages/core` afterward, not a stale sibling checkout). `npm run typecheck` -- clean
+across every workspace (`web`, `core`, all five `module-*` packages, `module-registry`).
+`npm run lint --workspaces --if-present` -- 0 errors, 1 pre-existing unrelated warning
+(`Package` unused import in a CRM conversations page, untouched by this story -- same one
+every recent entry in this log has noted). `node scripts/lint-import-boundaries.mjs` --
+1522 files, no violations. `node scripts/lint-migration-schema.mjs` -- 202 migrations, no
+violations (no migration this story). `npx vitest run --root packages/core` -- 314 tests,
+all passing, unchanged (no new logic worth a unit test -- this is layout/JSX plus one
+static presentational component). `apps/web`'s own `vitest run --passWithNoTests` -- 50
+tests, unchanged. No migration touched, so `mcp__Supabase__apply_migration`/
+`get_advisors` against the dev project and a local Postgres RLS harness were both
+correctly skipped, not merely omitted -- there is no new table or access pattern this
+story could regress. `cd apps/web && npm run build` -- clean Turbopack build ("Compiled
+successfully", TypeScript finished with no errors); confirmed via the printed route
+manifest that all 17 pre-existing `/platform/*` top-level routes plus their known nested
+routes (`/platform/branding/preview`, `/platform/compliance/packs/[id]`,
+`/platform/plans/[id]/entitlements`, `/platform/mfa`) are present and still `ƒ` (dynamic),
+correctly inheriting the outer layout's `force-dynamic` unchanged.
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no seeded
+demo superadmin user or live authenticated browser session reachable in this sandboxed
+environment, so an actual visual walkthrough of the new sidebar (desktop width, mobile
+hamburger-drawer open/close, active-link highlighting while navigating) and the new banner
+was **not** performed and is **not** claimed here. This entry documents build/typecheck/
+lint/unit-test correctness and a direct read of the rendered JSX/Tailwind classes against
+both the doc's own §33 mockup and `docs/design/claude-ui-design-rules.md`'s rules, not an
+end-to-end UI verification -- exactly the same gap every prior story in this log has stated
+plainly rather than glossed over.
+
+**Status**: PLATFORM-P0-19.1/19.2/19.3/19.4/19.5 done -- §33 (Platform Administration UI)
+fully resolved. This closes the last open P0 section from this log's own Progress table
+(§20/story 16, Platform Audit, remains open -- explicitly out of this run's assigned
+scope, not silently dropped). Every P0 acceptance criterion in §35 that depends on §33's
+own scope ("Platform-wide changes show impact before publishing", "Desktop tables and
+responsive layouts are implemented") is satisfied by what's built above; the criteria that
+depend on §20 (Platform Audit) or full runtime enforcement of still-config-only policies
+remain exactly as open as they were before this story, unrelated to it.

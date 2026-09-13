@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listPlatformPlans } from "@cofounderai/core/admin/platform-plans";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { PlanDialog } from "./plan-dialog";
 
 /**
@@ -41,6 +42,8 @@ export default async function PlatformPlansPage() {
         </div>
         <PlanDialog />
       </div>
+
+      <PlatformImpactBanner />
 
       <div className="rounded-2xl border border-zinc-800">
         <ul className="divide-y divide-zinc-800 md:hidden">

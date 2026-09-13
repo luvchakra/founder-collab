@@ -1,5 +1,6 @@
 import { getPlatformBranding, getPlatformBrandingDraft } from "@cofounderai/core/admin/platform-branding";
 import { formatDateTime } from "@cofounderai/core/lib/format";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { BrandingForm } from "./branding-form";
 import { PublishControls } from "./publish-controls";
 
@@ -47,6 +48,7 @@ export default async function PlatformBrandingPage() {
         </p>
         <p className="mt-1 text-xs text-zinc-500">Last published {formatDateTime(branding.updatedAt)}.</p>
       </div>
+      <PlatformImpactBanner />
       <PublishControls hasDraft={draft.hasDraft} draftUpdatedAt={draft.draftUpdatedAt} showPreviewLink />
       <BrandingForm values={draft.values} />
     </div>

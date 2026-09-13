@@ -6,6 +6,7 @@ import {
 } from "@cofounderai/core/admin/platform-feature-flags";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { DeleteFlagDialog } from "./delete-flag-dialog";
 import { FeatureFlagDialog } from "./feature-flag-dialog";
 
@@ -39,6 +40,8 @@ export default async function PlatformFeatureFlagsPage() {
         </div>
         <FeatureFlagDialog scopeOptions={scopeOptions} />
       </div>
+
+      <PlatformImpactBanner />
 
       <div className="rounded-2xl border border-zinc-800">
         {flags.length === 0 ? (

@@ -4,6 +4,7 @@ import { getPlatformPlan } from "@cofounderai/core/admin/platform-plans";
 import { listPlanModuleEntitlements } from "@cofounderai/core/admin/platform-plan-modules";
 import { listPlanLimits } from "@cofounderai/core/admin/platform-plan-limits";
 import { listPlanFeatureEntitlements } from "@cofounderai/core/admin/platform-plan-features";
+import { PlatformImpactBanner } from "../../../../impact-banner";
 import { ModuleEntitlementsSection } from "./module-entitlements-section";
 import { QuantityLimitsSection } from "./quantity-limits-section";
 import { FeatureEntitlementsSection } from "./feature-entitlements-section";
@@ -41,6 +42,8 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
           What businesses subscribed to the {plan.name} plan can access. Changes apply the moment they are saved.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <ModuleEntitlementsSection planId={id} entitlements={moduleEntitlements} />
       <FeatureEntitlementsSection planId={id} entitlements={featureEntitlements} modules={modules} />

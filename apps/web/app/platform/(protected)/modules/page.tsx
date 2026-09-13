@@ -1,4 +1,5 @@
 import { listModuleRegistry } from "@cofounderai/core/admin/platform-modules";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { ModuleRegistryTable } from "./module-registry-table";
 
 /**
@@ -23,6 +24,8 @@ export default async function PlatformModulesPage() {
           The platform&apos;s five licensable modules and their platform-wide operational state.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <ModuleRegistryTable modules={modules} />
     </div>
