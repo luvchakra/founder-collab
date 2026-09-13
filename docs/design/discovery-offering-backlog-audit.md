@@ -70,10 +70,10 @@ only genuine architectural/key decisions are raised.
 | | P1-05.1 | Offering Pipeline Workspace | Done |
 | | P1-05.2 | Desktop Stage Tables | Done |
 | | P1-05.3 | Editable Stage Rows | Done |
-| §7/10 (pre-§29 legacy, OUT OF REQUIRED SCOPE) | P1-01.1 | Saved Offering Discovery | Out of scope (see below) |
-| | P1-01.2 | Continuous Monitoring | Out of scope |
-| | P1-01.3 | Account Watchlist | Out of scope |
-| | P1-01.4 | Grouped Opportunity Alerts | Out of scope |
+| §7/10 (pre-§29 legacy, commissioned by user 2026-09-13 -- see below) | P1-01.1 | Saved Offering Discovery | Done |
+| | P1-01.2 | Continuous Monitoring | Blocked (see below) |
+| | P1-01.3 | Account Watchlist | Done |
+| | P1-01.4 | Grouped Opportunity Alerts | Blocked (see below) |
 | | P1-02.1 | Prospect Feedback | Out of scope |
 | | P1-02.2 | Discovery Outcome Tracking | Out of scope |
 | | P1-02.3 | Offering Performance Analysis | Out of scope |
@@ -4196,3 +4196,66 @@ Alerts, Offering Performance Analysis, Provider-Agnostic Data Contracts, Offerin
 Contact Relevance, Offering Overview UX Polish) -- tracked in the Progress table above,
 not silently dropped, but outside §29's own required sequence this run has been following
 story-by-story.
+
+---
+
+### DISC-OFFER-P1 §7-01.3 -- Account Watchlist (2026-09-13)
+
+Doc's own fields: account, offering, watch reason, current score, last signal, next
+review; same account can be watched differently for different offerings.
+
+**Checked first**: grepped the whole repo for "watchlist" -- no table, no lib, nothing.
+The nav bar (`product-nav.tsx`) already had a commented-out "Watchlist" tab slot from
+DISC-OFFER-P0-03.3, explicitly left out under a "no dead links" rule until a real page
+existed -- this story is what fills that slot in.
+
+**Design decisions**:
+- New table `discovery.watchlist_entries` (workspace_id, prospect_id, watch_reason,
+  next_review_at, unique on (workspace_id, prospect_id)). Distinct from
+  `opportunities.status = 'watching'` -- that's a lifecycle state on one specific
+  buying-signal instance; this is a founder's own standing "keep an eye on this account"
+  flag that can exist with zero open opportunities.
+- **"Current score" and "last signal" are NOT stored columns.** Both already exist live
+  elsewhere (`prospects.fit_score`, `discovery.signals` ordered by `observed_at`), and
+  nothing in this codebase runs unattended to keep a duplicated copy fresh -- §7-01.2
+  "Continuous Monitoring" is the story that would provide that, and it's blocked (see the
+  entry above). Storing a stale second copy here would violate CLAUDE.md's own "never
+  invent state nothing keeps current" spirit, so both are read live at query time
+  (`getWatchlistDashboardRows`, an N+1-per-row `Promise.all`, the exact pattern this
+  file's own `getOpportunityDashboardRows` already established -- not a new convention).
+- **"Different for different offerings" required no extra column.** `discovery.prospects`
+  is already workspace-scoped 1:1 with an offering (ADR-4) -- the same real company
+  tracked under two offerings is already two separate prospect rows. Watching one is
+  inherently that offering's own watch; the doc's own acceptance note falls out of the
+  existing model for free.
+- The actual watch/edit/remove form (`WatchlistToggle`) lives on the prospect detail page
+  itself, next to the status form -- that's where a founder is already looking at the
+  account when deciding to watch it. The new `/watchlist` list page
+  (`WatchlistDashboard`) is read-mostly: one row per watched account, linking back to
+  that account's own detail page rather than duplicating the edit form in two places.
+  Compact cards below `md`, a real table at `md`+ (design rule #12).
+- Upsert-by-`(workspace_id, prospect_id)` on add, so re-watching an already-watched
+  account edits the existing entry instead of erroring or duplicating.
+
+**What was built**: migration (`20260913710000_discovery_watchlist_entries.sql`, RLS
+`select/insert/update/delete` all scoped to `discovery.user_workspace_ids()`, `updated_at`
+trigger matching every sibling table's own convention); `lib/watchlist/{types,queries,
+mutations}.ts`; `WatchlistToggle` (prospect detail page) and `WatchlistDashboard`
+(`/watchlist` list page) components; three new server actions on the prospect detail
+route (add/update/remove); the `/watchlist` route itself; the nav tab added to
+`product-nav.tsx` now that a real page backs it.
+
+**Verified**: per-workspace `tsc --noEmit` clean for both `module-discovery` and
+`apps/web` (the full-monorepo `npm run typecheck` remains unreliable in this environment,
+per this run's earlier note -- per-workspace is the reliable fallback). `lint:boundaries`
+(1569 files, no violations), `lint:migrations` (210 migrations, no violations). `npx
+vitest run` in `module-discovery`: 34 files / 248 tests, all passing (no new pure-logic
+unit needed -- this story is schema plus straightforward CRUD wiring over
+already-established query/mutation/component patterns, not new deterministic logic in the
+`matchesDiscoveryCriteria` sense). Live-applied the migration to the dev Supabase project
+(`jazdtomcgqjxjueedmck`) via `apply_migration` -- checked first for any pre-existing
+`%watch%` table (the Canada-collision precedent from this same run), found none, applied
+cleanly. `get_advisors` (security + performance) on the same project: zero new findings
+tied to `watchlist_entries` -- the two new FK-covering indexes exist and are correctly
+flagged only as "unused" (INFO-level, expected on a brand-new empty table, not a real
+issue), all pre-existing findings are unchanged and unrelated to this story.

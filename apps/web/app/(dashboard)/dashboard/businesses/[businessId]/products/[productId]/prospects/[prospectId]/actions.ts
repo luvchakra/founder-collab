@@ -35,6 +35,7 @@ import {
   closeConversation,
   logInboundReply,
 } from "@cofounderai/module-discovery/lib/conversations/mutations";
+import { addToWatchlist, updateWatchlistEntry, removeFromWatchlist } from "@cofounderai/module-discovery/lib/watchlist/mutations";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import { promoteProspectToCrm, recordInteraction } from "@cofounderai/module-crm/contract/index";
 import type { RecordInteractionInput } from "@cofounderai/module-crm/lib/interactions/types";
@@ -93,6 +94,46 @@ export async function updateProspectStatusAction(
 ) {
   const status = String(formData.get("status") ?? "new") as ProspectStatus;
   await updateProspectStatus(prospectId, status);
+  revalidatePath(prospectPath(businessId, productId, prospectId));
+}
+
+export async function addToWatchlistAction(
+  businessId: string,
+  productId: string,
+  workspaceId: string,
+  prospectId: string,
+  formData: FormData,
+) {
+  const nextReviewAtRaw = String(formData.get("nextReviewAt") ?? "").trim();
+  await addToWatchlist(workspaceId, prospectId, {
+    watchReason: String(formData.get("watchReason") ?? "").trim(),
+    nextReviewAt: nextReviewAtRaw === "" ? null : new Date(nextReviewAtRaw).toISOString(),
+  });
+  revalidatePath(prospectPath(businessId, productId, prospectId));
+}
+
+export async function updateWatchlistAction(
+  businessId: string,
+  productId: string,
+  prospectId: string,
+  entryId: string,
+  formData: FormData,
+) {
+  const nextReviewAtRaw = String(formData.get("nextReviewAt") ?? "").trim();
+  await updateWatchlistEntry(entryId, {
+    watchReason: String(formData.get("watchReason") ?? "").trim(),
+    nextReviewAt: nextReviewAtRaw === "" ? null : new Date(nextReviewAtRaw).toISOString(),
+  });
+  revalidatePath(prospectPath(businessId, productId, prospectId));
+}
+
+export async function removeFromWatchlistAction(
+  businessId: string,
+  productId: string,
+  prospectId: string,
+  entryId: string,
+) {
+  await removeFromWatchlist(entryId);
   revalidatePath(prospectPath(businessId, productId, prospectId));
 }
 
