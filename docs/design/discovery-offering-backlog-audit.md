@@ -74,7 +74,7 @@ only genuine architectural/key decisions are raised.
 | | P1-01.2 | Continuous Monitoring | Blocked (see below) |
 | | P1-01.3 | Account Watchlist | Done |
 | | P1-01.4 | Grouped Opportunity Alerts | Blocked (see below) |
-| | P1-02.1 | Prospect Feedback | Out of scope |
+| | P1-02.1 | Prospect Feedback | Done |
 | | P1-02.2 | Discovery Outcome Tracking | Out of scope |
 | | P1-02.3 | Offering Performance Analysis | Out of scope |
 | | P1-03.1 | Progressive Intelligence | Out of scope |
@@ -4259,3 +4259,46 @@ cleanly. `get_advisors` (security + performance) on the same project: zero new f
 tied to `watchlist_entries` -- the two new FK-covering indexes exist and are correctly
 flagged only as "unused" (INFO-level, expected on a brand-new empty table, not a real
 issue), all pre-existing findings are unchanged and unrelated to this story.
+
+---
+
+### DISC-OFFER-P1 §7-02.1 -- Prospect Feedback (2026-09-13)
+
+Doc's own eleven-tag closed vocabulary (Good/Bad Prospect, Wrong Person, Wrong Timing,
+Good/Bad Message, Interested, Not Interested, Already Customer, Not Relevant, Spam) plus
+an optional free-text explanation.
+
+**Checked first**: `discovery.offering_feedback` (DISC-OFFER-P1-04.1) already exists but
+is a different concept entirely -- structured AI-value/user-value corrections on one ICP
+field, not a founder's own closed-vocabulary reaction to a prospect. No overlap, no
+duplicate table.
+
+**Design decisions**:
+- The doc names this ONE story with ONE flat list, even though the eleven tags
+  conceptually span several things a founder might be reacting to (the prospect itself,
+  targeting, a message, the response). Modeled literally as written: one table
+  (`discovery.prospect_feedback`), one `feedback_tag` closed-vocabulary column, not split
+  into several sub-tables or fields the doc never asked for.
+- Append-only, scoped to the prospect -- a prospect can accumulate several feedback
+  entries over its lifetime (e.g. "Wrong Timing" early, "Interested" later), same
+  "history of facts, never rewritten" precedent as `discovery.signals`/
+  `offering_feedback`/`prospect_scores`.
+- No aggregation/analytics built here -- that's §7-02.3 "Offering Performance Analysis"
+  ("does a higher score correlate with better outcomes," etc.), which explicitly needs
+  this raw feedback log as one of its own inputs and is a separate, later story.
+
+**What was built**: migration (`20260913720000_discovery_prospect_feedback.sql`, RLS
+select/insert only against `discovery.user_workspace_ids()`); `lib/prospect-feedback/
+{types,queries,mutations}.ts`; `ProspectFeedbackSection` component (tag select + optional
+note + history list, newest first) added to the bottom of the prospect detail page,
+after Conversations -- a reflection on the whole prospect, not tied to one pipeline
+stage; one new server action (`addProspectFeedbackAction`).
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` and `apps/web`.
+`lint:boundaries` (1573 files, no violations), `lint:migrations` (211 migrations, no
+violations). `npx vitest run` in `module-discovery`: 34 files / 248 tests, all passing
+(no new pure-logic unit needed -- straightforward CRUD over a closed vocabulary, no new
+deterministic computation). Checked the dev project (`jazdtomcgqjxjueedmck`) first for
+any pre-existing `%feedback%` table (found only the already-known `offering_feedback`,
+no collision), then live-applied via `apply_migration` -- succeeded cleanly.
+`get_advisors` (security + performance): zero new findings tied to `prospect_feedback`.
