@@ -26,7 +26,22 @@ export const SENIORITY_LABEL: Record<Seniority, string> = {
 /** "unknown" is deliberately distinct from "low" -- a contact with no job title on file
  * has unassessable relevance, which is not the same claim as "assessed and found
  * irrelevant" (the same "absence of evidence isn't evidence of absence" precision
- * 05.2/05.5 already established for missing score components/insufficient_evidence). */
+ * 05.2/05.5 already established for missing score components/insufficient_evidence).
+ *
+ * DISC-OFFER-P1 §7-04.3 "Offering-Specific Contact Relevance" ("the same person can
+ * have different roles for different offerings; the relevance model must be
+ * offering-specific") -- already true by construction, verified rather than built:
+ * this type is named `RelevanceToOffering`, not `Relevance`, for exactly this reason.
+ * `discovery.contacts` is workspace_id + prospect_id scoped with no identity shared
+ * across workspaces (no `core.parties` link, no dedup table) -- the same real company's
+ * same real person tracked under two different offerings is already two separate
+ * `contacts` rows (the identical "different for different offerings required no extra
+ * column" finding DISC-OFFER-P1 §7-01.3 "Account Watchlist" made for `prospects`, one
+ * level down the same chain). `deriveRelevance` (relevance.ts) takes that workspace's
+ * own `persona`/`icpRoles` as plain parameters, so the same person's two rows are always
+ * scored against that specific offering's own buyer personas and ICP roles -- never a
+ * shared, offering-agnostic relevance value. No schema change, no new code: the doc's
+ * own requirement was satisfied the moment 06.3 was built this way. */
 export type RelevanceToOffering = "high" | "medium" | "low" | "unknown";
 
 export const RELEVANCE_LABEL: Record<RelevanceToOffering, string> = {

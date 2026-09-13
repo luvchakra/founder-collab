@@ -80,13 +80,13 @@ only genuine architectural/key decisions are raised.
 | | P1-03.1 | Progressive Intelligence | Done |
 | | P1-03.2 | Research Cache | Done |
 | | P1-03.3 | Provider-Agnostic Data Contracts | Partially satisfied (see below) |
-| | P1-04.1 | Cross-Offering Account View | Out of scope |
-| | P1-04.2 | Offering Portfolio Dashboard | Out of scope |
-| | P1-04.3 | Offering-Specific Contact Relevance | Out of scope |
-| | P1-05.1 | Offering-Scoped Search | Out of scope |
-| | P1-05.2 | Editable Opportunity Rows | Out of scope |
-| | P1-05.3 | Responsive Opportunity Workspace | Out of scope |
-| | P1-05.4 | Offering Overview UX Polish | Out of scope |
+| | P1-04.1 | Cross-Offering Account View | Done |
+| | P1-04.2 | Offering Portfolio Dashboard | Done |
+| | P1-04.3 | Offering-Specific Contact Relevance | Done (verified already satisfied -- see below) |
+| | P1-05.1 | Offering-Scoped Search | Deferred -- higher effort, see log |
+| | P1-05.2 | Editable Opportunity Rows | Deferred -- higher effort, see log |
+| | P1-05.3 | Responsive Opportunity Workspace | Deferred -- higher effort, see log |
+| | P1-05.4 | Offering Overview UX Polish | Done |
 
 **52 of 52 §29-in-scope stories done — the entire "Master Implementation Sequence —
 REQUIRED" (Phases A–F) is complete.** ⚠→✅ **Numbering collision from the prior session's
@@ -4586,3 +4586,269 @@ existing test coverage from when it was built).
 
 **Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` (comment-only
 change).
+
+---
+
+## Resuming §7/10: triage pass over the remaining 7 stories (2026-09-13)
+
+**User instruction this run**: "For discovery identify low effort high value remaining
+items, work on them. Rest of high value items can be deferred for later (add appropriate
+status value in backlog document)." The seven stories below (§7-04's whole epic, §7-05's
+whole epic) were the only ones in the commissioned 17 not yet attempted by any prior
+session. Re-read each one's own doc text (§7/10, lines ~1017-1169) against what already
+exists in this codebase before building anything, per this run's own standing rule.
+
+**Re-checked the two already-Blocked items first, per this run's own instruction, before
+touching anything else**: re-read §7-01.2 "Continuous Monitoring" and §7-01.4 "Grouped
+Opportunity Alerts"'s own entries above. Both blockers still hold exactly as written --
+no unattended/cron execution path exists anywhere in this pipeline (every pipeline
+function is still built exclusively around the per-request, RLS-scoped, signed-in-user
+Supabase client; nothing changed that this run), and no real external
+monitoring/enrichment provider exists (§7-03.3's own finding, also unchanged). Looked
+specifically for a narrower reading buildable entirely within an existing
+user-triggered request (the exemption the dispatch note called out) and found none: both
+stories are explicitly about detecting change *between* founder-initiated runs, which is
+definitionally not achievable inside any one request/response cycle. Left both as
+**Blocked**, unchanged, no implementation effort spent -- this is confirmation, not new
+analysis.
+
+**Triage verdict**: 4 of 7 built (P1-04.1, P1-04.2, P1-04.3, P1-05.4), 3 deferred
+(P1-05.1, P1-05.2, P1-05.3). The dividing line, in every case, was whether the story
+could be satisfied by batching/reusing data and components this module already has
+(low effort) versus needing a new schema decision, a genuinely new UI surface with no
+reusable pattern, or a product-scope call this run isn't positioned to make alone
+(higher effort) -- never arbitrary story-number order.
+
+### DISC-OFFER-P1 §7-04.3 -- Offering-Specific Contact Relevance (2026-09-13)
+
+**Verified already satisfied by existing architecture -- nothing to build.** The doc's
+own ask ("the same person can have different roles for different offerings... the
+relevance model must be offering-specific") is already true by construction, for the
+identical reason DISC-OFFER-P1 §7-01.3 "Account Watchlist" found for `prospects` one
+level up the same chain: `discovery.contacts` is `workspace_id` + `prospect_id` scoped
+with no identity shared across workspaces (no `core.parties` link, no dedup table), so
+the same real person tracked under two offerings is already two separate `contacts`
+rows. `buildBuyerPersonIntelligence`/`deriveRelevance` (`lib/buyer-intelligence/`) take
+that workspace's own `persona`/`icpRoles` as plain parameters -- the type itself is even
+already named `RelevanceToOffering`, not `Relevance`, from when 06.3 was first built.
+Two rows for the same person are always scored against their own offering's own buyer
+personas and ICP roles, never a shared value. Confirmed by reading the code, not by
+inspection alone: `computeBuyerIntelligence` has no code path that could see across
+workspaces (no cross-workspace query anywhere in this file or its callers).
+
+**What was built**: one doc comment (`lib/buyer-intelligence/types.ts`, on
+`RelevanceToOffering`) recording this finding at the point of the code, matching this
+run's own §7-03.3 precedent for "verified, not built."
+
+**Verified**: `tsc --noEmit` clean for `module-discovery` (comment-only change). No test
+change -- nothing new to test.
+
+---
+
+### DISC-OFFER-P1 §7-04.1 / §7-04.2 -- Multi-Offering Intelligence (2026-09-13)
+
+Both stories in this epic ("Cross-Offering Account View", "Offering Portfolio
+Dashboard") turned out to need the exact same batched cross-workspace reads, so they're
+one entry, one query module, one commit.
+
+**Checked for a reusable pattern before writing any query.** The business-level
+Dashboard page (`businesses/[businessId]/page.tsx`) already does precisely this shape of
+work -- `Promise.all(products.map((p) => getWorkspaceForProduct(p.id)))`, then
+`listProspectsForWorkspaces(workspaceIds)` -- to build its own KPI cards, and the
+account-wide Executive Dashboard (`lib/dashboard/queries.ts`'s `getAccountWorkspaceEntries`/
+`getAccountUsageAndProspects`) already batches the identical shape one level wider
+(every workspace on the whole account, not just one business). Both stories here reuse
+that exact "batch across workspaces, join in memory" convention, scoped to one
+business's own offerings -- no new convention invented.
+
+**Design decisions**:
+- New `lib/portfolio/` (types, `queries.ts`, `accounts.ts`, `portfolio.ts`): one
+  `getBusinessPortfolioData(businessId)` call serves both stories, since both need the
+  same three batched reads (`listProspectsForWorkspaces`, a new lean
+  `listOpportunitySummariesForWorkspaces` -- workspace_id/prospect_id/status/score/
+  priority only, exactly what `classifyOpportunityForDashboard` needs to bin a row -- and
+  a new `getConversationCountsForWorkspaces`). No new table, no migration -- every field
+  is read live, the same "never invent state nothing keeps current" discipline
+  §7-01.3's watchlist rows already established for "current score."
+- **§7-04.2 "Offering Portfolio Dashboard"'s "Hot"/"New" reuse
+  `classifyOpportunityForDashboard` (DISC-OFFER-P0-07.2) wholesale**, not a second bin
+  definition -- the doc's own two column names are already this exact vocabulary a
+  founder sees on every offering's own Today's Opportunities dashboard. "Conversations"
+  is a plain per-workspace count. Rendered as a new "Offering portfolio" card on the
+  existing Business Dashboard page, gated on `products.length > 1` (with exactly one
+  offering this would just repeat the KPI cards already above it on the same page --
+  CLAUDE.md dev principle #7). "Allow drill-down" = each row links to that offering's own
+  `/opportunities` page, already built.
+- **§7-04.1 "Cross-Offering Account View" groups prospects into accounts by an exact
+  match on `prospects.domain` (case-insensitively) when one is on file, or normalized
+  `company_name` otherwise** (`accountKeyFor`, `lib/portfolio/accounts.ts`) -- the same
+  "no fixed catalog exists, so match the free text honestly" reasoning §7-01.1's own
+  `matchesDiscoveryCriteria` already applied to industry/location, applied here to
+  company identity. Deliberately EXACT, never fuzzy/substring: a false merge of two
+  different real companies into one account here would show one founder's own
+  contact/score data under a company name it doesn't belong to, a worse mistake than a
+  false split of one real company into two. **Only companies on file under two or more
+  of this business's own offerings are shown** -- a company under just one offering is
+  already this module's ordinary per-offering Prospects list, and repeating every
+  single-offering account here would bury the actual overlap this story exists to
+  surface. Each offering line shows that offering's own best (highest-scored) still-open
+  opportunity's score and dashboard-bin label (Hot/Needs Review/etc.) -- the doc's own
+  "Hot"/"Warm" example becomes this module's one real, already-existing tier vocabulary
+  rather than a second, invented one. "Keep opportunities independent" holds structurally:
+  this is a read-only rollup over already-independent rows, never a merge of the
+  underlying `prospects`/`opportunities` records. Rendered as a second new card, "Accounts
+  across offerings," hidden entirely (not an empty state) when there's no overlap yet.
+- Both pure functions (`groupIntoCrossOfferingAccounts`, `computeOfferingPortfolioRows`)
+  are unit-tested; the query layer is a thin batching wrapper, following this run's own
+  "no unit test for a DB-composing function" precedent.
+
+**What was built**: `lib/portfolio/{types,accounts,portfolio,queries}.ts` +
+`accounts.test.ts` (7 cases) + `portfolio.test.ts` (2 cases);
+`lib/opportunities/queries.ts`'s new `listOpportunitySummariesForWorkspaces` +
+`OpportunitySummary` type; `lib/conversations/queries.ts`'s new
+`getConversationCountsForWorkspaces`; `components/portfolio/{offering-portfolio-table,
+cross-offering-accounts}.tsx` (compact-card-first for the accounts panel since it's
+already card-shaped per row, not a table being converted; a real desktop table plus
+mobile cards for the offering portfolio list, matching design rule #12/CLAUDE.md #12);
+wired into the existing Business Dashboard page
+(`apps/web/.../businesses/[businessId]/page.tsx`) as two new conditionally-rendered
+`Card` sections, right after "Needs attention."
+
+**Verified**:
+- `npx tsc --noEmit` clean across every workspace (`npm run typecheck` from the repo
+  root) -- confirmed only after `npm install` at the repo root (this worktree started
+  with no `node_modules`; per-package `tsc` for `module-discovery` alone had already
+  passed without it, but `apps/web`'s cross-package `@cofounderai/module-discovery`
+  imports could not resolve until the real install ran, exactly the hazard flagged in
+  this run's own dispatch note -- `readlink -f node_modules/@cofounderai/module-discovery`
+  confirmed it now points into this worktree, not a stale checkout).
+- `npm run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated
+  warning noted throughout this run, unchanged.
+- `node scripts/lint-import-boundaries.mjs` -- 1596 files scanned, no violations.
+- `node scripts/lint-migration-schema.mjs` -- 212 migrations, unchanged (no schema
+  change -- every table read here already existed).
+- `npx vitest run --root packages/module-discovery` -- 40 files / 285 tests, all passing
+  (9 new: 7 in `accounts.test.ts`, 2 in `portfolio.test.ts`).
+- Clean `next build` (`apps/web`) -- confirmed the touched Business Dashboard route still
+  builds with no errors.
+- No live migration to apply or `get_advisors` to re-run -- nothing in the database
+  changed.
+
+---
+
+### DISC-OFFER-P1 §7-05.4 -- Offering Overview UX Polish (2026-09-13)
+
+The doc's own ask: apply the platform's global UI design rule
+(`docs/design/claude-ui-design-rules.md`) to the Offering Overview page. Read that rule
+doc in full first, per CLAUDE.md #13, then read every component the Overview page
+(`products/[productId]/page.tsx`) composes (`RediscoverySchedule`,
+`SavedDiscoveryCriteria`, `RunAiDiscoveryPanel`, `TopOpportunityGate`,
+`OfferingOverviewSummary`, `ProductOverviewShell`) before touching any markup, per the
+rule doc's own "plan hierarchy first" instruction.
+
+**Finding: every individual component was already well-formed** (bordered cards,
+labeled sections, real empty states, sensible button hierarchy) -- the actual gap was at
+the PAGE level, not inside any one component. The page stacked six sections with a flat
+`gap-8` and no grouping: three unlabeled "how the pipeline works" boxes
+(schedule/criteria/run-panel) came first, ahead of the one thing an established
+offering's founder most needs to see (the Top Opportunity gate, offering health), and
+the original setup wizard (website/description/knowledge sources) sat permanently
+expanded at full height on every single visit, whether or not there was anything left to
+set up.
+
+**What changed, and why each change is safe**:
+- **Reordered**: Top Opportunity gate and Offering Overview Summary (both already gated
+  on `product.product_profile` existing) now render FIRST, ahead of the discovery
+  pipeline mechanics. For a brand-new offering (no profile yet) both are still `null`
+  exactly as before, so this reorder changes nothing about what a first-time founder
+  sees -- it only reprioritizes an ESTABLISHED offering's own page, moving "what should I
+  act on / how healthy is this" ahead of "how does the pipeline run."
+  - **Grouped**: `RediscoverySchedule`/`SavedDiscoveryCriteria`/`RunAiDiscoveryPanel` now
+  sit under one `text-xs uppercase` "Discovery pipeline" eyebrow heading (design rule #1
+  -- "group related information logically") instead of reading as three unrelated boxes.
+- **Progressive disclosure**: `ProductOverviewShell` (website/description editing,
+  product profile, knowledge sources) is now wrapped in the already-existing
+  `CollapsibleCard` primitive (`components/ui/collapsible-card.tsx`, previously used
+  inside that same shell for "Add a file"/"Add text") under the label "Offering setup &
+  sources," `defaultOpen={!product.product_profile}` -- open by default for a brand-new
+  offering (the wizard case, unchanged from before), collapsed by default once a profile
+  already exists (the common case for an established offering, where re-editing the base
+  website/description is rare maintenance, not the main task). No change inside
+  `ProductOverviewShell` itself -- this is purely a composition-level wrap, so its own
+  internal `fieldset disabled={isPopulating}` auto-populate-race guard is unaffected.
+- **Deliberately NOT changed**: nothing inside any of the six components themselves --
+  every one was already internally well-designed, and CLAUDE.md dev principle #10 (don't
+  refactor unrelated code) argues against restyling things that already meet the rule
+  doc's own bar just because they were touched by this story's own read-through.
+
+**Verified**:
+- `npx tsc --noEmit` clean across every workspace.
+- `npm run lint --workspaces --if-present` -- 0 errors, same 1 pre-existing warning.
+- `node scripts/lint-import-boundaries.mjs` -- 1596 files, no violations (confirms the
+  new `CollapsibleCard` import from `apps/web` stays on the legal side of the boundary).
+- `node scripts/lint-migration-schema.mjs` -- 212 migrations, unchanged.
+- `npx vitest run --root packages/module-discovery` -- 285/285, unchanged (no new pure
+  logic -- this story is page composition/JSX reordering, matching this run's own "no
+  unit test for a UI-wiring function" precedent).
+- Clean `next build` (`apps/web`) -- confirmed the Offering Overview route still builds.
+- Same live-browser-walkthrough constraint noted throughout this run (no seeded demo
+  user/`.env.local` in this environment) -- particularly relevant here since confirming
+  the collapse/expand interaction and the new visual hierarchy is exactly what a real
+  browser click-through would show most directly.
+
+---
+
+## Deferred (2026-09-13): P1-05.1, P1-05.2, P1-05.3 -- higher effort, still on the table
+
+Each read against its own doc text and the existing codebase before deferring, per this
+run's own instruction not to defer without a genuine effort/value read. None of these
+are rejected -- they're real, valuable ideas this run judged too large to build
+correctly in the "low effort" pass the user asked for right now.
+
+**DISC-OFFER-P1 §7-05.1 "Offering-Scoped Search"** -- the doc's own ten filter
+dimensions (score, confidence, signal type, industry, company size, geography,
+technology, buyer role, freshness, status). Most map to real columns already on
+`prospects`/`opportunities`/`contacts`, but "technology" does not: §7-03.3's own finding
+this same session stands -- there is no per-prospect "this company's own tech stack"
+fact anywhere in this schema (`icp_profiles.technology` is a different thing, an
+AI-guessed ICP input, not a per-prospect observation). Honestly building this story means
+either omitting that one filter with its own disclosed-gap notice (the same treatment
+§7-02.3's own "which Discovery Plays perform best" question got) or fabricating a
+capability that doesn't exist -- and even the achievable nine filters are a real, new
+multi-field search form plus a materially different query shape from anything this
+module's list pages do today (every existing list page filters on zero or one field,
+never a combined nine-dimension query). Higher effort than a page composed from
+already-existing reads; genuinely valuable once built. Deferred, not attempted.
+
+**DISC-OFFER-P1 §7-05.2 "Editable Opportunity Rows"** -- close in spirit to the
+already-built `OpportunityRowActions`/`OpportunitiesDashboard` (§29's own identically-
+numbered "Editable Stage Rows"/"Desktop Stage Tables"), but its own doc text asks for two
+edits that component doesn't support: a manual **priority override** and a **notes**
+field, both flagged as "must be audited where appropriate." Priority is a real problem,
+not just missing UI: `opportunities.priority` is recomputed by the scoring engine on
+every re-score, exactly the same "system recomputes this value" situation
+`recommended_action_override` (DISC-OFFER-P0-15.1) already exists to solve for
+`recommended_action` -- a bare mutable `priority` column would have a founder's manual
+choice silently overwritten by the next research run, precisely the "must NOT silently
+overwrite user-approved values" (§25) this module has repeatedly refused to risk. Doing
+this correctly needs a new `priority_override` column (a real, if small, schema
+decision) plus a notes column (another migration) plus a decision about what "audited"
+means here (a dedicated log, or is `updated_at` enough) -- a genuine design call this
+run isn't positioned to make unilaterally in a "low effort" pass. Deferred, not
+attempted; a future session should decide the override/audit shape first, then reuse
+`OpportunityRowActions`'s own dropdown-menu convention for the rest.
+
+**DISC-OFFER-P1 §7-05.3 "Responsive Opportunity Workspace"** -- checked
+`OpportunitiesDashboard` against the doc's own three breakpoint asks first. Desktop
+(`Company | Score | Fit | Why Now | Contact | Signal | Action`) and Mobile (stacked
+cards, no overlapping controls) are already substantially satisfied -- the existing
+component's own desktop table has more columns than the doc's minimum, and its mobile
+cards already avoid control overlap. The one real gap is the doc's own explicit third
+tier, "Tablet: dense adaptive rows" -- a genuinely different intermediate layout between
+the two breakpoints this platform's own established convention (CLAUDE.md #12: cards
+below `md`, a real table at `md` and up) doesn't have anywhere else in this codebase.
+Inventing a new three-tier responsive pattern for one page, when every other list in
+this entire platform uses the two-tier convention, is a real design-system decision (a
+platform-wide convention change, not this one story's to make alone) rather than a
+same-page polish task. Deferred pending that decision; the two breakpoints the platform
+already has are confirmed adequate in the meantime.

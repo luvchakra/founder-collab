@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
-import type { Opportunity } from "./types";
+import type { Opportunity, OpportunityPriority, OpportunityStatus } from "./types";
 import { computeOpportunityOutcomeFunnel, type OpportunityOutcomeFunnel } from "./outcome-funnel";
 
 /** cache()-wrapped for the same request-deduplication reason every other list query in
@@ -75,4 +75,33 @@ export async function getOpportunityOutcomeFunnel(workspaceId: string): Promise<
   }));
 
   return computeOpportunityOutcomeFunnel(facts);
+}
+
+/** The lean shape DISC-OFFER-P1 §7-04 "Multi-Offering Intelligence" (Cross-Offering
+ * Account View, Offering Portfolio Dashboard) needs from `opportunities` --
+ * score/status/priority are exactly what `classifyOpportunityForDashboard`
+ * (DISC-OFFER-P0-07.2) needs to bin a row, so this one shape serves both stories. */
+export type OpportunitySummary = {
+  workspace_id: string;
+  prospect_id: string;
+  status: OpportunityStatus;
+  score: number | null;
+  priority: OpportunityPriority;
+};
+
+/**
+ * Same batching shape as `listProspectsForWorkspaces` (prospects/queries.ts) and
+ * `getProspectCountsForWorkspaces` -- one round trip across every workspace in the
+ * given business's own offering set rather than one query per offering. RLS still
+ * filters every row exactly as it would per-workspace.
+ */
+export async function listOpportunitySummariesForWorkspaces(workspaceIds: string[]): Promise<OpportunitySummary[]> {
+  if (workspaceIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("opportunities")
+    .select("workspace_id, prospect_id, status, score, priority")
+    .in("workspace_id", workspaceIds);
+  if (error) throw error;
+  return data;
 }

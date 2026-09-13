@@ -9,6 +9,7 @@ import { listBuyerPersonas } from "@cofounderai/module-discovery/lib/personas/qu
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { getOpportunityOutcomeFunnel } from "@cofounderai/module-discovery/lib/opportunities/queries";
 import { ProductOverviewShell } from "@cofounderai/module-discovery/components/tenancy/product-overview-shell";
+import { CollapsibleCard } from "@cofounderai/module-discovery/components/ui/collapsible-card";
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
 import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
 import { RediscoverySchedule } from "@cofounderai/module-discovery/components/pipeline/rediscovery-schedule";
@@ -99,15 +100,19 @@ export default async function ProductPage({
     : null;
 
   return (
+    // DISC-OFFER-P1 §7-05.4 "Offering Overview UX Polish" -- hierarchy planned per
+    // docs/design/claude-ui-design-rules.md before touching markup: the most urgent,
+    // decision-shaped content (the one opportunity a founder should act on right now,
+    // then this offering's own overall health) leads the page; the discovery pipeline's
+    // own mechanics (schedule/criteria/run panel -- how it works, not what to decide)
+    // come next, grouped under one heading instead of three unlabeled boxes in a row;
+    // the original setup wizard (website/description/knowledge sources) moves last,
+    // collapsed by default once a profile already exists -- that content doesn't stop
+    // being real or editable, it just stops being the first thing an established
+    // offering's own founder has to scroll past every visit. Nothing here changes what
+    // renders for a brand-new offering (no profile yet): the gated Top Opportunity/
+    // Overview cards are still both null then, and the setup card still defaults open.
     <div className="flex flex-col gap-8">
-      <RediscoverySchedule
-        interval={workspace.rediscovery_interval}
-        nextDiscoveryAt={workspace.next_discovery_at}
-        lastDiscoveryAt={lastRun?.completed_at ?? null}
-        updateIntervalAction={updateRediscoveryIntervalAction.bind(null, businessId, productId, workspace.id)}
-      />
-      <SavedDiscoveryCriteria workspace={workspace} updateCriteriaAction={updateDiscoveryCriteriaAction.bind(null, businessId, productId, workspace.id)} />
-      <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
       {topGateRow && topGateContext ? (
         <TopOpportunityGate
           businessId={businessId}
@@ -140,18 +145,33 @@ export default async function ProductPage({
           researchFurtherAction={regenerateIcpFromOverviewAction.bind(null, businessId, productId)}
         />
       ) : null}
-      <ProductOverviewShell
-        product={product}
-        sources={sources}
-        websiteAction={updateProductWebsiteAction.bind(null, businessId, productId)}
-        descriptionAction={updateProductDescriptionAction.bind(null, businessId, productId)}
-        generateProfileAction={generateProductProfileAction.bind(null, businessId, productId)}
-        addFileAction={addFileSourceAction.bind(null, businessId, productId, workspace.id)}
-        addTextAction={addTextSourceAction.bind(null, businessId, productId, workspace.id)}
-        updateSourceAction={updateSourceAction.bind(null, businessId, productId)}
-        deleteSourceAction={deleteSourceAction.bind(null, businessId, productId)}
-        nextHref={`${icpPath(businessId, productId)}?autopopulate=1`}
-      />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Discovery pipeline</h2>
+        <RediscoverySchedule
+          interval={workspace.rediscovery_interval}
+          nextDiscoveryAt={workspace.next_discovery_at}
+          lastDiscoveryAt={lastRun?.completed_at ?? null}
+          updateIntervalAction={updateRediscoveryIntervalAction.bind(null, businessId, productId, workspace.id)}
+        />
+        <SavedDiscoveryCriteria workspace={workspace} updateCriteriaAction={updateDiscoveryCriteriaAction.bind(null, businessId, productId, workspace.id)} />
+        <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
+      </section>
+
+      <CollapsibleCard label="Offering setup & sources" defaultOpen={!product.product_profile}>
+        <ProductOverviewShell
+          product={product}
+          sources={sources}
+          websiteAction={updateProductWebsiteAction.bind(null, businessId, productId)}
+          descriptionAction={updateProductDescriptionAction.bind(null, businessId, productId)}
+          generateProfileAction={generateProductProfileAction.bind(null, businessId, productId)}
+          addFileAction={addFileSourceAction.bind(null, businessId, productId, workspace.id)}
+          addTextAction={addTextSourceAction.bind(null, businessId, productId, workspace.id)}
+          updateSourceAction={updateSourceAction.bind(null, businessId, productId)}
+          deleteSourceAction={deleteSourceAction.bind(null, businessId, productId)}
+          nextHref={`${icpPath(businessId, productId)}?autopopulate=1`}
+        />
+      </CollapsibleCard>
     </div>
   );
 }

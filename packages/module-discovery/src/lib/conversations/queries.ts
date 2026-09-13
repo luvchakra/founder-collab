@@ -40,3 +40,24 @@ export async function listConversations(prospectId: string): Promise<Conversatio
   if (error) throw error;
   return data;
 }
+
+/**
+ * DISC-OFFER-P1 §7-04.2 "Offering Portfolio Dashboard" -- the doc's own "Conversations"
+ * column, one count per offering. Same batching shape as
+ * `getProspectCountsForWorkspaces`/`listOpportunitySummariesForWorkspaces` -- one round
+ * trip across every workspace in a business's own offering set, not one query per
+ * offering.
+ */
+export async function getConversationCountsForWorkspaces(workspaceIds: string[]): Promise<Record<string, number>> {
+  const result: Record<string, number> = {};
+  if (workspaceIds.length === 0) return result;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("conversations").select("workspace_id").in("workspace_id", workspaceIds);
+  if (error) throw error;
+
+  for (const row of data as { workspace_id: string }[]) {
+    result[row.workspace_id] = (result[row.workspace_id] ?? 0) + 1;
+  }
+  return result;
+}

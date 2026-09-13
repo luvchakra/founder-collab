@@ -12,7 +12,10 @@ import { getWorkspaceUsageForWorkspaces } from "@cofounderai/module-discovery/li
 import { computeConversionFunnel } from "@cofounderai/module-discovery/lib/prospects/pipeline";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
+import { getBusinessPortfolioData } from "@cofounderai/module-discovery/lib/portfolio/queries";
 import { ConversionFunnelPanel } from "@cofounderai/module-discovery/components/prospects/conversion-funnel-panel";
+import { OfferingPortfolioTable } from "@cofounderai/module-discovery/components/portfolio/offering-portfolio-table";
+import { CrossOfferingAccounts } from "@cofounderai/module-discovery/components/portfolio/cross-offering-accounts";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
@@ -79,10 +82,14 @@ export default async function BusinessDashboardPage({
   const workspaceByProductId = new Map(products.map((p, i) => [p.id, workspaces[i]] as const));
   const workspaceIds = workspaces.filter((w): w is NonNullable<typeof w> => Boolean(w)).map((w) => w.id);
 
-  const [icpFlags, usageByWorkspace, prospects] = await Promise.all([
+  const [icpFlags, usageByWorkspace, prospects, portfolio] = await Promise.all([
     Promise.all(workspaceIds.map((id) => getIcpProfile(id).then((icp) => [id, Boolean(icp)] as const))),
     getWorkspaceUsageForWorkspaces(workspaceIds),
     listProspectsForWorkspaces(workspaceIds),
+    // DISC-OFFER-P1 §7-04 "Multi-Offering Intelligence" -- its own batched reads over
+    // this business's own products/workspaces; a no-op ({ offeringRows: [],
+    // crossOfferingAccounts: [] }) for a business with zero products yet.
+    getBusinessPortfolioData(business.id),
   ]);
   const hasIcpByWorkspace = new Map(icpFlags);
 
@@ -270,6 +277,36 @@ export default async function BusinessDashboardPage({
           )}
         </CardContent>
       </Card>
+
+      {/* DISC-OFFER-P1 §7-04.2 "Offering Portfolio Dashboard" -- only worth a whole
+          section once there's more than one offering to compare; with exactly one, this
+          would just repeat the KPI cards above for the same single product. */}
+      {products.length > 1 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Offering portfolio</CardTitle>
+            <CardDescription>Hot and new opportunities, and open conversations, per offering.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <OfferingPortfolioTable basePath={`/dashboard/businesses/${business.id}/products`} rows={portfolio.offeringRows} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* DISC-OFFER-P1 §7-04.1 "Cross-Offering Account View" -- hidden entirely (not an
+          empty state) when no company is on file under two or more offerings yet, same
+          "nothing to show yet" precedent as the Conversion Funnel panel above. */}
+      {portfolio.crossOfferingAccounts.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Accounts across offerings</CardTitle>
+            <CardDescription>Companies your discovery pipeline has found under more than one offering.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CrossOfferingAccounts basePath={`/dashboard/businesses/${business.id}/products`} accounts={portfolio.crossOfferingAccounts} />
+          </CardContent>
+        </Card>
+      ) : null}
     </main>
   );
 }
