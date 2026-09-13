@@ -18,6 +18,7 @@
     "./entitlements/*": "./src/entitlements/*.ts",
     "./usage/*": "./src/usage/*.ts",
     "./rbac/*": "./src/rbac/*.ts",
+    "./businesses/*": "./src/businesses/*.ts",
     "./parties/*": "./src/parties/*.ts",
     "./addresses/*": "./src/addresses/*.ts",
     "./items/*": "./src/items/*.ts",
