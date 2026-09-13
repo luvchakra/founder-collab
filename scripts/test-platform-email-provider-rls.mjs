@@ -83,7 +83,7 @@ async function main() {
       assertThrows(
         () =>
           psqlAsAlice(
-            `select platform.update_email_provider_config('SendGrid', 'notifications@wonderarc.com', 'support@wonderarc.com', 'trying as non-superadmin')`,
+            `select platform.update_email_provider_config('SendGrid', 'notifications@wonderark.com', 'support@wonderark.com', 'trying as non-superadmin')`,
           ),
         "Alice's update attempt is rejected by the function's own internal check",
       );
@@ -97,11 +97,11 @@ async function main() {
       console.log("Verifying a genuine superadmin (Zoe) can read and successfully update the config...");
       assertEqual(psqlAsZoe(`select count(*) from platform.email_provider`), "1", "Zoe can SELECT the one config row");
       psqlAsZoe(
-        `select platform.update_email_provider_config('Resend', 'notifications@wonderarc.com', 'support@wonderarc.com', 'recording our real ESP after launch review')`,
+        `select platform.update_email_provider_config('Resend', 'notifications@wonderark.com', 'support@wonderark.com', 'recording our real ESP after launch review')`,
       );
       assertEqual(
         psqlAsZoe(`select provider || ':' || from_email || ':' || reply_to from platform.email_provider where id = true`),
-        "Resend:notifications@wonderarc.com:support@wonderarc.com",
+        "Resend:notifications@wonderark.com:support@wonderark.com",
         "the config was updated with the exact values requested",
       );
       assertEqual(
@@ -129,7 +129,7 @@ async function main() {
         "a malformed from_email is rejected by the table's own CHECK constraint",
       );
       assertThrows(
-        () => psqlAsZoe(`select platform.update_email_provider_config('Resend', 'notifications@wonderarc.com', 'also not an email', 'trying a malformed reply_to')`),
+        () => psqlAsZoe(`select platform.update_email_provider_config('Resend', 'notifications@wonderark.com', 'also not an email', 'trying a malformed reply_to')`),
         "a malformed reply_to is rejected by the table's own CHECK constraint",
       );
 

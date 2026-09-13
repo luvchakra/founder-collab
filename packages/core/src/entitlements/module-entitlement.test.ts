@@ -83,7 +83,7 @@ describe("buildPlatformDisabledDecision (PLATFORM-P0-07.2/07.3)", () => {
     const decision = buildPlatformDisabledDecision("fsm", "disabled");
     expect(decision).toEqual({
       allowed: false,
-      reason: "Service has been temporarily disabled platform-wide by WonderArc.",
+      reason: "Service has been temporarily disabled platform-wide by WonderArk.",
       source: "platform_global",
       limit: null,
       usage: null,
@@ -105,6 +105,6 @@ describe("buildPlatformDisabledDecision (PLATFORM-P0-07.2/07.3)", () => {
 
   it("falls back to the raw module key when the key is not in the registry", () => {
     const decision = buildPlatformDisabledDecision("not-a-real-module", "disabled");
-    expect(decision.reason).toBe("not-a-real-module has been temporarily disabled platform-wide by WonderArc.");
+    expect(decision.reason).toBe("not-a-real-module has been temporarily disabled platform-wide by WonderArk.");
   });
 });

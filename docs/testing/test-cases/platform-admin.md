@@ -1,4 +1,4 @@
-# Test cases: `platform` (WonderArc Platform Administration Portal)
+# Test cases: `platform` (WonderArk Platform Administration Portal)
 
 Covers `apps/web/app/platform/**` + `packages/core/src/admin/**` (control-plane code
 under `packages/core`, not the `gst` module despite the similar name). New file — this
@@ -9,7 +9,7 @@ zero manual test-case documentation until now.
 
 **Architecturally distinct from every other file in this directory**: per CLAUDE.md's
 own carve-out, `platform` "is the one exception to 'module schema' — it holds the
-WonderArc Platform Administration Portal's own control-plane data — not a licensable
+WonderArk Platform Administration Portal's own control-plane data — not a licensable
 customer module, not tenant data, never gated by `core.licenses`." So the RLS framing
 here is **admin-role gating** (does a superadmin get through; does a business admin/
 member get zero rows or a permission-denied), never the `tenant AND licensed` framing

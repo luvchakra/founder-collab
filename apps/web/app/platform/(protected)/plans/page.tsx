@@ -37,7 +37,7 @@ export default async function PlatformPlansPage() {
         <div>
           <h1 className="text-xl font-semibold">Subscription Plans</h1>
           <p className="text-sm text-zinc-400">
-            The platform-wide pricing catalog every WonderArc business subscribes from.
+            The platform-wide pricing catalog every WonderArk business subscribes from.
           </p>
         </div>
         <PlanDialog />

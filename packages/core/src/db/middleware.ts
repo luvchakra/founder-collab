@@ -28,7 +28,7 @@ const AUTH_PATHS = new Set(["/login", "/signup"]);
 /** `/dashboard` is the account-level customer app (Executive Dashboard, settings,
  * the env-var-gated admin tool) and `/platform` (PLATFORM-P0-01.2, "every /platform/*
  * route... must independently verify authenticated user AND platform-level
- * authorization") is the WonderArc control plane -- both are always protected,
+ * authorization") is the WonderArk control plane -- both are always protected,
  * regardless of what follows. Every other path is protected exactly when its first
  * segment isn't one of the app's own static top-level routes (`RESERVED_TOP_SEGMENTS`)
  * -- i.e. it's presumed to be a business's own slug

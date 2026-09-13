@@ -4,7 +4,7 @@ import { IntegrationRegistryTable } from "./integration-registry-table";
 
 /**
  * PLATFORM-P0-12.1 ("Integration Registry", docs/plan/09-PLATFORM-ADMIN-BACKLOG.md §16):
- * the platform-wide operational view of every external integration category WonderArc
+ * the platform-wide operational view of every external integration category WonderArk
  * offers -- credential ownership model, current status, and the emergency kill switch. See
  * `platform-integrations.ts` and its migration's own docstrings for what
  * `platform.integrations` is and why it's genuinely new, not a duplicate of any existing

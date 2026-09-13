@@ -13,7 +13,7 @@ const TIERS = [
     featured: false,
   },
   {
-    name: "Per Module",
+    name: "Pro",
     tagline: "License exactly what you run",
     features: [
       "Discovery, Inventory, Service, CRM or Compliance",
@@ -26,7 +26,7 @@ const TIERS = [
     featured: true,
   },
   {
-    name: "Full Platform",
+    name: "Max",
     tagline: "All five modules, one business",
     features: [
       "Every module licensed together",

@@ -1,8 +1,8 @@
-# CRM-01.1 — Audit of the existing CRM implementation vs. the WonderArc CRM backlog
+# CRM-01.1 — Audit of the existing CRM implementation vs. the WonderArk CRM backlog
 
 **Date:** 2026-09-11
-**Story:** CRM-01.1 (WonderArc CRM Epics & Stories Implementation Backlog, Section 7, seq 1)
-**Input documents:** `WonderArc_CRM_Epics_Stories_Implementation_Backlog.md` (the backlog
+**Story:** CRM-01.1 (WonderArk CRM Epics & Stories Implementation Backlog, Section 7, seq 1)
+**Input documents:** `WonderArk_CRM_Epics_Stories_Implementation_Backlog.md` (the backlog
 driving this and all subsequent CRM stories), `docs/design/crm-module-design.md` (the
 design doc the *existing* CRM implementation was built from).
 
@@ -875,7 +875,7 @@ cross-tenant isolation). No new migration -- `crm.lead`'s `source` enum already 
 **Epic CRM-07 (WhatsApp) is now complete: 8 of 8 P0 stories done** (07.1, 07.2, 07.3,
 07.4, 07.6, 07.7, 07.8, 07.11).
 
-The user re-shared the full backlog document (`WonderArc_CRM_Epics_Stories_
+The user re-shared the full backlog document (`WonderArk_CRM_Epics_Stories_
 Implementation_Backlog.md`) this session after an earlier context compaction lost it --
 CRM-09 onward is now built against its exact acceptance criteria rather than a
 reconstruction, per that document's own Section 7 sequence table (seq #35 onward).
@@ -2933,7 +2933,7 @@ check this session, plus one expected new "unused index" INFO
 (`click_to_chat_link_business_id_idx`, no real traffic on this dev project), no new
 finding of any other kind.
 
-**Status**: 74 of 74 in-scope stories done -- **the WonderArc CRM backlog's P0/P1 scope
+**Status**: 74 of 74 in-scope stories done -- **the WonderArk CRM backlog's P0/P1 scope
 for this run is complete.**
 
 ## Backlog run completion summary

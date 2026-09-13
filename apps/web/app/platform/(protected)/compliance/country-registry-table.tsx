@@ -41,7 +41,7 @@ export function CountryRegistryTable({ countries }: { countries: ComplianceCount
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div>
           <h2 className="text-sm font-semibold text-zinc-100">Country registry</h2>
-          <p className="text-xs text-zinc-500">Which countries WonderArc administratively offers, platform-wide.</p>
+          <p className="text-xs text-zinc-500">Which countries WonderArk administratively offers, platform-wide.</p>
         </div>
         <CountryDialog />
       </div>

@@ -88,7 +88,7 @@ function describeReason(
   }
   if (reason === "platform_disabled") {
     // PLATFORM-P0-07.2/07.3 -- distinct from every other reason above: this business's
-    // own license is fine, WonderArc has fully blocked the module for every business,
+    // own license is fine, WonderArk has fully blocked the module for every business,
     // either via the kill switch (`disabled`) or maintenance mode (`maintenance` --
     // decision #3, the exact same full block, differing only in this copy). Reactivating
     // a license (the CTA every other reason points at) would not help here, so the copy
@@ -108,7 +108,7 @@ function describeReason(
       title: `${moduleName} is temporarily unavailable`,
       description:
         message ??
-        `${moduleName} has been temporarily disabled platform-wide by WonderArc. This is not a licensing issue on your account -- your license and data are unaffected, and access will return automatically once the module is re-enabled.`,
+        `${moduleName} has been temporarily disabled platform-wide by WonderArk. This is not a licensing issue on your account -- your license and data are unaffected, and access will return automatically once the module is re-enabled.`,
     };
   }
   return {

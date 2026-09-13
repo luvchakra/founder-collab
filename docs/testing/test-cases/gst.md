@@ -3,7 +3,7 @@
 Covers `packages/module-gst/src/**`. Originally split out from `inventory` (`1bd4b2d`);
 the module's display name is now "Compliance" (CLAUDE.md non-negotiable #1: key/schema/
 `routePrefix` stay `gst`). What began as India-only GST has since grown, via the
-WonderArc Global Tax & Compliance backlog (`docs/design/compliance-backlog-audit.md`),
+WonderArk Global Tax & Compliance backlog (`docs/design/compliance-backlog-audit.md`),
 into a generic **country/regime + versioned tax-rules engine** now covering India GST
 (P0, complete), EU VAT for five member states (P1), and US sales tax + 1099 information
 returns (P1). Per `TESTING_STRATEGY.md` §4.4 this stays ONE file (one file per module,

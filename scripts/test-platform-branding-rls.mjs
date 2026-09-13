@@ -14,7 +14,7 @@
  * `execute_sql` while investigating this exact story.
  *
  * Covers the literal ask of PLATFORM-P0-03.4 -- "Business administrators must not be able
- * to change WonderArc's global brand" -- with a real business, a real
+ * to change WonderArk's global brand" -- with a real business, a real
  * `core.business_members.role = 'admin'` row (business owner Alice's own store), and
  * confirms that business admin cannot SELECT or UPDATE `platform.branding`, nor SELECT
  * `platform.admins`' roster, while a genuine superadmin (Zoe, seeded directly into
@@ -69,7 +69,7 @@ async function main() {
         insert into platform.admins (user_id) values ('${ZOE}');
       `);
 
-      console.log("Verifying PLATFORM-P0-03.4: a business admin cannot see or change WonderArc's global brand...");
+      console.log("Verifying PLATFORM-P0-03.4: a business admin cannot see or change WonderArk's global brand...");
       assertEqual(
         psqlAsAlice(`select count(*) from platform.branding`),
         "0",
@@ -78,7 +78,7 @@ async function main() {
       psqlAsAlice(`update platform.branding set platform_name = 'Alice''s Brand' where id = true`);
       assertEqual(
         psql(`set local role service_role; select platform_name from platform.branding where id = true`),
-        "WonderArc",
+        "WonderArk",
         "Alice's UPDATE silently affects zero rows -- RLS USING excludes it, the row is untouched",
       );
       assertEqual(
@@ -89,10 +89,10 @@ async function main() {
 
       console.log("Verifying a genuine superadmin (Zoe) CAN read and update it...");
       assertEqual(psqlAsZoe(`select count(*) from platform.branding`), "1", "Zoe (a real superadmin) can SELECT the one branding row");
-      psqlAsZoe(`update platform.branding set platform_name = 'Zoe''s WonderArc' where id = true`);
+      psqlAsZoe(`update platform.branding set platform_name = 'Zoe''s WonderArk' where id = true`);
       assertEqual(
         psqlAsZoe(`select platform_name from platform.branding where id = true`),
-        "Zoe's WonderArc",
+        "Zoe's WonderArk",
         "Zoe's own UPDATE succeeds",
       );
       assertEqual(psqlAsZoe(`select count(*) from platform.admins`), "1", "Zoe can see the superadmin roster");

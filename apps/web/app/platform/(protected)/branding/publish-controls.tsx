@@ -116,10 +116,10 @@ export function PublishControls({
           </AlertDialogTrigger>
           <AlertDialogContent className={DIALOG_CLASS}>
             <AlertDialogHeader>
-              <AlertDialogTitle>Publish WonderArc branding?</AlertDialogTitle>
+              <AlertDialogTitle>Publish WonderArk branding?</AlertDialogTitle>
               <AlertDialogDescription className="text-zinc-400">
                 This makes the draft live everywhere it&apos;s read -- immediately, for
-                every WonderArc customer (e.g. the public login page). This cannot be
+                every WonderArk customer (e.g. the public login page). This cannot be
                 undone from here; you would need to edit and publish again to change it
                 back.
               </AlertDialogDescription>

@@ -1,4 +1,4 @@
-# WonderArc Discovery — Opportunity Intelligence Epic & Implementation Stories
+# WonderArk Discovery — Opportunity Intelligence Epic & Implementation Stories
 
 ## Purpose
 
@@ -43,7 +43,7 @@ ICP / Goal
 - Signals are observations; opportunities are conclusions derived from relevant evidence.
 - Human approval is mandatory before outbound communication.
 - Continuous discovery must compress related signals into actionable opportunities rather than generate alert spam.
-- Reuse the existing WonderArc monorepo, Discovery architecture, Supabase project, Core contracts, RLS, licensing, AI-run/audit mechanisms and UI system.
+- Reuse the existing WonderArk monorepo, Discovery architecture, Supabase project, Core contracts, RLS, licensing, AI-run/audit mechanisms and UI system.
 - Discovery owns prospects, research, signals, discovery opportunities, scoring and recommendations. CRM owns relationship lifecycle after handoff.
 - No cross-module internal imports.
 

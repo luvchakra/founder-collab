@@ -1,10 +1,10 @@
-# WonderArc Compliance Module — P0/P1 Global Tax & Compliance Backlog
+# WonderArk Compliance Module — P0/P1 Global Tax & Compliance Backlog
 
 ## Product decision
 
 The current technical `module-gst` should evolve into a user-facing **Compliance** module. Keep the technical package name if required by the locked monorepo/licensing architecture, but make the product country-aware.
 
-The module should not try to become a full general-ledger accounting product. It should sit above existing WonderArc transaction data and provide:
+The module should not try to become a full general-ledger accounting product. It should sit above existing WonderArk transaction data and provide:
 
 **registration → tax determination → compliant documents → e-invoicing/reporting → returns → reconciliation → filing → payment → evidence → risk/alerts**
 
@@ -42,7 +42,7 @@ Global tax engine/compliance platform. It emphasizes jurisdiction-aware sales/us
 
 ### Conclusion
 
-WonderArc should **not compete on the size of a proprietary tax database**. The differentiator should be:
+WonderArk should **not compete on the size of a proprietary tax database**. The differentiator should be:
 
 > **A simple compliance control center that understands the business, identifies what is due, explains exceptions, uses existing transaction data, and guides the owner to a compliant outcome.**
 
@@ -867,7 +867,7 @@ COMPLY-P1-12 Cross-module intelligence
 
 # 10. Important product positioning
 
-WonderArc should not say:
+WonderArk should not say:
 
 > "GST software for many countries."
 
@@ -882,7 +882,7 @@ Choose Country
    ↓
 Add/verify registrations
    ↓
-WonderArc identifies obligations
+WonderArk identifies obligations
    ↓
 Connect existing business data
    ↓

@@ -56,7 +56,7 @@ export type ModuleRegistryEntry = {
   minimumPlan: { key: string; name: string } | null;
   status: ModuleStatus;
   /** The superadmin-set business-visible copy shown instead of (or per decision #4's
-   * "optional") the default WonderArc message for this module's current status --
+   * "optional") the default WonderArk message for this module's current status --
    * PLATFORM-P0-07.3's own "optional customer-facing message." `null` when unset. */
   customerFacingMessage: string | null;
   version: string | null;

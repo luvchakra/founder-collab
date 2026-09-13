@@ -100,7 +100,7 @@ export function EinvoicingForm({
             type="url"
             placeholder="https://…/eicore/v1.03/Invoice/irn"
           />
-          <p className="text-xs text-muted-foreground">Lets WonderArc look up an IRN&apos;s current status. Leave blank if your GSP doesn&apos;t expose this separately.</p>
+          <p className="text-xs text-muted-foreground">Lets WonderArk look up an IRN&apos;s current status. Leave blank if your GSP doesn&apos;t expose this separately.</p>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="einv-fetch-url">Fetch URL (optional)</Label>
@@ -110,7 +110,7 @@ export function EinvoicingForm({
             type="url"
             placeholder="https://…/eicore/v1.03/Invoice/irn"
           />
-          <p className="text-xs text-muted-foreground">Lets WonderArc retrieve the full invoice details the IRP holds for an IRN.</p>
+          <p className="text-xs text-muted-foreground">Lets WonderArk retrieve the full invoice details the IRP holds for an IRN.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">

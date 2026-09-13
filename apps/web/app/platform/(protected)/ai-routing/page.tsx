@@ -5,7 +5,7 @@ import { RoutingConfigDialog } from "./routing-config-dialog";
 /**
  * PLATFORM-P0-09.3 ("Provider Routing", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13)
  * -- CONFIG-ONLY. See `platform-ai-provider-routing.ts` and its migration's own docstrings
- * for the full reasoning. This page shows and edits WonderArc's platform-wide AI routing
+ * for the full reasoning. This page shows and edits WonderArk's platform-wide AI routing
  * *policy* -- it does not show live traffic, and nothing here reflects an actual AI call's
  * real provider choice yet (that wiring is a separate, future story).
  *
@@ -23,7 +23,7 @@ export default async function PlatformAiRoutingPage() {
       <div>
         <h1 className="text-xl font-semibold">AI Provider Routing</h1>
         <p className="text-sm text-zinc-400">
-          WonderArc&apos;s platform-wide routing policy -- which provider each module should prefer, and what to
+          WonderArk&apos;s platform-wide routing policy -- which provider each module should prefer, and what to
           fall back to. Configuration only: no AI call is actually routed by this yet. Every change is recorded
           with a reason.
         </p>

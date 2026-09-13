@@ -160,7 +160,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             label="Support email"
             type="email"
             defaultValue={values.supportEmail ?? ""}
-            placeholder="support@wonderarc.com"
+            placeholder="support@wonderark.com"
             error={fieldErrors.supportEmail}
           />
           <Field
@@ -168,7 +168,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="supportUrl"
             label="Support URL"
             defaultValue={values.supportUrl ?? ""}
-            placeholder="https://support.wonderarc.com"
+            placeholder="https://support.wonderark.com"
             error={fieldErrors.supportUrl}
           />
         </CardContent>
@@ -313,7 +313,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="loginTermsUrl"
             label="Terms of service URL"
             defaultValue={values.loginTermsUrl ?? ""}
-            placeholder="https://wonderarc.com/terms"
+            placeholder="https://wonderark.com/terms"
             error={fieldErrors.loginTermsUrl}
           />
           <Field
@@ -321,7 +321,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="loginPrivacyUrl"
             label="Privacy policy URL"
             defaultValue={values.loginPrivacyUrl ?? ""}
-            placeholder="https://wonderarc.com/privacy"
+            placeholder="https://wonderark.com/privacy"
             error={fieldErrors.loginPrivacyUrl}
           />
         </CardContent>
@@ -337,7 +337,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="emailFromName"
             label="From name"
             defaultValue={values.emailFromName ?? ""}
-            placeholder="WonderArc"
+            placeholder="WonderArk"
             error={fieldErrors.emailFromName}
           />
         </CardContent>

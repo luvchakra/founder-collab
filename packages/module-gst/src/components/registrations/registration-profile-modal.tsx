@@ -115,7 +115,7 @@ export function RegistrationProfileModal({
               This registration is required to issue e-invoices
             </label>
             <p className="text-xs text-muted-foreground">
-              Self-declared -- WonderArc doesn&apos;t check this against your turnover automatically
+              Self-declared -- WonderArk doesn&apos;t check this against your turnover automatically
               yet. Used by e-invoicing to decide when a document needs an IRN.
             </p>
           </div>

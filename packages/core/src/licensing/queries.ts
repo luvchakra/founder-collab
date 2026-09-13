@@ -102,22 +102,22 @@ export async function getPlatformModuleStatus(
   };
 }
 
-/** Default WonderArc copy for a fully-blocked module (`maintenance`/`disabled`), used only
+/** Default WonderArk copy for a fully-blocked module (`maintenance`/`disabled`), used only
  * when no superadmin-set `customer_facing_message` overrides it. PLATFORM-P0-07.3's own
  * decision #3: `maintenance` and `disabled` are the exact same full block -- the only
  * difference is this copy (temporary vs. indefinite), never a distinct access level. */
 export function defaultPlatformBlockedMessage(moduleName: string, status: "maintenance" | "disabled"): string {
   return status === "maintenance"
     ? `${moduleName} is temporarily down for maintenance. We'll be back soon.`
-    : `${moduleName} has been temporarily disabled platform-wide by WonderArc.`;
+    : `${moduleName} has been temporarily disabled platform-wide by WonderArk.`;
 }
 
-/** Default WonderArc copy for a platform-wide `read_only` module -- PLATFORM-P0-07.3's own
+/** Default WonderArk copy for a platform-wide `read_only` module -- PLATFORM-P0-07.3's own
  * decision #2: read allowed, write denied, mirroring the existing license grace-period
  * shape exactly. Used only when no superadmin-set `customer_facing_message` overrides
  * it. */
 export function defaultPlatformReadOnlyMessage(moduleName: string): string {
-  return `${moduleName} is temporarily read-only platform-wide by WonderArc; changes can't be saved right now, but existing data is fully available.`;
+  return `${moduleName} is temporarily read-only platform-wide by WonderArk; changes can't be saved right now, but existing data is fully available.`;
 }
 
 /**

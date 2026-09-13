@@ -8,7 +8,7 @@ import { RemoveKeyDialog } from "./remove-key-dialog";
 
 /**
  * PLATFORM-P0-09.1/09.2 ("Internal AI Provider Registry" / "Secure API Key Storage",
- * docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13) -- WonderArc's own platform-wide AI
+ * docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13) -- WonderArk's own platform-wide AI
  * provider configuration and key storage, genuinely distinct from a business's own BYOK
  * connection (see `platform-ai-providers.ts` and its migration's own docstrings for the
  * full reasoning). Always exactly three rows (OpenAI/Anthropic/Google Gemini,
@@ -27,7 +27,7 @@ export default async function PlatformAiProvidersPage() {
       <div>
         <h1 className="text-xl font-semibold">AI Providers</h1>
         <p className="text-sm text-zinc-400">
-          WonderArc&apos;s own platform-wide AI provider configuration and key storage -- separate from any
+          WonderArk&apos;s own platform-wide AI provider configuration and key storage -- separate from any
           business&apos;s own connected key. Every change is recorded with a reason.
         </p>
       </div>

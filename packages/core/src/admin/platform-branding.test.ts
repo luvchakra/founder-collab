@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { platformBrandingInputSchema, toInputFromBranding, type PlatformBranding } from "./platform-branding";
 
 const validInput = {
-  platformName: "WonderArc",
+  platformName: "WonderArk",
   logoUrl: "https://cdn.example.com/logo.svg",
   faviconUrl: "https://cdn.example.com/favicon.ico",
   primaryColor: "#2563eb",
@@ -10,14 +10,14 @@ const validInput = {
   accentColor: "#f97316",
   loginHeadline: "Run your whole business from one place",
   loginSupportText: "Need help? Contact support.",
-  emailFromName: "WonderArc",
-  footerText: "© WonderArc",
-  supportEmail: "support@wonderarc.com",
-  supportUrl: "https://support.wonderarc.com",
+  emailFromName: "WonderArk",
+  footerText: "© WonderArk",
+  supportEmail: "support@wonderark.com",
+  supportUrl: "https://support.wonderark.com",
   loginBackgroundStyle: "gradient" as const,
   loginBackgroundValue: "#0f172a,#312e81",
-  loginTermsUrl: "https://wonderarc.com/terms",
-  loginPrivacyUrl: "https://wonderarc.com/privacy",
+  loginTermsUrl: "https://wonderark.com/terms",
+  loginPrivacyUrl: "https://wonderark.com/privacy",
 };
 
 describe("platformBrandingInputSchema (PLATFORM-P0-03.1)", () => {
@@ -71,9 +71,9 @@ describe("platformBrandingInputSchema (PLATFORM-P0-03.1)", () => {
   });
 
   it("trims whitespace from the platform name", () => {
-    const result = platformBrandingInputSchema.safeParse({ ...validInput, platformName: "  WonderArc  " });
+    const result = platformBrandingInputSchema.safeParse({ ...validInput, platformName: "  WonderArk  " });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.platformName).toBe("WonderArc");
+    if (result.success) expect(result.data.platformName).toBe("WonderArk");
   });
 });
 
@@ -136,7 +136,7 @@ describe("platformBrandingInputSchema login background (PLATFORM-P0-03.3)", () =
 
   it("rejects a terms/privacy URL without an http(s) scheme", () => {
     expect(
-      platformBrandingInputSchema.safeParse({ ...validInput, loginTermsUrl: "wonderarc.com/terms" }).success,
+      platformBrandingInputSchema.safeParse({ ...validInput, loginTermsUrl: "wonderark.com/terms" }).success,
     ).toBe(false);
   });
 
@@ -152,7 +152,7 @@ describe("platformBrandingInputSchema login background (PLATFORM-P0-03.3)", () =
 
 describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
   const liveBranding: PlatformBranding = {
-    platformName: "WonderArc",
+    platformName: "WonderArk",
     logoUrl: "https://cdn.example.com/logo.svg",
     faviconUrl: null,
     primaryColor: "#2563eb",
@@ -161,8 +161,8 @@ describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
     loginHeadline: "Run your whole business from one place",
     loginSupportText: null,
     emailFromName: null,
-    footerText: "© WonderArc",
-    supportEmail: "support@wonderarc.com",
+    footerText: "© WonderArk",
+    supportEmail: "support@wonderark.com",
     supportUrl: null,
     loginBackgroundStyle: "gradient",
     loginBackgroundValue: "#0f172a,#312e81",
@@ -174,7 +174,7 @@ describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
 
   it("carries required fields through unchanged", () => {
     const input = toInputFromBranding(liveBranding);
-    expect(input.platformName).toBe("WonderArc");
+    expect(input.platformName).toBe("WonderArk");
     expect(input.primaryColor).toBe("#2563eb");
     expect(input.loginBackgroundStyle).toBe("gradient");
     expect(input.loginBackgroundValue).toBe("#0f172a,#312e81");
@@ -198,7 +198,7 @@ describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
     if (result.success) {
       expect(result.data.faviconUrl).toBeNull();
       expect(result.data.accentColor).toBe("#f97316");
-      expect(result.data.footerText).toBe("© WonderArc");
+      expect(result.data.footerText).toBe("© WonderArk");
     }
   });
 });

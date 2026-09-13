@@ -26,7 +26,7 @@
  * computes or verifies (backlog rule 12: distinguish regulatory fact / software rule /
  * calculated result / AI explanation) -- e-invoice eligibility in particular is not
  * derived from turnover or any other signal here; it is whatever the business tells
- * WonderArc is true today, an input COMPLY-P0-05's future e-invoice eligibility *engine*
+ * WonderArk is true today, an input COMPLY-P0-05's future e-invoice eligibility *engine*
  * will read, not a compliance claim this story makes on the business's behalf.
  */
 

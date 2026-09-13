@@ -119,12 +119,12 @@ export function Modules() {
                     ))}
                   </ul>
                 </div>
-                <div className="overflow-hidden rounded-2xl border border-landing-surface-border shadow-sm">
+                <div className="mx-auto w-full max-w-[240px] rounded-[10%] drop-shadow-xl">
                   <Image
                     src={mod.image}
                     alt={mod.imageAlt}
-                    width={1620}
-                    height={1004}
+                    width={752}
+                    height={1624}
                     className="h-auto w-full"
                   />
                 </div>

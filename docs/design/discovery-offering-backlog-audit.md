@@ -1,6 +1,6 @@
-# WonderArc Discovery — Offering-Centric Upgrade — Audit Log
+# WonderArk Discovery — Offering-Centric Upgrade — Audit Log
 
-Dated record of every story implemented from the "WonderArc Discovery — P0/P1
+Dated record of every story implemented from the "WonderArk Discovery — P0/P1
 Offering-Centric Upgrade" backlog (uploaded 2026-09-11, saved verbatim as
 `docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md` as of the 05.3 session below), scoped
 to `module-discovery` only. Sequence and phase names below are the doc's own §29 "Master Implementation
@@ -670,7 +670,7 @@ has no single owning story so far). Adding them now would mean dead links -- wor
 the "no false precision" numbers problem already avoided twice this run, since a click
 would 404 rather than just under-inform. Left them out; the real, deliverable part of
 this story is what "Do not create unnecessary nested navigation. Preserve the existing
-WonderArc shell" actually asks for structurally, which `ProductNav` already satisfies
+WonderArk shell" actually asks for structurally, which `ProductNav` already satisfies
 (flat, single level, shell untouched) -- so the genuine gap here was elsewhere.
 
 `ProductNav` was a numbered stepper (1/2/3/4 circles, progress-line connectors) --

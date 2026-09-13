@@ -4,8 +4,8 @@ import { createAdminClient } from "../db/admin";
 import { requireSuperadmin } from "../rbac/platform-admin";
 
 /**
- * PLATFORM-P0-03.1: "WonderArc Branding" (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
- * §7). `platform.branding` is a singleton row -- there is exactly one WonderArc brand, so
+ * PLATFORM-P0-03.1: "WonderArk Branding" (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
+ * §7). `platform.branding` is a singleton row -- there is exactly one WonderArk brand, so
  * this reads/writes it directly rather than accepting/returning an id.
  *
  * Uses the request-scoped, cookie-authenticated client (not `createAdminClient`) for both
@@ -22,7 +22,7 @@ import { requireSuperadmin } from "../rbac/platform-admin";
  * login page, not a superadmin. See that function's own docstring.
  *
  * PLATFORM-P0-03.4 ("Customer-Facing Branding Scope"): this file, `platform.branding`,
- * and everything under `/platform/branding` is WonderArc's own, singular, platform-wide
+ * and everything under `/platform/branding` is WonderArk's own, singular, platform-wide
  * brand -- entirely separate from any future *business*-level branding (a business's own
  * logo/colors on its invoices, portal, or documents -- not built anywhere in this
  * codebase yet; the one forward-looking note that exists,

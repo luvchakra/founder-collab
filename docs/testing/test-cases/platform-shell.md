@@ -296,7 +296,7 @@ name/structure has changed three times in this window.
 **Update to TC-SHELL-007.**
 
 ### TC-SHELL-023: Platform brand name and the platform-admin Branding tool stay consistent across login, business-facing chrome, and the rest of the shell
-**Priority:** P1 · **Story:** `64e9238` (WonderArc rebrand), branding-form/publish-
+**Priority:** P1 · **Story:** `64e9238` (WonderArk rebrand), branding-form/publish-
 controls/`/preview` route
 **Expected result:** Distinct from TC-SHELL-008 (module design-system consistency),
 which doesn't cover brand-name templating at all.

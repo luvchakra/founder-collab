@@ -195,7 +195,7 @@ export function ModuleStatusDialog({
             className="border-zinc-700 bg-zinc-900 text-zinc-50 placeholder:text-zinc-500"
           />
           <p className="text-xs text-zinc-500">
-            Shown to a blocked or degraded business instead of the default WonderArc message. Leave blank to use the
+            Shown to a blocked or degraded business instead of the default WonderArk message. Leave blank to use the
             default copy for the selected status.
           </p>
         </div>

@@ -94,11 +94,11 @@ async function main() {
       console.log("Verifying a genuine superadmin (Zoe) can read and successfully update one template...");
       assertEqual(psqlAsZoe(`select count(*) from platform.email_templates`), "7", "Zoe can SELECT all seven rows");
       psqlAsZoe(
-        `select platform.update_email_template('welcome', 'Welcome to WonderArc', 'Hi {{name}}, welcome aboard.', 'writing the first real copy')`,
+        `select platform.update_email_template('welcome', 'Welcome to WonderArk', 'Hi {{name}}, welcome aboard.', 'writing the first real copy')`,
       );
       assertEqual(
         psqlAsZoe(`select subject || '|' || body from platform.email_templates where template_key = 'welcome'`),
-        "Welcome to WonderArc|Hi {{name}}, welcome aboard.",
+        "Welcome to WonderArk|Hi {{name}}, welcome aboard.",
         "the welcome template was updated with the exact content requested",
       );
       assertEqual(
@@ -110,7 +110,7 @@ async function main() {
         psqlAsZoe(
           `select action || ':' || template_key || ':' || coalesce(previous_value ->> 'subject', '<null>') || ':' || (new_value ->> 'subject') from platform.email_template_events order by performed_at desc limit 1`,
         ),
-        "content_updated:welcome:<null>:Welcome to WonderArc",
+        "content_updated:welcome:<null>:Welcome to WonderArk",
         "exactly one 'content_updated' event, scoped to the welcome template, with a real before/after snapshot",
       );
 
@@ -151,7 +151,7 @@ async function main() {
       assertEqual(psql(`set local role service_role; select count(*) from platform.email_templates`), "7", "still exactly seven rows");
       assertEqual(
         psql(`set local role service_role; select subject from platform.email_templates where template_key = 'welcome'`),
-        "Welcome to WonderArc",
+        "Welcome to WonderArk",
         "still the value Zoe's RPC call set, untouched by the bypass attempts",
       );
 

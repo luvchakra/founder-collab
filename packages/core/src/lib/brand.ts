@@ -10,4 +10,4 @@
  * Components, and server-only code (AI prompts, email bodies, OpenAPI docs) -- no need
  * for a separate server-only variant.
  */
-export const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || "WonderArc";
+export const BRAND_NAME = process.env.NEXT_PUBLIC_BRAND_NAME || "WonderArk";

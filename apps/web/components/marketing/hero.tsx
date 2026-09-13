@@ -46,14 +46,14 @@ export function Hero() {
         </FadeIn>
       </div>
 
-      <FadeIn delayMs={350} scale className="relative mx-auto mt-16 max-w-5xl">
+      <FadeIn delayMs={350} scale className="relative mx-auto mt-16 max-w-xs sm:max-w-sm">
         <Parallax strength={24}>
-          <div className="landing-glow landing-glow-pulse overflow-hidden rounded-2xl">
+          <div className="landing-glow landing-glow-pulse rounded-[10%]">
             <Image
               src="/screens/business-overview.png"
-              alt={`${BRAND_NAME} dashboard showing active jobs, open opportunities, low stock alerts and open support tickets in one view`}
-              width={1620}
-              height={764}
+              alt={`${BRAND_NAME}'s mobile dashboard showing active jobs, open opportunities, low stock alerts and open support tickets in one view`}
+              width={752}
+              height={1624}
               priority
               className="h-auto w-full"
             />

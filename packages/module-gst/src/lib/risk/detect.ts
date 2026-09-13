@@ -25,7 +25,7 @@ import type { RiskSignal } from "./types";
  */
 
 /** How many days out an e-invoice reporting deadline counts as "approaching" rather than
- * merely "on track" -- WonderArc's own product threshold (like the reminder engine's own
+ * merely "on track" -- WonderArk's own product threshold (like the reminder engine's own
  * lead days), not a government rule, so not sourced from `gst.tax_rules`. */
 export const EINVOICE_DEADLINE_APPROACHING_DAYS = 3;
 

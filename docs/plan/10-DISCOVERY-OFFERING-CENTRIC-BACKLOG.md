@@ -1,4 +1,4 @@
-# WonderArc Discovery — P0/P1 Offering-Centric Upgrade
+# WonderArk Discovery — P0/P1 Offering-Centric Upgrade
 
 > Implementation backlog for Claude Code.
 > Scope: Discovery module only.
@@ -60,7 +60,7 @@ not:
 
 # 2. Current-State Assumptions
 
-This backlog is designed around the existing WonderArc/Founder-Collab Discovery direction already established:
+This backlog is designed around the existing WonderArk/Founder-Collab Discovery direction already established:
 
 - Discovery was ported from CoFounderAI.
 - Discovery can define a business/product context.
@@ -68,7 +68,7 @@ This backlog is designed around the existing WonderArc/Founder-Collab Discovery 
 - It performs AI research.
 - It identifies buying signals.
 - It supports outreach/recommendation workflows.
-- Discovery is a standalone licensed module in the WonderArc monorepo.
+- Discovery is a standalone licensed module in the WonderArk monorepo.
 - Discovery uses `workspace_id` tenancy.
 - Core owns shared parties, identity, licensing, RBAC, AI runs, audit and domain events.
 - CRM will own relationship lifecycle after handoff.
@@ -79,7 +79,7 @@ This backlog is designed around the existing WonderArc/Founder-Collab Discovery 
 
 # 3. Global UI Design Rule — ALWAYS APPLY
 
-This is a **generic WonderArc design rule** and must be treated as a permanent instruction for Claude Code, not only for this epic.
+This is a **generic WonderArk design rule** and must be treated as a permanent instruction for Claude Code, not only for this epic.
 
 Whenever implementing or modifying any page, card, table, form, list, row, dashboard, dialog, or other UI:
 
@@ -99,7 +99,7 @@ Whenever implementing or modifying any page, card, table, form, list, row, dashb
 - Maintain consistent row height, typography, column alignment, icon usage and action placement.
 - Test representative desktop, tablet and mobile widths.
 - A screen is **not done** merely because it technically works. It must look intentional, polished, professional and usable.
-- Reuse existing WonderArc design-system components rather than creating inconsistent one-off UI.
+- Reuse existing WonderArk design-system components rather than creating inconsistent one-off UI.
 - Do not redesign unrelated modules unless explicitly required by the story.
 
 ### Required UI workflow
@@ -447,7 +447,7 @@ Insights
   Feedback
 ```
 
-Do not create unnecessary nested navigation. Preserve the existing WonderArc shell.
+Do not create unnecessary nested navigation. Preserve the existing WonderArk shell.
 
 ---
 
@@ -1314,7 +1314,7 @@ The Discovery module is ready for the next stage when:
 
 The final Discovery experience should feel like:
 
-> **"Tell WonderArc what your business offers. For each offering, it continuously finds the companies most likely to need it, explains why now, identifies who matters, shows the evidence, recommends what to do, and hands qualified relationships to CRM."**
+> **"Tell WonderArk what your business offers. For each offering, it continuously finds the companies most likely to need it, explains why now, identifies who matters, shows the evidence, recommends what to do, and hands qualified relationships to CRM."**
 
 The primary unit is:
 
@@ -2269,7 +2269,7 @@ Start conversation
 
 # 28. Product North Star for This Feature
 
-> **Enter your website once. WonderArc understands what your business offers. Open an offering and click Run AI Discovery. WonderArc does the research and builds the ICP, buyers, discovery strategy, signals, opportunities, Why Now analysis and recommended actions automatically. The founder can intervene at any stage, edit values, save them, and rerun the process from that point onward. Nothing external is sent without final approval.**
+> **Enter your website once. WonderArk understands what your business offers. Open an offering and click Run AI Discovery. WonderArk does the research and builds the ICP, buyers, discovery strategy, signals, opportunities, Why Now analysis and recommended actions automatically. The founder can intervene at any stage, edit values, save them, and rerun the process from that point onward. Nothing external is sent without final approval.**
 
 The fundamental unit remains:
 
@@ -2477,7 +2477,7 @@ Preferred:
 
 Supporting copy:
 
-> WonderArc will research this offering, build/refine the ICP, find relevant accounts and signals, research the strongest opportunities, and prepare recommended actions.
+> WonderArk will research this offering, build/refine the ICP, find relevant accounts and signals, research the strongest opportunities, and prepare recommended actions.
 
 Do not use ambiguous labels such as `Continue`, `Generate`, `Process`, or `Go` as the sole explanation of the action.
 

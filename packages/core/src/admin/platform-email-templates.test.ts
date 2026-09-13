@@ -3,7 +3,7 @@ import { EMAIL_TEMPLATE_KEYS, updateEmailTemplateSchema } from "./platform-email
 
 const validInput = {
   templateKey: "welcome" as const,
-  subject: "Welcome to WonderArc",
+  subject: "Welcome to WonderArk",
   body: "Hi {{name}}, welcome aboard.",
   reason: "Writing the first real copy for this template.",
 };

@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
  * `loginBackgroundStyle` defaults to `'gradient'` with a `null` value, which resolves to
  * `undefined` inline styles below -- i.e. the plain `bg-landing-bg` class keeps rendering
  * exactly as it always has until a superadmin actually sets an override. This preserves
- * `apps/web/app/globals.css`'s own `.landing-theme` tokens (the WonderArc brand, shared
+ * `apps/web/app/globals.css`'s own `.landing-theme` tokens (the WonderArk brand, shared
  * with the marketing site) by default, while making it configurable, which is what this
  * story asks for -- not a conflict with that, since nothing changes unless a superadmin
  * opts in.

@@ -9,7 +9,7 @@
 
 /** How many days before a due date this platform reminds a business -- a 1-week-out
  * heads-up and a 1-day-out final nudge. Not sourced from `gst.tax_rules` (unlike a real
- * due DATE, which IS a regulatory fact): how far in advance WonderArc chooses to remind
+ * due DATE, which IS a regulatory fact): how far in advance WonderArk chooses to remind
  * someone is this platform's own product decision, not a government rule. */
 export const DEFAULT_REMINDER_LEAD_DAYS: readonly number[] = [7, 1];
 

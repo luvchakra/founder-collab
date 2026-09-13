@@ -6,7 +6,7 @@ import type { IntegrationCredentialOwnership, IntegrationRegistryEntry, Integrat
 import { IntegrationStatusDialog } from "./integration-status-dialog";
 
 const OWNERSHIP_LABELS: Record<IntegrationCredentialOwnership, string> = {
-  platform_owned: "WonderArc-owned",
+  platform_owned: "WonderArk-owned",
   customer_owned: "Customer-owned",
   both: "Both (platform + customer)",
 };
@@ -50,7 +50,7 @@ export function IntegrationRegistryTable({ integrations }: { integrations: Integ
       <div className="border-b border-zinc-800 px-4 py-3">
         <h2 className="text-sm font-semibold text-zinc-100">Integration registry</h2>
         <p className="text-xs text-zinc-500">
-          Every external integration category WonderArc offers, its credential ownership model, and its
+          Every external integration category WonderArk offers, its credential ownership model, and its
           platform-wide operational status. Click a category&apos;s status to change it -- Disabled is the
           emergency kill switch and requires a reason and confirmation.
         </p>

@@ -17,7 +17,7 @@
  * Deliberately lists all 27 current EU member states, not just the five this build has
  * working VAT-rate/e-invoicing content for (`countries.ts`'s own `COUNTRY_CATALOG`) --
  * "is this buyer's country in the EU" is a geography fact independent of which member
- * states WonderArc has actually built a working country pack for yet. A seller determining
+ * states WonderArk has actually built a working country pack for yet. A seller determining
  * intra-EU treatment for a buyer in an EU country this build has no rate content for yet
  * (e.g. the Netherlands) still needs to know it's intra-EU, even though no rate lookup can
  * complete for it -- `lib/eu-vat/determine.ts`'s own docstring names this gap explicitly.

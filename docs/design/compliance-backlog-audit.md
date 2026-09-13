@@ -1,6 +1,6 @@
-# WonderArc Compliance — P0/P1 Global Tax & Compliance Backlog — Audit Log
+# WonderArk Compliance — P0/P1 Global Tax & Compliance Backlog — Audit Log
 
-Dated record of every story implemented from "WonderArc Compliance Module — P0/P1 Global
+Dated record of every story implemented from "WonderArk Compliance Module — P0/P1 Global
 Tax & Compliance Backlog" (uploaded 2026-09-11; full text saved verbatim at
 `docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md` as of this session, per this repo's
 convention of keeping every implementation backlog doc as a permanent numbered file),
@@ -5077,7 +5077,7 @@ silently accepted.
 - `lib/risk/detect.ts` -- the five real pure detectors (`detectReturnNotApprovedSignals`,
   `detectEinvoiceDeadlineSignals`, `detectUnmatchedItcSignals`,
   `detectMissingRegistrationSignal`, `detectInvalidClassificationSignals`) plus the
-  `EINVOICE_DEADLINE_APPROACHING_DAYS` product threshold (3 days -- WonderArc's own
+  `EINVOICE_DEADLINE_APPROACHING_DAYS` product threshold (3 days -- WonderArk's own
   choice, not a government rule, so not a `gst.tax_rules` row).
 - `lib/risk/queries.ts` -- `getRiskDashboard(businessId, asOf)`: the orchestrator,
   including the batched `getEinvoiceRiskCandidates` helper described above.
@@ -6176,7 +6176,7 @@ before/after.
 **The one genuinely NEW table this epic adds, checked against the entity-ownership map
 first (backlog rule 1/5)**: nothing existing captures "which US states does this business
 have a physical presence in" -- `core.addresses` is a PARTY's own address, not a
-WonderArc business's own multi-state footprint; `gst.tax_registrations` records an
+WonderArk business's own multi-state footprint; `gst.tax_registrations` records an
 ALREADY-obtained registration, not the underlying fact that might justify needing one.
 `gst.us_physical_nexus_facts` is genuinely Compliance-owned (backlog §5), the input side of
 a registration-obligation decision the same way `gst.tax_registrations` itself is an input
@@ -6186,7 +6186,7 @@ to `gst.compliance_profiles`.
 (backlog rule 12)**: physical nexus is a LEGAL classification, not a mechanical row count
 -- `core.employees` has no state field at all today, and inferring nexus from
 `inventory.warehouses` would silently miss the real, common FBA/third-party-fulfillment
-case where inventory sits in a state without WonderArc's own warehouse record ever
+case where inventory sits in a state without WonderArk's own warehouse record ever
 existing.
 
 **`ended_at` (nullable date), never a hard DELETE (backlog rule 13)** -- a business that

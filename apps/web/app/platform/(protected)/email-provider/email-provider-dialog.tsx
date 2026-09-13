@@ -108,7 +108,7 @@ export function EmailProviderDialog({ config }: { config: EmailProviderConfig })
               name="fromEmail"
               type="email"
               defaultValue={config.fromEmail ?? ""}
-              placeholder="notifications@wonderarc.com"
+              placeholder="notifications@wonderark.com"
               className={FIELD_CLASS}
               aria-invalid={Boolean(fieldErrors.fromEmail)}
             />
@@ -128,7 +128,7 @@ export function EmailProviderDialog({ config }: { config: EmailProviderConfig })
               name="replyTo"
               type="email"
               defaultValue={config.replyTo ?? ""}
-              placeholder="support@wonderarc.com"
+              placeholder="support@wonderark.com"
               className={FIELD_CLASS}
               aria-invalid={Boolean(fieldErrors.replyTo)}
             />

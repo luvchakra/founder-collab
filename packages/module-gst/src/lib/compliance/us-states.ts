@@ -25,7 +25,7 @@
  * individually (exactly the "don't compete on the size of a proprietary tax database"
  * principle this backlog's own §1 conclusion states -- Avalara's own 12,000+ US
  * sales-tax-jurisdiction count is precisely the kind of granularity this platform is not
- * trying to replicate; WonderArc's own differentiator is nexus tracking and obligation
+ * trying to replicate; WonderArk's own differentiator is nexus tracking and obligation
  * guidance, not address-level rate precision).
  *
  * **Only a subset of states have real, versioned rate/nexus-threshold content yet

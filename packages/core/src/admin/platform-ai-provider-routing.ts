@@ -9,7 +9,7 @@ import type { ModuleKey } from "../licensing/types";
  * -- CONFIG-ONLY, per the user's explicit decision recorded in
  * `docs/design/platform-admin-portal-audit.md`. See the migration's own docstring
  * (`20260912370000_platform_ai_provider_routing.sql`) for the full reasoning: this file
- * reads and writes WonderArc's platform-wide AI routing *policy* (a default provider/
+ * reads and writes WonderArk's platform-wide AI routing *policy* (a default provider/
  * model, a `ModuleKey -> AiProvider` override map, a fallback provider) -- it does NOT
  * decide how any real AI call is actually routed. No function here is called by
  * `packages/core/src/ai/business-router.ts`, `operation-registry.ts`, `model-registry.ts`,

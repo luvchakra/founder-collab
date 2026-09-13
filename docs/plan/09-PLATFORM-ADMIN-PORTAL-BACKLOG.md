@@ -1,8 +1,8 @@
-# WonderArc Platform Administration Portal — P0/P1 Requirements & Implementation Backlog
+# WonderArk Platform Administration Portal — P0/P1 Requirements & Implementation Backlog
 
 ## 1. Purpose
 
-Build a **Platform Administration Portal** for WonderArc that operates at:
+Build a **Platform Administration Portal** for WonderArk that operates at:
 
 ```text
 https://<base-url>/platform
@@ -10,7 +10,7 @@ https://<base-url>/platform
 
 This is **not** a business/customer administration screen.
 
-It is the control plane for the WonderArc SaaS platform itself.
+It is the control plane for the WonderArk SaaS platform itself.
 
 A new privileged role is required:
 
@@ -18,7 +18,7 @@ A new privileged role is required:
 SUPERADMIN
 ```
 
-The Platform Administration Portal must allow authorized WonderArc platform operators to configure capabilities that can affect **all WonderArc customers/businesses**.
+The Platform Administration Portal must allow authorized WonderArk platform operators to configure capabilities that can affect **all WonderArk customers/businesses**.
 
 The portal must therefore be designed as a high-risk administrative control plane with:
 
@@ -37,12 +37,12 @@ The portal must therefore be designed as a high-risk administrative control plan
 
 The Platform Admin should be able to answer:
 
-> "How is WonderArc configured globally, what can customers use, what does each subscription include, which AI/providers are available, what does the platform look like, and what changes will affect customers?"
+> "How is WonderArk configured globally, what can customers use, what does each subscription include, which AI/providers are available, what does the platform look like, and what changes will affect customers?"
 
 Core model:
 
 ```text
-WonderArc Platform
+WonderArk Platform
         │
         ├── Global Branding
         ├── Subscription Plans
@@ -247,7 +247,7 @@ Maintenance banner published
 
 # 7. Branding & Look and Feel
 
-## PLATFORM-P0-03.1 — WonderArc Branding
+## PLATFORM-P0-03.1 — WonderArk Branding
 
 Configure:
 
@@ -296,7 +296,7 @@ legal links
 Clearly distinguish:
 
 ```text
-WonderArc Platform Branding
+WonderArk Platform Branding
 ```
 
 from future:
@@ -305,7 +305,7 @@ from future:
 Business-level branding
 ```
 
-Business administrators must not be able to change WonderArc's global brand.
+Business administrators must not be able to change WonderArk's global brand.
 
 ## PLATFORM-P0-03.5 — Preview Before Publish
 
@@ -512,7 +512,7 @@ Source: Pro plan
 
 ## PLATFORM-P0-05.4 — Existing Licensing Integration
 
-Integrate with the existing WonderArc licensing model rather than creating a competing licensing system.
+Integrate with the existing WonderArk licensing model rather than creating a competing licensing system.
 
 ---
 
@@ -874,7 +874,7 @@ Allow emergency disabling.
 
 ## PLATFORM-P0-12.4 — Credential Separation
 
-Customer-owned credentials and WonderArc-owned platform credentials must be separate.
+Customer-owned credentials and WonderArk-owned platform credentials must be separate.
 
 ---
 
@@ -1280,7 +1280,7 @@ data retention after cancellation
 
 ## PLATFORM-P1-04.4 — Cancellation Behavior
 
-Must align with existing WonderArc rule:
+Must align with existing WonderArk rule:
 
 ```text
 cancel
@@ -1309,7 +1309,7 @@ Support platform subscription tax configuration separately from customer Complia
 Do not mix:
 
 ```text
-WonderArc's subscription tax
+WonderArk's subscription tax
 ```
 
 with:
@@ -1407,7 +1407,7 @@ Notify platform operators when critical thresholds are exceeded.
 Show:
 
 ```text
-WonderArc version
+WonderArk version
 build
 deployment
 environment
@@ -1510,7 +1510,7 @@ Recommended:
 
 ```text
 ┌─────────────────────────────────────────────────────┐
-│ WonderArc Platform Administration       SUPERADMIN  │
+│ WonderArk Platform Administration       SUPERADMIN  │
 ├───────────────┬─────────────────────────────────────┤
 │ Dashboard     │                                     │
 │ Branding      │                                     │
@@ -1566,7 +1566,7 @@ Claude Code must always:
 - test desktop/tablet/mobile
 - use tables on larger screens where tabular information is clearer
 
-This is a **generic WonderArc UI rule** and should be added to the project's permanent generic development rules.
+This is a **generic WonderArk UI rule** and should be added to the project's permanent generic development rules.
 
 ---
 
@@ -1822,10 +1822,10 @@ These should not block P0/P1.
 
 # 42. Final Product Definition
 
-The Platform Administration Portal should become WonderArc's **central control plane**:
+The Platform Administration Portal should become WonderArk's **central control plane**:
 
 ```text
-                    WONDERARC PLATFORM
+                    WONDERARK PLATFORM
                            │
         ┌──────────────────┼──────────────────┐
         ↓                  ↓                  ↓

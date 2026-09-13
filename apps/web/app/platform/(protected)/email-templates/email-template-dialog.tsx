@@ -89,7 +89,7 @@ export function EmailTemplateDialog({ template }: { template: EmailTemplate }) {
               id="subject"
               name="subject"
               defaultValue={template.subject ?? ""}
-              placeholder="e.g. Welcome to WonderArc"
+              placeholder="e.g. Welcome to WonderArk"
               className={FIELD_CLASS}
               aria-invalid={Boolean(fieldErrors.subject)}
             />

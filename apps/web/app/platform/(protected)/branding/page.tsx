@@ -41,9 +41,9 @@ export default async function PlatformBrandingPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">WonderArc Branding</h1>
+        <h1 className="text-xl font-semibold">WonderArk Branding</h1>
         <p className="text-sm text-zinc-400">
-          Platform-wide identity, colors, and contact details used across every WonderArc
+          Platform-wide identity, colors, and contact details used across every WonderArk
           customer -- not a business&apos;s own branding.
         </p>
         <p className="mt-1 text-xs text-zinc-500">Last published {formatDateTime(branding.updatedAt)}.</p>

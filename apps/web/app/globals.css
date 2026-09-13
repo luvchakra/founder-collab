@@ -10,7 +10,7 @@
 @source "../../../packages/module-gst/src/**/*.{ts,tsx}";
 
 /*
- * WonderArc's own marketing/auth identity (docs/design/wonderarc-brand.md doesn't exist
+ * WonderArk's own marketing/auth identity (docs/design/wonderark-brand.md doesn't exist
  * yet -- the source of truth is the brand lockup itself): light theme, navy text, the
  * same mid-blue as the dashboard shell's --primary (CLAUDE.md non-negotiable #7 says
  * every module's screens share one design system; this brings the pre-login

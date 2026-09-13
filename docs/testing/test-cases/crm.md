@@ -4,7 +4,7 @@ Covers `packages/module-crm/src/**`.
 
 **⚠ Architectural supersession (2026-09-12):** TC-CRM-001..011 below document the
 original ticket/channel model (`docs/design/crm-module-design.md` Part A/B, S-1). Since
-2026-09-11 that model was superseded by the WonderArc CRM backlog's full lead/
+2026-09-11 that model was superseded by the WonderArk CRM backlog's full lead/
 opportunity/conversation/interaction model (`docs/design/crm-backlog-audit.md`, 74
 stories, all P0+P1 done) plus 29 cross-module integration stories
 (`docs/design/integration-backlog-audit.md`). The old ticket-creation ingestion path
@@ -305,7 +305,7 @@ session to `publish()` through); the other two go through
 
 ---
 
-## The current model (WonderArc CRM backlog, 74 stories, `docs/design/crm-backlog-audit.md`)
+## The current model (WonderArk CRM backlog, 74 stories, `docs/design/crm-backlog-audit.md`)
 
 Primary automated coverage for everything below: **`scripts/test-crm-backlog-rls.mjs`**
 (the tenant-isolation/cross-reference-smuggling/idempotency harness for all 19 backlog

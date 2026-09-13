@@ -3,8 +3,8 @@ import { updateEmailProviderConfigSchema } from "./platform-email-provider";
 
 const validInput = {
   provider: "Resend",
-  fromEmail: "notifications@wonderarc.com",
-  replyTo: "support@wonderarc.com",
+  fromEmail: "notifications@wonderark.com",
+  replyTo: "support@wonderark.com",
   reason: "Recording our real ESP after the initial platform launch review.",
 };
 

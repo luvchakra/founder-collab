@@ -9,7 +9,7 @@ export type EuPlaceOfSupply =
   | "unknown";
 
 export type EuVatDetermineInput = {
-  /** ISO 3166-1 alpha-2 -- the EU member state the SELLER (this WonderArc business) is
+  /** ISO 3166-1 alpha-2 -- the EU member state the SELLER (this WonderArk business) is
    * VAT-registered in. This function only determines the OUTWARD-supply treatment for a
    * sale that business makes -- not the treatment of something it purchases (a real,
    * plausible future need, deliberately left out here: this platform has no purchase-side

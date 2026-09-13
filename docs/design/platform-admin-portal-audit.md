@@ -1,7 +1,7 @@
 # Platform Administration Portal — Audit Log
 
 Dated record of every story implemented from `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`
-(the "WonderArc Platform Administration Portal — P0/P1" doc). Branch: `feature/platform-admin-portal`,
+(the "WonderArk Platform Administration Portal — P0/P1" doc). Branch: `feature/platform-admin-portal`,
 originally run per that doc's own §39 workflow -- **one story at a time, tested,
 committed, then stop and wait for the next story** (explicitly not the auto-continue
 pattern used for other backlogs in this repo), never merged into `main` unless explicitly
@@ -146,7 +146,7 @@ without a special case.
 New `apps/web/app/platform/layout.tsx` -- the real authorization boundary
 (`requireSuperadmin()`, redirecting a non-superadmin to `/dashboard` the same way
 `/dashboard/admin`'s own page already does) plus a minimal header clearly reading
-"WonderArc Platform Administration" / a "SUPERADMIN" badge (§5's PLATFORM-P0-01.3),
+"WonderArk Platform Administration" / a "SUPERADMIN" badge (§5's PLATFORM-P0-01.3),
 visually distinct from the customer dashboard chrome (no shared sidebar/topbar
 components). New `apps/web/app/platform/page.tsx` is a deliberately minimal placeholder
 proving the gate end-to-end -- the real Dashboard (§6, PLATFORM-P0-02) is its own,
@@ -354,7 +354,7 @@ Stopping here per the doc's own §39 workflow -- waiting for the next story (mos
 PLATFORM-P0-16, Platform Audit, or continuing Phase 1's remaining security scope, per the
 doc's own recommended order -- but nothing auto-continues).
 
-### PLATFORM-P0-03.1 — WonderArc Branding (2026-09-11)
+### PLATFORM-P0-03.1 — WonderArk Branding (2026-09-11)
 
 **Sequencing note, addressed up front**: this run's assignment picks up the doc's own
 *section* order (§5 -> §6 -> §7 -> ...) rather than the §37 "Recommended Implementation
@@ -372,7 +372,7 @@ skipped.
 
 **What was built**: `platform.branding` (migration
 `20260911010000_platform_branding.sql`) -- a *singleton* row (boolean primary key fixed to
-`true`, not a uuid, so "there is exactly one WonderArc brand" is enforced by the column's
+`true`, not a uuid, so "there is exactly one WonderArk brand" is enforced by the column's
 own type, not just a constraint someone could later drop) holding every field §7's
 PLATFORM-P0-03.1 literally lists:
 
@@ -511,7 +511,7 @@ leaked-password-protection warning), and the one new performance "unused index" 
 (`branding_updated_by_idx`) is the same expected class as `platform.admins`' own three
 FK indexes in this empty dev database, not a real regression. Confirmed the seeded
 singleton row directly via `execute_sql` (`platform.branding` has exactly one row, id
-`true`, `platform_name = 'WonderArc'`, every optional field `null`, matching the
+`true`, `platform_name = 'WonderArk'`, every optional field `null`, matching the
 migration's own defaults). `cd apps/web && npm run build` -- clean; `/platform/branding`
 lists `ƒ` (dynamic), correctly inheriting the outer layout's existing `force-dynamic`
 (from PLATFORM-P0-02) with no per-route opt-in needed, same as `/platform/mfa` already
@@ -692,9 +692,9 @@ auto-continue assignment.
 
 ### PLATFORM-P0-03.4 — Customer-Facing Branding Scope (2026-09-12)
 
-**What this story asks, read literally**: "Clearly distinguish WonderArc Platform
+**What this story asks, read literally**: "Clearly distinguish WonderArk Platform
 Branding from future Business-level branding. Business administrators must not be able
-to change WonderArc's global brand." Two halves: a labeling/documentation half (make the
+to change WonderArk's global brand." Two halves: a labeling/documentation half (make the
 distinction obvious to a reader) and an authorization half (make it actually true, not
 just documented). Reconnaissance confirmed **no business-level branding feature exists
 anywhere in this codebase yet** -- the only related text is
@@ -738,7 +738,7 @@ update` only) that this fix does not widen. Applied live via
 only, then re-ran the same role-switched query: the "permission denied for schema"
 error is gone, and a non-superadmin instead correctly gets 0 rows on `SELECT` and a
 silent no-op on `UPDATE` (confirmed the row's `platform_name` was untouched afterward,
-still `WonderArc`) -- RLS now actually reachable and actually enforcing, not
+still `WonderArk`) -- RLS now actually reachable and actually enforcing, not
 short-circuited by a missing grant one layer below it.
 
 **Authorization verification, made permanent**: added `scripts/test-platform-branding-rls.mjs`
@@ -812,7 +812,7 @@ the fix, which is exactly why this test needed the fix landed first to assert th
 Live migration applied via `mcp__Supabase__apply_migration` against the **dev** project
 (`jazdtomcgqjxjueedmck`) only; confirmed via role-switched `execute_sql` calls (not just
 schema/policy inspection) that a non-superadmin now gets 0 rows / a no-op update, and that
-the row's `platform_name` is still `WonderArc`, unchanged, after the earlier failed
+the row's `platform_name` is still `WonderArk`, unchanged, after the earlier failed
 "Hacked" attempt made mid-investigation. `mcp__Supabase__get_advisors` for both `security`
 and `performance` afterward showed **zero new findings** -- this migration adds a schema
 grant, not a table, index, or RLS policy, so neither advisor had anything new to flag; all
@@ -927,7 +927,7 @@ Preview and publish when ready." A new shared client component,
 `branding/publish-controls.tsx`, renders the draft-pending banner (with a link to
 Preview) plus Publish/Discard buttons behind `AlertDialog` confirmations -- mirroring the
 existing `promote-to-crm-button.tsx` confirm-dialog pattern rather than inventing a new
-shape, since Publish taking every draft change live for every WonderArc customer
+shape, since Publish taking every draft change live for every WonderArk customer
 immediately is exactly the kind of deliberate, confirmed action that pattern exists for.
 `branding/page.tsx` (Edit) now reads both `getPlatformBranding()` (for a "Last published"
 caption) and `getPlatformBrandingDraft()` (for the form's pre-fill and the draft banner).
@@ -977,8 +977,8 @@ leaked-password-protection warning every prior entry has already logged.
 re-confirmed gone on a second advisor call; every other finding is the same pre-existing
 "unused index" class this empty dev database already carries everywhere. Directly executed
 (not just described) a draft/publish/discard round trip against the live dev row via
-`execute_sql`: wrote a fake draft (`platform_name = 'WonderArc Draft'`), confirmed the
-*live* `platform_name`/`primary_color` columns stayed exactly `'WonderArc'`/`'#2563eb'`
+`execute_sql`: wrote a fake draft (`platform_name = 'WonderArk Draft'`), confirmed the
+*live* `platform_name`/`primary_color` columns stayed exactly `'WonderArk'`/`'#2563eb'`
 while the draft was pending (the story's literal acceptance bar -- "should not become
 active merely because a field was edited"), then applied the same copy-and-clear the real
 `publishBrandingDraft()` performs and confirmed the live columns picked up the drafted
@@ -3092,7 +3092,7 @@ at all; the only path to a row is the function above.
   policy already established) -- defaults to `true` when a row is somehow missing, so a
   data gap can never silently disable a module. `requireModule()` now calls this first,
   before the existing license check, and throws a distinct message ("...has been
-  temporarily disabled platform-wide by WonderArc") so a caller surfacing this error never
+  temporarily disabled platform-wide by WonderArk") so a caller surfacing this error never
   tells a business owner to go check their own license for a problem their license has
   nothing to do with. This is the layer with by far the largest real blast radius: ~70
   mutation call sites across every module already call `requireModule()`
@@ -3794,7 +3794,7 @@ covering only that business's own AI calls. PLATFORM-P0-02.2's own dashboard ent
 (PLATFORM-P0-02, 2026-09-11) already named this exact distinction in advance: "the one
 category with a narrower real signal (per-business BYOK `ai_provider_credentials`)...
 explicitly labeled as *not* the platform-wide provider registry PLATFORM-P0-09 will add."
-This story is that platform-wide registry -- WonderArc's own provider configuration and
+This story is that platform-wide registry -- WonderArk's own provider configuration and
 its own platform-level credential, used as the fallback the platform itself bills when a
 business has no BYOK key connected (the existing `getPlatformCredential()`/
 `PLATFORM_AI_API_KEY` env-var fallback in `business-router.ts`/`module-discovery`'s own
@@ -4425,7 +4425,7 @@ so there is no narrower list for this column to check against either), and
 CHECKed positive-when-set, `null` meaning "no ceiling configured" -- not a fabricated
 default cap). The two money columns are denominated in USD, not `platform.plans.currency`'s
 own per-plan currency (which defaults to INR) -- documented reasoning: every one of the
-three real AI providers bills WonderArc itself in USD regardless of which currency a
+three real AI providers bills WonderArk itself in USD regardless of which currency a
 customer's own plan is priced in, so USD is the only unit that maps onto a real invoice, not
 an assumption about customer-facing pricing. A dedicated `platform.ai_feature_policy_events`
 audit table, same "a policy-wide change doesn't belong in a per-provider audit table, and
@@ -4761,7 +4761,7 @@ This entry implements exactly decision #1 and explicitly builds nothing covered 
 -- `alter table platform.ai_feature_policies add column monthly_budget_usd numeric(12, 2)`
 (nullable, `check (monthly_budget_usd is null or monthly_budget_usd > 0)`, the identical
 shape 09.4 already used for `daily_platform_budget_usd`, same USD-denomination reasoning
-that migration already documented in full -- every real AI provider bills WonderArc itself
+that migration already documented in full -- every real AI provider bills WonderArk itself
 in USD regardless of a customer plan's own currency). `platform.update_ai_feature_policies()`
 gains one new parameter, `p_monthly_budget_usd numeric`, positioned right after
 `p_daily_platform_budget_usd` and before `p_reason` (matching §14's own "daily budget /
@@ -5051,8 +5051,8 @@ no new RLS-policy-shape finding.
 user (`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this backlog's own prior entries have
 repeatedly used -- role-switched `select count(*) from platform.email_provider` returned
 `0` (RLS-filtered, not an error), and a role-switched call to
-`platform.update_email_provider_config('SendGrid', 'notifications@wonderarc.com',
-'support@wonderarc.com', 'trying as non-superadmin')` returned the real Postgres `P0001:
+`platform.update_email_provider_config('SendGrid', 'notifications@wonderark.com',
+'support@wonderark.com', 'trying as non-superadmin')` returned the real Postgres `P0001:
 Forbidden: only a SUPERADMIN can change the email provider configuration.` error -- a
 genuine function-level rejection, not merely an RLS-filtered empty read. As with every
 prior story in this log, there is no seeded demo superadmin user in this environment, so
@@ -5100,7 +5100,7 @@ own migration (`20260908100000_core_messages.sql`) in full before writing anythi
 `business_id`-scoped and freely named (`unique (business_id, name)`, no fixed catalog) --
 a *business's own* templates for messaging *its own customers* (Kickserv-style messaging/
 reminder templates). PLATFORM-P0-11.2's "System Email Templates" are the opposite on every
-axis that matters: WonderArc's own transactional emails to *platform users* (a founder
+axis that matters: WonderArk's own transactional emails to *platform users* (a founder
 resetting a password, a business owner told they hit a usage limit), never
 `business_id`-scoped, and a fixed, doc-named catalog (welcome / verification / password-
 security / subscription / usage limits / compliance reminders / system announcements) a
@@ -5128,7 +5128,7 @@ add/remove through the app). Audited-write pattern, matching PLATFORM-P0-11.1's 
 `platform.email_provider`, not `platform.branding`'s plainer `.update()`: this run's own
 higher security bar applies here with real teeth -- the "password/security events" template
 is a textbook phishing target (an attacker who could edit its copy/links could turn
-WonderArc's own password-reset email into a credential-harvesting vector for every business
+WonderArk's own password-reset email into a credential-harvesting vector for every business
 on the platform). Every write goes through `platform.update_email_template()` (SECURITY
 DEFINER, `is_superadmin()` + non-empty-reason checks, one `platform.email_template_events`
 row per change, scoped to that one template's own `template_key`). RLS is superadmin-only
@@ -5244,7 +5244,7 @@ lists the canonical home for the "Notification" concept as `core.notifications` 
 **zero hits**, confirmed rather than assumed: neither table exists anywhere in this
 codebase yet. So there is no existing table this migration could duplicate today. Read
 closely, this story's own ask is also a different concept on its own terms even once that
-future pair is eventually built: "platform defaults" is WonderArc's own operator-level
+future pair is eventually built: "platform defaults" is WonderArk's own operator-level
 policy for which channels are available/on by default across the whole platform, not a
 `business_id`- or `user_id`-scoped preference row (what `core.notification_prefs`, when
 built, would own -- an individual's own choice to mute a channel). This mirrors the same
@@ -5279,7 +5279,7 @@ pattern to reuse" as a non-security call)**: unlike PLATFORM-P0-11.1's `from_ema
 `body` (a literal injection point for a password-reset email's own links), three boolean
 channel-default toggles carry no comparable payload an attacker could weaponize --
 the worst a malicious flip does is silently disable a notification channel, not impersonate
-WonderArc or inject content into a security-critical message. So this table uses
+WonderArk or inject content into a security-critical message. So this table uses
 `platform.branding`'s own plain `select`/`update` RLS shape (superadmin read/write is the
 whole ask, no separate audit table) rather than 11.1/11.2's heavier audited-RPC pattern --
 recorded here as a reasoned choice, not an oversight, should a future reviewer wonder why
@@ -5379,7 +5379,7 @@ finished (11.1/11.2/11.3 all done). Committing and merging to `main`, then conti
 - 12.2 Integration Status -- "Show: Connected, Disconnected, Error, Needs
   Reauthorization, Disabled."
 - 12.3 Integration Kill Switch -- "Allow emergency disabling."
-- 12.4 Credential Separation -- "Customer-owned credentials and WonderArc-owned platform
+- 12.4 Credential Separation -- "Customer-owned credentials and WonderArk-owned platform
   credentials must be separate."
 
 **Entity-ownership check (CLAUDE.md non-negotiable #5), done first as this run's own task
@@ -5417,11 +5417,11 @@ merging, by widening the grep to the whole repo** (not only `packages/`+
 `/api/webhooks/razorpay` -- routes a schema/migration-scoped grep can never surface, since
 neither of these two integrations happens to have a database table at all:
 - **Payments IS already built**, and is platform-owned, not customer-owned:
-  `packages/core/src/billing/razorpay.ts` calls Razorpay directly using WonderArc's OWN
+  `packages/core/src/billing/razorpay.ts` calls Razorpay directly using WonderArk's OWN
   merchant credentials (`RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`
   env vars) to charge a *business* for its own subscription plan and AI-credit top-ups
   (`apps/web/app/api/billing/razorpay/*`, `core.ai_credit_purchases`) -- money flows FROM
-  a business TO WonderArc, the exact reverse of a customer-owned integration. Confirmed no
+  a business TO WonderArk, the exact reverse of a customer-owned integration. Confirmed no
   per-business "connect your own gateway to collect from your own customers" feature
   exists anywhere (no `payment_link`/business-scoped Razorpay credential of any kind) --
   that would be this category's customer-owned dimension, and it simply isn't built.
@@ -5434,7 +5434,7 @@ neither of these two integrations happens to have a database table at all:
   query already uses) and no per-business "connect your own S3/Google Drive" feature
   exists.
 - **Analytics remains genuinely unbuilt** even under the wider, whole-repo grep -- no
-  product analytics/telemetry provider for WonderArc's own use, and no per-business
+  product analytics/telemetry provider for WonderArk's own use, and no per-business
   "connect your own GA/Meta Pixel" feature, exist anywhere.
 
 This is the same class of finding as PLATFORM-P0-03.1's schema-grant bug earlier in this
@@ -5505,7 +5505,7 @@ exact same shape -- `notes`, `updated_at`/`updated_by`). Seeded with exactly the
 hardcoded), `email` = `platform_owned` (`connected` iff `platform.email_provider.provider`
 is set -- computed), `whatsapp`/`government` = `customer_owned`/`connected` (real, working
 features today via `crm.channel_accounts`/the gst credential tables), `payments`/`storage`
-= `platform_owned`/`connected` (real, working features today via WonderArc's own Razorpay
+= `platform_owned`/`connected` (real, working features today via WonderArk's own Razorpay
 billing / Supabase Storage), `analytics` = `customer_owned`/`disconnected` (genuinely
 nothing built). `platform.integration_status_events` -- append-only audit trail, identical
 shape to `platform.module_status_events`/`platform.feature_flag_events`.
@@ -6736,7 +6736,7 @@ needed retrofitting.
 `docs/design/claude-ui-design-rules.md` already exists in this repo and is already a
 standing, cited rule (CLAUDE.md development principle #13: "Before building or changing
 any page's UI, follow `docs/design/claude-ui-design-rules.md` in full") -- §33's own text
-("This is a generic WonderArc UI rule and should be added to the project's permanent
+("This is a generic WonderArk UI rule and should be added to the project's permanent
 generic development rules") describes exactly that file and that CLAUDE.md line, which
 already existed before this story. No new doc, no new rule needed.
 

@@ -87,17 +87,17 @@ export function EwayBillForm({
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ewb-vehicle-update-url">Vehicle update URL (optional)</Label>
           <Input id="ewb-vehicle-update-url" name="vehicle_update_url" type="url" placeholder="https://…/ewayapi/vehicle" />
-          <p className="text-xs text-muted-foreground">Lets WonderArc update Part-B (vehicle) details on a generated e-Way Bill. Leave blank if your GSP doesn&apos;t expose this separately.</p>
+          <p className="text-xs text-muted-foreground">Lets WonderArk update Part-B (vehicle) details on a generated e-Way Bill. Leave blank if your GSP doesn&apos;t expose this separately.</p>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ewb-extend-url">Extend validity URL (optional)</Label>
           <Input id="ewb-extend-url" name="extend_url" type="url" placeholder="https://…/ewayapi/extend" />
-          <p className="text-xs text-muted-foreground">Lets WonderArc extend an e-Way Bill&apos;s validity based on remaining distance.</p>
+          <p className="text-xs text-muted-foreground">Lets WonderArk extend an e-Way Bill&apos;s validity based on remaining distance.</p>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ewb-status-url">Status URL (optional)</Label>
           <Input id="ewb-status-url" name="status_url" type="url" placeholder="https://…/ewayapi" />
-          <p className="text-xs text-muted-foreground">Lets WonderArc look up an e-Way Bill&apos;s current status.</p>
+          <p className="text-xs text-muted-foreground">Lets WonderArk look up an e-Way Bill&apos;s current status.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
