@@ -7,6 +7,7 @@ import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { ExceptionsList } from "@cofounderai/module-gst/components/reconciliation/exceptions-list";
 import { syncReconciliationExceptionsAction, resolveExceptionAction, dismissExceptionAction } from "./actions";
+import { PeriodPicker } from "./period-picker";
 
 function currentPeriod(): string {
   const now = new Date();
@@ -52,14 +53,7 @@ export default async function ComplianceReconciliationPage({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <form method="GET" className="flex flex-col gap-1.5">
           <Label htmlFor="reconciliation-period">Period</Label>
-          <input
-            id="reconciliation-period"
-            name="period"
-            type="month"
-            defaultValue={period}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="border-input flex h-9 w-48 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm"
-          />
+          <PeriodPicker defaultValue={period} />
         </form>
         {canManage ? (
           <form action={syncReconciliationExceptionsAction.bind(null, businessId, period)}>

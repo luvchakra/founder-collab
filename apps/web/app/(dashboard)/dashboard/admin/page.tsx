@@ -3,11 +3,11 @@ import { requirePlatformAdmin } from "@cofounderai/core/rbac/platform-admin";
 import { listAllUsers, listBusinessesForUser } from "@cofounderai/core/admin/queries";
 import { listSeedBatches } from "@cofounderai/core/admin/demo-seed-tracking";
 import { formatDateTime } from "@cofounderai/core/lib/format";
-import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { Database, Sparkles } from "lucide-react";
 import { DeleteDemoDataButton } from "@cofounderai/module-inventory/components/admin/delete-demo-data-button";
+import { AutoSubmitSelect } from "@/components/forms/auto-submit-select";
 import { seedDemoDataAction, deleteDemoDataAction } from "./actions";
 
 export default async function AdminPage({
@@ -62,18 +62,14 @@ export default async function AdminPage({
           <p className="text-sm text-muted-foreground">Pick the user whose businesses you want to browse.</p>
         </div>
         <form method="GET">
-          <NativeSelect
-            name="userId"
-            defaultValue={userId}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-          >
+          <AutoSubmitSelect name="userId" defaultValue={userId}>
             <option value="">Select a user</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.full_name ? `${u.full_name} - ${u.email}` : (u.email ?? u.id)}
               </option>
             ))}
-          </NativeSelect>
+          </AutoSubmitSelect>
         </form>
       </div>
 
@@ -88,18 +84,14 @@ export default async function AdminPage({
           ) : (
             <form method="GET">
               <input type="hidden" name="userId" value={userId} />
-              <NativeSelect
-                name="businessId"
-                defaultValue={businessId}
-                onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              >
+              <AutoSubmitSelect name="businessId" defaultValue={businessId}>
                 <option value="">Select a business</option>
                 {businesses.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.role})
                   </option>
                 ))}
-              </NativeSelect>
+              </AutoSubmitSelect>
             </form>
           )}
         </div>

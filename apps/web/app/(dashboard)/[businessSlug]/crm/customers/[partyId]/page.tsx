@@ -416,8 +416,8 @@ export default async function CustomerPanelPage({
                       {ticket ? (
                         <RelatedDocumentButton
                           linked={isLinked}
-                          onLink={() => linkTicketToDocumentAction(businessId, partyId, ticket.id, { module: "inventory", documentId: order.id })}
-                          onUnlink={() => linkTicketToDocumentAction(businessId, partyId, ticket.id, null)}
+                          onLink={linkTicketToDocumentAction.bind(null, businessId, partyId, ticket.id, { module: "inventory", documentId: order.id })}
+                          onUnlink={linkTicketToDocumentAction.bind(null, businessId, partyId, ticket.id, null)}
                         />
                       ) : null}
                     </div>
@@ -449,8 +449,8 @@ export default async function CustomerPanelPage({
                       {ticket ? (
                         <RelatedDocumentButton
                           linked={isLinked}
-                          onLink={() => linkTicketToDocumentAction(businessId, partyId, ticket.id, { module: "fsm", documentId: job.id })}
-                          onUnlink={() => linkTicketToDocumentAction(businessId, partyId, ticket.id, null)}
+                          onLink={linkTicketToDocumentAction.bind(null, businessId, partyId, ticket.id, { module: "fsm", documentId: job.id })}
+                          onUnlink={linkTicketToDocumentAction.bind(null, businessId, partyId, ticket.id, null)}
                         />
                       ) : null}
                     </div>

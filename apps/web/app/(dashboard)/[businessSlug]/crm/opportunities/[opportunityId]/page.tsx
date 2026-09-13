@@ -174,7 +174,7 @@ export default async function OpportunityDetailPage({
             <Badge variant={opportunity.status === "won" ? "secondary" : opportunity.status === "lost" ? "destructive" : "outline"}>
               {stage?.name ?? opportunity.status}
             </Badge>
-            <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+            <EditValueDialog opportunity={opportunity} action={updateOpportunityValueAction.bind(null, businessId, opportunity.id)} />
           </div>
         </div>
 

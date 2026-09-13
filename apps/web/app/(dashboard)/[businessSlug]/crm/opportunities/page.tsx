@@ -146,7 +146,7 @@ export default async function CrmOpportunitiesPage({
                   >
                     View
                   </Link>
-                  <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                  <EditValueDialog opportunity={opportunity} action={updateOpportunityValueAction.bind(null, businessId, opportunity.id)} />
                 </div>
               </li>
             ))}
@@ -191,7 +191,7 @@ export default async function CrmOpportunitiesPage({
                       >
                         View
                       </Link>
-                      <EditValueDialog opportunity={opportunity} action={(formData) => updateOpportunityValueAction(businessId, opportunity.id, formData)} />
+                      <EditValueDialog opportunity={opportunity} action={updateOpportunityValueAction.bind(null, businessId, opportunity.id)} />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -201,11 +201,11 @@ export default async function CrmOpportunitiesPage({
         </div>
       ) : (
         <OpportunitiesKanban
-          businessId={businessId}
+          businessSlug={businessSlug}
           stages={stages}
           opportunities={opportunities}
           partyNameById={partyNameById}
-          stageChangeAction={(opportunityId, stageId) => updateOpportunityStageAction(businessId, opportunityId, stageId)}
+          stageChangeAction={updateOpportunityStageAction.bind(null, businessId)}
         />
       )}
     </div>
