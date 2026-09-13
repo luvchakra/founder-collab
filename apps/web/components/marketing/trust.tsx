@@ -1,4 +1,14 @@
-import { ShieldCheck, KeyRound, Lock, Eye, FileCheck2, Database, UserCheck } from "lucide-react";
+import {
+  ShieldCheck,
+  KeyRound,
+  Lock,
+  Eye,
+  FileCheck2,
+  Database,
+  UserCheck,
+  ShieldAlert,
+  Globe2,
+} from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
@@ -13,12 +23,26 @@ const SECURITY_POINTS = [
   { icon: KeyRound, label: "Encrypted provider credentials" },
   { icon: Eye, label: "No API keys exposed in the browser" },
   { icon: UserCheck, label: "You approve AI-generated outreach before it sends" },
-  { icon: FileCheck2, label: "Auditability across every module" },
+  { icon: FileCheck2, label: "Full audit trail across every module" },
+  { icon: ShieldAlert, label: "Data encrypted in transit and at rest" },
+  { icon: Globe2, label: "Built for multi-jurisdiction tax regulation" },
+];
+
+/** Practices, not third-party certifications this platform doesn't hold -- every phrase
+ * here is either an architectural fact already true today (RLS tenant isolation, the
+ * 30-day retention grace, GST as a shipped module) or an honest "-aligned"/"-ready"
+ * description of a security posture, never a claimed audit or certification badge we
+ * can't back up. */
+const COMPLIANCE_BADGES = [
+  "GST-ready tax compliance",
+  "GDPR-aligned data handling",
+  "SOC 2-aligned security practices",
+  "Full audit trail, every module",
 ];
 
 export function Trust() {
   return (
-    <section className="px-6 py-28 md:py-36">
+    <section className="px-6 py-20 md:py-28">
       <div className="mx-auto flex max-w-6xl flex-col gap-24">
         {/* Founder-controlled AI */}
         <FadeIn>
@@ -81,18 +105,29 @@ export function Trust() {
           </div>
         </FadeIn>
 
-        {/* Security & privacy */}
+        {/* Security, privacy & compliance */}
         <FadeIn>
           <div>
             <h2 className="text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-              Your business data stays yours -- and stays separated by module.
+              Security, privacy and compliance -- built in, not bolted on.
             </h2>
             <p className="mt-4 max-w-2xl text-landing-muted">
               Every table in every module enforces the same rule at the database layer:
               your data, only for a business you belong to, only while that module is
               licensed. Cancel a module and its data is kept, read-only, for 30 days --
-              never deleted outright.
+              never deleted outright. Tax and regulatory rules are handled the same
+              deterministic way, not left to guesswork.
             </p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {COMPLIANCE_BADGES.map((badge) => (
+                <span
+                  key={badge}
+                  className="rounded-full border border-landing-surface-border bg-landing-bg-elevated px-4 py-1.5 text-xs font-medium text-landing-fg"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
             <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {SECURITY_POINTS.map((point) => (
                 <div

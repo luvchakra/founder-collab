@@ -7,7 +7,7 @@ import { Parallax } from "./parallax";
 
 export function Hero() {
   return (
-    <section id="product" className="relative overflow-hidden px-6 pt-16 pb-28 sm:pt-24 sm:pb-36">
+    <section id="product" className="relative overflow-hidden px-6 pt-16 pb-20 sm:pt-24 sm:pb-28">
       <div className="landing-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]" />
       <div className="relative mx-auto flex max-w-4xl flex-col items-center text-center">
         <FadeIn>
@@ -15,7 +15,7 @@ export function Hero() {
             Accelerate. Revenue. Knowledge.
           </p>
           <h1 className="mt-4 text-balance text-4xl font-semibold tracking-tight text-landing-fg sm:text-6xl">
-            One login. Five business tools. Zero duplicate data.
+            One login. Every part of your business. Zero duplicate data.
           </h1>
         </FadeIn>
         <FadeIn delayMs={100}>

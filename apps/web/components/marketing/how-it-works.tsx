@@ -44,7 +44,7 @@ function OutputList({ items }: { items: string[] }) {
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="px-6 py-28 md:py-36">
+    <section id="how-it-works" className="px-6 py-20 md:py-28">
       <div className="mx-auto max-w-5xl">
         <FadeIn>
           <h2 className="text-center text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">

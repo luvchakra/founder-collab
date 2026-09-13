@@ -79,7 +79,7 @@ const MODULES: {
 
 export function Modules() {
   return (
-    <section id="modules" className="px-6 py-28 md:py-36">
+    <section id="modules" className="px-6 py-20 md:py-28">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <div className="max-w-2xl">

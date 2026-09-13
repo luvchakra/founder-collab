@@ -30,7 +30,7 @@ const PROBLEMS = [
 
 export function FounderProblem() {
   return (
-    <section className="px-6 py-28 md:py-36">
+    <section className="px-6 py-20 md:py-28">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <h2 className="max-w-2xl text-balance text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">

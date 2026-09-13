@@ -5,7 +5,7 @@ import { FadeIn } from "./fade-in";
 
 export function FinalCta() {
   return (
-    <section className="px-6 py-28 md:py-36">
+    <section className="px-6 py-20 md:py-28">
       <FadeIn>
         <div className="landing-glow mx-auto max-w-3xl rounded-2xl border border-landing-surface-border bg-landing-bg-elevated px-8 py-16 text-center">
           <h2 className="text-balance text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
