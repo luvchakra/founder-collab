@@ -41,6 +41,9 @@ import { ProspectFeedbackSection } from "@cofounderai/module-discovery/component
 import { listProspectFeedback } from "@cofounderai/module-discovery/lib/prospect-feedback/queries";
 import { DiscoveryOutcomeBadge } from "@cofounderai/module-discovery/components/prospects/discovery-outcome-badge";
 import { computeDiscoveryOutcomeStage } from "@cofounderai/module-discovery/lib/prospects/outcome";
+import { ResearchCacheStatusLine } from "@cofounderai/module-discovery/components/prospects/research-cache-status";
+import { computeResearchCacheStatus } from "@cofounderai/module-discovery/lib/research/cache-status";
+import { getAiRun } from "@cofounderai/module-discovery/lib/ai/queries";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
 import { getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index";
 import { PromoteToCrmButton } from "./promote-to-crm-button";
@@ -355,6 +358,11 @@ export default async function ProspectDetailPage({
     getWatchlistEntryForProspect(prospect.id),
     listProspectFeedback(prospect.id),
   ]);
+
+  // DISC-OFFER-P1 §7-03.2 "Research Cache" -- the exact ai_runs row this cached research
+  // came from, if one is on file (null for research written before ai_run_id existed).
+  const researchAiRun = research?.ai_run_id ? await getAiRun(research.ai_run_id) : null;
+  const researchCacheStatus = research ? computeResearchCacheStatus(research) : null;
 
   // Template selection is an optional enhancement to message generation -- a Resend
   // outage or missing RESEND_API_KEY should never break this whole page, just fall back
@@ -713,6 +721,8 @@ export default async function ProspectDetailPage({
             Not researched yet. Uses web search -- may take a moment.
           </p>
         ) : (
+          <>
+          {researchCacheStatus ? <ResearchCacheStatusLine status={researchCacheStatus} aiRun={researchAiRun} /> : null}
           <ExpandableBox>
           <div className="flex flex-col gap-3 text-sm">
             <p>{research.summary}</p>
@@ -776,6 +786,7 @@ export default async function ProspectDetailPage({
             ) : null}
           </div>
           </ExpandableBox>
+          </>
         )}
       </section>
 
