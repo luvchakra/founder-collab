@@ -79,7 +79,7 @@ only genuine architectural/key decisions are raised.
 | | P1-02.3 | Offering Performance Analysis | Done (4/5 questions -- see below) |
 | | P1-03.1 | Progressive Intelligence | Done |
 | | P1-03.2 | Research Cache | Done |
-| | P1-03.3 | Provider-Agnostic Data Contracts | Out of scope |
+| | P1-03.3 | Provider-Agnostic Data Contracts | Partially satisfied (see below) |
 | | P1-04.1 | Cross-Offering Account View | Out of scope |
 | | P1-04.2 | Offering Portfolio Dashboard | Out of scope |
 | | P1-04.3 | Offering-Specific Contact Relevance | Out of scope |
@@ -4542,3 +4542,47 @@ remaining, expired, the exact-expiry-instant edge case, and the null-`expires_at
 never-guess case). Checked the dev project (`jazdtomcgqjxjueedmck`) first for a
 pre-existing `ai_run_id` column (none), then live-applied the migration -- succeeded
 cleanly. `get_advisors` (security + performance): zero new findings.
+
+---
+
+### DISC-OFFER-P1 §7-03.3 -- Provider-Agnostic Data Contracts (2026-09-13)
+
+Doc's own five capabilities to abstract: company enrichment, person enrichment,
+signals, technology detection, contact verification. "Provider-specific implementations
+must not leak into the Discovery domain/UI."
+
+**Three of five already satisfied by existing infrastructure; the other two are not
+built at all, by any provider -- so there's nothing to abstract yet.** Checked
+`lib/ai/router.ts` and `core/ai/provider-factory.ts` first: this codebase already runs
+company enrichment, person enrichment, and signal detection entirely through the BYOK AI
+Router (`resolveAiModel`) -- `research-prospect.ts` and every other `lib/ai/*.ts`
+function never chooses a model or a provider, never branches on which of the three
+connected AI providers actually served a request, and every failure normalizes to a
+provider-shape-free `AiErrorCode` before reaching any caller. That already IS "provider-
+specific implementations must not leak into the domain/UI," for the three capabilities
+this codebase actually has.
+
+"Technology detection" and "contact verification" are the doc's remaining two bullets,
+and grepping the whole module (and the reference plan docs) turns up zero
+implementation of either, AI-based or otherwise -- not merely unabstracted, genuinely
+absent as capabilities. `icp_profiles.technology` is a different thing entirely (an
+AI-generated guess at what a good-fit company's OWN ICP likely already uses, an
+offering-setup input) -- there is no per-prospect "here is this specific company's tech
+stack" or "this contact's email is verified deliverable" fact anywhere in this schema.
+
+**Decision**: do not define a provider interface for a capability with zero real
+implementations to abstract between (CLAUDE.md dev principle #7 -- speculative
+functionality). Doing so now would mean guessing at a shape with nothing to validate it
+against, exactly the kind of premature abstraction this platform's own development
+principles warn against. Documented instead: added a doc comment to `router.ts` itself
+naming which of the doc's five bullets it already satisfies and which two remain
+genuinely unbuilt, so a future reader (or a future story that actually needs technology
+detection or contact verification) finds this reasoning at the point of the code rather
+than only in this log.
+
+**What was built**: one doc comment, `router.ts`. No new code, no schema change, no new
+tests (nothing new to test -- the abstraction being described already has its own
+existing test coverage from when it was built).
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` (comment-only
+change).
