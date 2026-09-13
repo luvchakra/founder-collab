@@ -63,7 +63,7 @@ only genuine architectural/key decisions are raised.
 | | P1-01.2 | Incremental Re-Run | Done |
 | | P1-02.1 | Review Required Indicators | Done |
 | | P1-02.2 | Rerun Impact Confirmation | Done |
-| | P1-03.1 | Offering Definition Quality | Not started |
+| | P1-03.1 | Offering Definition Quality | Done |
 | | P1-03.2 | Missing Information Suggestions | Not started |
 | | P1-04.1 | Learn From User Edits | Not started |
 | | P1-04.2 | Learn From Outcomes | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**45 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**46 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3415,3 +3415,71 @@ assumed to work.
 
 **Status**: 45 of 68 in-scope stories done -- Phase F continuing. Next: P1-03.1,
 Offering Definition Quality.
+
+### P1-03.1 — Offering Definition Quality (2026-09-13)
+
+The doc gives this story no "Acceptance criteria" heading either -- just the one worked
+example ("Offering Definition Quality: 86/100" over five named dimensions -- Description,
+Target Customer, ICP Evidence, Buyer Evidence, Differentiation -- each labeled
+Strong/Medium) shown "after website analysis."
+
+Checked the entity-ownership map first: no "quality score"/"diagnostic" concept listed for
+any module, so this is a genuinely new, small computed value, not a duplicate of
+anything. Checked what already existed for each of the doc's own five dimensions before
+inventing new storage: every input already exists on already-persisted rows --
+`offering.detailed_description`/`product_profile.description` (Description),
+`icp.industries`/`company_sizes`/`roles` (Target Customer), `icp.confidence`/`icp.evidence`
+(ICP Evidence, DISC-OFFER-P0-13.1), buyer personas and their own `notes` (Buyer Evidence,
+DISC-OFFER-P0-02.3), and `product_profile.differentiators`/`competitive_positioning`
+(Differentiation) -- so this is purely a *read-time computation* over data that already
+exists, needing no new column or table of its own (CLAUDE.md dev principle #7 -- no
+speculative storage for a value fully derivable from what's already there).
+
+**New `lib/offerings/definition-quality.ts`** -- `computeOfferingDefinitionQuality()`,
+pure and deterministic (CLAUDE.md dev principle #4: no LLM for a computable diagnostic,
+the same discipline DISC-OFFER-P1-02.1's own `lib/pipeline/review.ts` just established for
+a comparable "how much should a founder trust this" question). Deliberately **not**
+built by importing that file's own three-tier classifier -- this diagnostic answers a
+different question (definitional *completeness* of the offering itself, across a wider,
+unrelated set of inputs) than a single pipeline stage's own run-to-run confidence, so its
+own `strong`/`medium`/`weak` vocabulary and thresholds are independently authored rather
+than reusing `review.ts`'s `automated`/`needs_review`/`insufficient_evidence` naming,
+which reads as pipeline-specific. Each dimension's own threshold is this story's own new,
+flagged judgment call (the doc names no specific numbers, same situation P1-02.1's own
+numeric thresholds were in): Description needs 15+ words of real text to be Strong (any
+non-empty text still beats nothing); Target Customer needs all three of
+industries/company sizes/roles populated; ICP Evidence is `weak` whenever `confidence` was
+never computed at all (a null confidence is DISC-OFFER-P0-13.1's own "genuinely never
+computed" fact, a different thing from "computed and found unconfident" -- so this
+dimension correctly can't be faked strong just by filling in ICP fields by hand with no
+automated evidence behind them) and otherwise reads confidence/evidence-quote presence
+together; Buyer Evidence needs two or more personas with real notes on at least one to be
+Strong; Differentiation needs both a real differentiator list (2+) and a substantive
+positioning statement (5+ words) together. Overall score is a plain average of the five
+dimensions' own scores (strong=100/medium=60/weak=20), rounded -- exactly reproduces the
+doc's own "86/100" shape for a mix of mostly-strong, some-medium dimensions. 12 new vitest
+cases: the all-weak and all-strong extremes, `description`'s own detailedDescription-over-
+AI-profile preference and its fallback, and one boundary case per remaining dimension.
+
+**UI**: added directly to `OfferingOverviewSummary` (DISC-OFFER-P0-03.2) rather than a new
+section or page -- that component already renders only once `product.product_profile`
+exists (03.2's own gate), which *is* the doc's own literal "after website analysis"
+trigger, and it already receives every input this diagnostic needs (`offering`/`icp`/
+`personas`) as props, so no new data fetching was required anywhere. New card ("Offering
+definition quality", the overall `X/100` plus each dimension's own label and a
+Strong/Medium/Weak `Badge`, reusing the existing default/secondary/outline variant
+progression rather than inventing new colors) placed directly below the existing "What
+should I do today?" banner, above the three-column Offering/ICP/Prospects grid.
+
+No migration this story -- purely a read-time computation over already-existing columns.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1183 files, no
+violations), `lint:migrations` (136 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (221/221, +12 new), and a clean `next build`
+(confirmed the offering Overview route, which now renders the new card, still builds with
+no errors). Same live-browser-walkthrough constraint noted in every prior UI-touching
+story this run (no seeded demo user/`.env.local` in this environment).
+
+**Status**: 46 of 68 in-scope stories done -- Phase F continuing. Next: P1-03.2, Missing
+Information Suggestions.
