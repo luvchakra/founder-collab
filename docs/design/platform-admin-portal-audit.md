@@ -30,7 +30,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
 | | 11 | Global Email / Notification Configuration | All of §15 done (11.1-11.3, all config-only) -- see log |
 | | 12 | Global Integrations | All of §16 done (12.1-12.4) -- see log |
-| | 13 | Country / Compliance Pack Administration | Not started |
+| | 13 | Country / Compliance Pack Administration | 13.1/13.2/13.4 done; 13.3 (Rule Version) stopped -- genuine entity-ownership conflict with `gst.tax_rules`, see log |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
@@ -38,8 +38,10 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 10 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
-11), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). P1: 0/9 done.**
+**P0: 11 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11, 12), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). §17 (13) is 3/4 done
+-- 13.3 stopped, genuine entity-ownership conflict with `gst.tax_rules`, not yet resolved.
+P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
 
@@ -5638,3 +5640,270 @@ feature-flag-reuse -- resolved cleanly against precedent already established els
 this backlog, per the two design decisions above). Committing and merging to `main`, then
 continuing to §17 (Country / Compliance Pack Administration, PLATFORM-P0-13) next, per this
 doc's own section order.
+
+### PLATFORM-P0-13.1/13.2/13.4 — Country / Compliance Pack Registry (2026-09-13)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree branch was `worktree-agent-ad43b43fe7220f11f`, sitting on a stray
+`scratch-plat-12-merge` merge commit, not `feature/platform-admin-portal`'s own tip.
+Working tree was clean (no stash needed) -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing at `ec8e9fc`
+(PLATFORM-P0-12.1-12.4's own commit), reconfirmed via `git log --oneline -3` before
+touching any file. `npm install` run fresh (no `node_modules` in this worktree), confirmed
+via `readlink -f node_modules/@cofounderai/core` resolving to this worktree's own
+`packages/core`.
+
+**§17's own text in full**:
+- 13.1 Country Registry -- "Manage: India, EU/member states, US, Canada, Singapore, UAE,
+  Saudi Arabia, Australia, New Zealand, Malaysia, etc."
+- 13.2 Compliance Pack Availability -- "Configure: country, regime, enabled, supported
+  features, version."
+- 13.3 Rule Version -- "Country rules must have: version, effective_from, effective_to,
+  source, status."
+- 13.4 Compliance Feature Flags -- "Example: India GST=enabled, E-Invoice=enabled,
+  E-Way Bill=enabled, IMS=enabled."
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5), done first, widened per this run's
+own task brief (the same discipline PLATFORM-P0-12.1-12.4's own entry set)**: checked
+`docs/plan/00-MASTER-PLAN.md` §5 first -- no "country"/"compliance pack"/"tax rule" concept
+listed there at all. Then read (read-only reconnaissance; `module-gst` is a different,
+concurrently-running workstream's files, never edited here) every relevant `module-gst`
+file rather than assuming §17 is either wholly novel or a pure duplicate:
+- `packages/module-gst/src/lib/compliance/countries.ts` -- `COUNTRY_CATALOG`, a
+  compile-time TS constant array recording which countries/regimes this codebase has
+  actually built working support for (`status: "supported"` vs `"planned"`). Eighteen
+  entries: IN/US/CA supported with their regimes, DE/FR/BE/PL/IT supported as individual
+  EU VAT member states, and SG/AE/SA/AU/NZ/MY/TH/ID/JP/KR named as `"planned"`. No DB table
+  backs this at all -- it answers "what has engineering shipped," not "what is
+  administratively offered to customers right now."
+- `packages/module-gst/src/lib/compliance/queries.ts`/`mutations.ts` -- a *business's own*
+  `gst.compliance_profiles` row (the country/regime it has registered under). Tenant data,
+  not a platform-wide administrative concept.
+- `packages/module-gst/src/lib/tax-rules/types.ts` + migration
+  `20260911004500_gst_tax_rules.sql` -- `gst.tax_rules`, a real, live, already-heavily-used
+  DB table with **exactly** the shape 13.3 names: `country`, `jurisdiction`, `regime`,
+  `rule_key`, `value`, `version` (integer, incrementing per rule lineage),
+  `effective_from`, `effective_to`, `source` (a required citation), `created_at`/
+  `updated_at`. Its own docstring documents the identical versioning model 13.3 describes:
+  "a rule lineage is identified by (country, regime, jurisdiction, rule_key); each version
+  is a separate, never-mutated row... `supersedeTaxRule` closes the previous version's
+  `effective_to` ... and inserts version+1." This is not a placeholder or a stub -- it is
+  seeded with real content across many migrations (India GST rate slabs, e-invoice/e-way
+  bill thresholds, EU VAT rates, US sales tax, Canada GST/HST, filing due dates, retention
+  rules, ...), actively read by the tax-determination/e-invoice-eligibility/eway-bill-
+  eligibility/returns engines throughout `module-gst`.
+- Grepped `apps/web/` for any existing country-selection or compliance-pack ADMIN UI --
+  none exists anywhere (only the tenant-facing `country-bar.tsx`/
+  `unsupported-country-notice.tsx` components inside `module-gst` itself, which read
+  `COUNTRY_CATALOG` directly for a business's own country/regime picker -- not a platform
+  admin surface).
+
+**Conclusion, resolvable for three of the four sub-stories, genuinely NOT resolvable for
+the fourth**:
+- **13.1 (Country Registry) and 13.2/13.4 (Compliance Pack Availability / Feature Flags)
+  are a genuinely new PLATFORM-level administrative registry** -- one layer of "is this
+  country/regime/capability administratively offered at all, platform-wide" sitting above
+  `module-gst`'s own compile-time "is it built" catalog (`COUNTRY_CATALOG`) and above a
+  business's own tenant-scoped `gst.compliance_profiles` selection. This is the identical
+  three-layer relationship PLATFORM-P0-07.1's own entry already established for whole
+  modules (`packages/module-registry`, a compile-time static manifest, vs.
+  `platform.modules`, the DB-backed operational registry) -- confirmed against that entry
+  before writing this one, not assumed by analogy alone. Resolved and built, not stopped
+  on.
+- **13.3 (Rule Version) is a genuine, unresolved entity-ownership conflict, stopped and
+  reported on rather than guessed at.** `gst.tax_rules` already IS the "Country rules must
+  have: version, effective_from, effective_to, source, status" entity 13.3 describes, field
+  for field (13.3 additionally names "status," which `gst.tax_rules` expresses structurally
+  via `effective_to is null` = current/open version rather than a separate enum column --
+  the same fact, a different representation, not a missing field). It is real, live,
+  actively-seeded, actively-consumed production data in a schema owned by a different,
+  concurrently-running workstream (`module-gst`/Compliance) that this run's own file-scope
+  boundary forbids touching. Two ways to satisfy 13.3's literal text both fail:
+  1. **Build a second, platform-owned "rule version" table with the same shape.** This is
+     exactly the "parallel table for an already-listed concept" CLAUDE.md non-negotiable #5
+     forbids -- the live codebase (which "wins" per CLAUDE.md's own "live source of truth"
+     rule) already has the canonical table for this concept, in a different schema.
+  2. **Have the platform admin surface read/manage `gst.tax_rules` directly.** No prior
+     story in this entire backlog has ever had a `platform.*` admin screen or
+     `packages/core` admin module query into a licensed module's own schema (`gst`,
+     `discovery`, `inventory`, `fsm`, `crm`) -- every existing `platform.*` table describes
+     a *different, coarser* administrative fact than a module's own tenant/regulatory data
+     (e.g. `platform.integrations` records a category's ownership/status, never a real
+     credential; `platform.modules` records a kill switch, never a module's own business
+     data). Building this now would be a novel cross-module architectural pattern with no
+     precedent, security implications this doc does not scope out (would this be a
+     `service_role`-only read, or would it need its own RLS-composed view across two
+     schemas' worth of policies?), and would very likely still be redundant with
+     `module-gst`'s own future compliance-admin surface if that workstream ever builds one
+     for its own rule content.
+  Per this run's own task brief ("Any story whose correct behavior depends on a ...
+  entity-ownership judgment call the doc doesn't fully specify is a genuine architectural
+  decision -- stop and report rather than guess-and-merge"), 13.3 is left unbuilt. The
+  precise open question for whoever resumes this: **should platform-level "Rule Version"
+  administration (if wanted at all, beyond what `gst.tax_rules` already provides
+  module-internally) be (a) a read-only platform surface that reaches into `gst.tax_rules`
+  cross-schema, explicitly approved as a new architectural pattern, (b) generalized so
+  `gst.tax_rules` itself becomes a `core`-owned or `platform`-owned table other modules'
+  own future country/regime content could also use (a genuine schema-ownership move, not a
+  config story), or (c) considered already satisfied by `gst.tax_rules` as it stands, with
+  13.3 simply not needing any platform-layer counterpart at all?** This run did not pick
+  one -- each has real tradeoffs a security/architecture-empowered decision-maker, not this
+  agent, should make.
+
+**A non-security, resolvable data-modeling judgment call, decided and documented**: unlike
+`platform.modules` (fixed at five, one per module package) or `platform.integrations`
+(fixed at seven named categories), 13.1's own list plus its trailing "etc." describes an
+open-ended catalog a superadmin adds to over time as new country/regime packs are built --
+so `platform.compliance_countries`/`compliance_packs`/`compliance_pack_features` are
+modeled after `platform.plans` (superadmin SELECT/INSERT/UPDATE, no DELETE grant at all,
+same "disable, never remove" stance) rather than after the fixed-catalog tables. No RPC/
+reason/audit-event ceremony either -- 13.1/13.2/13.4's own text says "Manage"/"Configure"/
+names an example, never "kill switch"/"emergency disabling" the way 07.2/12.3 do, so this
+mirrors `platform.plans`/`platform.modules`'s plain, directly-RLS-gated write shape.
+
+**What was built**: migration `20260912440000_platform_compliance_registry.sql` -- three
+tables, one hierarchy. `platform.compliance_countries` (`country_code` text PK, ISO-alpha-2
+shaped, `name`, `enabled` boolean default false, `notes`, `updated_at`/`updated_by`), seeded
+with all 18 `COUNTRY_CATALOG` entries -- `enabled = true` exactly for `status: "supported"`
+ones (IN/US/CA/DE/FR/BE/PL/IT), `false` for `"planned"` ones -- computed from the live
+catalog, not invented (the same "computed, not hardcoded" discipline PLATFORM-P0-12.1-12.4's
+own `ai`/`email` seed used). `platform.compliance_packs` (`id` uuid PK, `country_code` FK
+into the countries table, `regime` free text, `display_name`, `enabled`, `version` free
+text nullable with no default -- no fabricated pack-release version exists anywhere in this
+codebase, same stance `platform.modules.version` already took -- `notes`,
+`updated_at`/`updated_by`, `unique (country_code, regime)`), seeded with 19 rows (one per
+country+regime in the catalog, `enabled` again mirroring `status`).
+`platform.compliance_pack_features` (`id` uuid PK, `pack_id` FK into the packs table,
+`feature_key`, `display_name`, `enabled`, `updated_at`/`updated_by`,
+`unique (pack_id, feature_key)`), seeded with **only** the four rows 13.4's own literal
+India example names (`gst`/`einvoice`/`eway_bill`/`ims`, all enabled) on the India/GST pack
+-- each corresponds to a real, working `module-gst` capability confirmed by this story's own
+reconnaissance (`gst.compliance_profiles`/`tax_registrations` for the base `gst`
+capability, `gst.einvoice_credentials` + the einvoicing lib for `einvoice`,
+`gst.eway_bill_credentials` + the eway-bill lib for `eway_bill`, the `gst.ims_actions`
+schema for `ims`). No other pack (US sales tax/1099, Canada GST/HST, the five EU VAT packs)
+was seeded with any feature row -- the doc names no example for any of them, and inventing
+a capability taxonomy for packs it never described would be exactly the speculative
+functionality CLAUDE.md development principle #7 rules out for a story that only asks to
+"configure." RLS on all three tables: open `SELECT` to any `authenticated` user from the
+start (same "avoid a second widening migration later" reasoning `platform.modules`/
+`platform.feature_flags`/`platform.integrations` each used), superadmin-only `INSERT`/
+`UPDATE`, no `DELETE` grant to `authenticated` at all on any of the three.
+
+`packages/core/src/admin/platform-compliance.ts` -- `listComplianceCountries()`,
+`listCompliancePacks()`, `listCompliancePackFeatures(packId)`, `getCompliancePack(id)`,
+`createComplianceCountry()`/`updateComplianceCountry()`/`setComplianceCountryEnabled()`
+(instant toggle), `createCompliancePack()`/`updateCompliancePack()`,
+`createCompliancePackFeature()`/`setCompliancePackFeatureEnabled()` (instant toggle) --
+Zod-validated, `requireSuperadmin()` defense-in-depth on every write, RLS the authoritative
+layer, mirroring `platform-plans.ts`'s own authorization shape exactly. No delete function
+exported anywhere, on purpose (no such grant exists). 18 new unit tests
+(`platform-compliance.test.ts`) covering schema edge cases (ISO-code shape, immutable
+identity fields on update, empty-string-to-null normalization, feature-key slug shape).
+
+**UI**: `/platform/compliance` (new nav link) -- a country registry table (instant
+"offered platform-wide" switch + Add/Edit dialog, mirrors `module-entitlements-section.tsx`'s
+"single boolean, no separate save step" shape for the switch and `plan-dialog.tsx`'s
+Add/Edit pattern for the dialog) and a compliance-pack table beneath it (same instant-switch
+shape, plus a "Feature flags" link through to `/platform/compliance/packs/[id]`, mirroring
+`plans/page.tsx`'s own link-through-to-a-nested-detail-page shape for
+`/platform/plans/[id]/entitlements`). The nested pack page lists that pack's own feature
+flags with the same instant-switch shape plus a small inline "Add a feature" dialog
+(mirrors `feature-entitlements-section.tsx`'s own add-a-feature affordance, without its
+delete button -- no DELETE grant exists here). Desktop table / mobile card split per
+CLAUDE.md development principle #12 and docs/design/claude-ui-design-rules.md rule 5,
+mirroring `plans/page.tsx`'s own established split throughout.
+
+**Deliberately not built this story**:
+- **PLATFORM-P0-13.3 (Rule Version)** -- see the entity-ownership conflict above. Left
+  entirely unbuilt, not guessed at.
+- **No composition of `enabled` across the hierarchy** -- a disabled country's own packs
+  keep whatever `enabled` value they already have stored; nothing computes an "effective
+  enabled" answer by walking country → pack → feature. No runtime consumer exists yet to
+  need one (see below), the same "table now, real enforcement/composition later"
+  sequencing 07.1's `platform.modules.enabled` and 12.1's `platform.integrations` both
+  used.
+- **No runtime enforcement anywhere** -- none of `enabled` on any of the three tables is
+  read by `module-gst`'s own country/regime selector (`country-bar.tsx`,
+  `isCountrySupported()`/`isRegimeSupported()` still consult `COUNTRY_CATALOG` alone), by
+  `hasModule()`/`requireModule()`, or by any route guard. Wiring this registry into
+  `module-gst`'s own behavior would mean touching that workstream's files, which this run's
+  own file-scope boundary forbids regardless of whether §17 asked for it (it doesn't --
+  13.1/13.2/13.4 only ask to "Manage"/"Configure").
+- **No delete/remove operation for any of the three tables** -- see the data-modeling
+  decision above; a superadmin disables a row instead.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior entry has logged. `node scripts/lint-import-boundaries.mjs` -- 1502 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 199 migrations (198 -> 199, this
+story's own file). `npx vitest run --root packages/core` -- 29 files / 274 tests (28/256 ->
+29/274, +18 new). `apps/web`'s own `vitest run --passWithNoTests` -- 50 tests, unchanged.
+`cd apps/web && rm -rf .next && npm run build` -- clean, zero warnings; route listing
+includes `ƒ /platform/compliance` and `ƒ /platform/compliance/packs/[id]`, both correctly
+dynamic, inheriting the outer `/platform` layout's existing `force-dynamic`.
+
+Migration applied live via `mcp__Supabase__apply_migration` against the **dev** project
+(`jazdtomcgqjxjueedmck`) only; confirmed via `execute_sql` that the seed is exactly right:
+18 countries (8 enabled, matching the catalog's 8 `"supported"` entries), 19 packs (9
+enabled), 4 pack features (`einvoice,eway_bill,gst,ims`, all on the India/GST pack only).
+`mcp__Supabase__get_advisors` (security) -- zero new findings, the same 6 pre-existing
+`rls_enabled_no_policy` tables and the pre-existing leaked-password-protection warning
+every prior entry has logged. `mcp__Supabase__get_advisors` (performance) -- only the same
+benign "unused index" INFO class every sibling table's own index already carries in this
+low-traffic dev database, this migration's own 5 new indexes included.
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, a real `core.account_members` row, not a
+superadmin) this backlog's own prior entries have repeatedly used -- role-switched `select
+count(*) from platform.compliance_countries` returned `18` (the open-SELECT catalog policy
+working exactly as intended for an ordinary business member), and role-switched `insert
+into platform.compliance_countries (country_code, name, enabled) values ('ZZ',
+'Malicious', true) returning country_code` was rejected outright with `ERROR 42501: new
+row violates row-level security policy for table "compliance_countries"`, reconfirmed
+immediately after via a plain service-role read that the table still had exactly 18 rows --
+this real user's write attempt left zero residue. As `anon` (no session at all), `select
+count(*) from platform.compliance_countries` correctly failed with `ERROR 42501: permission
+denied for schema platform` -- no schema-level grant to `anon` exists, matching the
+`platform` schema's existing grant scope (not a repeat of PLATFORM-P0-03.4's own
+missing-grant bug). As with every prior story in this log, there is no seeded demo
+superadmin user in this dev project, so the "a real superadmin CAN manage this registry"
+half of the proof is verified for real only against local Postgres, below.
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires**: new
+`scripts/test-platform-compliance-registry-rls.mjs`, wired into `package.json`'s `test:db`
+composite script after `test-platform-integrations-rls.mjs`. Same Alice (business admin,
+not a superadmin)/Zoe (real platform superadmin) pair every sibling script uses. One
+test-design correction made before it passed, the identical gotcha PLATFORM-P0-07.1's own
+script first got wrong: an `UPDATE` whose `USING` clause hides every row from the caller
+does not raise a Postgres error, it silently affects zero rows -- Alice's disable attempt
+on India is asserted via a follow-up `service_role` read (`enabled` still `true`), not
+`assertThrows`. **All 25 assertions passed**: the seed is exactly 18 countries/19 packs/4
+features, with `enabled` correctly mirroring `COUNTRY_CATALOG`'s own `status` for both a
+supported example (India) and a planned one (Australia); no fabricated pack version exists
+on any seeded row; only India's GST pack carries any seeded feature, exactly the doc's own
+four; Alice can read all three tables in full but every one of her INSERT/UPDATE attempts
+is silently rejected with zero residue; Zoe can insert a brand-new country/pack/feature
+(proving this is a genuinely growable catalog, not a fixed enum) and toggle `enabled` at
+every level; the `(country_code)`, `(country_code, regime)`, and `(pack_id, feature_key)`
+uniqueness constraints all hold; an unknown `country_code` on a new pack is rejected by its
+foreign key; and nobody -- including Zoe -- can `DELETE` a row on any of the three tables
+(no such grant exists to `authenticated` at all). Local Postgres 16 was already running in
+this environment (`pg_lsclusters` showed it online).
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed dev environment, so a live browser walkthrough of
+`/platform/compliance` actually adding/editing a row through the real UI was **not**
+performed and is **not** claimed here. This entry documents build/typecheck/lint/unit-test
+correctness, a direct read/reject proof against the live dev database for the
+non-superadmin path, and the full positive-and-negative matrix against local Postgres --
+not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-13.1/13.2/13.4 done and merged. **PLATFORM-P0-13.3 (Rule Version)
+stopped -- a genuine, unresolved architecture/entity-ownership conflict with
+`gst.tax_rules`, per the analysis above.** Per this run's own task brief ("write the
+precise open question(s) into your audit-log entry and end your turn instead of merging an
+assumption into `main`"), this run ends here rather than continuing into §18 (Platform
+Policies) or any further section. The three resolved sub-stories are committed, verified,
+and merged to `main`; 13.3 is left for a human (or a future run with explicit direction on
+the three options above) to decide.
