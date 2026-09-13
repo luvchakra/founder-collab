@@ -41,7 +41,7 @@ export default async function ProductLayout({
     ? await Promise.all([getIcpProfile(workspace.id), getProspectCounts(workspace.id)])
     : [null, null];
 
-  const basePath = `/${businessSlug}/products/${productId}`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}`;
   const completed = {
     overview: Boolean(product.product_profile),
     icp: Boolean(icp),
@@ -54,14 +54,14 @@ export default async function ProductLayout({
     // 2xl (672px) made every row/thread cramped. Wider also just gives the shorter
     // ICP/conversions/usage pages more breathing room, not a regression for them.
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6">
-      {/* DISC-OFFER-P0-03.1's "the user must always know Business: X / Offering: Y" --
-          the breadcrumb now carries the real business name (it used to say the literal
-          word "Business"), and the offering name sits right below as the page heading;
-          together that's the full context, always visible. */}
+      {/* Fixed category labels ("Business" / "Business Offering"), not the real
+          business/offering names -- the offering's own name is already the page heading
+          right below (EditableName), so the breadcrumb's job is to show where this page
+          sits in the hierarchy, not repeat an identity the heading already carries. */}
       <Breadcrumbs
         items={[
-          { label: business.name, href: `/${businessSlug}/business` },
-          { label: product.name },
+          { label: "Business", href: `/${businessSlug}/business` },
+          { label: "Business Offering" },
         ]}
       />
       {/* EditableName lives inside the provider (not above it) so its own rename

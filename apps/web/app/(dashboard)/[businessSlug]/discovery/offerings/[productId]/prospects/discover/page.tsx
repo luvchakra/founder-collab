@@ -35,7 +35,7 @@ export default async function DiscoverProspectsPage({
     listProspectSuggestions(workspace.id),
     getIcpProfile(workspace.id),
   ]);
-  const prospectsPath = `/${businessSlug}/products/${productId}/prospects`;
+  const prospectsPath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   return (
     <div className="flex flex-col gap-6">

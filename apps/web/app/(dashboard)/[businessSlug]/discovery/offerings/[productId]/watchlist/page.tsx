@@ -19,7 +19,7 @@ export default async function WatchlistPage({
   if (!workspace) notFound();
 
   const rows = await getWatchlistDashboardRows(workspace.id);
-  const basePath = `/${businessSlug}/products/${productId}/prospects`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   return (
     <div className="flex flex-col gap-4">

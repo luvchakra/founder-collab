@@ -339,7 +339,7 @@ export default async function CustomerPanelPage({
                   ))}
                 </ul>
                 <Link
-                  href={`/${businessSlug}/products/${customer360.prospect.productId}/prospects/${customer360.prospect.prospectId}`}
+                  href={`/${businessSlug}/discovery/offerings/${customer360.prospect.productId}/prospects/${customer360.prospect.prospectId}`}
                   className="text-xs text-primary hover:underline"
                 >
                   View Discovery research &rarr;

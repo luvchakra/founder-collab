@@ -33,12 +33,12 @@ export function OfferingSwitcher({
   if (offerings.length <= 1) return null;
 
   function targetPath(offeringId: string) {
-    const marker = `/products/${currentOfferingId}`;
+    const marker = `/discovery/offerings/${currentOfferingId}`;
     const markerIndex = pathname.indexOf(marker);
     const suffix = markerIndex === -1 ? "" : pathname.slice(markerIndex + marker.length);
     const firstSegment = suffix.split("/").filter(Boolean)[0];
     const tab = firstSegment && KNOWN_TABS.includes(firstSegment) ? `/${firstSegment}` : "";
-    return `/dashboard/businesses/${businessId}/products/${offeringId}${tab}`;
+    return `/dashboard/businesses/${businessId}/discovery/offerings/${offeringId}${tab}`;
   }
 
   return (

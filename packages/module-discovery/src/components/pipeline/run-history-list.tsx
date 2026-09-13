@@ -57,7 +57,7 @@ export function RunHistoryList({ businessId, productId, runs }: { businessId: st
     return <EmptyState message="No discovery runs yet. They'll appear here once AI Discovery runs for this offering." />;
   }
 
-  const basePath = `/dashboard/businesses/${businessId}/products/${productId}/history`;
+  const basePath = `/dashboard/businesses/${businessId}/discovery/offerings/${productId}/history`;
 
   return (
     <div className="rounded-2xl border border-border">

@@ -67,5 +67,5 @@ export async function createProductAction(businessId: string, formData: FormData
   });
   const base = await businessPath(businessId);
   revalidatePath(base);
-  redirect(`${base}/products/${product.id}`);
+  redirect(`${base}/discovery/offerings/${product.id}`);
 }

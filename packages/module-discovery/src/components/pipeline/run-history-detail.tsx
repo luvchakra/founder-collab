@@ -70,7 +70,7 @@ export function RunHistoryDetail({
   stagesExecuted: PipelineStageRun[];
   aiRuns: { operation: string; model: string; provider: string | null; status: "succeeded" | "failed" }[];
 }) {
-  const historyPath = `/dashboard/businesses/${businessId}/products/${productId}/history`;
+  const historyPath = `/dashboard/businesses/${businessId}/discovery/offerings/${productId}/history`;
   return (
     <div className="flex flex-col gap-6">
       <div className="rounded-2xl border border-border p-4 sm:p-6">

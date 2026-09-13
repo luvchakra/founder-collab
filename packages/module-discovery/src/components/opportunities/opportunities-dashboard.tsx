@@ -95,7 +95,7 @@ export function OpportunitiesDashboard({
     return <EmptyState message="No active opportunities yet. They'll appear here once Discovery surfaces one." />;
   }
 
-  const basePath = `/dashboard/businesses/${businessId}/products/${productId}/opportunities`;
+  const basePath = `/dashboard/businesses/${businessId}/discovery/offerings/${productId}/opportunities`;
 
   return (
     <div className="flex flex-col gap-6">

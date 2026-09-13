@@ -117,12 +117,12 @@ export function OpportunityDetail({
    * empty clears back to the computed recommendation. */
   updateRecommendedActionAction: (formData: FormData) => Promise<void>;
 }) {
-  const prospectPath = `/dashboard/businesses/${businessId}/products/${productId}/prospects/${prospect.id}`;
+  const prospectPath = `/dashboard/businesses/${businessId}/discovery/offerings/${productId}/prospects/${prospect.id}`;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <Link href={`/dashboard/businesses/${businessId}/products/${productId}/opportunities`} className="text-sm text-muted-foreground hover:underline">
+        <Link href={`/dashboard/businesses/${businessId}/discovery/offerings/${productId}/opportunities`} className="text-sm text-muted-foreground hover:underline">
           ← Back to opportunities
         </Link>
         <div className="flex flex-wrap items-center gap-2">

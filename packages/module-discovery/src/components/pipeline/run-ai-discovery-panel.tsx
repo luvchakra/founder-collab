@@ -94,8 +94,8 @@ export function RunAiDiscoveryPanel({
   const searchParams = useSearchParams();
   const autoRunStarted = useRef(false);
 
-  const endpoint = `/${businessSlug}/products/${productId}/run-ai-discovery`;
-  const basePath = `/${businessSlug}/products/${productId}`;
+  const endpoint = `/${businessSlug}/discovery/offerings/${productId}/run-ai-discovery`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}`;
 
   // DISC-OFFER-P0-11.2: "Run Discovery From Here" -- a "Save & Run Downstream" edit
   // elsewhere (e.g. the ICP page) invalidates the affected stages server-side, then sends

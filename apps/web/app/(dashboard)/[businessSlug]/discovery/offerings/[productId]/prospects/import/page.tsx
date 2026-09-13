@@ -29,7 +29,7 @@ export default async function ImportProspectsPage({
   const workspace = await getWorkspaceForProduct(product.id);
   if (!workspace) notFound();
 
-  const basePath = `/${businessSlug}/products/${productId}/prospects`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   return (
     <div className="flex flex-col gap-4">

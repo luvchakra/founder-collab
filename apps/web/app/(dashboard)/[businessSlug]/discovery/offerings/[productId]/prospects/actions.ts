@@ -18,7 +18,7 @@ import { approveOutreachStrategy } from "@cofounderai/module-discovery/lib/outre
 import { generateOutreachMessage } from "@cofounderai/module-discovery/lib/ai/generate-message";
 
 async function prospectsPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/prospects`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/prospects`;
 }
 
 export async function createProspectAction(

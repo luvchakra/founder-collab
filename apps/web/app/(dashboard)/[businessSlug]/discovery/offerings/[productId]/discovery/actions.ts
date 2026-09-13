@@ -15,7 +15,7 @@ import type { MonitoringFrequency } from "@cofounderai/module-discovery/lib/disc
 type ActionResult = { error: string } | { success: true };
 
 async function discoveryPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/discovery`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/discovery`;
 }
 
 function definitionFieldsFromFormData(formData: FormData) {

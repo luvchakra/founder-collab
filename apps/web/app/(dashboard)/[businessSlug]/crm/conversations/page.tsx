@@ -30,7 +30,7 @@ import { Input } from "@cofounderai/core/ui/input";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { Inbox, MessageCircle, Package, Trash2 } from "lucide-react";
+import { Inbox, MessageCircle, Trash2 } from "lucide-react";
 import {
   addConversationProductAction,
   assignConversationAction,

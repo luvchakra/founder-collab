@@ -53,6 +53,14 @@ export function isProtectedPath(pathname: string): boolean {
  * (module, sub-page, etc.) unchanged. */
 const LEGACY_BUSINESS_PATH = /^\/dashboard\/businesses\/([^/]+)((?:\/.*)?)$/;
 
+/** DISC-OFFER: the discovery module's offering routes moved from /[businessSlug]/
+ * products/... to /[businessSlug]/discovery/offerings/..., alongside its module
+ * dashboard moving from the bare /[businessSlug] to /[businessSlug]/discovery/dashboard
+ * (matching every other module's own "<module>/dashboard" shape). Both are pure path
+ * rewrites -- no id/slug lookup needed, unlike `LEGACY_BUSINESS_PATH` above -- so they're
+ * handled with plain string replacement in `updateSession()` rather than a DB round trip. */
+const LEGACY_PRODUCTS_PATH = /^\/([^/]+)\/products(\/.*)?$/;
+
 /** Business slug embedded in the URL -- the first path segment, once `isProtectedPath`
  * has already ruled out every static top-level route it could otherwise be. Kept as its
  * own function (rather than inlined into the business-scoped regex below) for the same
@@ -221,6 +229,18 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url, 308);
     }
     return supabaseResponse;
+  }
+
+  // Same idea for the discovery module's own offering routes, which moved from
+  // /[businessSlug]/products/... to /[businessSlug]/discovery/offerings/... -- a pure
+  // path rewrite (the business slug segment itself doesn't change), so no DB lookup is
+  // needed here the way the legacy business-id redirect above requires one.
+  const productsMatch = pathname.match(LEGACY_PRODUCTS_PATH);
+  if (productsMatch) {
+    const [, businessSlugSegment, rest] = productsMatch;
+    const url = request.nextUrl.clone();
+    url.pathname = `/${businessSlugSegment}/discovery/offerings${rest ?? ""}`;
+    return NextResponse.redirect(url, 308);
   }
 
   // Business/entitlement resolution: only meaningful once there's a signed-in user on a

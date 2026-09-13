@@ -35,7 +35,7 @@ export function deriveAccountAlerts(input: {
   }
 
   for (const { workspace, product, business } of entries) {
-    const basePath = `/dashboard/businesses/${business.id}/products/${product.id}`;
+    const basePath = `/dashboard/businesses/${business.id}/discovery/offerings/${product.id}`;
 
     const usage = usageByWorkspace[workspace.id];
     if (usage) {

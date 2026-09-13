@@ -33,7 +33,7 @@ export default async function ConversionsPage({
   const prospects = await listProspects(workspace.id);
   const funnel = computeConversionFunnel(prospects);
   const customers = prospects.filter((p) => p.outcome === "won");
-  const basePath = `/${businessSlug}/products/${productId}/prospects`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   // Per-customer handoff state (contract call, ADR-10) -- small lists in practice (a
   // business's own won deals), so N calls here reads fine against one extra query each,

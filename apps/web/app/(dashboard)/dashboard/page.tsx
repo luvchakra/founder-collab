@@ -483,7 +483,7 @@ export default async function DashboardPage({
                 </CardHeader>
                 <CardContent className="flex flex-col divide-y">
                   {productRows.map(({ entry, total, won }) => {
-                    const basePath = `/${entry.business.slug}/products/${entry.product.id}`;
+                    const basePath = `/${entry.business.slug}/discovery/offerings/${entry.product.id}`;
                     return (
                       <div key={entry.product.id} className="flex items-center justify-between gap-3 py-2.5 text-sm first:pt-0 last:pb-0">
                         <div className="min-w-0">

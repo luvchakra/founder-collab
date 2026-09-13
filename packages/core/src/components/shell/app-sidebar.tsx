@@ -16,7 +16,7 @@ const PINNED_MODULE_STORAGE_KEY = "cofounderai:pinned-module";
 /**
  * Infers the active module from the URL for the routes that unambiguously indicate one
  * (/[businessSlug]/inventory/... and /[businessSlug]/gst/...) -- everything else (bare
- * business page, discovery's own /products/... routes, non-module pages like settings)
+ * business page, discovery's own /discovery/... routes, non-module pages like settings)
  * returns null so the caller falls back to the last explicitly selected module. Written
  * locally rather than reusing module-discovery's `getActiveIdsFromPath` since
  * `packages/core` cannot depend on any module (lint:boundaries).
@@ -35,7 +35,7 @@ function inferModuleFromPath(pathname: string | null): string | null {
   const section = match[1];
   if (section === "inventory") return "inventory";
   if (section === "gst") return "gst";
-  if (!section || section === "products" || section === "business") return "discovery";
+  if (!section || section === "discovery" || section === "business") return "discovery";
   return null;
 }
 
@@ -141,13 +141,13 @@ function ModuleContent({
     if (businesses.length === 0) return <CreateBusinessPrompt onCreateBusiness={onCreateBusiness} />;
 
     const products = effectiveBusinessId ? (productsByBusiness?.[effectiveBusinessId] ?? []) : [];
-    // Discovery has no route prefix of its own (unlike inventory/fsm/gst/crm) -- its
-    // "home" is the bare business page, which is a real metrics + actionable-items
-    // dashboard (key GTM numbers for this one business, what to do next), while the
-    // business's own editable profile (name/website/description) and product list live
-    // one level down at "Business" -- a separate menu item so "Dashboard" reads like
-    // every other module's Dashboard link instead of doubling as an editor form.
-    const dashboardHref = effectiveBusinessId ? businessHref(effectiveBusinessId) : "/dashboard";
+    // Discovery's own module dashboard lives at /discovery/dashboard, same "<module>/
+    // dashboard" shape every other module uses -- a real metrics + actionable-items
+    // dashboard (key GTM numbers for this one business, what to do next). The business's
+    // own editable profile (name/website/description) and offering list live one level
+    // up at "Business" -- a separate menu item so "Dashboard" reads like every other
+    // module's Dashboard link instead of doubling as an editor form.
+    const dashboardHref = effectiveBusinessId ? `${businessHref(effectiveBusinessId)}/discovery/dashboard` : "/dashboard";
     const businessDetailHref = effectiveBusinessId ? `${businessHref(effectiveBusinessId)}/business` : "/dashboard";
     const isDashboardActive = pathname === dashboardHref;
     const isBusinessDetailActive = pathname === businessDetailHref;
@@ -178,13 +178,13 @@ function ModuleContent({
         </div>
         <div className="flex flex-col gap-0.5">
           <span className="px-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Products
+            Business Offerings
           </span>
           {products.length === 0 ? (
-            <p className="px-2 py-1.5 text-sm text-muted-foreground">No products yet.</p>
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">No business offerings yet.</p>
           ) : (
             products.map((product) => {
-              const href = `${businessHref(effectiveBusinessId!)}/products/${product.id}`;
+              const href = `${businessHref(effectiveBusinessId!)}/discovery/offerings/${product.id}`;
               const isActive = pathname === href || pathname?.startsWith(`${href}/`);
               return (
                 <a

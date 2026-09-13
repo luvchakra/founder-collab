@@ -381,7 +381,7 @@ export default async function ProspectDetailPage({
     messages
       .filter((m) => m.conversation_id === conversationId)
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const basePath = `/${businessSlug}/products/${productId}/prospects`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   // F-13's own backlink -- only meaningful once a prospect has actually won (nothing to
   // show otherwise), and `getHandoffStatusForProspect` itself returns

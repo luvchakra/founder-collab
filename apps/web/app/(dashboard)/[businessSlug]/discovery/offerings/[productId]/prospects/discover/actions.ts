@@ -11,10 +11,10 @@ import {
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 
 async function discoverPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/prospects/discover`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/prospects/discover`;
 }
 async function prospectsPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/prospects`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/prospects`;
 }
 
 export async function runDiscoveryAction(

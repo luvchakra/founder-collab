@@ -17,7 +17,7 @@ import { createBuyerPersona, updateBuyerPersona, deleteBuyerPersona } from "@cof
 import type { PersonaPriority, PersonaRole } from "@cofounderai/module-discovery/lib/personas/types";
 
 async function icpPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/icp`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/icp`;
 }
 
 export async function generateIcpAction(
@@ -86,7 +86,7 @@ export async function updateIcpAndRunDownstreamAction(
   await updateIcpProfile(icpId, icpFieldsFromFormData(formData));
   await invalidateDownstreamStages(workspace.id, "icp");
   revalidatePath(await icpPath(businessId, productId));
-  redirect(`${await businessPath(businessId)}/products/${productId}?autorun=1`);
+  redirect(`${await businessPath(businessId)}/discovery/offerings/${productId}?autorun=1`);
 }
 
 /** DISC-OFFER-P0-02.2's "ICP can be cloned" -- clones another offering's ICP onto this

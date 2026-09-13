@@ -79,7 +79,7 @@ export async function importProspectsAction(
 
   const inserted = toInsert.length > 0 ? await createProspectsBulk(workspaceId, toInsert) : 0;
 
-  const prospectsPath = `${await businessPath(businessId)}/products/${productId}/prospects`;
+  const prospectsPath = `${await businessPath(businessId)}/discovery/offerings/${productId}/prospects`;
   revalidatePath(prospectsPath);
   redirect(
     `${prospectsPath}?imported=${inserted}&skipped=${parseErrors.length}&duplicates=${duplicates}${aiRestructured ? "&aiRestructured=1" : ""}`,

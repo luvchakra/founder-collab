@@ -188,7 +188,7 @@ async function buildAccountSummary(accountId: string): Promise<AccountSummary> {
  * the founder asked for, say, a prospects page for a product that wasn't the one
  * currently in view: that product's sub-pages simply weren't in the context at all. */
 function productPortalPath(businessSlug: string, productId: string): string {
-  return `/${businessSlug}/products/${productId}`;
+  return `/${businessSlug}/discovery/offerings/${productId}`;
 }
 
 /**

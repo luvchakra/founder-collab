@@ -20,7 +20,7 @@ import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-ac
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 
 async function productPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}`;
 }
 
 export async function renameProductAction(
@@ -164,8 +164,8 @@ export async function updateTopOpportunityStatusAction(
 ): Promise<void> {
   await setOpportunityStatus(opportunityId, status);
   revalidatePath(await productPath(businessId, productId));
-  revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities`);
-  revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities/${opportunityId}`);
+  revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`);
+  revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities/${opportunityId}`);
 }
 
 /**
@@ -188,8 +188,8 @@ export async function sendTopOpportunityToCrmAction(
     if (result.ok) {
       await setOpportunityStatus(opportunityId, "sent_to_crm");
       revalidatePath(await productPath(businessId, productId));
-      revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities`);
-      revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities/${opportunityId}`);
+      revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`);
+      revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities/${opportunityId}`);
     }
     return result;
   } catch (error) {

@@ -47,7 +47,7 @@ export default async function IcpPage({
   const workspace = await getWorkspaceForProduct(product.id);
   if (!workspace) notFound();
 
-  const prospectsPath = `/${businessSlug}/products/${productId}/prospects`;
+  const prospectsPath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
   const autoPopulateBanner = (
     <AutoPopulateStepBanner
       step="icp"

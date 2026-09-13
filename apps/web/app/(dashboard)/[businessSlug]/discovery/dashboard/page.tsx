@@ -113,7 +113,7 @@ export default async function BusinessDashboardPage({
   // to; the Business page (where every product is listed) is the honest fallback there.
   const singleProduct = products.length === 1 ? products[0] : null;
   const prospectsHref = singleProduct
-    ? `/${businessSlug}/products/${singleProduct.id}/prospects${prospects.length > 0 ? "" : "/discover"}`
+    ? `/${businessSlug}/discovery/offerings/${singleProduct.id}/prospects${prospects.length > 0 ? "" : "/discover"}`
     : businessDetailHref;
 
   type ProductRow = { product: Product; hasProfile: boolean; hasIcp: boolean; prospectCount: number; wonCount: number };
@@ -146,18 +146,18 @@ export default async function BusinessDashboardPage({
   if (products.length === 0) {
     actionItems.push({
       key: "no-products",
-      message: "No products yet -- create one to start a GTM workspace.",
+      message: "No business offerings yet -- create one to start a GTM workspace.",
       href: businessDetailHref,
-      actionLabel: "Create product",
+      actionLabel: "Create offering",
       severity: "warning",
     });
   }
   for (const row of productRows) {
-    const base = `/${businessSlug}/products/${row.product.id}`;
+    const base = `/${businessSlug}/discovery/offerings/${row.product.id}`;
     if (!row.hasProfile) {
       actionItems.push({
         key: `profile-${row.product.id}`,
-        message: `${row.product.name} has no product profile yet.`,
+        message: `${row.product.name} has no offering profile yet.`,
         href: base,
         actionLabel: "Generate profile",
         severity: "info",
@@ -221,7 +221,7 @@ export default async function BusinessDashboardPage({
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KpiCard
-          label="Products"
+          label="Offerings"
           value={products.length}
           detail={products.length > 0 ? `${readyProductCount} of ${products.length} ready to prospect` : undefined}
           href={businessDetailHref}
@@ -291,7 +291,7 @@ export default async function BusinessDashboardPage({
             <CardDescription>Hot and new opportunities, and open conversations, per offering.</CardDescription>
           </CardHeader>
           <CardContent>
-            <OfferingPortfolioTable basePath={`/${businessSlug}/products`} rows={portfolio.offeringRows} />
+            <OfferingPortfolioTable basePath={`/${businessSlug}/discovery/offerings`} rows={portfolio.offeringRows} />
           </CardContent>
         </Card>
       ) : null}
@@ -306,7 +306,7 @@ export default async function BusinessDashboardPage({
             <CardDescription>Companies your discovery pipeline has found under more than one offering.</CardDescription>
           </CardHeader>
           <CardContent>
-            <CrossOfferingAccounts basePath={`/${businessSlug}/products`} accounts={portfolio.crossOfferingAccounts} />
+            <CrossOfferingAccounts basePath={`/${businessSlug}/discovery/offerings`} accounts={portfolio.crossOfferingAccounts} />
           </CardContent>
         </Card>
       ) : null}

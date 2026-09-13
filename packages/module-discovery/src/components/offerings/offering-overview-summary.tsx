@@ -84,7 +84,7 @@ export function OfferingOverviewSummary({
    * a forced ICP regeneration, identical to the ICP page's own "Regenerate" button. */
   researchFurtherAction: (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
 }) {
-  const basePath = `/dashboard/businesses/${businessId}/products/${offering.id}`;
+  const basePath = `/dashboard/businesses/${businessId}/discovery/offerings/${offering.id}`;
   const icpFieldsCount = icp ? icpFieldsDefined(icp) : 0;
   // DISC-OFFER-P1-03.1: "Offering Definition Quality" -- shown right here rather than a
   // new section elsewhere, since this component already only renders once

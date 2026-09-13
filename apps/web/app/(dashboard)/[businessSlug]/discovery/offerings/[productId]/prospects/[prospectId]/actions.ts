@@ -62,11 +62,11 @@ const DISCOVERY_TO_CRM_CHANNEL: Record<MessageChannel, RecordInteractionInput["c
 };
 
 async function prospectPath(businessId: string, productId: string, prospectId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/prospects/${prospectId}`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/prospects/${prospectId}`;
 }
 
 async function conversionsPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/conversions`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/conversions`;
 }
 
 export async function updateProspectAction(

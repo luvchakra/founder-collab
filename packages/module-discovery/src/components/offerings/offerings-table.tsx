@@ -73,7 +73,7 @@ export function OfferingsTable({
             {rows.map(({ offering, prospectCount }) => (
               <li key={offering.id} className="flex flex-col gap-2 p-3 text-sm">
                 <div className="flex items-start justify-between gap-2">
-                  <Link href={`/dashboard/businesses/${businessId}/products/${offering.id}`} className="min-w-0 truncate font-medium hover:underline">
+                  <Link href={`/dashboard/businesses/${businessId}/discovery/offerings/${offering.id}`} className="min-w-0 truncate font-medium hover:underline">
                     {offering.name}
                   </Link>
                   <div className="flex shrink-0 items-center gap-0.5">
@@ -115,7 +115,7 @@ export function OfferingsTable({
               {rows.map(({ offering, prospectCount }) => (
                 <TableRow key={offering.id}>
                   <TableCell className="max-w-48">
-                    <Link href={`/dashboard/businesses/${businessId}/products/${offering.id}`} className="block truncate font-medium hover:underline">
+                    <Link href={`/dashboard/businesses/${businessId}/discovery/offerings/${offering.id}`} className="block truncate font-medium hover:underline">
                       {offering.name}
                     </Link>
                     <span className="text-xs text-muted-foreground">

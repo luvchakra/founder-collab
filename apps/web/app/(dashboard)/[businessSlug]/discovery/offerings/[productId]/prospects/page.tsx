@@ -87,7 +87,7 @@ export default async function ProspectsPage({
     listProspectIndustries(workspace.id),
   ]);
 
-  const basePath = `/${businessSlug}/products/${productId}/prospects`;
+  const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
   const hasActiveFilters = Boolean(status || industry || search || stage || sort);
   const hasAdvancedFilters = Boolean(status || stage || industry || sort);
 

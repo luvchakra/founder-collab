@@ -60,7 +60,7 @@ export function TopOpportunityGate({
   dismissAction: () => Promise<void>;
   sendToCrmAction: () => Promise<PromoteResult>;
 }) {
-  const opportunityPath = `/dashboard/businesses/${businessId}/products/${productId}/opportunities/${opportunity.id}`;
+  const opportunityPath = `/dashboard/businesses/${businessId}/discovery/offerings/${productId}/opportunities/${opportunity.id}`;
   const action = effectiveRecommendedAction(opportunity);
 
   return (

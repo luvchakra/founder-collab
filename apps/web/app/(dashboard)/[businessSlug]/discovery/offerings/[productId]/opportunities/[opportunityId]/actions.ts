@@ -7,7 +7,7 @@ import type { NextBestAction, OpportunityStatus } from "@cofounderai/module-disc
 import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
 
 async function opportunityPath(businessId: string, productId: string, opportunityId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/opportunities/${opportunityId}`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities/${opportunityId}`;
 }
 
 /**
@@ -26,7 +26,7 @@ export async function updateOpportunityStatusAction(
   const status = String(formData.get("status") ?? "") as OpportunityStatus;
   await setOpportunityStatus(opportunityId, status);
   revalidatePath(await opportunityPath(businessId, productId, opportunityId));
-  revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities`);
+  revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`);
 }
 
 /**
@@ -44,8 +44,8 @@ export async function updateRecommendedActionAction(
   const raw = String(formData.get("override") ?? "");
   await setRecommendedActionOverride(opportunityId, raw ? (raw as NextBestAction) : null);
   revalidatePath(await opportunityPath(businessId, productId, opportunityId));
-  revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities`);
-  revalidatePath(`${await businessPath(businessId)}/products/${productId}`);
+  revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`);
+  revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}`);
 }
 
 /**
@@ -74,7 +74,7 @@ export async function sendOpportunityToCrmAction(
     if (result.ok) {
       await setOpportunityStatus(opportunityId, "sent_to_crm");
       revalidatePath(await opportunityPath(businessId, productId, opportunityId));
-      revalidatePath(`${await businessPath(businessId)}/products/${productId}/opportunities`);
+      revalidatePath(`${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`);
     }
     return result;
   } catch (error) {

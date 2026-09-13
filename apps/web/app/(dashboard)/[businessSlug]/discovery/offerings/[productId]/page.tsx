@@ -37,7 +37,7 @@ import {
 } from "./actions";
 
 function icpPath(businessSlug: string, productId: string) {
-  return `/${businessSlug}/products/${productId}/icp`;
+  return `/${businessSlug}/discovery/offerings/${productId}/icp`;
 }
 
 export default async function ProductPage({

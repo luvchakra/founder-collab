@@ -6,7 +6,7 @@ import { createOpportunityFromWonProspect } from "@cofounderai/module-fsm/contra
 import { getProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 
 async function conversionsPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/conversions`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/conversions`;
 }
 
 /**

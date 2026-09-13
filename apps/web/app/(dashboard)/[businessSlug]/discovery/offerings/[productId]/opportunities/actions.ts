@@ -11,7 +11,7 @@ import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenanc
 type ActionResult = { error: string } | { success: true };
 
 async function opportunitiesPath(businessId: string, productId: string) {
-  return `${await businessPath(businessId)}/products/${productId}/opportunities`;
+  return `${await businessPath(businessId)}/discovery/offerings/${productId}/opportunities`;
 }
 
 /**
