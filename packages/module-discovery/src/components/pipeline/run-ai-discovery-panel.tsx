@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Circle, HelpCircle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
-import { Button } from "@cofounderai/core/ui/button";
+import { Button, buttonVariants } from "@cofounderai/core/ui/button";
 import { computeDisplayGroups, isStageStatusDone, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
 import { STAGE_REVIEW_LABEL } from "../../lib/pipeline/review";
 import {
@@ -78,6 +78,18 @@ export function RunAiDiscoveryPanel({
   const [runningKey, setRunningKey] = useState<PipelineStageKey | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
   const [expanded, setExpanded] = useState<Set<DisplayGroupKey>>(new Set());
+  // DISC-OFFER-P1-05.1: "Offering Pipeline Workspace" -- the doc's own mockup shows real
+  // per-stage counts under the current stage ("18 relevant signals found", "6
+  // high-confidence correlations"). Every stage handler already produces exactly this
+  // kind of one-line summary (`StageOutcome.detail`, e.g. "Signals collected for 4 of 5
+  // account(s)."), but it was previously discarded after each request -- never persisted
+  // anywhere (`pipeline_stages` has no summary column, by design: `detail` is a
+  // human-readable narration of one attempt, not state to snapshot). Kept here in plain
+  // client state, keyed by technical stage, so the Current Stage card below can show the
+  // real detail from whichever request most recently touched it -- only ever populated
+  // for stages this browser session actually ran, which is the honest scope of what's
+  // knowable without inventing a new persisted column for a value nothing else needs.
+  const [stageDetails, setStageDetails] = useState<Partial<Record<PipelineStageKey, string>>>({});
   const router = useRouter();
   const searchParams = useSearchParams();
   const autoRunStarted = useRef(false);
@@ -116,6 +128,7 @@ export function RunAiDiscoveryPanel({
       });
       const result = (await response.json()) as StageResponse;
       setStages((prev) => prev.map((s) => (s.stage_key === key ? result.stage : s)));
+      if (result.ok) setStageDetails((prev) => ({ ...prev, [key]: result.detail }));
       return result.ok;
     } catch {
       return false;
@@ -170,6 +183,14 @@ export function RunAiDiscoveryPanel({
   const groups = computeDisplayGroups(stages);
   const allDone = groups.every((g) => g.status === "completed");
   const hasStarted = stages.some((s) => s.status !== "not_started");
+  // DISC-OFFER-P1-05.1: the doc's own "Current Stage" box -- only ever the group
+  // `computeDisplayGroups` calls "current" (at most one at a time, mirroring the doc's
+  // own single "●" line), and only once something has actually started: before the
+  // first click, "current" would just be "Website Understanding" with nothing yet run,
+  // which would duplicate the checklist's own first line rather than add information.
+  const currentGroup = hasStarted ? groups.find((g) => g.status === "current") : undefined;
+  const currentGroupDetail = currentGroup?.activeStageKey ? stageDetails[currentGroup.activeStageKey] : undefined;
+  const currentGroupDestination = currentGroup ? GROUP_DESTINATION[currentGroup.key] : undefined;
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
@@ -280,6 +301,33 @@ export function RunAiDiscoveryPanel({
           );
         })}
       </ol>
+
+      {currentGroup ? (
+        <div className="flex flex-col gap-2 rounded-md border border-border bg-muted/40 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Current stage</p>
+            <span className="text-sm font-semibold">{currentGroup.label}</span>
+          </div>
+          {currentGroupDetail ? <p className="text-sm text-muted-foreground">{currentGroupDetail}</p> : null}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => toggleExpanded(currentGroup.key)}>
+              Review Stage
+            </Button>
+            {currentGroupDestination ? (
+              <Link href={`${basePath}/${currentGroupDestination.tab}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                Edit
+              </Link>
+            ) : null}
+            {/* DISC-OFFER-P1-05.1's own "[Run From Here]" is deliberately not repeated here:
+             * "current" is defined as the first not-yet-done group (`computeDisplayGroups`),
+             * the exact same starting point `runFrom(undefined, ...)` already resumes from
+             * via the "Run AI Discovery"/"Resume AI Discovery" button above -- a second
+             * button here would trigger the identical action, reading as two controls for
+             * one thing rather than one clear entry point (the same call DISC-OFFER-P1-01.1
+             * already made for its own schedule widget's own would-be second "Run Now"). */}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
