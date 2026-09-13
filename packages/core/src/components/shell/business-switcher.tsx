@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronDown, Pin, Plus } from "lucide-react";
+import { Building2, Check, ChevronDown, Pin, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,10 +67,19 @@ export function BusinessSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+            activeBusiness
+              ? "text-foreground hover:bg-accent"
+              : "border border-primary/25 bg-primary/5 text-primary hover:bg-primary/10",
+          )}
         >
-          <span className="truncate">{activeBusiness?.name ?? "Select Business"}</span>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          {activeBusiness ? null : <Building2 className="size-4 shrink-0" aria-hidden="true" />}
+          <span className="truncate">{activeBusiness?.name ?? "Select a business"}</span>
+          <ChevronDown
+            className={cn("size-4 shrink-0", activeBusiness ? "text-muted-foreground" : "text-primary")}
+            aria-hidden="true"
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">

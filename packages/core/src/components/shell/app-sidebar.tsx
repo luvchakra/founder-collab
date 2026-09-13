@@ -403,6 +403,16 @@ export function AppSidebar({
           <X className="size-4" aria-hidden="true" />
         </button>
 
+        <a
+          href="/dashboard"
+          onClick={() => setOpen(false)}
+          aria-current={pathname === "/dashboard" ? "page" : undefined}
+          className="mx-2 mt-2 flex items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-2.5 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <ModuleIcon name="LayoutGrid" className="size-4 shrink-0" />
+          All My Businesses
+        </a>
+
         <div className="min-h-0 flex-1 overflow-y-auto bg-sidebar-accent/10">
           <ModuleContent
             moduleKey={selectedModule}
