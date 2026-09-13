@@ -7,6 +7,7 @@ import { listProductKnowledge } from "@cofounderai/module-discovery/lib/knowledg
 import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { listBuyerPersonas } from "@cofounderai/module-discovery/lib/personas/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
+import { getOpportunityOutcomeFunnel } from "@cofounderai/module-discovery/lib/opportunities/queries";
 import { ProductOverviewShell } from "@cofounderai/module-discovery/components/tenancy/product-overview-shell";
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
 import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
@@ -56,9 +57,17 @@ export default async function ProductPage({
   // help. Once a profile exists, this becomes the "primary offering workspace" surface
   // the setup shell (still useful for revisiting sources/regenerating the profile) sits
   // below.
-  const [icp, personas, prospectCounts] = product.product_profile
-    ? await Promise.all([getIcpProfile(workspace.id), listBuyerPersonas(workspace.id), getProspectCounts(workspace.id)])
-    : [null, [], null];
+  const [icp, personas, prospectCounts, outcomeFunnel] = product.product_profile
+    ? await Promise.all([
+        getIcpProfile(workspace.id),
+        listBuyerPersonas(workspace.id),
+        getProspectCounts(workspace.id),
+        // DISC-OFFER-P1-04.2: "Learn From Outcomes" -- same profile-gated condition as
+        // the rest of this summary; a fresh offering with no opportunities yet has
+        // nothing to measure (the card itself additionally hides on a zero count).
+        getOpportunityOutcomeFunnel(workspace.id),
+      ])
+    : [null, [], null, null];
   const pipelineStages = await listPipelineStages(workspace.id);
   const lastRun = await getLastCompletedPipelineRun(workspace.id);
 
@@ -124,6 +133,7 @@ export default async function ProductPage({
           icp={icp}
           personas={personas}
           prospectCounts={prospectCounts}
+          outcomeFunnel={outcomeFunnel}
           researchFurtherAction={regenerateIcpFromOverviewAction.bind(null, businessId, productId)}
         />
       ) : null}
