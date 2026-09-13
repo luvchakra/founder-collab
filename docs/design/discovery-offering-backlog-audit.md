@@ -144,6 +144,79 @@ would be speculative work this run's own standing instructions (CLAUDE.md dev pr
 7, "never implement speculative functionality") argue against. Flagging this completion
 back to the user rather than guessing at new scope to invent.
 
+**User decision (2026-09-13): commission §7/10's 17 P1 stories.** Continuing sequentially
+through §7's own five epics in order (P1-01 through P1-05). Every commit/migration/doc
+comment for these cites the story as "DISC-OFFER-P1 §7-XX.Y" (with the explicit "§7"
+tag) specifically to keep it unambiguous against the already-shipped, identically-
+numbered §20-24 stories of the same name -- see this same log's own resolution above for
+why both exist and neither is a duplicate of the other.
+
+### DISC-OFFER-P1 §7-01.1 -- Saved Offering Discovery (2026-09-13)
+
+Re-read the story text against what already exists (backlog rule 1): "Save: offering,
+ICP, plays, signals, minimum score, geography, industries, buyer roles, exclusions.
+Enable/disable monitoring." Offering/ICP/plays/signals are already inherently saved --
+a workspace already *is* one offering with one ICP and its own plays/signals, nothing to
+separately "save." "Enable/disable monitoring" is already built, as the identically-
+numbered §20 story's own `rediscovery_interval` toggle. The genuinely new part is the
+criteria bundle: a minimum score floor plus free-text keyword filters for geography/
+industries/buyer roles/exclusions.
+
+**Design decision -- free-text keyword arrays, not a fixed catalog**: `discovery.
+prospects.industry`/`location` are themselves free text (no fixed catalog exists for
+either anywhere in this schema), and there is no structured "buyer role" field at all
+(`discovery.buyer_personas.role` is itself free text, per-workspace). Matching free text
+against free text is honest about what this platform can actually verify -- a fixed enum
+here would imply a precision the underlying prospect/persona data doesn't have. An empty
+filter array means "no restriction," never "matches nothing" -- checked explicitly in
+`matchesDiscoveryCriteria`'s own logic, not left to an accidental empty-array-never-
+matches bug.
+
+**Never guesses in the risky direction (this backlog's own repeated convention)**: a
+`minScore` criterion against a candidate with an unknown (`null`) score never guesses a
+pass -- the caller cannot confirm an unscored candidate clears the floor, so it doesn't
+match, with an explicit reason. Exclusions are checked first and win outright over every
+other criterion, including an otherwise-perfect score/geography/industry/role match.
+
+**What was built**: `20260913700000_discovery_workspaces_saved_discovery_criteria.sql`
+(five new nullable/defaulted columns on `discovery.workspaces`, the same table §20's own
+schedule fields live on -- checked the entity-ownership map first, no "criteria"/
+"monitoring filter" concept listed). `lib/tenancy/discovery-criteria.ts` (+ 11 test
+cases) -- `DiscoveryCriteria`/`DiscoveryCriteriaCandidate` types, `criteriaFromWorkspace`,
+the pure `matchesDiscoveryCriteria` combiner described above. `lib/tenancy/types.ts`
+(`Workspace` gains the five new fields) and `lib/tenancy/mutations.ts`
+(`setDiscoveryCriteria`, a plain whole-bundle replace mirroring `setRediscoveryInterval`'s
+own shape). `components/pipeline/saved-discovery-criteria.tsx` (a bordered form section,
+placed directly below `RediscoverySchedule` on the offering Overview page -- both are
+workspace-level "what should discovery pay attention to" settings and belong next to
+each other) -- every filter is a plain comma-separated text input, not a dedicated tag
+widget (simplest implementation that works, matching `crm`'s own WhatsApp
+template-variables field precedent). Wired into `products/[productId]/page.tsx` and a
+new `updateDiscoveryCriteriaAction` in that route's own `actions.ts`.
+
+**What was deliberately left out**: nothing yet actually CALLS `matchesDiscoveryCriteria`
+against a real opportunity/prospect -- this story is the criteria bundle itself (save/
+edit/persist), not the engine that applies it. The natural first consumer is
+DISC-OFFER-P1 §7-01.2 "Continuous Monitoring," the very next story in this same epic --
+see that story's own entry for whether it's honestly buildable given this platform's
+real external-data constraints.
+
+**How verified**:
+- `npx tsc --noEmit` in `module-discovery` and `apps/web` -- both clean.
+- `npx vitest run` in `module-discovery` -- 34 files / 248 tests passed (248 = 237
+  pre-existing + 11 new in `discovery-criteria.test.ts`).
+- `node scripts/lint-import-boundaries.mjs` -- 1560 files scanned, no violations.
+- `node scripts/lint-migration-schema.mjs` -- 209 migration files, no violations.
+- Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+  `mcp__Supabase__apply_migration`. `get_advisors` (performance and security): no new
+  findings introduced by this migration (a plain check-constrained column set, no new
+  FK, no new table) -- both re-checks show only pre-existing findings from other,
+  unrelated concurrent workstreams sharing this dev project.
+- No new table -- `discovery.workspaces`' own existing RLS (workspace-scoped,
+  `test-discovery-rls.mjs`) already covers these new columns; no new script needed.
+- `cd apps/web && npx tsc --noEmit` -- clean (build itself not re-run this story; no
+  route/page structural change beyond adding one component and one action).
+
 ## Pre-implementation reconnaissance (done once, up front)
 
 Before writing any code, inspected the existing `module-discovery` implementation, per

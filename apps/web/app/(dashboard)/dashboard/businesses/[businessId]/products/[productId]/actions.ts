@@ -8,7 +8,7 @@ import {
   deleteKnowledgeSource,
   updateKnowledgeSource,
 } from "@cofounderai/module-discovery/lib/knowledge/mutations";
-import { updateProduct, setRediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/mutations";
+import { updateProduct, setRediscoveryInterval, setDiscoveryCriteria } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import type { RediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/rediscovery";
 import { understandProduct } from "@cofounderai/module-discovery/lib/ai/understand-product";
 import { generateIcp } from "@cofounderai/module-discovery/lib/ai/generate-icp";
@@ -214,6 +214,35 @@ export async function updateRediscoveryIntervalAction(
   const raw = String(formData.get("interval") ?? "off");
   const interval: RediscoveryInterval = raw === "daily" || raw === "weekly" ? raw : "off";
   await setRediscoveryInterval(workspaceId, interval);
+  revalidatePath(productPath(businessId, productId));
+}
+
+/** Parses a comma-separated keyword field into a trimmed, non-empty string array --
+ * the same simple "comma-separated free text" input shape `crm`'s own WhatsApp
+ * template-variables field already established for this platform, rather than
+ * building a dedicated tag-input component for a first version of this form. */
+function parseKeywordList(raw: FormDataEntryValue | null): string[] {
+  return String(raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * DISC-OFFER-P1 §7-01.1 "Saved Offering Discovery" -- persists the criteria bundle. An
+ * empty/blank minimum-score field means "no floor," not zero -- parsed to `null` rather
+ * than `Number("")` (`NaN`) or a silent `0`.
+ */
+export async function updateDiscoveryCriteriaAction(businessId: string, productId: string, workspaceId: string, formData: FormData): Promise<void> {
+  const minScoreRaw = String(formData.get("minScore") ?? "").trim();
+  const minScore = minScoreRaw === "" ? null : Math.max(0, Math.min(100, Number(minScoreRaw)));
+  await setDiscoveryCriteria(workspaceId, {
+    minScore: minScore !== null && Number.isFinite(minScore) ? minScore : null,
+    geographyFilter: parseKeywordList(formData.get("geographyFilter")),
+    industriesFilter: parseKeywordList(formData.get("industriesFilter")),
+    buyerRolesFilter: parseKeywordList(formData.get("buyerRolesFilter")),
+    exclusions: parseKeywordList(formData.get("exclusions")),
+  });
   revalidatePath(productPath(businessId, productId));
 }
 

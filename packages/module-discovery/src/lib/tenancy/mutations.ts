@@ -307,3 +307,35 @@ export async function setRediscoveryInterval(workspaceId: string, interval: Redi
   if (error) throw error;
   return data;
 }
+
+export type DiscoveryCriteriaInput = {
+  minScore: number | null;
+  geographyFilter: string[];
+  industriesFilter: string[];
+  buyerRolesFilter: string[];
+  exclusions: string[];
+};
+
+/**
+ * DISC-OFFER-P1 §7-01.1 "Saved Offering Discovery" -- persists the criteria bundle a
+ * founder saves for one offering. A plain, whole-bundle replace (not a per-field patch)
+ * since the form this backs always submits every field together -- the same shape
+ * `setRediscoveryInterval` above already uses for its own single-purpose update.
+ */
+export async function setDiscoveryCriteria(workspaceId: string, input: DiscoveryCriteriaInput): Promise<Workspace> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workspaces")
+    .update({
+      discovery_min_score: input.minScore,
+      discovery_geography_filter: input.geographyFilter,
+      discovery_industries_filter: input.industriesFilter,
+      discovery_buyer_roles_filter: input.buyerRolesFilter,
+      discovery_exclusions: input.exclusions,
+    })
+    .eq("id", workspaceId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
