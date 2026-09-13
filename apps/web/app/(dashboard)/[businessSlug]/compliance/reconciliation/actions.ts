@@ -10,15 +10,15 @@ import { syncReconciliationExceptions, resolveException, dismissException } from
  * calls `requireModule`/`requirePermission('gst.manage_reconciliation')` itself. */
 export async function syncReconciliationExceptionsAction(businessId: string, returnPeriod: string): Promise<void> {
   await syncReconciliationExceptions(businessId, returnPeriod);
-  revalidatePath(`${await businessPath(businessId)}/gst/reconciliation`);
+  revalidatePath(`${await businessPath(businessId)}/compliance/reconciliation`);
 }
 
 export async function resolveExceptionAction(businessId: string, exceptionId: string): Promise<void> {
   await resolveException(businessId, exceptionId);
-  revalidatePath(`${await businessPath(businessId)}/gst/reconciliation`);
+  revalidatePath(`${await businessPath(businessId)}/compliance/reconciliation`);
 }
 
 export async function dismissExceptionAction(businessId: string, exceptionId: string): Promise<void> {
   await dismissException(businessId, exceptionId);
-  revalidatePath(`${await businessPath(businessId)}/gst/reconciliation`);
+  revalidatePath(`${await businessPath(businessId)}/compliance/reconciliation`);
 }

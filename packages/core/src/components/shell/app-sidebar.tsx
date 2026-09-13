@@ -15,7 +15,7 @@ const PINNED_MODULE_STORAGE_KEY = "cofounderai:pinned-module";
 
 /**
  * Infers the active module from the URL for the routes that unambiguously indicate one
- * (/[businessSlug]/inventory/... and /[businessSlug]/gst/...) -- everything else (bare
+ * (/[businessSlug]/inventory/... and /[businessSlug]/compliance/...) -- everything else (bare
  * business page, discovery's own /discovery/... routes, non-module pages like settings)
  * returns null so the caller falls back to the last explicitly selected module. Written
  * locally rather than reusing module-discovery's `getActiveIdsFromPath` since
@@ -34,7 +34,7 @@ function inferModuleFromPath(pathname: string | null): string | null {
   if (!match) return null;
   const section = match[1];
   if (section === "inventory") return "inventory";
-  if (section === "gst") return "gst";
+  if (section === "compliance") return "gst";
   if (!section || section === "discovery" || section === "business") return "discovery";
   return null;
 }

@@ -214,7 +214,7 @@ export const moduleRegistry: ModuleManifest[] = [
     key: "gst",
     name: "Compliance",
     icon: "Receipt",
-    routePrefix: "/gst",
+    routePrefix: "/compliance",
     nav: [
       { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
       {

@@ -43,6 +43,6 @@ export async function recordComplianceEvidenceAction(
     return { error: error instanceof Error ? error.message : "Could not record this evidence." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/gst/evidence`);
+  revalidatePath(`${await businessPath(businessId)}/compliance/evidence`);
   return { success: true };
 }

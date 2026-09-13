@@ -103,7 +103,7 @@ export default async function SettingsHubPage() {
                     </Link>
                     {modules.has("gst") ? (
                       <Link
-                        href={`/${businessSlug}/gst/profile`}
+                        href={`/${businessSlug}/compliance/profile`}
                         className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
                       >
                         <Receipt className="size-3" aria-hidden="true" />

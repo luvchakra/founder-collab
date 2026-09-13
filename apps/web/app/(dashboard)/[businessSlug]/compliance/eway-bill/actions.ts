@@ -39,6 +39,6 @@ export async function saveEwayBillCredentialsAction(
     return { error: error instanceof Error ? error.message : "Could not save e-Way Bill credentials." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/gst/eway-bill`);
+  revalidatePath(`${await businessPath(businessId)}/compliance/eway-bill`);
   return { success: true };
 }

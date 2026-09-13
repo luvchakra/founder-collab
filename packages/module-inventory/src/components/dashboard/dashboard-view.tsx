@@ -67,7 +67,7 @@ export function DashboardView({
   warehouses?: Warehouse[];
   selectedWarehouseId?: string;
 }) {
-  const gstPath = `/dashboard/businesses/${businessId}/gst`;
+  const gstPath = `/dashboard/businesses/${businessId}/compliance`;
   const inventoryPath = `/dashboard/businesses/${businessId}/inventory`;
 
   return (

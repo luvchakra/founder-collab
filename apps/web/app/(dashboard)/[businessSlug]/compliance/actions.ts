@@ -21,7 +21,7 @@ export async function setComplianceCountryAction(
     return { error: error instanceof Error ? error.message : "Could not switch Compliance country." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/gst`, "layout");
+  revalidatePath(`${await businessPath(businessId)}/compliance`, "layout");
   return { success: true };
 }
 
@@ -41,6 +41,6 @@ export async function setComplianceRegimeAction(
     return { error: error instanceof Error ? error.message : "Could not switch tax regime." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/gst`, "layout");
+  revalidatePath(`${await businessPath(businessId)}/compliance`, "layout");
   return { success: true };
 }
