@@ -113,14 +113,21 @@ async function main() {
         insert into core.licenses (account_id, business_id, module_key, status)
         select account_id, id, 'gst', 'active' from core.businesses where id = '${bobBusiness}';
       `);
-      assertThrows(
-        () => psqlAsBob(`update gst.compliance_profiles set country = 'US' where business_id = '${aliceBusiness}'`),
-        "Bob cannot update Alice's compliance profile",
-      );
+      // Not assertThrows: gst.compliance_profiles has a real SELECT grant/policy (unlike
+      // a "secret" credentials table), so RLS's UPDATE USING clause just filters Alice's
+      // row out of what Bob's session can see -- the UPDATE completes with zero rows
+      // affected, it doesn't raise an error. What actually proves isolation is that the
+      // value is unchanged afterward.
+      psqlAsBob(`update gst.compliance_profiles set country = 'US' where business_id = '${aliceBusiness}'`);
       assertEqual(
         psqlAsBob(`select count(*)::int from gst.compliance_profiles where business_id = '${aliceBusiness}'`),
         "0",
         "Bob cannot even see Alice's profile row",
+      );
+      assertEqual(
+        psqlAsAlice(`select country from gst.compliance_profiles where business_id = '${aliceBusiness}'`),
+        "IN",
+        "Bob's update matched zero rows -- Alice's own country is untouched",
       );
 
       console.log("Verifying no delete policy exists at all (append/replace only, never remove)...");

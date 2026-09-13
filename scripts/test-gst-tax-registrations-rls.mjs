@@ -124,9 +124,16 @@ async function main() {
         "0",
         "Bob's RLS-scoped read of Alice's business returns nothing",
       );
-      assertThrows(
-        () => psqlAsBob(`update gst.tax_registrations set registration_number = 'HACKED' where business_id = '${aliceBusiness}'`),
-        "Bob cannot update Alice's registrations",
+      // Not assertThrows: gst.tax_registrations has a real SELECT grant/policy (unlike a
+      // "secret" table), so RLS's UPDATE USING clause just filters Alice's row out of
+      // what Bob's session can see -- the UPDATE completes with zero rows affected,
+      // it doesn't raise an error. What actually proves isolation is that the value
+      // is unchanged afterward.
+      psqlAsBob(`update gst.tax_registrations set registration_number = 'HACKED' where business_id = '${aliceBusiness}'`);
+      assertEqual(
+        psqlAsAlice(`select count(*)::int from gst.tax_registrations where registration_number = 'HACKED'`),
+        "0",
+        "Bob's update matched zero rows -- Alice's registration numbers are untouched",
       );
 
       console.log("gst.compliance_profiles.registration_id can now point at a real registration (FK wired this story)...");
