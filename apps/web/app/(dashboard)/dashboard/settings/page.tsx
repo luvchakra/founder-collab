@@ -19,9 +19,10 @@ import { disableBusinessAction, enableBusinessAction } from "./actions";
  * at its own business-wide `admin/api-keys` route (moved out from under `/inventory/`
  * this pass -- `core.api_keys` was never actually inventory-specific, see that page's
  * own doc comment), so it's linked unconditionally rather than behind an inventory-
- * license check. Team & Permissions is still a real follow-up: it remains nested under
- * `/inventory/team` for now (out of scope for this pass), so it stays gated on the
- * inventory license until it gets the same treatment.
+ * license check. Team & Permissions got the same treatment this pass -- it now lives at
+ * `admin/team` (moved out from under `/inventory/team`, which no longer exists) and is
+ * likewise linked unconditionally rather than gated on the inventory license, since
+ * membership and role/permission data span every module, not just inventory's.
  */
 export default async function SettingsHubPage() {
   const account = await getCurrentAccount();
@@ -86,15 +87,13 @@ export default async function SettingsHubPage() {
                       name above already links to -- Licenses is the thing this row
                       didn't already have a way to reach). */}
                   <div className="flex flex-wrap items-start gap-2 pl-6">
-                    {modules.has("inventory") ? (
-                      <Link
-                        href={`/${businessSlug}/inventory/team`}
-                        className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
-                      >
-                        <Users className="size-3" aria-hidden="true" />
-                        Team &amp; permissions
-                      </Link>
-                    ) : null}
+                    <Link
+                      href={`/${businessSlug}/admin/team`}
+                      className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"
+                    >
+                      <Users className="size-3" aria-hidden="true" />
+                      Team &amp; permissions
+                    </Link>
                     <Link
                       href={`/${businessSlug}/admin/api-keys`}
                       className="flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:border-primary hover:text-foreground"

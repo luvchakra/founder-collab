@@ -48,10 +48,7 @@ export const inventoryManifest: ModuleManifest = {
     },
     {
       heading: "Administration",
-      items: [
-        { label: "Team", slug: "team", icon: "Shield" },
-        { label: "API Keys", slug: "api-keys", icon: "KeyRound" },
-      ],
+      items: [{ label: "API Keys", slug: "api-keys", icon: "KeyRound" }],
     },
   ],
   features: [

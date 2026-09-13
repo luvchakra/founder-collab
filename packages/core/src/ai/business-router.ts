@@ -86,15 +86,51 @@ async function getProviderCredential(businessId: string, client?: SupabaseClient
 }
 
 /**
+ * `core.ai_provider_credentials` has no writer anywhere in the app yet -- Settings >
+ * Billing (the one and only "Connect AI Provider" UI that exists) writes to
+ * `discovery.ai_provider_credentials` instead (account_id-keyed; see
+ * `module-discovery/lib/ai-providers/mutations.ts#connectAiProvider`). Without this
+ * fallback, every business-scoped module (crm/fsm/inventory/gst) would report "no
+ * provider connected" for every founder who has, in fact, connected one -- there would
+ * simply be no way to satisfy `core.ai_provider_credentials` from any screen. Reading
+ * discovery's own schema table directly (rather than importing `module-discovery`,
+ * which core/lint:boundaries forbids outright) is a plain data read of the one BYOK key
+ * a founder actually has, same session/RLS as discovery's own router already applies.
+ */
+async function getAccountProviderCredential(businessId: string, client?: SupabaseClient): Promise<ProviderCredentialRow | null> {
+  const coreClient = client ?? (await createClient({ schema: "core" }));
+  const { data: business, error: businessError } = await coreClient
+    .from("businesses")
+    .select("account_id")
+    .eq("id", businessId)
+    .maybeSingle();
+  if (businessError) throw businessError;
+  if (!business) return null;
+
+  const discoveryClient = await createClient({ schema: "discovery" });
+  const { data, error } = await discoveryClient
+    .from("ai_provider_credentials")
+    .select("provider, encrypted_api_key")
+    .eq("account_id", business.account_id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Resolves the language model a business-scoped AI operation should use: the business's
- * own connected BYOK credential (`core.ai_provider_credentials`) first, falling back to
- * the platform's included credit if the deployment has one configured. Throws
- * `AiProviderError("no_provider_connected")` only when neither is available.
+ * own connected BYOK credential (`core.ai_provider_credentials`) first, then the
+ * founder's account-level BYOK credential connected via Settings > Billing (see
+ * `getAccountProviderCredential`'s own doc comment for why that fallback exists at all),
+ * then the platform's included credit if the deployment has one configured. Throws
+ * `AiProviderError("no_provider_connected")` only when none of the three are available.
  */
 export async function resolveBusinessAiModel(businessId: string, operation: AiOperation, client?: SupabaseClient): Promise<ResolvedBusinessAiModel> {
   const byokCredential = await getProviderCredential(businessId, client);
-  const credential: { provider: AiProvider; apiKey: string } | null = byokCredential
-    ? { provider: byokCredential.provider, apiKey: decryptApiKey(byokCredential.encrypted_api_key) }
+  const accountCredential = byokCredential ? null : await getAccountProviderCredential(businessId, client);
+  const usedByokCredential = byokCredential ?? accountCredential;
+  const credential: { provider: AiProvider; apiKey: string } | null = usedByokCredential
+    ? { provider: usedByokCredential.provider, apiKey: decryptApiKey(usedByokCredential.encrypted_api_key) }
     : getPlatformCredential();
   if (!credential) {
     throw new AiProviderError("no_provider_connected", "Connect an AI provider before using this feature.");
@@ -109,7 +145,7 @@ export async function resolveBusinessAiModel(businessId: string, operation: AiOp
     provider: credential.provider,
     modelId,
     model,
-    credentialSource: byokCredential ? "byok" : "platform",
+    credentialSource: usedByokCredential ? "byok" : "platform",
   };
 }
 
