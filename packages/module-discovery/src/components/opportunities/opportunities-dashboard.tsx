@@ -5,7 +5,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DASHBOARD_BIN_LABEL, DASHBOARD_BIN_ORDER } from "../../lib/opportunities/dashboard";
 import type { OpportunityDashboardRow } from "../../lib/opportunities/dashboard-queries";
 import { effectiveRecommendedAction } from "../../lib/opportunities/next-best-action";
-import { NEXT_BEST_ACTION_LABEL, type OpportunityConfidence, type OpportunityPriority } from "../../lib/opportunities/types";
+import { NEXT_BEST_ACTION_LABEL, type OpportunityConfidence, type OpportunityPriority, type OpportunityStatus } from "../../lib/opportunities/types";
+import { OpportunityRowActions } from "./opportunity-row-actions";
+
+type ActionResult = { error: string } | { success: true };
 
 /** DISC-OFFER-P0-15.1: reads through `effectiveRecommendedAction` rather than
  * `opportunity.recommended_action` directly, so a founder's own override (set from the
@@ -76,10 +79,17 @@ export function OpportunitiesDashboard({
   businessId,
   productId,
   rows,
+  setStatusAction,
+  researchAgainAction,
 }: {
   businessId: string;
   productId: string;
   rows: OpportunityDashboardRow[];
+  /** DISC-OFFER-P1-05.3: "Editable Stage Rows" -- generic (opportunity id supplied by
+   * this component at render time, one bind per row) so the page above only has to
+   * bind businessId/productId once, not once per opportunity. */
+  setStatusAction: (opportunityId: string, status: OpportunityStatus) => Promise<ActionResult>;
+  researchAgainAction: (prospectId: string) => Promise<ActionResult>;
 }) {
   if (rows.length === 0) {
     return <EmptyState message="No active opportunities yet. They'll appear here once Discovery surfaces one." />;
@@ -138,6 +148,13 @@ export function OpportunitiesDashboard({
                     <div className="text-xs">
                       <RecommendedActionCell opportunity={opportunity} />
                     </div>
+                    <OpportunityRowActions
+                      companyName={prospect.company_name}
+                      status={opportunity.status}
+                      detailHref={`${basePath}/${opportunity.id}`}
+                      setStatusAction={setStatusAction.bind(null, opportunity.id)}
+                      researchAgainAction={researchAgainAction.bind(null, prospect.id)}
+                    />
                   </li>
                 ))}
               </ul>
@@ -155,6 +172,7 @@ export function OpportunitiesDashboard({
                     <TableHead>Confidence</TableHead>
                     <TableHead>Top signal</TableHead>
                     <TableHead>Recommended action</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -186,6 +204,15 @@ export function OpportunitiesDashboard({
                       </TableCell>
                       <TableCell className="max-w-48">
                         <RecommendedActionCell opportunity={opportunity} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <OpportunityRowActions
+                          companyName={prospect.company_name}
+                          status={opportunity.status}
+                          detailHref={`${basePath}/${opportunity.id}`}
+                          setStatusAction={setStatusAction.bind(null, opportunity.id)}
+                          researchAgainAction={researchAgainAction.bind(null, prospect.id)}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

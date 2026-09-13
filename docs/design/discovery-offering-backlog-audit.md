@@ -69,7 +69,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.2 | Learn From Outcomes | Done |
 | | P1-05.1 | Offering Pipeline Workspace | Done |
 | | P1-05.2 | Desktop Stage Tables | Done |
-| | P1-05.3 | Editable Stage Rows | Not started |
+| | P1-05.3 | Editable Stage Rows | Done |
 | P1 (extra) | P1-01.3 | Account Watchlist | Not started |
 | | P1-01.4 | Grouped Opportunity Alerts | Not started |
 | | P1-02.3 (dup) | Offering Performance Analysis | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**51 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**52 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3926,3 +3926,86 @@ what a real browser at different widths would show most directly.
 
 **Status**: 51 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.3, Editable
 Stage Rows.
+
+### P1-05.3 — Editable Stage Rows (2026-09-13)
+
+The doc's own desktop row (`Company | Score | Signal | Contact | [Edit] [•••]`), its own
+five-item menu (`Edit / Research Again / Exclude / Watch / Send to CRM`), a mobile row
+(`[Primary Action] [•••]`), and one explicit line: "Do not force users through a separate
+detail screen for simple row edits." This is the last story in §29's own Phase F sequence.
+
+**Checked what already existed before building anything**: `OfferingRowActions`
+(DISC-OFFER-P0-01.3) already established this exact platform convention -- one "•••"
+`DropdownMenu` per row, built from the vendored `dropdown-menu.tsx` primitive, with a
+server action bound per-row (`.bind(null, id)`) inside a server-component table and
+passed down to the client row-actions component. New `OpportunityRowActions` follows
+that same, already-proven shape rather than inventing a second row-menu pattern.
+
+**Which edits are genuinely safe to do inline, decided before writing any code**: the
+doc's own menu has five items, but only two are a plain status write with no other
+consequence -- **Watch** and **Exclude** (`setOpportunityStatus("watching"|"dismissed")`,
+the exact mutation the Opportunity Detail page's own status form already calls) and
+**Research Again** (the same research-then-incremental-update sequence
+`researchProspectAction`, DISC-OFFER-P1-01.2, already runs). All three are now real,
+one-click, no-navigation actions from the list -- genuinely satisfying "do not force
+users through a separate detail screen for simple row edits" for exactly the edits that
+are simple.
+
+**Edit and Send to CRM deliberately still link to the detail page**, not inlined, for two
+different, both-real reasons: "Edit" because the detail page is where the richer controls
+already live (choosing *any* of the seven `NextBestAction` values via
+`updateRecommendedActionAction`, not just the two status shortcuts this row now offers),
+and "Send to CRM" because that page's own `SendToCrmButton` runs a relationship check
+first (DISC-OFFER-P0-08.2) specifically to avoid creating a duplicate CRM account --
+reimplementing a second, unchecked "Send to CRM" here would risk exactly the "must NOT
+create duplicate accounts/opportunities" this module's own automation-safety rules (§25)
+forbid. This is a genuine safety boundary, not a shortcut avoided for convenience --
+flagged explicitly in the new component's own doc comment.
+
+**New `OpportunityRowActions`** (`components/opportunities/opportunity-row-actions.tsx`):
+an always-visible "Edit" link (the doc's own dedicated button, separate from the menu)
+plus the "•••" `DropdownMenu` with Edit (repeated, matching the doc's own literal layout
+which shows it in both places), Research Again, Watch/Exclude (each hidden when the
+opportunity is already in that status -- no "Watch" item on an already-watched row, the
+same "don't offer the state it's already in" precedent `OfferingRowActions` already set
+for its own status items), and Send to CRM. Same component serves both the desktop table
+column and the mobile card row -- "[Edit] [•••]" already *is* a reasonable literal
+reading of the mobile mockup's own "[Primary Action] [•••]", so no second, mobile-only
+variant was built.
+
+**New `apps/web/.../opportunities/actions.ts`**: `setOpportunityStatusFromListAction`/
+`researchAgainFromListAction`, both `{error}|{success:true}`-shaped (not
+`AiActionState` -- that shape is built for `AiActionForm`, not a dropdown-menu action) and
+both `revalidatePath`-ing the opportunities list on success. `OpportunitiesDashboard`
+gained two new generic props (`setStatusAction`/`researchAgainAction`, opportunity/
+prospect id supplied per row inside the component) so the page only binds
+businessId/productId once, not once per row.
+
+No migration -- both underlying mutations (`setOpportunityStatus`, `researchProspect` +
+`applyIncrementalSignalUpdate`) already existed. No new pure domain logic -- this story is
+entirely wiring over already-tested mutations, matching this run's own "no unit test for
+a UI-wiring/DB-composing function" precedent (the row-hiding logic, "don't show Watch on
+an already-watching row," is a one-line conditional already exercised by TypeScript and
+by reading the code, the same triviality `OfferingRowActions`' own equivalent check was
+never separately tested for either).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1193 files, no
+violations), `lint:migrations` (137 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (237/237, unchanged -- no new pure logic per
+the note above), and a clean `next build` (confirmed the opportunities list route, which
+now renders the new row actions and calls the two new server actions, still builds with
+no errors). Same live-browser-walkthrough constraint noted in every prior UI-touching
+story this run (no seeded demo user/`.env.local` in this environment) -- particularly
+relevant here since the dropdown menu's own open/close and the toast-on-success feedback
+are exactly the kind of interactive behavior a real browser click-through would most
+directly confirm.
+
+**Status**: 52 of 68 in-scope stories done -- **§29's own Phase F ("P1 Automation,
+Learning and UX") complete** -- every story in the Master Implementation Sequence's own
+six phases (A-F) is now done. Remaining: the six "P1 (extra)" stories §10's own
+"Recommended P1 Sequence" names but §29 omits (Account Watchlist, Grouped Opportunity
+Alerts, Offering Performance Analysis, Provider-Agnostic Data Contracts, Offering-Specific
+Contact Relevance, Offering Overview UX Polish) -- tracked in the Progress table above,
+not silently dropped, but outside §29's own required sequence this run has been following
+story-by-story.
