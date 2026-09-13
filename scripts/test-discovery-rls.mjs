@@ -142,13 +142,12 @@ async function main() {
       `);
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.view')`), "t", "warehouse_operator has inventory.view");
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.delete')`), "f", "warehouse_operator lacks inventory.delete");
-      // 53, not the previous 43 -- this count grows as other, concurrently-developed
-      // modules (fsm/crm here) seed their own permission rows into the one shared
+      // 57, not the previous 53 -- this count grows as other, concurrently-developed
+      // modules (fsm/crm/gst here) seed their own permission rows into the one shared
       // core.permissions catalogue; re-verified directly against a from-scratch
-      // migration replay (unrelated to this story's own plan-link migration, which
-      // touches no permission data at all) before bumping this assertion, per this
-      // story's own commit note in docs/design/platform-admin-portal-audit.md.
-      assertEqual(psqlAsBob("select count(*) from core.permissions"), "53", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b + 4 sales_returns.* from the sales-returns workflow migration + 1 opportunities.edit from F-2 + 1 estimates.edit from F-3 + 2 jobs.edit/jobs.reopen from F-5 + 2 schedule.manage/schedule.print_work_orders from F-6 + 3 time_entries.edit/expenses.edit/notes.edit from F-7 + 1 messages.manage from F-11 + 1 gst.generate from S-2 + 1 assessments.manage from a later fsm story + 9 crm.*/activities.manage/analytics.view/channel_connections.manage/crm_messages.send/crm_opportunities.manage/crm_settings.manage/leads.manage/reviews.publish from the CRM backlog)");
+      // migration replay before bumping this assertion, per this file's own precedent
+      // (43 -> 53 -> 57).
+      assertEqual(psqlAsBob("select count(*) from core.permissions"), "57", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b + 4 sales_returns.* from the sales-returns workflow migration + 1 opportunities.edit from F-2 + 1 estimates.edit from F-3 + 2 jobs.edit/jobs.reopen from F-5 + 2 schedule.manage/schedule.print_work_orders from F-6 + 3 time_entries.edit/expenses.edit/notes.edit from F-7 + 1 messages.manage from F-11 + 1 gst.generate from S-2 + 1 assessments.manage from a later fsm story + 9 crm.*/activities.manage/analytics.view/channel_connections.manage/crm_messages.send/crm_opportunities.manage/crm_settings.manage/leads.manage/reviews.publish from the CRM backlog + 1 gst.file_returns from GST return periods + 1 gst.manage_reconciliation from GSTR-2B/IMS + 1 gst.manage_evidence from compliance evidence + 1 gst.manage_exemption_certificates from exemption certificates)");
 
       console.log("Verifying tenant isolation on licenses (C-3)...");
       assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");
