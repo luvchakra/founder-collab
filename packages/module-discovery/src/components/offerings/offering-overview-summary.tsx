@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { buttonVariants } from "@cofounderai/core/ui/button";
+import { AiActionForm } from "../ai/ai-action-form";
+import type { AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import { OFFERING_STATUS_LABEL, OFFERING_TYPE_LABEL } from "../../lib/offerings/types";
 import type { Offering } from "../../lib/offerings/types";
 import {
@@ -9,6 +12,7 @@ import {
   type OfferingDefinitionQualityDimension,
   type QualityLevel,
 } from "../../lib/offerings/definition-quality";
+import { identifyMissingOfferingInformation } from "../../lib/offerings/missing-information";
 import { PERSONA_PRIORITY_LABEL, PERSONA_ROLE_LABEL } from "../../lib/personas/types";
 import type { BuyerPersona } from "../../lib/personas/types";
 import type { IcpProfile } from "../../lib/icp/types";
@@ -63,12 +67,16 @@ export function OfferingOverviewSummary({
   icp,
   personas,
   prospectCounts,
+  researchFurtherAction,
 }: {
   businessId: string;
   offering: Offering;
   icp: IcpProfile | null;
   personas: BuyerPersona[];
   prospectCounts: ProspectCounts;
+  /** DISC-OFFER-P1-03.2: the missing-information callout's own "[Research Further]" --
+   * a forced ICP regeneration, identical to the ICP page's own "Regenerate" button. */
+  researchFurtherAction: (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
 }) {
   const basePath = `/dashboard/businesses/${businessId}/products/${offering.id}`;
   const icpFieldsCount = icp ? icpFieldsDefined(icp) : 0;
@@ -84,6 +92,12 @@ export function OfferingOverviewSummary({
     personas,
     productProfile: offering.product_profile,
   });
+  // DISC-OFFER-P1-03.2: "Missing Information Suggestions" -- same gate/placement
+  // reasoning as P1-03.1 just above (this component already only renders once a
+  // product profile exists, i.e. "we understand what you sell"); an empty result means
+  // genuinely nothing is missing, so the callout itself doesn't render at all rather
+  // than showing an empty "less certain about" list.
+  const missingInformation = identifyMissingOfferingInformation({ icp, personas });
 
   const nextAction = !icp
     ? { label: "Define your ICP", href: `${basePath}/icp` }
@@ -120,6 +134,34 @@ export function OfferingOverviewSummary({
           ))}
         </div>
       </div>
+
+      {missingInformation.length > 0 ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+          <p className="text-sm">We understand what you sell.</p>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">We are less certain about</p>
+            <ul className="list-inside list-disc text-sm text-muted-foreground">
+              {missingInformation.map((item) => (
+                <li key={item.field}>{item.label}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <AiActionForm
+              action={researchFurtherAction}
+              buttonLabel="Research Further"
+              pendingText="Researching..."
+              buttonProps={{ variant: "outline" }}
+              wrapperClassName="flex flex-col items-start gap-2"
+            >
+              <input type="hidden" name="force" value="true" />
+            </AiActionForm>
+            <Link href={`${basePath}/icp`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Edit Manually
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">

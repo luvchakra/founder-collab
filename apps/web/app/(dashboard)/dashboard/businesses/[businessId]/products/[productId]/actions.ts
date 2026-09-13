@@ -11,6 +11,7 @@ import {
 import { updateProduct, setRediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import type { RediscoveryInterval } from "@cofounderai/module-discovery/lib/tenancy/rediscovery";
 import { understandProduct } from "@cofounderai/module-discovery/lib/ai/understand-product";
+import { generateIcp } from "@cofounderai/module-discovery/lib/ai/generate-icp";
 import { setOpportunityStatus, recordOpportunityHandoffFailure } from "@cofounderai/module-discovery/lib/opportunities/mutations";
 import type { OpportunityStatus } from "@cofounderai/module-discovery/lib/opportunities/types";
 import { promoteProspectToCrm } from "@cofounderai/module-crm/contract/index";
@@ -225,6 +226,21 @@ export async function generateProductProfileAction(
   return runAiAction(async () => {
     const force = formData.get("force") === "true";
     await understandProduct(productId, { force });
+    revalidatePath(productPath(businessId, productId));
+  });
+}
+
+/**
+ * DISC-OFFER-P1-03.2: the "Missing Information" callout's own "[Research Further]" --
+ * identical underlying call to `icp/actions.ts`'s own `generateIcpAction` (forced
+ * regeneration), duplicated here rather than imported across route files, the same
+ * "each route directory keeps its own actions.ts wrapping the same underlying module
+ * mutations" convention DISC-OFFER-P0-15.1 already established for this exact file, just
+ * revalidating the Overview page instead of the ICP page.
+ */
+export async function regenerateIcpFromOverviewAction(businessId: string, productId: string): Promise<AiActionState> {
+  return runAiAction(async () => {
+    await generateIcp(productId, { force: true });
     revalidatePath(productPath(businessId, productId));
   });
 }

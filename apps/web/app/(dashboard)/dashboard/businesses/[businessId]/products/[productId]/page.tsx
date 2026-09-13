@@ -28,6 +28,7 @@ import {
   sendTopOpportunityToCrmAction,
   updateTopOpportunityStatusAction,
   updateRediscoveryIntervalAction,
+  regenerateIcpFromOverviewAction,
 } from "./actions";
 
 function icpPath(businessId: string, productId: string) {
@@ -117,7 +118,14 @@ export default async function ProductPage({
         />
       ) : null}
       {product.product_profile && prospectCounts ? (
-        <OfferingOverviewSummary businessId={businessId} offering={product} icp={icp} personas={personas} prospectCounts={prospectCounts} />
+        <OfferingOverviewSummary
+          businessId={businessId}
+          offering={product}
+          icp={icp}
+          personas={personas}
+          prospectCounts={prospectCounts}
+          researchFurtherAction={regenerateIcpFromOverviewAction.bind(null, businessId, productId)}
+        />
       ) : null}
       <ProductOverviewShell
         product={product}
