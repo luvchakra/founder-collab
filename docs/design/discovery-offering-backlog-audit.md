@@ -70,19 +70,54 @@ only genuine architectural/key decisions are raised.
 | | P1-05.1 | Offering Pipeline Workspace | Done |
 | | P1-05.2 | Desktop Stage Tables | Done |
 | | P1-05.3 | Editable Stage Rows | Done |
-| P1 (extra) | P1-01.3 | Account Watchlist | Not started |
+| P1 (§10 list, unreconciled) | P1-01.1 | Saved Offering Discovery | Needs reconciliation |
+| | P1-01.2 | Continuous Monitoring | Needs reconciliation |
+| | P1-01.3 | Account Watchlist | Not started |
 | | P1-01.4 | Grouped Opportunity Alerts | Not started |
-| | P1-02.3 (dup) | Offering Performance Analysis | Not started |
+| | P1-02.1 | Prospect Feedback | Not started |
+| | P1-02.2 | Discovery Outcome Tracking | Not started |
+| | P1-02.3 | Offering Performance Analysis | Not started |
+| | P1-03.1 | Progressive Intelligence | Needs reconciliation |
+| | P1-03.2 | Research Cache | Needs reconciliation |
 | | P1-03.3 | Provider-Agnostic Data Contracts | Not started |
+| | P1-04.1 | Cross-Offering Account View | Not started |
+| | P1-04.2 | Offering Portfolio Dashboard | Not started |
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
+| | P1-05.1 | Offering-Scoped Search | Not started |
+| | P1-05.2 | Editable Opportunity Rows | Needs reconciliation |
+| | P1-05.3 | Responsive Opportunity Workspace | Needs reconciliation |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**52 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
-ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
-list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
-omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
-Contracts, Contact Relevance, UX Polish); all are tracked above under "P1 (extra)" so
-nothing from either list is silently dropped.)
+**52 of 68 in-scope stories done -- Phase E and §29's own Phase F (the entire Master
+Implementation Sequence, Phases A-F) both complete.** ⚠ **Open question, flagged rather
+than silently resolved (2026-09-13, end of the P1-04.1..05.3 session)**: the "68" total
+above was inherited from earlier sessions and could not be reconciled to an exact figure
+this session -- re-reading §10's own "Recommended P1 Sequence" in full (its own five
+epics, DISC-OFFER-P1-01 through -05) found **seventeen** distinctly-titled P1 stories
+there, not the six this table previously listed under "P1 (extra)". Worse, §10's own
+numbering reuses the *same* story numbers as §20-24's own detailed per-epic sections
+(the ones §29's Master Sequence actually points to, and the ones every Phase F entry
+above was built against) for **substantively different content** in most cases -- e.g.
+§10's own "P1-04.1 Cross-Offering Account View"/"P1-04.2 Offering Portfolio Dashboard"
+share their numbers with §23's "Learn From User Edits"/"Learn From Outcomes" (just
+implemented above) while describing entirely unrelated features; §10's own "P1-05.2
+Editable Opportunity Rows" (menu: Edit/Watch/Change Priority/Dismiss/Find Contact) is a
+close cousin of -- but not textually identical to -- §24's "P1-05.3 Editable Stage Rows"
+(menu: Edit/Research Again/Exclude/Watch/Send to CRM) just implemented above, which
+covers Watch/Dismiss-equivalent items but not "Change Priority" or "Find Contact". The
+table above now lists all seventeen §10 stories by their own title rather than silently
+continuing to track only six of them; the four marked "Needs reconciliation" are the ones
+whose title suggests real thematic overlap with an already-completed §20-24 story (01.1/
+01.2 with the just-shipped re-discovery/incremental-rerun stories, 03.1/03.2 with the
+just-shipped definition-quality/missing-information stories, 05.2/05.3 with the
+Editable-Stage-Rows/Desktop-Tables work above) -- **that overlap is a hypothesis to
+verify, not a conclusion**, since this session did not do a full side-by-side line
+comparison of each pair's own acceptance text. **Recommendation for whoever picks this up
+next**: read §10 (~lines 837-1170) and §20-24 (~lines 1900-2120) side by side, story by
+story, before starting any further P1 work, and only then correct this table's own
+"Not started"/"Needs reconciliation"/"Already covered" statuses and the true total story
+count -- guessing that resolution here risked exactly the "false precision" this audit
+log's own convention has argued against for every other uncertain number in this run.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
