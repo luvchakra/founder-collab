@@ -3,6 +3,7 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
+import { AuthInfoPanel } from "@/components/auth/auth-info-panel";
 import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 
@@ -74,7 +75,12 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
         </Link>
         <AuthTabs />
       </header>
-      <main className="flex flex-1 items-center justify-center px-6 pb-16">{children}</main>
+      <main className="flex flex-1 items-center justify-center px-6 pb-16">
+        <div className="flex w-full max-w-4xl items-center justify-center gap-16">
+          <AuthInfoPanel />
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

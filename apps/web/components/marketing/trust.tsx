@@ -8,6 +8,7 @@ import {
   UserCheck,
   ShieldAlert,
   Globe2,
+  Sparkles,
 } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
@@ -15,6 +16,12 @@ import { FadeIn } from "./fade-in";
 const AI_CONTROL_FLOW = ["AI Researches", "AI Recommends", "You Review", "You Approve", "AI Learns"];
 
 const PROVIDERS = ["OpenAI", "Anthropic", "Google"];
+
+const CHAT_POINTS = [
+  "Pulls live data from every module you've licensed in one query, on request",
+  "Answers are grounded in your real records -- not a guess",
+  "Suggests what to do next, not just a number",
+];
 
 const SECURITY_POINTS = [
   { icon: Lock, label: "Secure authentication" },
@@ -86,10 +93,12 @@ export function Trust() {
               <p className="mt-4 text-landing-muted">
                 Choose your preferred AI provider and securely connect your own API key.{" "}
                 {BRAND_NAME} selects the appropriate model internally for each Discovery
-                task.
+                task. Don&apos;t have a key yet? {BRAND_NAME} can run on its own built-in
+                AI provider instead, so you&apos;re never blocked -- connect your own
+                anytime to take full control.
               </p>
               <p className="mt-4 font-medium text-landing-fg">
-                You choose the provider. {BRAND_NAME} handles the intelligence layer.
+                Your key, or ours. {BRAND_NAME} handles the intelligence layer either way.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-4">
@@ -101,6 +110,45 @@ export function Trust() {
                   {provider}
                 </div>
               ))}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Cross-module AI chat */}
+        <FadeIn>
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
+            <div>
+              <h2 className="text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
+                One chat, every module&apos;s data.
+              </h2>
+              <p className="mt-4 text-landing-muted">
+                Ask the built-in AI assistant a question and it can pull live data from
+                every module you&apos;ve licensed -- Discovery, Inventory, Service, CRM
+                and Compliance -- to answer it and suggest what to do next.
+              </p>
+              <ul className="mt-5 flex flex-col gap-2.5">
+                {CHAT_POINTS.map((point) => (
+                  <li key={point} className="flex items-start gap-2 text-sm text-landing-fg">
+                    <Sparkles className="mt-0.5 size-4 shrink-0 text-landing-accent" aria-hidden="true" />
+                    {point}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="rounded-2xl border border-landing-surface-border bg-landing-surface p-5">
+              <div className="flex justify-end">
+                <p className="max-w-[85%] rounded-2xl rounded-br-sm bg-landing-accent px-4 py-2.5 text-sm text-landing-accent-foreground">
+                  Which customers are we most at risk of losing this month?
+                </p>
+              </div>
+              <div className="mt-3 flex justify-start">
+                <p className="max-w-[90%] rounded-2xl rounded-bl-sm bg-landing-bg-elevated px-4 py-2.5 text-sm text-landing-fg">
+                  3 accounts: Whitfield Residence has a service visit 12 days overdue,
+                  Ridgeview HOA hasn&apos;t replied in CRM since their quote request, and
+                  Alvarez Household&apos;s last invoice is unpaid. Want me to draft a
+                  follow-up for each?
+                </p>
+              </div>
             </div>
           </div>
         </FadeIn>

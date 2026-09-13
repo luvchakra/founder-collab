@@ -9,6 +9,7 @@ const MODULES: {
   features: string[];
   image: string;
   imageAlt: string;
+  frame: "desktop" | "mobile";
 }[] = [
   {
     name: "Discovery",
@@ -22,6 +23,7 @@ const MODULES: {
     ],
     image: "/screens/discovery-pipeline.png",
     imageAlt: "Discovery pipeline showing scored accounts with fit score, priority and status",
+    frame: "desktop",
   },
   {
     name: "Inventory",
@@ -35,6 +37,7 @@ const MODULES: {
     ],
     image: "/screens/inventory-dashboard.png",
     imageAlt: "Inventory dashboard showing stock levels and status badges for HVAC parts",
+    frame: "mobile",
   },
   {
     name: "Service",
@@ -48,6 +51,7 @@ const MODULES: {
     ],
     image: "/screens/fsm-schedule.png",
     imageAlt: "Field service schedule showing jobs, customers and statuses for the week",
+    frame: "desktop",
   },
   {
     name: "CRM",
@@ -61,6 +65,7 @@ const MODULES: {
     ],
     image: "/screens/crm-inbox.png",
     imageAlt: "Shared CRM inbox showing a WhatsApp conversation thread with a customer",
+    frame: "mobile",
   },
   {
     name: "Compliance",
@@ -74,8 +79,14 @@ const MODULES: {
     ],
     image: "/screens/gst-dashboard.png",
     imageAlt: "GST dashboard showing an active GSTIN registration and recent return filings",
+    frame: "desktop",
   },
 ];
+
+const FRAME_DIMENSIONS = {
+  desktop: { width: 1620, height: 1041, wrapperClass: "w-full max-w-xl rounded-xl border border-landing-surface-border shadow-lg" },
+  mobile: { width: 752, height: 1624, wrapperClass: "mx-auto w-full max-w-[240px] rounded-[10%] drop-shadow-xl" },
+} as const;
 
 export function Modules() {
   return (
@@ -119,12 +130,12 @@ export function Modules() {
                     ))}
                   </ul>
                 </div>
-                <div className="mx-auto w-full max-w-[240px] rounded-[10%] drop-shadow-xl">
+                <div className={FRAME_DIMENSIONS[mod.frame].wrapperClass}>
                   <Image
                     src={mod.image}
                     alt={mod.imageAlt}
-                    width={752}
-                    height={1624}
+                    width={FRAME_DIMENSIONS[mod.frame].width}
+                    height={FRAME_DIMENSIONS[mod.frame].height}
                     className="h-auto w-full"
                   />
                 </div>

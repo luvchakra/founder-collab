@@ -8,6 +8,7 @@ import { HowItWorks } from "@/components/marketing/how-it-works";
 import { Benefits } from "@/components/marketing/benefits";
 import { Differentiation } from "@/components/marketing/differentiation";
 import { Modules } from "@/components/marketing/modules";
+import { ModuleFlow } from "@/components/marketing/module-flow";
 import { Trust } from "@/components/marketing/trust";
 import { Pricing } from "@/components/marketing/pricing";
 import { SocialProof } from "@/components/marketing/social-proof";
@@ -35,6 +36,7 @@ export default async function Home() {
         <Benefits />
         <Differentiation />
         <Modules />
+        <ModuleFlow />
         <Trust />
         <Pricing />
         <SocialProof />
