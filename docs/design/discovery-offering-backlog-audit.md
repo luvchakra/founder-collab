@@ -64,7 +64,7 @@ only genuine architectural/key decisions are raised.
 | | P1-02.1 | Review Required Indicators | Done |
 | | P1-02.2 | Rerun Impact Confirmation | Done |
 | | P1-03.1 | Offering Definition Quality | Done |
-| | P1-03.2 | Missing Information Suggestions | Not started |
+| | P1-03.2 | Missing Information Suggestions | Done |
 | | P1-04.1 | Learn From User Edits | Not started |
 | | P1-04.2 | Learn From Outcomes | Not started |
 | | P1-05.1 | Offering Pipeline Workspace | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**46 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**47 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3483,3 +3483,73 @@ story this run (no seeded demo user/`.env.local` in this environment).
 
 **Status**: 46 of 68 in-scope stories done -- Phase F continuing. Next: P1-03.2, Missing
 Information Suggestions.
+
+### P1-03.2 — Missing Information Suggestions (2026-09-13)
+
+The doc gives this story no "Acceptance criteria" heading either -- just the one worked
+example ("We understand what you sell. / We are less certain about: - Ideal customer size
+- Primary buyer - Geographic focus / [Research Further] [Edit Manually]") plus one
+explicit line: "Never manufacture missing information."
+
+**Checked the entity-ownership map and DISC-OFFER-P1-03.1's own new module first**: no
+"missing information"/"gaps" concept listed anywhere, and -- despite sitting right next
+to P1-03.1 in the doc's own §22 "Offering Quality" epic -- this is a genuinely different
+question from that story's own five broad dimensions (Description/Target Customer/ICP
+Evidence/Buyer Evidence/Differentiation), not a re-presentation of the same data: a
+founder can act on "Geographic focus" directly by filling in one field, but can't act on
+"Target Customer" as a single undifferentiated dimension-level verdict. Built as its own
+small pure module rather than deriving this list from P1-03.1's own dimension scores.
+
+**New `lib/offerings/missing-information.ts`** -- `identifyMissingOfferingInformation()`,
+pure and deterministic (CLAUDE.md dev principle #4), checking four specific, genuinely
+checkable ICP-shaped fields for emptiness: target industries, ideal customer size
+(`icp.company_sizes`), geographic focus (`icp.geographies`), and primary buyer (`icp.roles`
+*or* a real buyer persona -- DISC-OFFER-P0-02.3's own persona is a richer record of the
+same "who buys this" question `icp.roles` answers more loosely, so having either one is
+real evidence, not a gap). "Never manufacture missing information" is structural here, the
+same way every other "no false precision" instruction in this run has been satisfied
+structurally rather than by convention: every item corresponds to a literally empty field,
+nothing is inferred about *why* it's empty, and a fully-populated ICP with real personas
+returns an empty list rather than a placeholder in this test suite of 5 new vitest cases:
+the all-empty case, the fully-populated case, the "persona substitutes for ICP roles"
+case, the doc's own exact three-item worked example reproduced from real data, and a check
+that the label wording matches the doc's own literal phrasing.
+
+**Wiring**: new `regenerateIcpFromOverviewAction` (Overview page's own `actions.ts`) is
+the "[Research Further]" button -- an identical call to `icp/actions.ts`'s own
+`generateIcpAction` (forced ICP regeneration via `generateIcp(productId, {force:true})`),
+duplicated here rather than imported across route files, the same "each route directory
+keeps its own actions.ts wrapping the same underlying module mutations" convention
+DISC-OFFER-P0-15.1 already established for this exact file. "[Edit Manually]" is a plain
+link to the ICP page, styled with the vendored `buttonVariants` helper rather than
+hand-rolled classes so it matches the "Research Further" button pixel-for-pixel.
+
+**UI**: added to `OfferingOverviewSummary` alongside P1-03.1's own new card, same gate
+reasoning (this component already only renders once a product profile exists -- "we
+understand what you sell" is quite literally true at that point) and same "empty means
+don't render" restraint -- a fully-defined offering shows no callout at all rather than an
+empty "less certain about" list with nothing under it.
+
+No migration this story -- pure code over already-existing columns.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces -- caught and fixed
+one real ESLint miss along the way: an initial `regenerateIcpFromOverviewAction` draft
+kept an unused, now-trailing `_prevState` parameter for symmetry with `AiActionForm`'s own
+action type, which `@typescript-eslint/no-unused-vars`'s "after-used" rule flags whenever
+an unused parameter is the *last* one declared, unlike every existing sibling action in
+this file where `_prevState` is always followed by a real, used `formData` -- fixed by
+dropping both unused parameters entirely, since a function declared with fewer parameters
+is still structurally assignable to `AiActionForm`'s two-parameter action type, the same
+"fewer declared params is a valid substitute" TypeScript rule this codebase already relies
+on elsewhere), `npm run lint` (0 errors, 1 pre-existing unrelated warning after that fix,
+unchanged), `lint:boundaries` (1185 files, no violations), `lint:migrations` (136
+migrations, no violations -- no schema change), `npx vitest run --root
+packages/module-discovery` (226/226, +5 new), and a clean `next build` (confirmed the
+offering Overview route, which now renders the new callout and its "Research Further"
+form, still builds with no errors). Same live-browser-walkthrough constraint noted in
+every prior UI-touching story this run (no seeded demo user/`.env.local` in this
+environment).
+
+**Status**: 47 of 68 in-scope stories done -- **Phase "P1 — Offering Quality" (§22)
+complete**. Next per §29's own sequence: Phase "P1 — Learning From Human Corrections"
+(§23), starting with P1-04.1, Learn From User Edits.
