@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { listAuditLogActors, searchPlatformAuditLog } from "@cofounderai/core/admin/platform-audit-log";
 import { AuditSearchExplorer } from "./audit-search-explorer";
 
@@ -25,9 +26,9 @@ export default async function PlatformAuditPage() {
           provider keys, security policy and data retention changes, integrations, compliance rules, and maintenance-
           mode announcements. For a single configuration&apos;s own version-by-version history (with rollback where
           available), see{" "}
-          <a href="/platform/config-history" className="underline hover:text-zinc-200">
+          <Link href="/platform/config-history" className="underline hover:text-zinc-200">
             Configuration History
-          </a>
+          </Link>
           .
         </p>
       </div>
