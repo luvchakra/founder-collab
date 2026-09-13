@@ -119,7 +119,7 @@ export function Modules() {
                     ))}
                   </ul>
                 </div>
-                <div className="overflow-hidden rounded-2xl">
+                <div className="overflow-hidden rounded-2xl border border-landing-surface-border shadow-sm">
                   <Image
                     src={mod.image}
                     alt={mod.imageAlt}
