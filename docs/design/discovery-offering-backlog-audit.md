@@ -70,54 +70,79 @@ only genuine architectural/key decisions are raised.
 | | P1-05.1 | Offering Pipeline Workspace | Done |
 | | P1-05.2 | Desktop Stage Tables | Done |
 | | P1-05.3 | Editable Stage Rows | Done |
-| P1 (§10 list, unreconciled) | P1-01.1 | Saved Offering Discovery | Needs reconciliation |
-| | P1-01.2 | Continuous Monitoring | Needs reconciliation |
-| | P1-01.3 | Account Watchlist | Not started |
-| | P1-01.4 | Grouped Opportunity Alerts | Not started |
-| | P1-02.1 | Prospect Feedback | Not started |
-| | P1-02.2 | Discovery Outcome Tracking | Not started |
-| | P1-02.3 | Offering Performance Analysis | Not started |
-| | P1-03.1 | Progressive Intelligence | Needs reconciliation |
-| | P1-03.2 | Research Cache | Needs reconciliation |
-| | P1-03.3 | Provider-Agnostic Data Contracts | Not started |
-| | P1-04.1 | Cross-Offering Account View | Not started |
-| | P1-04.2 | Offering Portfolio Dashboard | Not started |
-| | P1-04.3 | Offering-Specific Contact Relevance | Not started |
-| | P1-05.1 | Offering-Scoped Search | Not started |
-| | P1-05.2 | Editable Opportunity Rows | Needs reconciliation |
-| | P1-05.3 | Responsive Opportunity Workspace | Needs reconciliation |
-| | P1-05.4 | Offering Overview UX Polish | Not started |
+| §7/10 (pre-§29 legacy, OUT OF REQUIRED SCOPE) | P1-01.1 | Saved Offering Discovery | Out of scope (see below) |
+| | P1-01.2 | Continuous Monitoring | Out of scope |
+| | P1-01.3 | Account Watchlist | Out of scope |
+| | P1-01.4 | Grouped Opportunity Alerts | Out of scope |
+| | P1-02.1 | Prospect Feedback | Out of scope |
+| | P1-02.2 | Discovery Outcome Tracking | Out of scope |
+| | P1-02.3 | Offering Performance Analysis | Out of scope |
+| | P1-03.1 | Progressive Intelligence | Out of scope |
+| | P1-03.2 | Research Cache | Out of scope |
+| | P1-03.3 | Provider-Agnostic Data Contracts | Out of scope |
+| | P1-04.1 | Cross-Offering Account View | Out of scope |
+| | P1-04.2 | Offering Portfolio Dashboard | Out of scope |
+| | P1-04.3 | Offering-Specific Contact Relevance | Out of scope |
+| | P1-05.1 | Offering-Scoped Search | Out of scope |
+| | P1-05.2 | Editable Opportunity Rows | Out of scope |
+| | P1-05.3 | Responsive Opportunity Workspace | Out of scope |
+| | P1-05.4 | Offering Overview UX Polish | Out of scope |
 
-**52 of 68 in-scope stories done -- Phase E and §29's own Phase F (the entire Master
-Implementation Sequence, Phases A-F) both complete.** ⚠ **Open question, flagged rather
-than silently resolved (2026-09-13, end of the P1-04.1..05.3 session)**: the "68" total
-above was inherited from earlier sessions and could not be reconciled to an exact figure
-this session -- re-reading §10's own "Recommended P1 Sequence" in full (its own five
-epics, DISC-OFFER-P1-01 through -05) found **seventeen** distinctly-titled P1 stories
-there, not the six this table previously listed under "P1 (extra)". Worse, §10's own
-numbering reuses the *same* story numbers as §20-24's own detailed per-epic sections
-(the ones §29's Master Sequence actually points to, and the ones every Phase F entry
-above was built against) for **substantively different content** in most cases -- e.g.
-§10's own "P1-04.1 Cross-Offering Account View"/"P1-04.2 Offering Portfolio Dashboard"
-share their numbers with §23's "Learn From User Edits"/"Learn From Outcomes" (just
-implemented above) while describing entirely unrelated features; §10's own "P1-05.2
-Editable Opportunity Rows" (menu: Edit/Watch/Change Priority/Dismiss/Find Contact) is a
-close cousin of -- but not textually identical to -- §24's "P1-05.3 Editable Stage Rows"
-(menu: Edit/Research Again/Exclude/Watch/Send to CRM) just implemented above, which
-covers Watch/Dismiss-equivalent items but not "Change Priority" or "Find Contact". The
-table above now lists all seventeen §10 stories by their own title rather than silently
-continuing to track only six of them; the four marked "Needs reconciliation" are the ones
-whose title suggests real thematic overlap with an already-completed §20-24 story (01.1/
-01.2 with the just-shipped re-discovery/incremental-rerun stories, 03.1/03.2 with the
-just-shipped definition-quality/missing-information stories, 05.2/05.3 with the
-Editable-Stage-Rows/Desktop-Tables work above) -- **that overlap is a hypothesis to
-verify, not a conclusion**, since this session did not do a full side-by-side line
-comparison of each pair's own acceptance text. **Recommendation for whoever picks this up
-next**: read §10 (~lines 837-1170) and §20-24 (~lines 1900-2120) side by side, story by
-story, before starting any further P1 work, and only then correct this table's own
-"Not started"/"Needs reconciliation"/"Already covered" statuses and the true total story
-count -- guessing that resolution here risked exactly the "false precision" this audit
-log's own convention has argued against for every other uncertain number in this run.
+**52 of 52 §29-in-scope stories done — the entire "Master Implementation Sequence —
+REQUIRED" (Phases A–F) is complete.** ⚠→✅ **Numbering collision from the prior session's
+own flag, now resolved by doing exactly the side-by-side read it recommended (2026-09-13)**:
+
+§29 (titled "Master Implementation Sequence — **REQUIRED**") is this document's own
+explicit statement of what must be built. Its own Phase F list is verbatim the eleven
+§20–24 stories (Scheduled Offering Re-Discovery through Editable Stage Rows) — **not**
+§7/10's seventeen. Summing §29's own six phases (A:6 + B:5 + C:11 + D:3 + E:16 + F:11)
+gives exactly **52** — matching this table's own "done" count exactly. The "68" this
+table previously carried was arrived at by adding §7/10's 17 legacy stories on top of
+§29's 52 (52+17=69, off by one from a probable earlier miscount) as if they were also
+required, when §29 itself never lists them as part of the sequence Claude Code "must
+not" skip past. **Conclusion: §7/10 was superseded when §13–29 was later appended to
+this same document** (a broader, more concrete "Website-to-Offering Autonomous Discovery"
+epic that folded in and superseded the original, more abstract P1 vision, reusing its
+epic numbers without cross-referencing it) — the same "later document wins" supersession
+rule CLAUDE.md's own `docs/plan/` convention already establishes, applied here within one
+document instead of across two.
+
+**Read every §7/10 story against its same-numbered §20–24 counterpart, side by side, as
+recommended — none are literal duplicates, but each pair is a genuine thematic relative**:
+- P1-01 "Continuous Discovery" (saved-search config + external-signal monitoring +
+  watchlists + grouped alerts) vs. §20 "Autonomous Re-Discovery" (scheduled pipeline
+  re-run + incremental re-scoring) — same theme (recurring discovery), different
+  mechanism; §20's own scheduling could be the concrete engine a future "Saved Offering
+  Discovery" UI would sit on top of, but no such UI was ever built.
+- P1-03 "AI Efficiency" (progressive cheap→expensive pipeline staging + a research cache
+  keyed on input hash/expiry) vs. §22 "Offering Quality" (a definition-quality score +
+  missing-information prompts) — **no real overlap at all**, despite sharing a number;
+  the "hypothesis" flagged last session doesn't hold up under an actual read.
+- P1-05.2/05.3 "Editable Opportunity Rows"/"Responsive Opportunity Workspace" (an
+  offering-scoped **search/browse results table** across many opportunities, columns
+  Score/Confidence/Signal type/Industry/etc., row menu Edit/Watch/Change
+  Priority/Dismiss/Find Contact) vs. §24's already-built "Editable Stage Rows"/"Desktop
+  Stage Tables" (rows *within one offering's own pipeline detail*, columns Company/
+  Score/Signal/Contact, row menu Edit/Research Again/Exclude/Watch/Send to CRM) — same
+  UI pattern (editable desktop table → mobile cards) applied to a different object (a
+  cross-opportunity search view vs. one pipeline's own per-stage output); the already-
+  built stage-table component is a real, reusable *pattern* for this future work, not a
+  completed substitute for it.
+
+**None of §7/10's 17 stories are done, and none are satisfied by anything already
+built.** They are real, plausible future product ideas — genuinely still on the table if
+the user wants to commission them — but they are not part of this document's own
+REQUIRED sequence and were never picked up under a proper story number by any session.
+Marking them "Out of scope" (not "Not started") in the table above reflects that
+distinction honestly: "not started" implies they're queued and due; they are not queued
+by this document's own §29.
+
+**This backlog (`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`, §29's own REQUIRED
+sequence) is now 100% complete.** Continuing to add code against it without a new,
+explicit product decision to commission specific §7/10 stories (or some other new scope)
+would be speculative work this run's own standing instructions (CLAUDE.md dev principle
+7, "never implement speculative functionality") argue against. Flagging this completion
+back to the user rather than guessing at new scope to invent.
 
 ## Pre-implementation reconnaissance (done once, up front)
 
