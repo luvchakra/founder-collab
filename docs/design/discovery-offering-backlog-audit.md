@@ -217,6 +217,60 @@ real external-data constraints.
 - `cd apps/web && npx tsc --noEmit` -- clean (build itself not re-run this story; no
   route/page structural change beyond adding one component and one action).
 
+### DISC-OFFER-P1 §7-01.2 -- Continuous Monitoring -- BLOCKED, flagged rather than faked (2026-09-13)
+
+**Genuine architecture question, not guessed through.** The story asks to "monitor new:
+companies, contacts, buying signals, leadership changes, technology events, relevant
+activity" and "create opportunities only when meaningful changes occur" -- i.e.,
+autonomous, unattended, ongoing background watching between founder-initiated runs. Two
+independent, real blockers, each already precedented in this exact codebase rather than
+newly discovered here:
+
+1. **No unattended execution path exists for this pipeline, and building one is a real
+   architecture change, not this story's to make alone.** `RediscoverySchedule`'s own
+   doc comment (§20-01.1, right next to where this story's own UI would live) already
+   states this precisely: every function the discovery pipeline depends on
+   (`understandProduct`, `generateIcp`, `discoverProspects`, `researchProspect`,
+   `generateResearchBrief`, every mutation between them) is built exclusively around the
+   per-request, RLS-scoped, signed-in-user Supabase client -- none accept an injectable
+   admin client the way `module-fsm`'s cron-native `sendDueReminders`/`drainDomainEvents`
+   do. Retrofitting that cross-cutting concern across the entire pipeline so a cron with
+   no signed-in user could run it unattended is a genuine architecture-level change
+   (CLAUDE.md dev principle #10: don't change architecture without explicit approval),
+   and a single P1 story's own two-line spec doesn't imply authorization for it --
+   §20-01.1 already declined to build this for its own, narrower "run this offering's
+   pipeline again" case; this story asks for the same unattended-execution capability
+   plus watching for entirely new companies/contacts the system doesn't know about yet.
+2. **No real external monitoring data source exists.** "New companies," "leadership
+   changes," "technology events" are exactly the kind of company/person enrichment and
+   signal-detection facts DISC-OFFER-P1 §7-03.3 "Provider-Agnostic Data Contracts" (still
+   ahead in this same epic sequence) is about abstracting -- and no real provider is
+   wired into this platform for any of them today (`discoverProspects`/`researchProspect`
+   use AI + web search tooling, not a company-intelligence API). Fabricating monitoring
+   results with no real data source behind them would misrepresent what the product
+   actually knows -- the same "never fabricate" discipline this whole backlog has applied
+   throughout (05.2/05.5/13.1 and this same session's own 01.1 entry above).
+
+**Not silently skipped, not silently faked as a lesser feature under the same story
+number.** Flagging both blockers here for the user/next session: a real implementation
+needs (a) an explicit decision to build the unattended-execution capability the pipeline
+currently deliberately lacks, likely as its own cross-cutting story rather than folded
+into this one, and (b) either a real enrichment/monitoring provider integration or an
+explicit decision to scope "meaningful changes" down to something this platform can
+already detect without one (e.g., re-running the existing AI web-search-based signal
+detection on the existing rediscovery schedule, and using §7-01.1's own saved criteria,
+just shipped, to decide which results are "meaningful" -- a much narrower, honestly
+buildable reading, but a real product-scope decision to confirm before building it under
+this story's name). Continuing to the next story in this epic (01.3) rather than
+guessing which of these readings the user actually wants.
+
+### DISC-OFFER-P1 §7-01.4 -- Grouped Opportunity Alerts -- also blocked, same reason (2026-09-13)
+
+Depends entirely on 01.2's own raw signal stream to have anything to group ("do not
+create one alert per raw signal... one opportunity alert" instead) -- with no continuous
+monitoring producing a stream of raw signals between runs, there is nothing yet to group.
+Blocked on the same open decision as 01.2 above, not attempted separately.
+
 ## Pre-implementation reconnaissance (done once, up front)
 
 Before writing any code, inspected the existing `module-discovery` implementation, per
