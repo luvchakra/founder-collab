@@ -1,4 +1,5 @@
 import { createClient } from "../../db/server";
+import { detectIcpFieldCorrections } from "../offerings/offering-feedback";
 import type { IcpProfile, IcpProfileVersionSource } from "./types";
 
 type IcpFieldsInput = {
@@ -76,6 +77,51 @@ export async function recordIcpProfileVersion(icp: IcpProfile, source: IcpProfil
 }
 
 /**
+ * DISC-OFFER-P1-04.1: "Learn From User Edits" -- only worth recording as feedback on the
+ * AI when the content this edit is overwriting was itself the AI's own last claim, not a
+ * founder correcting their own prior edit (there is no "AI value" to compare against in
+ * that case). `previous.version === 0` means this ICP has never been snapshotted at all
+ * (predates DISC-OFFER-P0-14.2, or has never been written to since) -- its provenance is
+ * genuinely unknown, so "never manufacture missing information" (the same restraint
+ * DISC-OFFER-P1-03.2 already applied) means skipping rather than guessing.
+ *
+ * Never lets a feedback-capture failure break the actual save that already succeeded --
+ * the same "never let a logging failure break the caller's actual result" restraint
+ * `recordAiRun` (`lib/ai/usage.ts`) already established for a comparable secondary,
+ * non-essential write.
+ */
+async function captureOfferingFeedbackIfAiOverwritten(previous: IcpProfile, updated: IcpProfile): Promise<void> {
+  if (previous.version < 1) return;
+  try {
+    const supabase = await createClient();
+    const { data: lastVersion, error: lastVersionError } = await supabase
+      .from("icp_profile_versions")
+      .select("source")
+      .eq("icp_id", previous.id)
+      .eq("version", previous.version)
+      .maybeSingle();
+    if (lastVersionError) throw lastVersionError;
+    if (!lastVersion || lastVersion.source !== "ai_generated") return;
+
+    const corrections = detectIcpFieldCorrections(previous, updated);
+    if (corrections.length === 0) return;
+
+    const { error: insertError } = await supabase.from("offering_feedback").insert(
+      corrections.map((correction) => ({
+        workspace_id: updated.workspace_id,
+        icp_id: updated.id,
+        field_name: correction.field,
+        ai_value: correction.aiValue,
+        user_value: correction.userValue,
+      })),
+    );
+    if (insertError) throw insertError;
+  } catch (error) {
+    console.error("Failed to record offering_feedback entry:", error instanceof Error ? error.message : error);
+  }
+}
+
+/**
  * Any manual edit resets status to draft -- it must be explicitly re-approved.
  *
  * DISC-OFFER-P0-13.1: also clears `confidence`/`evidence` -- both describe how well the
@@ -91,12 +137,18 @@ export async function recordIcpProfileVersion(icp: IcpProfile, source: IcpProfil
  * single-flight assumption `markPipelineStageRunning`, DISC-OFFER-P0-10.2, already
  * accepts for its own version bump: nothing in this module lets two saves of the same
  * ICP race each other).
+ *
+ * DISC-OFFER-P1-04.1: also captures structured offering feedback for any field whose
+ * value actually changed, when the content being overwritten was itself the AI's own
+ * last claim -- see `captureOfferingFeedbackIfAiOverwritten` above. Reads the full
+ * pre-edit row (not just `version`, as before this story) so there is something to diff
+ * against.
  */
 export async function updateIcpProfile(icpId: string, input: IcpFieldsInput): Promise<IcpProfile> {
   const supabase = await createClient();
   const { data: current, error: currentError } = await supabase
     .from("icp_profiles")
-    .select("version")
+    .select("*")
     .eq("id", icpId)
     .single();
   if (currentError) throw currentError;
@@ -109,6 +161,7 @@ export async function updateIcpProfile(icpId: string, input: IcpFieldsInput): Pr
     .single();
   if (error) throw error;
   await recordIcpProfileVersion(data, "user_edit");
+  await captureOfferingFeedbackIfAiOverwritten(current, data);
   return data;
 }
 

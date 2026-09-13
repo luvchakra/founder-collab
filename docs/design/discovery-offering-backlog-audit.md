@@ -65,7 +65,7 @@ only genuine architectural/key decisions are raised.
 | | P1-02.2 | Rerun Impact Confirmation | Done |
 | | P1-03.1 | Offering Definition Quality | Done |
 | | P1-03.2 | Missing Information Suggestions | Done |
-| | P1-04.1 | Learn From User Edits | Not started |
+| | P1-04.1 | Learn From User Edits | Done |
 | | P1-04.2 | Learn From Outcomes | Not started |
 | | P1-05.1 | Offering Pipeline Workspace | Not started |
 | | P1-05.2 | Desktop Stage Tables | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**47 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**48 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3553,3 +3553,135 @@ environment).
 **Status**: 47 of 68 in-scope stories done -- **Phase "P1 — Offering Quality" (§22)
 complete**. Next per §29's own sequence: Phase "P1 — Learning From Human Corrections"
 (§23), starting with P1-04.1, Learn From User Edits.
+
+### P1-04.1 — Learn From User Edits (2026-09-13)
+
+**Verified starting state first**, per this run's own standing instruction, and found the
+same environment artifact again: this worktree's own checked-out HEAD was sitting on a
+*different* concurrent workstream's own scratch-merge branch
+(`worktree-agent-a04ebf172939ca6fb`, tip `95d78bb` -- a merge of
+`feature/platform-admin-portal` into `scratch-plat-14-merge`), not `disc-offering-backlog`
+at all -- the third time this exact artifact has hit this workstream (P1-02.1's own log
+entry already recorded the first). Working tree was clean, so fixed with a plain `git
+checkout disc-offering-backlog` onto the real tracked tip (`b622daf`, P1-03.2). `git fetch
+origin main disc-offering-backlog && git log origin/main..origin/disc-offering-backlog
+--oneline` was then empty, confirming 47/68 fully merged already, and `npm install` was run
+fresh in this worktree per this run's own "don't trust a worktree's stale `node_modules`"
+instruction.
+
+A prior attempt at this exact story was interrupted mid-flight before any commit --
+confirmed via `git log` that no `offering_feedback` migration exists anywhere in this
+branch's or `main`'s history, and confirmed via `list_tables` against the dev project that
+`discovery.offering_feedback` did not exist live either. Starting fully fresh, not
+resuming partial work, per this run's own instructions.
+
+Re-verified the prior attempt's own worked-out reasoning (handed down in this run's own
+instructions) against the actual current codebase rather than taking it on faith:
+- **`00-MASTER-PLAN.md` §5 checked directly**: confirmed no "feedback"/"correction" concept
+  listed for any module -- a new table is genuinely warranted.
+- **`icp_profile_versions` re-read directly** (`lib/icp/types.ts`, the
+  DISC-OFFER-P0-14.2 migration): confirmed it really does tag every snapshot
+  `ai_generated`/`user_edit`, and confirmed `icp_profiles.version` always equals the
+  version number of the most recently recorded snapshot (both `generateIcp` and
+  `updateIcpProfile` bump `version` and immediately call `recordIcpProfileVersion` with
+  the just-written row) -- so "was the content this edit is about to overwrite the AI's
+  own last claim" is answerable with one indexed lookup
+  (`icp_profile_versions` at `icp_id` + the pre-edit `version`), not a guess.
+- **Real FK (`icp_id`), not a speculative polymorphic pair**: confirmed and kept -- the ICP
+  remains the only correctable entity that exists in this module today.
+- **jsonb `ai_value`/`user_value`**: confirmed and kept -- `icp_profiles`' own fourteen
+  content columns genuinely mix plain strings (`name`/`description`) and string arrays
+  (every other field).
+- **Append-only, no update/delete**: confirmed and kept, matching
+  `icp_profile_versions`/`pipeline_stage_runs`/`discovery.signals`.
+
+**One correction to the prior attempt's own reasoning**: it stopped short of designing the
+detection logic itself. The real question turned out to be narrower than "diff old vs new
+ICP" -- it's "diff old vs new, but only when the *old* value is known to be the AI's own,
+not a founder correcting their own prior edit" (there is no meaningful "AI value" to learn
+from otherwise). This needed the extra `icp_profile_versions` lookup described above,
+which the interrupted attempt's own notes never mentioned.
+
+**New `lib/offerings/offering-feedback.ts`** -- `ICP_CONTENT_FIELDS`, the closed
+fourteen-field list every content column `icp_profiles`/`icp_profile_versions` already
+share (excludes `status`/`confidence`/`evidence`/`version`, which describe workflow state
+or AI confidence, not a value a founder corrects), and `detectIcpFieldCorrections(aiFields,
+userFields)` -- pure and deterministic (CLAUDE.md dev principle #4, no LLM for a
+computable diff), returning one `{field, aiValue, userValue}` entry per field whose value
+actually changed, in field-declaration order. Exact-order array comparison, not a set
+comparison -- flagged as a deliberate simplification (CLAUDE.md dev principle #1): the
+doc's own worked example is a single-value change, not a reordering, and this module has
+no existing precedent for order-insensitive list comparison to reuse. The function itself
+has no way to check provenance (that requires a DB round trip) -- its own doc comment says
+so explicitly, so the caller is responsible for only invoking it when `aiFields` is
+genuinely known to be the AI's last write. 6 new vitest cases: no-op on an unchanged save,
+the doc's own literal "Retail" → "Banking" worked example reproduced exactly, a scalar
+null-to-value change, multiple simultaneous corrections (order-checked), the
+same-elements-reordered case (documents the flagged simplification as intentional
+behavior, not an oversight), and an emptied-then-refilled field landing back on its
+original value correctly producing no correction.
+
+**Schema** (`20260912270000_discovery_offering_feedback.sql`): `discovery.offering_feedback`
+-- `workspace_id`/`icp_id` (both real foreign keys, both cascade-deleted, both explicitly
+indexed since neither is covered by a leftmost composite-index prefix the way
+`icp_profile_versions`' own `(workspace_id, version)` covers `workspace_id`), `field_name`
+(closed vocabulary via check constraint, the exact same fourteen values as
+`ICP_CONTENT_FIELDS` -- flagged as a "two things must stay in sync by hand" precedent,
+matching `icp_profiles`/`icp_profile_versions`' own already-accepted identical-shape
+duplication), `ai_value`/`user_value` (both jsonb, both nullable), `created_at`. Same
+tenant-AND-licensed RLS pattern as every sibling table (`discovery.user_workspace_ids()`),
+select-and-insert-only -- a recorded correction is a permanent fact, matching every other
+append-only history table in this schema.
+
+**Wiring** (`lib/icp/mutations.ts`): `updateIcpProfile` now reads the *full* pre-edit row
+(previously only `version`, needed for nothing more than the increment) and, after
+recording the `user_edit` version snapshot as before, calls new
+`captureOfferingFeedbackIfAiOverwritten(previous, updated)`: returns immediately if
+`previous.version < 1` (never snapshotted -- provenance genuinely unknown, so "never
+manufacture missing information" means skipping rather than guessing, the same restraint
+DISC-OFFER-P1-03.2 already applied); otherwise looks up the `source` of the
+`icp_profile_versions` row at `previous.version` and proceeds only if it reads
+`ai_generated`; then runs `detectIcpFieldCorrections` and inserts one `offering_feedback`
+row per changed field. **Wrapped in its own try/catch that only logs** -- the same "never
+let a logging failure break the caller's actual result" restraint `recordAiRun`
+(`lib/ai/usage.ts`) already established for a comparable secondary, non-essential write: a
+founder's ICP save is already durably committed before this ever runs, and a feedback-
+capture hiccup must never turn a successful save into a thrown error.
+
+**Deliberately NOT wired into `cloneIcpProfileToWorkspace`**: a clone replaces a target
+workspace's *entire* ICP with a different offering's ICP wholesale -- every field would
+register as "changed" even though nothing about this is a founder correcting a specific
+AI claim about *their own* product, which would produce fourteen rows of pure noise per
+clone rather than a real correction signal. Flagged as a scope call, not an oversight.
+
+**"Do not silently retrain models"** is structural: `offering-feedback.ts` only ever
+returns data; `captureOfferingFeedbackIfAiOverwritten` only ever writes rows. Nothing in
+this story reads `offering_feedback` back into a prompt, a model choice, or any other
+AI-facing parameter -- acting on this data is out of this story's own scope, matching the
+doc's own explicit instruction.
+
+No UI added -- the doc's own text for this story ("Capture recurring corrections... Store
+this as structured offering feedback. Do not silently retrain models.") describes a
+capture mechanism only, unlike several prior P1 stories whose own worked examples
+explicitly showed founder-facing screens (badges, dialogs, cards). Nothing in this story's
+text or worked example asks for a screen, so none was built (CLAUDE.md dev principle #7).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1189 files, no
+violations), `lint:migrations` (137 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (232/232, +6 new), a live migration apply + `get_advisors` for
+both `security`/`performance` against the dev project (`jazdtomcgqjxjueedmck`) -- no new
+findings of any kind beyond the two new indexes appearing in the pre-existing "unused
+index" baseline noise (expected for a brand-new empty table, the same way
+`icp_profile_versions_icp_id_idx` already appears there), and a clean `next build`
+(confirmed the ICP route, whose `updateIcpAction`/`updateIcpAndRunDownstreamAction` both
+call the now-changed `updateIcpProfile`, still builds with no errors). Same
+live-browser-walkthrough constraint noted in every prior UI-touching story this run (no
+seeded demo user/`.env.local` in this environment) -- particularly relevant here since
+this story's own real effect (a row appearing in `offering_feedback` after a founder
+corrects an AI-generated ICP field) has no UI of its own to visually confirm beyond the
+typecheck/build/test evidence above and a live `execute_sql` spot-check would need a real
+signed-in founder session to produce a genuine AI-generated-then-edited ICP to observe.
+
+**Status**: 48 of 68 in-scope stories done -- Phase F continuing. Next: P1-04.2, Learn
+From Outcomes.
