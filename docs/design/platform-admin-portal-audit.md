@@ -33,7 +33,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 13 | Country / Compliance Pack Administration | All of §17 resolved (13.1/13.2/13.4 done; 13.3 closed 2026-09-13 -- user decision: already satisfied by `gst.tax_rules`, no platform-layer counterpart needed) -- see log |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Done -- 14.1/14.2/14.3 (all of §18) built config-only, see log |
-| | 15 | Global Announcements / Maintenance | Not started |
+| | 15 | Global Announcements / Maintenance | Done -- 15.1/15.2/15.3/15.4 (all of §19) built config-only, see log |
 | | 17 | Configuration Versioning | Not started |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
@@ -6176,3 +6176,145 @@ an end-to-end UI verification.
 **Status**: PLATFORM-P0-14.1/14.2/14.3 done. §18 (Platform Policies) is now fully resolved.
 Committing and merging to `main`, then continuing to §19 (Global Announcements /
 Maintenance, PLATFORM-P0-15) next, per this doc's own section order.
+
+### PLATFORM-P0-15.1/15.2/15.3/15.4 — Global Announcements / Maintenance (2026-09-13)
+
+§19's own text: four states of one entity, no ambiguity to stop and report on this time --
+a platform-wide announcement catalog with a type (information/warning/maintenance/critical),
+audience targeting (all customers/all users/a specific plan/a specific country), a
+publish/expire schedule, and, for maintenance-type announcements specifically, a
+maintenance window plus a list of affected modules.
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5), done first**: grepped
+`docs/plan/00-MASTER-PLAN.md` §5 and the full repo for "announcement" -- no entity exists
+yet. Two adjacent concepts already exist and are genuinely NOT duplicated by this one:
+`platform.email_templates`'s fixed `system_announcements` purpose (PLATFORM-P0-11.2) is a
+reusable EMAIL FORMATTING template (subject/body with merge fields) for notifying people
+about an announcement by email -- a future delivery mechanism, not the announcement's own
+data; this story does not read, write, or reference that table at all. `platform.modules.
+status` (PLATFORM-P0-07.3) already has a per-MODULE `'maintenance'` value -- an instant,
+indefinite, manually-toggled ACCESS-CONTROL state with real enforcement (it blocks
+routes/writes). This table's own "Maintenance" is a different concept: a scheduled,
+time-bounded, purely INFORMATIONAL banner/notice, never gating access to anything. Building
+this touches, reads, and changes nothing in `platform.modules`.
+
+**Design decisions, resolved and documented rather than guessed vaguely**:
+- 15.4's own "message" field is the SAME field as every other announcement's own body, not
+  a maintenance-only extra column -- the same "one field, two sections naming it" resolution
+  PLATFORM-P0-13/14's own overlapping doc text already used repeatedly in this backlog.
+- List-shaped, mirroring `platform.feature_flags` exactly, not a singleton -- an
+  announcement catalog is naturally many rows over time. Create/update/delete, all through
+  SECURITY DEFINER functions requiring a genuine SUPERADMIN and a non-empty `reason`,
+  writing one atomic JSONB-snapshot audit event per call to `platform.announcement_events`
+  -- the identical shape `platform.feature_flags`/`feature_flag_events` already established.
+  `type`/`audience_type`/`audience_plan_id`/`audience_country_code` are immutable after
+  creation (an announcement's own audience is its identity, the same "scope immutable after
+  creation" reasoning PLATFORM-P0-08's own migration already used) -- only
+  `title`/`message`/the schedule/the maintenance window/`affected_modules`/`enabled` are
+  ever updated.
+- Audience targeting reuses real catalogs where they now exist: `audience_plan_id`
+  references `platform.plans` (exactly like `feature_flags.scope_plan_id`).
+  `audience_country_code` references `platform.compliance_countries` (PLATFORM-P0-13.1) --
+  a real canonical country catalog exists now (it didn't when `feature_flags` was built),
+  so this table references it properly instead of repeating that now-avoidable free-text
+  pattern.
+- **No runtime consumer reads this table yet.** No banner/notice-rendering component exists
+  anywhere in `apps/web`'s customer-facing dashboard; `enabled`/`publish_at`/`expire_at` are
+  not evaluated by any request path; `affected_modules`/the maintenance window do not gate
+  or warn on anything in `requireModule()`/`hasModule()`/`middleware.ts`; no email is sent
+  when an announcement is created. Building a real audience-resolution-and-display system
+  is a materially larger, separate future story, matching this backlog's own "table now,
+  enforcement/wiring later" sequencing throughout.
+
+**What was built**: migration `20260912460000_platform_announcements.sql` --
+`platform.announcements` (the fields above, a CHECK enforcing exactly one of
+`audience_plan_id`/`audience_country_code` is set and only when the matching
+`audience_type` is chosen, a CHECK enforcing the maintenance window/`affected_modules` are
+populated if-and-only-if `type = 'maintenance'`, a CHECK enforcing `expire_at > publish_at`
+and `maintenance_end > maintenance_start` when both are set) + `platform.announcement_events`
+(append-only, JSONB before/after snapshots, `title` denormalized for post-delete
+readability). Three SECURITY DEFINER functions (`create_announcement`/`update_announcement`/
+`delete_announcement`), each validating `affected_modules` against real `core.modules` keys
+(an unknown key is rejected, not silently accepted). `packages/core/src/admin/
+platform-announcements.ts` (+ its own `isAnnouncementActive()`, a pure derivation mirroring
+`isFeatureFlagActive()` exactly, per CLAUDE.md development principle #9) with 15 unit tests
+already written when this story's implementation was picked back up (see the recovery note
+below). New `/platform/announcements` admin page -- desktop table / mobile card split per
+CLAUDE.md development principle #12, one shared `AnnouncementDialog` for both Add and Edit
+(scope permanent in Edit, shown as read-only text), a conditional maintenance-window/
+affected-modules section that only renders when `type = 'maintenance'`, and a
+`DeleteAnnouncementDialog` requiring its own reason -- all mirroring `feature-flags/`'s own
+established component shapes exactly. Added to the platform nav.
+
+**Recovery note on this session's own continuity**: this story's migration, app layer, and
+unit tests were already written and verified (typecheck/lint clean) by an earlier run of
+this same dispatch before it was interrupted by an API rate limit mid-story, after
+PLATFORM-P0-13.3's closure and PLATFORM-P0-14.1/14.2/14.3 had already been committed and
+merged. The orchestrating session recovered the uncommitted worktree state, confirmed the
+backend work's quality (the migration's own entity-ownership and design reasoning was
+already complete and correct), and finished the missing piece -- the admin UI (list page,
+create/edit dialog, nav wiring) and the dedicated RLS test script -- before running the
+full verification pipeline below and merging. No architectural decision was redone or
+second-guessed; the recovered work was read in full before continuing it.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across all 9 workspaces. `npm
+run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated warning
+every prior story has logged. `node scripts/lint-import-boundaries.mjs` -- 1513 files, no
+violations. `node scripts/lint-migration-schema.mjs` -- 201 migrations, no violations.
+`npx vitest run --root packages/core` -- 304/304 passing (15 of which are this story's own
+`createAnnouncementSchema`/`updateAnnouncementSchema`/`isAnnouncementActive` cases). Migration
+applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+`mcp__Supabase__apply_migration`; `mcp__Supabase__get_advisors` (security + performance) --
+zero new findings beyond the same pre-existing baseline every prior entry has logged (the
+two new tables' own indexes show up only as the same benign "unused index" info-level note
+every sibling index already carries in this low-traffic dev database). Role-switched live
+proof against dev, using the same real non-superadmin user (`c8040fb0-b46c-4131-9ea7-
+195e8157d27b`) this backlog's own prior entries have repeatedly used: `select count(*) from
+platform.announcements` returned `0` cleanly (the open-SELECT policy working as intended,
+not an error), and a role-switched call to `platform.create_announcement(...)` was rejected
+outright with a real Postgres `P0001: Forbidden: only a SUPERADMIN can create an
+announcement.` error -- a genuine function-level rejection, not a silently-ignored RLS
+filter -- with zero residue confirmed afterward in both tables. Clean `apps/web` `npm run
+build` -- `/platform/announcements` appears in the route manifest as `ƒ` (dynamic).
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires**: new
+`scripts/test-platform-announcements-rls.mjs` (40 assertions), wired into `package.json`'s
+`test:db` composite script after `test-platform-system-policies-rls.mjs`. Same Alice
+(business admin, not a superadmin)/Zoe (real platform superadmin) pair every sibling script
+uses. **All 40 assertions passed** against real local Postgres 16: the catalog starts
+empty; Alice can read but every one of her three mutation attempts is rejected with zero
+residue; the audience-shape CHECK rejects all four mismatched audience/target combinations
+including "both a plan and a country set"; the maintenance-only CHECK rejects a maintenance
+window or `affected_modules` on a non-maintenance type and requires a real end-after-start
+window; an unknown module key in `affected_modules` is rejected; a real maintenance,
+plan-specific, and country-specific announcement can each be created correctly; the
+publish/expire window CHECK is enforced; an empty/whitespace reason is rejected by all three
+functions; `update_announcement` mutates only the fields it's supposed to and never
+`type`/`audience_type`; each mutation writes exactly one atomic audit event with a real
+before/after snapshot; deleting nulls `announcement_id` via `on delete set null` while the
+event survives by its denormalized `title`; the audit trail's own SELECT is superadmin-only;
+and nobody -- including Zoe -- can bypass the three functions with a direct
+INSERT/UPDATE/DELETE on either table. Local Postgres 16 was already online in this worktree
+(confirmed via `pg_lsclusters` before running).
+
+**What was deliberately left out**: any real banner/notice-rendering component in the
+customer-facing dashboard; any evaluation of `enabled`/`publish_at`/`expire_at`/the
+maintenance window anywhere in `requireModule()`/`hasModule()`/`middleware.ts`; any email
+sent via `platform.email_templates`' own `system_announcements` template when an
+announcement is created; audience RESOLUTION (which businesses actually see a given
+announcement) beyond simply recording the audience's own targeting fields -- all matching
+this backlog's own "table now, enforcement/wiring later" sequencing throughout, and
+explicitly named as future, separate scope in the migration's own docstring.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed dev environment, so a live browser walkthrough of
+`/platform/announcements` actually adding/editing/deleting a row through the real UI was
+**not** performed and is **not** claimed here. This entry documents build/typecheck/lint/
+unit-test correctness, a direct read/reject proof against the live dev database for the
+non-superadmin path, and the full positive-and-negative matrix against local Postgres -- not
+an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-15.1/15.2/15.3/15.4 done. §19 (Global Announcements / Maintenance)
+is now fully resolved. Next in the doc's own section order: §17 in this doc's own numbering
+gap is "Configuration Versioning" (already listed "Not started" in the progress table above)
+and §19 "Platform Administration UI" -- both still open, along with every P1 section.

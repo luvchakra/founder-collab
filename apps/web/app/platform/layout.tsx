@@ -76,6 +76,10 @@ const NAV_LINKS = [
   // password, files, retention, rate limits, business defaults) -- config-only, no
   // runtime enforcement (see the migration's own docstring).
   { href: "/platform/system-policies", label: "Platform Policies" },
+  // PLATFORM-P0-15.1/15.2/15.3/15.4: the platform-wide announcement/maintenance-notice
+  // catalog -- config-only, no customer-facing banner/notice or email delivery wired up
+  // yet (see the migration's own docstring).
+  { href: "/platform/announcements", label: "Announcements" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
