@@ -35,6 +35,8 @@ import { ContactRow } from "@cofounderai/module-discovery/components/prospects/c
 import { BuyerIntelligenceTable } from "@cofounderai/module-discovery/components/prospects/buyer-intelligence-table";
 import { ScoreRagBadge } from "@cofounderai/module-discovery/components/prospects/rag-badge";
 import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
+import { WatchlistToggle } from "@cofounderai/module-discovery/components/prospects/watchlist-toggle";
+import { getWatchlistEntryForProspect } from "@cofounderai/module-discovery/lib/watchlist/queries";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
 import { PromoteToCrmButton } from "./promote-to-crm-button";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
@@ -63,6 +65,9 @@ import {
   closeConversationAction,
   logInboundReplyAction,
   promoteProspectToCrmAction,
+  addToWatchlistAction,
+  updateWatchlistAction,
+  removeFromWatchlistAction,
 } from "./actions";
 
 /** DISC-OFFER-P0-06.1: replaced by `EVIDENCE_TYPE_LABEL` (module-discovery's own
@@ -332,7 +337,7 @@ export default async function ProspectDetailPage({
   const prospect = await getProspect(prospectId);
   if (!prospect || prospect.workspace_id !== workspace.id) notFound();
 
-  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyerIntelligence] = await Promise.all([
+  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyerIntelligence, watchlistEntry] = await Promise.all([
     listContacts(prospect.id),
     getProspectResearch(prospect.id),
     listRecentProspectScores(prospect.id),
@@ -341,6 +346,7 @@ export default async function ProspectDetailPage({
     listConversations(prospect.id),
     getResearchBrief(prospect.id),
     getBuyerIntelligenceForProspect(workspace.id, prospect.id),
+    getWatchlistEntryForProspect(prospect.id),
   ]);
 
   // Template selection is an optional enhancement to message generation -- a Resend
@@ -443,6 +449,13 @@ export default async function ProspectDetailPage({
             </form>
           </div>
         </div>
+
+        <WatchlistToggle
+          entry={watchlistEntry}
+          addAction={addToWatchlistAction.bind(null, businessId, productId, workspace.id, prospect.id)}
+          updateAction={updateWatchlistAction.bind(null, businessId, productId, prospect.id, watchlistEntry?.id ?? "")}
+          removeAction={removeFromWatchlistAction.bind(null, businessId, productId, prospect.id, watchlistEntry?.id ?? "")}
+        />
 
         <form
           action={updateProspectAction.bind(null, businessId, productId, prospect.id)}
