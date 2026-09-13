@@ -1,7 +1,8 @@
 import { createClient } from "../../db/server";
 import { getWorkspace } from "../tenancy/queries";
 import { computeNextDiscoveryAt } from "../tenancy/rediscovery";
-import type { PipelineRun, PipelineRunStatus, PipelineRunTrigger, PipelineStage, PipelineStageKey } from "./types";
+import type { PipelineRun, PipelineRunStatus, PipelineRunTrigger, PipelineStage, PipelineStageKey, PipelineStageStatus } from "./types";
+import type { StageReviewLevel } from "./review";
 
 async function updateStage(
   workspaceId: string,
@@ -77,15 +78,25 @@ export async function markPipelineStageRunning(workspaceId: string, stageKey: Pi
   });
 }
 
+/** DISC-OFFER-P1-02.1: `reviewLevel` (undefined for every stage with no confidence-
+ * bearing result of its own -- `handlers.ts`'s own `StageOutcome` comment) decides which
+ * of the three terminal statuses this attempt lands on: `"automated"`/undefined still
+ * writes `completed` exactly as before this story, while `"needs_review"`/
+ * `"insufficient_evidence"` write that value directly -- the persisted status *is* the
+ * classification, not a separate flag next to it. `pipeline_stage_runs`' own recorded
+ * outcome stays `"completed"` regardless: the technical attempt itself succeeded either
+ * way (see that table's own status vocabulary, a different, narrower concept). */
 export async function markPipelineStageCompleted(
   workspaceId: string,
   stageKey: PipelineStageKey,
   lastAiRunId?: string | null,
   runId?: string | null,
+  reviewLevel?: StageReviewLevel,
 ): Promise<PipelineStage> {
   const completedAt = new Date().toISOString();
+  const status: PipelineStageStatus = reviewLevel && reviewLevel !== "automated" ? reviewLevel : "completed";
   const stage = await updateStage(workspaceId, stageKey, {
-    status: "completed",
+    status,
     completed_at: completedAt,
     ...(lastAiRunId !== undefined ? { last_ai_run_id: lastAiRunId } : {}),
   });

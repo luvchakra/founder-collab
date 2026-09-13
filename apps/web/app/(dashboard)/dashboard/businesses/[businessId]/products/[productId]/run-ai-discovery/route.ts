@@ -121,7 +121,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
     const stage =
       result.outcome === "skipped"
         ? await markPipelineStageSkipped(workspace.id, key, runId)
-        : await markPipelineStageCompleted(workspace.id, key, undefined, runId);
+        : await markPipelineStageCompleted(workspace.id, key, undefined, runId, result.reviewLevel);
     if (runId && isLastStage) {
       await completePipelineRun(workspace.id, runId, "completed", null);
     }

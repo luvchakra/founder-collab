@@ -1,5 +1,6 @@
 import { downstreamOf } from "./dependencies";
-import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey } from "./types";
+import { PIPELINE_STAGE_KEYS, type PipelineStage, type PipelineStageKey, type PipelineStageStatus } from "./types";
+import { worstReviewLevel, type StageReviewLevel } from "./review";
 
 /** DISC-OFFER-P0-10.3: "Pipeline Progress UI" -- the doc's own mockup shows nine
  * non-technical lines (Website Understanding / Offering Profile / ICP / Buyer Personas /
@@ -55,10 +56,35 @@ export type DisplayGroupView = {
    * `status` is `current`/`failed` -- what a "Retry"/spinner in the UI targets. Null once
    * `completed` (nothing to point at) or while still `upcoming` (nothing has started). */
   activeStageKey: PipelineStageKey | null;
+  /** DISC-OFFER-P1-02.1: the worst review level among this group's own stages -- lets a
+   * `completed` group still surface a ⚠/? badge for a stage that technically finished
+   * but whose own result wants a founder's attention, without blocking the pipeline from
+   * treating it as done and moving on. `"automated"` (the vast majority of groups, and
+   * every group with no confidence-bearing stage in it) renders no badge at all. */
+  reviewLevel: StageReviewLevel;
 };
 
 function stageStatus(stages: PipelineStage[], key: PipelineStageKey) {
   return stages.find((s) => s.stage_key === key)?.status ?? "not_started";
+}
+
+/** DISC-OFFER-P1-02.1: a stage has finished -- the pipeline can move past it and a group
+ * containing only stages like this one is "done" -- whether it landed on `completed`,
+ * `skipped`, or either of the two review-flagged terminal statuses this story adds a
+ * producer for. Review is advisory ("the user can still edit any stage"), never a gate:
+ * exported so `run-ai-discovery-panel.tsx`'s own client-side "what's the next incomplete
+ * stage" logic uses the exact same definition of "done" as this file's own group
+ * computation below, rather than a second copy that could drift out of sync. */
+export function isStageStatusDone(status: PipelineStageStatus): boolean {
+  return status === "completed" || status === "skipped" || status === "needs_review" || status === "insufficient_evidence";
+}
+
+/** A stage's own status collapsed onto the doc's three-symbol review vocabulary --
+ * `completed`/`skipped`/`not_started`/`running`/`failed` all read as `automated` (nothing
+ * to flag), while `needs_review`/`insufficient_evidence` map onto themselves directly. */
+function reviewLevelForStatus(status: PipelineStageStatus): StageReviewLevel {
+  if (status === "needs_review" || status === "insufficient_evidence") return status;
+  return "automated";
 }
 
 /** Deterministic, no AI call (CLAUDE.md dev principle #4/#5) -- a plain reduction over
@@ -73,27 +99,29 @@ export function computeDisplayGroups(stages: PipelineStage[]): DisplayGroupView[
     const statuses = group.stageKeys.map((key) => stageStatus(stages, key));
     const failedStage = group.stageKeys.find((key) => stageStatus(stages, key) === "failed");
     const runningStage = group.stageKeys.find((key) => stageStatus(stages, key) === "running");
-    const allDone = statuses.every((s) => s === "completed" || s === "skipped");
+    const allDone = statuses.every(isStageStatusDone);
+    const reviewLevel = worstReviewLevel(statuses.map(reviewLevelForStatus));
 
     if (failedStage) {
       currentAssigned = true;
-      return { key: group.key, label: group.label, status: "failed" as const, stageKeys: group.stageKeys, activeStageKey: failedStage };
+      return { key: group.key, label: group.label, status: "failed" as const, stageKeys: group.stageKeys, activeStageKey: failedStage, reviewLevel };
     }
     if (allDone) {
-      return { key: group.key, label: group.label, status: "completed" as const, stageKeys: group.stageKeys, activeStageKey: null };
+      return { key: group.key, label: group.label, status: "completed" as const, stageKeys: group.stageKeys, activeStageKey: null, reviewLevel };
     }
     if (!currentAssigned) {
       currentAssigned = true;
-      const nextStage = group.stageKeys.find((key) => stageStatus(stages, key) !== "completed" && stageStatus(stages, key) !== "skipped");
+      const nextStage = group.stageKeys.find((key) => !isStageStatusDone(stageStatus(stages, key)));
       return {
         key: group.key,
         label: group.label,
         status: "current" as const,
         stageKeys: group.stageKeys,
         activeStageKey: runningStage ?? nextStage ?? null,
+        reviewLevel,
       };
     }
-    return { key: group.key, label: group.label, status: "upcoming" as const, stageKeys: group.stageKeys, activeStageKey: null };
+    return { key: group.key, label: group.label, status: "upcoming" as const, stageKeys: group.stageKeys, activeStageKey: null, reviewLevel };
   });
 }
 

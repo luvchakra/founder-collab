@@ -61,7 +61,7 @@ only genuine architectural/key decisions are raised.
 | | 15.1 | Final Human Action Gate | Done |
 | F (P1) | P1-01.1 | Scheduled Offering Re-Discovery | Done |
 | | P1-01.2 | Incremental Re-Run | Done |
-| | P1-02.1 | Review Required Indicators | Not started |
+| | P1-02.1 | Review Required Indicators | Done |
 | | P1-02.2 | Rerun Impact Confirmation | Not started |
 | | P1-03.1 | Offering Definition Quality | Not started |
 | | P1-03.2 | Missing Information Suggestions | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**43 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**44 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3185,3 +3185,152 @@ re-rendering those same fields.
 
 **Status**: 43 of 68 in-scope stories done -- Phase F underway. Next: P1-02.1, Review
 Required Indicators.
+
+### P1-02.1 — Review Required Indicators (2026-09-13)
+
+**Verified starting state first**, per this run's own standing instruction: this worktree's
+own checked-out HEAD was found sitting on a *different* concurrent workstream's own
+scratch-merge branch (`worktree-agent-a02bb7313e47bc5e6`, tip `e86431e` -- a merge of
+`feature/platform-admin-portal` into `scratch-plat-11-3-merge`), not
+`disc-offering-backlog` at all -- exactly the "stray scratch-merge branch" environment
+artifact this run's own instructions warned every workstream has hit before. Working tree
+was clean, so fixed with a plain `git checkout disc-offering-backlog` onto the real
+tracked tip (`7a1eefb`, P1-01.2) rather than anything destructive. `git fetch origin main
+disc-offering-backlog && git log origin/main..origin/disc-offering-backlog --oneline` was
+then empty, confirming 43/68 fully merged already, and `npm install` was run fresh in this
+worktree per this run's own "don't trust a worktree's stale `node_modules`" instruction.
+
+The doc gives this story no "Acceptance criteria" heading either (same shape as several
+prior schema-plus-minimal-UI stories) -- the doc's own three-symbol legend ("✓ High
+confidence — automated" / "⚠ Needs review" / "? Insufficient evidence") and one line:
+"The user can still edit any stage."
+
+**Checked what already held before building anything, per this run's own "inspect before
+changing" discipline**: `discovery.pipeline_stages.status`'s own original six-state
+vocabulary (DISC-OFFER-P0-10.2) already anticipated this exact story by name in its own
+migration/type comment -- `needs_review` was defined in the check constraint from the
+start but had zero producers (every DISC-OFFER-P0-10.1 handler either completes or fails
+outright), with that comment explicitly naming DISC-OFFER-P1-02.1 as "the story that
+actually decides when a stage's own result is uncertain enough to land there instead of
+`completed`." This story is that producer. The doc's own third symbol ("? Insufficient
+evidence") is a genuinely narrower, different fact than "⚠ Needs review" -- a stage that
+ran and found nothing at all to work with, vs. one that found something but it's weak
+(the same distinction DISC-OFFER-P0-05.5's own `insufficient_evidence` vs.
+`no_relevant_problem` split on negative signals already established for a different
+table) -- so rather than collapsing both symbols onto the one existing `needs_review`
+value, widened `pipeline_stages.status`'s own check constraint to add
+`insufficient_evidence` as a real seventh, additive state
+(`20260912260000_discovery_pipeline_stages_insufficient_evidence.sql`), the same "widen a
+check constraint for a real third state" precedent DISC-OFFER-P0-01.1 already established
+for `products.status`. Confirmed the live constraint's exact name
+(`pipeline_stages_status_check`) against the dev database before writing the migration,
+rather than assuming Postgres's default naming.
+
+**New `lib/pipeline/review.ts`** -- pure, deterministic classification (CLAUDE.md dev
+principle #4/#5, no AI call of its own): `StageReviewLevel = "automated" | "needs_review"
+| "insufficient_evidence"`, `worstReviewLevel()` (worst-wins aggregation across several
+independent readings one stage's own run touched, the same discipline
+DISC-OFFER-P0-05.4's own "weaker of timing/correlation confidence" already established),
+`classifyNumericConfidence()` (for the two stages whose own AI output already carries a
+plain 0-1 confidence number -- `ProductProfileSchema`/`IcpProfileSchema`'s own
+`confidence` -- against this story's own new judgment-call thresholds: ≥0.7 automated,
+≥0.4 needs review, below insufficient evidence; the doc names no specific numbers, so
+these are flagged here as this story's own genuinely new call, not derived from anything
+pre-existing), `classifyEnumConfidence()` (for every stage whose output already carries
+this module's established low/medium/high vocabulary -- signal correlation, why-now,
+research briefs, opportunity scoring -- `"high"` is the only tier safe to leave fully
+automated; `hasEvidence` distinguishes a real-but-weak `"low"` reading from "found
+genuinely nothing," using whichever null-typed sibling field that stage already uses for
+the latter), and `classifyEvidenceConfidences()` (same idea for a *list* of readings --
+evidence items, buyer-intelligence candidates -- an empty list is `insufficient_evidence`
+directly). 13 new vitest cases cover every threshold/boundary and both aggregation
+functions.
+
+**Wired into every stage handler with a real confidence-bearing result of its own**
+(`handlers.ts`, `StageOutcome` gained an optional `reviewLevel`) -- deliberately **not**
+wired into the four purely deterministic, rule-based stages (`buyer_personas`,
+`discovery_strategy`, `account_discovery`, `crm_handoff`): none of them has an AI
+judgment call of its own to second-guess, so an undefined `reviewLevel` (route treats it
+identically to `"automated"`) is the honest answer, not an oversight. For every other
+stage, reused whichever confidence-bearing value that stage's own already-existing
+function already produces rather than computing a second, parallel signal:
+`website_understanding`/`offering_profile` -- `product_profile.confidence`;
+`icp` -- `icp.confidence`, **with a flagged judgment call**: a `null` confidence here
+(the doc's own field is nullable) means this run made no *fresh* automated claim of its
+own to review, since it happens either when a pre-existing/already-approved ICP was
+reused untouched (`generateIcp`'s own freshness check) or when the live ICP's last write
+was a founder's own manual edit (`updateIcpProfile` clears confidence -- `icp/types.ts`'s
+own comment) -- both read as `"automated"` (nothing new to flag), not "insufficient
+evidence," since a human already touched or approved it either way; `signals` -- every
+evidence item's own confidence across every account researched this run (an account whose
+research turned up zero evidence items correctly contributes its own empty reading, not
+silently excluded); `signal_correlation` -- each opportunity's own new correlation
+confidence, **with an opportunity that had literally no correlatable signals this run
+counted as its own `insufficient_evidence` reading**, not excluded from the aggregate;
+`opportunity_scoring` -- each open opportunity's own `confidence`, with a `null` score
+mapped straight to `insufficient_evidence` (DISC-OFFER-P0-05.2's own literal "Insufficient
+evidence" case); `why_now` -- each opportunity's own just-written `timing_strength`/
+`why_now_confidence` (a null `timing_strength` is `computeWhyNow`'s own "no correlation to
+work with" case); `research` -- each generated brief's own `confidence`; `buyer_intelligence`
+-- each opportunity's own buyer-candidate list confidences; `recommended_action` -- reuses
+the same opportunity `score`/`confidence` `buildNextBestActionInput` already gathers
+(DISC-OFFER-P1-01.2's own extraction), rather than computing a second copy.
+
+**`markPipelineStageCompleted`** (`mutations.ts`) gained an optional `reviewLevel`
+parameter: the persisted status *is* the classification (`"needs_review"`/
+`"insufficient_evidence"` written directly when not `"automated"`, `"completed"`
+otherwise, unchanged from before this story) -- no separate flag column to ever drift out
+of sync with it, the same "which value is non-null says which one produced it" discipline
+DISC-OFFER-P0-14.2 already established for the ICP's own `source` distinction.
+`pipeline_stage_runs`' own recorded outcome stays `"completed"` regardless -- the
+technical attempt itself succeeded either way; that table's status vocabulary is a
+different, narrower concept (untouched by this story). Only one call site
+(`run-ai-discovery/route.ts`) needed updating.
+
+**A real, direct blast-radius fix this story's own schema change required**:
+`display-groups.ts`'s own `allDone`/"next incomplete stage" logic and the panel's own
+`firstIncompleteIndex` both previously checked `status === "completed" || status ===
+"skipped"` literally -- introducing two new terminal statuses without touching these would
+have made the pipeline (and the client's own auto-run loop) treat a `needs_review`/
+`insufficient_evidence` stage as permanently unfinished, re-running it forever and never
+advancing. New exported `isStageStatusDone()` (`display-groups.ts`) is the one place both
+that file's own group computation and the panel's `firstIncompleteIndex` now agree on
+what "done" means, rather than two copies that could drift. "The user can still edit any
+stage" holds structurally from this: review is advisory only, never a gate -- the
+pipeline always continues exactly as before this story once a stage reaches any of its
+four "done" statuses.
+
+**UI** (`run-ai-discovery-panel.tsx`): a `completed` group whose own worst `reviewLevel`
+isn't `"automated"` now renders `AlertTriangle`/`HelpCircle` (⚠/?) in place of the plain
+checkmark, plus the doc's own exact label text in parentheses next to the group name
+(`STAGE_REVIEW_LABEL`), and the expanded per-stage detail line names `"Needs review"`/
+`"Insufficient evidence"` alongside its timestamp exactly like the existing `"Completed"`/
+`"Failed"` lines already do. **A flagged scope call**: no separate always-visible legend
+block explaining the three symbols was added -- each badge already carries its own label
+text inline, making a standalone legend redundant rather than genuinely informative;
+noted here as a deliberate choice, not an oversight. New `DisplayGroupView.reviewLevel`
+field (2 new display-groups vitest cases: the new statuses are treated exactly like
+`completed`/`skipped` for group-done purposes, and a group's own worst review level
+surfaces correctly).
+
+No changes to `pipeline_stage_runs`, `pipeline_runs`, the Run History UI (14.1), or
+`icp_profile_versions` (14.2) -- none of their own status vocabularies overlap with
+`pipeline_stages.status`, confirmed by grep before concluding this story's blast radius
+was fully covered.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1181 files, no
+violations), `lint:migrations` (136 migrations, no violations), `npx vitest run --root
+packages/module-discovery` (209/209, +16 new), a live migration apply (confirmed the
+live constraint's exact name first) + `get_advisors` for both `security`/`performance`
+against the dev project (`jazdtomcgqjxjueedmck`) -- no new findings of any kind (a pure
+check-constraint widening adds no column/index; same baseline findings as every prior
+story), and a clean `next build` (confirmed the `run-ai-discovery` route, which now writes
+and renders the two new statuses, still builds with no errors and appears in the route
+manifest). Same live-browser-walkthrough constraint noted in every prior UI-touching story
+this run (no seeded demo user/`.env.local` in this environment) -- particularly relevant
+here since this story's own real effect (a badge appearing instead of a checkmark) has no
+way to be visually confirmed beyond the typecheck/build/test evidence above.
+
+**Status**: 44 of 68 in-scope stories done -- Phase F continuing. Next: P1-02.2, Rerun
+Impact Confirmation.

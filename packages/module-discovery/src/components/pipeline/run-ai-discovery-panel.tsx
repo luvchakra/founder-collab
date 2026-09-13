@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, ChevronDown, ChevronRight, Circle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Circle, HelpCircle, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Button } from "@cofounderai/core/ui/button";
-import { computeDisplayGroups, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
+import { computeDisplayGroups, isStageStatusDone, type DisplayGroupKey } from "../../lib/pipeline/display-groups";
+import { STAGE_REVIEW_LABEL } from "../../lib/pipeline/review";
 import {
   PIPELINE_STAGE_KEYS,
   PIPELINE_STAGE_LABEL,
@@ -21,7 +22,7 @@ type StartRunResponse = { ok: true; run: PipelineRun } | { ok: false; error: str
 function firstIncompleteIndex(stages: PipelineStage[]): number {
   const index = PIPELINE_STAGE_KEYS.findIndex((key) => {
     const status = stages.find((s) => s.stage_key === key)?.status ?? "not_started";
-    return status !== "completed" && status !== "skipped";
+    return !isStageStatusDone(status);
   });
   return index === -1 ? PIPELINE_STAGE_KEYS.length : index;
 }
@@ -204,7 +205,13 @@ export function RunAiDiscoveryPanel({
               >
                 {isOpen ? <ChevronDown className="size-3.5 text-muted-foreground" /> : <ChevronRight className="size-3.5 text-muted-foreground" />}
                 {group.status === "completed" ? (
-                  <CheckCircle2 className="size-4 text-primary" />
+                  group.reviewLevel === "needs_review" ? (
+                    <AlertTriangle className="size-4 text-amber-600" />
+                  ) : group.reviewLevel === "insufficient_evidence" ? (
+                    <HelpCircle className="size-4 text-muted-foreground" />
+                  ) : (
+                    <CheckCircle2 className="size-4 text-primary" />
+                  )
                 ) : isRunning ? (
                   <Loader2 className="size-4 animate-spin text-primary" />
                 ) : group.status === "failed" ? (
@@ -217,6 +224,9 @@ export function RunAiDiscoveryPanel({
                   <Circle className="size-4 text-muted-foreground" />
                 )}
                 <span className={group.status === "upcoming" ? "text-muted-foreground" : ""}>{group.label}</span>
+                {group.status === "completed" && group.reviewLevel !== "automated" ? (
+                  <span className="text-xs text-muted-foreground">({STAGE_REVIEW_LABEL[group.reviewLevel]})</span>
+                ) : null}
                 {group.status === "failed" ? (
                   <Button
                     variant="ghost"
@@ -244,13 +254,17 @@ export function RunAiDiscoveryPanel({
                         <span>
                           {stage?.status === "completed"
                             ? `Completed ${formatTime(stage.completed_at)}`
-                            : stage?.status === "skipped"
-                              ? "Nothing new"
-                              : stage?.status === "failed"
-                                ? (stage.error ?? "Failed")
-                                : stage?.status === "running"
-                                  ? "Running..."
-                                  : "Not started"}
+                            : stage?.status === "needs_review"
+                              ? `Needs review ${formatTime(stage.completed_at)}`
+                              : stage?.status === "insufficient_evidence"
+                                ? `Insufficient evidence ${formatTime(stage.completed_at)}`
+                                : stage?.status === "skipped"
+                                  ? "Nothing new"
+                                  : stage?.status === "failed"
+                                    ? (stage.error ?? "Failed")
+                                    : stage?.status === "running"
+                                      ? "Running..."
+                                      : "Not started"}
                         </span>
                       </div>
                     );
