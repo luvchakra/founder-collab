@@ -76,7 +76,7 @@ only genuine architectural/key decisions are raised.
 | | P1-01.4 | Grouped Opportunity Alerts | Blocked (see below) |
 | | P1-02.1 | Prospect Feedback | Done |
 | | P1-02.2 | Discovery Outcome Tracking | Done |
-| | P1-02.3 | Offering Performance Analysis | Out of scope |
+| | P1-02.3 | Offering Performance Analysis | Done (4/5 questions -- see below) |
 | | P1-03.1 | Progressive Intelligence | Out of scope |
 | | P1-03.2 | Research Cache | Out of scope |
 | | P1-03.3 | Provider-Agnostic Data Contracts | Out of scope |
@@ -4364,4 +4364,67 @@ contract/index` import from `apps/web` and the plain-string (not `LeadStatus`) p
 choice in `module-discovery` both stay on the legal side of the module-boundary rule).
 `lint:migrations` unchanged at 211 (no schema change this story). `npx vitest run` in
 `module-discovery`: 35 files / 258 tests, all passing (10 new). No live migration to
+apply or `get_advisors` to re-run -- nothing in the database changed.
+
+---
+
+### DISC-OFFER-P1 §7-02.3 -- Offering Performance Analysis (2026-09-13)
+
+Doc's own five questions: which signals produce conversations, which ICP attributes
+produce conversions, which buyer roles respond, which Discovery Plays perform best, does
+a higher score correlate with better outcomes.
+
+**Four of five answered; the fifth named as not-yet-answerable, not silently dropped.**
+"Which Discovery Plays perform best" turns out to be a real data-model gap, not a
+display-only one: `discovery_definitions` (04.1) carries no reference back to which
+`DiscoveryPlay` preset (04.2, `discovery-definitions/plays.ts`) it was started from -- a
+play only pre-fills the create-definition dialog once, and the resulting definition is
+then indistinguishable from a hand-written one. Honestly answering this needs a new
+`play_key` column, and even then couldn't back-fill history for definitions already
+created without it. Rather than fabricate a plausible-looking ranking or silently omit
+the question, the component itself renders an explicit inline notice
+(`DISCOVERY_PLAYS_NOTE`) saying exactly why it isn't shown.
+
+**Design decisions on the four that are answerable**:
+- Every question here reduces to "group these rows by some free-text attribute, report
+  a match rate" -- one generic pure function, `computeRateBuckets`, serves signals/
+  industries/locations/buyer-job-titles alike; `computeScoreOutcomeBuckets` is the one
+  exception (numeric ranges, not a free-text group key). Both take already-fetched rows,
+  same "derive, don't add a stored aggregate nothing would keep in sync" discipline this
+  whole run has followed (`computeConversionFunnel`, `computeDiscoveryOutcomeStage`).
+- "ICP attributes" (doc's own words) don't exist per-prospect -- `icp_profiles` is one
+  row per offering, nothing to bucket prospects by there. Read instead as each prospect's
+  own free-text `industry`/`location` (the same two fields `discovery-criteria.ts`'s own
+  candidate shape already uses for ICP-fit filtering) -- the closest honest reading of
+  "which attributes correlate with conversion" using data that actually varies
+  per-prospect.
+- "Conversion"/"better outcomes" (Q2/Q4) = Discovery's own `prospects.outcome = 'won'` --
+  deliberately NOT a live downstream CRM lookup via `getDiscoveryHandoffLead` (the
+  mechanism §7-02.2 just wired up). Calling that contract once per prospect for a
+  report page would be an N+1 explosion with no query batching available, a real
+  performance risk this feature doesn't need to take on. A deal that closed only in CRM
+  without ever being marked won in Discovery won't be reflected here -- a real, disclosed
+  limitation (in this log and the component's own doc comment), not an oversight.
+  "Produce conversations" (Q1) is a lower, purely-Discovery-side bar (any conversation
+  row at all) and needed no such tradeoff.
+- Buyer-role responses (Q3) use each conversation's own linked `contact_id` ->
+  `job_title`, excluding conversations with no linked contact outright (never guess a
+  role for an anonymous conversation) -- same "skip, don't fold into an (unknown)
+  bucket" rule `computeRateBuckets` applies to every null/blank group key.
+- New route `/performance`, added to the ongoing nav bar next to Watchlist (same
+  "no dead links" rule, now satisfied for this tab too).
+
+**What was built**: `lib/performance-analysis/{types,analysis,queries}.ts` +
+`analysis.test.ts` (7 cases: grouping/sorting/null-skipping for `computeRateBuckets`,
+range bucketing and null-score exclusion for `computeScoreOutcomeBuckets`, and two
+end-to-end assembly cases for `computeOfferingPerformanceAnalysis`); one workspace-scoped
+query function (`getPerformanceAnalysisRawData`, four parallel table reads, not a
+per-prospect loop -- the actual simplest implementation for "every row in the
+workspace at once"); `OfferingPerformanceAnalysisView` component; the `/performance`
+route; the nav tab.
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` and `apps/web`.
+`lint:boundaries` (1582 files, no violations), `lint:migrations` unchanged at 211 (no
+schema change -- every table read here already existed). `npx vitest run` in
+`module-discovery`: 36 files / 265 tests, all passing (7 new). No live migration to
 apply or `get_advisors` to re-run -- nothing in the database changed.

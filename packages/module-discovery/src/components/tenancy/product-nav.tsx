@@ -62,8 +62,9 @@ export function ProductNav({
    * Definition is optional/ongoing configuration, not a required setup step in order.
    * "Opportunities" gains a real page the same way in DISC-OFFER-P0-07.2 (the "Today's
    * Opportunities" dashboard); "Watchlist" gains one in DISC-OFFER-P1 §7-01.3 (this
-   * file's own `watchlist/page.tsx`) -- Signals/Research still have no page behind them
-   * and stay out for the same "no dead links" reason. */
+   * file's own `watchlist/page.tsx`); "Performance" gains one in §7-02.3 (this file's
+   * own `performance/page.tsx`) -- Signals/Research still have no page behind them and
+   * stay out for the same "no dead links" reason. */
   if (completed?.overview) {
     const ongoingTabs: { href: string; label: string }[] = [
       { href: basePath, label: "Overview" },
@@ -72,6 +73,7 @@ export function ProductNav({
       { href: `${basePath}/opportunities`, label: "Opportunities" },
       { href: `${basePath}/prospects`, label: "Prospects" },
       { href: `${basePath}/watchlist`, label: "Watchlist" },
+      { href: `${basePath}/performance`, label: "Performance" },
       { href: `${basePath}/conversions`, label: "Conversions" },
       // DISC-OFFER-P0-14.1's own "Discovery Run History" -- a real page exists behind
       // this one now (`history/page.tsx`), same "no dead links" rule this bar's own
