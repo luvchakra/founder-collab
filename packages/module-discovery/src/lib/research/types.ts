@@ -55,4 +55,9 @@ export type ProspectResearch = {
   evidence: EvidenceItem[];
   researched_at: string;
   expires_at: string | null;
+  /** DISC-OFFER-P1 §7-03.2 "Research Cache" -- exact reference to the `discovery.ai_runs`
+   * row that produced this research (provider/model/prompt version/input hash all live
+   * there). Null for research written before this column existed, or if that `ai_runs`
+   * row was ever pruned (`on delete set null`). */
+  ai_run_id: string | null;
 };

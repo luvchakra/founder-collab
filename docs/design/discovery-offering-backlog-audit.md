@@ -78,7 +78,7 @@ only genuine architectural/key decisions are raised.
 | | P1-02.2 | Discovery Outcome Tracking | Done |
 | | P1-02.3 | Offering Performance Analysis | Done (4/5 questions -- see below) |
 | | P1-03.1 | Progressive Intelligence | Done |
-| | P1-03.2 | Research Cache | Out of scope |
+| | P1-03.2 | Research Cache | Done |
 | | P1-03.3 | Provider-Agnostic Data Contracts | Out of scope |
 | | P1-04.1 | Cross-Offering Account View | Out of scope |
 | | P1-04.2 | Offering Portfolio Dashboard | Out of scope |
@@ -4484,3 +4484,61 @@ schema change). `npx vitest run` in `module-discovery`: 37 files / 272 tests, al
 three known-attribute rejection cases, case-insensitive substring matching, and
 exclusions winning outright). No live migration or `get_advisors` re-run needed --
 nothing in the database changed.
+
+---
+
+### DISC-OFFER-P1 §7-03.2 -- Research Cache (2026-09-13)
+
+Doc's own required fields: source, timestamp, expiry, input/context hash, research
+version, AI provider/model. Allow manual refresh.
+
+**Checked the data model first, and nearly every field already existed.** `discovery.
+ai_runs` already carries `operation` (source), `created_at` (timestamp), `input_hash`,
+`prompt_version` (research version), `model`/`provider` -- exactly CLAUDE.md's own dev
+principle #5 ("cache all repeatable AI operations... keyed by input_hash + prompt_
+version"), already wired into `research-prospect.ts` via `hasRecentSuccess`/
+`recordAiRun`. `prospect_research.expires_at` already existed too, written on every
+research run via a `RESEARCH_TTL_DAYS = 30` constant. "Allow manual refresh" was already
+built -- the "Re-research" button. So the doc's own six fields were already six-for-six
+present in the data somewhere; the actual gaps were (1) nothing linked a specific cached
+`prospect_research` row back to the exact `ai_runs` row that produced it, so the
+provider/model/version couldn't be shown next to that research, and (2) `expires_at` was
+write-only -- nothing anywhere read it back to tell a founder their cached research had
+gone stale.
+
+**What was built**:
+- Migration: `prospect_research.ai_run_id` (nullable FK into `discovery.ai_runs`, `on
+  delete set null` -- research must never be lost over a pruned audit reference).
+- `recordAiRun` (lib/ai/usage.ts) now returns the inserted row's own id (`string | null`,
+  null on a logging failure -- same "never throw, just log" discipline it already had).
+  Purely additive: every existing caller already discarded the return value, so this
+  changes no other call site's behavior.
+- `research-prospect.ts` captures that id and writes it onto the `prospect_research`
+  upsert as `ai_run_id`.
+- `lib/research/cache-status.ts`'s own `computeResearchCacheStatus` -- pure, no AI call,
+  age/expiry math over `researched_at`/`expires_at`. `isExpired` defaults to `false` when
+  `expires_at` is null (research from before this feature) rather than guessing either
+  way -- same "never guess a rejection over missing data" convention `icp-pre-filter.ts`
+  (§7-03.1) just established, applied here so missing data never prompts a needless
+  re-research spend.
+- `lib/ai/queries.ts`'s own `getAiRun` -- looks up the exact `ai_runs` row a research
+  record's `ai_run_id` points to.
+- `ResearchCacheStatusLine` component, rendered in the prospect detail page's existing
+  Research section, right above the already-existing research content: cached-N-days-
+  ago / expires-in-N-days, or an expired notice, plus "Via `<provider>` (`<model>`),
+  research version `<prompt_version>`" when an `ai_run_id` is on file.
+
+**What was NOT built**: no separate cache-management UI, no new table beyond the one FK
+column, no change to the manual-refresh action itself (it already existed and already
+does the right thing -- clicking "Re-research" simply runs a fresh `researchProspect`
+call, which writes a new `prospect_research` row with its own new `ai_run_id`).
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` and `apps/web`
+(confirmed every existing `recordAiRun` caller across 17 files still typechecks
+unchanged with the new return type). `lint:boundaries` (1588 files, no violations),
+`lint:migrations` (212 migrations, no violations). `npx vitest run` in
+`module-discovery`: 38 files / 276 tests, all passing (4 new: not-yet-expired with days
+remaining, expired, the exact-expiry-instant edge case, and the null-`expires_at`
+never-guess case). Checked the dev project (`jazdtomcgqjxjueedmck`) first for a
+pre-existing `ai_run_id` column (none), then live-applied the migration -- succeeded
+cleanly. `get_advisors` (security + performance): zero new findings.

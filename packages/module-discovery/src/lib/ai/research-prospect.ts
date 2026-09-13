@@ -131,7 +131,7 @@ export async function researchProspect(prospectId: string): Promise<ProspectRese
     });
     const draft = structureResponse.object;
 
-    await recordAiRun({
+    const aiRunId = await recordAiRun({
       workspaceId: workspace.id,
       operation: OPERATION,
       model: modelId,
@@ -165,6 +165,7 @@ export async function researchProspect(prospectId: string): Promise<ProspectRese
           expires_at: new Date(
             Date.now() + RESEARCH_TTL_DAYS * 24 * 60 * 60 * 1000,
           ).toISOString(),
+          ai_run_id: aiRunId,
         },
         { onConflict: "prospect_id" },
       )
