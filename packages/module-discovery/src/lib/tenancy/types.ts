@@ -81,6 +81,15 @@ export type Workspace = {
    * `completePipelineRun`) -- it is never a one-time value that silently goes stale. */
   rediscovery_interval: RediscoveryInterval;
   next_discovery_at: string | null;
+  /** DISC-OFFER-P1 §7-01.1 "Saved Offering Discovery" -- the criteria bundle that
+   * narrows which discovery results actually matter for this offering. See
+   * `lib/tenancy/discovery-criteria.ts` for the pure matching logic; empty arrays and a
+   * `null` score floor both mean "no filter set," never "matches nothing." */
+  discovery_min_score: number | null;
+  discovery_geography_filter: string[];
+  discovery_industries_filter: string[];
+  discovery_buyer_roles_filter: string[];
+  discovery_exclusions: string[];
 };
 
 /** Shared by every rename action (business, product) and the EditableName component

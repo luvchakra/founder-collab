@@ -12,6 +12,7 @@ import { ProductOverviewShell } from "@cofounderai/module-discovery/components/t
 import { OfferingOverviewSummary } from "@cofounderai/module-discovery/components/offerings/offering-overview-summary";
 import { RunAiDiscoveryPanel } from "@cofounderai/module-discovery/components/pipeline/run-ai-discovery-panel";
 import { RediscoverySchedule } from "@cofounderai/module-discovery/components/pipeline/rediscovery-schedule";
+import { SavedDiscoveryCriteria } from "@cofounderai/module-discovery/components/pipeline/saved-discovery-criteria";
 import { TopOpportunityGate } from "@cofounderai/module-discovery/components/opportunities/top-opportunity-gate";
 import { listPipelineStages, getLastCompletedPipelineRun } from "@cofounderai/module-discovery/lib/pipeline/queries";
 import { getTopGateOpportunity } from "@cofounderai/module-discovery/lib/opportunities/dashboard-queries";
@@ -29,6 +30,7 @@ import {
   sendTopOpportunityToCrmAction,
   updateTopOpportunityStatusAction,
   updateRediscoveryIntervalAction,
+  updateDiscoveryCriteriaAction,
   regenerateIcpFromOverviewAction,
 } from "./actions";
 
@@ -104,6 +106,7 @@ export default async function ProductPage({
         lastDiscoveryAt={lastRun?.completed_at ?? null}
         updateIntervalAction={updateRediscoveryIntervalAction.bind(null, businessId, productId, workspace.id)}
       />
+      <SavedDiscoveryCriteria workspace={workspace} updateCriteriaAction={updateDiscoveryCriteriaAction.bind(null, businessId, productId, workspace.id)} />
       <RunAiDiscoveryPanel businessId={businessId} productId={productId} initialStages={pipelineStages} />
       {topGateRow && topGateContext ? (
         <TopOpportunityGate
