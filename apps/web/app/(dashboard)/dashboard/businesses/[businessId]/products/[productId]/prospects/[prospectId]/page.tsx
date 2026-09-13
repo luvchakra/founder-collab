@@ -37,6 +37,8 @@ import { ScoreRagBadge } from "@cofounderai/module-discovery/components/prospect
 import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
 import { WatchlistToggle } from "@cofounderai/module-discovery/components/prospects/watchlist-toggle";
 import { getWatchlistEntryForProspect } from "@cofounderai/module-discovery/lib/watchlist/queries";
+import { ProspectFeedbackSection } from "@cofounderai/module-discovery/components/prospects/prospect-feedback-section";
+import { listProspectFeedback } from "@cofounderai/module-discovery/lib/prospect-feedback/queries";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
 import { PromoteToCrmButton } from "./promote-to-crm-button";
 import { Briefcase, ChevronDown, Mail, MessageCircle, Send } from "lucide-react";
@@ -68,6 +70,7 @@ import {
   addToWatchlistAction,
   updateWatchlistAction,
   removeFromWatchlistAction,
+  addProspectFeedbackAction,
 } from "./actions";
 
 /** DISC-OFFER-P0-06.1: replaced by `EVIDENCE_TYPE_LABEL` (module-discovery's own
@@ -337,7 +340,7 @@ export default async function ProspectDetailPage({
   const prospect = await getProspect(prospectId);
   if (!prospect || prospect.workspace_id !== workspace.id) notFound();
 
-  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyerIntelligence, watchlistEntry] = await Promise.all([
+  const [contacts, research, scores, strategy, messages, conversations, researchBrief, buyerIntelligence, watchlistEntry, prospectFeedback] = await Promise.all([
     listContacts(prospect.id),
     getProspectResearch(prospect.id),
     listRecentProspectScores(prospect.id),
@@ -347,6 +350,7 @@ export default async function ProspectDetailPage({
     getResearchBrief(prospect.id),
     getBuyerIntelligenceForProspect(workspace.id, prospect.id),
     getWatchlistEntryForProspect(prospect.id),
+    listProspectFeedback(prospect.id),
   ]);
 
   // Template selection is an optional enhancement to message generation -- a Resend
@@ -1090,6 +1094,11 @@ export default async function ProspectDetailPage({
           </div>
         )}
       </section>
+
+      <ProspectFeedbackSection
+        feedback={prospectFeedback}
+        addAction={addProspectFeedbackAction.bind(null, businessId, productId, workspace.id, prospect.id)}
+      />
 
     </div>
   );

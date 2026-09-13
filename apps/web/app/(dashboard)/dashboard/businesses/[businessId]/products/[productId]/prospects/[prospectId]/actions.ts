@@ -36,6 +36,8 @@ import {
   logInboundReply,
 } from "@cofounderai/module-discovery/lib/conversations/mutations";
 import { addToWatchlist, updateWatchlistEntry, removeFromWatchlist } from "@cofounderai/module-discovery/lib/watchlist/mutations";
+import { addProspectFeedback } from "@cofounderai/module-discovery/lib/prospect-feedback/mutations";
+import type { ProspectFeedbackTag } from "@cofounderai/module-discovery/lib/prospect-feedback/types";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import { promoteProspectToCrm, recordInteraction } from "@cofounderai/module-crm/contract/index";
 import type { RecordInteractionInput } from "@cofounderai/module-crm/lib/interactions/types";
@@ -134,6 +136,19 @@ export async function removeFromWatchlistAction(
   entryId: string,
 ) {
   await removeFromWatchlist(entryId);
+  revalidatePath(prospectPath(businessId, productId, prospectId));
+}
+
+export async function addProspectFeedbackAction(
+  businessId: string,
+  productId: string,
+  workspaceId: string,
+  prospectId: string,
+  formData: FormData,
+) {
+  const tag = String(formData.get("feedbackTag") ?? "") as ProspectFeedbackTag;
+  const noteRaw = String(formData.get("note") ?? "").trim();
+  await addProspectFeedback(workspaceId, prospectId, tag, noteRaw === "" ? null : noteRaw);
   revalidatePath(prospectPath(businessId, productId, prospectId));
 }
 
