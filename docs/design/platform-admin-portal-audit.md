@@ -30,7 +30,7 @@ verification in full regardless of which mode was in effect when it landed.
 | | 10 | AI Safety / Cost Controls | 10.1 done (user-decided, config-only monthly-budget extension); 10.2 deferred (real runtime enforcement + undefined SUPERADMIN-notification mechanism, user-decided); 10.3/10.4 not started -- see log |
 | | 11 | Global Email / Notification Configuration | All of §15 done (11.1-11.3, all config-only) -- see log |
 | | 12 | Global Integrations | All of §16 done (12.1-12.4) -- see log |
-| | 13 | Country / Compliance Pack Administration | 13.1/13.2/13.4 done; 13.3 (Rule Version) stopped -- genuine entity-ownership conflict with `gst.tax_rules`, see log |
+| | 13 | Country / Compliance Pack Administration | All of §17 resolved (13.1/13.2/13.4 done; 13.3 closed 2026-09-13 -- user decision: already satisfied by `gst.tax_rules`, no platform-layer counterpart needed) -- see log |
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Not started |
 | | 15 | Global Announcements / Maintenance | Not started |
@@ -38,9 +38,10 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 11 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
-11, 12), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). §17 (13) is 3/4 done
--- 13.3 stopped, genuine entity-ownership conflict with `gst.tax_rules`, not yet resolved.
+**P0: 12 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11, 12, 13), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within §14). §17 (13) is fully
+resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by user decision
+(satisfied-by-existing-code, no platform-layer counterpart needed).
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -5907,3 +5908,39 @@ assumption into `main`"), this run ends here rather than continuing into §18 (P
 Policies) or any further section. The three resolved sub-stories are committed, verified,
 and merged to `main`; 13.3 is left for a human (or a future run with explicit direction on
 the three options above) to decide.
+
+### PLATFORM-P0-13.3 — Rule Version, CLOSED (2026-09-13)
+
+**Decision received**: the user answered the three-option open question the prior entry
+above posed verbatim -- option **(c)**: *"Already satisfied — build nothing."* `gst.tax_rules`
+IS the entity 13.3 describes (version/effective_from/effective_to/source/status, the
+prior entry's own field-for-field comparison already established this); no platform-layer
+counterpart is needed. Per this decision: no second table was built, no cross-schema read
+surface into `gst.tax_rules` was built, and no `module-gst` file was touched -- exactly the
+constraints the decision specified.
+
+**What changed**: nothing in code, schema, or RLS. This is a documentation-only closure of
+an already-fully-analyzed open question; the analysis in the entry immediately above this
+one remains the complete record of *why* -- this entry only records *that a decision was
+made* and *what it was*, per this run's own task instruction to append a short dated update
+rather than re-litigate the entity-ownership analysis.
+
+**Effect on §17 (Country / Compliance Pack Administration)**: now fully resolved. 13.1
+(Country Registry), 13.2 (Compliance Pack Availability), and 13.4 (Compliance Feature
+Flags) were built and merged in the prior entry; 13.3 (Rule Version) is closed as
+satisfied-by-existing-code. No sub-story of §17 remains open. Progress table and P0 summary
+line above updated accordingly.
+
+**Verification**: no code, migration, or dependency changed, so the full verification
+pipeline does not apply -- a sanity `npm run typecheck` (clean, unchanged from the prior
+entry's own clean run) and `npm run lint --workspaces --if-present` (0 errors, the same 1
+pre-existing unrelated warning every prior entry has logged) were still run before
+committing, per this run's own task instruction that the pipeline is "mostly a no-op" for
+this docs-only change but a quick check is worthwhile. No migration was added, so
+`lint:migrations` and `mcp__Supabase__apply_migration` do not apply. No new `platform.*`
+table or access pattern was introduced, so no new `scripts/test-platform-*-rls.mjs` script
+was written -- there is nothing new for one to test.
+
+**Status**: PLATFORM-P0-13.3 CLOSED (satisfied-by-existing-code, user-decided). §17 fully
+resolved. Committed and merged to `main` as its own small commit, then this run continued
+sequentially into §18 per its task brief.
