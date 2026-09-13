@@ -8,7 +8,8 @@ export function SocialProof() {
     <section className="px-6 py-16">
       <FadeIn>
         <p className="mx-auto max-w-2xl text-balance text-center text-lg text-landing-muted">
-          Built for founders who are building their first customer pipeline.
+          Built for growing businesses replacing a pile of disconnected tools with one
+          platform.
         </p>
       </FadeIn>
     </section>

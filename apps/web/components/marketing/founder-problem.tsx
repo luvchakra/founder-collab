@@ -3,24 +3,28 @@ import { FadeIn } from "./fade-in";
 
 const PROBLEMS = [
   {
-    question: "Who should I sell to?",
-    body: "Your product could help thousands of companies. But which ones should you approach first?",
+    question: "Who's actually a customer?",
+    body: "Your CRM calls them a lead, your invoicing tool calls them a customer, and your field service app has yet another record for the same person -- three profiles, no single source of truth.",
   },
   {
-    question: "Who should I contact?",
-    body: "Finding a company isn't enough. You need the right person.",
+    question: "Did we bill for the parts we used?",
+    body: "A technician uses parts on a job in one system; the invoice gets written in another. Nothing forces the two to agree, so margin quietly leaks.",
   },
   {
-    question: "Why would they care?",
-    body: "Generic outreach gets ignored. Every prospect needs a reason to listen.",
+    question: "Which tool has the real inventory count?",
+    body: "Stock gets sold on one screen and consumed on a job in another. By the time anyone reconciles them, a customer has already been promised something you don't have.",
   },
   {
-    question: "Why now?",
-    body: "Timing matters. Buying signals can tell you when an account may actually be ready.",
+    question: "Who's supposed to reply to this?",
+    body: "A WhatsApp message, an email, and a support ticket about the same issue land in three inboxes -- each with only part of the conversation.",
   },
   {
-    question: "What do I do next?",
-    body: `Every reply creates another decision. ${BRAND_NAME} helps you decide what comes next.`,
+    question: "Are we actually GST-compliant?",
+    body: `Filing deadlines and e-invoicing rules live in a spreadsheet somewhere, disconnected from the sales data they're supposed to be filed against.`,
+  },
+  {
+    question: "What happens when we add a sixth tool?",
+    body: `Another login, another export/import routine, another place customer data can drift out of sync -- ${BRAND_NAME} is the alternative to adding a sixth tool.`,
   },
 ];
 
@@ -30,7 +34,8 @@ export function FounderProblem() {
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <h2 className="max-w-2xl text-balance text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-            Building the product was hard. Finding customers shouldn&apos;t be harder.
+            Growing past spreadsheets means adding tools. Adding tools means losing the
+            single picture of your business.
           </h2>
         </FadeIn>
 

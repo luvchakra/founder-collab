@@ -7,35 +7,32 @@ const TIERS = [
   {
     name: "Free",
     tagline: `Explore ${BRAND_NAME}`,
-    features: ["Product onboarding", "Basic ICP", "Limited prospects", "Limited AI usage"],
+    features: ["One business, one module of your choice", "Core features of that module", "Limited AI usage", "Community support"],
     cta: "Start Free",
     href: "/signup",
     featured: false,
   },
   {
-    name: "Founder",
-    tagline: "Build your pipeline",
+    name: "Per Module",
+    tagline: "License exactly what you run",
     features: [
-      "Full prospect discovery",
-      "Research",
-      "Scoring",
-      "Outreach generation",
-      "Conversation intelligence",
-      "Higher limits",
+      "Discovery, Inventory, Service, CRM or Compliance",
+      "Full features of every module you license",
+      "Data shared automatically across licensed modules",
+      "Cancel a module anytime -- 30-day read-only grace, data always kept",
     ],
     cta: "Start Building",
     href: "/signup",
     featured: true,
   },
   {
-    name: "Growth",
-    tagline: "Scale customer acquisition",
+    name: "Full Platform",
+    tagline: "All five modules, one business",
     features: [
-      "Higher usage",
-      "Advanced research",
-      "Team capabilities",
-      "Advanced analytics",
-      "Priority capabilities",
+      "Every module licensed together",
+      "Team roles and permissions across modules",
+      "Priority support",
+      "Advanced usage limits",
     ],
     cta: "Get Started",
     href: "/signup",
@@ -53,7 +50,9 @@ export function Pricing() {
               Pricing
             </h2>
             <p className="mt-4 text-landing-muted">
-              Final pricing is still being finalized — here&apos;s the shape it will take.
+              Pay for the modules you run, not a bundle you don&apos;t need. Final
+              per-module pricing is still being finalized -- here&apos;s the shape it
+              will take.
             </p>
           </div>
         </FadeIn>

@@ -7,7 +7,7 @@ import { Transformation } from "@/components/marketing/transformation";
 import { HowItWorks } from "@/components/marketing/how-it-works";
 import { Benefits } from "@/components/marketing/benefits";
 import { Differentiation } from "@/components/marketing/differentiation";
-import { ProspectIntelligence } from "@/components/marketing/prospect-intelligence";
+import { Modules } from "@/components/marketing/modules";
 import { Trust } from "@/components/marketing/trust";
 import { Pricing } from "@/components/marketing/pricing";
 import { SocialProof } from "@/components/marketing/social-proof";
@@ -25,7 +25,7 @@ export default async function Home() {
   if (user) redirect("/dashboard");
 
   return (
-    <div className="landing-theme dark flex flex-1 flex-col bg-landing-bg text-landing-fg">
+    <div className="landing-theme flex flex-1 flex-col bg-landing-bg text-landing-fg">
       <Navbar />
       <main>
         <Hero />
@@ -34,7 +34,7 @@ export default async function Home() {
         <HowItWorks />
         <Benefits />
         <Differentiation />
-        <ProspectIntelligence />
+        <Modules />
         <Trust />
         <Pricing />
         <SocialProof />

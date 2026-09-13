@@ -8,7 +8,7 @@ import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 
 const NAV_LINKS = [
-  { href: "#product", label: "Product" },
+  { href: "#modules", label: "Modules" },
   { href: "#how-it-works", label: "How It Works" },
   { href: "#benefits", label: "Benefits" },
   { href: "#pricing", label: "Pricing" },
@@ -25,8 +25,8 @@ export function Navbar() {
           <Image
             src="/logo-lockup.png"
             alt={BRAND_NAME}
-            width={1583}
-            height={350}
+            width={900}
+            height={218}
             priority
             className="h-8 w-auto"
           />
@@ -75,7 +75,7 @@ export function Navbar() {
               key={link.href}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="rounded-md px-2 py-2.5 text-sm text-landing-muted hover:bg-white/5 hover:text-landing-fg"
+              className="rounded-md px-2 py-2.5 text-sm text-landing-muted hover:bg-landing-bg hover:text-landing-fg"
             >
               {link.label}
             </a>
@@ -84,7 +84,7 @@ export function Navbar() {
             <Link
               href="/login"
               onClick={() => setOpen(false)}
-              className="rounded-md px-2 py-2.5 text-center text-sm font-medium text-landing-fg hover:bg-white/5"
+              className="rounded-md px-2 py-2.5 text-center text-sm font-medium text-landing-fg hover:bg-landing-bg"
             >
               Log In
             </Link>

@@ -9,11 +9,11 @@ export function FinalCta() {
       <FadeIn>
         <div className="landing-glow mx-auto max-w-3xl rounded-2xl border border-landing-surface-border bg-landing-bg-elevated px-8 py-16 text-center">
           <h2 className="text-balance text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-            Your next customer is out there. Let&apos;s find them.
+            Stop reconciling five tools. Run your business from one.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-balance text-landing-muted">
-            Tell {BRAND_NAME} what you&apos;ve built. We&apos;ll help you figure out who
-            needs it, why they might care, and what to do next.
+            Start with the one module you need most. {BRAND_NAME} is ready the moment
+            you license the next one.
           </p>
           <div className="mt-8">
             <LandingButton href="/signup" size="lg">

@@ -1,8 +1,10 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
 import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 // Every page under `(auth)` was previously a static-prerendering candidate (no dynamic
 // API used) -- now that this shared layout reads live `platform.branding` config on every
@@ -23,10 +25,10 @@ export const dynamic = "force-dynamic";
  * `loginBackgroundStyle` defaults to `'gradient'` with a `null` value, which resolves to
  * `undefined` inline styles below -- i.e. the plain `bg-landing-bg` class keeps rendering
  * exactly as it always has until a superadmin actually sets an override. This preserves
- * `apps/web/app/globals.css`'s own recorded decision to keep this dark-violet
- * marketing/auth identity unchanged by default, while making it configurable, which is
- * what this story asks for -- not a conflict with that note, since nothing changes unless
- * a superadmin opts in.
+ * `apps/web/app/globals.css`'s own `.landing-theme` tokens (the WonderArc brand, shared
+ * with the marketing site) by default, while making it configurable, which is what this
+ * story asks for -- not a conflict with that, since nothing changes unless a superadmin
+ * opts in.
  *
  * PLATFORM-P0-03.5: `backgroundStyleFor()` moved to `@/lib/login-branding` so the new
  * branding preview page (`/platform/branding/preview`) can apply the exact same treatment
@@ -38,20 +40,18 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
 
   return (
     <div
-      className="landing-theme dark flex min-h-full flex-1 flex-col bg-landing-bg text-landing-fg"
+      className="landing-theme flex min-h-full flex-1 flex-col bg-landing-bg text-landing-fg"
       style={backgroundStyle}
     >
       <header className="landing-grid flex items-center justify-between px-6 py-6 sm:px-10">
-        <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight text-landing-fg">
+        <Link href="/" aria-label={BRAND_NAME} className="flex items-center gap-2">
           {branding.logoUrl ? (
             // Superadmin-configured, arbitrary external URL -- next/image would need a
             // build-time domain allowlist for a value that changes at runtime.
             // eslint-disable-next-line @next/next/no-img-element
             <img src={branding.logoUrl} alt={branding.platformName} className="h-7 w-auto" />
           ) : (
-            <span>
-              CoFounder<span className="text-landing-accent">AI</span>
-            </span>
+            <Image src="/logo-lockup.png" alt={BRAND_NAME} width={900} height={218} priority className="h-7 w-auto" />
           )}
         </Link>
         <AuthTabs />

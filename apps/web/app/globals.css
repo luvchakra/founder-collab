@@ -9,36 +9,33 @@
 @source "../../../packages/module-gst/src/**/*.{ts,tsx}";
 
 /*
- * co-founder-ai's own dark-violet marketing/auth identity (docs/landing-page-
- * requirements.md), kept as its own scoped token namespace -- CLAUDE.md non-negotiable
- * #7 governs the dashboard *shell* (sidebar/topbar/avatar/business switcher), not the
- * pre-login marketing/auth pages, which "very closely follow the design of CoFounderAI
- * pages" (per the platform owner) means keeping unchanged here. Applied via the
- * `.landing-theme dark` class combo on app/(auth)/layout.tsx and the marketing
- * components -- the plain `.dark` class still resolves the base --border/--input/--ring
- * etc. tokens from ui-theme.css (the platform's own values) for any shared UI primitive
- * (Button, Input) rendered on these pages, while the landing-* tokens below carry
- * co-founder-ai's own brand color untouched.
+ * WonderArc's own marketing/auth identity (docs/design/wonderarc-brand.md doesn't exist
+ * yet -- the source of truth is the brand lockup itself): light theme, navy text, the
+ * same mid-blue as the dashboard shell's --primary (CLAUDE.md non-negotiable #7 says
+ * every module's screens share one design system; this brings the pre-login
+ * marketing/auth pages -- previously co-founder-ai's own unrelated dark-violet identity --
+ * into that same family instead of a second, disconnected brand). Applied via the
+ * `.landing-theme` class on app/(auth)/layout.tsx and the marketing components; unlike
+ * the old dark-violet version this no longer pairs with a literal `.dark` class, so
+ * shared UI primitives (Button, Input) resolve the platform's own light :root tokens.
  */
 .landing-theme {
-  --landing-bg: oklch(0.15 0.012 290);
-  --landing-bg-elevated: oklch(0.19 0.014 290);
-  --landing-surface: oklch(1 0 0 / 5%);
-  --landing-surface-border: oklch(1 0 0 / 10%);
-  --landing-fg: oklch(0.98 0.002 290);
-  --landing-muted: oklch(0.72 0.01 290);
-  --landing-accent: oklch(0.62 0.24 292);
-  --landing-accent-foreground: oklch(0.99 0 0);
-  --landing-accent-glow: oklch(0.62 0.24 292 / 35%);
+  --landing-bg: oklch(0.973 0.009 252);
+  --landing-bg-elevated: oklch(1 0 0);
+  --landing-surface: oklch(0.99 0.004 250);
+  --landing-surface-border: oklch(0.906 0.012 255);
+  --landing-fg: oklch(0.22 0.02 258);
+  --landing-muted: oklch(0.46 0.02 258);
+  --landing-accent: oklch(0.546 0.215 260);
+  --landing-accent-foreground: oklch(0.99 0.002 250);
+  --landing-accent-glow: oklch(0.546 0.215 260 / 16%);
 
-  /* co-founder-ai's own --primary WAS this same violet everywhere (--landing-accent
-     originally just duplicated it under its own name, per the upstream doc comment) --
-     so a shared Button/Input rendered on an auth/marketing page keeps that original
-     violet look, rather than picking up the dashboard shell's blue --primary. Scoped to
-     .landing-theme only; every dashboard screen is unaffected. */
+  /* Same hue as the dashboard shell's own --primary (packages/core/src/ui-theme.css) --
+     a shared Button/Input rendered on an auth/marketing page now reads as the same
+     product, not a second brand. Scoped to .landing-theme only. */
   --primary: var(--landing-accent);
   --primary-foreground: var(--landing-accent-foreground);
-  --ring: oklch(0.62 0.24 292 / 60%);
+  --ring: oklch(0.546 0.215 260 / 50%);
 }
 
 @theme inline {
@@ -57,11 +54,11 @@
      driven by --landing-accent-glow rather than a hard-coded color. */
   .landing-grid {
     background-image:
-      linear-gradient(to right, oklch(1 0 0 / 4%) 1px, transparent 1px),
-      linear-gradient(to bottom, oklch(1 0 0 / 4%) 1px, transparent 1px);
+      linear-gradient(to right, oklch(0.22 0.02 258 / 5%) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.22 0.02 258 / 5%) 1px, transparent 1px);
     background-size: 48px 48px;
   }
   .landing-glow {
-    box-shadow: 0 0 80px 10px var(--landing-accent-glow);
+    box-shadow: 0 0 60px 8px var(--landing-accent-glow);
   }
 }

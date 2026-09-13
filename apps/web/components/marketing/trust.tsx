@@ -2,18 +2,18 @@ import { ShieldCheck, KeyRound, Lock, Eye, FileCheck2, Database, UserCheck } fro
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
-const FOUNDER_CONTROL_FLOW = ["AI Researches", "AI Recommends", "Founder Reviews", "Founder Approves", "AI Learns"];
+const AI_CONTROL_FLOW = ["AI Researches", "AI Recommends", "You Review", "You Approve", "AI Learns"];
 
 const PROVIDERS = ["OpenAI", "Anthropic", "Google"];
 
 const SECURITY_POINTS = [
   { icon: Lock, label: "Secure authentication" },
-  { icon: Database, label: "Workspace-level data isolation" },
+  { icon: Database, label: "Row-level tenant isolation, per business" },
+  { icon: ShieldCheck, label: "A module's data is only visible while it's licensed" },
   { icon: KeyRound, label: "Encrypted provider credentials" },
   { icon: Eye, label: "No API keys exposed in the browser" },
-  { icon: UserCheck, label: "Founder approval before outreach" },
-  { icon: ShieldCheck, label: "Secure data storage" },
-  { icon: FileCheck2, label: "Auditability" },
+  { icon: UserCheck, label: "You approve AI-generated outreach before it sends" },
+  { icon: FileCheck2, label: "Auditability across every module" },
 ];
 
 export function Trust() {
@@ -24,16 +24,16 @@ export function Trust() {
         <FadeIn>
           <div className="rounded-2xl border border-landing-surface-border bg-landing-surface p-8 sm:p-12">
             <h2 className="text-center text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-              AI does the thinking. You make the decisions.
+              AI does the research. You make the decisions.
             </h2>
 
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-2">
-              {FOUNDER_CONTROL_FLOW.map((step, i) => (
+              {AI_CONTROL_FLOW.map((step, i) => (
                 <div key={step} className="flex items-center gap-2">
                   <span className="rounded-full border border-landing-surface-border bg-landing-bg-elevated px-4 py-2 text-sm text-landing-fg">
                     {step}
                   </span>
-                  {i < FOUNDER_CONTROL_FLOW.length - 1 ? (
+                  {i < AI_CONTROL_FLOW.length - 1 ? (
                     <span className="text-landing-muted sm:rotate-0" aria-hidden="true">
                       →
                     </span>
@@ -43,7 +43,10 @@ export function Trust() {
             </div>
 
             <p className="mx-auto mt-10 max-w-xl text-balance text-center text-landing-muted">
-              {BRAND_NAME} is designed to work with you — not replace your judgment.
+              Discovery&apos;s AI finds and scores accounts and drafts outreach -- {BRAND_NAME}
+              never sends anything on its own. Every other module runs on deterministic
+              rules, not AI guesses, for the things that shouldn&apos;t be probabilistic:
+              stock counts, invoices, and GST filings.
             </p>
           </div>
         </FadeIn>
@@ -56,8 +59,9 @@ export function Trust() {
                 Bring the AI provider you trust.
               </h2>
               <p className="mt-4 text-landing-muted">
-                Choose your preferred AI provider and securely connect your API key.
-                {BRAND_NAME} selects the appropriate model internally for each task.
+                Choose your preferred AI provider and securely connect your own API key.
+                {BRAND_NAME} selects the appropriate model internally for each Discovery
+                task.
               </p>
               <p className="mt-4 font-medium text-landing-fg">
                 You choose the provider. {BRAND_NAME} handles the intelligence layer.
@@ -80,8 +84,14 @@ export function Trust() {
         <FadeIn>
           <div>
             <h2 className="text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-              Your business data stays yours.
+              Your business data stays yours -- and stays separated by module.
             </h2>
+            <p className="mt-4 max-w-2xl text-landing-muted">
+              Every table in every module enforces the same rule at the database layer:
+              your data, only for a business you belong to, only while that module is
+              licensed. Cancel a module and its data is kept, read-only, for 30 days --
+              never deleted outright.
+            </p>
             <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {SECURITY_POINTS.map((point) => (
                 <div

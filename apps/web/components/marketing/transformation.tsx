@@ -2,23 +2,21 @@ import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
 
 const BEFORE = [
-  "Product built",
-  "No clear ICP",
-  "Random prospect list",
-  "Generic emails",
-  "Few responses",
-  "Unclear next steps",
+  "A CRM for conversations",
+  "A separate inventory spreadsheet",
+  "A scheduling app for the crew",
+  "A GST filing checklist on the side",
+  "Customer data copied between all four",
+  "Nobody fully trusts any of it",
 ];
 
 const AFTER = [
-  "Product understood",
-  "ICP identified",
-  "Best prospects discovered",
-  "Prospects researched",
-  "Personalized strategy",
-  "Founder-approved outreach",
-  "Conversation analyzed",
-  "Next action recommended",
+  "One login for the whole business",
+  "One customer record, every module",
+  "One item, one stock count, everywhere",
+  "Jobs, invoices and stock reservations linked automatically",
+  "GST filings built from the same sales data",
+  "License only what you need, add modules later",
 ];
 
 function Path({
@@ -52,7 +50,7 @@ function Path({
               className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-medium ${
                 accent
                   ? "bg-landing-accent text-landing-accent-foreground"
-                  : "bg-white/10 text-landing-muted"
+                  : "bg-landing-fg/10 text-landing-muted"
               }`}
             >
               {i + 1}
@@ -71,17 +69,17 @@ export function Transformation() {
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <FadeIn>
-            <Path title="Founder, alone" steps={BEFORE} accent={false} />
+            <Path title="Five separate tools" steps={BEFORE} accent={false} />
           </FadeIn>
           <FadeIn delayMs={100}>
-            <Path title={`Founder + ${BRAND_NAME}`} steps={AFTER} accent />
+            <Path title={BRAND_NAME} steps={AFTER} accent />
           </FadeIn>
         </div>
 
         <FadeIn delayMs={200}>
           <p className="mt-12 text-balance text-center text-2xl font-medium text-landing-fg sm:text-3xl">
-            From &ldquo;Who do I sell to?&rdquo; to &ldquo;Here are the 10 people you
-            should talk to next.&rdquo;
+            From five logins and five copies of the truth to one platform that already
+            agrees with itself.
           </p>
         </FadeIn>
       </div>

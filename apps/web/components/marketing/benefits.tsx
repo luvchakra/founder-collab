@@ -1,36 +1,36 @@
-import { Target, Filter, Lightbulb, Clock, Send, Compass } from "lucide-react";
+import { Users, Boxes, CalendarClock, Inbox, ReceiptText, Layers } from "lucide-react";
 import { FadeIn } from "./fade-in";
 
 const BENEFITS = [
   {
-    icon: Target,
-    title: "Know Your ICP",
-    body: "Stop guessing who your ideal customer is.",
+    icon: Users,
+    title: "One customer record",
+    body: "A party discovered, sold to, serviced and messaged is the same record everywhere -- never three half-matching profiles.",
   },
   {
-    icon: Filter,
-    title: "Find Better Prospects",
-    body: "Focus your time on accounts that actually fit.",
+    icon: Boxes,
+    title: "One stock count",
+    body: "What a job consumes, a sales order sells, and Compliance reports on all come from the same inventory number.",
   },
   {
-    icon: Lightbulb,
-    title: "Know Why They Might Buy",
-    body: "Understand the specific problem your product can solve for each prospect.",
+    icon: CalendarClock,
+    title: "Jobs that bill themselves correctly",
+    body: "Parts used on a job are already the parts your invoice and your stock levels agree on.",
   },
   {
-    icon: Clock,
-    title: "Know When to Reach Out",
-    body: "Use buying signals and timing indicators to prioritize prospects.",
+    icon: Inbox,
+    title: "One inbox, every channel",
+    body: "WhatsApp, email and every other channel land in one place, tied to the customer record every other module already has.",
   },
   {
-    icon: Send,
-    title: "Send Better Outreach",
-    body: "Create personalized messages based on the actual prospect rather than generic templates.",
+    icon: ReceiptText,
+    title: "Compliance from real data",
+    body: "GST filings are computed from the sales you already recorded -- not re-typed from a spreadsheet at month end.",
   },
   {
-    icon: Compass,
-    title: "Always Know What To Do Next",
-    body: "Turn replies into recommended actions.",
+    icon: Layers,
+    title: "Add modules without a migration",
+    body: "License a new module later and it starts from your existing customers and catalog, not an empty database.",
   },
 ];
 
@@ -40,7 +40,7 @@ export function Benefits() {
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <h2 className="max-w-2xl text-balance text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
-            A co-founder that never stops thinking about your next customer.
+            A platform that never has to be reconciled with itself.
           </h2>
         </FadeIn>
 

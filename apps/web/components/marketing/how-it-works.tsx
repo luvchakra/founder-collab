@@ -55,82 +55,58 @@ export function HowItWorks() {
         <div className="mt-14 flex flex-col gap-6">
           <StepShell
             index={1}
-            title="Tell Us About Your Product"
-            body="Describe what you've built, who it's for, and what problem it solves."
+            title="Create your business, once"
+            body="One signup gives you one business record. Every module you license from here on reads and writes against that same business -- no separate account to set up per tool."
           >
-            <OutputList
-              items={["Product understanding", "Value proposition", "ICP hypotheses", "Key use cases"]}
-            />
+            <OutputList items={["One login", "One business profile", "One team, one set of roles"]} />
           </StepShell>
 
           <StepShell
             index={2}
-            title="Discover Your Customers"
-            body={`${BRAND_NAME} researches the market and finds companies that match your ideal customer profile.`}
+            title="License the modules you need today"
+            body="Turn on Discovery, Inventory, Service, CRM and Compliance independently. Drop a module later without losing its data -- cancelling keeps everything, read-only, for 30 days before access is paused."
           >
             <OutputList
-              items={["Target companies", "Relevant contacts", "ICP fit", "Company information", "Buying signals"]}
+              items={["Discovery", "Inventory", "Service", "CRM", "Compliance"]}
             />
           </StepShell>
 
           <StepShell
             index={3}
-            title="Understand Each Prospect"
-            body="AI researches each prospect and figures out why they may care."
-          >
-            <OutputList
-              items={[
-                "Why them?",
-                "Why now?",
-                "Who should I contact?",
-                "What should I say?",
-                "Which channel should I use?",
-              ]}
-            />
-          </StepShell>
-
-          <StepShell
-            index={4}
-            title="Approve & Reach Out"
-            body={`${BRAND_NAME} creates personalized outreach. You review it before anything is sent.`}
+            title="Your data connects itself"
+            body="A customer discovered in Discovery is the same party record Service schedules a job for and CRM messages -- an item Inventory tracks is the same item a job invoice bills for. No CSV exports between tools."
           >
             <div className="rounded-xl border border-landing-surface-border bg-landing-bg-elevated p-5 text-sm">
               <div className="flex justify-between text-landing-muted">
-                <span>Recommended approach</span>
-                <span className="text-landing-fg">Email</span>
+                <span>Prospect wins in Discovery</span>
+                <span className="text-landing-fg">→ Opportunity in Service</span>
               </div>
               <div className="mt-2 flex justify-between text-landing-muted">
-                <span>Opening angle</span>
-                <span className="text-landing-fg">Recent product launch</span>
+                <span>Job consumes stock</span>
+                <span className="text-landing-fg">→ Inventory updates</span>
               </div>
               <div className="mt-2 flex justify-between text-landing-muted">
-                <span>CTA</span>
-                <span className="text-landing-fg">15-minute discovery conversation</span>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <span className="rounded-full bg-landing-accent px-4 py-1.5 text-xs font-medium text-landing-accent-foreground">
-                  Approve
-                </span>
-                <span className="rounded-full border border-landing-surface-border px-4 py-1.5 text-xs font-medium text-landing-fg">
-                  Edit
-                </span>
+                <span>Job is invoiced</span>
+                <span className="text-landing-fg">→ Compliance has the sale</span>
               </div>
             </div>
           </StepShell>
 
           <StepShell
-            index={5}
-            title="Let AI Help With the Conversation"
-            body={`When the prospect responds, ${BRAND_NAME} analyzes sentiment, intent, conversation stage, objections, and buying signals -- then recommends the next best action.`}
+            index={4}
+            title="Add a module later, on the same data"
+            body="Growing into a new part of the business doesn't mean a new tool with a blank database. License the next module and it already knows your customers and your catalog."
           >
             <div className="rounded-xl border border-landing-surface-border bg-landing-bg-elevated p-5 text-sm">
-              <p className="text-landing-muted">
-                Prospect is interested but concerned about implementation effort.
-              </p>
-              <p className="mt-3 font-medium text-landing-accent">Next best action</p>
-              <p className="mt-1 text-landing-fg">
-                &ldquo;Send a short implementation overview and offer a 15-minute
-                technical discussion.&rdquo;
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-landing-fg">Add Compliance</p>
+                <span className="rounded-full bg-landing-accent px-4 py-1.5 text-xs font-medium whitespace-nowrap text-landing-accent-foreground">
+                  Activate
+                </span>
+              </div>
+              <p className="mt-3 text-landing-muted">
+                Your existing sales orders and invoices are already there -- GST filing
+                starts from day one, not from zero.
               </p>
             </div>
           </StepShell>

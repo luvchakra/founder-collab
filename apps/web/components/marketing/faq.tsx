@@ -3,36 +3,36 @@ import { FadeIn } from "./fade-in";
 
 const FAQS: [string, string][] = [
   [
-    `What exactly does ${BRAND_NAME} do?`,
-    `${BRAND_NAME} helps founders identify ideal customers, discover prospects, research them, create personalized outreach, analyze conversations, and decide what to do next.`,
+    `What exactly is ${BRAND_NAME}?`,
+    `${BRAND_NAME} is one portal, one login, five independently licensed modules: Discovery (customer discovery and outreach), Inventory (products and purchasing), Service (field service and jobs), CRM (a unified inbox) and Compliance (GST). Every module shares the same underlying customer, item and document data.`,
   ],
   [
-    "Is this an email automation tool?",
-    `No. ${BRAND_NAME} is designed as a complete customer-acquisition intelligence layer rather than simply an email sender.`,
+    "Do I have to buy all five modules?",
+    "No. License only the modules your business needs today, and add more later. A module you haven't licensed simply doesn't appear -- other modules keep working normally.",
   ],
   [
-    `Does ${BRAND_NAME} send messages automatically?`,
-    "Initially, no. The founder reviews and approves outreach before it is sent.",
+    "If I license a second module later, do I have to re-enter my data?",
+    "No. A newly licensed module reads the same customers, items and documents your existing modules already created -- there's nothing to import.",
   ],
   [
-    "Do I need a sales team?",
-    `No. ${BRAND_NAME} is designed specifically to help founders perform GTM activities themselves.`,
+    "What happens to my data if I cancel a module?",
+    "Nothing is deleted. You get 30 days of read-only access to that module's data, then access is paused (not erased) until you reactivate -- reactivating restores everything.",
+  ],
+  [
+    "Is Discovery's AI going to send messages on its own?",
+    "No. Discovery's AI researches accounts, scores them, and drafts outreach -- you review and approve before anything is sent.",
   ],
   [
     "Can I use my own AI provider?",
-    "Yes. You can connect a supported AI provider using your own API key.",
+    "Yes, for Discovery. Connect a supported AI provider using your own API key; you choose the provider, and it internally selects the right model per task.",
   ],
   [
-    "Can I choose the AI model?",
-    `No model selection is required. You choose the provider, while ${BRAND_NAME} internally selects the appropriate model for each operation.`,
+    "Is my business's data isolated from other businesses?",
+    `Yes. Every table in every module enforces tenant isolation at the database layer -- your data is scoped to your business and to the modules you've licensed, never a client-side filter.`,
   ],
   [
-    "Can I manage multiple products?",
-    "Yes. Each product has its own GTM workspace and customer-acquisition context.",
-  ],
-  [
-    "Is my product data isolated from other businesses?",
-    "Yes. Product/GTM workspaces are isolated through the application's tenancy and database security model.",
+    "Can one account run more than one business?",
+    "Yes. One login can belong to multiple businesses, each with its own independent set of licensed modules and data.",
   ],
 ];
 
