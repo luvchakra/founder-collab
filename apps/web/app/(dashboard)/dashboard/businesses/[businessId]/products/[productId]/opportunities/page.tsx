@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getOpportunityDashboardRows } from "@cofounderai/module-discovery/lib/opportunities/dashboard-queries";
 import { OpportunitiesDashboard } from "@cofounderai/module-discovery/components/opportunities/opportunities-dashboard";
+import { setOpportunityStatusFromListAction, researchAgainFromListAction } from "./actions";
 
 export default async function OpportunitiesPage({
   params,
@@ -17,5 +18,13 @@ export default async function OpportunitiesPage({
 
   const rows = await getOpportunityDashboardRows(workspace.id);
 
-  return <OpportunitiesDashboard businessId={businessId} productId={productId} rows={rows} />;
+  return (
+    <OpportunitiesDashboard
+      businessId={businessId}
+      productId={productId}
+      rows={rows}
+      setStatusAction={setOpportunityStatusFromListAction.bind(null, businessId, productId)}
+      researchAgainAction={researchAgainFromListAction.bind(null, businessId, productId)}
+    />
+  );
 }
