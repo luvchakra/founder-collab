@@ -254,20 +254,22 @@ export const DiscoveredProspectsSchema = z.object({
 export type DiscoveredProspect = z.infer<typeof DiscoveredProspectSchema>;
 
 /**
- * "Let AI Auto-populate Products from website" output (lib/ai/discover-products.ts) --
- * deliberately just name + website, per the actual ask: "just get the product name and
- * product specific website link." Nothing else is invented here; a full profile is
- * still generated per-product afterward via the existing understandProduct() once each
- * product row exists (same two-step split createProductsBulk's import path already
- * uses for prospects).
+ * "Let AI Auto-populate Offerings from website" output (lib/ai/discover-products.ts) --
+ * a distinct *business offering* (a product line or service worth its own go-to-market
+ * strategy), not a literal one-row-per-SKU scrape of the site's catalog. `description`
+ * is the AI's own read on who buys it and why, shown in the review dialog so a founder
+ * can tell the model actually reasoned about the business rather than dumped a sitemap
+ * -- also gives the resulting offering's profile a head start once
+ * understandProduct() (the existing per-offering enrichment step, unchanged) runs on it.
  */
 export const DiscoveredProductSchema = z.object({
   name: z.string(),
-  website: z.string().nullable().describe("The product's own page on the business's site, or null if it shares the business's own homepage"),
+  description: z.string().nullable().describe("One sentence on who buys this offering and why -- null only if the research genuinely didn't say"),
+  website: z.string().nullable().describe("The offering's own page on the business's site, or null if it shares the business's own homepage"),
 });
 
 export const DiscoveredProductsSchema = z.object({
-  products: z.array(DiscoveredProductSchema).max(30),
+  products: z.array(DiscoveredProductSchema).max(12),
 });
 
 export type DiscoveredProduct = z.infer<typeof DiscoveredProductSchema>;

@@ -124,7 +124,7 @@ export function AutoPopulateProductsButton({
     if (!products || selected.size === 0) return;
     const rows: ProductImportRow[] = products
       .filter((_, i) => selected.has(i))
-      .map((p) => ({ name: p.name, website: p.website ?? undefined }));
+      .map((p) => ({ name: p.name, description: p.description ?? undefined, website: p.website ?? undefined }));
     startImporting(async () => {
       const result = await importAction(rows);
       close();
@@ -211,6 +211,9 @@ export function AutoPopulateProductsButton({
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium leading-snug">{p.name}</p>
+                        {p.description ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">{p.description}</p>
+                        ) : null}
                         {p.website ? (
                           <a
                             href={p.website}
@@ -246,7 +249,12 @@ export function AutoPopulateProductsButton({
                             aria-label={`Select ${p.name}`}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="font-medium">
+                          {p.name}
+                          {p.description ? (
+                            <p className="mt-0.5 text-xs font-normal text-muted-foreground">{p.description}</p>
+                          ) : null}
+                        </TableCell>
                         <TableCell className="text-muted-foreground">
                           {p.website ? (
                             <a
