@@ -3,6 +3,7 @@
 import { businessPath } from "@/lib/business-path";
 import { revalidatePath } from "next/cache";
 import { isValidGstin } from "@cofounderai/core/lib/gst";
+import { getJurisdictions } from "@cofounderai/module-gst/lib/compliance/jurisdictions";
 import {
   createTaxRegistration,
   setGstRegistrationProfile,
@@ -27,27 +28,36 @@ export async function createTaxRegistrationAction(
   _prevState: TaxRegistrationActionState,
   formData: FormData,
 ): Promise<TaxRegistrationActionState> {
+  const country = String(formData.get("country") ?? "").trim().toUpperCase();
+  const regime = String(formData.get("regime") ?? "").trim();
   const registrationNumber = String(formData.get("registration_number") ?? "").trim().toUpperCase();
   const jurisdiction = String(formData.get("jurisdiction") ?? "").trim();
   const isPrimary = formData.get("is_primary") === "on";
+  const isIndiaGst = country === "IN" && regime === "GST";
 
-  if (!isValidGstin(registrationNumber)) {
+  if (isIndiaGst && !isValidGstin(registrationNumber)) {
     return { error: "That GSTIN doesn't look valid — check the 15 characters and try again." };
   }
-  if (!jurisdiction) {
-    return { error: "Select the state this GSTIN is registered in." };
+  if (!registrationNumber) {
+    return { error: "A registration number is required." };
+  }
+  // Only a country with a real jurisdiction catalog (India, US, Canada today) requires
+  // one -- the five EU VAT countries have no sub-national jurisdiction concept, so the
+  // modal never even shows that field for them (RegistrationModal's own doc comment).
+  if (getJurisdictions(country).length > 0 && !jurisdiction) {
+    return { error: "Select the jurisdiction this registration is for." };
   }
 
   try {
     await createTaxRegistration(businessId, {
-      country: "IN",
-      regime: "GST",
+      country,
+      regime,
       registrationNumber,
-      jurisdiction,
+      jurisdiction: jurisdiction || null,
       isPrimary,
     });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Could not add this GSTIN." };
+    return { error: error instanceof Error ? error.message : "Could not add this registration." };
   }
 
   revalidatePath(`${await businessPath(businessId)}/compliance/registrations`);

@@ -20,6 +20,7 @@ import {
   type GstRegistrationProfileActionState,
 } from "./registration-profile-modal";
 import { parseGstRegistrationProfile } from "../../lib/tax-registrations/gst-registration-profile";
+import { getJurisdictions } from "../../lib/compliance/jurisdictions";
 import type { TaxRegistration, TaxRegistrationStatus } from "../../lib/tax-registrations/types";
 
 const STATUS_BADGE: Record<TaxRegistrationStatus, { label: string; variant: "default" | "secondary" | "outline" }> = {
@@ -51,6 +52,9 @@ const REGISTRATION_TYPE_LABEL: Record<"regular" | "composition", string> = {
  * implicit default (Regular) until told otherwise.
  */
 export function RegistrationsList({
+  country,
+  regime,
+  regimeName,
   registrations,
   canEdit,
   createAction,
@@ -58,6 +62,9 @@ export function RegistrationsList({
   setStatusAction,
   setProfileAction,
 }: {
+  country: string;
+  regime: string;
+  regimeName: string;
   registrations: TaxRegistration[];
   canEdit: boolean;
   createAction: (prevState: TaxRegistrationActionState, formData: FormData) => Promise<TaxRegistrationActionState>;
@@ -71,6 +78,13 @@ export function RegistrationsList({
 }) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [profileTarget, setProfileTarget] = useState<TaxRegistration | null>(null);
+  // The GST Profile editor (registration type/return frequency/e-invoice eligibility)
+  // is India-GST-specific by construction (see setGstRegistrationProfile's own
+  // docstring) -- every other country/regime has no such profile to edit yet.
+  const isIndiaGst = country === "IN" && regime === "GST";
+  const numberLabel = isIndiaGst ? "GSTIN" : "registration number";
+  const jurisdictionLevel = getJurisdictions(country)[0]?.level;
+  const jurisdictionLabel = jurisdictionLevel ? jurisdictionLevel[0]!.toUpperCase() + jurisdictionLevel.slice(1) : "Jurisdiction";
 
   return (
     <div className="flex flex-col gap-4">
@@ -78,7 +92,7 @@ export function RegistrationsList({
         <div className="flex justify-end">
           <Button size="sm" onClick={() => setShowCreateModal(true)}>
             <Plus className="size-4" aria-hidden="true" />
-            Add GSTIN
+            Add {isIndiaGst ? "GSTIN" : "registration"}
           </Button>
         </div>
       ) : null}
@@ -86,13 +100,13 @@ export function RegistrationsList({
       {registrations.length === 0 ? (
         <EmptyState
           icon={Landmark}
-          message="No GST registrations yet. Add your business's first GSTIN to get started."
+          message={`No ${regimeName} registrations yet. Add your business's first ${numberLabel} to get started.`}
         />
       ) : (
         <div className="rounded-2xl border border-border">
           <ul className="divide-y md:hidden">
             {registrations.map((reg) => {
-              const type = parseGstRegistrationProfile(reg.metadata).registrationType;
+              const type = isIndiaGst ? parseGstRegistrationProfile(reg.metadata).registrationType : null;
               return (
                 <li key={reg.id} className="flex flex-col gap-2 p-3 text-sm">
                   <div className="flex min-w-0 items-start justify-between gap-2">
@@ -110,13 +124,16 @@ export function RegistrationsList({
                     </Badge>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">{REGISTRATION_TYPE_LABEL[type]}</Badge>
-                  </div>
+                  {type ? (
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline">{REGISTRATION_TYPE_LABEL[type]}</Badge>
+                    </div>
+                  ) : null}
 
                   {canEdit ? (
                     <RegistrationRowActions
                       registration={reg}
+                      isIndiaGst={isIndiaGst}
                       setPrimaryAction={setPrimaryAction}
                       setStatusAction={setStatusAction}
                       onEditProfile={() => setProfileTarget(reg)}
@@ -130,9 +147,9 @@ export function RegistrationsList({
           <Table className="hidden md:table">
             <TableHeader>
               <TableRow>
-                <TableHead>GSTIN</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead>{isIndiaGst ? "GSTIN" : "Registration number"}</TableHead>
+                <TableHead>{jurisdictionLabel}</TableHead>
+                {isIndiaGst ? <TableHead>Type</TableHead> : null}
                 <TableHead>Status</TableHead>
                 <TableHead>Primary</TableHead>
                 {canEdit ? <TableHead className="text-right">Actions</TableHead> : null}
@@ -140,14 +157,16 @@ export function RegistrationsList({
             </TableHeader>
             <TableBody>
               {registrations.map((reg) => {
-                const type = parseGstRegistrationProfile(reg.metadata).registrationType;
+                const type = isIndiaGst ? parseGstRegistrationProfile(reg.metadata).registrationType : null;
                 return (
                   <TableRow key={reg.id}>
                     <TableCell className="font-medium">{reg.registration_number}</TableCell>
                     <TableCell>{reg.jurisdiction ?? "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{REGISTRATION_TYPE_LABEL[type]}</Badge>
-                    </TableCell>
+                    {isIndiaGst ? (
+                      <TableCell>
+                        <Badge variant="outline">{REGISTRATION_TYPE_LABEL[type!]}</Badge>
+                      </TableCell>
+                    ) : null}
                     <TableCell>
                       <Badge variant={STATUS_BADGE[reg.registration_status].variant}>
                         {STATUS_BADGE[reg.registration_status].label}
@@ -160,6 +179,7 @@ export function RegistrationsList({
                       <TableCell className="text-right">
                         <RegistrationRowActions
                           registration={reg}
+                          isIndiaGst={isIndiaGst}
                           setPrimaryAction={setPrimaryAction}
                           setStatusAction={setStatusAction}
                           onEditProfile={() => setProfileTarget(reg)}
@@ -175,7 +195,9 @@ export function RegistrationsList({
         </div>
       )}
 
-      {showCreateModal ? <RegistrationModal action={createAction} onClose={() => setShowCreateModal(false)} /> : null}
+      {showCreateModal ? (
+        <RegistrationModal country={country} regime={regime} regimeName={regimeName} action={createAction} onClose={() => setShowCreateModal(false)} />
+      ) : null}
       {profileTarget ? (
         <RegistrationProfileModal
           registration={profileTarget}
@@ -189,12 +211,18 @@ export function RegistrationsList({
 
 function RegistrationRowActions({
   registration,
+  isIndiaGst,
   setPrimaryAction,
   setStatusAction,
   onEditProfile,
   align = "start",
 }: {
   registration: TaxRegistration;
+  /** The "Edit profile" action (registration type/return frequency/e-invoice
+   * eligibility) is India-GST-specific -- see `setGstRegistrationProfile`'s own
+   * docstring -- so it's hidden entirely for every other country/regime rather than
+   * opening an editor for fields that don't apply. */
+  isIndiaGst: boolean;
   setPrimaryAction: (registrationId: string) => Promise<void>;
   setStatusAction: (registrationId: string, status: TaxRegistrationStatus) => Promise<void>;
   onEditProfile: () => void;
@@ -202,10 +230,12 @@ function RegistrationRowActions({
 }) {
   return (
     <div className={`flex flex-wrap gap-2 ${align === "end" ? "justify-end" : "justify-start"}`}>
-      <Button variant="ghost" size="sm" onClick={onEditProfile}>
-        <Pencil className="size-4" aria-hidden="true" />
-        Edit profile
-      </Button>
+      {isIndiaGst ? (
+        <Button variant="ghost" size="sm" onClick={onEditProfile}>
+          <Pencil className="size-4" aria-hidden="true" />
+          Edit profile
+        </Button>
+      ) : null}
       {!registration.is_primary && registration.registration_status === "active" ? (
         <form action={setPrimaryAction.bind(null, registration.id)}>
           <SubmitButton variant="ghost" size="sm">

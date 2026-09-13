@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { Loader2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { COUNTRY_CATALOG } from "../../lib/compliance/countries";
@@ -39,8 +40,9 @@ export function CountryBar({
   countryAction: (prevState: CountryBarActionState, formData: FormData) => Promise<CountryBarActionState>;
   regimeAction: (prevState: CountryBarActionState, formData: FormData) => Promise<CountryBarActionState>;
 }) {
-  const [countryState, countryFormAction] = useActionState<CountryBarActionState, FormData>(countryAction, null);
-  const [regimeState, regimeFormAction] = useActionState<CountryBarActionState, FormData>(regimeAction, null);
+  const [countryState, countryFormAction, countryPending] = useActionState<CountryBarActionState, FormData>(countryAction, null);
+  const [regimeState, regimeFormAction, regimePending] = useActionState<CountryBarActionState, FormData>(regimeAction, null);
+  const pending = countryPending || regimePending;
   const current = COUNTRY_CATALOG.find((c) => c.code === profile.country);
   const regimeName = current?.regimes.find((r) => r.key === profile.regime)?.name ?? profile.regime;
   const hasRegimeChoice = (current?.regimes.length ?? 0) > 1;
@@ -63,6 +65,7 @@ export function CountryBar({
               defaultValue={profile.country}
               className="w-auto min-w-40"
               aria-label="Compliance country"
+              disabled={pending}
               onChange={(e) => e.currentTarget.form?.requestSubmit()}
             >
               {COUNTRY_CATALOG.map((c) => (
@@ -81,6 +84,7 @@ export function CountryBar({
                 defaultValue={profile.regime}
                 className="w-auto min-w-40"
                 aria-label="Tax regime"
+                disabled={pending}
                 onChange={(e) => e.currentTarget.form?.requestSubmit()}
               >
                 {current!.regimes.map((r) => (
@@ -91,6 +95,11 @@ export function CountryBar({
               </NativeSelect>
             </form>
           ) : null}
+
+          {/* Switching country re-renders every Compliance page under this layout
+              (revalidatePath(..., "layout")) -- without this, the select just sat there
+              looking unresponsive for the whole round trip, which read as "slow". */}
+          {pending ? <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-label="Switching..." /> : null}
         </div>
       ) : null}
 

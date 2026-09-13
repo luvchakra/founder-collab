@@ -12,31 +12,54 @@ import { getJurisdictions } from "../../lib/compliance/jurisdictions";
 
 export type TaxRegistrationActionState = { error: string } | { success: true } | null;
 
+/** India/GST keeps its own well-known terms ("GSTIN", "state"); every other
+ * country/regime this module now supports (US sales tax, Canada GST/HST, EU VAT --
+ * `countries.ts`'s own catalog) uses the generic terms instead, since there's no single
+ * universal name for "the registration number" or "the sub-national jurisdiction" across
+ * all of them. */
+function registrationNumberLabel(country: string, regime: string): { label: string; placeholder: string } {
+  if (country === "IN" && regime === "GST") return { label: "GSTIN", placeholder: "22AAAAA0000A1Z5" };
+  return { label: "Registration number", placeholder: "" };
+}
+
 /**
- * COMPLY-P0-04.1 (GSTIN Management): "add a GSTIN" form -- create-only, no edit. A
- * registration's own identity (its number, which state it's registered in) never
+ * COMPLY-P0-04.1 (GSTIN Management): "add a registration" form -- create-only, no edit. A
+ * registration's own identity (its number, which jurisdiction it's registered in) never
  * changes once issued; if one was entered wrong the fix is cancelling it and adding the
  * correct one (`gst.tax_registrations` has no update path for those fields either, only
  * `setPrimaryTaxRegistration`/`setTaxRegistrationStatus` -- see that file's own
  * docstring), so this modal never opens in an "edit" mode the way
  * `WarehouseModal`-shaped create/edit forms elsewhere in the platform do.
  *
- * India-only for now (this page only ever calls it with country="IN"/regime="GST" --
- * COMPLY-P0-04's own epic scope), so the jurisdiction picker is hard-coded to
- * `getJurisdictions("IN")` rather than taking a country prop nobody would vary yet
- * (backlog rule 4: don't build for a P1 country pack this run hasn't reached).
+ * Country/regime-aware since the P1 country packs (US/Canada/EU VAT -- `countries.ts`'s
+ * own catalog) added real, working jurisdiction and tax-registration support of their
+ * own: the jurisdiction picker reads whichever country the business's Compliance profile
+ * is actually in (`getJurisdictions(country)`), not a hard-coded "IN", and disappears
+ * entirely for a country with no sub-national jurisdiction concept (the five EU VAT
+ * countries -- VAT registration is national, not per-state) rather than showing an empty
+ * "Select state" dropdown with nothing to pick.
  */
 export function RegistrationModal({
+  country,
+  regime,
+  regimeName,
   action,
   onClose,
 }: {
+  country: string;
+  regime: string;
+  /** The regime's own human-readable name from `countries.ts`'s catalog (e.g. "VAT",
+   * "GST/HST") -- passed in rather than re-derived here since the caller already looked
+   * it up to render the page's own title/copy. */
+  regimeName: string;
   action: (prevState: TaxRegistrationActionState, formData: FormData) => Promise<TaxRegistrationActionState>;
   onClose: () => void;
 }) {
   const [state, formAction] = useActionState<TaxRegistrationActionState, FormData>(action, null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
-  const jurisdictions = getJurisdictions("IN");
+  const jurisdictions = getJurisdictions(country);
+  const numberField = registrationNumberLabel(country, regime);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
@@ -85,42 +108,49 @@ export function RegistrationModal({
         </button>
 
         <h2 id="registration-modal-title" className="text-lg font-semibold">
-          Add a GST registration
+          Add a {regimeName} registration
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          One GSTIN per state you&apos;re registered in. This becomes the effective GSTIN other
-          Compliance/Inventory/Service documents use once it&apos;s set as primary.
+          {jurisdictions.length > 0
+            ? `One ${numberField.label} per ${jurisdictions[0]!.level} you're registered in. This becomes the effective one other Compliance/Inventory/Service documents use once it's set as primary.`
+            : `This becomes the effective ${numberField.label.toLowerCase()} other Compliance/Inventory/Service documents use once it's set as primary.`}
         </p>
 
         <form action={formAction} className="mt-6 flex flex-col gap-4">
+          <input type="hidden" name="country" value={country} />
+          <input type="hidden" name="regime" value={regime} />
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reg-gstin">GSTIN</Label>
+            <Label htmlFor="reg-number">{numberField.label}</Label>
             <Input
               ref={inputRef}
-              id="reg-gstin"
+              id="reg-number"
               name="registration_number"
               required
-              placeholder="22AAAAA0000A1Z5"
-              maxLength={15}
+              placeholder={numberField.placeholder || undefined}
+              maxLength={numberField.label === "GSTIN" ? 15 : undefined}
               className="uppercase"
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reg-jurisdiction">State</Label>
-            <NativeSelect id="reg-jurisdiction" name="jurisdiction" required defaultValue="">
-              <option value="" disabled>
-                Select state
-              </option>
-              {jurisdictions.map((j) => (
-                <option key={j.name} value={j.name}>
-                  {j.name}
+          {jurisdictions.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="reg-jurisdiction" className="capitalize">
+                {jurisdictions[0]!.level}
+              </Label>
+              <NativeSelect id="reg-jurisdiction" name="jurisdiction" required defaultValue="">
+                <option value="" disabled>
+                  Select {jurisdictions[0]!.level}
                 </option>
-              ))}
-            </NativeSelect>
-          </div>
+                {jurisdictions.map((j) => (
+                  <option key={j.name} value={j.name}>
+                    {j.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </div>
+          ) : null}
           <label className="flex items-center gap-2 text-sm">
             <Checkbox name="is_primary" defaultChecked />
-            Set as primary GSTIN for this business
+            Set as primary {numberField.label.toLowerCase()} for this business
           </label>
 
           {state && "error" in state ? <p className="text-sm text-destructive">{state.error}</p> : null}
@@ -129,7 +159,7 @@ export function RegistrationModal({
             <Button type="button" variant="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <SubmitButton pendingText="Adding...">Add GSTIN</SubmitButton>
+            <SubmitButton pendingText="Adding...">Add {numberField.label}</SubmitButton>
           </div>
         </form>
       </div>
