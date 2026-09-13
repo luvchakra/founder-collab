@@ -2,27 +2,67 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { moduleRegistry } from "@cofounderai/module-registry";
 
-/** `/dashboard` is the customer app; `/platform` (PLATFORM-P0-01.2, "every /platform/*
- * route... must independently verify authenticated user AND platform-level
- * authorization") is the WonderArc control plane -- both need the same auth wall
- * (redirect to /login when signed out), but only `/dashboard` ever resolves a business
- * id below: PLATFORM-P0-01.4's "No Tenant Context Required" holds for free, since no
- * `/platform/*` path matches the business-scoped regex that block depends on. */
-const PROTECTED_PREFIXES = ["/dashboard", "/platform"];
+/** Every static path the app owns at the top level -- a business's own slug
+ * (core.business_settings.slug) can never collide with one of these, since this is
+ * exactly how a business-scoped route is told apart from a static one below: not by a
+ * fixed prefix (there is no more "/dashboard/businesses/" marking one), but by whether
+ * the URL's first segment is anything OTHER than one of these. Mirrors the CHECK
+ * constraint on core.business_settings.slug (supabase/migrations/20260913740000_*) and
+ * packages/core/src/businesses/slug.ts's RESERVED_BUSINESS_SLUGS -- kept in sync by hand
+ * (three call sites, not worth a shared runtime import across a migration/an edge
+ * middleware/a server-only module for one small constant list). */
+const RESERVED_TOP_SEGMENTS = new Set([
+  "dashboard",
+  "platform",
+  "login",
+  "signup",
+  "forgot-password",
+  "reset-password",
+  "onboarding",
+  "auth",
+  "api",
+  "p",
+]);
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
-/** Pure prefix check, its own function for the same reason `activeBusinessIdFromPath()`
- * is -- testable without constructing a real NextRequest. */
+/** `/dashboard` is the account-level customer app (Executive Dashboard, settings,
+ * the env-var-gated admin tool) and `/platform` (PLATFORM-P0-01.2, "every /platform/*
+ * route... must independently verify authenticated user AND platform-level
+ * authorization") is the WonderArc control plane -- both are always protected,
+ * regardless of what follows. Every other path is protected exactly when its first
+ * segment isn't one of the app's own static top-level routes (`RESERVED_TOP_SEGMENTS`)
+ * -- i.e. it's presumed to be a business's own slug
+ * (apps/web/app/(dashboard)/[businessSlug]/...), which is always behind auth. `/login`,
+ * `/signup`, `/onboarding`, `/auth/callback`, `/api/*` and the public `/p/*` portal are
+ * each self-gated at the page/route level (see e.g. apps/web/app/onboarding/page.tsx's
+ * own redirect) rather than here, same as before this function grew a business-slug
+ * case at all. */
 export function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  if (pathname === "/") return false;
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return true;
+  const firstSegment = pathname.split("/")[1];
+  if (!firstSegment || RESERVED_TOP_SEGMENTS.has(firstSegment)) return false;
+  return true;
 }
 
-/** Business id embedded in the URL -- .../dashboard/businesses/[id]/... today, the only
- * route shape that exists. Kept as its own function (rather than inlined into the
- * business-scoped regex below) so it only needs updating in one place once a
- * [businessSlug] segment exists. */
-export function activeBusinessIdFromPath(pathname: string): string | null {
-  return pathname.match(/\/dashboard\/businesses\/([^/]+)/)?.[1] ?? null;
+/** The legacy /dashboard/businesses/[id]/... shape, kept recognizable (not deleted
+ * outright) so every bookmark, saved link, or stale in-app href built before this
+ * routing change keeps working: `updateSession()` below 308-redirects it to the
+ * equivalent /[businessSlug]/... URL rather than 404ing on it. Captures the id and
+ * everything after it separately so the redirect can preserve the rest of the path
+ * (module, sub-page, etc.) unchanged. */
+const LEGACY_BUSINESS_PATH = /^\/dashboard\/businesses\/([^/]+)((?:\/.*)?)$/;
+
+/** Business slug embedded in the URL -- the first path segment, once `isProtectedPath`
+ * has already ruled out every static top-level route it could otherwise be. Kept as its
+ * own function (rather than inlined into the business-scoped regex below) for the same
+ * reason it always was: testable in isolation, and every call site updates in one place
+ * if the shape ever changes again. */
+export function activeBusinessSlugFromPath(pathname: string): string | null {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return null;
+  const firstSegment = pathname.match(/^\/([^/]+)/)?.[1];
+  if (!firstSegment || RESERVED_TOP_SEGMENTS.has(firstSegment)) return null;
+  return firstSegment;
 }
 
 function escapeForRegex(value: string): string {
@@ -30,19 +70,18 @@ function escapeForRegex(value: string): string {
 }
 
 /** Which module (if any) `pathname` belongs to -- independent of licensing or the
- * platform-wide kill switch, just route-shape matching. Checked against two shapes:
- * today's /dashboard/businesses/[id]/<prefix>/... (a module's own routes living alongside
- * discovery's /products/...) and a bare /<prefix> prefix (the eventual
- * [businessSlug]/<prefix> shape module-registry's own routePrefix docstring names as the
- * target). Factored out of `findUnlicensedModuleForRoute()` (PLATFORM-P0-07.2) so
+ * platform-wide kill switch, just route-shape matching against the real
+ * /[businessSlug]/<prefix>/... shape (module-registry's own routePrefix docstring's
+ * target, now the only shape that exists -- the legacy /dashboard/businesses/[id]/...
+ * shape never reaches this function, since `updateSession()` redirects it to the new
+ * shape first). Factored out of `findUnlicensedModuleForRoute()` (PLATFORM-P0-07.2) so
  * `findPlatformDisabledModuleForRoute()` below can share the exact same route-matching
  * logic instead of re-deriving it. */
 function moduleForRoute(pathname: string): (typeof moduleRegistry)[number] | null {
   for (const module of moduleRegistry) {
     const prefix = escapeForRegex(module.routePrefix);
-    const businessScoped = new RegExp(`^/dashboard/businesses/[^/]+${prefix}(?:/|$)`);
-    const topLevel = new RegExp(`^${prefix}(?:/|$)`);
-    if (businessScoped.test(pathname) || topLevel.test(pathname)) return module;
+    const businessScoped = new RegExp(`^/[^/]+${prefix}(?:/|$)`);
+    if (businessScoped.test(pathname)) return module;
   }
   return null;
 }
@@ -139,96 +178,134 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (!user) {
+    return supabaseResponse;
+  }
+
+  // A read-only client for the two lookups below -- session cookie refresh is already
+  // fully owned by `supabase` above; this must not also try to write cookies. Built once
+  // and reused for both the legacy-URL redirect and the current-shape license gate,
+  // rather than one per branch.
+  const coreClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      db: { schema: "core" },
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {},
+      },
+    },
+  );
+
+  // Every bookmark, saved link, or stale in-app href built before business-scoped URLs
+  // moved off /dashboard/businesses/[id]/... still resolves: redirect it to the same
+  // page's new /[businessSlug]/... address rather than 404ing on a folder that no longer
+  // exists. A business the caller can't resolve (bogus id, or a real id RLS hides
+  // because they're not a member) falls through unredirected -- Next.js 404s on it
+  // naturally, same as it already does for a bogus id under the current page-level
+  // notFound() checks.
+  const legacyMatch = pathname.match(LEGACY_BUSINESS_PATH);
+  if (legacyMatch) {
+    const [, legacyBusinessId, rest] = legacyMatch;
+    const { data } = await coreClient
+      .from("business_settings")
+      .select("slug")
+      .eq("business_id", legacyBusinessId)
+      .maybeSingle();
+    if (data?.slug) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/${data.slug}${rest}`;
+      return NextResponse.redirect(url, 308);
+    }
+    return supabaseResponse;
+  }
+
   // Business/entitlement resolution: only meaningful once there's a signed-in user on a
   // protected, business-scoped route. Loaded once here (a single query) rather than
   // leaving every module route to resolve its own licensed-module set.
-  if (user && isProtected) {
-    const businessId = activeBusinessIdFromPath(pathname);
-    if (businessId) {
-      const coreClient = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        {
-          db: { schema: "core" },
-          cookies: {
-            getAll() {
-              return request.cookies.getAll();
+  if (isProtected) {
+    const businessSlug = activeBusinessSlugFromPath(pathname);
+    if (businessSlug) {
+      const { data: settings } = await coreClient
+        .from("business_settings")
+        .select("business_id")
+        .eq("slug", businessSlug)
+        .maybeSingle();
+      const businessId = settings?.business_id as string | undefined;
+      if (businessId) {
+        const platformClient = createServerClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+          {
+            db: { schema: "platform" },
+            cookies: {
+              getAll() {
+                return request.cookies.getAll();
+              },
+              setAll() {},
             },
-            // Read-only client for this one query -- session cookie refresh is already
-            // fully owned by `supabase` above; this must not also try to write cookies.
-            setAll() {},
           },
-        },
-      );
-      const platformClient = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-        {
-          db: { schema: "platform" },
-          cookies: {
-            getAll() {
-              return request.cookies.getAll();
-            },
-            setAll() {},
-          },
-        },
-      );
-      const [{ data: licenses }, { data: platformModules }] = await Promise.all([
-        coreClient.from("licenses").select("module_key, status, grace_ends_at").eq("business_id", businessId),
-        // PLATFORM-P0-07.2/07.3: platform.modules' own SELECT policy is open to any
-        // authenticated user (see that migration's own docstring), so this read works for
-        // an ordinary business member's session, not just a superadmin's. `status` (not
-        // the old boolean `enabled`, which PLATFORM-P0-07.3's reconciliation made a
-        // derived, database-generated column) is the source of truth from here on.
-        platformClient.from("modules").select("module_key, status, customer_facing_message"),
-      ]);
-      const licensedModules = new Set(
-        (licenses ?? []).filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key as string),
-      );
-      const platformStatusByKey = new Map(
-        (platformModules ?? []).map((m) => [
-          m.module_key as string,
-          { status: m.status as string, message: m.customer_facing_message as string | null },
-        ]),
-      );
-      // PLATFORM-P0-07.3 decision #3: `maintenance` and `disabled` are the exact same
-      // full block -- both populate this set identically. A platform-wide `read_only`
-      // status (decision #2) deliberately does NOT block the route, mirroring how a
-      // license's own grace period never blocks the route either -- only writes.
-      const platformDisabledModules = new Set(
-        [...platformStatusByKey.entries()]
-          .filter(([, v]) => v.status === "disabled" || v.status === "maintenance")
-          .map(([key]) => key),
-      );
+        );
+        const [{ data: licenses }, { data: platformModules }] = await Promise.all([
+          coreClient.from("licenses").select("module_key, status, grace_ends_at").eq("business_id", businessId),
+          // PLATFORM-P0-07.2/07.3: platform.modules' own SELECT policy is open to any
+          // authenticated user (see that migration's own docstring), so this read works for
+          // an ordinary business member's session, not just a superadmin's. `status` (not
+          // the old boolean `enabled`, which PLATFORM-P0-07.3's reconciliation made a
+          // derived, database-generated column) is the source of truth from here on.
+          platformClient.from("modules").select("module_key, status, customer_facing_message"),
+        ]);
+        const licensedModules = new Set(
+          (licenses ?? []).filter((l) => l.status === "active" || l.status === "grace").map((l) => l.module_key as string),
+        );
+        const platformStatusByKey = new Map(
+          (platformModules ?? []).map((m) => [
+            m.module_key as string,
+            { status: m.status as string, message: m.customer_facing_message as string | null },
+          ]),
+        );
+        // PLATFORM-P0-07.3 decision #3: `maintenance` and `disabled` are the exact same
+        // full block -- both populate this set identically. A platform-wide `read_only`
+        // status (decision #2) deliberately does NOT block the route, mirroring how a
+        // license's own grace period never blocks the route either -- only writes.
+        const platformDisabledModules = new Set(
+          [...platformStatusByKey.entries()]
+            .filter(([, v]) => v.status === "disabled" || v.status === "maintenance")
+            .map(([key]) => key),
+        );
 
-      // Platform-wide full block checked first -- it blocks every business regardless of
-      // that business's own license status, so it is the more universal fact when both
-      // would otherwise apply.
-      const platformDisabledKey = findPlatformDisabledModuleForRoute(pathname, platformDisabledModules);
-      if (platformDisabledKey) {
-        const info = platformStatusByKey.get(platformDisabledKey);
-        const url = request.nextUrl.clone();
-        url.pathname = `/dashboard/businesses/${businessId}/not-licensed`;
-        url.search = "";
-        url.searchParams.set("module", platformDisabledKey);
-        url.searchParams.set("reason", "platform_disabled");
-        url.searchParams.set("platformStatus", info?.status ?? "disabled");
-        if (info?.message) url.searchParams.set("message", info.message);
-        return NextResponse.rewrite(url);
-      }
-
-      const blockedModuleKey = findUnlicensedModuleForRoute(pathname, licensedModules);
-      if (blockedModuleKey) {
-        const license = (licenses ?? []).find((l) => l.module_key === blockedModuleKey);
-        const url = request.nextUrl.clone();
-        url.pathname = `/dashboard/businesses/${businessId}/not-licensed`;
-        url.search = "";
-        url.searchParams.set("module", blockedModuleKey);
-        url.searchParams.set("reason", license?.status ?? "none");
-        if (license?.status === "grace" && license.grace_ends_at) {
-          url.searchParams.set("graceEndsAt", license.grace_ends_at as string);
+        // Platform-wide full block checked first -- it blocks every business regardless of
+        // that business's own license status, so it is the more universal fact when both
+        // would otherwise apply.
+        const platformDisabledKey = findPlatformDisabledModuleForRoute(pathname, platformDisabledModules);
+        if (platformDisabledKey) {
+          const info = platformStatusByKey.get(platformDisabledKey);
+          const url = request.nextUrl.clone();
+          url.pathname = `/${businessSlug}/not-licensed`;
+          url.search = "";
+          url.searchParams.set("module", platformDisabledKey);
+          url.searchParams.set("reason", "platform_disabled");
+          url.searchParams.set("platformStatus", info?.status ?? "disabled");
+          if (info?.message) url.searchParams.set("message", info.message);
+          return NextResponse.rewrite(url);
         }
-        return NextResponse.rewrite(url);
+
+        const blockedModuleKey = findUnlicensedModuleForRoute(pathname, licensedModules);
+        if (blockedModuleKey) {
+          const license = (licenses ?? []).find((l) => l.module_key === blockedModuleKey);
+          const url = request.nextUrl.clone();
+          url.pathname = `/${businessSlug}/not-licensed`;
+          url.search = "";
+          url.searchParams.set("module", blockedModuleKey);
+          url.searchParams.set("reason", license?.status ?? "none");
+          if (license?.status === "grace" && license.grace_ends_at) {
+            url.searchParams.set("graceEndsAt", license.grace_ends_at as string);
+          }
+          return NextResponse.rewrite(url);
+        }
       }
     }
   }
