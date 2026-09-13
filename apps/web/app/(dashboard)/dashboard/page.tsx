@@ -29,7 +29,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { formatDate } from "@cofounderai/core/lib/format";
-import { AlertTriangle, ArrowRight, BadgeCheck, CreditCard, Gauge, Settings2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, CreditCard, Gauge, Settings2 } from "lucide-react";
 import { DownloadPdfButton } from "@/components/dashboard/download-pdf-button";
 import { getOpenJobsCount } from "@cofounderai/module-fsm/lib/dashboard/queries";
 import { listLowStockAlerts } from "@cofounderai/module-inventory/contract/index";
@@ -47,46 +47,57 @@ import { getGstProfile } from "@cofounderai/module-gst/lib/profile/queries";
  * licensed businesses on this account contributes nothing at all -- ADR-10's own
  * degraded mode, not an error or a placeholder card. */
 async function computeModuleWidgets(
-  businessIds: string[],
-): Promise<{ widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string }[]; licensesByBusiness: License[][] }> {
-  if (businessIds.length === 0) return { widgets: [], licensesByBusiness: [] };
+  businesses: { id: string; slug: string }[],
+): Promise<{ widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string; href?: string }[]; licensesByBusiness: License[][] }> {
+  if (businesses.length === 0) return { widgets: [], licensesByBusiness: [] };
+  const businessIds = businesses.map((b) => b.id);
 
   const licensesByBusiness = await Promise.all(businessIds.map((id) => listLicensesForBusiness(id)));
-  const licensedBusinessIdsByModule = new Map<string, string[]>();
+  const licensedBusinessesByModule = new Map<string, { id: string; slug: string }[]>();
   licensesByBusiness.forEach((licenses, i) => {
     for (const license of licenses) {
       if (license.status !== "active" && license.status !== "grace") continue;
-      const ids = licensedBusinessIdsByModule.get(license.module_key) ?? [];
-      ids.push(businessIds[i]!);
-      licensedBusinessIdsByModule.set(license.module_key, ids);
+      const list = licensedBusinessesByModule.get(license.module_key) ?? [];
+      list.push(businesses[i]!);
+      licensedBusinessesByModule.set(license.module_key, list);
     }
   });
 
-  const widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string }[] = [];
+  // A widget only gets a click-through when exactly one business holds that module's
+  // license -- the count itself is already summed across every licensed business, so
+  // with more than one there's no single "right page" to land on (rule 7: a link has to
+  // actually go somewhere meaningful, not just exist for its own sake).
+  const soleSlug = (list: { id: string; slug: string }[] | undefined) => (list?.length === 1 ? list[0]!.slug : undefined);
 
-  const fsmIds = licensedBusinessIdsByModule.get("fsm") ?? [];
-  if (fsmIds.length > 0) {
-    const openJobs = await getOpenJobsCount(fsmIds);
-    widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs" });
+  const widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string; href?: string }[] = [];
+
+  const fsmBusinesses = licensedBusinessesByModule.get("fsm") ?? [];
+  if (fsmBusinesses.length > 0) {
+    const openJobs = await getOpenJobsCount(fsmBusinesses.map((b) => b.id));
+    const slug = soleSlug(fsmBusinesses);
+    widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs", href: slug ? `/${slug}/fsm/jobs` : undefined });
   }
 
-  const inventoryIds = licensedBusinessIdsByModule.get("inventory") ?? [];
-  if (inventoryIds.length > 0) {
-    const alertCounts = await Promise.all(inventoryIds.map((id) => listLowStockAlerts(id)));
+  const inventoryBusinesses = licensedBusinessesByModule.get("inventory") ?? [];
+  if (inventoryBusinesses.length > 0) {
+    const alertCounts = await Promise.all(inventoryBusinesses.map((b) => listLowStockAlerts(b.id)));
     const lowStock = alertCounts.reduce((sum, r) => sum + (r.ok ? r.data.length : 0), 0);
-    widgets.push({ key: "inventory", label: "Inventory", icon: "Package", value: lowStock, detail: "low-stock alerts" });
+    const slug = soleSlug(inventoryBusinesses);
+    widgets.push({ key: "inventory", label: "Inventory", icon: "Package", value: lowStock, detail: "low-stock alerts", href: slug ? `/${slug}/inventory/alerts` : undefined });
   }
 
-  const crmIds = licensedBusinessIdsByModule.get("crm") ?? [];
-  if (crmIds.length > 0) {
-    const openTickets = await getOpenTicketsCount(crmIds);
-    widgets.push({ key: "crm", label: "CRM", icon: "Inbox", value: openTickets, detail: "open tickets" });
+  const crmBusinesses = licensedBusinessesByModule.get("crm") ?? [];
+  if (crmBusinesses.length > 0) {
+    const openTickets = await getOpenTicketsCount(crmBusinesses.map((b) => b.id));
+    const slug = soleSlug(crmBusinesses);
+    widgets.push({ key: "crm", label: "CRM", icon: "Inbox", value: openTickets, detail: "open tickets", href: slug ? `/${slug}/crm` : undefined });
   }
 
-  const gstIds = licensedBusinessIdsByModule.get("gst") ?? [];
-  if (gstIds.length > 0) {
-    const einvoices = await getEinvoicesThisMonthCount(gstIds);
-    widgets.push({ key: "gst", label: "Compliance", icon: "Receipt", value: einvoices, detail: "e-invoices this month" });
+  const gstBusinesses = licensedBusinessesByModule.get("gst") ?? [];
+  if (gstBusinesses.length > 0) {
+    const einvoices = await getEinvoicesThisMonthCount(gstBusinesses.map((b) => b.id));
+    const slug = soleSlug(gstBusinesses);
+    widgets.push({ key: "gst", label: "Compliance", icon: "Receipt", value: einvoices, detail: "e-invoices this month", href: slug ? `/${slug}/gst/einvoicing` : undefined });
   }
 
   return { widgets, licensesByBusiness };
@@ -154,16 +165,27 @@ async function buildAttentionItems(
   return items;
 }
 
-function ModuleWidgetCard({ label, icon, value, detail }: { label: string; icon: string; value: number; detail: string }) {
-  return (
+function ModuleWidgetCard({ label, icon, value, detail, href }: { label: string; icon: string; value: number; detail: string; href?: string }) {
+  const content = (
     <div className="flex flex-col gap-2 rounded-md border p-4">
-      <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        <ModuleIcon name={icon} className="size-3.5" />
-        {label}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          <ModuleIcon name={icon} className="size-3.5" />
+          {label}
+        </div>
+        {href ? (
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden="true" />
+        ) : null}
       </div>
       <span className="text-2xl font-semibold">{value}</span>
       <span className="text-xs text-muted-foreground">{detail}</span>
     </div>
+  );
+  if (!href) return content;
+  return (
+    <Link href={href} className="group block rounded-md transition-colors hover:border-foreground/20">
+      {content}
+    </Link>
   );
 }
 
@@ -171,19 +193,32 @@ function KpiCard({
   label,
   value,
   detail,
+  href,
 }: {
   label: string;
   value: string | number;
   detail?: string;
+  href?: string;
 }) {
-  return (
+  const content = (
     <div className="flex flex-col gap-1 rounded-md border p-4">
-      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {label}
+        </span>
+        {href ? (
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden="true" />
+        ) : null}
+      </div>
       <span className="text-2xl font-semibold">{value}</span>
       {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
     </div>
+  );
+  if (!href) return content;
+  return (
+    <Link href={href} className="group block rounded-md transition-colors hover:border-foreground/20">
+      {content}
+    </Link>
   );
 }
 
@@ -206,7 +241,7 @@ export default async function DashboardPage({
   const { usageByWorkspace, countsByWorkspace, prospects } = await getAccountUsageAndProspects(
     account.id,
   );
-  const { widgets: moduleWidgets, licensesByBusiness } = await computeModuleWidgets(businesses.map((b) => b.id));
+  const { widgets: moduleWidgets, licensesByBusiness } = await computeModuleWidgets(businesses);
   const attentionItems = await buildAttentionItems(businesses, licensesByBusiness);
 
   const prospectCounts = Object.values(countsByWorkspace).reduce(
@@ -338,8 +373,8 @@ export default async function DashboardPage({
           modules they have licensed.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard label="Businesses" value={businesses.length} />
-          <KpiCard label="Products" value={allProducts.length} />
+          <KpiCard label="Businesses" value={businesses.length} href="/dashboard/settings" />
+          <KpiCard label="Products" value={allProducts.length} href="#conversions" />
           <KpiCard
             label="Prospects"
             value={prospectCounts.total}
@@ -348,11 +383,13 @@ export default async function DashboardPage({
                 ? `${prospectCounts.qualified} qualified · ${prospectCounts.new} new`
                 : undefined
             }
+            href="#conversions"
           />
           <KpiCard
             label="AI credits (month)"
             value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceEntries.length, 1))}%`}
             detail={`${usage.runs} run${usage.runs === 1 ? "" : "s"} used`}
+            href="/dashboard/settings/usage"
           />
         </div>
       </section>
@@ -366,13 +403,13 @@ export default async function DashboardPage({
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {moduleWidgets.map((widget) => (
-              <ModuleWidgetCard key={widget.key} label={widget.label} icon={widget.icon} value={widget.value} detail={widget.detail} />
+              <ModuleWidgetCard key={widget.key} label={widget.label} icon={widget.icon} value={widget.value} detail={widget.detail} href={widget.href} />
             ))}
           </div>
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-4">
+      <section id="conversions" className="flex scroll-mt-20 flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">Conversions</h2>

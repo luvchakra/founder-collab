@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowUpRight } from "lucide-react";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getPotentialLostBusinessDashboard, getCrmDashboardKpis } from "@cofounderai/module-crm/lib/dashboard/queries";
@@ -9,14 +10,19 @@ import { inr } from "@cofounderai/core/lib/format";
 function KpiCard({ label, value, detail, href }: { label: string; value: string | number; detail: string; href?: string }) {
   const content = (
     <div className="flex h-full flex-col gap-1 rounded-md border p-4">
-      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
+        {href ? (
+          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden="true" />
+        ) : null}
+      </div>
       <span className="text-2xl font-semibold">{value}</span>
       <span className="text-xs text-muted-foreground">{detail}</span>
     </div>
   );
   if (!href) return content;
   return (
-    <Link href={href} className="block transition-colors hover:border-foreground/20 rounded-md">
+    <Link href={href} className="group block rounded-md transition-colors hover:border-foreground/20">
       {content}
     </Link>
   );
