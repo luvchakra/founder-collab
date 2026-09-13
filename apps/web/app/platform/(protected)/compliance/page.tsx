@@ -1,4 +1,5 @@
 import { listComplianceCountries, listCompliancePacks } from "@cofounderai/core/admin/platform-compliance";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { CountryRegistryTable } from "./country-registry-table";
 import { CompliancePackTable } from "./compliance-pack-table";
 
@@ -28,6 +29,8 @@ export default async function PlatformCompliancePage() {
           which of each pack&apos;s named capabilities are turned on.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <CountryRegistryTable countries={countries} />
       <CompliancePackTable packs={packs} countries={countries} />

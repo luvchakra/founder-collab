@@ -1,6 +1,7 @@
 import { listAiProviders, type AiProviderConfig } from "@cofounderai/core/admin/platform-ai-providers";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { ProviderConfigDialog } from "./provider-config-dialog";
 import { ProviderKeyDialog } from "./provider-key-dialog";
 import { RemoveKeyDialog } from "./remove-key-dialog";
@@ -30,6 +31,8 @@ export default async function PlatformAiProvidersPage() {
           business&apos;s own connected key. Every change is recorded with a reason.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <div className="rounded-2xl border border-zinc-800">
         <ul className="divide-y divide-zinc-800 md:hidden">

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getCompliancePack, listCompliancePackFeatures } from "@cofounderai/core/admin/platform-compliance";
+import { PlatformImpactBanner } from "../../../../impact-banner";
 import { FeatureFlagsSection } from "./feature-flags-section";
 
 /**
@@ -27,6 +28,8 @@ export default async function CompliancePackFeaturesPage({ params }: { params: P
           Which named capabilities within this compliance pack are turned on, platform-wide.
         </p>
       </div>
+
+      <PlatformImpactBanner />
 
       <FeatureFlagsSection packId={id} features={features} />
     </div>

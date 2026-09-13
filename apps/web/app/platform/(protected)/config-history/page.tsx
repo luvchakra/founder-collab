@@ -3,6 +3,7 @@ import {
   listConfigResourceInstances,
   listConfigVersions,
 } from "@cofounderai/core/admin/config-history";
+import { PlatformImpactBanner } from "../../impact-banner";
 import { ConfigHistoryExplorer } from "./config-history-explorer";
 
 /**
@@ -41,6 +42,7 @@ export default async function PlatformConfigHistoryPage() {
           Feature Flags, Announcements, and Platform Policies; every other configuration below is history-only for now.
         </p>
       </div>
+      <PlatformImpactBanner description="Restoring a prior version replaces the live configuration for every business using it right now." />
       <ConfigHistoryExplorer
         resourceTypes={CONFIG_RESOURCE_TYPES}
         initialResourceType={first.key}

@@ -1,10 +1,8 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSuperadmin } from "@cofounderai/core/rbac/platform-admin";
 import { createClient } from "@cofounderai/core/db/server";
-import { BRAND_NAME } from "@cofounderai/core/lib/brand";
-import { Badge } from "@cofounderai/core/ui/badge";
+import { PlatformShell } from "./platform-shell";
 
 // Every /platform/* page is a per-request, authenticated control-plane view (session +
 // cross-tenant admin queries) -- never a candidate for static prerendering. Forced here
@@ -27,64 +25,12 @@ export const dynamic = "force-dynamic";
  * narrower env-var-only gate. The header below is PLATFORM-P0-01.3's own requirement:
  * "the UI must clearly indicate Platform Administration / SUPERADMIN."
  *
- * Deliberately minimal beyond that -- no full sidebar yet (PLATFORM-P0-19's own
- * "Dedicated Admin Layout" is a later, separate story in Phase 4). PLATFORM-P0-03.1 adds
- * a second page (`/platform/branding`) alongside the dashboard, so a one-line nav strip
- * is added below the header -- enough to make both pages reachable without building out
- * the full left-nav shell §19 describes ahead of its own turn.
+ * PLATFORM-P0-19.1 ("Dedicated Admin Layout", §33) replaces the one-line nav strip this
+ * file carried since PLATFORM-P0-03.1 with a real grouped sidebar (`platform-shell.tsx`
+ * + `platform-nav.ts`) -- this file now only does the authorization/session work and
+ * hands off rendering. Every route the old flat strip listed is still reachable, just
+ * grouped; see `platform-nav.ts`'s own docstring for the grouping rationale.
  */
-const NAV_LINKS = [
-  { href: "/platform", label: "Dashboard" },
-  // PLATFORM-P0-03.4: labeled "Platform Branding", not just "Branding" -- this nav sits
-  // only inside the SUPERADMIN-gated /platform shell, but the extra word costs nothing
-  // and removes any doubt that this configures WonderArc's own global brand, not a
-  // business's (no such business-level branding page exists anywhere in the app to
-  // confuse it with today, but the label shouldn't rely on that always being true).
-  { href: "/platform/branding", label: "Platform Branding" },
-  // PLATFORM-P0-04.1: the subscription/pricing catalog admin screen.
-  { href: "/platform/plans", label: "Plans" },
-  // PLATFORM-P0-07.1: the module registry / administration screen.
-  { href: "/platform/modules", label: "Modules" },
-  // PLATFORM-P0-08.1: the operational feature-flag catalog.
-  { href: "/platform/feature-flags", label: "Feature Flags" },
-  // PLATFORM-P0-09.1/09.2: the platform-wide AI provider registry and key storage.
-  { href: "/platform/ai-providers", label: "AI Providers" },
-  // PLATFORM-P0-09.3: the platform-wide AI routing policy -- config-only, no runtime
-  // wiring (see the migration's own docstring).
-  { href: "/platform/ai-routing", label: "AI Routing" },
-  // PLATFORM-P0-09.4: the platform-wide AI feature/usage-ceiling policy -- config-only,
-  // no runtime enforcement (see the migration's own docstring).
-  { href: "/platform/ai-feature-policies", label: "AI Feature Policies" },
-  // PLATFORM-P0-09.5: a read-only, platform-wide view of recent AI runs -- no new table,
-  // see platform-ai-usage.ts's own docstring.
-  { href: "/platform/ai-usage", label: "AI Usage" },
-  // PLATFORM-P0-11.1: the platform-wide email provider config -- config-only, no runtime
-  // wiring (see the migration's own docstring).
-  { href: "/platform/email-provider", label: "Email Provider" },
-  // PLATFORM-P0-11.2: the fixed, seven-purpose system email template catalog -- config-only.
-  { href: "/platform/email-templates", label: "Email Templates" },
-  // PLATFORM-P0-11.3: the platform-wide default notification channel toggles -- config-only.
-  { href: "/platform/notification-policies", label: "Notification Policies" },
-  // PLATFORM-P0-12.1: the platform-wide registry of external integration categories
-  // (AI/Email/WhatsApp/Payments/Government/Analytics/Storage) and their kill switches.
-  { href: "/platform/integrations", label: "Integrations" },
-  // PLATFORM-P0-13.1/13.2/13.4: the country/compliance-pack registry and per-pack feature
-  // flags. PLATFORM-P0-13.3 (Rule Version) is CLOSED (satisfied by `gst.tax_rules`,
-  // user-decided) -- see docs/design/platform-admin-portal-audit.md's own dated entry.
-  { href: "/platform/compliance", label: "Compliance Packs" },
-  // PLATFORM-P0-14.1/14.2/14.3: platform-wide default/ceiling policy values (session,
-  // password, files, retention, rate limits, business defaults) -- config-only, no
-  // runtime enforcement (see the migration's own docstring).
-  { href: "/platform/system-policies", label: "Platform Policies" },
-  // PLATFORM-P0-15.1/15.2/15.3/15.4: the platform-wide announcement/maintenance-notice
-  // catalog -- config-only, no customer-facing banner/notice or email delivery wired up
-  // yet (see the migration's own docstring).
-  { href: "/platform/announcements", label: "Announcements" },
-  // PLATFORM-P0-17.1/17.2/17.3: version history (with restore, where wired) across every
-  // audited platform.* configuration table -- see config-history.ts's own docstring.
-  { href: "/platform/config-history", label: "Configuration History" },
-];
-
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
   try {
     await requireSuperadmin();
@@ -97,23 +43,5 @@ export default async function PlatformLayout({ children }: { children: ReactNode
     data: { user },
   } = await supabase.auth.getUser();
 
-  return (
-    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-50">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900 px-4 py-3 sm:px-6">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-wide">{BRAND_NAME} Platform Administration</span>
-          <Badge variant="destructive">SUPERADMIN</Badge>
-        </div>
-        {user?.email ? <span className="text-xs text-zinc-400">{user.email}</span> : null}
-      </header>
-      <nav className="flex gap-4 border-b border-zinc-800 bg-zinc-950 px-4 py-2 text-sm sm:px-6">
-        {NAV_LINKS.map((link) => (
-          <Link key={link.href} href={link.href} className="text-zinc-400 hover:text-zinc-100">
-            {link.label}
-          </Link>
-        ))}
-      </nav>
-      <main className="flex-1 px-4 py-6 sm:px-6">{children}</main>
-    </div>
-  );
+  return <PlatformShell userEmail={user?.email ?? null}>{children}</PlatformShell>;
 }
