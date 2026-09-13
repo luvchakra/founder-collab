@@ -67,7 +67,7 @@ only genuine architectural/key decisions are raised.
 | | P1-03.2 | Missing Information Suggestions | Done |
 | | P1-04.1 | Learn From User Edits | Done |
 | | P1-04.2 | Learn From Outcomes | Done |
-| | P1-05.1 | Offering Pipeline Workspace | Not started |
+| | P1-05.1 | Offering Pipeline Workspace | Done |
 | | P1-05.2 | Desktop Stage Tables | Not started |
 | | P1-05.3 | Editable Stage Rows | Not started |
 | P1 (extra) | P1-01.3 | Account Watchlist | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**49 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**50 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3775,3 +3775,76 @@ populated, which this environment cannot produce a live signed-in walkthrough of
 
 **Status**: 49 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.1, Offering
 Pipeline Workspace.
+
+### P1-05.1 — Offering Pipeline Workspace (2026-09-13)
+
+The doc's own desktop mockup: an offering header with `[Edit]`, "AI Discovery", a
+one-line checklist (`✓ Website  ✓ ICP  ✓ Buyers  ● Signals  ○ Research`), a "Current
+Stage" box with two example stat lines ("18 relevant signals found" / "6
+high-confidence correlations") and three actions (`[Review Stage] [Edit] [Run From
+Here]`), and the main `[Run AI Discovery]` button. The doc's own explicit tolerance:
+"The exact visual implementation may differ, but the hierarchy must remain clear."
+
+**Checked what already existed before building anything**: `RunAiDiscoveryPanel`
+(DISC-OFFER-P0-10.1/10.3) already renders the "AI Discovery" heading, the main Run/Resume
+button, and a vertical per-group checklist with ✓/●/○-equivalent icons (DISC-OFFER-
+P1-02.1 later added ⚠/? for review states) -- a different visual arrangement from the
+doc's own one-line horizontal checklist, but the doc's own explicit tolerance for that
+covers it; not rebuilt. Each row already expands (DISC-OFFER-P0-10.3's "users can inspect
+completed stages") to show its own technical stages' status plus a "View X →" link
+(`GROUP_DESTINATION`). What was genuinely missing: the doc's own "Current Stage" box as a
+distinct, always-visible-when-relevant element (today a founder must click a row open to
+see anything about it), and real per-stage detail text visible without expanding.
+
+**Found the real stat-line data already exists, just discarded**: every stage handler in
+`handlers.ts` already returns a human-readable `StageOutcome.detail` (e.g. "Signals
+collected for 4 of 5 account(s).", "6 of 8 opportunity(ies) correlated.") -- exactly the
+doc's own "18 relevant signals found" shape -- but `run-ai-discovery-panel.tsx` previously
+read only `result.stage` off each POST response and threw `result.detail` away; neither
+`pipeline_stages` nor `pipeline_stage_runs` persists it (confirmed by re-reading both
+tables' own type definitions), by design -- it's a narration of one attempt, not state
+worth a new column. Kept in new client-side state (`stageDetails`, keyed by technical
+stage) instead of adding a column for a value nothing else needs (CLAUDE.md dev principle
+#7) -- honestly scoped to "populated only for stages this browser session actually ran,"
+flagged rather than pretending it survives a reload.
+
+**New "Current Stage" card** (`run-ai-discovery-panel.tsx`): renders only when
+`hasStarted` is true and `computeDisplayGroups` reports a `"current"` group (at most one
+at a time, mirroring the doc's own single "●" line; nothing renders once every group is
+`completed`, or before a founder's first click -- showing "Current Stage: Website
+Understanding" before anything has run would just duplicate the checklist's own first
+line, not add information). Shows the current group's label, its `activeStageKey`'s own
+captured `detail` text when this session has one, and two of the doc's own three actions:
+**Review Stage** (toggles the same expand state a row-click already does -- reused, not
+duplicated) and **Edit** (the same `GROUP_DESTINATION` link the expanded view already
+shows, hidden when a group has none, e.g. `website_understanding`/`offering_profile`).
+
+**Deliberately did NOT add "[Run From Here]" to this card**: `computeDisplayGroups`
+defines "current" as the first not-yet-done group -- the exact same index
+`firstIncompleteIndex`/`runFrom(undefined, ...)` already resumes from via the "Run AI
+Discovery"/"Resume AI Discovery" button in this same panel's own header. A second button
+here would trigger the identical action, reading as two controls for one thing rather
+than one clear entry point -- the same call DISC-OFFER-P1-01.1 already made for its own
+`RediscoverySchedule` widget's own would-be second "Run Now" button. Flagged as a scope
+call, not an omission; a genuinely distinct "run from an arbitrary, non-current stage"
+control is a different capability (closer to DISC-OFFER-P0-11.2's own "Save & Run
+Downstream", already wired from the ICP page) than what this specific box needs.
+
+No migration, no new pure domain logic (a client-state/presentation change over
+already-existing `computeDisplayGroups`/`GROUP_DESTINATION`, matching this run's own "no
+unit test for a UI-wiring change" precedent -- the only new "logic" is which existing
+values to read, not a computation).
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1189 files, no
+violations), `lint:migrations` (137 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (237/237, unchanged -- no new pure logic per
+the note above), and a clean `next build` (confirmed the offering Overview route, which
+now renders the new Current Stage card, still builds with no errors). Same
+live-browser-walkthrough constraint noted in every prior UI-touching story this run (no
+seeded demo user/`.env.local` in this environment) -- particularly relevant here since
+this story's own real effect (the Current Stage box appearing mid-run with a live detail
+line) only shows up while a pipeline run is actually in progress in a real browser.
+
+**Status**: 50 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.2, Desktop
+Stage Tables.
