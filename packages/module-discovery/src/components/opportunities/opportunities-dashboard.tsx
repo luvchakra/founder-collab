@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DASHBOARD_BIN_LABEL, DASHBOARD_BIN_ORDER } from "../../lib/opportunities/dashboard";
 import type { OpportunityDashboardRow } from "../../lib/opportunities/dashboard-queries";
 import { effectiveRecommendedAction } from "../../lib/opportunities/next-best-action";
-import { NEXT_BEST_ACTION_LABEL, type OpportunityPriority } from "../../lib/opportunities/types";
+import { NEXT_BEST_ACTION_LABEL, type OpportunityConfidence, type OpportunityPriority } from "../../lib/opportunities/types";
 
 /** DISC-OFFER-P0-15.1: reads through `effectiveRecommendedAction` rather than
  * `opportunity.recommended_action` directly, so a founder's own override (set from the
@@ -39,6 +39,22 @@ const PRIORITY_BADGE_VARIANT: Record<OpportunityPriority, "secondary" | "outline
 
 function ScoreCell({ score }: { score: number | null }) {
   return score === null ? <span className="text-muted-foreground">—</span> : <span className="font-medium">{score}</span>;
+}
+
+/** DISC-OFFER-P1-05.2: the doc's own "Confidence" column -- the same three-tier badge
+ * `OpportunityDetail`'s own `ConfidenceBadge` already renders on the full detail page,
+ * reproduced here rather than shared: this codebase already has two independent copies
+ * of this exact badge (`opportunity-detail.tsx`, `top-opportunity-gate.tsx`), so a third
+ * follows that same established precedent rather than extracting a shared component as
+ * an unrelated refactor of this story (CLAUDE.md dev principle #10). */
+const CONFIDENCE_BADGE_VARIANT: Record<OpportunityConfidence, "default" | "secondary" | "outline"> = {
+  high: "default",
+  medium: "secondary",
+  low: "outline",
+};
+
+function ConfidenceCell({ confidence }: { confidence: OpportunityConfidence }) {
+  return <Badge variant={CONFIDENCE_BADGE_VARIANT[confidence]}>{confidence}</Badge>;
 }
 
 function TruncatedText({ value }: { value: string | null }) {
@@ -99,6 +115,7 @@ export function OpportunitiesDashboard({
                         Score: <ScoreCell score={opportunity.score} />
                       </span>
                       <span>Contact: {contactName ?? "No contact on file"}</span>
+                      <ConfidenceCell confidence={opportunity.confidence} />
                     </div>
                     {opportunity.why_them ? (
                       <p className="text-xs text-muted-foreground">
@@ -135,6 +152,7 @@ export function OpportunitiesDashboard({
                     <TableHead>Offering fit</TableHead>
                     <TableHead>Why now</TableHead>
                     <TableHead>Contact</TableHead>
+                    <TableHead>Confidence</TableHead>
                     <TableHead>Top signal</TableHead>
                     <TableHead>Recommended action</TableHead>
                   </TableRow>
@@ -160,6 +178,9 @@ export function OpportunitiesDashboard({
                         <TruncatedText value={opportunity.why_now} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">{contactName ?? "—"}</TableCell>
+                      <TableCell>
+                        <ConfidenceCell confidence={opportunity.confidence} />
+                      </TableCell>
                       <TableCell className="max-w-56">
                         <TruncatedText value={topSignal} />
                       </TableCell>

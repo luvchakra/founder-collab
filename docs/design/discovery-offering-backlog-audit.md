@@ -68,7 +68,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.1 | Learn From User Edits | Done |
 | | P1-04.2 | Learn From Outcomes | Done |
 | | P1-05.1 | Offering Pipeline Workspace | Done |
-| | P1-05.2 | Desktop Stage Tables | Not started |
+| | P1-05.2 | Desktop Stage Tables | Done |
 | | P1-05.3 | Editable Stage Rows | Not started |
 | P1 (extra) | P1-01.3 | Account Watchlist | Not started |
 | | P1-01.4 | Grouped Opportunity Alerts | Not started |
@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-04.3 | Offering-Specific Contact Relevance | Not started |
 | | P1-05.4 | Offering Overview UX Polish | Not started |
 
-**50 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
+**51 of 68 in-scope stories done -- Phase E complete, Phase F underway.** (11.3 and 11.2 were both built
 ahead of 11.1 -- see 11.3's own log entry for why.) (§10's own "Recommended P1 Sequence" and §29's Phase F
 list the P1 stories slightly differently — §10 has 17 P1 stories including three §29
 omits (Account Watchlist, Grouped Alerts, Offering Performance Analysis, Provider
@@ -3848,3 +3848,81 @@ line) only shows up while a pipeline run is actually in progress in a real brows
 
 **Status**: 50 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.2, Desktop
 Stage Tables.
+
+### P1-05.2 — Desktop Stage Tables (2026-09-13)
+
+The doc's own literal ask: "Use table/proto-table presentation for multi-record outputs,"
+with three named column sets (Opportunities: Company/Score/Why Now/Contact/Confidence/
+Action; Signals: Signal/Source/Date/Relevance/Confidence/Action; Buyers: Person/Role/Fit/
+Evidence/Confidence/Action) and "Use stacked cards/progressive disclosure on mobile."
+
+**Checked what already existed for each of the three before building anything**:
+Opportunities already had exactly this desktop-table/mobile-card split
+(`OpportunitiesDashboard`, DISC-OFFER-P0-07.2) -- missing only the doc's own
+"Confidence" column (`opportunity.confidence`, already a real field, just not shown in
+this listing). Signals were a plain `<ul>` bullet list on the Opportunity Detail page
+(no table at all, desktop or mobile). Buyers ("Buyer intelligence") were a card-per-
+person `<ul>` on the Prospect Detail page -- already card-shaped in a way that already
+satisfies "stacked cards... on mobile," but with no desktop table alternative either.
+
+**Opportunities**: added a `ConfidenceCell` (`opportunities-dashboard.tsx`) to both the
+mobile card and desktop table, reusing `opportunity.confidence` (already computed,
+DISC-OFFER-P0-05.2) -- the doc's own column set is now fully covered without touching the
+useful extra columns already there (Priority/Offering fit/Top signal/Recommended action).
+
+**Signals**: found a real data-shape gap before writing any UI -- a raw `Signal` row
+(`lib/signals/types.ts`) has no `relevance`/`confidence` field of its own; only the
+separate *correlated read* over several signals does (`SignalCorrelation.rationale`/
+`.confidence`, DISC-OFFER-P0-05.3). Rather than inventing a per-signal value that doesn't
+exist, new `SignalTable` (`components/opportunities/signal-table.tsx`) shows the
+correlation's own rationale/confidence on exactly the signals that correlation's own
+`signal_ids` actually covers, and "—" for any signal outside it (no false precision for
+a signal this run's correlation never considered). Wired in via a new `signalCorrelation`
+prop threaded through `OpportunityDetail` and fetched in the opportunity detail route via
+the already-existing `getSignalCorrelation(opportunity.signal_correlation_id)` -- no new
+query function, no migration.
+
+**Buyers**: new `BuyerIntelligenceTable` (`components/prospects/buyer-intelligence-table.tsx`)
+adds a real desktop table (Person/Role/Fit/Evidence/Confidence) alongside the existing
+mobile card list, which was extracted into the same component essentially unchanged (same
+markup, same fields) rather than rewritten -- "Contactability" (a field the old inline
+card also showed) is deliberately not one of the doc's own five named Buyers columns, so
+it's dropped from both the new table and the ported mobile card, matching the doc's own
+literal column set rather than carrying over everything the old view happened to show.
+Wired into the Prospect Detail page in place of the ~50-line inline block that used to
+live there directly.
+
+**"Action" deliberately omitted from all three new/touched tables' own column set**, for
+two different, both-genuine reasons: Opportunities already has a real per-row action
+today (`RecommendedActionCell`, and the whole row already links to the opportunity's own
+detail page) -- nothing new needed there. Signals and Buyers have no per-row action
+anywhere in this module yet -- a raw signal is an immutable fact, and no contact-editing
+affordance exists on the prospect page today -- so adding an "Action" column to either
+would mean either a fake button that does nothing or inventing a mutation this story
+never asked for (CLAUDE.md dev principle #7). Flagged explicitly rather than silently
+dropped: DISC-OFFER-P1-05.3 ("Editable Stage Rows") is next, but its own doc text
+("Company | Score | Signal | Contact | [Edit] [•••]", menu: Edit/Research Again/Exclude/
+Watch/Send to CRM) is itself scoped to an *opportunity* row's own actions, not a signal's
+or a buyer's -- so this gap doesn't get filled by the very next story either; it's a
+genuine, standing scope boundary of this module today, not a placeholder.
+
+No migration, no new pure domain logic -- `correlatedFieldsFor` (`signal-table.tsx`) is a
+plain lookup (`Array.includes`), not a computation worth its own unit test, matching this
+run's own "no unit test for a UI-wiring function" precedent; every genuinely new judgment
+call in this story (which correlation values apply to which signal rows) is exercised for
+real by the type system and by reading the code, not hidden logic that could silently
+drift.
+
+Verified with full monorepo typecheck (clean across all 9 workspaces), `npm run lint` (0
+errors, 1 pre-existing unrelated warning, unchanged), `lint:boundaries` (1191 files, no
+violations), `lint:migrations` (137 migrations, no violations -- no schema change), `npx
+vitest run --root packages/module-discovery` (237/237, unchanged -- no new pure logic per
+the note above), and a clean `next build` (confirmed the opportunities list, opportunity
+detail, and prospect detail routes -- all three touched -- still build with no errors).
+Same live-browser-walkthrough constraint noted in every prior UI-touching story this run
+(no seeded demo user/`.env.local` in this environment) -- particularly relevant here since
+verifying the actual desktop-table-vs-mobile-card breakpoint behavior visually is exactly
+what a real browser at different widths would show most directly.
+
+**Status**: 51 of 68 in-scope stories done -- Phase F continuing. Next: P1-05.3, Editable
+Stage Rows.

@@ -10,12 +10,6 @@ import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/
 import { EVIDENCE_TYPE_LABEL } from "@cofounderai/module-discovery/lib/research/types";
 import { getResearchBrief } from "@cofounderai/module-discovery/lib/research-briefs/queries";
 import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
-import {
-  CONTACTABILITY_LABEL,
-  RELEVANCE_LABEL,
-  SENIORITY_LABEL,
-} from "@cofounderai/module-discovery/lib/buyer-intelligence/types";
-import { PERSONA_ROLE_LABEL } from "@cofounderai/module-discovery/lib/personas/types";
 import { listRecentProspectScores } from "@cofounderai/module-discovery/lib/scoring/queries";
 import { WEIGHTS as SCORE_WEIGHTS } from "@cofounderai/module-discovery/lib/scoring/score-prospect";
 import { getLatestOutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/queries";
@@ -38,6 +32,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { ExpandableBox } from "@cofounderai/module-discovery/components/ui/expandable-box";
 import { ContactRow } from "@cofounderai/module-discovery/components/prospects/contact-row";
+import { BuyerIntelligenceTable } from "@cofounderai/module-discovery/components/prospects/buyer-intelligence-table";
 import { ScoreRagBadge } from "@cofounderai/module-discovery/components/prospects/rag-badge";
 import { FsmHandoffPanel } from "@cofounderai/module-discovery/components/prospects/fsm-handoff-panel";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
@@ -656,66 +651,12 @@ export default async function ProspectDetailPage({
           which can exist before research does. */}
       <section id="buyer-intelligence" className="flex scroll-mt-4 flex-col gap-3 rounded-md border p-4">
         <h2 className="font-medium">Buyer intelligence</h2>
-        {buyerIntelligence.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No contacts recorded yet -- add a contact to see buyer intelligence.</p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {buyerIntelligence.map((person) => (
-              <li key={person.contact.id} className="rounded-md border p-3 text-sm">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{person.name}</span>
-                  {person.title ? <span className="text-muted-foreground">— {person.title}</span> : null}
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
-                    {SENIORITY_LABEL[person.seniority]}
-                  </span>
-                  {person.persona ? (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</span>
-                  ) : (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Unassigned role</span>
-                  )}
-                  <span
-                    className={cn(
-                      "rounded px-1.5 py-0.5 text-xs font-medium",
-                      person.confidence === "high"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : person.confidence === "medium"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {person.confidence} confidence
-                  </span>
-                </div>
-                <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2">
-                  <div>
-                    <dt className="inline font-medium text-foreground">Relevance to offering: </dt>
-                    <dd className="inline">
-                      {RELEVANCE_LABEL[person.relevance]} — {person.relevanceReason}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="inline font-medium text-foreground">Contactability: </dt>
-                    <dd className="inline">
-                      {CONTACTABILITY_LABEL[person.contactability]} — {person.contactabilityReason}
-                    </dd>
-                  </div>
-                </dl>
-                {person.supportingEvidence.length > 0 ? (
-                  <div className="mt-2">
-                    <p className="text-xs font-medium">Supporting evidence</p>
-                    <ul className="mt-1 flex flex-col gap-1 text-xs text-muted-foreground">
-                      {person.supportingEvidence.map((item, i) => (
-                        <li key={i}>{item.statement}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">No supporting evidence found in research yet.</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        {/* DISC-OFFER-P1-05.2: "Desktop Stage Tables" -- extracted into its own component
+         * (`BuyerIntelligenceTable`) since it now renders a real desktop table alongside
+         * the mobile card list this section already had; nothing about `contactability`
+         * moved with it (see that component's own comment for exactly which columns the
+         * doc's own "Person | Role | Fit | Evidence | Confidence" set maps onto). */}
+        <BuyerIntelligenceTable buyerIntelligence={buyerIntelligence} />
       </section>
 
       <DependencyArrow />
