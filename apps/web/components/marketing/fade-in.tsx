@@ -3,40 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { cn } from "@cofounderai/core/lib/utils";
+import { usePrefersReducedMotion } from "./use-reduced-motion";
 
 /**
  * Scroll-into-view fade/slide (landing requirements #28: "Cards should gently fade/slide
  * into view... avoid excessive animation that negatively impacts performance"). A tiny
  * IntersectionObserver rather than an animation library -- justified by needing scroll
  * triggering at all, which pure CSS can't do. Respects prefers-reduced-motion by simply
- * rendering visible immediately (the global reduced-motion rule in globals.css would
- * otherwise still animate opacity/transform instantly, but skipping the observer avoids
- * the layout-affecting translate entirely for those users).
+ * rendering visible immediately.
  */
 export function FadeIn({
   children,
   delayMs = 0,
+  scale = false,
   className,
 }: {
   children: ReactNode;
   delayMs?: number;
+  /** Also grows in from a slight zoom-out, for a hero/product-reveal feel. */
+  scale?: boolean;
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const [inView, setInView] = useState(false);
 
   useEffect(() => {
-    if (visible) return;
+    if (prefersReducedMotion) return;
     const node = ref.current;
     if (!node) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          setVisible(true);
+          setInView(true);
           observer.disconnect();
         }
       },
@@ -44,10 +43,9 @@ export function FadeIn({
     );
     observer.observe(node);
     return () => observer.disconnect();
-    // Mount-only: `visible` here is just the initial reduced-motion check: nothing to
-    // resubscribe to if it changes later, and the observer's own callback advances it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefersReducedMotion]);
+
+  const visible = prefersReducedMotion || inView;
 
   return (
     <div
@@ -55,7 +53,11 @@ export function FadeIn({
       style={{ transitionDelay: visible ? `${delayMs}ms` : "0ms" }}
       className={cn(
         "transition-all duration-700 ease-out",
-        visible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0",
+        visible
+          ? "translate-y-0 scale-100 opacity-100"
+          : scale
+            ? "translate-y-4 scale-[0.97] opacity-0"
+            : "translate-y-4 opacity-0",
         className,
       )}
     >

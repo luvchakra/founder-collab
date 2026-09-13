@@ -18,7 +18,7 @@ const SECURITY_POINTS = [
 
 export function Trust() {
   return (
-    <section className="px-6 py-24">
+    <section className="px-6 py-28 md:py-36">
       <div className="mx-auto flex max-w-6xl flex-col gap-24">
         {/* Founder-controlled AI */}
         <FadeIn>
@@ -34,8 +34,9 @@ export function Trust() {
                     {step}
                   </span>
                   {i < AI_CONTROL_FLOW.length - 1 ? (
-                    <span className="text-landing-muted sm:rotate-0" aria-hidden="true">
-                      →
+                    <span className="text-landing-muted" aria-hidden="true">
+                      <span className="sm:hidden">↓</span>
+                      <span className="hidden sm:inline">→</span>
                     </span>
                   ) : null}
                 </div>
@@ -43,10 +44,10 @@ export function Trust() {
             </div>
 
             <p className="mx-auto mt-10 max-w-xl text-balance text-center text-landing-muted">
-              Discovery&apos;s AI finds and scores accounts and drafts outreach -- {BRAND_NAME}
-              never sends anything on its own. Every other module runs on deterministic
-              rules, not AI guesses, for the things that shouldn&apos;t be probabilistic:
-              stock counts, invoices, and GST filings.
+              Discovery&apos;s AI finds and scores accounts and drafts outreach --{" "}
+              {BRAND_NAME} never sends anything on its own. Every other module runs on
+              deterministic rules, not AI guesses, for the things that shouldn&apos;t be
+              probabilistic: stock counts, invoices, and GST filings.
             </p>
           </div>
         </FadeIn>
@@ -59,7 +60,7 @@ export function Trust() {
                 Bring the AI provider you trust.
               </h2>
               <p className="mt-4 text-landing-muted">
-                Choose your preferred AI provider and securely connect your own API key.
+                Choose your preferred AI provider and securely connect your own API key.{" "}
                 {BRAND_NAME} selects the appropriate model internally for each Discovery
                 task.
               </p>

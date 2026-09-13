@@ -65,11 +65,11 @@ function Path({
 
 export function Transformation() {
   return (
-    <section className="px-6 py-24">
+    <section className="px-6 py-28 md:py-36">
       <div className="mx-auto max-w-6xl">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <FadeIn>
-            <Path title="Five separate tools" steps={BEFORE} accent={false} />
+            <Path title="The old way" steps={BEFORE} accent={false} />
           </FadeIn>
           <FadeIn delayMs={100}>
             <Path title={BRAND_NAME} steps={AFTER} accent />

@@ -42,7 +42,7 @@ const TIERS = [
 
 export function Pricing() {
   return (
-    <section id="pricing" className="px-6 py-24">
+    <section id="pricing" className="px-6 py-28 md:py-36">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <div className="text-center">

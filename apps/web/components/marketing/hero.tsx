@@ -3,10 +3,11 @@ import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 import { ShowInterestCta } from "./show-interest";
 import { FadeIn } from "./fade-in";
+import { Parallax } from "./parallax";
 
 export function Hero() {
   return (
-    <section id="product" className="relative overflow-hidden px-6 pt-16 pb-24 sm:pt-24 sm:pb-32">
+    <section id="product" className="relative overflow-hidden px-6 pt-16 pb-28 sm:pt-24 sm:pb-36">
       <div className="landing-grid pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)]" />
       <div className="relative mx-auto flex max-w-4xl flex-col items-center text-center">
         <FadeIn>
@@ -45,17 +46,19 @@ export function Hero() {
         </FadeIn>
       </div>
 
-      <FadeIn delayMs={350} className="relative mx-auto mt-16 max-w-5xl">
-        <div className="landing-glow overflow-hidden rounded-2xl">
-          <Image
-            src="/screens/business-overview.png"
-            alt={`${BRAND_NAME} dashboard showing active jobs, open opportunities, low stock alerts and open support tickets in one view`}
-            width={1620}
-            height={764}
-            priority
-            className="h-auto w-full"
-          />
-        </div>
+      <FadeIn delayMs={350} scale className="relative mx-auto mt-16 max-w-5xl">
+        <Parallax strength={24}>
+          <div className="landing-glow landing-glow-pulse overflow-hidden rounded-2xl">
+            <Image
+              src="/screens/business-overview.png"
+              alt={`${BRAND_NAME} dashboard showing active jobs, open opportunities, low stock alerts and open support tickets in one view`}
+              width={1620}
+              height={764}
+              priority
+              className="h-auto w-full"
+            />
+          </div>
+        </Parallax>
       </FadeIn>
     </section>
   );

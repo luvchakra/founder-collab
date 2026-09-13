@@ -52,7 +52,7 @@ const MODULES: {
   {
     name: "CRM",
     tagline: "One inbox, whichever channel they used",
-    body: "WhatsApp, email and every other channel land in a single shared inbox, tied to the same customer record inventory and service already know.",
+    body: "WhatsApp, email and every other channel land in a single shared inbox, tied to the same customer record that Inventory and Service already know about.",
     features: [
       "Unified inbox across channels",
       "Automated routing rules",
@@ -65,7 +65,7 @@ const MODULES: {
   {
     name: "Compliance",
     tagline: "GST built from the sales data you already have",
-    body: "GSTIN registrations, e-invoicing, e-way bills and return filings are computed from the same invoices and sales orders Inventory already recorded -- not re-entered by hand.",
+    body: "GSTIN registrations, e-invoicing, e-way bills and return filings are computed from the same invoices and sales orders that Inventory already recorded -- not re-entered by hand.",
     features: [
       "GST profile and GSTIN management",
       "e-Way bill generation",
@@ -79,7 +79,7 @@ const MODULES: {
 
 export function Modules() {
   return (
-    <section id="modules" className="px-6 py-24">
+    <section id="modules" className="px-6 py-28 md:py-36">
       <div className="mx-auto max-w-6xl">
         <FadeIn>
           <div className="max-w-2xl">

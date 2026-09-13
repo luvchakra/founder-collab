@@ -1,6 +1,7 @@
 @import "@cofounderai/core/ui-theme.css";
 
 @source "./**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
 @source "../../../packages/core/src/**/*.{ts,tsx}";
 @source "../../../packages/module-discovery/src/**/*.{ts,tsx}";
 @source "../../../packages/module-inventory/src/**/*.{ts,tsx}";
@@ -60,5 +61,27 @@
   }
   .landing-glow {
     box-shadow: 0 0 60px 8px var(--landing-accent-glow);
+  }
+  /* Slow ambient breathing glow behind the hero screenshot -- an Apple.com-style "alive"
+     touch rather than a static shadow. Opt-in per element (not baked into .landing-glow
+     itself) since most other .landing-glow uses are small static UI chrome, not a hero
+     centerpiece. Disabled for prefers-reduced-motion like every other landing animation. */
+  .landing-glow-pulse {
+    animation: landing-glow-pulse 6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .landing-glow-pulse {
+      animation: none;
+    }
+  }
+}
+
+@keyframes landing-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 60px 8px var(--landing-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 90px 16px var(--landing-accent-glow);
   }
 }

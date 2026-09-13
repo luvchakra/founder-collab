@@ -14,7 +14,7 @@ const ROWS: [string, string][] = [
 
 export function Differentiation() {
   return (
-    <section className="px-6 py-24">
+    <section className="px-6 py-28 md:py-36">
       <div className="mx-auto max-w-4xl">
         <FadeIn>
           <div className="text-center">

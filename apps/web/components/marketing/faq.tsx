@@ -38,7 +38,7 @@ const FAQS: [string, string][] = [
 
 export function Faq() {
   return (
-    <section id="faq" className="px-6 py-24">
+    <section id="faq" className="px-6 py-28 md:py-36">
       <div className="mx-auto max-w-3xl">
         <FadeIn>
           <h2 className="text-center text-3xl font-semibold tracking-tight text-landing-fg sm:text-4xl">
