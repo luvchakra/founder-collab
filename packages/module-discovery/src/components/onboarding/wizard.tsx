@@ -216,7 +216,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
           Ready to find your first customers?
         </h1>
         <Link
-          href={`/dashboard/businesses/${result.businessId}/products/${result.productId}`}
+          href={`/${result.businessSlug}/products/${result.productId}`}
           className="mt-8 inline-flex items-center justify-center gap-2 rounded-full bg-landing-accent px-7 py-3.5 text-base font-medium text-landing-accent-foreground transition-colors hover:bg-landing-accent/90"
         >
           Build My Customer Pipeline →

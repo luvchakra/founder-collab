@@ -64,7 +64,8 @@ export function DashboardChrome({
   const [creating, setCreating] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { businessId: activeBusinessId } = getActiveIdsFromPath(pathname ?? "");
+  const { businessSlug: activeBusinessSlug } = getActiveIdsFromPath(pathname ?? "");
+  const activeBusinessId = activeBusinessSlug ? (businesses.find((b) => b.slug === activeBusinessSlug)?.id ?? null) : null;
 
   // A fresh or duplicated tab (or a plain refresh) landing on the bare, business-agnostic
   // /dashboard URL -- the account-wide Executive Dashboard -- honors a pinned business
@@ -84,7 +85,7 @@ export function DashboardChrome({
     if (pathname !== "/dashboard" || businesses.length === 0) return;
     const pinnedIds = readPinnedBusinessIds();
     const pinnedBusiness = businesses.find((b) => pinnedIds.includes(b.id));
-    if (pinnedBusiness) router.replace(`/dashboard/businesses/${pinnedBusiness.id}`);
+    if (pinnedBusiness) router.replace(`/${pinnedBusiness.slug}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -110,7 +111,14 @@ export function DashboardChrome({
         modules={annotatedModules}
         businesses={businesses}
         activeBusinessId={activeBusinessId}
-        businessHref={(businessId) => `/dashboard/businesses/${businessId}`}
+        businessHref={(businessId) => {
+          // The shell's own components (AppSidebar, AppTopbar, BusinessSwitcher) all
+          // still call this with a real business id -- that contract doesn't change,
+          // this is the one place that turns it into the actual, slug-based URL, so
+          // none of those five files need to know slugs exist at all.
+          const business = businesses.find((b) => b.id === businessId);
+          return business ? `/${business.slug}` : "/dashboard";
+        }}
         productsByBusiness={productsByBusiness}
         creditsUsedPercent={creditsUsedPercent}
         onCreateBusiness={() => setCreating(true)}

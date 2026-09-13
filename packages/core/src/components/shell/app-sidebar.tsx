@@ -15,15 +15,22 @@ const PINNED_MODULE_STORAGE_KEY = "cofounderai:pinned-module";
 
 /**
  * Infers the active module from the URL for the routes that unambiguously indicate one
- * (/inventory/... and /gst/...) -- everything else (bare business page, discovery's own
- * /products/... routes, non-module pages like settings) returns null so the caller falls
- * back to the last explicitly selected module. Written locally rather than reusing
- * module-discovery's `getActiveIdsFromPath` since `packages/core` cannot depend on any
- * module (lint:boundaries).
+ * (/[businessSlug]/inventory/... and /[businessSlug]/gst/...) -- everything else (bare
+ * business page, discovery's own /products/... routes, non-module pages like settings)
+ * returns null so the caller falls back to the last explicitly selected module. Written
+ * locally rather than reusing module-discovery's `getActiveIdsFromPath` since
+ * `packages/core` cannot depend on any module (lint:boundaries).
+ *
+ * The bare account-level /dashboard and /platform control-plane paths are excluded up
+ * front: unlike the business-scoped shape below, they have no module section as their
+ * *second* segment at all -- without this guard, "/dashboard" itself would parse as
+ * segment[0]="dashboard" with no section, which the empty-section branch below would
+ * misread as "discovery" (the same shape a bare business page like "/acme-hvac" has).
  */
 function inferModuleFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
-  const match = pathname.match(/\/businesses\/[^/]+(?:\/([^/]+))?/);
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return null;
+  const match = pathname.match(/^\/[^/]+(?:\/([^/]+))?/);
   if (!match) return null;
   const section = match[1];
   if (section === "inventory") return "inventory";

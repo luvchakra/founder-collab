@@ -1,5 +1,6 @@
 import { generateObject, type ModelMessage } from "ai";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+import { resolveBusinessIdBySlug, resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import {
   getBusiness,
   getCurrentAccount,
@@ -36,15 +37,19 @@ export type ChatMessage = { role: "user" | "assistant"; content: string };
 export type ChatReply = { answer: string; followUp: string | null };
 
 /**
- * businessId/productId parsed from the current page's URL (lib/tenancy/active-path.ts),
- * `moduleKey` read from the shell's own selected-module storage (module-selection.ts,
- * whatever module the bottom picker currently has selected -- "discovery" for its own
- * pages, "inventory"/"fsm"/"crm"/"gst" for the others), and `consultAllModules` the
- * widget's own checkbox: when set, every licensed module contributes its own summary
- * instead of just the selected one, for a more informed (slower) answer.
+ * businessSlug/productId parsed from the current page's URL (lib/tenancy/active-path.ts)
+ * -- businessSlug, not businessId: the client-side widget that builds this has no way to
+ * resolve a slug to a real id itself (no shared context with whichever component loaded
+ * the business list), so resolveChatContext() below does that one resolution server-side
+ * instead. `moduleKey` read from the shell's own selected-module storage
+ * (module-selection.ts, whatever module the bottom picker currently has selected --
+ * "discovery" for its own pages, "inventory"/"fsm"/"crm"/"gst" for the others), and
+ * `consultAllModules` the widget's own checkbox: when set, every licensed module
+ * contributes its own summary instead of just the selected one, for a more informed
+ * (slower) answer.
  */
 export type ChatPageContext = {
-  businessId: string | null;
+  businessSlug: string | null;
   productId: string | null;
   moduleKey: string | null;
   consultAllModules: boolean;
@@ -182,8 +187,8 @@ async function buildAccountSummary(accountId: string): Promise<AccountSummary> {
  * spelled out -- which is what let the model fall back to a dashboard/business link when
  * the founder asked for, say, a prospects page for a product that wasn't the one
  * currently in view: that product's sub-pages simply weren't in the context at all. */
-function productPortalPath(businessId: string, productId: string): string {
-  return `/dashboard/businesses/${businessId}/products/${productId}`;
+function productPortalPath(businessSlug: string, productId: string): string {
+  return `/${businessSlug}/products/${productId}`;
 }
 
 /**
@@ -213,11 +218,12 @@ async function resolveChatContext(
   if (context.productId) {
     const product = await getProduct(context.productId);
     if (product) {
-      const [business, workspace] = await Promise.all([
+      const [business, workspace, businessSlug] = await Promise.all([
         getBusiness(product.business_id),
         getWorkspaceForProduct(product.id),
+        resolveBusinessSlugById(product.business_id),
       ]);
-      if (business && workspace) {
+      if (business && workspace && businessSlug) {
         const [icp, prospects] = await Promise.all([
           getIcpProfile(workspace.id),
           listProspects(workspace.id),
@@ -235,7 +241,7 @@ async function resolveChatContext(
           `ICP: ${hasIcp ? "defined" : "not defined yet"}`,
           `Prospects: ${totalProspects} total` +
             (totalProspects > 0 ? `, ${needsActionCount} need a next action` : ""),
-          `Portal base path: ${productPortalPath(business.id, product.id)}`,
+          `Portal base path: ${productPortalPath(businessSlug, product.id)}`,
         ].join("\n");
 
         return {
@@ -254,19 +260,20 @@ async function resolveChatContext(
     }
   }
 
-  if (context.businessId) {
-    const business = await getBusiness(context.businessId);
+  if (context.businessSlug) {
+    const businessId = await resolveBusinessIdBySlug(context.businessSlug);
+    const business = businessId ? await getBusiness(businessId) : null;
     if (business) {
       const products = await listProducts(business.id);
       const contextText = [
         "Currently viewing:",
         `Business: "${business.name}"`,
-        `Business portal page: /dashboard/businesses/${business.id}`,
+        `Business portal page: /${context.businessSlug}`,
         products.length > 0
           ? [
               "Products under this business (portal base paths):",
               ...products.map(
-                (p) => `"${p.name}": ${productPortalPath(business.id, p.id)}`,
+                (p) => `"${p.name}": ${productPortalPath(context.businessSlug!, p.id)}`,
               ),
             ].join("\n")
           : "No products created yet for this business.",

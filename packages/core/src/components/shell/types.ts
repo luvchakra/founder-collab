@@ -52,6 +52,10 @@ export interface ShellUser {
 
 export interface ShellBusiness {
   id: string;
+  /** core.business_settings.slug -- the URL segment this business is reachable at
+   * (/[businessSlug]/...). Every business has one (generated at creation by
+   * core.handle_new_business()), so this is never optional here. */
+  slug: string;
   name: string;
   description?: string | null;
 }

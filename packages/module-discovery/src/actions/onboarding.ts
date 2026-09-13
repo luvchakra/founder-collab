@@ -7,11 +7,17 @@ import { addKnowledgeSource } from "../lib/knowledge/mutations";
 import { understandProduct } from "../lib/ai/understand-product";
 import { generateIcp } from "../lib/ai/generate-icp";
 import { approveIcpProfile } from "../lib/icp/mutations";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import type { ProductProfile } from "../lib/ai/schemas";
 import type { IcpProfile } from "../lib/icp/types";
 
 export type OnboardingResult = {
   businessId: string;
+  /** core.handle_new_business() generates this synchronously as part of createBusiness()'s
+   * own insert -- the client-side wizard needs it (not businessId) to link into the new
+   * business's own /[businessSlug]/... page, and has no way to resolve one from the
+   * other itself. */
+  businessSlug: string;
   productId: string;
   icpId: string;
   profile: ProductProfile;
@@ -80,10 +86,13 @@ export async function runOnboardingAction(
 
     const profile = await understandProduct(product.id);
     const icp = await generateIcp(product.id);
+    const businessSlug = await resolveBusinessSlugById(business.id);
+    if (!businessSlug) throw new Error("Business slug not found for the new business.");
 
     return {
       data: {
         businessId: business.id,
+        businessSlug,
         productId: product.id,
         icpId: icp.id,
         profile,

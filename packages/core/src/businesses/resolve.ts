@@ -35,3 +35,22 @@ export const resolveBusinessIdBySlug = cache(async (
   if (error) throw error;
   return data?.business_id ?? null;
 });
+
+/** The reverse lookup -- for the rare caller that has a business id already (e.g.
+ * lib/ai/chat.ts's page-context summary, grounded in a product it resolved by id) and
+ * needs the slug to reference this business's own URL, without threading a slug through
+ * every function that already deals only in ids. `cache()`-wrapped for the same reason
+ * as `resolveBusinessIdBySlug`. */
+export const resolveBusinessSlugById = cache(async (
+  businessId: string,
+  client?: SupabaseClient,
+): Promise<string | null> => {
+  const supabase = client ?? (await coreClient());
+  const { data, error } = await supabase
+    .from("business_settings")
+    .select("slug")
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.slug ?? null;
+});

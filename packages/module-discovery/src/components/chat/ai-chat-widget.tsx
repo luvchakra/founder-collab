@@ -23,7 +23,7 @@ import { ChatMarkdown } from "./chat-markdown";
 export function AiChatWidget() {
   const pathname = usePathname();
   const activeIds = getActiveIdsFromPath(pathname ?? "");
-  const threadKey = activeIds.productId ?? activeIds.businessId ?? "__account__";
+  const threadKey = activeIds.productId ?? activeIds.businessSlug ?? "__account__";
   // Read directly from the shell's own storage (module-selection.ts) -- this widget
   // and the module-picker live in separate component trees with no shared context, so
   // the storage key both sides already agree on is the simplest way to know "which

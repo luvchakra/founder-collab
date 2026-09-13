@@ -31,7 +31,7 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
   // Item #17 of a UX pass: a disabled business (core.businesses.disabled_at) drops out
   // of the navbar/business switcher and this account-wide dashboard entirely -- nothing
   // underneath it is touched, so re-enabling (Admin > Business) brings it straight back.
-  const { data: businesses, error: businessesError } = await core
+  const { data: rawBusinesses, error: businessesError } = await core
     .from("businesses")
     .select("*")
     .eq("account_id", accountId)
@@ -39,11 +39,26 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
     .order("created_at", { ascending: true });
   if (businessesError) throw businessesError;
 
+  // The business's own URL slug (core.business_settings.slug -- every business has one,
+  // generated at creation by core.handle_new_business()) lives in a separate table/schema
+  // than `businesses` itself, so it's a second batched query, merged in below, rather
+  // than a cross-schema embed (PostgREST can't do those any more than the products/
+  // workspaces join above can). apps/web/app/(dashboard)/[businessSlug]/... is the only
+  // consumer that needs it, via DashboardChrome's businessHref.
+  const rawBusinessIds = (rawBusinesses ?? []).map((b) => b.id);
+  const { data: settingsRows, error: settingsError } =
+    rawBusinessIds.length > 0
+      ? await core.from("business_settings").select("business_id, slug").in("business_id", rawBusinessIds)
+      : { data: [] as { business_id: string; slug: string }[], error: null };
+  if (settingsError) throw settingsError;
+  const slugByBusinessId = new Map((settingsRows ?? []).map((s) => [s.business_id, s.slug]));
+  const businesses = (rawBusinesses ?? []).map((b) => ({ ...b, slug: slugByBusinessId.get(b.id) ?? b.id }));
+
   const productsByBusiness: Record<string, Product[]> = {};
   const allProducts: Product[] = [];
   const entries: AccountWorkspaceEntry[] = [];
-  const businessById = new Map<string, Business>((businesses ?? []).map((b) => [b.id, b]));
-  for (const business of businesses ?? []) {
+  const businessById = new Map<string, Business>(businesses.map((b) => [b.id, b]));
+  for (const business of businesses) {
     productsByBusiness[business.id] = [];
   }
 
@@ -78,7 +93,7 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
     }
   }
 
-  return { businesses: businesses ?? [], productsByBusiness, allProducts, entries };
+  return { businesses, productsByBusiness, allProducts, entries };
 });
 
 /**

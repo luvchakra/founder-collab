@@ -5,6 +5,15 @@ import { revalidatePath } from "next/cache";
 import { createBusiness, createProduct } from "@cofounderai/module-discovery/lib/tenancy/mutations";
 import { normalizeWebsiteUrl } from "@cofounderai/module-discovery/lib/website-onboarding/url";
 import { createWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
+import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
+
+/** core.handle_new_business() (the AFTER INSERT trigger on core.businesses) generates
+ * and stores the slug synchronously as part of the same insert createBusiness() already
+ * awaited -- by the time this runs, it's guaranteed to exist. */
+async function businessPath(businessId: string): Promise<string> {
+  const slug = await resolveBusinessSlugById(businessId);
+  return `/${slug}`;
+}
 
 export async function createBusinessAction(accountId: string, formData: FormData) {
   const business = await createBusiness(accountId, {
@@ -14,7 +23,7 @@ export async function createBusinessAction(accountId: string, formData: FormData
     industry: String(formData.get("industry") ?? ""),
   });
   revalidatePath("/dashboard");
-  redirect(`/dashboard/businesses/${business.id}`);
+  redirect(await businessPath(business.id));
 }
 
 export type CreateBusinessFromWebsiteState = { error: string } | null;
@@ -56,7 +65,7 @@ export async function createBusinessFromWebsiteAction(
   await createWebsiteOnboardingRun(business.id, website);
 
   revalidatePath("/dashboard");
-  redirect(`/dashboard/businesses/${business.id}/business`);
+  redirect(`${await businessPath(business.id)}/business`);
 }
 
 export async function createProductAction(businessId: string, formData: FormData) {
@@ -64,6 +73,7 @@ export async function createProductAction(businessId: string, formData: FormData
     name: String(formData.get("name") ?? ""),
     website: String(formData.get("website") ?? ""),
   });
-  revalidatePath(`/dashboard/businesses/${businessId}`);
-  redirect(`/dashboard/businesses/${businessId}/products/${product.id}`);
+  const base = await businessPath(businessId);
+  revalidatePath(base);
+  redirect(`${base}/products/${product.id}`);
 }
