@@ -37,6 +37,7 @@ import {
   worstReviewLevel,
   type StageReviewLevel,
 } from "./review";
+import { passesIcpPreFilter } from "./icp-pre-filter";
 
 export type StageContext = {
   workspaceId: string;
@@ -187,11 +188,35 @@ export async function requireActiveDefinition(workspaceId: string): Promise<Disc
  * established here). One account's research failing (e.g. a transient provider error)
  * does not fail the whole stage -- partial success, the same precedent
  * DISC-OFFER-P0-09.2's crawl already established for a single page failing -- it is
- * simply left uncovered for a future run to pick up via the same selector above. */
+ * simply left uncovered for a future run to pick up via the same selector above.
+ *
+ * DISC-OFFER-P1 §7-03.1 "Progressive Intelligence": before spending that AI call, run
+ * `passesIcpPreFilter` against each pending account's own already-known industry/
+ * location/company_size (from account discovery's own basic enrichment, no new AI
+ * call) against the active ICP profile. An account that clearly fails is left
+ * uncovered for this run -- same "left uncovered, picked up later" treatment as an
+ * actual research failure -- rather than spending Signal Detection's own AI call on an
+ * account the cheap, free check already ruled out. No ICP yet (a workspace that hasn't
+ * approved one) means nothing to filter against, so every pending account proceeds. */
 export async function runSignalsStage(ctx: StageContext): Promise<StageOutcome> {
   const definition = await requireActiveDefinition(ctx.workspaceId);
   const pending = await prospectsPendingOpportunity(ctx.workspaceId, definition.id, ACCOUNT_DISCOVERY_MAX);
   if (pending.length === 0) return { outcome: "skipped", detail: "No new accounts to collect signals for." };
+
+  const icp = await getIcpProfile(ctx.workspaceId);
+  const toResearch = icp
+    ? pending.filter(
+        (prospect) =>
+          passesIcpPreFilter(
+            { industries: icp.industries, geographies: icp.geographies, companySizes: icp.company_sizes, exclusions: icp.exclusions },
+            { industry: prospect.industry, location: prospect.location, companySize: prospect.company_size },
+          ).passes,
+      )
+    : pending;
+  const filteredOutCount = pending.length - toResearch.length;
+  if (toResearch.length === 0) {
+    return { outcome: "skipped", detail: `All ${pending.length} pending account(s) were filtered out by ICP fit before spending on research.` };
+  }
 
   let succeeded = 0;
   let lastError: string | null = null;
@@ -200,7 +225,7 @@ export async function runSignalsStage(ctx: StageContext): Promise<StageOutcome> 
   // no evidence at all (not the same as one that failed outright, handled below) counts
   // as its own empty contribution via classifyEvidenceConfidences, not silently ignored.
   const evidenceConfidences: ("low" | "medium" | "high")[] = [];
-  for (const prospect of pending) {
+  for (const prospect of toResearch) {
     try {
       const research = await researchProspect(prospect.id);
       evidenceConfidences.push(...research.evidence.map((e) => e.confidence));
@@ -221,7 +246,7 @@ export async function runSignalsStage(ctx: StageContext): Promise<StageOutcome> 
   if (succeeded === 0) throw new Error(lastError ?? "Signal collection failed for every account.");
   return {
     outcome: "completed",
-    detail: `Signals collected for ${succeeded} of ${pending.length} account(s).`,
+    detail: `Signals collected for ${succeeded} of ${toResearch.length} account(s)${filteredOutCount > 0 ? ` (${filteredOutCount} skipped by cheap ICP filtering)` : ""}.`,
     reviewLevel: classifyEvidenceConfidences(evidenceConfidences),
   };
 }
