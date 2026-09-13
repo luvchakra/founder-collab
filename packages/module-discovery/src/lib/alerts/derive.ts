@@ -63,7 +63,7 @@ export function deriveAccountAlerts(input: {
       alerts.push({
         id: `profile-${product.id}`,
         severity: "info",
-        message: `${product.name} has no product profile yet.`,
+        message: `${product.name} has no offering profile yet.`,
         href: basePath,
         businessId: business.id,
       });

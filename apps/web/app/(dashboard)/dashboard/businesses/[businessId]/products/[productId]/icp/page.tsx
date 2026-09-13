@@ -50,7 +50,7 @@ export default async function IcpPage({
       step="icp"
       action={autoPopulateIcpAction.bind(null, businessId, productId)}
       nextPath={`${prospectsPath}?autopopulate=1`}
-      runningLabel="Populating your ICP from the product profile..."
+      runningLabel="Populating your ICP from the offering profile..."
     />
   );
 
@@ -73,7 +73,7 @@ export default async function IcpPage({
         <div className="flex flex-col gap-3">
           {autoPopulateBanner}
           <p className="text-sm text-muted-foreground">
-            Generate a product profile on the Overview tab before defining an ICP.
+            Generate an offering profile on the Overview tab before defining an ICP.
           </p>
         </div>
         {personaSection}
@@ -92,7 +92,7 @@ export default async function IcpPage({
         <div className="flex flex-col gap-3">
           {autoPopulateBanner}
           <p className="text-sm text-muted-foreground">
-            No ICP yet. Generate one from the approved product profile{cloneSources.length > 0 ? ", or clone one from another offering." : "."}
+            No ICP yet. Generate one from the approved offering profile{cloneSources.length > 0 ? ", or clone one from another offering." : "."}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <AiActionForm

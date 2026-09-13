@@ -58,7 +58,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
         <h1 className="text-2xl font-semibold text-landing-fg">Hey Founder 👋</h1>
         <p className="mt-1 text-landing-fg">What are you building?</p>
         <p className="mt-2 text-sm text-landing-muted">
-          Tell me about your product in your own words, and where I can see it live.
+          Tell me about your offering in your own words, and where I can see it live.
         </p>
         <div className="mt-6 flex flex-col gap-2">
           <Label htmlFor="productDescription" className="sr-only">
@@ -80,7 +80,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             rows={1}
-            placeholder="Your product's website (e.g. https://example.com)"
+            placeholder="Your offering's website (e.g. https://example.com)"
           />
         </div>
         <Button
@@ -143,7 +143,7 @@ export function OnboardingWizard({ accountId }: { accountId: string }) {
         </h1>
         <dl className="mt-6 flex flex-col gap-4 text-sm">
           <div>
-            <dt className="font-medium text-landing-accent">Product</dt>
+            <dt className="font-medium text-landing-accent">Offering</dt>
             <dd className="mt-1 text-landing-muted">{result.profile.category}</dd>
           </div>
           <div>

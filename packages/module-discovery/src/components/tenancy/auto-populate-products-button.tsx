@@ -130,11 +130,11 @@ export function AutoPopulateProductsButton({
       close();
       router.refresh();
       if (result.inserted === 0) {
-        toast.error("No new products were added -- every one matched an existing product.");
+        toast.error("No new offerings were added -- every one matched an existing offering.");
         return;
       }
       toast.success(
-        `Added ${result.inserted} product${result.inserted === 1 ? "" : "s"}.` +
+        `Added ${result.inserted} offering${result.inserted === 1 ? "" : "s"}.` +
           (result.duplicates > 0 ? ` Skipped ${result.duplicates} already in this business.` : ""),
       );
     });
@@ -144,13 +144,13 @@ export function AutoPopulateProductsButton({
     <>
       <Button onClick={launch} disabled={disabled} title={disabled ? disabledReason : undefined} className="shadow-sm">
         <Sparkles className="size-4" aria-hidden="true" />
-        Let AI Auto-populate Products from website
+        Let AI Auto-populate Offerings from website
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !next && close()}>
         <DialogContent className="flex max-h-[80dvh] max-w-xl flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle>AI-populated products</DialogTitle>
+            <DialogTitle>AI-populated offerings</DialogTitle>
           </DialogHeader>
 
           {discovering ? (
@@ -159,7 +159,7 @@ export function AutoPopulateProductsButton({
             ) : (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-muted-foreground">
-                  Found <span className="font-medium text-foreground">{progressProducts.length}</span> product
+                  Found <span className="font-medium text-foreground">{progressProducts.length}</span> offering
                   {progressProducts.length === 1 ? "" : "s"} so far...
                 </p>
                 <ul className="max-h-64 divide-y overflow-y-auto rounded-md border">
@@ -184,14 +184,14 @@ export function AutoPopulateProductsButton({
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm text-muted-foreground">
-                  Found <span className="font-medium text-foreground">{products.length}</span> product
+                  Found <span className="font-medium text-foreground">{products.length}</span> offering
                   {products.length === 1 ? "" : "s"}. Review and choose which to add.
                 </p>
                 <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                   <Checkbox
                     checked={products.length > 0 && selected.size === products.length}
                     onCheckedChange={(checked) => toggleAll(checked === true)}
-                    aria-label="Select all products"
+                    aria-label="Select all offerings"
                   />
                   Select all
                 </label>
@@ -222,7 +222,7 @@ export function AutoPopulateProductsButton({
                             {p.website}
                           </a>
                         ) : (
-                          <p className="text-xs text-muted-foreground">No product page found</p>
+                          <p className="text-xs text-muted-foreground">No offering page found</p>
                         )}
                       </div>
                     </label>
@@ -274,7 +274,7 @@ export function AutoPopulateProductsButton({
                 <Button onClick={confirmImport} disabled={importing || selected.size === 0}>
                   {importing
                     ? "Adding..."
-                    : `Add ${selected.size} product${selected.size === 1 ? "" : "s"}`}
+                    : `Add ${selected.size} offering${selected.size === 1 ? "" : "s"}`}
                 </Button>
               </DialogFooter>
             </div>

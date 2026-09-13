@@ -142,7 +142,7 @@ export async function createProduct(
   input: { name: string; description?: string; website?: string },
 ): Promise<Product> {
   const name = input.name.trim();
-  if (!name) throw new Error("Product name is required.");
+  if (!name) throw new Error("Offering name is required.");
 
   const supabase = await createClient();
   const description = input.description?.trim() || null;
@@ -266,7 +266,7 @@ export async function updateProduct(
   const patch: Record<string, string | null> = {};
   if (input.name !== undefined) {
     const name = input.name.trim();
-    if (!name) throw new Error("Product name is required.");
+    if (!name) throw new Error("Offering name is required.");
     patch.name = name;
   }
   if (input.description !== undefined) {

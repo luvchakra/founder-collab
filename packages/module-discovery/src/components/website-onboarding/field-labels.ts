@@ -13,7 +13,7 @@ export const WEBSITE_TEXT_FIELDS: { key: TextFieldKey; label: string }[] = [
 ];
 
 export const WEBSITE_LIST_FIELDS: { key: ListFieldKey; label: string }[] = [
-  { key: "products_or_services", label: "Products / services" },
+  { key: "products_or_services", label: "Offerings / services" },
   { key: "offering_categories", label: "Offering categories" },
   { key: "industries_served", label: "Industries served" },
   { key: "customer_types", label: "Customer types" },

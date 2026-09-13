@@ -105,7 +105,7 @@ function buildStarterQuestions(input: {
   const questions: string[] = [];
 
   if (!hasProfile) {
-    questions.push(`How do I generate a product profile for ${productName}?`);
+    questions.push(`How do I generate an offering profile for ${productName}?`);
   } else if (!hasIcp) {
     questions.push(`How do I define an ICP for ${productName}?`);
   } else if (totalProspects === 0) {

@@ -3,7 +3,7 @@ import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "./limits";
 /** Founder-facing label per `ai_runs.operation` value -- shared by every usage view
  * (product-level, business-level) so the wording never drifts between them. */
 export const OPERATION_LABEL: Record<string, string> = {
-  understand_product: "Product profile",
+  understand_product: "Offering profile",
   generate_icp: "ICP generation",
   research_prospect: "Prospect research",
   discover_prospects: "Prospect discovery",

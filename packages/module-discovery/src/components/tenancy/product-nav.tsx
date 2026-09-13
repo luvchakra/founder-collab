@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { useAutoPopulateProgress } from "./auto-populate-progress";
 
@@ -85,21 +85,43 @@ export function ProductNav({
     );
 
     return (
-      <nav aria-label="Offering sections" className="flex w-full flex-wrap gap-1 rounded-lg border border-border bg-muted p-1">
+      <nav aria-label="Offering sections" className="flex w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-muted p-1">
         {ongoingTabs.map((tab, i) => {
           const isActive = i === activeOngoingIndex;
           return (
-            <Link
-              key={tab.href}
-              href={tab.href}
-              aria-current={isActive ? "page" : undefined}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {tab.label}
-            </Link>
+            <div key={tab.href} className="flex items-center">
+              {/* A numbered badge on every tab (not just the active one) so the bar reads
+                  as one connected set of sections, matching the stepper's own visual
+                  language -- but no arrows *between* every pair: these 9 sections are
+                  deliberately non-sequential once an offering has a profile (see this
+                  function's own docstring), so an unbroken chain of "move to the next
+                  stage" arrows would misrepresent them as an ordered checklist. The
+                  chevrons here are purely a visual rhythm between pills, aria-hidden and
+                  never implying a required path -- every tab stays independently
+                  clickable regardless of position. */}
+              <Link
+                href={tab.href}
+                aria-current={isActive ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  isActive ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                    isActive ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground",
+                  )}
+                  aria-hidden="true"
+                >
+                  {i + 1}
+                </span>
+                {tab.label}
+              </Link>
+              {i < ongoingTabs.length - 1 ? (
+                <ChevronRight className="mx-0.5 size-3.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+              ) : null}
+            </div>
           );
         })}
       </nav>

@@ -82,7 +82,7 @@ export function ProductOverviewShell({
         <EditableText
           value={product.description}
           action={descriptionAction}
-          placeholder="Add a description for this product"
+          placeholder="Add a description for this offering"
           multiline
           textClassName="text-sm text-muted-foreground"
         />
@@ -90,7 +90,7 @@ export function ProductOverviewShell({
 
       <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 sm:p-5">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Product profile</h2>
+          <h2 className="font-medium">Offering profile</h2>
           <AiActionForm
             action={generateProfileAction}
             buttonLabel="Regenerate"
@@ -187,7 +187,7 @@ export function ProductOverviewShell({
           <h2 className="font-medium">Knowledge sources</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Extra context (files or pasted text) the AI reads alongside the website when
-            researching this product.
+            researching this offering.
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export function ProductOverviewShell({
                 <Input name="sourceName" placeholder="Source name (optional)" />
                 <Textarea
                   name="content"
-                  placeholder="Paste or write anything about this product"
+                  placeholder="Paste or write anything about this offering"
                   rows={4}
                   required
                 />

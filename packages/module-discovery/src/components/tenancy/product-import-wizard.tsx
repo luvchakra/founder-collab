@@ -58,11 +58,11 @@ export function ProductImportWizard({
       close();
       router.refresh();
       if (result.inserted === 0) {
-        toast.error("No new products were added -- every row matched an existing product.");
+        toast.error("No new offerings were added -- every row matched an existing offering.");
         return;
       }
       toast.success(
-        `Imported ${result.inserted} product${result.inserted === 1 ? "" : "s"}.` +
+        `Imported ${result.inserted} offering${result.inserted === 1 ? "" : "s"}.` +
           (result.duplicates > 0 ? ` Skipped ${result.duplicates} already in this business.` : ""),
       );
     });
@@ -72,13 +72,13 @@ export function ProductImportWizard({
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Upload className="size-4" aria-hidden="true" />
-        Import products
+        Import offerings
       </Button>
 
       <Dialog open={open} onOpenChange={(next) => !next && close()}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Import product catalog</DialogTitle>
+            <DialogTitle>Import offering catalog</DialogTitle>
           </DialogHeader>
 
           {!hasPreview ? (
@@ -110,7 +110,7 @@ export function ProductImportWizard({
           ) : (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">
-                Found <span className="font-medium text-foreground">{rows.length}</span> product
+                Found <span className="font-medium text-foreground">{rows.length}</span> offering
                 {rows.length === 1 ? "" : "s"}
                 {previewState.usedFallback
                   ? " -- this file didn't match the preferred template, so this is a best-effort read. "
@@ -144,7 +144,7 @@ export function ProductImportWizard({
                   Cancel
                 </Button>
                 <Button onClick={confirmImport} disabled={importing}>
-                  {importing ? "Importing..." : `Import ${rows.length} product${rows.length === 1 ? "" : "s"}`}
+                  {importing ? "Importing..." : `Import ${rows.length} offering${rows.length === 1 ? "" : "s"}`}
                 </Button>
               </DialogFooter>
             </div>
