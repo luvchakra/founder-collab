@@ -30,11 +30,10 @@
  * - "Operations" holds Announcements and Configuration History -- both are ongoing
  *   platform-operations concerns (communicating with customers; auditing/rolling back
  *   config changes), matching the mockup's "Operations" group.
- * - The mockup's own "Audit" group is deliberately omitted: story 16 ("Platform Audit",
- *   §? of the same doc) is still "Not started" per this log's own Progress table --
- *   there is no audit-log page to link yet, and adding an empty/placeholder group would
- *   misrepresent what's built. Configuration History (17) already covers versioned
- *   config auditing in the meantime, which is why it sits in Operations instead.
+ * - "Audit" (PLATFORM-P0-16, §20) is now its own group, added once that story shipped --
+ *   Configuration History (17) stays in Operations, unchanged; Audit Search is the new,
+ *   distinct concern (every platform mutation, not just versioned config) so it gets its
+ *   own home matching the mockup's own grouping.
  */
 export interface PlatformNavLink {
   href: string;
@@ -101,6 +100,10 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
       { href: "/platform/announcements", label: "Announcements" },
       { href: "/platform/config-history", label: "Configuration History" },
     ],
+  },
+  {
+    label: "Audit",
+    links: [{ href: "/platform/audit", label: "Audit Search" }],
   },
 ];
 

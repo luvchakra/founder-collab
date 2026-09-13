@@ -19,7 +19,7 @@ verification in full regardless of which mode was in effect when it landed.
 |---|---|---|---|
 | P0 Phase 1 | 01 | SUPERADMIN (role, authorization, session context, no tenant context) | Done |
 | | 02 | Platform Dashboard | Done |
-| | 16 | Platform Audit | Not started |
+| | 16 | Platform Audit | Done -- 16.1/16.2/16.3 built 2026-09-13 (unified `platform.audit_log` + Audit Search UI covering the two genuinely-unaudited high-risk categories, merged with the eleven pre-existing config-history tables); 16.4 already satisfied by §22 (17) -- see log |
 | | 18 | Platform Security Controls | 18.1 done; 18.2/18.4 deferred (no mutation callers yet); 18.3 already satisfied by 01 -- see log |
 | P0 Phase 2 | 04 | Subscription / Pricing Plans | All of §8 done (04.1-04.7) -- see log |
 | | 05 | Entitlement Engine | All of §9 done (05.1-05.4) -- `hasModule()`/`hasFeature()`/`getLimit()`/`canConsume()` all built -- see log |
@@ -38,8 +38,8 @@ verification in full regardless of which mode was in effect when it landed.
 | | 19 | Platform Administration UI | Done -- 19.1/19.2/19.3/19.4/19.5 (all of §33) resolved 2026-09-13, see log |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
-**P0: 14 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
-11, 12, 13, 14, 19), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within the AI Safety
+**P0: 15 full sections done (01, 02, 03 -- 03.2 deferred by design, 04, 05, 06, 07, 08, 09,
+11, 12, 13, 14, 16, 19), plus 18.1 and 10.1 (10.2/10.3/10.4 remain open within the AI Safety
 section). §17 (13) is fully resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by
 user decision (satisfied-by-existing-code, no platform-layer counterpart needed). §18 (14,
 Platform Policies) is fully resolved as of 2026-09-13 -- 14.1/14.2/14.3 all built,
@@ -52,7 +52,15 @@ UI) is fully resolved as of 2026-09-13 -- 19.1 (real grouped sidebar shell, repl
 flat nav strip), 19.2 (static Global Impact Banner, rolled out to every mutation page whose
 own rendered copy doesn't already disclaim "not enforced yet"), and 19.3/19.4/19.5
 confirmed already satisfied by every prior story's own established desktop-table/
-mobile-card/layout-planning discipline (no new code needed for those three).
+mobile-card/layout-planning discipline (no new code needed for those three). §20 (16,
+Platform Audit) is fully resolved as of 2026-09-13 -- 16.1 (a new, generic
+`platform.audit_log`, populated by trigger for the two genuinely-unaudited high-risk
+categories 16.2 names: "entitlement changes" and "compliance rule changes"), 16.2 (severity
+classification matching that mandatory list verbatim), and 16.3 (a new `/platform/audit`
+Audit Search page merging the new table with the eleven pre-existing config-history
+tables) all built; 16.4 was already fully satisfied by §22 (17) with no new work needed.
+This closes every P0 section except the already-deliberately-deferred AI Safety items
+(10.2/10.3/10.4) and 18.2/18.4 (no mutation callers yet).
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -6789,3 +6797,328 @@ own scope ("Platform-wide changes show impact before publishing", "Desktop table
 responsive layouts are implemented") is satisfied by what's built above; the criteria that
 depend on §20 (Platform Audit) or full runtime enforcement of still-config-only policies
 remain exactly as open as they were before this story, unrelated to it.
+
+---
+
+## PLATFORM-P0-16.1/16.2/16.3 — Platform Audit (2026-09-13)
+
+**Resuming per this run's own task brief**: Story 16 ("Platform Audit", §20) was the one
+remaining open P0 section. Read §20 in full before starting (verbatim below, for the
+record):
+
+```text
+## PLATFORM-P0-16.1 — Immutable Platform Audit Log
+Every platform mutation must capture: actor, action, resource, resource_id, old_value,
+new_value, timestamp, IP/device metadata where appropriate, reason
+
+## PLATFORM-P0-16.2 — High-Risk Action Audit
+Mandatory audit for: plan changes, entitlement changes, global disable, AI key changes,
+security policy changes, integrations, compliance rule changes, data retention,
+impersonation, maintenance mode
+
+## PLATFORM-P0-16.3 — Audit Search
+Filters: date, actor, resource, action, severity
+
+## PLATFORM-P0-16.4 — Configuration History
+Allow administrators to inspect previous versions.
+```
+
+**Entity-ownership / "already built?" check (done first, per this run's own task brief's
+own explicit instruction to read both the doc's §20 text and `config-history.ts`'s own
+docstring/implementation closely before deciding either way)**: read
+`packages/core/src/admin/config-history.ts`'s complete docstring and every one of its
+eleven `RESOURCE_DEFS` entries, then independently re-derived which `platform.*` tables
+have real audit trails today by reading every `platform.*` migration file directly (not
+trusting any docstring's own claim at face value) --
+
+- Config-history's eleven `platform.*_events` tables (`plan_events`, `feature_flag_events`,
+  `announcement_events`, `system_policy_events`, `ai_provider_events`,
+  `ai_provider_routing_events`, `ai_feature_policy_events`, `email_provider_events`,
+  `email_template_events`, `integration_status_events`, `module_status_events`) already
+  give real, append-only, JSONB-before/after change history with a required `reason` --
+  but only for those eleven specific resource types, built table-by-table across many
+  separate prior stories (PLATFORM-P0-07.2 onward), never as one unified concept.
+- Grepping every `platform.*` table's own migration for `create policy`/`grant` found six
+  more tables with **zero** audit trail at all: `platform.compliance_countries`,
+  `platform.compliance_packs`, `platform.compliance_pack_features` (all mutate via a plain
+  RLS-gated `.update()`/`.insert()`, no `*_events` sibling, no `reason` capture) and
+  `platform.plan_features`, `platform.plan_limits`, `platform.plan_modules` (same --
+  direct RLS-gated writes, confirmed by reading `platform-plan-features.ts`/
+  `platform-plan-limits.ts`/`platform-plan-modules.ts`, which call `.insert()`/`.update()`/
+  `.delete()` directly, never a SECURITY DEFINER function). Two of these six are named
+  **verbatim** in 16.2's own mandatory list ("entitlement changes" = the three
+  `plan_*` tables; "compliance rule changes" = the three `compliance_*` tables) -- a real,
+  concrete gap this section's own text asks to close, not a duplicate of anything §22
+  already built.
+- 16.3's own "Audit Search" with a `severity` filter has no precedent anywhere: no
+  resource type in this codebase has ever had a severity concept, and there is no single
+  page or query that searches across all eleven existing `*_events` tables at once (each
+  is only browsable one resource-type-and-instance at a time via `/platform/config-history`).
+  Genuinely new.
+- 16.4 ("Configuration History", "allow administrators to inspect previous versions") is
+  **already fully satisfied** by §22/PLATFORM-P0-17 -- that is, word for word, what
+  `/platform/config-history` already does. No new work needed for 16.4 specifically.
+
+**Conclusion**: distinct from, and complementary to, Configuration Versioning -- 16.1-16.3
+are real, unbuilt work; 16.4 is already done. Built accordingly: one new generic table
+(`platform.audit_log`) covering exactly the two newly-identified high-risk gaps, plus a
+merged read layer and search UI spanning both the new table and the eleven pre-existing
+`*_events` tables.
+
+**Why a trigger-based approach, not the `create_x()`/`update_x()` SECURITY DEFINER
+function conversion §22's own `plan_events` migration used for `platform.plans`**:
+converting the six newly-audited tables to that pattern would also tighten their RLS
+(dropping the direct insert/update/delete policies) and require a mandatory `reason`
+argument on every call -- a real behavior change to six already-shipped admin UIs
+(PLATFORM-P0-04.4/04.5/04.6/13.1/13.2/13.4), none of whose forms collect a reason today.
+Inventing that requirement now, for six pages at once, in a story whose own text never
+asks for a reason requirement (16.1 asks for the audit *record* to have one, not for every
+mutation to newly demand one from the user) would be exactly the speculative UI change
+CLAUDE.md development principle #7 rules out, and refactoring six already-tested pages in
+one sitting risks a subtly wrong change to already-shipped features (workflow rule: don't
+refactor unrelated code). A plain `AFTER INSERT OR UPDATE OR DELETE` trigger per table,
+writing into the new unified log via a SECURITY DEFINER helper, gets 16.1's actor/action/
+resource/resource_id/old_value/new_value/timestamp automatically, with **zero** change to
+any existing RLS policy, grant, TypeScript mutation function, or UI on those six tables --
+`reason` is simply `null` for every trigger-captured row (there was never one to record).
+This mirrors `core.audit_log`'s own pre-existing trigger pattern
+(`core.log_document_status_change()`/`core.log_business_settings_change()`,
+`20260906109000_core_audit_log.sql`) applied inside `platform` instead of `core`.
+
+**What was built**:
+
+1. `supabase/migrations/20260913480000_platform_audit_log.sql` -- `platform.audit_log`
+   (id, actor_id, action, resource_type, resource_id, severity, reason, previous_value,
+   new_value, ip_address, user_agent, performed_at), RLS enabled with one superadmin-only
+   SELECT policy (`platform.is_superadmin()`), no direct write grant to `authenticated` at
+   all. `platform.write_platform_audit_log(...)` (SECURITY DEFINER) is the one path to a
+   row. Six new trigger functions + triggers, one pair per newly-audited table
+   (`compliance_countries`, `compliance_packs`, `compliance_pack_features`,
+   `plan_features`, `plan_limits`, `plan_modules`), each firing on INSERT/UPDATE/DELETE and
+   writing exactly one `high`-severity `platform.audit_log` row with a real before/after
+   JSONB snapshot. Composite-key tables (`plan_features`/`plan_limits`/`plan_modules`)
+   encode `resource_id` as `"<plan_id>:<the other key column>"`.
+2. `packages/core/src/admin/platform-audit-log-types.ts` -- pure types (`AuditSeverity`,
+   `AuditResourceType`, `AuditLogEntry`, `AuditLogFilters`), `AUDIT_RESOURCE_TYPE_OPTIONS`
+   (all 17 resource types this feature covers: the 6 new + the 11 from config-history),
+   and the pure `classifySeverity()`/`matchesFilters()` functions -- split into its own
+   file with zero server-only imports for the exact same reason
+   `config-history-diff.ts` is its own file (a Client Component importing anything from
+   `platform-audit-log.ts` itself would drag `next/headers` into the client bundle and
+   fail the build -- hit and fixed during this story's own `next build` verification, see
+   below).
+3. `packages/core/src/admin/platform-audit-log.ts` -- `searchPlatformAuditLog(filters,
+   limit)` merges `platform.audit_log` (the 6 new types) with `listConfigVersions(type,
+   null)` for each of the 11 legacy types (passing `null` as the instance id returns every
+   row across every instance at once -- a deliberate, minimal reuse of `config-history.ts`
+   rather than re-deriving its per-resource query logic), filters/sorts/caps to `limit`
+   (default 100, a fixed cap rather than real cursor pagination -- CLAUDE.md development
+   principle #1, matching this backlog's own bar for an internal admin tool at today's
+   data volume), and resolves actor ids to human labels via the pre-existing
+   `listAllUsers()` (`admin/queries.ts`, no new user-lookup mechanism invented).
+   `listAuditLogActors()` serves the Actor filter dropdown.
+4. `config-history.ts` gained one small, backward-compatible addition:
+   `ConfigVersionEntry.instanceId` (the specific plan/flag/etc. id a cross-instance-merged
+   event belongs to, `null` for singleton types) -- needed because `listConfigVersions(type,
+   null)` mixes every instance's events together, and Audit Search needs to know which
+   instance produced which row for its own `resourceId` display/filter. No existing caller
+   (`config-history-explorer.tsx`) reads this field, so nothing else changed behavior.
+5. `apps/web/app/platform/(protected)/audit/` -- `page.tsx` (server component, loads
+   initial unfiltered results + the actor list), `audit-search-explorer.tsx` (client
+   component: date-from/date-to/actor/resource/severity/action filters, each an explicit
+   `onChange` → server action, never a bare `useEffect`, matching
+   `config-history-explorer.tsx`'s own established reason), `actions.ts` (thin server
+   action wrapper). Severity shown as a `Badge` (destructive=high, secondary=normal); each
+   row expands to a field-level diff via the pre-existing `diffSnapshotFields()` (reused,
+   not reimplemented). A single `<ul>`, not a `<table>` -- same shape
+   `config-history-explorer.tsx` already uses, which is inherently responsive with no
+   separate mobile-card markup needed (CLAUDE.md development principle #12 / `docs/design/
+   claude-ui-design-rules.md` rule 5 are satisfied trivially: there is no wide table to
+   collapse).
+6. `apps/web/app/platform/platform-nav.ts` -- added a new "Audit" nav group
+   (`/platform/audit`, "Audit Search"), replacing the placeholder comment PLATFORM-P0-19.1
+   left explaining why that group didn't exist yet.
+7. `packages/core/src/admin/platform-audit-log.test.ts` -- unit tests (CLAUDE.md
+   development principle #9) for the pure logic only: `AUDIT_RESOURCE_TYPE_OPTIONS` has
+   all 17 entries with non-empty labels; `classifySeverity()` marks every resource type
+   16.2 names verbatim as `high` and every other as `normal`, plus the `announcement`
+   per-row special case (maintenance/critical → high, information/warning → normal, and
+   the before-snapshot fallback for a deleted announcement); `matchesFilters()` for every
+   filter dimension (resource type, severity, actor, action, date range, inclusive
+   bounds). `searchPlatformAuditLog()` itself (DB reads + `requireSuperadmin()`) is
+   exercised by the dedicated local-Postgres script instead, matching
+   `config-history.test.ts`'s own established split (it never unit-tests
+   `listConfigVersions()` either).
+8. `scripts/test-platform-audit-log-rls.mjs` -- new dedicated local-Postgres RLS script
+   (this workstream's own required bar for every new table/access pattern); added to
+   `package.json`'s `test:db` script list.
+
+**A real security bug found and fixed during this story's own role-switched verification
+against dev, before merge** (the exact kind of thing this workstream's "higher security
+bar" instruction warns about): the first version of this migration granted `authenticated`
+EXECUTE on `platform.write_platform_audit_log()` (reasoning, at the time: "harmless, since
+only SECURITY DEFINER triggers call it"). Role-switched as a real, non-superadmin dev user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`, the same user this log's own prior entries have
+repeatedly used), calling `select platform.write_platform_audit_log(null, 'created',
+'forged', 'x', 'high', 'fake', null, '{}'::jsonb)` directly **succeeded** -- any signed-in
+user could forge an arbitrary `platform.audit_log` row: any `actor_id` (including another
+real user's, to falsely implicate them), any `resource_type`/`action`/`severity`/`reason`.
+This directly undermines the entire point of an immutable SUPERADMIN audit log. Root
+cause: a SECURITY DEFINER function executes every call it makes *internally* (including to
+another function) with its **owner's** privileges, not the invoking session's -- so the
+six trigger functions never needed an `authenticated` grant on the writer function at all
+to do their job. Fixed immediately: revoked EXECUTE from `authenticated` (and `public`/
+`anon`) entirely -- `platform.write_platform_audit_log()` now has no grant to any
+client-facing role, matching how `core.write_audit_log()`'s own docstring frames the
+*possibility* of direct application-code calls, which this function was never meant to
+allow (only these six triggers call it). Re-verified live on dev immediately after: the
+identical forged-row call now fails with `ERROR: 42501: permission denied for function
+write_platform_audit_log`, and the legitimate trigger path (a real superadmin's ordinary
+INSERT/UPDATE/DELETE on `compliance_countries`) still writes exactly one real audit_log
+row per statement, unaffected. The corrective grant fix is folded directly into the
+migration file committed here (there is no separate "buggy then fixed" migration in the
+final commit) and mirrored as a second, explicit `revoke` migration applied live to dev
+during verification (both are idempotent no-ops if re-applied). This bug, and the fact
+that it was found by this story's own required role-switched verification step rather
+than shipped, is the concrete justification for why that verification step is mandatory
+on every story touching authorization -- documented here in full rather than glossed over.
+
+**Deliberately NOT built this story** (every other currently-unaudited `platform.*`
+mutation path this run found, checked and named rather than silently missed):
+
+- `platform.branding`, `platform.notification_policies`, `platform.features` (the
+  definitional catalog, distinct from `plan_features`), and `platform.modules`'
+  `visible`/`version` columns (`setModuleVisible()`/`setModuleVersion()` -- already
+  deliberately unaudited by PLATFORM-P0-07.3's own design, confirmed by reading that
+  file's own docstring: "no real-world access effect"). None of these are named in 16.2's
+  own mandatory list; CLAUDE.md development principle #7 ("never implement speculative
+  functionality — build only what the current story requires") is why this story stops at
+  16.2's literal list rather than sweeping every unaudited table into scope at once. A
+  clean, mechanical follow-up if a future story needs it.
+- `platform.admins` (SUPERADMIN grant/revoke) -- there is no application-layer mutation
+  path to it at all yet (confirmed by grep: no `grant_superadmin`/`revoke_superadmin`
+  function or caller anywhere in `packages/core`/`apps/web`); membership is still managed
+  out-of-band. Nothing to instrument.
+- "impersonation" (16.2's own list) -- `PLATFORM-P1-03.3` ("Safe Impersonation") is a P1
+  story, not yet built (confirmed by grep: no impersonation code anywhere in this repo).
+  Auditing a feature that doesn't exist is impossible; when it ships, its own mutation
+  path calls `write_platform_audit_log()` the same way these six do.
+- **IP/device metadata (16.1's own "where appropriate")**: the nullable `ip_address`/
+  `user_agent` columns exist on `platform.audit_log` so the shape is ready, but nothing
+  populates them this story. A Postgres trigger has no access to the HTTP request at all;
+  the one real avenue (reading PostgREST's own `request.header.*` session GUCs via
+  `current_setting()`) has no precedent anywhere in this codebase and was never verified
+  end-to-end (through Vercel's own proxy chain, `@supabase/ssr`'s server client, to
+  Supabase's PostgREST) during this run -- and would likely reflect the network hop's own
+  IP, not reliably the superadmin's own device, even if it worked. Recording a
+  plausible-looking but unverified IP in a security audit log is worse than recording
+  none. Left for a follow-up that can verify the GUC end-to-end, or capture IP/user-agent
+  in the Next.js server-action layer instead and thread it through explicitly.
+- Real cursor-based pagination for Audit Search -- a fixed 100-row cap (500 for the actor
+  list) is the "simplest implementation that works" bar for an internal admin tool at
+  today's data volume (CLAUDE.md development principle #1); a mechanical follow-up if data
+  volume ever makes this matter.
+- Real-time/live updates to the Audit Search page -- it's a server-rendered page refreshed
+  by filter changes, same as every other `/platform/*` list page in this backlog; no story
+  anywhere asks for live streaming.
+
+**No security/authorization/entity-ownership judgment call was left unresolved.**
+`requireSuperadmin()` is called at the top of every new exported function
+(`listConfigResourceInstances`-style guard, matching every sibling file in `admin/`); the
+new `platform.audit_log` table's own RLS is superadmin-only SELECT with no client-facing
+write path at all (the one bug found above was caught and fixed by this story's own
+verification, not left in). The `(protected)` route group's AAL2 MFA gate is untouched --
+`/platform/audit` sits under the existing `(protected)` layout exactly like every other
+new page since PLATFORM-P0-01.
+
+**Verification**: full monorepo `npm run typecheck` -- clean across every workspace.
+`npm run lint --workspaces --if-present` -- 0 errors, 1 pre-existing unrelated warning
+(same `Package` unused import this log has noted every recent entry). `node
+scripts/lint-import-boundaries.mjs` -- 1528 files, no violations. `node
+scripts/lint-migration-schema.mjs` -- 203 migrations, no violations. `npx vitest run`
+(packages/core) -- 326 tests, all passing (12 new for `platform-audit-log-types.ts`'s pure
+logic, everything else unchanged). Migration applied live via
+`mcp__Supabase__apply_migration` against the **dev** project (`jazdtomcgqjxjueedmck`)
+only, plus the corrective revoke described above (also applied live, and folded into the
+committed migration file so a fresh apply of this repo's migrations never re-introduces
+the bug). `mcp__Supabase__get_advisors` (security) -- zero new findings beyond the same 6
+pre-existing `rls_enabled_no_policy` tables and the pre-existing leaked-password-protection
+warning every prior entry has logged (`platform.audit_log` itself has both RLS enabled and
+a real policy, so it does not appear in that list). `mcp__Supabase__get_advisors`
+(performance) -- only the same benign "unused index" INFO class every sibling table's own
+index already carries in this low-traffic dev database, this migration's own four new
+indexes included, plus the two long-pre-existing `ai_provider_routing` unindexed-FK
+findings (unrelated to this migration).
+
+**Role-switched live proof against dev's own real data**: using the same real user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this log's own prior entries have repeatedly used
+-- confirmed a non-superadmin gets `0` rows from `platform.audit_log` even after a real
+row was inserted as `service_role` (proving RLS, not just an empty table, is what's
+denying the read); confirmed `anon` gets `ERROR 42501: permission denied for schema
+platform` (unchanged, matching every prior entry). Found and fixed the direct-call
+forgery bug described above. Granted `c8040fb0-...` a temporary `platform.admins` row to
+prove the *positive* case end-to-end against dev's own real seeded data (a plan and its
+real `plan_modules` row): a genuine superadmin's INSERT/UPDATE on `compliance_countries`
+and UPDATE on `plan_modules` each wrote exactly one correct `platform.audit_log` row
+(right action, `high` severity, real before/after snapshot, `resource_id` = `"<plan_id>:
+discovery"` for the composite-key case) -- then fully reverted dev to its pre-verification
+state: deleted the temporary `platform.admins` row, deleted the test `compliance_countries`
+row, restored `plan_modules.enabled` to its original `true`, and deleted every
+`platform.audit_log` row this verification wrote. Confirmed clean via a final
+`execute_sql` read: `plan_module_enabled=true, leftover_country=0, leftover_admin=0,
+audit_log_rows=0`.
+
+**The dedicated local-Postgres RLS test this workstream's own higher bar requires**:
+`scripts/test-platform-audit-log-rls.mjs`, run against real local Postgres 16 (started via
+`pg_ctlcluster 16 main start`). Proves, independent of the live-dev proof above (which
+can't easily assert the *positive* superadmin case against a disposable throwaway
+database the way local Postgres can): `write_platform_audit_log()` has no grant to
+`authenticated` at all -- rejected for both a real superadmin and a non-superadmin alike,
+with zero residue; a genuine superadmin's ordinary INSERT/UPDATE on
+`compliance_countries` writes exactly one `high`-severity `platform.audit_log` row per
+statement with a real before/after snapshot, despite having no direct grant on the writer
+function (proving SECURITY DEFINER trigger execution really does run as the function's
+owner); a non-superadmin's attempt at the same table is still rejected by that table's own
+pre-existing RLS (unchanged by this migration), with zero residue; `platform.audit_log`
+itself is superadmin-only to SELECT; the composite-key `plan_module` resource type encodes
+`resource_id` correctly; a DELETE on `plan_limits` (the one newly-audited table that
+genuinely grants DELETE, via `clearPlanLimit()`) records `action = 'deleted'`. One dead
+end worth recording plainly: the script's first draft tried a DELETE on
+`compliance_countries` too and got a real `permission denied for table
+compliance_countries` -- that table has no DELETE grant at all, by the original
+PLATFORM-P0-13.1 migration's own explicit "disable, never remove" design (the same stance
+`platform.plans` already established), not a bug in this migration. Fixed by testing the
+DELETE path against `plan_limits` instead, and documented in the script's own header
+comment so a future reader doesn't rediscover the same dead end. All checks pass. Added to
+`package.json`'s `test:db` script list.
+
+`cd apps/web && npx next build` -- **failed on the first attempt**: `audit-search-
+explorer.tsx` (a Client Component) originally imported its types directly from
+`platform-audit-log.ts`, which has a top-level `import { createClient } from
+"../db/server"` (pulling in `next/headers`) -- Turbopack correctly refused to bundle that
+into client code ("You're importing a module that depends on next/headers... in the Pages
+Router"). Fixed by extracting every pure, server-import-free piece
+(`platform-audit-log-types.ts`, described above) for the client component to import
+instead -- the exact same split `config-history-diff.ts` had already established for
+`config-history-explorer.tsx`, applied here because this story's own first draft didn't
+follow it closely enough the first time. Re-ran clean: "Compiled successfully", zero
+errors, and the printed route manifest lists `/platform/audit` as `ƒ` (dynamic),
+correctly inheriting the outer `/platform` layout's `force-dynamic`, alongside every other
+pre-existing `/platform/*` route unchanged.
+
+**Limitation, stated plainly**: same as every prior story in this log -- there is no
+seeded demo superadmin user or live authenticated browser session reachable in this
+sandboxed environment, so an actual visual walkthrough of the Audit Search page (typing
+into the date pickers, selecting filters, expanding a row's diff in a real browser) was
+**not** performed and is **not** claimed here. This entry documents build/typecheck/lint/
+unit-test correctness, the role-switched live-dev proof, and the dedicated local-Postgres
+RLS script -- not an end-to-end browser UI verification, exactly the same gap every prior
+story in this log has stated plainly rather than glossed over.
+
+**Status**: PLATFORM-P0-16.1/16.2/16.3 built, 16.4 confirmed already satisfied by §22 --
+§20 (Platform Audit) fully resolved. Per this run's own task brief, this was the last open
+P0 section besides the already-deliberately-deferred AI Safety circuit breaker
+(10.2/10.3/10.4) and 18.2/18.4 (no mutation callers yet) -- both explicitly out of this
+run's scope, not silently dropped. Continuing into P1 per the doc's own section order with
+remaining usage budget, per this run's own instruction to read the P1 section fresh before
+starting any P1 story.

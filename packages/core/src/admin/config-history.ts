@@ -83,6 +83,12 @@ export type ConfigVersionEntry = {
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
   isCurrent: boolean;
+  /** The specific instance this event belongs to (the events table's own `idColumn`
+   * value), or `null` for a singleton resource type. Added for PLATFORM-P0-16.3 ("Audit
+   * Search") -- `null` when the resource type has no instance concept, never omitted, so
+   * a caller merging events across every instance at once (`listConfigVersions(type,
+   * null)`) can still tell which instance produced which row. */
+  instanceId: string | null;
 };
 
 type RawEventRow = Record<string, unknown>;
@@ -277,6 +283,7 @@ export async function listConfigVersions(
       before: snap.before,
       after: snap.after,
       isCurrent: index === rows.length - 1,
+      instanceId: def.idColumn ? String(row[def.idColumn] ?? "") : null,
     };
   });
 }
