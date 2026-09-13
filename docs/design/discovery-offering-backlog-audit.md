@@ -77,7 +77,7 @@ only genuine architectural/key decisions are raised.
 | | P1-02.1 | Prospect Feedback | Done |
 | | P1-02.2 | Discovery Outcome Tracking | Done |
 | | P1-02.3 | Offering Performance Analysis | Done (4/5 questions -- see below) |
-| | P1-03.1 | Progressive Intelligence | Out of scope |
+| | P1-03.1 | Progressive Intelligence | Done |
 | | P1-03.2 | Research Cache | Out of scope |
 | | P1-03.3 | Provider-Agnostic Data Contracts | Out of scope |
 | | P1-04.1 | Cross-Offering Account View | Out of scope |
@@ -4428,3 +4428,59 @@ route; the nav tab.
 schema change -- every table read here already existed). `npx vitest run` in
 `module-discovery`: 36 files / 265 tests, all passing (7 new). No live migration to
 apply or `get_advisors` to re-run -- nothing in the database changed.
+
+---
+
+### DISC-OFFER-P1 §7-03.1 -- Progressive Intelligence (2026-09-13)
+
+Doc's own six-stage pipeline order (Cheap ICP Filtering -> Basic Enrichment -> Signal
+Detection -> Scoring -> Deep Research -> Personalized Draft), with the explicit goal "do
+not run expensive research for every raw prospect."
+
+**Checked the actual pipeline first, rather than assuming a rebuild was needed.** Read
+`lib/pipeline/handlers.ts` (the autonomous website-to-offering pipeline's own stage
+implementations, Phase E) end to end against the doc's six stages:
+- Basic Enrichment already happens at account-discovery time -- a `ProspectSuggestion`
+  already carries industry/location/company_size from that AI call, before anything
+  else runs.
+- Scoring is already naturally gated to opportunities that exist.
+- Deep Research (`generateResearchBrief`, `runResearchStage`) is already bounded to the
+  top-`RESEARCH_TOP_N` scored opportunities, sorted highest-score-first -- exactly
+  "Scoring before Deep Research, not for every prospect."
+- Personalized Draft (message generation) is already gated behind an approved outreach
+  strategy.
+
+**The one real gap**: `runSignalsStage` -- the pipeline's own "Signal Detection" step --
+called `researchProspect` (a real AI web-search call) for every pending account with no
+cheaper check first. There was no "Cheap ICP Filtering" gate at all before that AI spend,
+even though every field it would need (industry/location/company_size) was already on
+the prospect from Basic Enrichment.
+
+**What was built**: `lib/pipeline/icp-pre-filter.ts`'s own `passesIcpPreFilter` -- same
+free-text keyword-matching shape as `discovery-criteria.ts`'s `matchesDiscoveryCriteria`,
+checked against the active ICP profile's own industries/geographies/company_sizes/
+exclusions. Deliberately the OPPOSITE null-handling from that sibling function, though:
+`matchesDiscoveryCriteria` never guesses a *pass* for missing data against a minimum
+score (a false pass would undercut a founder's own explicit floor); this one never
+guesses a *rejection* for a candidate with an unknown attribute (a false rejection would
+silently and permanently drop a possibly-good prospect over missing data -- a worse
+outcome than the one cheap AI call this story exists to save). Only a known, explicitly
+conflicting attribute skips a prospect. Wired into `runSignalsStage`: pending accounts
+are filtered against the workspace's active ICP (when one exists) before the
+`researchProspect` loop runs at all; filtered-out accounts are left uncovered for a
+future run, same "partial success, pick up later" treatment this stage's own doc comment
+already gives an actual research failure. The stage's own `detail` message now reports
+how many were skipped by the cheap filter, so this is visible in the pipeline run
+history, not silent.
+
+**What was NOT changed**: no new stage, no schema change, no new UI -- this is a
+targeted fix inside an existing stage's own selection logic, matching how narrowly-scoped
+the actual gap was once the pipeline was read end to end.
+
+**Verified**: per-workspace `tsc --noEmit` clean for `module-discovery` and `apps/web`.
+`lint:boundaries` (1584 files, no violations), `lint:migrations` unchanged at 211 (no
+schema change). `npx vitest run` in `module-discovery`: 37 files / 272 tests, all passing
+(7 new, covering empty-ICP pass-through, unknown-attribute never-reject, each of the
+three known-attribute rejection cases, case-insensitive substring matching, and
+exclusions winning outright). No live migration or `get_advisors` re-run needed --
+nothing in the database changed.
