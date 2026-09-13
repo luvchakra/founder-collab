@@ -109,7 +109,14 @@ async function main() {
       assertEqual(psql(`set local role service_role; select count(*) from platform.plan_modules`), "15", "still 15 rows");
 
       console.log("Verifying a new plan created by a superadmin gets the full module set seeded...");
-      const newPlanId = psqlAsZoe(`insert into platform.plans (key, name) values ('enterprise', 'Enterprise') returning id`);
+      // PLATFORM-P0-17.1 (20260913470000_platform_plan_events.sql): platform.plans no
+      // longer grants INSERT to `authenticated` at all -- a real plan creation now goes
+      // through platform.create_plan(), tested in its own
+      // test-platform-config-versioning-rls.mjs. This script's own subject is
+      // platform.plan_modules, not plan creation, so the plan itself is seeded directly as
+      // service_role (equivalent to any other fixture row in this file) rather than
+      // re-proving create_plan()'s own behavior here too.
+      const newPlanId = psql(`set local role service_role; insert into platform.plans (key, name) values ('enterprise', 'Enterprise') returning id`);
       psqlAsZoe(`
         insert into platform.plan_modules (plan_id, module_key, enabled)
         select '${newPlanId}', key, true from core.modules

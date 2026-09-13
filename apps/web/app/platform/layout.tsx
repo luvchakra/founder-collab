@@ -80,6 +80,9 @@ const NAV_LINKS = [
   // catalog -- config-only, no customer-facing banner/notice or email delivery wired up
   // yet (see the migration's own docstring).
   { href: "/platform/announcements", label: "Announcements" },
+  // PLATFORM-P0-17.1/17.2/17.3: version history (with restore, where wired) across every
+  // audited platform.* configuration table -- see config-history.ts's own docstring.
+  { href: "/platform/config-history", label: "Configuration History" },
 ];
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {

@@ -11,6 +11,7 @@ const validInput = {
   status: "active" as const,
   displayOrder: 1,
   marketingVisible: true,
+  reason: "Setting up the initial catalog",
 };
 
 describe("createPlatformPlanSchema (PLATFORM-P0-04.1)", () => {
@@ -73,6 +74,11 @@ describe("createPlatformPlanSchema (PLATFORM-P0-04.1)", () => {
 
   it("rejects a non-integer display order", () => {
     expect(createPlatformPlanSchema.safeParse({ ...validInput, displayOrder: 1.5 }).success).toBe(false);
+  });
+
+  it("rejects an empty reason (PLATFORM-P0-17.1 -- every plan change must be audited)", () => {
+    expect(createPlatformPlanSchema.safeParse({ ...validInput, reason: "" }).success).toBe(false);
+    expect(createPlatformPlanSchema.safeParse({ ...validInput, reason: "   " }).success).toBe(false);
   });
 });
 

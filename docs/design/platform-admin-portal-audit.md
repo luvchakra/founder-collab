@@ -34,7 +34,7 @@ verification in full regardless of which mode was in effect when it landed.
 | P0 Phase 4 | 03 | Branding & Look and Feel | 03.1 done; 03.2 deferred (conflicts with CLAUDE.md non-negotiable #7); 03.3 done; 03.4 done; 03.5 done -- §7 complete, see log |
 | | 14 | Platform Policies | Done -- 14.1/14.2/14.3 (all of §18) built config-only, see log |
 | | 15 | Global Announcements / Maintenance | Done -- 15.1/15.2/15.3/15.4 (all of §19) built config-only, see log |
-| | 17 | Configuration Versioning | Not started |
+| | 17 | Configuration Versioning | 17.1/17.2 done; 17.3 (Rollback) done for 4 of 11 resource types, rest deferred -- §22 substantially resolved, see log |
 | | 19 | Platform Administration UI | Not started |
 | P1 | 01-09 | Import/export, business overrides, support tools, subscription lifecycle, billing, API admin, observability, release mgmt, legal | Not started |
 
@@ -43,7 +43,11 @@ verification in full regardless of which mode was in effect when it landed.
 section). §17 (13) is fully resolved as of 2026-09-13 -- 13.1/13.2/13.4 built, 13.3 closed by
 user decision (satisfied-by-existing-code, no platform-layer counterpart needed). §18 (14,
 Platform Policies) is fully resolved as of 2026-09-13 -- 14.1/14.2/14.3 all built,
-config-only.
+config-only. §22 (17, Configuration Versioning) is substantially resolved as of
+2026-09-13 -- 17.1 (version numbers) and 17.2 (Draft vs Published, already satisfied by
+existing Plans/Branding lifecycle work) done for every audited resource type; 17.3
+(Rollback) done for 4 of 11 (Plans, Feature Flags, Announcements, Platform Policies), the
+remaining 7 left as a documented, mechanical follow-up.
 P1: 0/9 done.**
 
 ## Pre-implementation reconnaissance (Rule 1 — done once, up front)
@@ -6318,3 +6322,263 @@ an end-to-end UI verification.
 is now fully resolved. Next in the doc's own section order: §17 in this doc's own numbering
 gap is "Configuration Versioning" (already listed "Not started" in the progress table above)
 and §19 "Platform Administration UI" -- both still open, along with every P1 section.
+
+---
+
+### PLATFORM-P0-17.1/17.2/17.3 -- Configuration Versioning (2026-09-13)
+
+**Worktree hazard checked first, per this workstream's own standing instruction**: this
+run's worktree `HEAD` was on a `worktree-agent-*` branch sitting at `main`'s own current
+tip (`713db78`, several commits *ahead of* `feature/platform-admin-portal`'s own tip
+because sibling workstreams had merged into `main` since this branch last did) rather than
+sitting on the feature branch itself. Working tree was clean -- fixed with `git checkout -B
+feature/platform-admin-portal origin/feature/platform-admin-portal`, landing exactly on
+`5f15a5e` (PLATFORM-P0-15.1-15.4's own commit), re-verified via `git log --oneline -3`
+before touching any file. `npm install` run fresh (no `node_modules` in this worktree; 679
+packages added, clean).
+
+**Read first**: `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`'s own §22 in full (its real
+doc-numbering: story `PLATFORM-P0-17`, "Configuration Versioning" -- the doc's §17 is
+actually "Country / Compliance Pack Administration," already done; §20 is "Platform Audit"
+[story 16, still not started]; §21 is the unnumbered "Safe Global Change Workflow"; §22 is
+this story). §22's own text is three short bullet lists with examples, no algorithm:
+
+```text
+PLATFORM-P0-17.1 -- Version Configuration: important platform configuration should have
+  versions. Examples: Plan Pro v3 / AI Routing v5 / Branding v7 / India GST Pack v12.
+PLATFORM-P0-17.2 -- Draft vs Published: support Draft / Published / Archived.
+PLATFORM-P0-17.3 -- Rollback: where technically safe, View Version / Restore. Rollback
+  itself must be audited.
+```
+
+**Entity-ownership check (CLAUDE.md non-negotiable #5), done first, exactly per this run's
+own task brief** ("determine whether it wants (a) something already substantially
+satisfied by the existing per-table events-table pattern, (b) a genuinely new
+cross-cutting concept, or (c) something else"): grepped `docs/plan/00-MASTER-PLAN.md` §5
+for "version"/"history"/"rollback" -- no entity exists there; this is a platform-admin
+control-plane concept, not a customer-module one, so the map doesn't need updating (same
+reasoning every other `platform.*` story in this log has used). Then read every existing
+`platform.*` migration to see what actually exists today (not what the doc assumes):
+
+- **Ten tables already have a real `*_events` audit trail** (JSONB `previous_value`/
+  `new_value` snapshots, `reason`, `performed_by`, `performed_at`) from PLATFORM-P0-07.2
+  onward: `feature_flags`, `ai_providers`, `ai_provider_routing`, `ai_feature_policies`,
+  `email_provider`, `email_templates`, `integrations` (per-column
+  `previous_status`/`new_status`/`previous_notes`/`new_notes`, not JSONB), `system_policies`,
+  `announcements`, and `modules` (`module_status_events`; the older
+  `module_kill_switch_events` was itself dropped and folded into this one by
+  PLATFORM-P0-07.3's own reconciliation migration). This is reading (a): these tables
+  already have real change history, just not exposed as a "vN" number or a restore action.
+- **`platform.plans` is the one glaring exception.** It predates the audited-function
+  pattern (PLATFORM-P0-04.1 was built before PLATFORM-P0-07.2 established it) and is still
+  mutated via a plain, RLS-gated `.update()`/`.insert()` straight from
+  `platform-plans.ts` -- verified directly by reading that file, not assumed: no
+  `platform.create_plan`/`update_plan` function existed anywhere in the migration
+  timeline before this story. Zero recorded history. Since §22's own flagship, first-listed
+  example is literally "Plan Pro v3", a plan with no history at all cannot be versioned --
+  this is reading (b), a genuine gap this story has to close, not something to skip.
+- **17.2 (Draft vs Published) is already substantially satisfied where it actually
+  applies** -- also reading (a), confirmed by reading the schema, not assumed:
+  `platform.plans.status` already has a real `draft`/`active`/`deprecated`/`archived`
+  lifecycle (PLATFORM-P0-04.7, folded into 04.1's own migration) and `platform.branding`
+  already has a real Draft -> Preview -> Publish workflow (PLATFORM-P0-03.5's own
+  `draft_data` column, whose own docstring explicitly named this future story as the place
+  its ad hoc mechanism would get generalized). Retrofitting a draft/archived state onto a
+  boolean on/off toggle (`feature_flags.enabled`, `ai_feature_policies.ai_enabled`) or a
+  live singleton config row (`system_policies`, `email_provider`, `ai_provider_routing`)
+  would be a genuinely speculative new field -- CLAUDE.md development principle #7 -- since
+  none of those tables has a "preview before it goes live" surface the way a login page's
+  branding does, and nothing in this doc or any consuming story asks for one. **Decision**:
+  17.2 is resolved as "already satisfied for the two entities that have the concept;
+  deliberately not generalized further," not built as new code this story.
+- **17.3 (Rollback) is reading (b), a genuinely new mechanism** -- confirmed by grepping
+  the entire repo for "restore"/"rollback": nothing exists. The doc's own hedge ("where
+  technically safe") matters: each of the ten pre-existing `*_events` tables has a
+  *different* update-function shape (several are 10-16-positional-argument singletons; two
+  use per-column previous/new pairs instead of a JSONB snapshot at all), so a single fully
+  generic SQL restore dispatcher across all of them in one sitting is real, non-trivial
+  design work with real correctness risk for a live, in-place config an entire platform
+  runs on. **Decision, scoped rather than deferred wholesale**: restore is wired end-to-end
+  for four resource types this story (Plans, Feature Flags, Announcements, Platform
+  Policies) -- one from each of the three JSONB-snapshot shapes this backlog uses (a
+  scoped/immutable-field entity, an audience/schedule entity, and a wide singleton), proving
+  the pattern generalizes rather than picking four arbitrarily. The remaining seven
+  (`ai_providers`, `ai_provider_routing`, `ai_feature_policies`, `email_provider`,
+  `email_templates`, `integrations`, `module_status`) get 17.1's read-only version list but
+  no restore path yet -- named explicitly below, not silently dropped.
+
+**No genuine security/authorization ambiguity found this story** (the higher-bar trigger
+for stopping outright): every new SQL surface reuses the exact `security definer` /
+`set search_path` / `is_superadmin()` / mandatory-non-empty-`reason` shape this backlog has
+used since PLATFORM-P0-08, restore is implemented as nothing more than "call the entity's
+own already-reviewed, already-tested `update_*()` function with historical values" (no new
+authorization path, no new bypass surface), and `requireSuperadmin()`/RLS/the AAL2 MFA gate
+on `/platform` are untouched. The judgment calls above (which tables, how deep, 17.2's
+scope) are the "non-security... which existing pattern to reuse, exact scope" kind this
+run's own brief says to decide and document, not stop on.
+
+**What was built**:
+
+- Migration `20260913470000_platform_plan_events.sql`: `platform.plan_events` (the exact
+  `feature_flag_events` shape -- `key`/`plan_id`/`action` in `created`/`updated`/
+  `previous_value`/`new_value`/`reason`/`performed_by`/`performed_at`), superadmin-only
+  SELECT, no direct write grant. `platform.plans` loses its own direct INSERT/UPDATE RLS
+  policies and grants (kept from PLATFORM-P0-04.1's original migration); `platform.
+  create_plan()`/`update_plan()` (mirroring `feature_flags`' own function shape exactly,
+  `reason` mandatory) are the only paths to a row now. No delete function -- unchanged from
+  04.7's own "never delete a plan" stance.
+- `packages/core/src/admin/platform-plans.ts`: `createPlatformPlan()`/`updatePlatformPlan()`
+  now call the two new RPCs instead of `.insert()`/`.update()`; both schemas gained a
+  required `reason` field. New `restorePlanFromSnapshot(id, snapshot, reason)` -- literally
+  just `updatePlatformPlan()` fed from a historical row's own snake_case columns, so it
+  inherits every existing validation and writes its own new `plan_events` row for free
+  ("rollback itself must be audited," satisfied without a separate mechanism). The same
+  `restoreXFromSnapshot()` shape was added to `platform-feature-flags.ts`,
+  `platform-announcements.ts` (handling `moduleListSchema`'s comma-string input shape for
+  `affectedModules`), and `platform-system-policies.ts` (handling the singleton's 16
+  positional numeric-or-null fields via a small `num()` coercion helper).
+- New `packages/core/src/admin/config-history.ts`: a registry of all eleven audited
+  resource types (the ten pre-existing tables + the new `plan`), each describing its events
+  table, id column (`null` for a singleton), a `toSnapshot()` normalizer (JSONB pair for
+  nine of them; a synthesized `{status, notes}`/`{status, message}` pair for
+  `integrations`/`module_status`, whose own tables never stored a JSONB snapshot at all),
+  and an optional `restore()` for the four wired types. Exports `listConfigVersions()`
+  (oldest-first, `version` 1-indexed, `isCurrent` on the last row), `listConfigResourceInstances()`
+  (for a non-singleton type's own picker, reusing each entity's own existing `list*()`
+  function -- no new query logic), and `restoreConfigVersion()` (refuses cleanly, by type,
+  for the seven not-yet-wired resource types, rather than silently no-op'ing). `diffSnapshotFields()`
+  -- a pure, unit-tested before/after field diff ignoring `updated_at`/`updated_by`/
+  `created_at` -- was split into its own `config-history-diff.ts` after the first `next
+  build` attempt failed: importing anything from `config-history.ts` (which imports
+  `../db/server`, and therefore `next/headers`, at module scope) from the Client Component
+  history explorer pulled the whole server-only module graph into the client bundle.
+  `config-history.ts` re-exports it so server callers still see one logical module.
+- New `/platform/config-history` admin page: one generic explorer (a resource-type
+  dropdown, an instance picker for non-singleton types, an oldest-to-newest version list
+  rendered newest-first, an expandable per-version diff, and a `Restore` action -- behind
+  its own reason-required `AlertDialog`, mirroring `DeleteAnnouncementDialog`'s exact
+  shape -- shown only when the resource type is one of the four wired ones and the version
+  isn't already current) rather than a "History" button bolted onto eleven separate
+  existing pages (CLAUDE.md development principle #1 -- the read/restore mechanism is
+  uniform, so one page reusing it is simpler than eleven near-duplicate wire-ups). The
+  initial resource type's data is loaded server-side in `page.tsx` and handed to the client
+  explorer as starting state; every later selection change goes through an explicit
+  `onChange` handler calling a server action inside `startTransition`, never a bare
+  `useEffect` -- avoiding the `react-hooks/set-state-in-effect` lint rule `plan-dialog.tsx`
+  already documented hitting for the same reason. Added to the platform nav as
+  "Configuration History". No `<Table>` component is used at all (a single-column,
+  wrapping `<ul>` list throughout) so CLAUDE.md development principle #12's mobile-card
+  requirement is satisfied structurally -- there is no horizontally-scrolling table to
+  begin with, on any screen width.
+- Plan Add/Edit dialog (`plan-dialog.tsx`) gained a required "Reason" field (mirroring
+  `DeleteAnnouncementDialog`'s own labeling), since `platform.create_plan`/`update_plan`
+  now require one.
+
+**RLS scripts**: new `scripts/test-platform-config-versioning-rls.mjs` (27 assertions) --
+the one genuinely new SQL surface this story adds (`platform.plan_events`/`create_plan`/
+`update_plan`); every other resource type's own table/policy/function is unchanged by this
+story and already has its own dedicated script from its original story, and restoring
+through them is, by design, just another call to that already-tested `update_*()`
+function -- so there is nothing new at the SQL layer for those to test beyond what their
+own existing scripts and this story's new `config-history.test.ts` (the pure
+`diffSnapshotFields()`/`CONFIG_RESOURCE_TYPES` derivations) already cover between them.
+**All 27 assertions passed** against real local Postgres 16: the migration's own 3-plan
+seed is untouched and `plan_events` starts empty; `platform.plans` no longer accepts a
+direct INSERT/UPDATE from `authenticated` at all, not even for a genuine superadmin;
+`create_plan`/`update_plan` reject a non-superadmin and an empty/whitespace reason, with
+zero residue in either table each time; a real create/update each write exactly one atomic
+`plan_events` row with a real before/after JSONB snapshot; `update_plan` never touches
+`key`; a duplicate key is still rejected through the function; `plan_events` is
+superadmin-only to read unlike `platform.plans`' own open SELECT; and querying
+`plan_events` oldest-first (exactly what `listConfigVersions()` does) produces
+`created, updated` in that order, confirming the version-numbering derivation lines up with
+real row order. **Two pre-existing scripts needed updating** because this migration
+changed real, tested behavior (found and fixed, not left broken): `test-platform-plans-rls.mjs`'s
+own write-path assertions previously expected a silently-filtered RLS no-op for a direct
+INSERT/UPDATE -- now a flat permission error for everyone, superadmin included, since the
+grant itself is revoked -- rewritten to match and re-verified (still 8 assertions, same
+scope: open SELECT, no-delete, key uniqueness, now exercised through the new function for
+the last one). `test-platform-plan-modules-rls.mjs`'s own "a new plan created by a
+superadmin" fixture line (`psqlAsZoe(insert into platform.plans...)`) no longer works
+either -- fixed to seed that one fixture row as `service_role` (that script's own subject
+is `plan_modules`, not plan creation) and re-verified, all assertions still passing.
+Every other RLS script that touches `platform.plans` (`plan-limits`, `plan-features`,
+`core-plan-entitlement-lookup`, `core-business-settings-plan-fk`) was checked (grepped for
+`insert into platform.plans`/`update platform.plans`) and re-run -- none referenced the now-
+removed direct write path, all still pass unchanged. Wired into `package.json`'s `test:db`
+composite script after `test-platform-announcements-rls.mjs`.
+
+**Verification**: this worktree needed its own `npm install` first (no local `node_modules`
+in a fresh worktree). Full monorepo `npm run typecheck` -- clean across all 7 workspaces.
+`npm run lint --workspaces --if-present` -- 0 errors, the same 1 pre-existing unrelated
+warning every prior story has logged. `node scripts/lint-import-boundaries.mjs` -- 1519
+files, no violations. `node scripts/lint-migration-schema.mjs` -- 202 migrations, no
+violations. `npx vitest run --root packages/core` -- 314/314 passing (10 new: 2 for the
+plan `reason` field's own validation, and 9 in the new `config-history.test.ts` for
+`diffSnapshotFields()` -- identical/changed/create-event/delete-event/deep-equality/ignored-
+audit-columns cases -- and `CONFIG_RESOURCE_TYPES`'s own shape). `apps/web`'s own `vitest
+run --passWithNoTests` -- 50/50 passing, unchanged (this story added no `apps/web` test
+file). Migration applied live to the **dev** Supabase project (`jazdtomcgqjxjueedmck`) via
+`mcp__Supabase__apply_migration`; `mcp__Supabase__get_advisors` (security + performance) --
+zero new findings beyond the same pre-existing baseline every prior entry has logged (the
+new `plan_events` table's three indexes show up only as the same benign "unused index"
+info-level note every sibling index already carries in this low-traffic dev database).
+Role-switched live proof against dev, using the same real non-superadmin user
+(`c8040fb0-b46c-4131-9ea7-195e8157d27b`) this backlog's own prior entries have repeatedly
+used: `select count(*) from platform.plans` returned `3` (the open-SELECT policy still
+working), and a role-switched call to `platform.create_plan(...)` was rejected outright
+with a real Postgres `P0001: Forbidden: only a SUPERADMIN can create a plan.` error -- a
+genuine function-level rejection, not a silently-ignored RLS filter -- with zero residue
+confirmed afterward (`plans` still 3, `plan_events` still 0). No seeded superadmin user
+exists in this dev project (same limitation every prior entry has logged), so the
+*positive* create/update/restore round trip was proven only against local Postgres (above,
+27 assertions) and via unit tests, not also replayed live against dev -- stated plainly
+rather than implied. Clean `apps/web` `npm run build` -- `/platform/config-history` appears
+in the route manifest as `ƒ` (dynamic); this run's own first build attempt caught a real
+bug (the `next/headers` client-bundle leak described above) before it shipped, fixed by
+splitting `diffSnapshotFields()` out, and the second build was clean.
+
+**What was deliberately left out** (named explicitly, not silently dropped):
+- **17.2 generalization**: no new draft/archived state for any table beyond Plans/Branding,
+  which already had one -- see the entity-ownership reasoning above for why this is a
+  scoping decision, not an oversight.
+- **17.3 for seven resource types**: `ai_providers`, `ai_provider_routing`,
+  `ai_feature_policies`, `email_provider`, `email_templates`, `integrations`, and
+  `module_status` all get 17.1's read-only version history in `/platform/config-history`
+  today but no `Restore` button -- `CONFIG_RESOURCE_TYPES[].restorable` is `false` for
+  each, and the UI hides the action accordingly rather than showing a button that would
+  fail. Wiring each one is the same mechanical pattern proven on the four done this story
+  (write a `restoreXFromSnapshot()` next to that entity's own `updateX()`, register it in
+  `config-history.ts`'s registry) -- deferred as lower-risk, incremental follow-up rather
+  than rushed in one sitting across seven different function signatures, per this
+  workstream's own "done partially, rest deferred" precedent (PLATFORM-P0-10.1/18.2/18.4).
+- **No retrofit of any *other* un-audited table.** `platform.plans` was the one gap this
+  story closed because §22's own flagship example requires it to exist at all;
+  `platform.branding`'s *live* columns (as opposed to its already-built draft mechanism),
+  `platform.notification_policies`, and `platform.compliance_countries`/`compliance_packs`/
+  `compliance_pack_features` are still mutated with no audit trail at all -- a real,
+  pre-existing gap against PLATFORM-P0-16.2's own "mandatory audit for... compliance rule
+  changes" list, but that is story 16's (Platform Audit) job, not this one's, and retrofitting
+  four more tables' worth of SECURITY DEFINER functions was not this story's own ask.
+  Flagged here for whoever picks up §20/PLATFORM-P0-16 next, not silently left for someone
+  to rediscover.
+- No impact-estimate confirmation step (§21's "Safe Global Change Workflow" -- "this
+  affects 2,840 active businesses" -- is its own separate, later doc section, unrelated to
+  this one).
+- No cross-schema/cross-table rollback (e.g. restoring a plan's own row does not touch its
+  separate `plan_modules`/`plan_limits`/`plan_features` child rows) -- §22's own examples
+  are all single-entity versions ("Plan Pro v3", not "Plan Pro's entire entitlement graph
+  v3"), and this matches the doc's own granularity.
+
+**Limitation, stated plainly**: same as every prior story in this log -- no seeded demo
+superadmin user in this sandboxed dev environment, so a live authenticated browser
+walkthrough of `/platform/config-history` actually restoring a version through the real UI
+was **not** performed and is **not** claimed here. This entry documents build/typecheck/
+lint/unit-test correctness, a direct read/reject proof against the live dev database for
+the non-superadmin path, and the full positive-and-negative matrix against local Postgres
+(including the version-numbering derivation itself) -- not an end-to-end UI verification.
+
+**Status**: PLATFORM-P0-17.1/17.2/17.3 substantially done -- §22 (Configuration
+Versioning) resolved with 17.3's own scope explicitly narrowed to 4 of 11 resource types,
+named above. Continuing next to the doc's own "Platform Administration UI" section per
+this run's own task brief.

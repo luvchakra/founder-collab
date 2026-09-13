@@ -19,6 +19,17 @@ import { seedPlanModuleEntitlements } from "./platform-plan-modules";
  * with historical subscribers" -- there is no subscriber concept yet, so this is the
  * simplest safe stance until PLATFORM-P0-05.4 wires `core.licenses` to a plan). A plan a
  * superadmin no longer wants offered is moved to `status: 'archived'`, never removed.
+ *
+ * **PLATFORM-P0-17.1/17.3 ("Configuration Versioning", §22)**: `createPlatformPlan()`/
+ * `updatePlatformPlan()` now call `platform.create_plan()`/`platform.update_plan()`
+ * (`20260913470000_platform_plan_events.sql`) instead of a plain `.insert()`/`.update()` --
+ * plans previously had zero change history, and §22's own flagship version example is
+ * literally "Plan Pro v3", so a `reason` is now required on every create/update the same
+ * way `platform.feature_flags` has required one since PLATFORM-P0-08. `restorePlanVersion()`
+ * below reuses this same function for a rollback: restoring is just another `update_plan()`
+ * call seeded from a historical `plan_events` snapshot, so it inherits every validation and
+ * audit guarantee an ordinary edit already has ("rollback itself must be audited," §22's
+ * own requirement, satisfied for free).
  */
 
 export type PlanStatus = "draft" | "active" | "deprecated" | "archived";
@@ -120,6 +131,11 @@ const currency = z
 const status = z.enum(PLAN_STATUSES);
 const displayOrder = z.coerce.number().int("Display order must be a whole number");
 const marketingVisible = z.coerce.boolean();
+const reason = z
+  .string()
+  .trim()
+  .min(1, "A reason is required.")
+  .max(500, "Reason must be 500 characters or fewer.");
 
 /** `key` is part of creation only -- see `updatePlatformPlanSchema` below, which omits it.
  * It's the stable identifier a future entitlement table references (mirroring
@@ -135,6 +151,7 @@ export const createPlatformPlanSchema = z.object({
   status,
   displayOrder,
   marketingVisible,
+  reason,
 });
 export type CreatePlatformPlanInput = z.input<typeof createPlatformPlanSchema>;
 
@@ -159,26 +176,18 @@ export async function createPlatformPlan(
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
   const supabase = await createClient({ schema: "platform" });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data, error } = await supabase
-    .from("plans")
-    .insert({
-      key: parsed.data.key,
-      name: parsed.data.name,
-      description: parsed.data.description,
-      price: parsed.data.price,
-      billing_interval: parsed.data.billingInterval,
-      currency: parsed.data.currency,
-      status: parsed.data.status,
-      display_order: parsed.data.displayOrder,
-      marketing_visible: parsed.data.marketingVisible,
-      updated_by: user?.id ?? null,
-    })
-    .select("*")
-    .single();
+  const { data, error } = await supabase.rpc("create_plan", {
+    p_key: parsed.data.key,
+    p_name: parsed.data.name,
+    p_description: parsed.data.description,
+    p_price: parsed.data.price,
+    p_billing_interval: parsed.data.billingInterval,
+    p_currency: parsed.data.currency,
+    p_status: parsed.data.status,
+    p_display_order: parsed.data.displayOrder,
+    p_marketing_visible: parsed.data.marketingVisible,
+    p_reason: parsed.data.reason,
+  });
   if (error) {
     if (error.code === "23505") {
       return { ok: false, fieldErrors: { key: "A plan with this key already exists." } };
@@ -191,9 +200,10 @@ export async function createPlatformPlan(
   // plan that already existed, so no plan is ever left with silently missing module
   // entitlement rows. Not part of the plan_modules migration's own seed (that ran once,
   // at migration time, over the plans that existed then).
-  await seedPlanModuleEntitlements(data.id as string);
+  const row = data as PlanRow;
+  await seedPlanModuleEntitlements(row.id);
 
-  return { ok: true, plan: toPlan(data as PlanRow) };
+  return { ok: true, plan: toPlan(row) };
 }
 
 export async function updatePlatformPlan(
@@ -206,29 +216,49 @@ export async function updatePlatformPlan(
   if (!parsed.success) return { ok: false, fieldErrors: fieldErrorsFrom(parsed.error) };
 
   const supabase = await createClient({ schema: "platform" });
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data, error } = await supabase
-    .from("plans")
-    .update({
-      name: parsed.data.name,
-      description: parsed.data.description,
-      price: parsed.data.price,
-      billing_interval: parsed.data.billingInterval,
-      currency: parsed.data.currency,
-      status: parsed.data.status,
-      display_order: parsed.data.displayOrder,
-      marketing_visible: parsed.data.marketingVisible,
-      updated_by: user?.id ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return { ok: false, error: "Plan not found." };
+  const { data, error } = await supabase.rpc("update_plan", {
+    p_id: id,
+    p_name: parsed.data.name,
+    p_description: parsed.data.description,
+    p_price: parsed.data.price,
+    p_billing_interval: parsed.data.billingInterval,
+    p_currency: parsed.data.currency,
+    p_status: parsed.data.status,
+    p_display_order: parsed.data.displayOrder,
+    p_marketing_visible: parsed.data.marketingVisible,
+    p_reason: parsed.data.reason,
+  });
+  if (error) {
+    if (error.message.includes("Unknown plan id")) return { ok: false, error: "Plan not found." };
+    throw error;
+  }
 
   return { ok: true, plan: toPlan(data as PlanRow) };
+}
+
+/**
+ * PLATFORM-P0-17.3 ("Rollback"): restores a plan to a previous version by re-invoking
+ * `platform.update_plan()` with that version's own `plan_events.new_value` snapshot --
+ * exactly the mutable fields `updatePlatformPlanSchema` already accepts, extracted from
+ * the snapshot's (snake_case) columns. This is genuinely just another edit, so it inherits
+ * `update_plan()`'s own reason requirement and writes its own new `plan_events` row --
+ * "rollback itself must be audited" is satisfied by the ordinary update path, not a
+ * separate mechanism. Called only from `config-history.ts`'s generic restore dispatcher.
+ */
+export async function restorePlanFromSnapshot(
+  id: string,
+  snapshot: Record<string, unknown>,
+  reason: string,
+): Promise<{ ok: true; plan: PlatformPlan } | { ok: false; fieldErrors: Record<string, string> } | { ok: false; error: string }> {
+  return updatePlatformPlan(id, {
+    name: String(snapshot.name ?? ""),
+    description: (snapshot.description as string | null) ?? "",
+    price: String(snapshot.price ?? "0"),
+    billingInterval: snapshot.billing_interval as BillingInterval,
+    currency: String(snapshot.currency ?? "INR"),
+    status: snapshot.status as PlanStatus,
+    displayOrder: String(snapshot.display_order ?? "0"),
+    marketingVisible: Boolean(snapshot.marketing_visible),
+    reason,
+  });
 }
