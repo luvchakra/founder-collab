@@ -109,6 +109,26 @@ log in (that's `auth.setup.ts`'s only job) or it'll fight the shared, cached ses
    matches by class name breaks the moment a component's styling changes, which is
    exactly the kind of churn this shell has had.
 
+## Capturing screenshots for the user guides
+
+`e2e/authenticated/capture-screenshots.spec.ts` is a documentation tool, not a
+regression test -- it's skipped by default so it never slows down or adds
+noise to a normal `npm run e2e` run. Opt in with:
+
+```bash
+CAPTURE_SCREENSHOTS=1 npx playwright test capture-screenshots
+```
+
+It walks every screen referenced in `docs/user-guides/` and saves a full-page
+screenshot per screen into `e2e/screenshots/<desktop|mobile>/<name>.png` (both
+projects run automatically, so you get a desktop and a mobile capture of each
+screen in one pass). Run it from any environment that can actually reach the
+target Supabase project with a real signed-in account -- a fully
+network-isolated sandbox can't produce real captures here any more than it can
+run the rest of this suite. Drop the resulting PNGs into the user guides (or
+hand them to whoever is assembling a Word/PDF version) to replace the
+placeholder mockups under `apps/web/public/screens/`.
+
 ## What this suite is not a substitute for
 
 - `docs/testing/TESTING_STRATEGY.md`'s RLS/tenant-isolation scripts

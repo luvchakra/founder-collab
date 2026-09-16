@@ -17,3 +17,4 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/playwright/.auth/
 apps/web/blob-report/
+apps/web/e2e/screenshots/
