@@ -369,12 +369,12 @@ export default async function DashboardPage({
       <section>
         <h2 className="text-xl font-semibold">Overview</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Account-wide totals across every business and product, regardless of which
+          Account-wide totals across every business and offering, regardless of which
           modules they have licensed.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <KpiCard label="Businesses" value={businesses.length} href="/dashboard/settings" />
-          <KpiCard label="Products" value={allProducts.length} href="#conversions" />
+          <KpiCard label="Offerings" value={allProducts.length} href="#conversions" />
           <KpiCard
             label="Prospects"
             value={prospectCounts.total}
@@ -415,7 +415,7 @@ export default async function DashboardPage({
             <h2 className="text-xl font-semibold">Conversions</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Discovery&apos;s outreach-to-customer pipeline -- win rate, fit scores, and
-              the funnel from prospect to won customer. Slice by business, product, or
+              the funnel from prospect to won customer. Slice by business, offering, or
               industry below.
             </p>
           </div>
@@ -432,9 +432,9 @@ export default async function DashboardPage({
               </NativeSelect>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="product">Product</Label>
+              <Label htmlFor="product">Offering</Label>
               <NativeSelect id="product" name="product" defaultValue={productFilter ?? ""}>
-                <option value="">All products</option>
+                <option value="">All offerings</option>
                 {productsForFilter.map((e) => (
                   <option key={e.product.id} value={e.product.id}>
                     {e.product.name}
@@ -467,7 +467,7 @@ export default async function DashboardPage({
         {workspaceEntries.length === 0 ? (
           <p className="text-muted-foreground">
             Use the business switcher in the sidebar to create your first business and
-            start building a GTM workspace for a product.
+            start building a GTM workspace for a business offering.
           </p>
         ) : (
           <>
@@ -516,7 +516,7 @@ export default async function DashboardPage({
             {productRows.length > 0 ? (
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Products in this slice</CardTitle>
+                  <CardTitle className="text-base">Offerings in this slice</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col divide-y">
                   {productRows.map(({ entry, total, won }) => {

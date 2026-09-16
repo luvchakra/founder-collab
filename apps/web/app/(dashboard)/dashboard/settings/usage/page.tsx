@@ -115,7 +115,7 @@ export default async function AccountUsagePage() {
               <thead>
                 <tr className="border-b bg-muted/30 text-left text-muted-foreground">
                   <th className="py-2 pr-4 pl-3 font-medium">Business</th>
-                  <th className="py-2 pr-4 font-medium">Product</th>
+                  <th className="py-2 pr-4 font-medium">Offering</th>
                   <th className="py-2 pr-4 font-medium">Runs</th>
                   <th className="py-2 pr-4 font-medium">Free-tier used</th>
                 </tr>
