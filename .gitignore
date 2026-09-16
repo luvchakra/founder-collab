@@ -11,3 +11,9 @@ npm-debug.log*
 coverage/
 .vercel/
 .claude/worktrees/
+
+# Playwright (apps/web/e2e) -- generated per run, never checked in.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/playwright/.auth/
+apps/web/blob-report/

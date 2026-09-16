@@ -98,10 +98,16 @@ Numbering is sequential per module, never reused.
   automates "generate invoice → send → record payment → balance reaches zero"
   end-to-end. `test-sales-returns-workflow.mjs` is the one example of this pattern in
   the repo; more modules should get an equivalent once their core RLS layer is stable.
-- No e2e/UI test framework. Given the pace of UI changes visible in the git history
-  (sidebar rebuilt multiple times, stage tabs rebuilt multiple times), hold off on
-  Playwright until the shell/navigation layer stops churning — same reasoning as
-  `co-founder-ai`'s own testing doc reached before the port.
+- ~~No e2e/UI test framework... hold off on Playwright until the shell/navigation layer
+  stops churning~~ — superseded: that churn (business-slug routing, the FSM→Service and
+  GST→Compliance URL renames) is done. A critical-path Playwright smoke suite now lives
+  at `apps/web/e2e/` (`npm run e2e` from `apps/web`) — see
+  `docs/testing/e2e-playwright.md` for scope, setup and how to extend it. It exists
+  specifically because a real class of bug (a Server Component handing a Client Component
+  something that can't cross that boundary — crashed CRM Opportunities' default view,
+  Compliance Reconciliation, and the platform admin tool, every one on first render) is
+  invisible to typecheck, lint, and every vitest suite in this repo; only an actual
+  browser render catches it.
 - License lifecycle (`core.license_events`, 30-day grace, reactivation replay) is
   architecturally central (ADR-9) but only has RLS-level coverage today
   (`test-core-*` scripts don't appear to include a dedicated license-lifecycle
