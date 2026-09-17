@@ -212,4 +212,66 @@ describe("ingestInboundEmail", () => {
 
     expect(createAdminClient).toHaveBeenCalled();
   });
+
+  /**
+   * Each write in the chain is followed by its own error check. They matter individually:
+   * the webhook's caller turns a throw into a retry, so a swallowed failure here would
+   * either drop a real reply or leave a conversation that says "awaiting reply" after the
+   * prospect already answered.
+   */
+  it("propagates a failure to look up the open conversation", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) =>
+        call.table === "contacts"
+          ? { data: CONTACT, error: null }
+          : { data: null, error: new Error("conversation lookup failed") },
+    });
+    createAdminClient.mockReturnValue(supabase);
+
+    await expect(ingestInboundEmail(PAYLOAD)).rejects.toThrow("conversation lookup failed");
+    expect(supabase.queries("messages")).toEqual([]);
+  });
+
+  it("propagates a failure to open a new conversation", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) => {
+        if (call.table === "contacts") return { data: CONTACT, error: null };
+        if (usedOp(call, "insert")) return { data: null, error: new Error("insert denied") };
+        return { data: null, error: null };
+      },
+    });
+    createAdminClient.mockReturnValue(supabase);
+
+    await expect(ingestInboundEmail(PAYLOAD)).rejects.toThrow("insert denied");
+    expect(supabase.queries("messages")).toEqual([]);
+  });
+
+  it("propagates a failure to store the reply", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) => {
+        if (call.table === "contacts") return { data: CONTACT, error: null };
+        if (call.table === "messages") return { data: null, error: new Error("message insert failed") };
+        return { data: { id: "conv-1" }, error: null };
+      },
+    });
+    createAdminClient.mockReturnValue(supabase);
+
+    await expect(ingestInboundEmail(PAYLOAD)).rejects.toThrow("message insert failed");
+    expect(classifyReply).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failure to mark the conversation replied", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) => {
+        if (call.table === "contacts") return { data: CONTACT, error: null };
+        if (call.table === "messages") return { data: { id: "m1" }, error: null };
+        if (usedOp(call, "update")) return { data: null, error: new Error("update denied") };
+        return { data: { id: "conv-1" }, error: null };
+      },
+    });
+    createAdminClient.mockReturnValue(supabase);
+
+    await expect(ingestInboundEmail(PAYLOAD)).rejects.toThrow("update denied");
+    expect(classifyReply).not.toHaveBeenCalled();
+  });
 });

@@ -128,3 +128,54 @@ describe("classifyReply", () => {
     await expect(classifyReply("m1")).rejects.toThrow("not visible");
   });
 });
+
+/** Each lookup in the chain has its own error check; a swallowed one would classify
+ * against the wrong product's context, or write a classification the webhook believes
+ * succeeded. */
+describe("classifyReply — lookup failures", () => {
+  function mockFailingTable(table: string) {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) => {
+        if (call.table === table) return { data: null, error: new Error(`${table} denied`) };
+        if (call.table === "messages") return { data: INBOUND, error: null };
+        if (call.table === "workspaces") return { data: { id: "w1", product_id: "p1" }, error: null };
+        if (call.table === "products") return { data: { name: "Widgets" }, error: null };
+        return { data: null, error: null };
+      },
+    });
+    h.createAdminClient.mockReturnValue(supabase);
+    return supabase;
+  }
+
+  it("propagates a failed workspace lookup before spending an AI call", async () => {
+    mockFailingTable("workspaces");
+
+    await expect(classifyReply("m1")).rejects.toThrow("workspaces denied");
+    expect(h.generateObject).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failed product lookup before spending an AI call", async () => {
+    mockFailingTable("products");
+
+    await expect(classifyReply("m1")).rejects.toThrow("products denied");
+    expect(h.generateObject).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failure to write the classification back", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) => {
+        if (call.table === "messages") {
+          return usedOp(call, "update")
+            ? { data: null, error: new Error("update denied") }
+            : { data: INBOUND, error: null };
+        }
+        if (call.table === "workspaces") return { data: { id: "w1", product_id: "p1" }, error: null };
+        if (call.table === "products") return { data: { name: "Widgets" }, error: null };
+        return { data: null, error: null };
+      },
+    });
+    h.createAdminClient.mockReturnValue(supabase);
+
+    await expect(classifyReply("m1")).rejects.toThrow();
+  });
+});
