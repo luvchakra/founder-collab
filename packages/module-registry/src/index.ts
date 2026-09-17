@@ -229,6 +229,7 @@ export const moduleRegistry: ModuleManifest[] = [
         heading: "Accounting",
         items: [
           { label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" },
+          { label: "Journal", slug: "journal", icon: "BookText" },
           { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },
         ],
       },

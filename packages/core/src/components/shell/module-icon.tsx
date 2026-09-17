@@ -3,6 +3,7 @@
 import {
   AlertTriangle,
   BookOpen,
+  BookText,
   CalendarRange,
   ListChecks,
   ListTodo,
@@ -43,6 +44,7 @@ import {
 const ICONS: Record<string, LucideIcon> = {
   AlertTriangle,
   BookOpen,
+  BookText,
   CalendarRange,
   ListChecks,
   ListTodo,
