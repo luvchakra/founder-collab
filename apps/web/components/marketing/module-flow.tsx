@@ -42,7 +42,7 @@ const NODES = [
   },
   {
     key: "compliance",
-    label: "Compliance",
+    label: "Finance",
     detail: "Invoice filed",
     icon: ShieldCheck,
     pos: { left: "12%", top: "35%" },

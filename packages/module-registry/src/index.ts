@@ -105,10 +105,10 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Purchase Orders", slug: "purchase-orders", icon: "ClipboardList" },
         ],
       },
-      {
-        heading: "Administration",
-        items: [{ label: "Team", slug: "team", icon: "Shield" }],
-      },
+      // No "Administration > Team" group: team and permissions are business-level, not
+      // per-module, and that page lives at /[businessSlug]/admin/team. The entry left
+      // behind here after that move pointed at /inventory/team, which has no page --
+      // a dead link in the rail, and the one failing case in tests/menu-routes.test.ts.
     ],
     features: [
       "Product catalog and multi-warehouse stock",
@@ -209,29 +209,37 @@ export const moduleRegistry: ModuleManifest[] = [
     // module-owned table lives in its own Postgres schema, "gst" among them --
     // renaming the key would mean renaming the schema, every license row's
     // module_key, and the route prefix, none of which this rename asked for).
-    // Only the display `name` changes, to "Compliance" -- same precedent as fsm's
+    // Only the display `name` changes, to "Finance" -- same precedent as fsm's
     // key staying "fsm" while its name is "Service".
+    // The module key, database schema and permission namespace all stay "gst" -- only
+    // the display name and URL segment become "Finance"/"/finance", since existing
+    // licenses, migrations, RLS policies and contracts are all keyed on "gst". The two
+    // historical URL spellings (/gst, /compliance) redirect in proxy.ts.
     key: "gst",
-    name: "Compliance",
-    icon: "Receipt",
-    routePrefix: "/compliance",
+    name: "Finance",
+    icon: "Landmark",
+    routePrefix: "/finance",
+    // Finance's full navigation (accounting, reports, reconciliation) lands with the
+    // pages themselves, phase by phase -- an entry here renders a real link in the rail,
+    // so listing a page before it exists ships a 404 (and fails tests/menu-routes.test.ts,
+    // which asserts every nav item resolves to a real page).
     nav: [
       { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
       {
-        heading: "GST",
+        heading: "Tax & GST",
         items: [
-          { label: "GST Registrations", slug: "registrations", icon: "Building2" },
           { label: "GST Profile", slug: "profile", icon: "Receipt" },
-          { label: "e-Way Bill", slug: "eway-bill", icon: "Truck" },
-          { label: "e-Invoicing", slug: "einvoicing", icon: "FileText" },
+          { label: "GST Registrations", slug: "registrations", icon: "Building2" },
           { label: "GST Filing", slug: "filing", icon: "ClipboardList" },
-          { label: "Reconciliation", slug: "reconciliation", icon: "ListChecks" },
+          { label: "GSTR-2B Reconciliation", slug: "reconciliation", icon: "ListChecks" },
+          { label: "e-Invoicing", slug: "einvoicing", icon: "FileText" },
+          { label: "e-Way Bill", slug: "eway-bill", icon: "Truck" },
         ],
       },
       {
-        // COMPLY-P0-11 (Compliance UI): Evidence (10.1) and Audit Log (10.3) are
-        // cross-cutting record-keeping, not GST-return mechanics -- their own heading,
-        // matching how "Overview" is already split out from "GST" above.
+        // COMPLY-P0-11: Evidence (10.1) and Audit Log (10.3) are cross-cutting
+        // record-keeping, not GST-return mechanics -- their own heading, matching how
+        // "Overview" is already split out above.
         heading: "Records",
         items: [
           { label: "Evidence", slug: "evidence", icon: "FolderOpen" },
@@ -239,7 +247,13 @@ export const moduleRegistry: ModuleManifest[] = [
         ],
       },
     ],
-    features: ["GST profile and GSTIN management", "e-Way bill generation", "e-Invoicing", "GST return filing"],
+    features: [
+      "Accounting, ledger and financial reports",
+      "GST profile and GSTIN management",
+      "e-Way bill generation",
+      "e-Invoicing",
+      "GST return filing and reconciliation",
+    ],
     permissions: ["gst.access"],
     optionalPeers: ["inventory", "fsm"],
   },

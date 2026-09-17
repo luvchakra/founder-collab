@@ -69,11 +69,14 @@ const LEGACY_PRODUCTS_PATH = /^\/([^/]+)\/products(\/.*)?$/;
  * working instead of 404ing. */
 const LEGACY_FSM_PATH = /^\/([^/]+)\/fsm(\/.*)?$/;
 
-/** GST's own route prefix moved from /[businessSlug]/gst/... to
- * /[businessSlug]/compliance/... -- same reasoning and same pure-rewrite shape as
- * `LEGACY_FSM_PATH` right above (module key/schema/package stay "gst", only the URL
- * segment changes, matching `name: "Compliance"` the module already used everywhere else). */
+/** This module's route prefix has moved twice: /[businessSlug]/gst/... became
+ * /compliance/..., which is now /finance/... -- same reasoning and same pure-rewrite
+ * shape as `LEGACY_FSM_PATH` right above. The module key, schema and package all stay
+ * "gst" (CLAUDE.md non-negotiables); only the URL segment and the display name change,
+ * the latter now `name: "Finance"` in module-registry. Both old spellings are kept so
+ * every bookmark, saved link and stale in-app href still resolves. */
 const LEGACY_GST_PATH = /^\/([^/]+)\/gst(\/.*)?$/;
+const LEGACY_COMPLIANCE_PATH = /^\/([^/]+)\/compliance(\/.*)?$/;
 
 /** Business slug embedded in the URL -- the first path segment, once `isProtectedPath`
  * has already ruled out every static top-level route it could otherwise be. Kept as its
@@ -267,13 +270,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
-  // Same idea for GST's own route prefix, which moved from /[businessSlug]/gst/... to
-  // /[businessSlug]/compliance/... -- another pure segment rewrite, no DB lookup needed.
-  const gstMatch = pathname.match(LEGACY_GST_PATH);
+  // Same idea for this module's own route prefix, which has now moved twice:
+  // /[businessSlug]/gst/... -> /compliance/... -> /finance/... Both historical spellings
+  // redirect straight to the current one (not in a chain), so an old bookmark costs one
+  // redirect rather than two.
+  const gstMatch = pathname.match(LEGACY_GST_PATH) ?? pathname.match(LEGACY_COMPLIANCE_PATH);
   if (gstMatch) {
     const [, businessSlugSegment, rest] = gstMatch;
     const url = request.nextUrl.clone();
-    url.pathname = `/${businessSlugSegment}/compliance${rest ?? ""}`;
+    url.pathname = `/${businessSlugSegment}/finance${rest ?? ""}`;
     return NextResponse.redirect(url, 308);
   }
 

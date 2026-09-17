@@ -98,7 +98,7 @@ async function computeModuleWidgets(
   if (gstBusinesses.length > 0) {
     const einvoices = await getEinvoicesThisMonthCount(gstBusinesses.map((b) => b.id));
     const slug = soleSlug(gstBusinesses);
-    widgets.push({ key: "gst", label: "Compliance", icon: "Receipt", value: einvoices, detail: "e-invoices this month", href: slug ? `/${slug}/compliance/einvoicing` : undefined });
+    widgets.push({ key: "gst", label: "Finance", icon: "Landmark", value: einvoices, detail: "e-invoices this month", href: slug ? `/${slug}/finance/einvoicing` : undefined });
   }
 
   return { widgets, licensesByBusiness };
@@ -156,7 +156,7 @@ async function buildAttentionItems(
       items.push({
         key: `gst-profile-${business.id}`,
         message: `${business.name} has Compliance licensed but no GSTIN set.`,
-        href: `/${business.slug}/compliance/profile`,
+        href: `/${business.slug}/finance/profile`,
         actionLabel: "Set up",
         severity: "info",
       });

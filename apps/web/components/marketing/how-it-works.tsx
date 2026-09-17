@@ -67,7 +67,7 @@ export function HowItWorks() {
             body="Turn on Discovery, Inventory, Service, CRM and Compliance independently. Drop a module later without losing its data -- cancelling keeps everything, read-only, for 30 days before access is paused."
           >
             <OutputList
-              items={["Discovery", "Inventory", "Service", "CRM", "Compliance"]}
+              items={["Discovery", "Inventory", "Service", "CRM", "Finance"]}
             />
           </StepShell>
 

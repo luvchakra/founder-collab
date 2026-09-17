@@ -68,7 +68,7 @@ const MODULES: {
     frame: "mobile",
   },
   {
-    name: "Compliance",
+    name: "Finance",
     tagline: "GST built from the sales data you already have",
     body: "GSTIN registrations, e-invoicing, e-way bills and return filings are computed from the same invoices and sales orders that Inventory already recorded -- not re-entered by hand.",
     features: [

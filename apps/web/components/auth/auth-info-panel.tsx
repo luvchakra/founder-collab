@@ -6,7 +6,7 @@ const MODULE_HIGHLIGHTS = [
   { icon: Boxes, label: "Inventory", detail: "One stock count, shared by every sale and job" },
   { icon: CalendarClock, label: "Service", detail: "Jobs, crew and parts on one calendar" },
   { icon: MessagesSquare, label: "CRM", detail: "Every channel in one inbox, tied to the same customer" },
-  { icon: ShieldCheck, label: "Compliance", detail: "GST registrations and filings, built in" },
+  { icon: ShieldCheck, label: "Finance", detail: "Accounting, GST registrations and filings, built in" },
 ];
 
 const TRUST_BADGES = ["GST-ready", "GDPR-aligned", "SOC 2-aligned practices", "Full audit trail"];

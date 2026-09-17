@@ -4,7 +4,7 @@ import { FadeIn } from "./fade-in";
 const FAQS: [string, string][] = [
   [
     `What exactly is ${BRAND_NAME}?`,
-    `${BRAND_NAME} is one portal, one login, five independently licensed modules: Discovery (customer discovery and outreach), Inventory (products and purchasing), Service (field service and jobs), CRM (a unified inbox) and Compliance (GST). Every module shares the same underlying customer, item and document data.`,
+    `${BRAND_NAME} is one portal, one login, five independently licensed modules: Discovery (customer discovery and outreach), Inventory (products and purchasing), Service (field service and jobs), CRM (a unified inbox) and Finance (accounting and GST). Every module shares the same underlying customer, item and document data.`,
   ],
   [
     "Do I have to buy all five modules?",

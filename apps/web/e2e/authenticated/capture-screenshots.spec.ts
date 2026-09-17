@@ -53,10 +53,10 @@ const BUSINESS_PAGES: { name: string; path: (slug: string) => string }[] = [
   { name: "04-crm-lost-business", path: (s) => `/${s}/crm/lost-business` },
   { name: "04-crm-channels", path: (s) => `/${s}/crm/channels` },
 
-  { name: "05-compliance-dashboard", path: (s) => `/${s}/compliance/dashboard` },
-  { name: "05-compliance-registrations", path: (s) => `/${s}/compliance/registrations` },
-  { name: "05-compliance-reconciliation", path: (s) => `/${s}/compliance/reconciliation` },
-  { name: "05-compliance-filing", path: (s) => `/${s}/compliance/filing` },
+  { name: "05-finance-dashboard", path: (s) => `/${s}/finance/dashboard` },
+  { name: "05-finance-registrations", path: (s) => `/${s}/finance/registrations` },
+  { name: "05-finance-reconciliation", path: (s) => `/${s}/finance/reconciliation` },
+  { name: "05-finance-filing", path: (s) => `/${s}/finance/filing` },
 ];
 
 test("capture static pages", async ({ page }, testInfo) => {

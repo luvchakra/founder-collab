@@ -39,7 +39,7 @@ const MODULE_LABEL: Record<string, string> = {
   inventory: "Inventory",
   fsm: "Service",
   crm: "CRM",
-  gst: "Compliance",
+  gst: "Finance",
 };
 
 function groupByModule<T extends { module: string }>(items: T[]): [string, T[]][] {

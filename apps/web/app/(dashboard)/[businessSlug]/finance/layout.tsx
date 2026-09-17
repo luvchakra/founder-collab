@@ -11,7 +11,7 @@ import { UnsupportedCountryNotice } from "@cofounderai/module-gst/components/com
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { setComplianceCountryAction, setComplianceRegimeAction } from "./actions";
 
-const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Compliance";
+const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Finance";
 
 /** Item #19 of a UX pass: this had drifted from inventory/layout.tsx's fixed, generic
  * "Business > [module]" trail (no "Control Center" crumb, no per-instance business

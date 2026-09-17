@@ -2,16 +2,27 @@ import { expect, test } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
 import { getTestBusinessSlug } from "../support/business";
 
-test.describe("Compliance", () => {
-  test("dashboard loads at the /compliance URL (not the old /gst/ segment)", async ({ page }) => {
+test.describe("Finance", () => {
+  test("dashboard loads at the /finance URL", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
-    await page.goto(`/${slug}/compliance/dashboard`);
+    await page.goto(`/${slug}/finance/dashboard`);
     await expectNoAppCrash(page);
   });
 
+  // The URL segment has moved twice (/gst -> /compliance -> /finance); both historical
+  // spellings must keep resolving, or every saved link and bookmark breaks.
+  for (const legacy of ["gst", "compliance"]) {
+    test(`the legacy /${legacy}/ segment still redirects to /finance/`, async ({ page }) => {
+      const slug = await getTestBusinessSlug(page);
+      await page.goto(`/${slug}/${legacy}/dashboard`);
+      await expect(page).toHaveURL(new RegExp(`/${slug}/finance/dashboard$`));
+      await expectNoAppCrash(page);
+    });
+  }
+
   test("country bar shows the operating country and reachable selects", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
-    await page.goto(`/${slug}/compliance/dashboard`);
+    await page.goto(`/${slug}/finance/dashboard`);
     await expect(page.getByText("Operating in")).toBeVisible();
   });
 
@@ -21,22 +32,22 @@ test.describe("Compliance", () => {
   // component (PeriodPicker) fixed it; this proves the page as a whole still renders.
   test("Reconciliation loads without crashing", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
-    await page.goto(`/${slug}/compliance/reconciliation`);
+    await page.goto(`/${slug}/finance/reconciliation`);
     await expectNoAppCrash(page);
     await expect(page.getByRole("heading", { name: "Reconciliation" })).toBeVisible();
     await expect(page.getByLabel("Period")).toBeVisible();
   });
 
-  test("legacy /gst/ URL redirects to /compliance/", async ({ page }) => {
+  test("legacy /gst/ URL redirects to /finance/", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
     await page.goto(`/${slug}/gst/profile`);
-    await page.waitForURL(new RegExp(`/${slug}/compliance/profile$`));
+    await page.waitForURL(new RegExp(`/${slug}/finance/profile$`));
     await expectNoAppCrash(page);
   });
 
   test("Registrations page reflects the business's actual country/regime, not hard-coded India", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
-    await page.goto(`/${slug}/compliance/registrations`);
+    await page.goto(`/${slug}/finance/registrations`);
     await expectNoAppCrash(page);
     // Title is "<Regime name> registrations" for whatever country is active (GSTIN for
     // India, VAT for the EU packs, Sales Tax for the US, GST/HST for Canada) -- just

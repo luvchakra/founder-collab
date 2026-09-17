@@ -56,7 +56,7 @@ const MODULE_LANDING_PAGES: { module: string; path: (slug: string) => string; he
   { module: "Inventory", path: (slug) => `/${slug}/inventory/dashboard`, heading: /dashboard/i },
   { module: "Service", path: (slug) => `/${slug}/service`, heading: /dashboard|service/i },
   { module: "CRM", path: (slug) => `/${slug}/crm/dashboard`, heading: /dashboard/i },
-  { module: "Compliance", path: (slug) => `/${slug}/compliance/dashboard`, heading: /dashboard/i },
+  { module: "Finance", path: (slug) => `/${slug}/finance/dashboard`, heading: /dashboard/i },
 ];
 
 for (const { module, path } of MODULE_LANDING_PAGES) {

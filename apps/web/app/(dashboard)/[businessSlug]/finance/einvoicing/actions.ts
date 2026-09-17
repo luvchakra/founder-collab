@@ -38,6 +38,6 @@ export async function saveEinvoiceCredentialsAction(
     return { error: error instanceof Error ? error.message : "Could not save e-Invoicing credentials." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/compliance/einvoicing`);
+  revalidatePath(`${await businessPath(businessId)}/finance/einvoicing`);
   return { success: true };
 }

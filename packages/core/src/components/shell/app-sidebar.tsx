@@ -15,7 +15,7 @@ import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./t
 
 /**
  * Infers the active module from the URL for the routes that unambiguously indicate one
- * (/[businessSlug]/inventory/... and /[businessSlug]/compliance/...) -- everything else
+ * (/[businessSlug]/inventory/... and /[businessSlug]/finance/...) -- everything else
  * (bare business page, discovery's own /discovery/... routes, non-module pages like
  * settings) returns null so the caller falls back to the last explicitly opened section.
  * Written locally rather than reusing module-discovery's `getActiveIdsFromPath` since
@@ -34,7 +34,10 @@ function inferModuleFromPath(pathname: string | null): string | null {
   if (!match) return null;
   const section = match[1];
   if (section === "inventory") return "inventory";
-  if (section === "compliance") return "gst";
+  // "finance" is the current URL segment; "compliance" and "gst" are the two historical
+  // spellings the proxy still redirects from, recognised here so the rail highlights the
+  // right module during that redirect rather than flickering to the default.
+  if (section === "finance" || section === "compliance" || section === "gst") return "gst";
   if (!section || section === "discovery" || section === "business") return "discovery";
   return null;
 }

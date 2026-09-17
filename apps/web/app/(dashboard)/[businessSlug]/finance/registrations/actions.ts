@@ -60,13 +60,13 @@ export async function createTaxRegistrationAction(
     return { error: error instanceof Error ? error.message : "Could not add this registration." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/compliance/registrations`);
+  revalidatePath(`${await businessPath(businessId)}/finance/registrations`);
   return { success: true };
 }
 
 export async function setPrimaryTaxRegistrationAction(businessId: string, registrationId: string): Promise<void> {
   await setPrimaryTaxRegistration(businessId, registrationId);
-  revalidatePath(`${await businessPath(businessId)}/compliance/registrations`);
+  revalidatePath(`${await businessPath(businessId)}/finance/registrations`);
 }
 
 export async function setTaxRegistrationStatusAction(
@@ -75,7 +75,7 @@ export async function setTaxRegistrationStatusAction(
   status: TaxRegistrationStatus,
 ): Promise<void> {
   await setTaxRegistrationStatus(businessId, registrationId, status);
-  revalidatePath(`${await businessPath(businessId)}/compliance/registrations`);
+  revalidatePath(`${await businessPath(businessId)}/finance/registrations`);
 }
 
 /**
@@ -112,6 +112,6 @@ export async function setGstRegistrationProfileAction(
     return { error: error instanceof Error ? error.message : "Could not save this registration's GST profile." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/compliance/registrations`);
+  revalidatePath(`${await businessPath(businessId)}/finance/registrations`);
   return { success: true };
 }

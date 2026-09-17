@@ -28,7 +28,7 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["Inventory", "#module-inventory"],
       ["Service", "#module-service"],
       ["CRM", "#module-crm"],
-      ["Compliance", "#module-compliance"],
+      ["Finance", "#module-finance"],
     ],
   },
 ];

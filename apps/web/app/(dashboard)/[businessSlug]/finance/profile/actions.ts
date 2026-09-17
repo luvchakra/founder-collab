@@ -31,6 +31,6 @@ export async function saveGstProfileAction(
     return { error: error instanceof Error ? error.message : "Could not save GST profile." };
   }
 
-  revalidatePath(`${await businessPath(businessId)}/compliance/profile`);
+  revalidatePath(`${await businessPath(businessId)}/finance/profile`);
   return { success: true };
 }
