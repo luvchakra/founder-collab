@@ -48,12 +48,12 @@ describe("addKnowledgeSource", () => {
   it("trims content and defaults the name to the source type", async () => {
     const supabase = mock();
 
-    await addKnowledgeSource(WORKSPACE, { sourceType: "text", sourceName: "  ", content: "  hello  " });
+    await addKnowledgeSource(WORKSPACE, { sourceType: "manual", sourceName: "  ", content: "  hello  " });
 
     expect(writtenRow(supabase.queries("product_knowledge")[0]!)).toEqual({
       workspace_id: WORKSPACE,
-      source_type: "text",
-      source_name: "text",
+      source_type: "manual",
+      source_name: "manual",
       content: "hello",
     });
   });
@@ -61,7 +61,7 @@ describe("addKnowledgeSource", () => {
   it("caps content at 15K characters", async () => {
     const supabase = mock();
 
-    await addKnowledgeSource(WORKSPACE, { sourceType: "text", sourceName: "big", content: "a".repeat(20_000) });
+    await addKnowledgeSource(WORKSPACE, { sourceType: "manual", sourceName: "big", content: "a".repeat(20_000) });
 
     expect(String(writtenRow(supabase.queries("product_knowledge")[0]!)!.content)).toHaveLength(15_000);
   });
@@ -72,7 +72,7 @@ describe("addKnowledgeSource", () => {
       const supabase = mock();
 
       await expect(
-        addKnowledgeSource(WORKSPACE, { sourceType: "text", sourceName: "n", content }),
+        addKnowledgeSource(WORKSPACE, { sourceType: "manual", sourceName: "n", content }),
       ).rejects.toThrow("Content is required.");
       expect(supabase.queries()).toEqual([]);
     },
@@ -82,7 +82,7 @@ describe("addKnowledgeSource", () => {
     mock({ query: () => ({ data: null, error: new Error("denied") }) });
 
     await expect(
-      addKnowledgeSource(WORKSPACE, { sourceType: "text", sourceName: "n", content: "c" }),
+      addKnowledgeSource(WORKSPACE, { sourceType: "manual", sourceName: "n", content: "c" }),
     ).rejects.toThrow("denied");
   });
 });
