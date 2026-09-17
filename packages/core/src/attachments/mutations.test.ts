@@ -6,7 +6,7 @@
  * file that does not exist.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createFakeSupabase, eqFilters, writtenRow, type QueryResult } from "../test-support/fake-supabase";
+import { createFakeSupabase, eqFilters, usedOp, writtenRow, type QueryResult } from "../test-support/fake-supabase";
 
 const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock("../db/server", () => ({ createClient }));
@@ -163,6 +163,17 @@ describe("deleteAttachment", () => {
 
     await expect(deleteAttachment("att-1")).rejects.toThrow("remove denied");
     expect(supabase.queries("attachments")).toHaveLength(1); // the lookup only
+  });
+
+  it("propagates a failure to drop the metadata row, after the object is already gone", async () => {
+    const supabase = createFakeSupabase({
+      query: (call) =>
+        usedOp(call, "delete") ? { data: null, error: new Error("delete denied") } : stored,
+      storage: () => ({ data: null, error: null }),
+    });
+    createClient.mockResolvedValue(supabase);
+
+    await expect(deleteAttachment("att-1")).rejects.toThrow("delete denied");
   });
 
   it("propagates a failed lookup without touching storage", async () => {

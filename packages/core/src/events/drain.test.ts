@@ -204,6 +204,32 @@ describe("drainDomainEvents", () => {
   });
 });
 
+describe("drainDomainEvents — recording failures", () => {
+  it("treats a query that returns nothing as an empty batch", async () => {
+    const supabase = createFakeSupabase({
+      query: (): QueryResult => ({ data: null, error: null }),
+    });
+    createAdminClient.mockReturnValue(supabase);
+
+    await expect(drainDomainEvents()).resolves.toEqual({ processed: 0, parked: 0, failed: 0 });
+    expect(supabase.rpcs()).toEqual([]);
+  });
+
+  it("propagates a failure to record the attempt, rather than losing the outcome", async () => {
+    registerEventHandler("test.record-fails", vi.fn().mockResolvedValue(undefined));
+    const supabase = mockAdmin([makeEvent({ type: "test.record-fails" })], (fn) =>
+      fn === "record_domain_event_attempt"
+        ? { data: null, error: new Error("record denied") }
+        : { data: null, error: null },
+    );
+
+    await expect(drainDomainEvents()).rejects.toThrow("record denied");
+    // the handler ran, so the first attempt recorded is the success it could not write;
+    // the retry the catch records then fails the same way and surfaces
+    expect(outcomes(supabase)).toEqual(["processed", "failed_retry"]);
+  });
+});
+
 describe("replayParkedEvents", () => {
   it("un-parks a business's events for one module and returns the count", async () => {
     const supabase = createFakeSupabase({ rpc: () => ({ data: 3, error: null }) });

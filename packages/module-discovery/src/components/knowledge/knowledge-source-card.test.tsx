@@ -102,4 +102,18 @@ describe("KnowledgeSourceCard", () => {
 
     await waitFor(() => expect(deleteAction).toHaveBeenCalled());
   });
+
+  it("expands and re-collapses a long source's content", async () => {
+    const u = userEvent.setup();
+    setup();
+    const content = "The product forecasts stock.";
+
+    expect(screen.getByText(content)).toHaveClass("line-clamp-3");
+
+    await u.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText(content)).not.toHaveClass("line-clamp-3");
+
+    await u.click(screen.getByRole("button", { expanded: true }));
+    expect(screen.getByText(content)).toHaveClass("line-clamp-3");
+  });
 });

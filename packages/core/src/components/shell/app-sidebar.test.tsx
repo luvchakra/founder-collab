@@ -17,8 +17,12 @@ vi.mock("next/navigation", () => ({ usePathname }));
 const { useSidebar } = vi.hoisted(() => ({ useSidebar: vi.fn() }));
 vi.mock("./sidebar-context", () => ({ useSidebar }));
 
+const { accountMenuProps } = vi.hoisted(() => ({ accountMenuProps: vi.fn() }));
 vi.mock("./sidebar-account-menu", () => ({
-  SidebarAccountMenu: () => <div data-testid="account-menu" />,
+  SidebarAccountMenu: (props: Record<string, unknown>) => {
+    accountMenuProps(props);
+    return <div data-testid="account-menu" />;
+  },
 }));
 
 const { AppSidebar } = await import("./app-sidebar");
@@ -251,5 +255,14 @@ describe("AppSidebar — unlicensed modules", () => {
     expect(link).toHaveAttribute("href", "/crm");
     expect(link).toHaveAttribute("data-licensed", "true");
     expect(link).not.toHaveTextContent("Upgrade");
+  });
+
+  it("closes the drawer when the account menu navigates away", () => {
+    renderSidebar();
+
+    const props = accountMenuProps.mock.calls.at(-1)![0] as { onNavigate: () => void };
+    props.onNavigate();
+
+    expect(setOpen).toHaveBeenCalledWith(false);
   });
 });

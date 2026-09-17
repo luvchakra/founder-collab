@@ -95,6 +95,14 @@ describe("addPartyRole", () => {
 });
 
 describe("addPartyContact", () => {
+  it("propagates a failure rather than reporting a contact that was never written", async () => {
+    mockClient(() => ({ data: null, error: new Error("insert denied") }));
+
+    await expect(addPartyContact({ businessId: BUSINESS, partyId: PARTY })).rejects.toThrow(
+      "insert denied",
+    );
+  });
+
   it("nulls every unset optional field and defaults is_primary to false", async () => {
     const supabase = mockClient();
 
