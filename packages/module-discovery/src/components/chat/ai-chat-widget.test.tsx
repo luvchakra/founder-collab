@@ -248,7 +248,7 @@ describe("AiChatWidget — dismissing and returning", () => {
     await openPanel();
     await screen.findByRole("dialog");
 
-    await u.click(document.querySelector('[aria-hidden="true"].fixed')!);
+    await u.click(document.querySelector("div.fixed.inset-0.bg-black\\/50")!);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -355,5 +355,52 @@ describe("AiChatWidget — follow-ups and guards", () => {
 
     release({ answer: "done", followUp: null });
     await screen.findByText("done");
+  });
+});
+
+describe("AiChatWidget — thread key", () => {
+  it("threads by business when no product is in view", async () => {
+    h.usePathname.mockReturnValue("/dashboard/businesses/b1");
+    render(<AiChatWidget />);
+
+    await openPanel();
+
+    await waitFor(() =>
+      expect(h.getChatPanelDataAction).toHaveBeenCalledWith({ businessId: "b1", productId: null }),
+    );
+  });
+
+  it("threads against the account when nothing is in view", async () => {
+    h.usePathname.mockReturnValue("/dashboard");
+    render(<AiChatWidget />);
+
+    await openPanel();
+
+    await waitFor(() =>
+      expect(h.getChatPanelDataAction).toHaveBeenCalledWith({ businessId: null, productId: null }),
+    );
+  });
+
+  it("tolerates a null pathname", async () => {
+    h.usePathname.mockReturnValue(null);
+
+    expect(() => render(<AiChatWidget />)).not.toThrow();
+  });
+
+  it("drops a thread load that resolves after the widget is gone", async () => {
+    let release: (value: unknown) => void = () => {};
+    h.getChatPanelDataAction.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    const { unmount } = render(<AiChatWidget />);
+    await openPanel();
+
+    unmount();
+    release({ messages: [{ role: "assistant", content: "late answer" }], followUp: null, starterQuestions: [] });
+
+    // no state update on an unmounted tree, and nothing rendered from it
+    await waitFor(() => expect(screen.queryByText("late answer")).not.toBeInTheDocument());
   });
 });

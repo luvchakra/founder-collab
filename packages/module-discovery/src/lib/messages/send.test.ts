@@ -274,3 +274,45 @@ describe("sendMessage — outcome", () => {
     await expect(sendMessage("m1")).rejects.toThrow("not visible");
   });
 });
+
+/** The status write is the whole point of this function — if it fails, the founder is
+ * told the send succeeded (or failed) on the strength of a row that was never updated. */
+describe("sendMessage — status write failures", () => {
+  function mockUpdateFailure() {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery) =>
+        usedOp(call, "update")
+          ? { data: null, error: new Error("status write denied") }
+          : { data: MESSAGE, error: null },
+    });
+    h.createClient.mockResolvedValue(supabase);
+    return supabase;
+  }
+
+  it("propagates a failure to record a successful send", async () => {
+    mockUpdateFailure();
+
+    await expect(sendMessage("m1")).rejects.toThrow("status write denied");
+    expect(h.markConversationAwaitingReply).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failure to record the provider's rejection", async () => {
+    h.send.mockResolvedValue({ data: null, error: { message: "Mailbox does not exist" } });
+    mockUpdateFailure();
+
+    await expect(sendMessage("m1")).rejects.toThrow("status write denied");
+  });
+
+  it("brands from the prospect when the workspace behind the message is gone", async () => {
+    mock();
+    h.getWorkspace.mockResolvedValue(null);
+
+    await sendMessage("m1");
+
+    expect(h.getProduct).not.toHaveBeenCalled();
+    expect(h.renderEmailHtml.mock.calls[0]![0]).toMatchObject({
+      brandName: "Acme",
+      websiteUrl: null,
+    });
+  });
+});
