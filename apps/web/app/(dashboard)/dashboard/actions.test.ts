@@ -108,4 +108,24 @@ describe("createProductAction", () => {
     );
     expect(h.redirect).not.toHaveBeenCalled();
   });
+
+  it("passes empty strings through when the create form omits its optional fields", async () => {
+    await expect(createBusinessAction("acct-1", form({ name: "Acme" }))).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+
+    expect(h.createBusiness).toHaveBeenCalledWith("acct-1", {
+      name: "Acme",
+      website: "",
+      industry: "",
+    });
+  });
+
+  it("does the same for a product", async () => {
+    await expect(createProductAction("biz-1", form({ name: "Widgets" }))).rejects.toThrow(
+      /NEXT_REDIRECT/,
+    );
+
+    expect(h.createProduct).toHaveBeenCalledWith("biz-1", { name: "Widgets", website: "" });
+  });
 });

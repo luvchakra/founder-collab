@@ -258,4 +258,23 @@ describe("updateAvatarAction — upload", () => {
     expect(h.revalidatePath).toHaveBeenCalledWith("/dashboard/settings/profile");
     expect(h.revalidatePath).toHaveBeenCalledWith("/dashboard");
   });
+
+  it("clears every profile field a bare submission omits", async () => {
+    const { updateUser } = mockClient();
+
+    await updateProfileAction(null, new FormData());
+
+    expect(updateUser).toHaveBeenCalledWith({
+      data: { full_name: null, bio: null, phone: null },
+    });
+  });
+
+  it("defaults the stored extension when the filename ends in a dot", async () => {
+    const { supabase } = mockClient();
+
+    await updateAvatarAction(null, imageForm(image("image/png", 16, "avatar.")));
+
+    const path = String(supabase.storageCalls("upload")[0]!.args[0]);
+    expect(path.endsWith(".png")).toBe(true);
+  });
 });

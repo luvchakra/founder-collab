@@ -7,7 +7,7 @@
  * initials derived from the name, or from the email when there is no name.
  */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
@@ -91,10 +91,10 @@ describe("AvatarUploadForm", () => {
   });
 
   it("leaves the initials alone when the picker is dismissed without a file", async () => {
-    const u = userEvent.setup();
     const { container } = renderForm();
 
-    await u.upload(fileInput(), []);
+    // userEvent.upload with no files is a no-op, so fire the change the browser would
+    fireEvent.change(fileInput(), { target: { files: [] } });
 
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(container.querySelector("img")).toBeNull();

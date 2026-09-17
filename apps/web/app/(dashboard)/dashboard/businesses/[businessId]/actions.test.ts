@@ -108,4 +108,25 @@ describe("updateBusinessDescriptionAction", () => {
       error: "denied",
     });
   });
+
+  it("refuses a rename submitted with no name field at all", async () => {
+    expect(await renameBusinessAction("biz-1", null, new FormData())).toEqual({
+      error: "Name is required.",
+    });
+    expect(h.updateBusiness).not.toHaveBeenCalled();
+  });
+
+  it("clears the description when the form submits no value", async () => {
+    await updateBusinessDescriptionAction("biz-1", null, new FormData());
+
+    expect(h.updateBusiness).toHaveBeenCalledWith("biz-1", { description: "" });
+  });
+
+  it("reports a non-Error failure generically", async () => {
+    h.updateBusiness.mockRejectedValue("a string");
+
+    expect(await updateBusinessDescriptionAction("biz-1", null, form({ value: "x" }))).toEqual({
+      error: "Something went wrong.",
+    });
+  });
 });
