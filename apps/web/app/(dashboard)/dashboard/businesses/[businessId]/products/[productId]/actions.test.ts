@@ -220,3 +220,115 @@ describe("generateProductProfileAction", () => {
     });
   });
 });
+
+/**
+ * Every inline-edit action reads its field with a  default and reports a non-Error
+ * throw generically. Both matter: an EditableText that submits nothing must clear the
+ * field rather than write the string "undefined", and a thrown non-Error (a rejected
+ * string, a Supabase error object) must still reach the founder as a message.
+ */
+describe("missing fields and non-Error failures", () => {
+  const EDITS = [
+    ["renameProductAction", () => renameProductAction],
+    ["updateProductDescriptionAction", () => updateProductDescriptionAction],
+    ["updateProductWebsiteAction", () => updateProductWebsiteAction],
+  ] as const;
+
+  it("clears the description when the form submits no value at all", async () => {
+    expect(await updateProductDescriptionAction("biz-1", "prod-1", null, new FormData())).toEqual({
+      success: true,
+    });
+    expect(h.updateProduct).toHaveBeenCalledWith("prod-1", { description: "" });
+  });
+
+  it("clears the website the same way", async () => {
+    await updateProductWebsiteAction("biz-1", "prod-1", null, new FormData());
+
+    expect(h.updateProduct).toHaveBeenCalledWith("prod-1", { website: "" });
+  });
+
+  it("refuses a rename submitted with no name field", async () => {
+    expect(await renameProductAction("biz-1", "prod-1", null, new FormData())).toEqual({
+      error: "Name is required.",
+    });
+    expect(h.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it.each(EDITS)("%s reports a non-Error failure generically", async (_name, getAction) => {
+    h.updateProduct.mockRejectedValue("a string");
+
+    expect(await getAction()("biz-1", "prod-1", null, form({ name: "n", value: "v" }))).toEqual({
+      error: "Something went wrong.",
+    });
+  });
+
+  it("clears a knowledge source edited to nothing", async () => {
+    await updateSourceAction("biz-1", "prod-1", "src-1", null, new FormData());
+
+    expect(h.updateKnowledgeSource).toHaveBeenCalledWith("src-1", "");
+  });
+
+  it("reports a non-Error source failure generically", async () => {
+    h.updateKnowledgeSource.mockRejectedValue("a string");
+
+    expect(await updateSourceAction("biz-1", "prod-1", "src-1", null, form({ value: "v" }))).toEqual({
+      error: "Something went wrong.",
+    });
+  });
+});
+
+/**
+ * Every inline-edit action reads its field with a "?? empty string" default and reports a
+ * non-Error throw generically. Both matter: an EditableText that submits nothing must
+ * clear the field rather than write the string "undefined", and a thrown non-Error (a
+ * rejected string, a Supabase error object) must still reach the founder as a message.
+ */
+describe("missing fields and non-Error failures", () => {
+  const EDITS = [
+    ["renameProductAction", () => renameProductAction],
+    ["updateProductDescriptionAction", () => updateProductDescriptionAction],
+    ["updateProductWebsiteAction", () => updateProductWebsiteAction],
+  ] as const;
+
+  it("clears the description when the form submits no value at all", async () => {
+    expect(await updateProductDescriptionAction("biz-1", "prod-1", null, new FormData())).toEqual({
+      success: true,
+    });
+    expect(h.updateProduct).toHaveBeenCalledWith("prod-1", { description: "" });
+  });
+
+  it("clears the website the same way", async () => {
+    await updateProductWebsiteAction("biz-1", "prod-1", null, new FormData());
+
+    expect(h.updateProduct).toHaveBeenCalledWith("prod-1", { website: "" });
+  });
+
+  it("refuses a rename submitted with no name field", async () => {
+    expect(await renameProductAction("biz-1", "prod-1", null, new FormData())).toEqual({
+      error: "Name is required.",
+    });
+    expect(h.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it.each(EDITS)("%s reports a non-Error failure generically", async (_name, getAction) => {
+    h.updateProduct.mockRejectedValue("a string");
+
+    expect(await getAction()("biz-1", "prod-1", null, form({ name: "n", value: "v" }))).toEqual({
+      error: "Something went wrong.",
+    });
+  });
+
+  it("clears a knowledge source edited to nothing", async () => {
+    await updateSourceAction("biz-1", "prod-1", "src-1", null, new FormData());
+
+    expect(h.updateKnowledgeSource).toHaveBeenCalledWith("src-1", "");
+  });
+
+  it("reports a non-Error source failure generically", async () => {
+    h.updateKnowledgeSource.mockRejectedValue("a string");
+
+    expect(await updateSourceAction("biz-1", "prod-1", "src-1", null, form({ value: "v" }))).toEqual({
+      error: "Something went wrong.",
+    });
+  });
+});

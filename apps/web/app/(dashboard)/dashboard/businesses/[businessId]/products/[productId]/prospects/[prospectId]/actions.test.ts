@@ -320,3 +320,77 @@ describe("logInboundReplyAction", () => {
     ).toEqual({ error: "free-tier allowance" });
   });
 });
+
+/**
+ * Every field here is read with an empty-string default, so a form that omits one clears
+ * it rather than writing "undefined" — which is the difference between an edit that
+ * blanks a field and one that corrupts it.
+ */
+describe("forms that omit fields entirely", () => {
+  it("clears every prospect field a bare submission leaves out", async () => {
+    await A.updateProspectAction("biz-1", "prod-1", "p1", new FormData());
+
+    expect(h.updateProspect).toHaveBeenCalledWith("p1", {
+      companyName: "",
+      website: "",
+      industry: "",
+      companySize: "",
+      location: "",
+      description: "",
+      linkedinUrl: "",
+      twitterUrl: "",
+      companyEmail: "",
+    });
+  });
+
+  it("creates a contact with every field blank rather than undefined", async () => {
+    await A.addContactAction("biz-1", "prod-1", "w1", "p1", new FormData());
+
+    expect(h.createContact).toHaveBeenCalledWith("w1", "p1", {
+      firstName: "",
+      lastName: "",
+      jobTitle: "",
+      email: "",
+      linkedinUrl: "",
+      phone: "",
+    });
+  });
+
+  it("clears every contact field an edit leaves out", async () => {
+    await A.updateContactAction("biz-1", "prod-1", "p1", "c1", new FormData());
+
+    expect(h.updateContact).toHaveBeenCalledWith("c1", {
+      firstName: "",
+      lastName: "",
+      jobTitle: "",
+      email: "",
+      linkedinUrl: "",
+      phone: "",
+    });
+  });
+
+  it("generates a strategy with no contact when none was chosen", async () => {
+    await A.generateStrategyAction("biz-1", "prod-1", "p1", null, new FormData());
+
+    expect(h.generateOutreachStrategy).toHaveBeenCalledWith("p1", null);
+  });
+
+  it("clears a message edited to an empty body", async () => {
+    await A.updateMessageContentAction("biz-1", "prod-1", "p1", "m1", new FormData());
+
+    expect(h.updateMessageContent).toHaveBeenCalledWith("m1", "", null);
+  });
+
+  it("closes a conversation submitted with no outcome field at all", async () => {
+    await A.closeConversationAction("biz-1", "prod-1", "p1", "conv-1", new FormData());
+
+    expect(h.closeConversation).toHaveBeenCalledWith("conv-1");
+    expect(h.setProspectOutcome).not.toHaveBeenCalled();
+  });
+
+  it("logs an empty reply rather than the string 'undefined'", async () => {
+    await A.logInboundReplyAction("biz-1", "prod-1", "p1", "conv-1", null, new FormData());
+
+    expect(h.logInboundReply).toHaveBeenCalledWith("conv-1", "");
+  });
+});
