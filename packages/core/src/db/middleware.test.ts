@@ -35,6 +35,17 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/p/some-token")).toBe(false);
     expect(isProtectedPath("/")).toBe(false);
   });
+
+  // The pages a signup/reset actually lands on mid-flow, before any session exists.
+  // Protecting one of these would bounce the user to /login at the exact moment they
+  // are being told to go and check their inbox -- and, for /auth/callback, would make
+  // confirming an email address impossible, since the link would redirect to /login
+  // before the code could ever be exchanged for a session.
+  it("leaves the mid-flow auth pages reachable to a signed-out visitor", () => {
+    expect(isProtectedPath("/signup/check-email")).toBe(false);
+    expect(isProtectedPath("/forgot-password/check-email")).toBe(false);
+    expect(isProtectedPath("/auth/callback?code=abc&next=/onboarding")).toBe(false);
+  });
 });
 
 describe("activeBusinessSlugFromPath", () => {

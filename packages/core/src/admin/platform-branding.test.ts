@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { platformBrandingInputSchema, toInputFromBranding, type PlatformBranding } from "./platform-branding";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_PUBLIC_LOGIN_BRANDING,
+  getPublicLoginBranding,
+  platformBrandingInputSchema,
+  toInputFromBranding,
+  type PlatformBranding,
+} from "./platform-branding";
 
 const validInput = {
   platformName: "WonderArk",
@@ -200,5 +206,54 @@ describe("toInputFromBranding (PLATFORM-P0-03.5)", () => {
       expect(result.data.accentColor).toBe("#f97316");
       expect(result.data.footerText).toBe("© WonderArk");
     }
+  });
+});
+
+/**
+ * Regression guard for the outage that made every `(auth)` page 500 -- `/login`,
+ * `/signup`, `/forgot-password` and `/reset-password` all render through a shared layout
+ * that calls getPublicLoginBranding(), so anything this function throws locks every user
+ * out of the product entirely, including the ones trying to sign in and fix it.
+ *
+ * These run without a database on purpose: the failure mode is specifically "the
+ * environment isn't configured", which no DB-backed test could reproduce.
+ */
+describe("getPublicLoginBranding (auth pages must survive an unreadable branding row)", () => {
+  const KEY = "SUPABASE_SERVICE_ROLE_KEY";
+  const original = process.env[KEY];
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+    vi.restoreAllMocks();
+  });
+
+  it("falls back to defaults instead of throwing when the service-role key is missing", async () => {
+    delete process.env[KEY];
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await expect(getPublicLoginBranding()).resolves.toEqual(DEFAULT_PUBLIC_LOGIN_BRANDING);
+  });
+
+  it("says so in the logs rather than failing silently", async () => {
+    delete process.env[KEY];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await getPublicLoginBranding();
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain(KEY);
+  });
+
+  it("defaults are a shape the login page can actually render (a name, and nothing else required)", () => {
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.platformName.trim()).not.toBe("");
+    // Every other field is optional copy -- the page renders each only when set, so null
+    // across the board is exactly the "unbranded platform" state it already handles.
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.loginBackgroundStyle).toBe("gradient");
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.logoUrl).toBeNull();
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.loginHeadline).toBeNull();
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.loginBackgroundValue).toBeNull();
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.loginTermsUrl).toBeNull();
+    expect(DEFAULT_PUBLIC_LOGIN_BRANDING.loginPrivacyUrl).toBeNull();
   });
 });

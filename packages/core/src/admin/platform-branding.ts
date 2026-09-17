@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createClient } from "../db/server";
 import { createAdminClient } from "../db/admin";
 import { requireSuperadmin } from "../rbac/platform-admin";
+import { BRAND_NAME } from "../lib/brand";
 
 /**
  * PLATFORM-P0-03.1: "WonderArk Branding" (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
@@ -431,6 +432,20 @@ export type PublicLoginBranding = {
   loginPrivacyUrl: string | null;
 };
 
+/** What an unconfigured platform shows -- the same values every one of these columns
+ * defaults to before a superadmin publishes anything, so falling back to this is
+ * indistinguishable from a platform that simply hasn't been branded yet. */
+export const DEFAULT_PUBLIC_LOGIN_BRANDING: PublicLoginBranding = {
+  platformName: BRAND_NAME,
+  logoUrl: null,
+  loginHeadline: null,
+  loginSupportText: null,
+  loginBackgroundStyle: "gradient",
+  loginBackgroundValue: null,
+  loginTermsUrl: null,
+  loginPrivacyUrl: null,
+};
+
 /**
  * PLATFORM-P0-03.3: reads the same singleton row `getPlatformBranding()` does, but for a
  * fundamentally different caller -- an anonymous visitor on `/login` (and its sibling auth
@@ -448,6 +463,28 @@ export type PublicLoginBranding = {
  * function being deliberately extended).
  */
 export async function getPublicLoginBranding(): Promise<PublicLoginBranding> {
+  // The login screen is the app's front door, and branding is decoration on it: every
+  // field below has a documented unconfigured default, so a platform that can't read the
+  // row must still render a working login form rather than a 500 that locks every user
+  // out of the product. Two ways that read can fail, both of which used to take the whole
+  // `(auth)` route group down with them:
+  //
+  //   - no SUPABASE_SERVICE_ROLE_KEY in the environment (createAdminClient throws
+  //     "supabaseKey is required" before any query runs) -- a local checkout without
+  //     .env.local, a preview deploy missing the secret, or a rotated key;
+  //   - the query itself erroring (row absent on a freshly-migrated project, network
+  //     blip, PostgREST hiccup).
+  //
+  // Neither is a reason to refuse to show a login form, so both fall back to defaults.
+  // This is deliberately the *only* function here that degrades instead of throwing:
+  // every superadmin-facing read/write in this file must still fail loudly.
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(
+      "[platform-branding] SUPABASE_SERVICE_ROLE_KEY is not set -- serving default login branding.",
+    );
+    return DEFAULT_PUBLIC_LOGIN_BRANDING;
+  }
+
   const supabase = createAdminClient({ schema: "platform" });
   const { data, error } = await supabase
     .from("branding")
@@ -456,7 +493,12 @@ export async function getPublicLoginBranding(): Promise<PublicLoginBranding> {
     )
     .eq("id", true)
     .single();
-  if (error) throw error;
+  if (error || !data) {
+    console.warn(
+      `[platform-branding] could not read login branding (${error?.message ?? "no row"}) -- serving defaults.`,
+    );
+    return DEFAULT_PUBLIC_LOGIN_BRANDING;
+  }
   const row = data as Pick<
     BrandingRow,
     | "platform_name"

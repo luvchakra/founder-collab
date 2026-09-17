@@ -144,6 +144,7 @@ export function SidebarAccountMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label="Account menu"
         className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-sidebar-accent"
       >
         <Avatar className="size-8">
