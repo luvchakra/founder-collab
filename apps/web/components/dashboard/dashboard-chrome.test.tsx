@@ -7,15 +7,19 @@
  * with no server round trip in between.
  */
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname }));
 
+const { modalProps } = vi.hoisted(() => ({ modalProps: vi.fn() }));
 vi.mock("@cofounderai/module-discovery/components/tenancy/create-business-modal", () => ({
-  CreateBusinessModal: () => <div data-testid="create-business-modal" />,
+  CreateBusinessModal: (props: Record<string, unknown>) => {
+    modalProps(props);
+    return <div data-testid="create-business-modal" />;
+  },
 }));
 vi.mock("@cofounderai/module-discovery/components/chat/ai-chat-widget", () => ({
   AiChatWidget: () => <div data-testid="chat-widget" />,
@@ -49,6 +53,15 @@ function renderChrome(props: Record<string, unknown> = {}) {
       <p>page body</p>
     </DashboardChrome>,
   );
+}
+
+/** Opens the topbar's business switcher. Keyboard rather than pointer: the pointer path
+ * leaves global dropdown layer state behind in jsdom that blocks the next open. */
+async function openBusinessSwitcher() {
+  const trigger = screen.getByRole("button", { name: /Acme Co|Select Business/i });
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  return screen.findByRole("menuitem", { name: /Create New Business/i });
 }
 
 /** The drawer only renders once open, so open it before inspecting the nav. */
@@ -145,14 +158,25 @@ describe("DashboardChrome", () => {
   });
 
   it("opens the create-business modal from the business switcher, and only then", async () => {
-    const u = userEvent.setup();
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
     renderChrome();
     expect(screen.queryByTestId("create-business-modal")).not.toBeInTheDocument();
 
-    await u.click(screen.getByRole("button", { name: /Acme Co|Select business/i }));
-    await u.click(await screen.findByRole("menuitem", { name: /Create New Business/i }));
+    await u.click(await openBusinessSwitcher());
 
     expect(screen.getByTestId("create-business-modal")).toBeInTheDocument();
+  });
+
+  it("closes the create-business modal again when it asks to be dismissed", async () => {
+    const u = userEvent.setup({ pointerEventsCheck: 0 });
+    renderChrome();
+
+    await u.click(await openBusinessSwitcher());
+
+    const props = modalProps.mock.calls.at(-1)![0] as { onClose: () => void };
+    act(() => props.onClose());
+
+    expect(screen.queryByTestId("create-business-modal")).not.toBeInTheDocument();
   });
 
   it("signs out through the server action", () => {

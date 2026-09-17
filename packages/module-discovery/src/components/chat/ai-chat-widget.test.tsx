@@ -9,7 +9,7 @@
  * stale history.
  */
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -248,7 +248,8 @@ describe("AiChatWidget — dismissing and returning", () => {
     await openPanel();
     await screen.findByRole("dialog");
 
-    await u.click(document.querySelector("div.fixed.inset-0.bg-black\\/50")!);
+    // the backdrop's own click handler, not the outside-click dismissal
+    fireEvent.click(document.querySelector("div.fixed.inset-0.bg-black\\/50")!);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -402,5 +403,17 @@ describe("AiChatWidget — thread key", () => {
 
     // no state update on an unmounted tree, and nothing rendered from it
     await waitFor(() => expect(screen.queryByText("late answer")).not.toBeInTheDocument());
+  });
+});
+
+describe("AiChatWidget — empty thread", () => {
+  it("explains what it can help with even when there are no starters to offer", async () => {
+    h.getChatPanelDataAction.mockResolvedValue({ messages: [], followUp: null, starterQuestions: [] });
+    render(<AiChatWidget />);
+
+    await openPanel();
+
+    expect(await screen.findByText(/Ask about GTM strategy/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ask me" })).not.toBeInTheDocument();
   });
 });
