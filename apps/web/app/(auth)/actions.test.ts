@@ -180,6 +180,15 @@ describe("signup", () => {
     expect(auth.signUp).toHaveBeenCalled();
   });
 
+  it("requires both an email and a password", async () => {
+    const auth = mockAuth();
+
+    expect(await signup(null, form({ email: "", password: "hunter2hunter2" }))).toEqual({
+      error: "Email and password are required.",
+    });
+    expect(auth.signUp).not.toHaveBeenCalled();
+  });
+
   it("returns a provider error as state", async () => {
     mockAuth({ signUp: vi.fn().mockResolvedValue({ data: {}, error: { message: "User already registered" } }) });
 
@@ -208,6 +217,26 @@ describe("requestPasswordReset", () => {
       error: "Email is required.",
     });
     expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("treats a submission with no email field as an empty email", async () => {
+    const auth = mockAuth();
+
+    expect(await requestPasswordReset(null, new FormData())).toEqual({
+      error: "Email is required.",
+    });
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("falls back to localhost when the request carries no origin", async () => {
+    headers.mockResolvedValue(new Headers());
+    const auth = mockAuth();
+
+    await captureRedirect(() => requestPasswordReset(null, form({ email: "a@b.com" })));
+
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@b.com", {
+      redirectTo: "http://localhost:3000/auth/callback?next=/reset-password",
+    });
   });
 
   it("surfaces a request-level failure (rate limit, malformed address)", async () => {
@@ -249,6 +278,15 @@ describe("updatePassword", () => {
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
+  it("treats a submission with no password fields as too short", async () => {
+    const auth = mockAuth();
+
+    expect(await updatePassword(null, new FormData())).toEqual({
+      error: "Password must be at least 8 characters.",
+    });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
   it("surfaces a provider error", async () => {
     mockAuth({ updateUser: vi.fn().mockResolvedValue({ error: { message: "Session expired" } }) });
 
@@ -277,6 +315,18 @@ describe("signInWithGoogle", () => {
     expect(auth.signInWithOAuth.mock.calls[1]![0].options.redirectTo).toBe(
       `${ORIGIN}/auth/callback?next=/onboarding`,
     );
+  });
+
+  it("falls back to localhost for the callback when there is no origin header", async () => {
+    headers.mockResolvedValue(new Headers());
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithGoogle());
+
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "google",
+      options: { redirectTo: "http://localhost:3000/auth/callback?next=/dashboard" },
+    });
   });
 
   it("sends the founder back to login with the reason when the provider is unavailable", async () => {

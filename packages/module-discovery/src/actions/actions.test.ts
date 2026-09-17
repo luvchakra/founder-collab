@@ -244,6 +244,30 @@ describe("runOnboardingAction", () => {
 
     await expect(runOnboardingAction(null, form(ANSWERS))).rejects.toThrow("NEXT_REDIRECT");
   });
+
+  it("treats a submission with no fields at all as an empty description", async () => {
+    await expect(runOnboardingAction(null, new FormData())).resolves.toEqual({
+      error: "Tell us what you're building first.",
+    });
+    expect(h.createBusiness).not.toHaveBeenCalled();
+  });
+
+  it("passes an empty account id through rather than crashing on a missing field", async () => {
+    const data = form(ANSWERS);
+    data.delete("accountId");
+
+    await runOnboardingAction(null, data);
+
+    expect(h.createBusiness.mock.calls[0]![0]).toBe("");
+  });
+
+  it("falls back to a generic message for a non-Error throw", async () => {
+    h.understandProduct.mockRejectedValue("a string");
+
+    await expect(runOnboardingAction(null, form(ANSWERS))).resolves.toEqual({
+      error: "Something went wrong.",
+    });
+  });
 });
 
 describe("approveOnboardingIcpAction", () => {
