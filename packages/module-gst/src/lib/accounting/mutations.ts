@@ -1,6 +1,12 @@
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
+import {
+  explainPeriodTransition,
+  monthlyPeriodsForFiscalYear,
+  type PeriodStatus,
+} from "./periods";
 import { planProvisioning } from "./provisioning";
 import type { AccountRoleKey, AccountType } from "./types";
 
@@ -148,5 +154,97 @@ export async function updateAccount(
   if (Object.keys(patch).length === 0) return;
 
   const { error } = await supabase.from("accounts").update(patch).eq("business_id", businessId).eq("id", accountId);
+  if (error) throw error;
+}
+
+/**
+ * Opens a fiscal year's twelve monthly periods.
+ *
+ * Idempotent the same way provisioning is: periods that already exist are left exactly
+ * as they are, statuses included, so re-opening a year that is half closed doesn't
+ * quietly reopen the months already filed. The table's own
+ * `unique (business_id, start_date, end_date)` is the real guarantee.
+ */
+export async function openFiscalYear(
+  businessId: string,
+  fiscalYear: number,
+  fiscalYearStartMonth = 4,
+): Promise<{ periodsCreated: number }> {
+  await requireModule(businessId, "gst");
+  await requirePermission(businessId, "gst.periods.manage");
+
+  const supabase = await createClient();
+  const { data: existing, error: readError } = await supabase
+    .from("accounting_periods")
+    .select("start_date")
+    .eq("business_id", businessId)
+    .eq("fiscal_year", fiscalYear);
+  if (readError) throw readError;
+
+  const have = new Set((existing ?? []).map((row: { start_date: string }) => row.start_date));
+  const missing = monthlyPeriodsForFiscalYear(fiscalYear, fiscalYearStartMonth).filter(
+    (period) => !have.has(period.startDate),
+  );
+  if (missing.length === 0) return { periodsCreated: 0 };
+
+  const { error } = await supabase.from("accounting_periods").insert(
+    missing.map((period) => ({
+      business_id: businessId,
+      fiscal_year: period.fiscalYear,
+      start_date: period.startDate,
+      end_date: period.endDate,
+      gst_period: period.gstPeriod,
+      status: "open",
+    })),
+  );
+  if (error) throw error;
+  return { periodsCreated: missing.length };
+}
+
+/**
+ * Moves a period through the close.
+ *
+ * The transition rules live in `periods.ts` and are checked here so the refusal can say
+ * why in words a user can act on. The database enforces the consequence that actually
+ * matters — a locked, filed or closed period takes no postings — via its own trigger, so
+ * this is the readable half of the same rule, not the only half.
+ */
+export async function setAccountingPeriodStatus(
+  businessId: string,
+  periodId: string,
+  status: PeriodStatus,
+): Promise<void> {
+  await requireModule(businessId, "gst");
+  await requirePermission(businessId, "gst.periods.manage");
+
+  const supabase = await createClient();
+  const { data: period, error: readError } = await supabase
+    .from("accounting_periods")
+    .select("status")
+    .eq("business_id", businessId)
+    .eq("id", periodId)
+    .single();
+  if (readError) throw readError;
+
+  const from = (period as { status: PeriodStatus }).status;
+  const refusal = explainPeriodTransition(from, status);
+  if (refusal) throw new Error(refusal);
+
+  const {
+    data: { user },
+  } = await (await createCoreClient({ schema: "core" })).auth.getUser();
+
+  const { error } = await supabase
+    .from("accounting_periods")
+    .update({
+      status,
+      // Who closed the books and when is part of the audit trail, and is cleared again
+      // if a locked period is reopened -- a stale closed_at would read as though the
+      // period were still closed.
+      closed_at: status === "closed" || status === "filed" ? new Date().toISOString() : null,
+      closed_by: status === "closed" || status === "filed" ? (user?.id ?? null) : null,
+    })
+    .eq("business_id", businessId)
+    .eq("id", periodId);
   if (error) throw error;
 }

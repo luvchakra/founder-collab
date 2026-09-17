@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { createClient } from "../../db/server";
 import { orderAccountTree, sumByType, type AccountRow } from "./tree";
+import type { PeriodStatus } from "./periods";
 import type { AccountRoleKey } from "./types";
 
 export type { AccountRow, AccountTypeTotal, AccountWithBalance } from "./tree";
@@ -69,4 +70,27 @@ export const listAccountRoles = cache(async (businessId: string): Promise<Map<st
     byAccount.set(row.account_id, [...(byAccount.get(row.account_id) ?? []), row.role_key]);
   }
   return byAccount;
+});
+
+export interface AccountingPeriodRow {
+  id: string;
+  fiscal_year: number;
+  start_date: string;
+  end_date: string;
+  gst_period: string | null;
+  status: PeriodStatus;
+  closed_at: string | null;
+}
+
+/** The business's accounting calendar, newest period first — the close works backwards
+ * from the month that just ended, so that is the one to have at the top. */
+export const listAccountingPeriods = cache(async (businessId: string): Promise<AccountingPeriodRow[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("accounting_periods")
+    .select("id, fiscal_year, start_date, end_date, gst_period, status, closed_at")
+    .eq("business_id", businessId)
+    .order("start_date", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as AccountingPeriodRow[];
 });

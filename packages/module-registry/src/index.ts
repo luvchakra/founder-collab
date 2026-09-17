@@ -227,7 +227,10 @@ export const moduleRegistry: ModuleManifest[] = [
       { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
       {
         heading: "Accounting",
-        items: [{ label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" }],
+        items: [
+          { label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" },
+          { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },
+        ],
       },
       {
         heading: "Tax & GST",
