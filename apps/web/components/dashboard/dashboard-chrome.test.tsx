@@ -8,6 +8,7 @@
  */
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { usePathname } = vi.hoisted(() => ({ usePathname: vi.fn() }));
@@ -19,7 +20,8 @@ vi.mock("@cofounderai/module-discovery/components/tenancy/create-business-modal"
 vi.mock("@cofounderai/module-discovery/components/chat/ai-chat-widget", () => ({
   AiChatWidget: () => <div data-testid="chat-widget" />,
 }));
-vi.mock("@/app/(auth)/actions", () => ({ signOut: vi.fn() }));
+const { signOut } = vi.hoisted(() => ({ signOut: vi.fn() }));
+vi.mock("@/app/(auth)/actions", () => ({ signOut }));
 
 const { DashboardChrome } = await import("./dashboard-chrome");
 
@@ -130,5 +132,36 @@ describe("DashboardChrome", () => {
     usePathname.mockReturnValue(null);
 
     expect(() => renderChrome()).not.toThrow();
+  });
+
+  it("links each business in the drawer at its own route", () => {
+    renderChrome();
+    openDrawer();
+
+    expect(screen.getByRole("link", { name: /Acme Co/ })).toHaveAttribute(
+      "href",
+      "/dashboard/businesses/biz-1",
+    );
+  });
+
+  it("opens the create-business modal from the business switcher, and only then", async () => {
+    const u = userEvent.setup();
+    renderChrome();
+    expect(screen.queryByTestId("create-business-modal")).not.toBeInTheDocument();
+
+    await u.click(screen.getByRole("button", { name: /Acme Co|Select business/i }));
+    await u.click(await screen.findByRole("menuitem", { name: /Create New Business/i }));
+
+    expect(screen.getByTestId("create-business-modal")).toBeInTheDocument();
+  });
+
+  it("signs out through the server action", () => {
+    renderChrome();
+    openDrawer();
+    act(() => screen.getByRole("button", { name: /Ada/ }).click());
+
+    act(() => screen.getByRole("button", { name: /Log Out/ }).click());
+
+    expect(signOut).toHaveBeenCalledOnce();
   });
 });

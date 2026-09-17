@@ -22,7 +22,25 @@ const USER = { id: "u1", email: "ada@example.com" };
  * later one is the core-schema entitlement client. `licenses` is what the licences query
  * returns; the query builder records its own filters for assertion.
  */
-function mockClients({ user, licenses = [] }: { user: unknown; licenses?: { module_key: string }[] }) {
+type CookieToSet = { name: string; value: string; options?: Record<string, unknown> };
+type ClientOptions = {
+  db?: unknown;
+  cookies: { getAll: () => unknown[]; setAll: (cookies: CookieToSet[]) => void };
+};
+
+/** The options each constructed client was handed, so the cookie adapters can be driven. */
+const clientOptions: ClientOptions[] = [];
+
+function mockClients({
+  user,
+  licenses = [],
+  refreshes,
+}: {
+  user: unknown;
+  licenses?: { module_key: string }[];
+  /** Cookies the auth client "refreshes" mid-request, via the adapter it was given. */
+  refreshes?: CookieToSet[];
+}) {
   const recorded: { filters: Record<string, unknown>; statuses?: unknown } = { filters: {} };
 
   const licenseQuery = {
@@ -37,26 +55,37 @@ function mockClients({ user, licenses = [] }: { user: unknown; licenses?: { modu
     },
   };
 
-  createServerClient.mockImplementation((_url: string, _key: string, options: { db?: unknown }) =>
-    options?.db
+  createServerClient.mockImplementation((_url: string, _key: string, options: ClientOptions) => {
+    clientOptions.push(options);
+    return options?.db
       ? { from: () => licenseQuery }
-      : { auth: { getUser: async () => ({ data: { user } }) } },
-  );
+      : {
+          auth: {
+            getUser: async () => {
+              if (refreshes) options.cookies.setAll(refreshes);
+              return { data: { user } };
+            },
+          },
+        };
+  });
 
   return recorded;
 }
 
-function request(pathname: string): NextRequest {
+function request(pathname: string, cookies: { name: string; value: string }[] = []): NextRequest {
   const url = new URL(`https://app.example.com${pathname}`);
   return {
     nextUrl: Object.assign(url, { clone: () => new URL(url.toString()) }),
-    cookies: { getAll: () => [], set: () => {} },
+    cookies: { getAll: () => cookies, set: setCookieOnRequest },
     headers: new Headers(),
   } as unknown as NextRequest;
 }
 
+const setCookieOnRequest = vi.fn();
+
 beforeEach(() => {
   vi.clearAllMocks();
+  clientOptions.length = 0;
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable-key");
 });
@@ -191,5 +220,57 @@ describe("updateSession — module route guard", () => {
     const response = await updateSession(request("/dashboard/businesses/biz-1/inventory"));
 
     expect(response.status).toBe(404);
+  });
+});
+
+/**
+ * `updateSession` hands @supabase/ssr two different cookie adapters: the auth client's
+ * writes a refreshed session cookie onto both the request (so the rest of this request
+ * sees it) and the response (so the browser keeps it), while the entitlement client's is
+ * deliberately inert — two clients both writing session cookies in one request is how a
+ * refreshed token gets clobbered by a stale one.
+ */
+describe("updateSession — cookie adapters", () => {
+  it("reads the request's own cookies", async () => {
+    mockClients({ user: USER });
+
+    await updateSession(request("/dashboard", [{ name: "sb-access-token", value: "abc" }]));
+
+    expect(clientOptions[0]!.cookies.getAll()).toEqual([{ name: "sb-access-token", value: "abc" }]);
+  });
+
+  it("carries a refreshed cookie onto both the request and the response", async () => {
+    mockClients({
+      user: USER,
+      refreshes: [{ name: "sb-access-token", value: "fresh", options: { path: "/" } }],
+    });
+
+    const response = await updateSession(request("/dashboard"));
+
+    expect(setCookieOnRequest).toHaveBeenCalledWith("sb-access-token", "fresh");
+    expect(response.cookies.get("sb-access-token")?.value).toBe("fresh");
+  });
+
+  it("keeps the entitlement client from writing cookies at all", async () => {
+    mockClients({ user: USER, licenses: [{ module_key: "inventory" }] });
+
+    await updateSession(request("/dashboard/businesses/biz-1/inventory"));
+
+    const coreOptions = clientOptions.find((options) => options.db)!;
+    setCookieOnRequest.mockClear();
+    coreOptions.cookies.setAll([{ name: "sb-access-token", value: "stale" }]);
+
+    expect(setCookieOnRequest).not.toHaveBeenCalled();
+  });
+
+  it("reads cookies through the entitlement client too, so RLS sees the caller", async () => {
+    mockClients({ user: USER, licenses: [] });
+
+    await updateSession(
+      request("/dashboard/businesses/biz-1/inventory", [{ name: "sb-access-token", value: "abc" }]),
+    );
+
+    const coreOptions = clientOptions.find((options) => options.db)!;
+    expect(coreOptions.cookies.getAll()).toEqual([{ name: "sb-access-token", value: "abc" }]);
   });
 });

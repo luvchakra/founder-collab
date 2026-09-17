@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
 
@@ -60,21 +60,34 @@ describe("SidebarAccountMenu", () => {
     expect(screen.getByRole("menuitem", { name: label })).toHaveAttribute("href", href);
   });
 
-  it("closes the drawer as well as the menu when an item navigates", () => {
-    const { onNavigate } = renderMenu();
-    openMenu();
+  it.each(["Profile", "Usage", "Billing", "Appearance", "Settings"])(
+    "closes the drawer as well as the menu when %s navigates",
+    (label) => {
+      const { onNavigate } = renderMenu();
+      openMenu();
 
-    fireEvent.click(screen.getByRole("menuitem", { name: "Profile" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: label }));
 
-    expect(onNavigate).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
+      expect(onNavigate).toHaveBeenCalledOnce();
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    },
+  );
 
   it("offers a sign-out control", () => {
     renderMenu({ onSignOut: vi.fn() });
     openMenu();
 
     expect(screen.getByRole("button", { name: /Log Out/ })).toBeInTheDocument();
+  });
+
+  it("signs out through the handler it was given", async () => {
+    const onSignOut = vi.fn();
+    renderMenu({ onSignOut });
+    openMenu();
+
+    fireEvent.click(screen.getByRole("button", { name: /Log Out/ }));
+
+    await waitFor(() => expect(onSignOut).toHaveBeenCalledOnce());
   });
 
   it("renders without a sign-out handler rather than crashing", () => {
