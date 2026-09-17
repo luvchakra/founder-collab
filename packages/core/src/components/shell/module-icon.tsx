@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  AlertTriangle,
+  BookOpen,
+  ListChecks,
+  ListTodo,
+  MessageCircle,
   Target,
   Package,
   Wrench,
@@ -35,6 +40,11 @@ import {
 } from "lucide-react";
 
 const ICONS: Record<string, LucideIcon> = {
+  AlertTriangle,
+  BookOpen,
+  ListChecks,
+  ListTodo,
+  MessageCircle,
   Target,
   Package,
   Wrench,

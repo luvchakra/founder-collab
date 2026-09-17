@@ -226,6 +226,10 @@ export const moduleRegistry: ModuleManifest[] = [
     nav: [
       { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
       {
+        heading: "Accounting",
+        items: [{ label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" }],
+      },
+      {
         heading: "Tax & GST",
         items: [
           { label: "GST Profile", slug: "profile", icon: "Receipt" },

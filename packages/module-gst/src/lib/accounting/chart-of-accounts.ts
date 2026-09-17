@@ -22,6 +22,11 @@ export const DEFAULT_CHART_OF_ACCOUNTS: AccountSeed[] = [
   { accountNumber: "1400", name: "Inventory Asset", type: "asset", parent: "1000", isSystem: true },
   { accountNumber: "1500", name: "Fixed Assets", type: "asset", parent: "1000", isSystem: false },
   { accountNumber: "1600", name: "Other Current Assets", type: "asset", parent: "1000", isSystem: false },
+  // Input tax credit gets its own account rather than sharing "Other Current Assets":
+  // the ITC figure is only reportable if it is separable from every other current asset,
+  // and as the target of automatic purchase postings it must be a system account so it
+  // cannot be switched off underneath them.
+  { accountNumber: "1700", name: "Input GST", type: "asset", parent: "1000", isSystem: true },
 
   { accountNumber: "2000", name: "Liabilities", type: "liability", parent: null, isSystem: true },
   { accountNumber: "2100", name: "Accounts Payable", type: "liability", parent: "2000", isSystem: true },
@@ -73,7 +78,7 @@ export const DEFAULT_ACCOUNT_ROLES: Record<AccountRoleKey, string> = {
   cash: "1200",
   inventory_asset: "1400",
   gst_payable: "2200",
-  input_gst: "1600",
+  input_gst: "1700",
   product_revenue: "4100",
   service_revenue: "4200",
   product_cogs: "5100",
