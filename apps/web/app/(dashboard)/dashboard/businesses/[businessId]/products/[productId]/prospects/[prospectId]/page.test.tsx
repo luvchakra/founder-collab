@@ -786,18 +786,37 @@ describe("ProspectDetailPage — display fallbacks", () => {
     expect(within(section("messages")).queryByText(/^Sent /)).not.toBeInTheDocument();
   });
 
-  it("picks the most recent conversation when a prospect has several", async () => {
+  it.each([
+    ["oldest first", ["2026-01-01T00:00:00Z", "2026-03-01T00:00:00Z"]],
+    ["newest first", ["2026-03-01T00:00:00Z", "2026-01-01T00:00:00Z"]],
+  ])("picks the most recent conversation whichever way they arrive (%s)", async (_label, [a, b]) => {
+    const replied = a! > b! ? "conv-1" : "conv-2";
     given({
       conversations: [
-        conversation({ id: "conv-old", last_message_at: "2026-01-01T00:00:00Z", status: "closed" }),
-        conversation({ id: "conv-new", last_message_at: "2026-03-01T00:00:00Z", status: "replied" }),
+        conversation({ id: "conv-1", last_message_at: a!, status: replied === "conv-1" ? "replied" : "closed" }),
+        conversation({ id: "conv-2", last_message_at: b!, status: replied === "conv-2" ? "replied" : "closed" }),
       ],
     });
 
     await renderPage();
 
-    // the newer thread's status is what drives the header's next action
+    // the newest thread's status is what drives the header's next action
     expect(screen.getByRole("link", { name: /^Next:/ })).toHaveAttribute("href", "#conversations");
+  });
+
+  it("timestamps a non-email message the founder marked sent by hand", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [
+        message({ channel: "linkedin", subject: null, status: "sent", sent_at: "2026-02-14T10:00:00Z" }),
+      ],
+    });
+
+    await renderPage();
+
+    expect(within(section("messages")).getByText(/^Sent /)).toBeInTheDocument();
+    expect(within(section("messages")).queryByRole("button", { name: "Mark sent" })).not.toBeInTheDocument();
   });
 
   it("omits the reasoning block for a score that came back without one", async () => {

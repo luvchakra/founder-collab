@@ -293,6 +293,16 @@ describe("addFileKnowledgeSource — remaining fallbacks", () => {
     );
   });
 
+  it("falls back to the placeholder for a text file holding only whitespace", async () => {
+    const supabase = mock();
+
+    await addFileKnowledgeSource(WORKSPACE, file("blank.txt", "text/plain", "   "));
+
+    expect(String(writtenRow(supabase.queries("product_knowledge")[0]!)!.content)).toContain(
+      "no text could be extracted",
+    );
+  });
+
   it("names the placeholder generically when the browser sent no type", async () => {
     const supabase = mock();
 

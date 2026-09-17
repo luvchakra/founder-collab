@@ -125,6 +125,22 @@ describe("listProspects — pipeline derivation", () => {
     expect(prospect!.lastActivityAt).toBe("2026-09-05T00:00:00.000Z");
   });
 
+  it("picks the newest score whichever order the rows arrive in", async () => {
+    mock([
+      row({
+        prospect_research: { researched_at: "2026-09-02T00:00:00.000Z" },
+        prospect_scores: [
+          { created_at: "2026-09-05T00:00:00.000Z" },
+          { created_at: "2026-09-03T00:00:00.000Z" },
+        ],
+      }),
+    ]);
+
+    const [prospect] = await listProspects(WORKSPACE);
+
+    expect(prospect!.lastActivityAt).toBe("2026-09-05T00:00:00.000Z");
+  });
+
   it("takes the latest activity timestamp across every child table", async () => {
     mock([
       row({

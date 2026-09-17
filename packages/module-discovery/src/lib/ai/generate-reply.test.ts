@@ -185,9 +185,28 @@ describe("generateReply — outcome", () => {
   });
 
   it("propagates a failure to persist the drafted reply", async () => {
-    mockDb({ error: new Error("insert denied") });
+    const supabase = createFakeSupabase({
+      query: (call) => {
+        if (call.table === "contacts") return { data: null, error: null };
+        return usedOp(call, "insert")
+          ? { data: null, error: new Error("insert denied") }
+          : { data: INBOUND, error: null };
+      },
+    });
+    h.createClient.mockResolvedValue(supabase);
 
     await expect(generateReply("conv-1")).rejects.toThrow();
+  });
+
+  it("names the contact's role when their title is on file", async () => {
+    mockDb({ contact: { id: "c1", first_name: "Sarah", last_name: null, job_title: "VP Engineering" } });
+    h.getConversation.mockResolvedValue({ ...CONVERSATION, contact_id: "c1" });
+
+    await generateReply("conv-1");
+
+    expect(String(h.generateObject.mock.calls[0]![0].prompt)).toContain(
+      "Replying to: Sarah, VP Engineering.",
+    );
   });
 
   it("addresses a contact whose name was never captured generically", async () => {
