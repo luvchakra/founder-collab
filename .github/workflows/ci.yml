@@ -53,6 +53,20 @@ jobs:
       - name: Test
         run: npm run test
 
+      # Runs the same suites again from the repo root to produce one cross-workspace
+      # coverage number, and fails if any of vitest.config.mts's thresholds regress --
+      # the per-path ones guard the directories that carry CLAUDE.md's non-negotiables.
+      - name: Coverage thresholds
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
       - name: Discovery schema + RLS tenant-isolation test
         run: npm run test:db
 

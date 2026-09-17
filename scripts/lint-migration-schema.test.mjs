@@ -69,10 +69,28 @@ test("flags a table created without a schema qualifier", () => {
   withFixture(
     { "20260101000000_bare.sql": `create table products (id uuid primary key);` },
     ({ violations }) => {
-      // An unqualified name parses as schema-less, so the DDL regex never matches it and
-      // the file looks empty to the linter -- the guard that actually catches a bare table
-      // is the "unknown schema" branch below, exercised by the next test.
-      assert.deepEqual(violations, []);
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /unqualified table "products"/);
+    },
+  );
+});
+
+test("flags an unqualified ALTER TABLE too", () => {
+  withFixture(
+    { "20260101000000_bare_alter.sql": `alter table products add column sku text;` },
+    ({ violations }) => {
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /unqualified table "products"/);
+    },
+  );
+});
+
+test("flags an unqualified 'create table if not exists'", () => {
+  withFixture(
+    { "20260101000000_bare_ine.sql": `create table if not exists products (id uuid);` },
+    ({ violations }) => {
+      assert.equal(violations.length, 1);
+      assert.match(violations[0], /unqualified table "products"/);
     },
   );
 });

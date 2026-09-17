@@ -273,6 +273,13 @@ core.module_usage       (license_id, period, metric, quantity)   -- seat/usage b
 3. **Server actions.** `requireModule('fsm')` at the top of every mutating action. Defence in depth; the DB is the real gate.
 4. **UI.** Navigation, dashboard widgets and command palette are built from `module-registry` filtered by entitlements. Unlicensed modules render as an upsell card, never as a broken link.
 
+> **Implementation status (recorded 2026-09-17, while building out QA automation).** Layers 1 and 2 are built and tested — `tenant AND licensed` policies across `core`/`discovery`/`inventory` (proven end to end by `scripts/test-core-license-lifecycle.mjs` and the per-schema RLS scripts), and the `proxy.ts` route guard (`updateSession`, tested in `packages/core/src/db/update-session.test.ts`). **Layers 3 and 4 do not exist yet:**
+>
+> - **Layer 3**: there is no `requireModule()` anywhere in the repo — the name appears only in a comment in `packages/core/src/db/middleware.ts`. `requirePermission()` (RBAC) exists and is tested; the module-entitlement equivalent was never written.
+> - **Layer 4**: `apps/web/app/(dashboard)/layout.tsx` passes `modules={moduleRegistry}` — the *whole* catalogue, unfiltered — so every business sees Inventory, Service, CRM and GST in the nav regardless of licensing. Clicking through is correctly 404'd by layer 2, so this is not an access hole, but it contradicts layer 2's own "don't advertise" rule. Filtering needs a decision first: which business's entitlements filter the nav on `/dashboard`, where no business is selected.
+>
+> Neither gap can be covered by tests until the code exists; `packages/core/src/components/shell/app-sidebar.test.tsx` pins the drawer's half of the layer-4 contract (it renders exactly the module list it is handed, and nothing more), so once filtering is added only the caller needs a new test.
+
 ### Lifecycle rules (these are product decisions — confirm them)
 - **Adding** a module mid-life: instant. Run its idempotent seed (permissions, default settings, number sequences), publish `license.activated`, rebuild nav.
 - **Removing** a module: data is **never deleted**. Status → `cancelled`, `grace_ends_at = now() + 30 days`. During grace: read-only + export. After grace: rows remain but RLS denies all access until reactivation. This is the safe default; deletion is a separate, explicit, irreversible action.

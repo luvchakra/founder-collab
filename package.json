@@ -13,12 +13,15 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present && npm run test:scripts",
     "test:scripts": "node --test scripts/*.test.mjs",
+    "test:coverage": "vitest run --coverage",
     "test:db": "node scripts/test-discovery-rls.mjs && node scripts/test-core-parties-rls.mjs && node scripts/test-core-addresses-rls.mjs && node scripts/test-discovery-party-backfill.mjs && node scripts/test-core-items-rls.mjs && node scripts/test-core-number-sequences.mjs && node scripts/test-core-documents-rls.mjs && node scripts/test-core-payments-rls.mjs && node scripts/test-core-tags-fields-attachments-rls.mjs && node scripts/test-core-domain-events.mjs && node scripts/test-core-audit-log.mjs && node scripts/test-core-license-lifecycle.mjs && node scripts/test-inventory-rls.mjs && node scripts/test-inventory-procedural.mjs && node scripts/test-inventory-compat-views.mjs",
     "perf:rls": "node scripts/perf-check-tenant-license-rls.mjs",
     "lint:boundaries": "node scripts/lint-import-boundaries.mjs",
     "lint:migrations": "node scripts/lint-migration-schema.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@vitest/coverage-v8": "^5.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.1"
   }
 }

@@ -1,0 +1,312 @@
+/**
+ * Auth server actions. These are the only unauthenticated write path into the app, and
+ * every one of them ends in a redirect() — which Next implements by throwing — so a test
+ * that doesn't model that would pass while the action silently fell through. The mocked
+ * redirect throws a sentinel for exactly that reason.
+ *
+ * The substance under test is the validation that happens *before* Supabase is called
+ * (an action that forwards empty credentials wastes a round trip and leaks a worse error
+ * to the founder), the redirect target chosen afterwards, and the origin-derived callback
+ * URL that makes confirmation links work outside localhost.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error(`NEXT_REDIRECT:${to}`);
+  }),
+}));
+const { headers } = vi.hoisted(() => ({ headers: vi.fn() }));
+const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
+
+vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", () => ({ headers }));
+vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
+
+const {
+  login,
+  requestPasswordReset,
+  signInWithGoogle,
+  signOut,
+  signup,
+  updatePassword,
+} = await import("./actions");
+
+const ORIGIN = "https://app.example.com";
+
+/** Builds a Supabase auth double; each method defaults to success. */
+function mockAuth(overrides: Record<string, unknown> = {}) {
+  const auth = {
+    signInWithPassword: vi.fn().mockResolvedValue({ data: {}, error: null }),
+    signUp: vi.fn().mockResolvedValue({ data: { session: { access_token: "t" } }, error: null }),
+    resetPasswordForEmail: vi.fn().mockResolvedValue({ error: null }),
+    updateUser: vi.fn().mockResolvedValue({ error: null }),
+    signInWithOAuth: vi.fn().mockResolvedValue({ data: { url: "https://google.example/oauth" }, error: null }),
+    signOut: vi.fn().mockResolvedValue({ error: null }),
+    ...overrides,
+  };
+  createClient.mockResolvedValue({ auth });
+  return auth;
+}
+
+function form(fields: Record<string, string>) {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(fields)) data.append(key, value);
+  return data;
+}
+
+/** Runs an action that is expected to redirect, returning the target it redirected to. */
+async function captureRedirect(run: () => Promise<unknown>): Promise<string> {
+  await expect(run()).rejects.toThrow(/^NEXT_REDIRECT:/);
+  return redirect.mock.calls.at(-1)![0] as string;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  headers.mockResolvedValue(new Headers({ origin: ORIGIN }));
+});
+
+describe("login", () => {
+  it("signs in and redirects to the dashboard", async () => {
+    const auth = mockAuth();
+
+    expect(await captureRedirect(() => login(null, form({ email: "a@b.com", password: "pw" })))).toBe(
+      "/dashboard",
+    );
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "a@b.com", password: "pw" });
+  });
+
+  it("trims the email before sending it", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => login(null, form({ email: "  a@b.com  ", password: "pw" })));
+
+    expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: "a@b.com", password: "pw" });
+  });
+
+  it.each([
+    ["a missing email", { password: "pw" }],
+    ["a missing password", { email: "a@b.com" }],
+    ["a whitespace-only email", { email: "   ", password: "pw" }],
+    ["both missing", {}],
+  ])("rejects %s without calling Supabase", async (_label, fields) => {
+    const auth = mockAuth();
+
+    expect(await login(null, form(fields))).toEqual({ error: "Email and password are required." });
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("returns the provider's error as state rather than redirecting", async () => {
+    mockAuth({
+      signInWithPassword: vi.fn().mockResolvedValue({ error: { message: "Invalid login credentials" } }),
+    });
+
+    expect(await login(null, form({ email: "a@b.com", password: "wrong" }))).toEqual({
+      error: "Invalid login credentials",
+    });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("signup", () => {
+  it("creates the account and goes to onboarding when a session comes back", async () => {
+    mockAuth();
+
+    expect(
+      await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" }))),
+    ).toBe("/onboarding");
+  });
+
+  it("goes to the check-email page when confirmation is required (no session)", async () => {
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: { session: null }, error: null }) });
+
+    expect(
+      await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" }))),
+    ).toBe("/signup/check-email");
+  });
+
+  it("points the confirmation link at the request's own origin, not a hardcoded host", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" })));
+
+    expect(auth.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          emailRedirectTo: `${ORIGIN}/auth/callback?next=/onboarding`,
+        }),
+      }),
+    );
+  });
+
+  it("falls back to localhost when the request carries no origin", async () => {
+    headers.mockResolvedValue(new Headers());
+    const auth = mockAuth();
+
+    await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" })));
+
+    expect(auth.signUp.mock.calls[0]![0].options.emailRedirectTo).toContain("http://localhost:3000");
+  });
+
+  it("carries a supplied name into user metadata, and omits it when blank", async () => {
+    const withName = mockAuth();
+    await captureRedirect(() =>
+      signup(null, form({ name: "Ada", email: "a@b.com", password: "longenough" })),
+    );
+    expect(withName.signUp.mock.calls[0]![0].options.data).toEqual({ full_name: "Ada" });
+
+    const withoutName = mockAuth();
+    await captureRedirect(() =>
+      signup(null, form({ name: "   ", email: "a@b.com", password: "longenough" })),
+    );
+    expect(withoutName.signUp.mock.calls[0]![0].options.data).toBeUndefined();
+  });
+
+  it("enforces a minimum password length before calling Supabase", async () => {
+    const auth = mockAuth();
+
+    expect(await signup(null, form({ email: "a@b.com", password: "short" }))).toEqual({
+      error: "Password must be at least 8 characters.",
+    });
+    expect(auth.signUp).not.toHaveBeenCalled();
+  });
+
+  it("accepts a password of exactly the minimum length", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "12345678" })));
+
+    expect(auth.signUp).toHaveBeenCalled();
+  });
+
+  it("returns a provider error as state", async () => {
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: {}, error: { message: "User already registered" } }) });
+
+    expect(await signup(null, form({ email: "a@b.com", password: "longenough" }))).toEqual({
+      error: "User already registered",
+    });
+  });
+});
+
+describe("requestPasswordReset", () => {
+  it("sends the reset email and redirects to the check-email page", async () => {
+    const auth = mockAuth();
+
+    expect(await captureRedirect(() => requestPasswordReset(null, form({ email: "a@b.com" })))).toBe(
+      "/forgot-password/check-email",
+    );
+    expect(auth.resetPasswordForEmail).toHaveBeenCalledWith("a@b.com", {
+      redirectTo: `${ORIGIN}/auth/callback?next=/reset-password`,
+    });
+  });
+
+  it("requires an email", async () => {
+    const auth = mockAuth();
+
+    expect(await requestPasswordReset(null, form({ email: "  " }))).toEqual({
+      error: "Email is required.",
+    });
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a request-level failure (rate limit, malformed address)", async () => {
+    mockAuth({ resetPasswordForEmail: vi.fn().mockResolvedValue({ error: { message: "Email rate limit exceeded" } }) });
+
+    expect(await requestPasswordReset(null, form({ email: "a@b.com" }))).toEqual({
+      error: "Email rate limit exceeded",
+    });
+  });
+});
+
+describe("updatePassword", () => {
+  it("updates the password and redirects to the dashboard", async () => {
+    const auth = mockAuth();
+
+    expect(
+      await captureRedirect(() =>
+        updatePassword(null, form({ password: "longenough", confirmPassword: "longenough" })),
+      ),
+    ).toBe("/dashboard");
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "longenough" });
+  });
+
+  it("rejects a too-short password before calling Supabase", async () => {
+    const auth = mockAuth();
+
+    expect(await updatePassword(null, form({ password: "short", confirmPassword: "short" }))).toEqual({
+      error: "Password must be at least 8 characters.",
+    });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects a mismatched confirmation before calling Supabase", async () => {
+    const auth = mockAuth();
+
+    expect(
+      await updatePassword(null, form({ password: "longenough", confirmPassword: "different1" })),
+    ).toEqual({ error: "Passwords do not match." });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a provider error", async () => {
+    mockAuth({ updateUser: vi.fn().mockResolvedValue({ error: { message: "Session expired" } }) });
+
+    expect(
+      await updatePassword(null, form({ password: "longenough", confirmPassword: "longenough" })),
+    ).toEqual({ error: "Session expired" });
+  });
+});
+
+describe("signInWithGoogle", () => {
+  it("redirects to the provider URL Supabase returns", async () => {
+    mockAuth();
+
+    expect(await captureRedirect(() => signInWithGoogle())).toBe("https://google.example/oauth");
+  });
+
+  it("defaults the post-auth destination to the dashboard and honours an override", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithGoogle());
+    expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(
+      `${ORIGIN}/auth/callback?next=/dashboard`,
+    );
+
+    await captureRedirect(() => signInWithGoogle("/onboarding"));
+    expect(auth.signInWithOAuth.mock.calls[1]![0].options.redirectTo).toBe(
+      `${ORIGIN}/auth/callback?next=/onboarding`,
+    );
+  });
+
+  it("sends the founder back to login with the reason when the provider is unavailable", async () => {
+    mockAuth({
+      signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: { message: "Provider not enabled" } }),
+    });
+
+    const target = await captureRedirect(() => signInWithGoogle());
+
+    expect(target).toBe(`/login?error=${encodeURIComponent("Provider not enabled")}`);
+  });
+
+  it("falls back to a generic reason when Supabase returns neither URL nor error", async () => {
+    mockAuth({ signInWithOAuth: vi.fn().mockResolvedValue({ data: { url: null }, error: null }) });
+
+    expect(await captureRedirect(() => signInWithGoogle())).toContain("not%20available%20yet");
+  });
+});
+
+describe("signOut", () => {
+  it("signs out and returns to login", async () => {
+    const auth = mockAuth();
+
+    expect(await captureRedirect(() => signOut())).toBe("/login");
+    expect(auth.signOut).toHaveBeenCalledOnce();
+  });
+
+  it("still returns to login if the provider sign-out errors", async () => {
+    mockAuth({ signOut: vi.fn().mockResolvedValue({ error: { message: "network" } }) });
+
+    expect(await captureRedirect(() => signOut())).toBe("/login");
+  });
+});

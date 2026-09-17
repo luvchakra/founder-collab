@@ -28,13 +28,23 @@ export type RecordedQuery = { kind: "query"; table: string; ops: RecordedOp[] };
 /** One `supabase.rpc(fn, args)` call. */
 export type RecordedRpc = { kind: "rpc"; fn: string; args: Record<string, unknown> };
 
-export type RecordedCall = RecordedQuery | RecordedRpc;
+/** One `supabase.storage.from(bucket).<method>(...)` call. */
+export type RecordedStorage = {
+  kind: "storage";
+  bucket: string;
+  method: string;
+  args: unknown[];
+};
+
+export type RecordedCall = RecordedQuery | RecordedRpc | RecordedStorage;
 
 export interface FakeSupabaseSpec {
   /** Responds to a `from(...)` chain. Defaults to `{ data: null, error: null }`. */
   query?: (call: RecordedQuery) => QueryResult;
   /** Responds to an `rpc(...)` call. Defaults to `{ data: null, error: null }`. */
   rpc?: (call: RecordedRpc) => QueryResult;
+  /** Responds to a `storage.from(bucket).*` call. Defaults to `{ data: null, error: null }`. */
+  storage?: (call: RecordedStorage) => QueryResult;
 }
 
 const CHAIN_METHODS = [
@@ -46,15 +56,23 @@ const CHAIN_METHODS = [
 
 const EMPTY: QueryResult = { data: null, error: null };
 
+const STORAGE_METHODS = [
+  "upload", "download", "remove", "list", "move", "copy",
+  "createSignedUrl", "createSignedUrls", "getPublicUrl",
+] as const;
+
 export interface FakeSupabase {
   from(table: string): Record<string, (...args: unknown[]) => unknown>;
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<QueryResult>;
+  storage: { from(bucket: string): Record<string, (...args: unknown[]) => unknown> };
   /** Every call made against this client, in the order they resolved. */
   readonly calls: RecordedCall[];
   /** Just the `from(...)` chains — the common case in assertions. */
   queries(table?: string): RecordedQuery[];
   /** Just the `rpc(...)` calls, optionally filtered by function name. */
   rpcs(fn?: string): RecordedRpc[];
+  /** Just the storage calls, optionally filtered by method name. */
+  storageCalls(method?: string): RecordedStorage[];
 }
 
 export function createFakeSupabase(spec: FakeSupabaseSpec = {}): FakeSupabase {
@@ -90,9 +108,24 @@ export function createFakeSupabase(spec: FakeSupabaseSpec = {}): FakeSupabase {
     return Promise.resolve().then(() => (spec.rpc ? spec.rpc(call) : EMPTY));
   }
 
+  const storage = {
+    from(bucket: string) {
+      const api: Record<string, unknown> = {};
+      for (const method of STORAGE_METHODS) {
+        api[method] = (...args: unknown[]) => {
+          const call: RecordedStorage = { kind: "storage", bucket, method, args };
+          calls.push(call);
+          return Promise.resolve().then(() => (spec.storage ? spec.storage(call) : EMPTY));
+        };
+      }
+      return api as Record<string, (...args: unknown[]) => unknown>;
+    },
+  };
+
   return {
     from,
     rpc,
+    storage,
     calls,
     queries: (table?: string) =>
       calls.filter(
@@ -100,6 +133,11 @@ export function createFakeSupabase(spec: FakeSupabaseSpec = {}): FakeSupabase {
       ),
     rpcs: (fn?: string) =>
       calls.filter((c): c is RecordedRpc => c.kind === "rpc" && (fn === undefined || c.fn === fn)),
+    storageCalls: (method?: string) =>
+      calls.filter(
+        (c): c is RecordedStorage =>
+          c.kind === "storage" && (method === undefined || c.method === method),
+      ),
   };
 }
 

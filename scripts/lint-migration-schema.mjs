@@ -10,7 +10,13 @@ import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
-const DDL_RE = /\b(?:create|alter)\s+table\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_]*)"?\.\s*"?[a-z_][a-z0-9_]*"?/gi;
+// Matches every `create/alter table <name>`, capturing the schema qualifier when there
+// is one. Group 2 is undefined for a bare `create table products (...)` -- which is the
+// case the earlier schema-qualified-only pattern silently skipped entirely, letting an
+// unqualified table (implicitly `public`, outside every module's schema) pass the gate
+// the docstring above says it must fail.
+const DDL_RE =
+  /\b(?:create|alter)\s+table\s+(?:if\s+not\s+exists\s+)?"?([a-z_][a-z0-9_%$]*)"?(\s*\.\s*"?[a-z_][a-z0-9_%$]*"?)?/gi;
 const KNOWN_SCHEMAS = new Set(["core", "discovery", "inventory", "fsm", "crm", "gst"]);
 
 /**
@@ -34,9 +40,13 @@ export function runMigrationLint(root) {
     const source = readFileSync(full, "utf8");
     const schemasTouched = new Set();
     for (const m of source.matchAll(DDL_RE)) {
+      if (!m[2]) {
+        violations.push(`${relative(root, full)}: unqualified table "${m[1]}" — every table must be schema-qualified with one of: ${[...KNOWN_SCHEMAS].join(", ")}.`);
+        continue;
+      }
       const schema = m[1].toLowerCase();
       if (!KNOWN_SCHEMAS.has(schema)) {
-        violations.push(`${relative(root, full)}: unqualified or unknown schema "${schema}" — every table must be schema-qualified with one of: ${[...KNOWN_SCHEMAS].join(", ")}.`);
+        violations.push(`${relative(root, full)}: unknown schema "${schema}" — every table must be schema-qualified with one of: ${[...KNOWN_SCHEMAS].join(", ")}.`);
         continue;
       }
       schemasTouched.add(schema);
