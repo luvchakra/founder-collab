@@ -118,3 +118,118 @@ export function productProfile(
     ...overrides,
   };
 }
+
+// --- prospect detail page ------------------------------------------------------------
+
+import type { Contact } from "@cofounderai/module-discovery/lib/contacts/types";
+import type { ProspectResearch } from "@cofounderai/module-discovery/lib/research/types";
+import type { ProspectScore } from "@cofounderai/module-discovery/lib/scoring/types";
+import type { OutreachStrategy } from "@cofounderai/module-discovery/lib/outreach/types";
+import type { Message } from "@cofounderai/module-discovery/lib/messages/types";
+import type { Conversation } from "@cofounderai/module-discovery/lib/conversations/types";
+
+export function contact(overrides: Partial<Contact> = {}): Contact {
+  return {
+    id: "contact-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    first_name: "Sarah",
+    last_name: "Miller",
+    job_title: "VP Engineering",
+    email: "sarah@globex.example",
+    linkedin_url: null,
+    phone: null,
+    status: "active",
+    created_at: NOW,
+    updated_at: NOW,
+    ...overrides,
+  };
+}
+
+export function research(overrides: Partial<ProspectResearch> = {}): ProspectResearch {
+  return {
+    id: "res-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    summary: "Globex sells widgets online and processes returns by hand.",
+    pain_points: ["manual returns"],
+    buying_signals: ["hiring support staff"],
+    recent_events: ["raised a seed round"],
+    recommended_angle: "Lead with time saved per return",
+    evidence: [{ claim: "Hiring three support reps", source_url: "https://jobs.example", confidence: "fact" }],
+    researched_at: NOW,
+    expires_at: null,
+    ...overrides,
+  };
+}
+
+export function score(overrides: Partial<ProspectScore> = {}): ProspectScore {
+  return {
+    id: "score-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    icp_score: 90,
+    intent_score: 80,
+    timing_score: 70,
+    overall_score: 84,
+    reasoning: "Strong ICP match.",
+    created_at: NOW,
+    ...overrides,
+  };
+}
+
+export function strategy(overrides: Partial<OutreachStrategy> = {}): OutreachStrategy {
+  return {
+    id: "strat-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    contact_id: null,
+    strategy: "Open on their returns backlog",
+    channel: "email",
+    reason: "They just hired support staff",
+    key_message: "Cut manual return handling",
+    cta: "15-minute discovery call",
+    status: "draft",
+    created_at: NOW,
+    updated_at: NOW,
+    ...overrides,
+  };
+}
+
+export function message(overrides: Partial<Message> = {}): Message {
+  return {
+    id: "msg-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    contact_id: null,
+    conversation_id: null,
+    channel: "email",
+    direction: "outbound",
+    subject: "Cutting your returns backlog",
+    content: "Hi Sarah — noticed you're hiring support staff.",
+    status: "draft",
+    classification: null,
+    recommended_action: null,
+    sent_at: null,
+    failure_reason: null,
+    provider_message_id: null,
+    created_at: NOW,
+    updated_at: NOW,
+    ...overrides,
+  };
+}
+
+export function conversation(overrides: Partial<Conversation> = {}): Conversation {
+  return {
+    id: "conv-1",
+    workspace_id: "ws-1",
+    prospect_id: "prospect-1",
+    contact_id: null,
+    channel: "email",
+    status: "awaiting_reply",
+    last_message_at: NOW,
+    created_at: NOW,
+    updated_at: NOW,
+    ...overrides,
+  };
+}
