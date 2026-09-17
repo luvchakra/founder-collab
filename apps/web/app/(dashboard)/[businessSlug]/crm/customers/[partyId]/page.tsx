@@ -106,7 +106,7 @@ export default async function CustomerPanelPage({
         <Link href={`/${businessSlug}/crm`} className="text-sm text-muted-foreground hover:underline">
           &larr; Back to inbox
         </Link>
-        <h1 className="mt-2 text-xl font-semibold">{party.name}</h1>
+        <h1 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{party.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {party.email ?? party.phone ?? "No contact details on file"}
         </p>

@@ -51,7 +51,7 @@ export function PublicEstimateView({
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{businessName}</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{businessName}</h1>
           {businessWebsite ? <p className="text-sm text-muted-foreground">{businessWebsite}</p> : null}
         </div>
         <Badge variant={result === "approved" ? "default" : result === "declined" ? "destructive" : "outline"}>

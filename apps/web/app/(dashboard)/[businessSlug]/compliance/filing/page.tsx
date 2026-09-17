@@ -49,7 +49,7 @@ export default async function GstFilingPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">GST Filing</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">GST Filing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Purchase register (inward) and sales register (outward) for {business.name}&apos;s monthly GST filing.
         </p>

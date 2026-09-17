@@ -37,7 +37,7 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
         <Link href="/platform/plans" className="text-xs text-zinc-400 hover:text-zinc-200">
           ← Subscription Plans
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">{plan.name} — Entitlements</h1>
+        <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{plan.name} — Entitlements</h1>
         <p className="text-sm text-zinc-400">
           What businesses subscribed to the {plan.name} plan can access. Changes apply the moment they are saved.
         </p>

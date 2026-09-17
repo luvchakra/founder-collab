@@ -27,13 +27,22 @@ test.describe("Executive Dashboard", () => {
 });
 
 test.describe("Sidebar navigation", () => {
-  test("opens, shows the business, and closes", async ({ page }) => {
+  // Runs at both viewports: from `lg` up the rail is permanent (nothing to open or
+  // close), below it the same rail is a drawer, so the close half only applies there.
+  test("shows the nav, and closes again when it's a drawer", async ({ page }) => {
     await page.goto("/dashboard");
-    await page.getByRole("button", { name: "Open sidebar" }).click();
-    await expect(page.locator('nav[aria-label="Main"]')).toBeVisible();
-    await expect(page.getByRole("link", { name: "All My Businesses" })).toBeVisible();
-    await page.getByRole("button", { name: "Close sidebar" }).click();
-    await expect(page.locator('nav[aria-label="Main"]')).toBeHidden();
+    const nav = page.locator('nav[aria-label="Main"]');
+    const toggle = page.getByRole("button", { name: "Open sidebar" });
+    const isDrawer = await toggle.isVisible();
+
+    if (isDrawer) await toggle.click();
+    await expect(nav).toBeVisible();
+    await expect(page.getByRole("link", { name: "Executive Dashboard" })).toBeVisible();
+
+    if (isDrawer) {
+      await page.getByRole("button", { name: "Close sidebar" }).click();
+      await expect(nav).toBeHidden();
+    }
   });
 });
 

@@ -37,7 +37,7 @@ export default async function AdminPage({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Demo data</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Demo data</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Seed or clear a realistic demo dataset for any business, on behalf of any user.
         </p>

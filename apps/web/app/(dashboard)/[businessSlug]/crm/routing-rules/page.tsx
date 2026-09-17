@@ -25,7 +25,7 @@ export default async function CrmRoutingRulesPage({ params }: { params: Promise<
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Routing rules</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Routing rules</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           How {business.name} wants incoming tickets assigned. Structure only for now --
           nothing applies these rules to an incoming message yet.

@@ -27,6 +27,7 @@ import { Button } from "@cofounderai/core/ui/button";
 import { Label } from "@cofounderai/core/ui/label";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { formatDate } from "@cofounderai/core/lib/format";
 import { AlertTriangle, ArrowRight, ArrowUpRight, BadgeCheck, CreditCard, Gauge, Settings2 } from "lucide-react";
@@ -189,39 +190,6 @@ function ModuleWidgetCard({ label, icon, value, detail, href }: { label: string;
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  detail,
-  href,
-}: {
-  label: string;
-  value: string | number;
-  detail?: string;
-  href?: string;
-}) {
-  const content = (
-    <div className="flex flex-col gap-1 rounded-md border p-4">
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {label}
-        </span>
-        {href ? (
-          <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden="true" />
-        ) : null}
-      </div>
-      <span className="text-2xl font-semibold">{value}</span>
-      {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
-    </div>
-  );
-  if (!href) return content;
-  return (
-    <Link href={href} className="group block rounded-md transition-colors hover:border-foreground/20">
-      {content}
-    </Link>
-  );
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -317,7 +285,7 @@ export default async function DashboardPage({
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-xl font-semibold">Executive Dashboard</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Executive Dashboard</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Actionable data and key configuration across every module -- quick links
               to the areas you manage most.
@@ -373,9 +341,9 @@ export default async function DashboardPage({
           modules they have licensed.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <KpiCard label="Businesses" value={businesses.length} href="/dashboard/settings" />
-          <KpiCard label="Offerings" value={allProducts.length} href="#conversions" />
-          <KpiCard
+          <StatCard label="Businesses" value={businesses.length} href="/dashboard/settings" />
+          <StatCard label="Offerings" value={allProducts.length} href="#conversions" />
+          <StatCard
             label="Prospects"
             value={prospectCounts.total}
             detail={
@@ -385,7 +353,7 @@ export default async function DashboardPage({
             }
             href="#conversions"
           />
-          <KpiCard
+          <StatCard
             label="AI credits (month)"
             value={`${creditsUsedPercent(usage.cost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(workspaceEntries.length, 1))}%`}
             detail={`${usage.runs} run${usage.runs === 1 ? "" : "s"} used`}
@@ -472,10 +440,10 @@ export default async function DashboardPage({
         ) : (
           <>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <KpiCard label="Win rate" value={winRate === null ? "--" : `${winRate}%`} detail="won / (won + lost)" />
-              <KpiCard label="Avg. fit score" value={avgFitScore === null ? "--" : avgFitScore} detail="of scored prospects" />
-              <KpiCard label="Reply rate" value={`${funnel.replyRate}%`} />
-              <KpiCard label="Customers (won)" value={wonCount} />
+              <StatCard label="Win rate" value={winRate === null ? "--" : `${winRate}%`} detail="won / (won + lost)" />
+              <StatCard label="Avg. fit score" value={avgFitScore === null ? "--" : avgFitScore} detail="of scored prospects" />
+              <StatCard label="Reply rate" value={`${funnel.replyRate}%`} />
+              <StatCard label="Customers (won)" value={wonCount} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">

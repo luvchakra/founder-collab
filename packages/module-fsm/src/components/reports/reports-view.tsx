@@ -4,6 +4,7 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@cofounderai/core/ui/table";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
+import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { formatDate, inr } from "@cofounderai/core/lib/format";
 import type {
   AgingRow,
@@ -29,17 +30,7 @@ function EmptyRow({ label }: { label: string }) {
   return <EmptyState variant="inline" message={label} />;
 }
 
-/** A small KPI tile -- used to put "more info" (totals, counts) above a report's own
- * table without inventing a full dashboard-widget system for it. */
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-muted/30 px-4 py-3">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
+/** Lays out the StatCard totals/counts that sit above each report's own table. */
 function StatRow({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">{children}</div>;
 }
@@ -50,8 +41,8 @@ function RevenueTable({ rows, emptyLabel }: { rows: RevenueByGroupRow[] | Market
   return (
     <div className="flex flex-col gap-4">
       <StatRow>
-        <StatTile label="Total revenue" value={inr.format(total)} />
-        <StatTile label="Groups" value={String(rows.length)} />
+        <StatCard label="Total revenue" value={inr.format(total)} />
+        <StatCard label="Groups" value={String(rows.length)} />
       </StatRow>
       <div className="overflow-x-auto rounded-lg border border-border">
         <Table>
@@ -124,13 +115,10 @@ export function ReportsView({
   return (
     <div className="rounded-2xl border border-border bg-card p-3 sm:p-5">
       <Tabs defaultValue="jobs-completed">
-        {/* Ten tabs don't fit one row on a phone -- the base TabsList's fixed `h-9` (sized
-            for exactly one row) meant the previous `flex-wrap` override just let wrapped
-            rows overflow that fixed height and visually overlap the content below instead
-            of actually wrapping in place. A single horizontally-scrollable row (each
-            trigger `shrink-0` so flexbox can't squeeze them instead of scrolling) reads
-            better as a tab strip than a multi-row grid of buttons anyway. */}
-        <TabsList className="flex w-full justify-start gap-1 overflow-x-auto">
+        {/* Ten tabs don't fit one row on a phone. A single horizontally-scrollable row
+            (each trigger `shrink-0` so flexbox can't squeeze them instead of scrolling)
+            reads better as a tab strip than a multi-row grid of buttons. */}
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="jobs-completed" className="shrink-0">Jobs completed</TabsTrigger>
           <TabsTrigger value="revenue-service" className="shrink-0">Revenue by service</TabsTrigger>
           <TabsTrigger value="revenue-tag" className="shrink-0">Revenue by tag</TabsTrigger>
@@ -149,8 +137,8 @@ export function ReportsView({
           ) : (
             <>
               <StatRow>
-                <StatTile label="Jobs completed" value={String(jobsCompleted.length)} />
-                <StatTile label="Total invoiced" value={inr.format(jobsCompleted.reduce((sum, j) => sum + j.invoiced_amount, 0))} />
+                <StatCard label="Jobs completed" value={String(jobsCompleted.length)} />
+                <StatCard label="Total invoiced" value={inr.format(jobsCompleted.reduce((sum, j) => sum + j.invoiced_amount, 0))} />
               </StatRow>
               <div className="rounded-lg border border-border">
                 <ul className="divide-y md:hidden">
@@ -221,8 +209,8 @@ export function ReportsView({
           ) : (
             <>
               <StatRow>
-                <StatTile label="Total outstanding" value={inr.format(customerBalances.reduce((sum, c) => sum + c.balance_amount, 0))} />
-                <StatTile label="Customers" value={String(customerBalances.length)} />
+                <StatCard label="Total outstanding" value={inr.format(customerBalances.reduce((sum, c) => sum + c.balance_amount, 0))} />
+                <StatCard label="Customers" value={String(customerBalances.length)} />
               </StatRow>
               <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>
@@ -322,8 +310,8 @@ export function ReportsView({
           ) : (
             <>
               <StatRow>
-                <StatTile label="Total collected" value={inr.format(payments.reduce((sum, p) => sum + p.amount, 0))} />
-                <StatTile label="Payments" value={String(payments.length)} />
+                <StatCard label="Total collected" value={inr.format(payments.reduce((sum, p) => sum + p.amount, 0))} />
+                <StatCard label="Payments" value={String(payments.length)} />
               </StatRow>
               <div className="rounded-lg border border-border">
                 <ul className="divide-y md:hidden">
@@ -396,8 +384,8 @@ export function ReportsView({
           ) : (
             <>
               <StatRow>
-                <StatTile label="Total hours" value={String(timecards.reduce((sum, t) => sum + t.total_hours, 0).toFixed(1))} />
-                <StatTile label="Billable hours" value={String(timecards.reduce((sum, t) => sum + t.billable_hours, 0).toFixed(1))} />
+                <StatCard label="Total hours" value={String(timecards.reduce((sum, t) => sum + t.total_hours, 0).toFixed(1))} />
+                <StatCard label="Billable hours" value={String(timecards.reduce((sum, t) => sum + t.billable_hours, 0).toFixed(1))} />
               </StatRow>
               <div className="rounded-lg border border-border">
                 <ul className="divide-y md:hidden">
@@ -450,8 +438,8 @@ export function ReportsView({
           ) : (
             <>
               <StatRow>
-                <StatTile label="Jobs completed" value={String(productivity.reduce((sum, p) => sum + p.jobs_completed, 0))} />
-                <StatTile label="Hours logged" value={String(productivity.reduce((sum, p) => sum + p.total_hours, 0).toFixed(1))} />
+                <StatCard label="Jobs completed" value={String(productivity.reduce((sum, p) => sum + p.jobs_completed, 0))} />
+                <StatCard label="Hours logged" value={String(productivity.reduce((sum, p) => sum + p.total_hours, 0).toFixed(1))} />
               </StatRow>
               <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>

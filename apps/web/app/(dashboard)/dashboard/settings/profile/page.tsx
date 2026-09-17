@@ -17,7 +17,7 @@ export default async function ProfilePage() {
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold">Profile</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Your personal details -- visible only to you.
         </p>

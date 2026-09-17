@@ -44,13 +44,13 @@ const STATUS_LABEL: Record<string, string> = {
   paid: "Paid",
   voided: "Voided",
 };
-const STATUS_VARIANT: Record<string, "secondary" | "outline" | "default" | "destructive"> = {
+const STATUS_VARIANT: Record<string, "secondary" | "default" | "destructive" | "success" | "warning"> = {
   draft: "secondary",
-  issued: "outline",
-  sent: "outline",
-  viewed: "outline",
-  partially_paid: "default",
-  paid: "default",
+  issued: "default",
+  sent: "default",
+  viewed: "default",
+  partially_paid: "warning",
+  paid: "success",
   voided: "destructive",
 };
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -152,7 +152,7 @@ export function InvoiceEditor({
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Invoice</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold break-words">{businessName}</h1>
+            <h1 className="text-xl font-semibold tracking-tight break-words sm:text-2xl">{businessName}</h1>
             <Badge variant={STATUS_VARIANT[invoice.status] ?? "secondary"}>{STATUS_LABEL[invoice.status] ?? invoice.status}</Badge>
           </div>
           {invoice.number ? <p className="mt-1 text-xs text-muted-foreground">{invoice.number}</p> : null}

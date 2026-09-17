@@ -25,7 +25,7 @@ export default async function GstProfilePage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">GST profile</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">GST profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {business.name}&apos;s effective GSTIN and state, used to split CGST/SGST vs. IGST on
           sales and purchase documents. If the business holds GSTINs in more than one state,

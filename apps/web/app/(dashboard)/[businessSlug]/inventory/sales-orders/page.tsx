@@ -46,7 +46,7 @@ export default async function SalesOrdersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Sales Orders</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sales Orders</h1>
         <p className="mt-1 text-sm text-muted-foreground">Create, confirm and fulfil sales orders for {business.name}.</p>
       </div>
 

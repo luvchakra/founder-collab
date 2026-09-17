@@ -493,7 +493,7 @@ export default async function CrmConversationsPage({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">Conversations</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Conversations</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s unified inbox across every channel.</p>
       </div>
 

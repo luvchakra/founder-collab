@@ -50,7 +50,7 @@ export function CustomerCenterView({
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 p-6">
       <div>
-        <h1 className="text-xl font-semibold">{businessName}</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{businessName}</h1>
         {businessWebsite ? <p className="text-sm text-muted-foreground">{businessWebsite}</p> : null}
         <p className="mt-2 text-sm text-muted-foreground">Welcome back, {partyName}.</p>
       </div>

@@ -46,7 +46,7 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">{party?.name ?? "Assessment"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{party?.name ?? "Assessment"}</h1>
           <Badge variant={assessment.status === "not_feasible" ? "destructive" : assessment.status === "completed" ? "secondary" : "outline"} className="capitalize">
             {STATUS_LABEL[assessment.status] ?? assessment.status}
           </Badge>

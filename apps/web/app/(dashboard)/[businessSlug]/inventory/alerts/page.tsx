@@ -25,7 +25,7 @@ export default async function AlertsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Alerts</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Alerts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Everything that needs your attention today for {business.name}.
         </p>

@@ -75,7 +75,7 @@ export default async function CrmFollowUpsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Follow-up Queue</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Follow-up Queue</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s open follow-ups, one screen for every view.</p>
       </div>
 

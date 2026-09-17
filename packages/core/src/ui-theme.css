@@ -6,9 +6,9 @@
 /*
  * Design system definition — CLAUDE.md non-negotiable #7: the platform's own design
  * takes precedence over any vendored default. Palette, radius and type below follow
- * docs/DESIGN.md's reference mockup (light, blue-primary admin shell) — not
- * stockpilot-ai-ops's vendored teal/amber theme (P-0) and not co-founder-ai's own
- * current dark-violet theme, which conflicts with the mockup.
+ * docs/DESIGN.md's reference screens (light blue-primary content area framed by a
+ * constant dark navy rail) — not stockpilot-ai-ops's vendored teal/amber theme (P-0)
+ * and not co-founder-ai's own dark-violet theme, which conflict with it.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility classes
  * (e.g. --color-primary -> bg-primary, text-primary). The :root and .dark blocks define
@@ -48,6 +48,13 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  /* Text colors for the soft, tinted status pills (a `bg-<status>/10` background with
+     `text-<status>` on it fails contrast at badge size) — one darker step of the same
+     hue in light mode, one lighter step in dark. */
+  --color-primary-subtle: var(--primary-subtle);
+  --color-success-subtle: var(--success-subtle);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-destructive-subtle: var(--destructive-subtle);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -59,98 +66,124 @@
   --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Soft, near-flat elevation: cards in the design reference read as panels separated
+     from the page by their border and a barely-there shadow, not by depth. Overriding
+     Tailwind's own (much darker) default scale keeps that true for every `shadow-*`
+     utility already used across the app instead of only where a custom class is used. */
+  --shadow-2xs: 0 1px 1px oklch(0.22 0.04 265 / 3%);
+  --shadow-xs: 0 1px 2px oklch(0.22 0.04 265 / 4%);
+  --shadow-sm: 0 1px 2px oklch(0.22 0.04 265 / 5%), 0 1px 3px oklch(0.22 0.04 265 / 4%);
+  --shadow-md: 0 2px 4px oklch(0.22 0.04 265 / 5%), 0 4px 12px oklch(0.22 0.04 265 / 6%);
+  --shadow-lg: 0 4px 8px oklch(0.22 0.04 265 / 6%), 0 12px 24px oklch(0.22 0.04 265 / 8%);
+  --shadow-xl: 0 8px 16px oklch(0.22 0.04 265 / 8%), 0 24px 48px oklch(0.22 0.04 265 / 10%);
+  --shadow-2xl: 0 32px 64px oklch(0.22 0.04 265 / 18%);
 }
 
 :root {
   --radius: 0.625rem;
 
-  /* Light theme (default — the mockup has no dark variant; this is the platform's
-   * primary look). Soft gray-blue page background, white cards, a clean mid-blue
-   * primary. */
-  --background: oklch(0.972 0.006 250);
-  --foreground: oklch(0.22 0.02 258);
+  /* Light theme (default — the platform's primary look). Soft gray-blue page
+   * background, white cards, a vivid mid-blue primary, and crisp (not alpha) borders so
+   * a card edge reads the same on the page background as it does nested on white. */
+  --background: oklch(0.971 0.006 255);
+  --foreground: oklch(0.208 0.042 265);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.22 0.02 258);
+  --card-foreground: oklch(0.208 0.042 265);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.22 0.02 258);
-  --primary: oklch(0.546 0.215 260);
-  --primary-foreground: oklch(0.99 0.002 250);
-  --secondary: oklch(0.955 0.008 250);
-  --secondary-foreground: oklch(0.24 0.02 258);
-  --muted: oklch(0.955 0.007 250);
-  --muted-foreground: oklch(0.52 0.02 255);
-  --accent: oklch(0.93 0.03 260);
-  --accent-foreground: oklch(0.4 0.18 260);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.99 0.003 240);
-  --success: oklch(0.62 0.15 148);
-  --success-foreground: oklch(0.99 0.003 240);
-  --warning: oklch(0.75 0.15 75);
-  --warning-foreground: oklch(0.28 0.05 75);
-  --border: oklch(0 0 0 / 8%);
-  --input: oklch(0 0 0 / 10%);
-  --ring: oklch(0.546 0.215 260 / 50%);
-  --chart-1: oklch(0.546 0.215 260);
-  --chart-2: oklch(0.62 0.15 148);
-  --chart-3: oklch(0.75 0.15 75);
-  --chart-4: oklch(0.58 0.22 25);
-  --chart-5: oklch(0.55 0.14 300);
-  --sidebar: oklch(0.995 0.002 250);
-  --sidebar-foreground: oklch(0.22 0.02 258);
-  --sidebar-primary: oklch(0.546 0.215 260);
-  --sidebar-primary-foreground: oklch(0.99 0.002 250);
-  --sidebar-accent: oklch(0.93 0.03 260);
-  --sidebar-accent-foreground: oklch(0.4 0.18 260);
-  --sidebar-border: oklch(0 0 0 / 7%);
-  --sidebar-ring: oklch(0.546 0.215 260 / 50%);
+  --popover-foreground: oklch(0.208 0.042 265);
+  --primary: oklch(0.546 0.215 263);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.968 0.007 248);
+  --secondary-foreground: oklch(0.279 0.041 260);
+  --muted: oklch(0.968 0.007 248);
+  --muted-foreground: oklch(0.554 0.046 257);
+  --accent: oklch(0.932 0.032 255);
+  --accent-foreground: oklch(0.488 0.217 264);
+  --destructive: oklch(0.577 0.245 27);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.627 0.194 149);
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.769 0.188 70);
+  --warning-foreground: oklch(0.279 0.06 70);
+  --primary-subtle: oklch(0.488 0.217 264);
+  --success-subtle: oklch(0.527 0.154 150);
+  --warning-subtle: oklch(0.554 0.135 66);
+  --destructive-subtle: oklch(0.505 0.213 27);
+  --border: oklch(0.929 0.013 256);
+  --input: oklch(0.906 0.017 256);
+  --ring: oklch(0.546 0.215 263 / 45%);
+  --chart-1: oklch(0.546 0.215 263);
+  --chart-2: oklch(0.627 0.194 149);
+  --chart-3: oklch(0.769 0.188 70);
+  --chart-4: oklch(0.541 0.25 293);
+  --chart-5: oklch(0.577 0.245 27);
+
+  /* The rail is dark in both themes — it is the app's constant frame, not a surface
+   * that follows the page. These tokens are therefore near-identical in .dark below. */
+  --sidebar: oklch(0.216 0.038 265);
+  --sidebar-foreground: oklch(0.929 0.013 256);
+  --sidebar-muted: oklch(0.704 0.04 257);
+  --sidebar-primary: oklch(0.546 0.215 263);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.546 0.215 263 / 55%);
 }
 
 .dark {
   /* Dark variant kept for a future theme toggle (not shown in the mockup, which is
    * light-only) — inverted on the same blue hue rather than StockPilot's teal or
    * co-founder-ai's violet, so the brand hue stays constant if a toggle ships later. */
-  --background: oklch(0.19 0.02 258);
-  --foreground: oklch(0.97 0.006 250);
-  --card: oklch(0.23 0.022 258);
-  --card-foreground: oklch(0.97 0.006 250);
-  --popover: oklch(0.23 0.022 258);
-  --popover-foreground: oklch(0.97 0.006 250);
-  --primary: oklch(0.7 0.18 260);
-  --primary-foreground: oklch(0.16 0.02 258);
-  --secondary: oklch(0.28 0.022 258);
-  --secondary-foreground: oklch(0.97 0.006 250);
-  --muted: oklch(0.27 0.02 258);
-  --muted-foreground: oklch(0.72 0.015 255);
-  --accent: oklch(0.32 0.05 260);
-  --accent-foreground: oklch(0.85 0.1 260);
-  --destructive: oklch(0.65 0.2 22);
-  --destructive-foreground: oklch(0.98 0.005 240);
-  --success: oklch(0.68 0.14 148);
-  --success-foreground: oklch(0.16 0.03 148);
-  --warning: oklch(0.78 0.14 75);
-  --warning-foreground: oklch(0.24 0.04 75);
+  --background: oklch(0.182 0.035 265);
+  --foreground: oklch(0.968 0.007 248);
+  --card: oklch(0.229 0.038 265);
+  --card-foreground: oklch(0.968 0.007 248);
+  --popover: oklch(0.229 0.038 265);
+  --popover-foreground: oklch(0.968 0.007 248);
+  --primary: oklch(0.646 0.19 263);
+  --primary-foreground: oklch(0.182 0.035 265);
+  --secondary: oklch(0.279 0.041 260);
+  --secondary-foreground: oklch(0.968 0.007 248);
+  --muted: oklch(0.279 0.041 260);
+  --muted-foreground: oklch(0.704 0.04 257);
+  --accent: oklch(0.318 0.06 263);
+  --accent-foreground: oklch(0.86 0.09 260);
+  --destructive: oklch(0.65 0.21 25);
+  --destructive-foreground: oklch(0.182 0.035 265);
+  --success: oklch(0.7 0.16 150);
+  --success-foreground: oklch(0.182 0.035 265);
+  --warning: oklch(0.81 0.16 74);
+  --warning-foreground: oklch(0.24 0.045 70);
+  --primary-subtle: oklch(0.809 0.11 262);
+  --success-subtle: oklch(0.845 0.13 154);
+  --warning-subtle: oklch(0.879 0.13 84);
+  --destructive-subtle: oklch(0.808 0.114 20);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.7 0.18 260 / 55%);
-  --chart-1: oklch(0.7 0.18 260);
-  --chart-2: oklch(0.68 0.14 148);
-  --chart-3: oklch(0.78 0.14 75);
-  --chart-4: oklch(0.65 0.2 22);
-  --chart-5: oklch(0.65 0.13 300);
-  --sidebar: oklch(0.21 0.02 258);
-  --sidebar-foreground: oklch(0.97 0.006 250);
-  --sidebar-primary: oklch(0.7 0.18 260);
-  --sidebar-primary-foreground: oklch(0.16 0.02 258);
-  --sidebar-accent: oklch(0.32 0.05 260);
-  --sidebar-accent-foreground: oklch(0.85 0.1 260);
+  --ring: oklch(0.646 0.19 263 / 55%);
+  --chart-1: oklch(0.646 0.19 263);
+  --chart-2: oklch(0.7 0.16 150);
+  --chart-3: oklch(0.81 0.16 74);
+  --chart-4: oklch(0.64 0.21 293);
+  --chart-5: oklch(0.65 0.21 25);
+  --sidebar: oklch(0.182 0.035 265);
+  --sidebar-foreground: oklch(0.929 0.013 256);
+  --sidebar-muted: oklch(0.704 0.04 257);
+  --sidebar-primary: oklch(0.546 0.215 263);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.7 0.18 260 / 55%);
+  --sidebar-ring: oklch(0.546 0.215 263 / 55%);
 }
 
 @layer base {

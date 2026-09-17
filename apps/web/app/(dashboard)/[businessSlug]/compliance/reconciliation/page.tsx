@@ -44,7 +44,7 @@ export default async function ComplianceReconciliationPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Reconciliation</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reconciliation</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           GSTR-2B matching and IMS exceptions for {business.name}, by return period.
         </p>

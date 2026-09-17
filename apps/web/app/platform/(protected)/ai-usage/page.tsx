@@ -21,7 +21,7 @@ export default async function PlatformAiUsagePage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">AI Usage</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">AI Usage</h1>
         <p className="text-sm text-zinc-400">
           The most recent {runs.length} AI runs across the platform, newest first. Read-only -- no secret
           credential is ever shown here.

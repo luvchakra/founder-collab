@@ -123,7 +123,7 @@ export default async function CrmLeadsPage({ params }: { params: Promise<{ busin
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Leads</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Leads</h1>
         <p className="mt-1 text-sm text-muted-foreground">Every relationship {business.name} is tracking, from first contact to opportunity.</p>
       </div>
 

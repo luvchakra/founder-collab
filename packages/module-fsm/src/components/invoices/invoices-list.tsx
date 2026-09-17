@@ -17,13 +17,13 @@ const STATUS_LABEL: Record<InvoiceStatus, string> = {
   paid: "Paid",
   voided: "Voided",
 };
-const STATUS_VARIANT: Record<InvoiceStatus, "secondary" | "outline" | "default" | "destructive"> = {
+const STATUS_VARIANT: Record<InvoiceStatus, "secondary" | "default" | "destructive" | "success" | "warning"> = {
   draft: "secondary",
-  issued: "outline",
-  sent: "outline",
-  viewed: "outline",
-  partially_paid: "default",
-  paid: "default",
+  issued: "default",
+  sent: "default",
+  viewed: "default",
+  partially_paid: "warning",
+  paid: "success",
   voided: "destructive",
 };
 

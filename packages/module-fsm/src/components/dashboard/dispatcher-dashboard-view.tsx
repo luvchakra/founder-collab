@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { BreakdownBars } from "@cofounderai/core/ui/breakdown-bars";
@@ -13,16 +14,6 @@ import {
 } from "../../lib/dashboard/aggregate";
 import { RevenueTrendChart } from "./revenue-trend-chart";
 import type { DispatcherDashboard } from "../../lib/dashboard/types";
-
-function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-md border p-4">
-      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
-      <span className="text-2xl font-semibold">{value}</span>
-      {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
-    </div>
-  );
-}
 
 /**
  * `/fsm`'s own dispatcher dashboard (PRD §5) -- the five action-queue widget cards
@@ -81,10 +72,10 @@ export function DispatcherDashboardView({
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Open jobs" value={openJobs} detail={`${data.jobsInProgress.length} in progress`} />
-        <KpiCard label="Revenue (month)" value={inr.format(revenueThisMonth)} />
-        <KpiCard label="Outstanding" value={inr.format(outstanding)} detail={`${data.overdueInvoices.length} overdue`} />
-        <KpiCard label="Win rate" value={winRate === null ? "--" : `${winRate}%`} detail="won / (won + lost)" />
+        <StatCard label="Open jobs" value={openJobs} detail={`${data.jobsInProgress.length} in progress`} />
+        <StatCard label="Revenue (month)" value={inr.format(revenueThisMonth)} />
+        <StatCard label="Outstanding" value={inr.format(outstanding)} detail={`${data.overdueInvoices.length} overdue`} />
+        <StatCard label="Win rate" value={winRate === null ? "--" : `${winRate}%`} detail="won / (won + lost)" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

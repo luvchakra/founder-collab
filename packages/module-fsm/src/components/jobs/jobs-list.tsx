@@ -20,12 +20,12 @@ const COLUMNS: { status: JobStatus; label: string }[] = [
   { status: "completed", label: "Completed" },
 ];
 
-const STATUS_VARIANT: Record<JobStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  unscheduled: "secondary",
-  scheduled: "secondary",
+const STATUS_VARIANT: Record<JobStatus, "default" | "secondary" | "destructive" | "success" | "warning"> = {
+  unscheduled: "warning",
+  scheduled: "default",
   in_progress: "default",
-  on_hold: "outline",
-  completed: "default",
+  on_hold: "warning",
+  completed: "success",
   cancelled: "destructive",
 };
 

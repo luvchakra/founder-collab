@@ -19,7 +19,7 @@ export default async function PlatformModulesPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Module Administration</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Module Administration</h1>
         <p className="text-sm text-zinc-400">
           The platform&apos;s five licensable modules and their platform-wide operational state.
         </p>

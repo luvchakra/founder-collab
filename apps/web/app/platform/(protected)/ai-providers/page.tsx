@@ -25,7 +25,7 @@ export default async function PlatformAiProvidersPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">AI Providers</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">AI Providers</h1>
         <p className="text-sm text-zinc-400">
           WonderArk&apos;s own platform-wide AI provider configuration and key storage -- separate from any
           business&apos;s own connected key. Every change is recorded with a reason.

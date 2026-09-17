@@ -105,7 +105,7 @@ export function OpportunityDetail({
         <div className="min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Opportunity</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold break-words">{partyName}</h1>
+            <h1 className="text-xl font-semibold tracking-tight break-words sm:text-2xl">{partyName}</h1>
             <Badge variant={opportunity.status === "lost" ? "destructive" : "secondary"}>
               {STATUS_LABEL[opportunity.status]}
             </Badge>

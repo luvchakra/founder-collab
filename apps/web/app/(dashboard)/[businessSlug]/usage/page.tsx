@@ -47,7 +47,7 @@ export default async function BusinessUsagePage({
       />
 
       <div>
-        <h1 className="text-xl font-semibold">AI usage</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">AI usage</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           This month&apos;s AI usage for {business.name}, broken down by module.
         </p>

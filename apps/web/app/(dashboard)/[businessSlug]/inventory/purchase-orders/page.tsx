@@ -44,7 +44,7 @@ export default async function PurchaseOrdersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Purchase Orders</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Purchase Orders</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Create, approve and receive purchase orders for {business.name}.
         </p>

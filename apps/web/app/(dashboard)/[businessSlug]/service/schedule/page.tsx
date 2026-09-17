@@ -76,7 +76,7 @@ export default async function SchedulePage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Schedule</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Schedule</h1>
         <p className="mt-1 text-sm text-muted-foreground">Work, estimate, and reminder events for {business.name}, by technician.</p>
       </div>
 

@@ -25,7 +25,7 @@ export default async function CrmChannelsPage({ params }: { params: Promise<{ bu
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Channels</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Channels</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           The inboxes {business.name} receives customer messages through.
         </p>

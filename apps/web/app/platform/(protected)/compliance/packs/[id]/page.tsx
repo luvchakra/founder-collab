@@ -21,7 +21,7 @@ export default async function CompliancePackFeaturesPage({ params }: { params: P
         <Link href="/platform/compliance" className="text-xs text-zinc-400 hover:text-zinc-200">
           ← Country / Compliance Pack Administration
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">
+        <h1 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
           {pack.displayName} — Feature flags
         </h1>
         <p className="text-sm text-zinc-400">

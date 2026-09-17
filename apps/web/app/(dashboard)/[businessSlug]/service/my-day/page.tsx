@@ -19,7 +19,7 @@ export default async function MyDayPage({ params }: { params: Promise<{ business
   if (!employee) {
     return (
       <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold">My Day</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">My Day</h1>
         <p className="text-sm text-muted-foreground">
           You aren&apos;t set up as a technician for {business.name} yet -- an owner or admin can add you from the Schedule page.
         </p>
@@ -41,7 +41,7 @@ export default async function MyDayPage({ params }: { params: Promise<{ business
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">My Day</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">My Day</h1>
         <p className="mt-1 text-sm text-muted-foreground">Today&apos;s schedule for {business.name}.</p>
       </div>
 

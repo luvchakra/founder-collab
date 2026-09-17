@@ -23,7 +23,7 @@ export default async function PlatformCompliancePage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Country / Compliance Pack Administration</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Country / Compliance Pack Administration</h1>
         <p className="text-sm text-zinc-400">
           Which countries and country/regime compliance packs WonderArk administratively offers, platform-wide, and
           which of each pack&apos;s named capabilities are turned on.

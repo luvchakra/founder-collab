@@ -32,7 +32,7 @@ export default async function PlatformFeatureFlagsPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">Feature Flags</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Feature Flags</h1>
           <p className="text-sm text-zinc-400">
             Operational on/off controls for reliability, staged rollout, and emergency kill switches -- distinct
             from a plan&apos;s own commercial entitlements.

@@ -25,7 +25,7 @@ export default async function CustomersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Customers</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Customers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Buyers for sales orders and invoicing for {business.name}.
         </p>

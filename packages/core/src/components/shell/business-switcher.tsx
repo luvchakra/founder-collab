@@ -15,16 +15,17 @@ import { readPinnedBusinessIds, writePinnedBusinessIds } from "../../lib/pinned-
 import type { ShellBusiness } from "./types";
 
 /**
- * Topbar business switcher -- ported from co-founder-ai's header BusinessSelector
+ * Business switcher, pinned under the rail's wordmark -- ported from co-founder-ai's
+ * header BusinessSelector
  * (components/tenancy/business-selector.tsx, per its "Header & Business Selector
  * Enhancement" doc: always reachable from anywhere in the dashboard, not just pages with
  * a business in the URL, and "+ Create New Business" always last, separated by a
- * divider). Rebuilt on the shell's own DropdownMenu primitives (the same ones AppTopbar's
- * avatar menu already uses) rather than co-founder-ai's hand-rolled popover, so it picks
+ * divider). Rebuilt on the shell's own DropdownMenu primitives rather than
+ * co-founder-ai's hand-rolled popover, so it picks
  * up the platform's own light/blue design system per docs/DESIGN.md instead of
- * co-founder-ai's dark-violet one (CLAUDE.md non-negotiable #7). The sidebar keeps its
- * own business list (drill-down into products); this is the quick "which business am I
- * in" control that stays visible from the topbar.
+ * co-founder-ai's dark-violet one (CLAUDE.md non-negotiable #7). The trigger is styled
+ * for the dark rail it sits on; the dropdown itself stays on the light popover surface
+ * every other menu in the platform uses.
  */
 export function BusinessSwitcher({
   businesses,
@@ -67,19 +68,18 @@ export function BusinessSwitcher({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
-            activeBusiness
-              ? "text-foreground hover:bg-accent"
-              : "border border-primary/25 bg-primary/5 text-primary hover:bg-primary/10",
-          )}
+          className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/70"
         >
-          {activeBusiness ? null : <Building2 className="size-4 shrink-0" aria-hidden="true" />}
-          <span className="truncate">{activeBusiness?.name ?? "Select a business"}</span>
-          <ChevronDown
-            className={cn("size-4 shrink-0", activeBusiness ? "text-muted-foreground" : "text-primary")}
-            aria-hidden="true"
-          />
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary-subtle">
+            <Building2 className="size-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium text-sidebar-foreground">
+              {activeBusiness?.name ?? "Select a business"}
+            </span>
+            <span className="block truncate text-[11px] text-sidebar-muted">Business</span>
+          </span>
+          <ChevronDown className="size-4 shrink-0 text-sidebar-muted" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">

@@ -22,7 +22,7 @@ export default async function PlatformEmailTemplatesPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">System Email Templates</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">System Email Templates</h1>
         <p className="text-sm text-zinc-400">
           Configuration only -- no real email currently renders these. Every change is recorded with a reason.
         </p>

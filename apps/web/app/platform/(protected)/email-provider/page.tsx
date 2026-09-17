@@ -22,7 +22,7 @@ export default async function PlatformEmailProviderPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Email Provider</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Email Provider</h1>
         <p className="text-sm text-zinc-400">
           Configuration only -- nothing here is wired into real outbound email yet. Platform emails today are sent
           directly via Resend, reading environment variables. Every change here is recorded with a reason.

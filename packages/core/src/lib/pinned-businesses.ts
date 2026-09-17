@@ -1,8 +1,7 @@
-/** Same `localStorage`-key convention as the sidebar's own pinned-module feature
- * (app-sidebar.tsx's `PINNED_MODULE_STORAGE_KEY`) -- there is no per-user preferences
+/** Same `localStorage`-key convention as the rail's own remembered-section key
+ * (app-sidebar.tsx's `SELECTED_MODULE_STORAGE_KEY`) -- there is no per-user preferences
  * table in `core` to extend, so client-only storage is the established pattern here, not
- * a gap specific to this feature. Unlike pinning a module (an exclusive lock -- only one
- * module can be pinned, and it disables switching away from it), pinning a business is a
+ * a gap specific to this feature. Pinning a business is a
  * plain favorites list: any number of businesses can be pinned, pinning never blocks
  * switching to an unpinned one, it just sorts pinned businesses to the top of the
  * business switcher's list. Shared between business-switcher.tsx (reads/writes pins) and

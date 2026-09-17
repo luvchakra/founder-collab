@@ -28,7 +28,7 @@ export default async function FsmSettingsPage({ params }: { params: Promise<{ bu
   if (!canManageSettings) {
     return (
       <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold">Settings</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Settings</h1>
         <p className="text-sm text-muted-foreground">You don&apos;t have permission to view FSM settings for {business.name}.</p>
       </div>
     );
@@ -44,7 +44,7 @@ export default async function FsmSettingsPage({ params }: { params: Promise<{ bu
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Settings</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}</p>
       </div>
 

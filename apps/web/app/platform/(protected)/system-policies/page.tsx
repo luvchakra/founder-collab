@@ -24,7 +24,7 @@ export default async function PlatformSystemPoliciesPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Platform Policies</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Platform Policies</h1>
         <p className="text-sm text-zinc-400">
           Platform-wide default and ceiling values -- configuration only, nothing here is enforced by any real
           runtime code path yet. Every change is recorded with a reason. Country/regime-specific rules (e.g.

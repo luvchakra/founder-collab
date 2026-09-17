@@ -51,7 +51,7 @@ export default async function GstRegistrationsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">{regimeName} registrations</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{regimeName} registrations</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every {regimeName} registration {business.name} holds. The one marked primary is used
           across sales, purchase and service documents for tax splitting/determination.

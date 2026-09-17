@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { openSidebar } from "./sidebar";
 
 /**
  * The suite never hardcodes a business slug -- seed data differs by environment (a
@@ -12,14 +13,14 @@ export async function getTestBusinessSlug(page: Page): Promise<string> {
   if (pinned) return pinned;
 
   await page.goto("/dashboard");
-  // The sidebar drawer's own nav content is always business-scoped links
-  // (/<slug>/discovery/dashboard, /<slug>/discovery/offerings/..., or a module's own
-  // /<slug>/<module>/... nav tree) except the one pinned "All My Businesses" link to the
-  // bare /dashboard -- opening the drawer and reading the first non-/dashboard link back
-  // is the same path a person takes, so it only ever finds a business/slug the UI itself
-  // would actually navigate to.
-  await page.getByRole("button", { name: "Open sidebar" }).click();
-  const firstBusinessLink = page.locator('nav[aria-label="Main"] a[href^="/"]:not([href="/dashboard"])').first();
+  // The rail's module nav is always business-scoped links (/<slug>/discovery/dashboard,
+  // /<slug>/discovery/offerings/..., or a module's own /<slug>/<module>/... tree); the
+  // only other links in it are account-level ones under /dashboard (the wordmark,
+  // Executive Dashboard, Admin, AI usage), which the selector excludes by prefix.
+  // Reading the first such link back is the same path a person takes, so it only ever
+  // finds a business/slug the UI itself would actually navigate to.
+  await openSidebar(page);
+  const firstBusinessLink = page.locator('nav[aria-label="Main"] a[href^="/"]:not([href^="/dashboard"])').first();
   await firstBusinessLink.waitFor({ state: "visible", timeout: 10_000 });
   const href = await firstBusinessLink.getAttribute("href");
   const slug = href?.split("/")[1];

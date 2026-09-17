@@ -99,7 +99,7 @@ export default async function TeamPage({
       />
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-xl font-semibold">Team</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Team</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Members, their role, and exactly what that role can do for {business.name}. Read-only --
             permissions are set by role, not per person, until custom roles ship.

@@ -16,13 +16,13 @@ import {
 import { STAGES, type PurchaseOrder, type PurchaseOrderItem } from "../../lib/purchase-orders/types";
 import { inr } from "@cofounderai/core/lib/format";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   draft: "secondary",
-  pending_approval: "outline",
-  approved: "outline",
+  pending_approval: "warning",
+  approved: "default",
   sent: "default",
-  partially_received: "default",
-  received: "secondary",
+  partially_received: "warning",
+  received: "success",
   closed: "secondary",
   cancelled: "destructive",
 };

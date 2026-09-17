@@ -25,7 +25,7 @@ export default async function EinvoicingPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">e-Invoicing</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">e-Invoicing</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           GST Suvidha Provider credentials {business.name} uses to generate IRNs and QR codes.
         </p>

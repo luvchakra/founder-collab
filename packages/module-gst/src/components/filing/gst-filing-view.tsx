@@ -4,6 +4,7 @@ import { AlertTriangle, Download, FileWarning, Receipt } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { Label } from "@cofounderai/core/ui/label";
 import {
   Table,
@@ -33,20 +34,6 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-          <Receipt className="size-4 text-primary" aria-hidden="true" />
-        </div>
-        <p className="mt-2 text-2xl font-bold tracking-tight">{value}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 /** Ported from stockpilot-ai-ops's gst-filing.tsx -- purchase register (inward, for
@@ -186,10 +173,10 @@ export function GstFilingView({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard label="Taxable value" value={inr.format(purchaseRegister.taxableValue)} />
-            <SummaryCard label="CGST" value={inr.format(purchaseRegister.cgst)} />
-            <SummaryCard label="SGST" value={inr.format(purchaseRegister.sgst)} />
-            <SummaryCard label="IGST" value={inr.format(purchaseRegister.igst)} />
+            <StatCard label="Taxable value" value={inr.format(purchaseRegister.taxableValue)} />
+            <StatCard label="CGST" value={inr.format(purchaseRegister.cgst)} />
+            <StatCard label="SGST" value={inr.format(purchaseRegister.sgst)} />
+            <StatCard label="IGST" value={inr.format(purchaseRegister.igst)} />
           </div>
 
           <Card>
@@ -305,10 +292,10 @@ export function GstFilingView({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard label="Taxable value" value={inr.format(salesRegister.taxableValue)} />
-            <SummaryCard label="CGST" value={inr.format(salesRegister.cgst)} />
-            <SummaryCard label="SGST" value={inr.format(salesRegister.sgst)} />
-            <SummaryCard label="IGST" value={inr.format(salesRegister.igst)} />
+            <StatCard label="Taxable value" value={inr.format(salesRegister.taxableValue)} />
+            <StatCard label="CGST" value={inr.format(salesRegister.cgst)} />
+            <StatCard label="SGST" value={inr.format(salesRegister.sgst)} />
+            <StatCard label="IGST" value={inr.format(salesRegister.igst)} />
           </div>
 
           <Card>

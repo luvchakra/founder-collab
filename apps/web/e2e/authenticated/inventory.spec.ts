@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
 import { expectResponsiveTableOrCards } from "../support/responsive";
 import { getTestBusinessSlug } from "../support/business";
+import { openSidebar } from "../support/sidebar";
 
 test.describe("Inventory", () => {
   test("dashboard loads", async ({ page }) => {
@@ -22,7 +23,7 @@ test.describe("Inventory", () => {
   test("Administration nav no longer has a Team item", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
     await page.goto(`/${slug}/inventory/dashboard`);
-    await page.getByRole("button", { name: "Open sidebar" }).click();
+    await openSidebar(page);
     await expect(page.locator('nav[aria-label="Main"] a[href$="/inventory/team"]')).toHaveCount(0);
   });
 });

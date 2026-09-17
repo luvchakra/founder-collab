@@ -32,7 +32,7 @@ export default async function CrmReactivationPage({ params }: { params: Promise<
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold">Reactivation</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reactivation</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s customers worth reaching out to again.</p>
       </div>
 

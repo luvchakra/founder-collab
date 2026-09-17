@@ -44,7 +44,7 @@ export function SidebarAccountMenu({
       {open ? (
         <div
           role="menu"
-          className="absolute inset-x-0 bottom-full mb-1 rounded-md border bg-popover p-1 text-popover-foreground shadow-lg"
+          className="absolute inset-x-2 bottom-full mb-2 rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
         >
           <div className="px-3 py-2">
             <p className="truncate text-sm font-medium">{user.name}</p>
@@ -144,14 +144,21 @@ export function SidebarAccountMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-accent"
+        className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-sidebar-accent"
       >
-        <Avatar className="size-7">
+        <Avatar className="size-8">
           <AvatarImage src={user.avatarUrl} alt="" />
-          <AvatarFallback className="text-xs">{initials(user.name)}</AvatarFallback>
+          <AvatarFallback className="bg-primary text-xs text-primary-foreground">
+            {initials(user.name)}
+          </AvatarFallback>
         </Avatar>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{user.name}</span>
-        <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-sidebar-foreground">
+            {user.name}
+          </span>
+          <span className="block truncate text-[11px] text-sidebar-muted">{user.email}</span>
+        </span>
+        <ChevronsUpDown className="size-4 shrink-0 text-sidebar-muted" aria-hidden="true" />
       </button>
     </div>
   );

@@ -67,7 +67,7 @@ export default async function LicensesSettingsPage() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold">Licenses</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Licenses</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Manage which modules are active for each of your businesses. Cancelling keeps
           full access until your next billing cycle, then starts a 30-day read-only

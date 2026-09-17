@@ -42,7 +42,7 @@ export default async function StockTransfersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Stock Transfers</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Stock Transfers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Move stock between warehouses with a full in-transit audit trail for {business.name}.
         </p>

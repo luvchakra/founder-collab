@@ -12,7 +12,12 @@ import { cn } from "../../lib/utils";
  * (packages/core/src/components/theme/theme-provider.tsx) even though the platform
  * defaults to light per docs/DESIGN.md.
  */
-export function LogoMark({ className }: { className?: string }) {
+export function LogoMark({ className, onDark }: { className?: string; onDark?: boolean }) {
+  // `onDark` is for surfaces that are dark in *both* themes (the sidebar rail), where
+  // following the `dark:` variant would paint the navy artwork onto a navy background.
+  if (onDark) {
+    return <Image src="/logo-mark-light.png" alt="" width={442} height={350} priority className={className} />;
+  }
   return (
     <>
       <Image

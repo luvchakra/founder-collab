@@ -292,13 +292,11 @@ export function SettingsView({
   return (
     <div className="rounded-2xl border border-border bg-card p-3 sm:p-5">
       <Tabs defaultValue="document">
-        {/* Single horizontally-scrollable row (each trigger `shrink-0`) instead of
-            TabsList's default `inline-flex` -- with the base component's fixed `h-9`,
-            four triggers plus this strip's own padding didn't fit one screen width on a
-            phone, so the last tab ("Job charge types") was simply clipped off the right
-            edge with no way to reach it. Same fix already applied to the Reports page's
-            own 10-tab strip. */}
-        <TabsList className="flex w-full justify-start gap-1 overflow-x-auto">
+        {/* Scrolls horizontally (each trigger `shrink-0`) rather than clipping: four
+            triggers don't fit one screen width on a phone, so the last tab ("Job charge
+            types") would otherwise be unreachable off the right edge. Same treatment as
+            the Reports page's own 10-tab strip. */}
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="document" className="shrink-0">Document & reminders</TabsTrigger>
           <TabsTrigger value="service-types" className="shrink-0">Service types</TabsTrigger>
           <TabsTrigger value="charge-types" className="shrink-0">Job charge types</TabsTrigger>

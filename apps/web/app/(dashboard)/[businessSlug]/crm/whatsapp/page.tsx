@@ -73,7 +73,7 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
   return (
     <div className="mx-auto flex w-full max-w-lg flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">WhatsApp</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s WhatsApp Business connection.</p>
       </div>
 

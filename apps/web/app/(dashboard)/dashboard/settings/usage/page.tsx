@@ -50,7 +50,7 @@ export default async function AccountUsagePage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-8">
       <div>
-        <h1 className="text-xl font-semibold">Usage</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Usage</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           AI usage across every business and product on your account.
         </p>

@@ -248,7 +248,7 @@ export function JobDetail({
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold break-words">{partyName}</h1>
+            <h1 className="text-xl font-semibold tracking-tight break-words sm:text-2xl">{partyName}</h1>
             <Badge variant={job.status === "cancelled" ? "destructive" : job.status === "completed" ? "default" : "secondary"}>
               {STATUS_LABEL[job.status]}
             </Badge>

@@ -37,7 +37,7 @@ export default async function BrandingPreviewPage() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <div>
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold">Preview: WonderArk Branding</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Preview: WonderArk Branding</h1>
           <Link href="/platform/branding" className="text-sm text-zinc-400 hover:text-zinc-100">
             ← Back to edit
           </Link>

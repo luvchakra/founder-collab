@@ -5,9 +5,10 @@ import { SidebarProvider } from "./sidebar-context";
 import type { ShellAlert, ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
 /**
- * The platform's dashboard shell (topbar + drawer + content), structurally ported from
- * co-founder-ai's app/(dashboard)/layout.tsx (docs/PORT-PROVENANCE.md) per the reference
- * mockup in docs/DESIGN.md. `modules`/`business`/`user` are supplied by the caller --
+ * The platform's dashboard shell: a persistent left rail with the content column beside
+ * it, per docs/DESIGN.md. The rail is `fixed` and full-height, so the column is offset by
+ * its width from `lg` up and sits at full width below that (where the rail becomes a
+ * slide-over drawer instead). `modules`/`businesses`/`user` are supplied by the caller --
  * this component has no opinion on where that data comes from (module-registry, a
  * session, etc.).
  */
@@ -42,15 +43,7 @@ export function DashboardShell({
   const hrefFor = businessHref ?? (() => "#");
   return (
     <SidebarProvider>
-      <div className="flex min-h-full flex-1 flex-col">
-        <AppTopbar
-          businesses={businesses}
-          activeBusinessId={activeBusinessId}
-          businessHref={hrefFor}
-          onCreateBusiness={onCreateBusiness}
-          alerts={alerts}
-          chatSlot={chatSlot}
-        />
+      <div className="flex min-h-full flex-1">
         <AppSidebar
           modules={modules}
           businesses={businesses}
@@ -62,13 +55,21 @@ export function DashboardShell({
           user={user}
           onSignOut={onSignOut}
         />
-        {/* `overflow-x-hidden` is the platform-wide backstop for CLAUDE.md rule #12 (no
-            page ever scrolls horizontally) -- any element that misbehaves and paints
-            wider than the viewport (a chart's first frame, an unwrapped long string) gets
-            clipped here instead of pushing the whole page into horizontal scroll. Doesn't
-            affect the legitimate `overflow-x-auto` containers (tables, etc.) nested
-            inside `children` -- those still scroll internally exactly as before. */}
-        <main className="flex-1 overflow-x-hidden bg-background p-4 sm:p-6">{children}</main>
+        {/* `min-w-0` matters as much as the offset: without it this flex child refuses to
+            shrink below its content's intrinsic width, and a wide table inside `children`
+            would stretch the column past the viewport instead of scrolling inside its own
+            container. */}
+        <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
+          <AppTopbar alerts={alerts} activeBusinessId={activeBusinessId} chatSlot={chatSlot} />
+          {/* `overflow-x-hidden` is the platform-wide backstop for CLAUDE.md rule #12 (no
+              page ever scrolls horizontally) -- any element that misbehaves and paints
+              wider than the viewport (a chart's first frame, an unwrapped long string)
+              gets clipped here instead of pushing the whole page into horizontal scroll.
+              Doesn't affect the legitimate `overflow-x-auto` containers (tables, etc.)
+              nested inside `children` -- those still scroll internally exactly as
+              before. */}
+          <main className="flex-1 overflow-x-hidden bg-background p-4 sm:p-6">{children}</main>
+        </div>
       </div>
     </SidebarProvider>
   );

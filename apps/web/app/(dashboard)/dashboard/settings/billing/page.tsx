@@ -32,7 +32,7 @@ export default async function BillingSettingsPage() {
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
       <div>
-        <h1 className="text-xl font-semibold">Billing</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Billing</h1>
       </div>
 
       <AiSection

@@ -27,7 +27,7 @@ export function ContactForm({ businessName, submitAction }: { businessName: stri
   return (
     <div className="mx-auto flex max-w-md flex-col gap-6 p-6">
       <div>
-        <h1 className="text-xl font-semibold">Request service from {businessName}</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Request service from {businessName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">Tell us a bit about what you need -- we will reach out to schedule.</p>
       </div>
 

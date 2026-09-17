@@ -31,7 +31,7 @@ export default async function ComplianceEvidencePage({ params }: { params: Promi
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Evidence</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Evidence</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Return acknowledgments, government notices, and payment challans kept on file for {business.name}.
         </p>

@@ -54,7 +54,7 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Analytics</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Analytics</h1>
         <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s response performance, last 30 days.</p>
       </div>
 

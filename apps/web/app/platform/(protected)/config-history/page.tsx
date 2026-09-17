@@ -36,7 +36,7 @@ export default async function PlatformConfigHistoryPage() {
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Configuration History</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Configuration History</h1>
         <p className="text-sm text-zinc-400">
           Every recorded version of an audited platform configuration, oldest first. Restore is available for Plans,
           Feature Flags, Announcements, and Platform Policies; every other configuration below is history-only for now.

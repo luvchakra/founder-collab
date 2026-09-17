@@ -19,7 +19,7 @@ export default async function PlatformAuditPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Platform Audit</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Platform Audit</h1>
         <p className="text-sm text-zinc-400">
           Every recorded platform mutation, newest first -- who did what, to which resource, and why. High-severity
           rows cover 16.2&apos;s own mandatory categories: plan changes, entitlements, module/feature kill switches, AI

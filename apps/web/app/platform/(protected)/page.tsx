@@ -47,7 +47,7 @@ export default async function PlatformHomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-xl font-semibold">Platform Dashboard</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Platform Dashboard</h1>
         <p className="text-sm text-zinc-400">
           Aggregate, cross-tenant view of the whole platform -- no per-customer detail.
         </p>

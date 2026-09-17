@@ -34,7 +34,7 @@ export default async function SalesReturnsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Sales Returns</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sales Returns</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Process customer returns, restock or credit-only, and issue credit notes for {business.name}.
         </p>

@@ -53,7 +53,7 @@ export default async function NotLicensedPage({
         <Lock className="size-8 text-muted-foreground" />
       </div>
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
       </div>
       <Alert>
         <AlertTitle>What this means</AlertTitle>

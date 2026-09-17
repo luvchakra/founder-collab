@@ -1,21 +1,12 @@
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { BreakdownBars } from "@cofounderai/core/ui/breakdown-bars";
 import { inr } from "@cofounderai/core/lib/format";
 import type { ComplianceDashboard } from "../../lib/dashboard/types";
-
-function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-md border p-4">
-      <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</span>
-      <span className="text-2xl font-semibold">{value}</span>
-      {detail ? <span className="text-xs text-muted-foreground">{detail}</span> : null}
-    </div>
-  );
-}
 
 /** `/gst`'s new dashboard -- KPIs + a collected-tax breakdown for the current month,
  * plus quick links into the four working pages (Profile, e-Way Bill, e-Invoicing,
@@ -60,10 +51,10 @@ export function ComplianceDashboardView({ businessId, data }: { businessId: stri
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard label="Payable (month)" value={inr.format(data.payableThisMonth)} detail="input tax credit" />
-        <KpiCard label="Collected (month)" value={inr.format(data.collectedThisMonth)} detail="output tax" />
-        <KpiCard label="e-Invoices (month)" value={data.einvoicesThisMonth} />
-        <KpiCard
+        <StatCard label="Payable (month)" value={inr.format(data.payableThisMonth)} detail="input tax credit" />
+        <StatCard label="Collected (month)" value={inr.format(data.collectedThisMonth)} detail="output tax" />
+        <StatCard label="e-Invoices (month)" value={data.einvoicesThisMonth} />
+        <StatCard
           label="GSTIN risk"
           value={data.riskCount}
           detail={data.riskCount > 0 ? "missing/invalid this month" : "none this month"}

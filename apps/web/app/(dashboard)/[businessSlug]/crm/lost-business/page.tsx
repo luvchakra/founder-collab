@@ -82,7 +82,7 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Potential Lost Business</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Potential Lost Business</h1>
         <p className="mt-1 text-sm text-muted-foreground">Unanswered commercial messages {business.name} might lose if nobody replies.</p>
       </div>
 

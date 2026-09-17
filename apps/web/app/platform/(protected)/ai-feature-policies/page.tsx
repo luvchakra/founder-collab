@@ -27,7 +27,7 @@ export default async function PlatformAiFeaturePoliciesPage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">AI Feature Policies</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">AI Feature Policies</h1>
         <p className="text-sm text-zinc-400">
           Platform-wide ceilings on AI usage and spend -- configuration only, nothing here is enforced by any real
           AI call yet. Every change is recorded with a reason.

@@ -25,13 +25,13 @@ import {
 import { STAGES, type SalesOrder, type SalesOrderItem } from "../../lib/sales-orders/types";
 import { inr } from "@cofounderai/core/lib/format";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "success" | "warning"> = {
   draft: "secondary",
-  confirmed: "outline",
-  processing: "outline",
-  packed: "outline",
+  confirmed: "default",
+  processing: "default",
+  packed: "default",
   shipped: "default",
-  delivered: "secondary",
+  delivered: "success",
   cancelled: "destructive",
   returned: "destructive",
 };

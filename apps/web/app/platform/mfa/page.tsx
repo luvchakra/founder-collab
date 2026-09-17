@@ -44,7 +44,7 @@ export default async function PlatformMfaPage() {
     return (
       <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
         <div>
-          <h1 className="text-xl font-semibold">Verify your identity</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Verify your identity</h1>
           <p className="text-sm text-zinc-400">
             Enter the current code from your authenticator app to continue to Platform
             Administration.
@@ -77,7 +77,7 @@ export default async function PlatformMfaPage() {
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Set up two-factor authentication</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Set up two-factor authentication</h1>
         <p className="text-sm text-zinc-400">
           SUPERADMIN accounts require an authenticator app (TOTP). This is required before
           you can access Platform Administration.

@@ -31,7 +31,7 @@ export default async function StockPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Inventory</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inventory</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Live stock levels across every warehouse for {business.name}.
         </p>

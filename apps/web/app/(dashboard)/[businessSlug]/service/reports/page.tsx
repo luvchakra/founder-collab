@@ -53,7 +53,7 @@ export default async function ReportsPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Reports</h1>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">{business.name}</p>
         </div>
         <DateRangeControl basePath={`/${businessSlug}/service/reports`} active={activePreset} />

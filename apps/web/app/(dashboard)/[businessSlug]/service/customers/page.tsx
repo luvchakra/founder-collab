@@ -22,7 +22,7 @@ export default async function FsmCustomersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold">Customers</h1>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Customers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Parties with the customer role for {business.name} -- the same list inventory sees, when both are licensed.
         </p>
