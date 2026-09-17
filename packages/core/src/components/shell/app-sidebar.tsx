@@ -8,7 +8,6 @@ import { BRAND_NAME } from "../../lib/brand";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
-import { BusinessSwitcher } from "./business-switcher";
 import { LogoMark } from "./logo-mark";
 import { ModuleIcon } from "./module-icon";
 import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./types";
@@ -365,15 +364,6 @@ export function AppSidebar({
             {BRAND_NAME}
           </span>
         </a>
-
-        <div className="px-3 pb-3">
-          <BusinessSwitcher
-            businesses={businesses}
-            activeBusinessId={activeBusinessId}
-            businessHref={businessHref}
-            onCreateBusiness={onCreateBusiness}
-          />
-        </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
           {modules.map((module) => {

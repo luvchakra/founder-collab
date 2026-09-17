@@ -60,7 +60,14 @@ export function DashboardShell({
             would stretch the column past the viewport instead of scrolling inside its own
             container. */}
         <div className="flex min-w-0 flex-1 flex-col lg:pl-64">
-          <AppTopbar alerts={alerts} activeBusinessId={activeBusinessId} chatSlot={chatSlot} />
+          <AppTopbar
+            businesses={businesses}
+            activeBusinessId={activeBusinessId}
+            businessHref={hrefFor}
+            onCreateBusiness={onCreateBusiness}
+            alerts={alerts}
+            chatSlot={chatSlot}
+          />
           {/* `overflow-x-hidden` is the platform-wide backstop for CLAUDE.md rule #12 (no
               page ever scrolls horizontally) -- any element that misbehaves and paints
               wider than the viewport (a chart's first frame, an unwrapped long string)

@@ -15,7 +15,7 @@ import { readPinnedBusinessIds, writePinnedBusinessIds } from "../../lib/pinned-
 import type { ShellBusiness } from "./types";
 
 /**
- * Business switcher, pinned under the rail's wordmark -- ported from co-founder-ai's
+ * Topbar business switcher -- ported from co-founder-ai's
  * header BusinessSelector
  * (components/tenancy/business-selector.tsx, per its "Header & Business Selector
  * Enhancement" doc: always reachable from anywhere in the dashboard, not just pages with
@@ -23,10 +23,35 @@ import type { ShellBusiness } from "./types";
  * divider). Rebuilt on the shell's own DropdownMenu primitives rather than
  * co-founder-ai's hand-rolled popover, so it picks
  * up the platform's own light/blue design system per docs/DESIGN.md instead of
- * co-founder-ai's dark-violet one (CLAUDE.md non-negotiable #7). The trigger is styled
- * for the dark rail it sits on; the dropdown itself stays on the light popover surface
- * every other menu in the platform uses.
+ * co-founder-ai's dark-violet one (CLAUDE.md non-negotiable #7). The rail keeps the
+ * module navigation; this is the quick "which business am I in" control that stays
+ * visible in the topbar from every page.
  */
+/** A business's own logo where it has one, the generic icon where it doesn't -- the two
+ * are the same size and shape so a switcher row doesn't reflow depending on whether a
+ * logo has been uploaded yet. */
+function BusinessLogo({
+  business,
+  className,
+}: {
+  business: Pick<ShellBusiness, "name" | "logoUrl"> | null;
+  className?: string;
+}) {
+  if (business?.logoUrl) {
+    return (
+      // A Supabase Storage public URL, not a build-time-known domain next/image is
+      // configured for.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={business.logoUrl}
+        alt=""
+        className="size-5 shrink-0 rounded-sm object-contain"
+      />
+    );
+  }
+  return <Building2 className={cn("size-4 shrink-0", className)} aria-hidden="true" />;
+}
+
 export function BusinessSwitcher({
   businesses,
   activeBusinessId,
@@ -66,20 +91,29 @@ export function BusinessSwitcher({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
+        {/* Sized and bordered like the `outline` Button variant rather than given its own
+            look -- it sits in a 56px bar next to the alert bell, so a taller two-line
+            card would crowd it and read as a separate design language. */}
         <button
           type="button"
-          className="flex w-full min-w-0 items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/70"
+          className={cn(
+            "flex h-9 min-w-0 max-w-[15rem] items-center gap-2 rounded-lg border px-3 text-left text-sm font-medium transition-colors",
+            activeBusiness
+              ? "border-border bg-card text-foreground hover:border-primary/40 hover:bg-accent/50"
+              : "border-primary/25 bg-primary/5 text-primary hover:bg-primary/10",
+          )}
         >
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary-subtle">
-            <Building2 className="size-4" aria-hidden="true" />
+          <BusinessLogo
+            business={activeBusiness}
+            className={activeBusiness ? "text-muted-foreground" : "text-primary"}
+          />
+          <span className="min-w-0 flex-1 truncate">
+            {activeBusiness?.name ?? "Select a business"}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium text-sidebar-foreground">
-              {activeBusiness?.name ?? "Select a business"}
-            </span>
-            <span className="block truncate text-[11px] text-sidebar-muted">Business</span>
-          </span>
-          <ChevronDown className="size-4 shrink-0 text-sidebar-muted" aria-hidden="true" />
+          <ChevronDown
+            className={cn("size-4 shrink-0", activeBusiness ? "text-muted-foreground" : "text-primary")}
+            aria-hidden="true"
+          />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
@@ -97,6 +131,7 @@ export function BusinessSwitcher({
                     business.id === activeBusinessId && "font-medium",
                   )}
                 >
+                  <BusinessLogo business={business} className="text-muted-foreground" />
                   <span className="min-w-0 flex-1 truncate">
                     {business.name}
                     {business.description ? (

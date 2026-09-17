@@ -58,6 +58,8 @@ export interface ShellBusiness {
   slug: string;
   name: string;
   description?: string | null;
+  /** core.businesses.logo_url -- the switcher falls back to a generic icon when unset. */
+  logoUrl?: string | null;
 }
 
 /** A discovery product/workspace belonging to a business -- shown under the sidebar's

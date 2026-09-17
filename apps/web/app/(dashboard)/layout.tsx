@@ -107,7 +107,10 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <DashboardChrome
       modules={moduleRegistry}
       licensedModuleKeysByBusiness={licensedModuleKeysByBusiness}
-      businesses={businesses}
+      // `logo_url` is the column; `logoUrl` is what the shell's own (deliberately
+      // framework-shaped, not row-shaped) ShellBusiness exposes, so it's mapped here
+      // rather than leaking the DB's snake_case into packages/core.
+      businesses={businesses.map((b) => ({ ...b, logoUrl: b.logo_url }))}
       productsByBusiness={productsByBusiness}
       creditsUsedPercent={creditsPercent}
       accountId={account?.id ?? ""}

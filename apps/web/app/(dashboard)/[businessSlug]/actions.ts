@@ -3,6 +3,7 @@
 import { businessPath } from "@/lib/business-path";
 import { unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@cofounderai/core/db/server";
 import {
   updateBusiness,
   createProductsBulk,
@@ -93,6 +94,79 @@ export async function updateBusinessWebsiteAction(
   revalidatePath(`${await businessPath(businessId)}`);
   return { success: true };
 }
+
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
+
+/**
+ * Uploads a logo for one business and stores its public URL on core.businesses. Same
+ * shape as the account avatar upload (dashboard/settings/profile/actions.ts): the object
+ * path is prefixed with the id the storage policy checks -- here the business id, which
+ * 20260917100000_core_business_logo.sql matches against core.user_business_ids() -- and
+ * timestamped so re-uploading doesn't serve a stale file from the old URL's cache.
+ *
+ * Authorization is the storage policy plus core.businesses' own RLS on the update below,
+ * both resolved server-side; `businessId` arriving from the client buys nothing without
+ * membership of that business.
+ */
+export async function updateBusinessLogoAction(
+  businessId: string,
+  _prevState: RenameActionState,
+  formData: FormData,
+): Promise<RenameActionState> {
+  // One action for both submit buttons: "remove" clears the column and leaves the
+  // uploaded object in storage (cheap, and an orphaned file is a far better failure mode
+  // than a delete that half-succeeds and leaves the row pointing at a URL that now 404s).
+  if (formData.get("intent") === "remove") {
+    try {
+      await updateBusiness(businessId, { logoUrl: null });
+    } catch (error) {
+      unstable_rethrow(error);
+      return { error: error instanceof Error ? error.message : "Something went wrong." };
+    }
+    revalidatePath(`${await businessPath(businessId)}`);
+    revalidatePath("/", "layout");
+    return { success: true };
+  }
+
+  const file = formData.get("logo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Choose an image to upload." };
+  }
+  if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+    return { error: "Only PNG, JPEG, WebP, or SVG images are supported." };
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    return { error: "Logo must be 2MB or smaller." };
+  }
+
+  try {
+    const supabase = await createClient();
+    const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+    const path = `${businessId}/logo-${Date.now()}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("business-logos")
+      .upload(path, file, { contentType: file.type, upsert: true });
+    if (uploadError) throw uploadError;
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("business-logos").getPublicUrl(path);
+
+    await updateBusiness(businessId, { logoUrl: publicUrl });
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Something went wrong." };
+  }
+
+  // The logo shows in the shell on every page, not just this one, so the whole dashboard
+  // layout is revalidated rather than only the business page that uploaded it.
+  revalidatePath(`${await businessPath(businessId)}`);
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
 
 /**
  * Step 1 of the business page's product-catalog import: parses the uploaded file and

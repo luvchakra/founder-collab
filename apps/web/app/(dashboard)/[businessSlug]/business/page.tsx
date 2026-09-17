@@ -17,6 +17,7 @@ import {
   renameBusinessAction,
   updateBusinessDescriptionAction,
   updateBusinessWebsiteAction,
+  updateBusinessLogoAction,
   previewProductImportAction,
   importProductsAction,
   deleteProductAction,
@@ -31,6 +32,7 @@ import {
 } from "../actions";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
+import { BusinessLogoField } from "@cofounderai/module-discovery/components/tenancy/business-logo-field";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { ProductImportWizard } from "@cofounderai/module-discovery/components/tenancy/product-import-wizard";
 import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/components/tenancy/auto-populate-products-button";
@@ -117,6 +119,12 @@ export default async function BusinessDetailPage({
           />
         </div>
       </div>
+
+      <BusinessLogoField
+        logoUrl={business.logo_url}
+        businessName={business.name}
+        action={updateBusinessLogoAction.bind(null, business.id)}
+      />
 
       {websiteOnboardingRun ? (
         <WebsiteOnboardingPanel

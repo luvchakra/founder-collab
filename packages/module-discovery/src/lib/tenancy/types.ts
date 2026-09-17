@@ -17,6 +17,8 @@ export type Business = {
   description: string | null;
   website: string | null;
   industry: string | null;
+  /** Public URL in the `business-logos` storage bucket; null until one is uploaded. */
+  logo_url: string | null;
   created_at: string;
   updated_at: string;
   disabled_at: string | null;
