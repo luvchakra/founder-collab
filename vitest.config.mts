@@ -48,18 +48,21 @@ export default defineConfig({
        * eroded an invariant, which is exactly the thing CI should refuse.
        */
       thresholds: {
-        statements: 18,
-        branches: 14,
-        functions: 16,
-        lines: 19,
+        statements: 50,
+        branches: 43,
+        functions: 45,
+        lines: 49,
 
-        "packages/core/src/licensing/**": { statements: 85, branches: 70, functions: 95, lines: 95 },
+        "packages/core/src/licensing/**": { statements: 95, branches: 85, functions: 95, lines: 95 },
         "packages/core/src/events/**": { statements: 85, branches: 80, functions: 85, lines: 88 },
         "packages/core/src/rbac/**": { statements: 90, branches: 80, functions: 90, lines: 90 },
-        "packages/core/src/parties/**": { statements: 85, branches: 80, functions: 95, lines: 95 },
+        "packages/core/src/parties/**": { statements: 95, branches: 90, functions: 95, lines: 95 },
         "packages/core/src/attachments/**": { statements: 90, branches: 85, functions: 95, lines: 95 },
         "packages/core/src/email/**": { statements: 95, branches: 80, functions: 95, lines: 95 },
         "packages/core/src/db/middleware.ts": { statements: 80, branches: 90, functions: 40, lines: 80 },
+        "packages/module-discovery/src/lib/ai/router.ts": { statements: 95, branches: 90, functions: 90, lines: 95 },
+        "packages/module-discovery/src/lib/tenancy/**": { statements: 90, branches: 80, functions: 90, lines: 90 },
+        "packages/module-discovery/src/lib/usage/**": { statements: 90, branches: 85, functions: 90, lines: 90 },
         "apps/web/app/api/**": { statements: 90, branches: 85, functions: 90, lines: 90 },
         "apps/web/app/(auth)/actions.ts": { statements: 90, branches: 85, functions: 85, lines: 90 },
         "apps/web/app/auth/**": { statements: 90, branches: 85, functions: 90, lines: 90 },
