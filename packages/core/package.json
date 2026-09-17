@@ -29,6 +29,7 @@
     "./audit/*": "./src/audit/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
+    "./test-support/*": "./src/test-support/*.ts",
     "./site": "./src/site.ts",
     "./shell/types": "./src/components/shell/types.ts",
     "./shell/*": "./src/components/shell/*.tsx",
