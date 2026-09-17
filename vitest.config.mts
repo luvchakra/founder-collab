@@ -22,6 +22,8 @@ export default defineConfig({
       exclude: [
         "**/*.test.{ts,tsx}",
         "**/*.d.ts",
+        // Next build output, not authored code (apps/web/.next/types/* is generated).
+        "**/.next/**",
         // Vendored shadcn primitives: structural UI taken wholesale from an upstream
         // source (CLAUDE.md non-negotiable #7), not code this repo authors or changes.
         "packages/core/src/components/ui/**",

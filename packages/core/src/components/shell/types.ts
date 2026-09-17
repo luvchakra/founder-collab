@@ -9,7 +9,16 @@ export interface ShellNavModule {
   name: string;
   /** lucide-react icon name, resolved via ./module-icon. */
   icon: string;
+  /** Where the nav entry points: the module's own route when licensed, the licences
+   * settings page when not (see licensing/nav-modules.ts). */
   routePrefix: string;
+  /**
+   * Whether the active business has licensed this module — licensing enforcement layer 4.
+   * `false` renders the entry as an upsell rather than a plain link. Undefined is treated
+   * as licensed, so a caller that has no entitlement information (or no active business)
+   * gets the previous, unfiltered behaviour.
+   */
+  licensed?: boolean;
 }
 
 export interface ShellUser {

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, Lock, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
@@ -77,19 +77,35 @@ export function AppSidebar({
 
         <div className="flex flex-col py-1">
           {modules.map((module) => {
-            const isActive = pathname === module.routePrefix || pathname?.startsWith(`${module.routePrefix}/`);
+            // Licensing enforcement layer 4 (00-MASTER-PLAN.md): an unlicensed module is
+            // still listed -- "renders as an upsell card, never as a broken link" -- but
+            // it points at the licences page rather than the module route layer 2 would
+            // 404, and it never shows as the active route.
+            const isLocked = module.licensed === false;
+            const isActive =
+              !isLocked &&
+              (pathname === module.routePrefix || pathname?.startsWith(`${module.routePrefix}/`));
             return (
               <a
                 key={module.key}
                 href={module.routePrefix}
                 onClick={() => setOpen(false)}
+                aria-label={isLocked ? `${module.name} — not licensed, view plans` : undefined}
+                data-licensed={isLocked ? "false" : "true"}
                 className={cn(
                   "flex items-center gap-2.5 px-3 py-2.5 font-medium hover:bg-sidebar-accent",
                   isActive && "bg-sidebar-accent",
+                  isLocked && "text-muted-foreground",
                 )}
               >
                 <ModuleIcon name={module.icon} className="size-4 shrink-0 text-muted-foreground" />
-                {module.name}
+                <span className="min-w-0 flex-1 truncate">{module.name}</span>
+                {isLocked ? (
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-normal">
+                    <Lock className="size-3" aria-hidden="true" />
+                    Upgrade
+                  </span>
+                ) : null}
               </a>
             );
           })}

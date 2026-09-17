@@ -179,3 +179,77 @@ describe("AppSidebar", () => {
     expect(setOpen).toHaveBeenCalledWith(false);
   });
 });
+
+/**
+ * Licensing enforcement layer 4's rendering half: the drawer is handed entitlement
+ * information by `buildNavModules` and must show an unlicensed module as an upsell --
+ * "never as a broken link" (00-MASTER-PLAN.md) -- rather than hiding it or linking it
+ * somewhere layer 2 would 404.
+ */
+describe("AppSidebar — unlicensed modules", () => {
+  const LOCKED = [
+    { key: "discovery", name: "Discovery", icon: "Target", routePrefix: "/discovery", licensed: true },
+    {
+      key: "inventory",
+      name: "Inventory",
+      icon: "Package",
+      routePrefix: "/dashboard/settings/licenses",
+      licensed: false,
+    },
+  ];
+
+  it("still lists an unlicensed module rather than hiding it", () => {
+    renderSidebar({ modules: LOCKED });
+
+    expect(screen.getByRole("link", { name: /Inventory/ })).toBeInTheDocument();
+  });
+
+  it("sends an unlicensed module to the licences page, never to its own route", () => {
+    renderSidebar({ modules: LOCKED });
+
+    const link = screen.getByRole("link", { name: /Inventory/ });
+    expect(link).toHaveAttribute("href", "/dashboard/settings/licenses");
+    expect(link.getAttribute("href")).not.toContain("/inventory");
+  });
+
+  it("labels it as an upsell for assistive tech, not just visually", () => {
+    renderSidebar({ modules: LOCKED });
+
+    expect(
+      screen.getByRole("link", { name: "Inventory — not licensed, view plans" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an Upgrade affordance on the locked entry only", () => {
+    renderSidebar({ modules: LOCKED });
+
+    expect(screen.getAllByText("Upgrade")).toHaveLength(1);
+    expect(screen.getByRole("link", { name: /Inventory/ })).toHaveTextContent("Upgrade");
+    expect(screen.getByRole("link", { name: /Discovery/ })).not.toHaveTextContent("Upgrade");
+  });
+
+  it("marks each entry's licence state in the DOM, so the state is assertable end to end", () => {
+    renderSidebar({ modules: LOCKED });
+
+    expect(screen.getByRole("link", { name: /Discovery/ })).toHaveAttribute("data-licensed", "true");
+    expect(screen.getByRole("link", { name: /Inventory/ })).toHaveAttribute("data-licensed", "false");
+  });
+
+  it("never marks a locked entry active, even when the path matches its upsell href", () => {
+    usePathname.mockReturnValue("/dashboard/settings/licenses");
+    renderSidebar({ modules: LOCKED });
+
+    expect(
+      screen.getByRole("link", { name: /Inventory/ }).classList.contains("bg-sidebar-accent"),
+    ).toBe(false);
+  });
+
+  it("treats an entry with no licensed flag as licensed, preserving the old behaviour", () => {
+    renderSidebar({ modules: [{ key: "crm", name: "CRM", icon: "Inbox", routePrefix: "/crm" }] });
+
+    const link = screen.getByRole("link", { name: /CRM/ });
+    expect(link).toHaveAttribute("href", "/crm");
+    expect(link).toHaveAttribute("data-licensed", "true");
+    expect(link).not.toHaveTextContent("Upgrade");
+  });
+});

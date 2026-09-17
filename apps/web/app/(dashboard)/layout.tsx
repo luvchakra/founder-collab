@@ -29,6 +29,24 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const { usageByWorkspace, prospects } = account
     ? await getAccountUsageAndProspects(account.id)
     : { usageByWorkspace: {}, prospects: [] };
+
+  // Licensing enforcement layer 4 (00-MASTER-PLAN.md): navigation is built from
+  // module-registry filtered by entitlements. Loaded here for every business on the
+  // account in one query -- DashboardChrome picks the active one out of the URL, so
+  // switching business doesn't need a round trip. Mirrors the proxy.ts guard (layer 2) in
+  // counting 'grace' as licensed: ADR-9's grace window keeps read access alive.
+  const licensedByBusiness: Record<string, string[]> = {};
+  if (businesses.length > 0) {
+    const coreClient = await createClient({ schema: "core" });
+    const { data: licenses } = await coreClient
+      .from("licenses")
+      .select("business_id, module_key")
+      .in("business_id", businesses.map((business) => business.id))
+      .in("status", ["active", "grace"]);
+    for (const license of licenses ?? []) {
+      (licensedByBusiness[license.business_id] ??= []).push(license.module_key);
+    }
+  }
   const alerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
 
   const metadata = user.user_metadata ?? {};
@@ -38,6 +56,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <DashboardChrome
       modules={moduleRegistry}
+      licensedByBusiness={licensedByBusiness}
       businesses={businesses}
       accountId={account?.id ?? ""}
       user={{ name: displayName, email: user.email ?? "", avatarUrl }}
