@@ -28,7 +28,7 @@ export default defineConfig({
         // source (CLAUDE.md non-negotiable #7), not code this repo authors or changes.
         "packages/core/src/components/ui/**",
         // Test infrastructure — exercised by every suite that uses it, not a subject.
-        "packages/core/src/test-support/**",
+        "**/test-support/**",
         // Type-only modules compile away to nothing executable.
         "**/types.ts",
       ],
