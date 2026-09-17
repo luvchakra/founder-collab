@@ -109,6 +109,28 @@ describe("createProductAction", () => {
     expect(h.redirect).not.toHaveBeenCalled();
   });
 
+  it("passes an empty name through when the form omits it, letting the mutation refuse", async () => {
+    h.createBusiness.mockRejectedValue(new Error("Business name is required."));
+
+    await expect(createBusinessAction("acct-1", new FormData())).rejects.toThrow(
+      "Business name is required.",
+    );
+    expect(h.createBusiness).toHaveBeenCalledWith("acct-1", {
+      name: "",
+      website: "",
+      industry: "",
+    });
+  });
+
+  it("does the same for a product with no name field", async () => {
+    h.createProduct.mockRejectedValue(new Error("Product name is required."));
+
+    await expect(createProductAction("biz-1", new FormData())).rejects.toThrow(
+      "Product name is required.",
+    );
+    expect(h.createProduct).toHaveBeenCalledWith("biz-1", { name: "", website: "" });
+  });
+
   it("passes empty strings through when the create form omits its optional fields", async () => {
     await expect(createBusinessAction("acct-1", form({ name: "Acme" }))).rejects.toThrow(
       /NEXT_REDIRECT/,

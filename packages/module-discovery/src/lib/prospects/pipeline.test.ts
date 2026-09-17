@@ -113,4 +113,11 @@ describe("latestTimestamp", () => {
   it("ignores null and undefined entries", () => {
     expect(latestTimestamp(null, "2026-01-01T00:00:00Z", undefined)).toBe("2026-01-01T00:00:00Z");
   });
+
+  it("sends a prospect scored without research back to research first", async () => {
+    const state = deriveProspectPipelineState({ ...baseSignals, hasScore: true });
+
+    expect(state.stage).toBe("scored");
+    expect(state.nextAction).toBe("Research");
+  });
 });

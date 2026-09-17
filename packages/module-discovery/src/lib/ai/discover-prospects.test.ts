@@ -283,4 +283,13 @@ describe("discoverProspects — candidates", () => {
       expect.objectContaining({ inputTokens: 0, outputTokens: 0, status: "succeeded" }),
     );
   });
+
+  it("tells the model the pipeline is empty when there is nothing to exclude", async () => {
+    mockDb();
+    h.listProspects.mockResolvedValue([]);
+
+    await discoverProspects("w1");
+
+    expect(String(h.generateText.mock.calls[0]![0].prompt)).toContain("(none yet)");
+  });
 });

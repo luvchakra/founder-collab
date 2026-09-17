@@ -98,4 +98,13 @@ describe("ProfilePage", () => {
 
     expect(screen.getByLabelText("Name")).toHaveValue("");
   });
+
+  it("renders for a user record carrying no email", async () => {
+    mockUser({ id: "u1", user_metadata: { full_name: "Ada Lovelace" } });
+
+    await renderPage();
+
+    expect(screen.getByLabelText("Email")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toHaveValue("Ada Lovelace");
+  });
 });

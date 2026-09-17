@@ -189,4 +189,13 @@ describe("generateReply — outcome", () => {
 
     await expect(generateReply("conv-1")).rejects.toThrow();
   });
+
+  it("addresses a contact whose name was never captured generically", async () => {
+    mockDb({ contact: { id: "c1", first_name: null, last_name: null, job_title: null } });
+    h.getConversation.mockResolvedValue({ ...CONVERSATION, contact_id: "c1" });
+
+    await generateReply("conv-1");
+
+    expect(String(h.generateObject.mock.calls[0]![0].prompt)).toContain("Replying to: them.");
+  });
 });

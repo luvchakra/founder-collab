@@ -169,4 +169,28 @@ describe("generateOutreachMessage — outcome", () => {
 
     await expect(generateOutreachMessage("s1")).rejects.toThrow();
   });
+
+  it("addresses a named contact with their title, and falls back when the name is unknown", async () => {
+    h.getOutreachStrategy.mockResolvedValue({ ...STRATEGY, contact_id: "c1" });
+    mockDb({ id: "c1", first_name: "Sarah", last_name: null, job_title: "VP Engineering" });
+
+    await generateOutreachMessage("s1");
+    expect(String(h.generateObject.mock.calls[0]![0].prompt)).toContain(
+      "Writing to: Sarah, VP Engineering.",
+    );
+
+    vi.clearAllMocks();
+    h.getOutreachStrategy.mockResolvedValue({ ...STRATEGY, contact_id: "c1" });
+    h.generateObject.mockResolvedValue({ object: DRAFT, usage: { inputTokens: 1, outputTokens: 1 } });
+    h.resolveAiModel.mockResolvedValue({
+      accountId: "acct-1",
+      provider: "anthropic",
+      modelId: "claude-fast",
+      model: { id: "claude-fast" },
+    });
+    mockDb({ id: "c1", first_name: null, last_name: null, job_title: null });
+
+    await generateOutreachMessage("s1");
+    expect(String(h.generateObject.mock.calls[0]![0].prompt)).toContain("Writing to: them.");
+  });
 });

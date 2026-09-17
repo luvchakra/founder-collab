@@ -269,3 +269,17 @@ describe("researchProspect — search prompt", () => {
     expect(prompt()).toContain("Buying signals we look for: none specified.");
   });
 });
+
+describe("researchProspect — usage accounting", () => {
+  it("counts a provider that reported no token usage as zero rather than NaN", async () => {
+    mockUpsert();
+    h.generateText.mockResolvedValue({ text: "findings", usage: {}, toolCalls: [] });
+    h.generateObject.mockResolvedValue({ object: DRAFT, usage: {} });
+
+    await researchProspect("p1");
+
+    expect(h.recordAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ inputTokens: 0, outputTokens: 0, status: "succeeded" }),
+    );
+  });
+});
