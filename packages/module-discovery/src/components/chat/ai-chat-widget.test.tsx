@@ -240,3 +240,120 @@ describe("AiChatWidget — sending", () => {
     expect(sent.map((m) => m.content)).toEqual(["earlier", "now"]);
   });
 });
+
+describe("AiChatWidget — dismissing and returning", () => {
+  it("closes when the backdrop behind the panel is clicked", async () => {
+    const u = userEvent.setup();
+    render(<AiChatWidget />);
+    await openPanel();
+    await screen.findByRole("dialog");
+
+    await u.click(document.querySelector('[aria-hidden="true"].fixed')!);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("closes on Escape", async () => {
+    const u = userEvent.setup();
+    render(<AiChatWidget />);
+    await openPanel();
+    await screen.findByRole("dialog");
+
+    await u.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("steps out of the way when an answer's link navigates, offering a way back", async () => {
+    const u = userEvent.setup();
+    h.getChatPanelDataAction.mockResolvedValue({
+      messages: [
+        { role: "user", content: "where are my prospects?" },
+        { role: "assistant", content: "Open [your prospects](/dashboard/businesses/b1/products/p1/prospects)." },
+      ],
+      followUp: null,
+      starterQuestions: [],
+    });
+    render(<AiChatWidget />);
+    await openPanel();
+
+    await u.click(await screen.findByRole("link", { name: "your prospects" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const back = screen.getByRole("button", { name: "Back to chat" });
+
+    await u.click(back);
+
+    // the same conversation, not a fresh one
+    expect(await screen.findByText(/Open/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back to chat" })).not.toBeInTheDocument();
+    expect(h.getChatPanelDataAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the back-to-chat shortcut when the panel is reopened from the trigger", async () => {
+    const u = userEvent.setup();
+    h.getChatPanelDataAction.mockResolvedValue({
+      messages: [{ role: "assistant", content: "Open [prospects](/dashboard/businesses/b1/products/p1/prospects)." }],
+      followUp: null,
+      starterQuestions: [],
+    });
+    render(<AiChatWidget />);
+    await openPanel();
+    await u.click(await screen.findByRole("link", { name: "prospects" }));
+
+    await openPanel();
+
+    expect(screen.queryByRole("button", { name: "Back to chat" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AiChatWidget — follow-ups and guards", () => {
+  it("fills the input from the assistant's follow-up rather than sending it", async () => {
+    const u = userEvent.setup();
+    h.getChatPanelDataAction.mockResolvedValue({
+      messages: [{ role: "assistant", content: "Here you go" }],
+      followUp: "Want me to draft an email?",
+      starterQuestions: [],
+    });
+    render(<AiChatWidget />);
+    await openPanel();
+
+    await u.click(await screen.findByRole("button", { name: "Want me to draft an email?" }));
+
+    expect(screen.getByRole("textbox")).toHaveValue("Want me to draft an email?");
+    expect(h.sendChatMessageAction).not.toHaveBeenCalled();
+  });
+
+  it("ignores a submission of whitespace", async () => {
+    const u = userEvent.setup();
+    render(<AiChatWidget />);
+    await openPanel();
+    await screen.findByRole("dialog");
+
+    await u.type(screen.getByRole("textbox"), "   {Enter}");
+
+    expect(h.sendChatMessageAction).not.toHaveBeenCalled();
+  });
+
+  it("ignores a second question while the first is still in flight", async () => {
+    const u = userEvent.setup();
+    let release: (value: unknown) => void = () => {};
+    h.sendChatMessageAction.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    render(<AiChatWidget />);
+    await openPanel();
+    await screen.findByRole("dialog");
+
+    await u.type(screen.getByRole("textbox"), "first{Enter}");
+    expect(await screen.findByText("Thinking...")).toBeInTheDocument();
+    await u.type(screen.getByRole("textbox"), "second{Enter}");
+
+    expect(h.sendChatMessageAction).toHaveBeenCalledTimes(1);
+
+    release({ answer: "done", followUp: null });
+    await screen.findByText("done");
+  });
+});
