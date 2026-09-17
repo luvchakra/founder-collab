@@ -19,9 +19,11 @@ beforeEach(() => {
   // `new Resend(...)`: vitest requires a `class` implementation for a mock invoked with
   // `new` — neither an arrow implementation nor mockReturnValue is constructible.
   Resend.mockImplementation(
+    // Cast: vitest requires a `class` implementation for a mock invoked with `new`, but
+    // its mockImplementation signature is written for plain functions.
     class {
       emails = { send };
-    },
+    } as unknown as (...args: unknown[]) => unknown,
   );
   vi.stubEnv("RESEND_API_KEY", "re_key");
   vi.stubEnv("RESEND_FROM_EMAIL", "hello@cofounderai.example");
