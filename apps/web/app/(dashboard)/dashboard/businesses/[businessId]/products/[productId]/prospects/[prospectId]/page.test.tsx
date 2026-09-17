@@ -712,3 +712,100 @@ describe("ProspectDetailPage — contacts", () => {
     expect(contacts.queryByText("No contacts yet.")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Fallbacks for rows that are missing the value the UI would normally show. None of these
+ * should ever render as blank or as a raw enum the founder can't read.
+ */
+describe("ProspectDetailPage — display fallbacks", () => {
+  it("labels an email recipient by address when the contact has no name", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [message()],
+      contacts: [contact({ first_name: null, last_name: null })],
+    });
+
+    await renderPage();
+
+    const select = within(section("messages")).getByRole("combobox") as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(["sarah@globex.example"]);
+  });
+
+  it("falls back to the raw status and conversation status it has no label for", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [message({ status: "queued" as never })],
+      conversations: [conversation({ status: "snoozed" as never })],
+    });
+
+    await renderPage();
+
+    expect(within(section("messages")).getByText(/email · queued/)).toBeInTheDocument();
+    expect(within(section("conversations")).getByText("snoozed")).toBeInTheDocument();
+  });
+
+  it("shows no subject line for a sent email that never had one", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [message({ status: "sent", subject: null, sent_at: "2026-02-14T10:00:00Z" })],
+      contacts: [contact()],
+    });
+
+    await renderPage();
+
+    expect(within(section("messages")).queryByPlaceholderText("Subject")).not.toBeInTheDocument();
+    expect(within(section("messages")).getByText(/^Sent /)).toBeInTheDocument();
+  });
+
+  it("offers an empty subject box for a draft email that has none yet", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [message({ subject: null })],
+      contacts: [contact()],
+    });
+
+    await renderPage();
+
+    expect(within(section("messages")).getByPlaceholderText("Subject")).toHaveValue("");
+  });
+
+  it("omits the send timestamp when the provider never recorded one", async () => {
+    given({
+      research: research(),
+      strategy: strategy({ status: "approved" }),
+      messages: [message({ status: "sent", sent_at: null })],
+      contacts: [contact()],
+    });
+
+    await renderPage();
+
+    expect(within(section("messages")).queryByText(/^Sent /)).not.toBeInTheDocument();
+  });
+
+  it("picks the most recent conversation when a prospect has several", async () => {
+    given({
+      conversations: [
+        conversation({ id: "conv-old", last_message_at: "2026-01-01T00:00:00Z", status: "closed" }),
+        conversation({ id: "conv-new", last_message_at: "2026-03-01T00:00:00Z", status: "replied" }),
+      ],
+    });
+
+    await renderPage();
+
+    // the newer thread's status is what drives the header's next action
+    expect(screen.getByRole("link", { name: /^Next:/ })).toHaveAttribute("href", "#conversations");
+  });
+
+  it("omits the reasoning block for a score that came back without one", async () => {
+    given({ research: research(), scores: [score({ reasoning: null })] });
+
+    await renderPage();
+
+    expect(within(section("score")).queryByText("Strong ICP match.")).not.toBeInTheDocument();
+    expect(within(section("score")).getByText("84")).toBeInTheDocument();
+  });
+});
