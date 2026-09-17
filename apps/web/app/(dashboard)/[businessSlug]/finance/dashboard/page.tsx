@@ -8,6 +8,14 @@ import { ComplianceDashboardView } from "@cofounderai/module-gst/components/dash
 import { RiskSignalsList } from "@cofounderai/module-gst/components/risk/risk-signals-list";
 import { UpcomingFilingsList } from "@cofounderai/module-gst/components/calendar/upcoming-filings-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
+import {
+  getFinanceSnapshot,
+  listUnpostedDocuments,
+} from "@cofounderai/module-gst/lib/accounting/dashboard-queries";
+import {
+  FinanceSnapshotCards,
+  UnpostedDocumentsNotice,
+} from "@cofounderai/module-gst/components/accounting/finance-snapshot";
 
 /**
  * COMPLY-P0-11.1 (Overview Dashboard): extends the existing month-snapshot dashboard
@@ -18,6 +26,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/c
  * each a responsive table-on-desktop/cards-on-mobile component with real row-level
  * actions (COMPLY-P0-11.2/11.3/11.4) and a status hierarchy that never relies on color
  * alone (COMPLY-P0-11.5).
+ *
+ * Now also the module's own front page since the Compliance -> Finance rename: the money
+ * snapshot (cash, receivables, payables, profit) goes above the compliance sections
+ * rather than onto a second competing dashboard, for the same reason this page absorbed
+ * risk and the filing calendar instead of spawning pages of their own. Money first,
+ * because that is what someone opens Finance to see; the GST snapshot it was built for
+ * follows directly underneath.
  */
 export default async function ComplianceDashboardPage({
   params,
@@ -31,20 +46,33 @@ export default async function ComplianceDashboardPage({
   if (!business) notFound();
 
   const asOf = new Date().toISOString().slice(0, 10);
-  const [data, riskDashboard, filingCalendar] = await Promise.all([
+  const [data, riskDashboard, filingCalendar, snapshot, unposted] = await Promise.all([
     getComplianceDashboard(businessId),
     getRiskDashboard(businessId, asOf),
     getFilingCalendar(businessId, { monthsBack: 1, monthsForward: 2, quartersBack: 0, quartersForward: 1 }),
+    getFinanceSnapshot(businessId),
+    listUnpostedDocuments(businessId),
   ]);
+  const financePath = `/${businessSlug}/finance`;
 
   const upcomingFilings = [...filingCalendar].sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 6);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Compliance dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name} -- this month&apos;s GST snapshot.</p>
+        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Finance dashboard</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {business.name} -- where the money stands, and this month&apos;s GST snapshot.
+        </p>
       </div>
+
+      <FinanceSnapshotCards snapshot={snapshot} basePath={financePath} />
+
+      <UnpostedDocumentsNotice
+        documents={unposted}
+        basePath={financePath}
+        hasAccounts={snapshot.hasAccounts}
+      />
 
       <ComplianceDashboardView businessId={businessId} data={data} />
 
