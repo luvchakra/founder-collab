@@ -40,6 +40,13 @@ describe("listTagsForBusiness", () => {
   });
 });
 
+describe("listTagsForBusiness failures", () => {
+  it("propagates", async () => {
+    mock(null, new Error("denied"));
+    await expect(listTagsForBusiness(BUSINESS)).rejects.toThrow("denied");
+  });
+});
+
 describe("listTagsForEntity", () => {
   it("flattens the embedded tag rows", async () => {
     mock([{ tags: { id: "t1", name: "VIP" } }, { tags: { id: "t2", name: "Lead" } }]);

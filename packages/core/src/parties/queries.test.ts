@@ -120,3 +120,16 @@ describe("getSupplierAttrs", () => {
     await expect(getSupplierAttrs(PARTY)).resolves.toMatchObject({ lead_time_days: 7 });
   });
 });
+
+describe("failure propagation", () => {
+  it.each([
+    ["listPartiesByRole", () => listPartiesByRole(BUSINESS, "supplier")],
+    ["getParty", () => getParty(PARTY)],
+    ["listRolesForParty", () => listRolesForParty(PARTY)],
+    ["listContactsForParty", () => listContactsForParty(PARTY)],
+    ["getSupplierAttrs", () => getSupplierAttrs(PARTY)],
+  ])("%s propagates", async (_label, run) => {
+    mock(null, new Error("denied"));
+    await expect(run()).rejects.toThrow("denied");
+  });
+});

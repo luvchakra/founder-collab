@@ -269,3 +269,79 @@ describe("seedDefaultLicenses", () => {
     expect(writtenRow(inserts[0]!)).toMatchObject({ module_key: "discovery", status: "active" });
   });
 });
+
+/**
+ * Every failure in this file must surface, never be swallowed: a licence whose event was
+ * not recorded, or whose status update silently failed, leaves the platform's entitlement
+ * state and its audit trail disagreeing.
+ */
+describe("failure propagation", () => {
+  it("propagates a failed status update when restoring an existing licence", async () => {
+    mockAdmin((call) =>
+      call.table === "licenses" && usedOp(call, "update")
+        ? { data: null, error: new Error("update denied") }
+        : respondWith({ id: LICENSE, status: "grace" })(call),
+    );
+
+    await expect(activateLicense(BUSINESS, "inventory")).rejects.toThrow("update denied");
+    expect(replayParkedEvents).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failed initial licence lookup", async () => {
+    mockAdmin((call) =>
+      call.table === "licenses" ? { data: null, error: new Error("select denied") } : { data: null, error: null },
+    );
+
+    await expect(activateLicense(BUSINESS, "inventory")).rejects.toThrow("select denied");
+  });
+
+  it("propagates a failed business lookup, so no licence is created against a missing account", async () => {
+    const supabase = mockAdmin((call) =>
+      call.table === "businesses"
+        ? { data: null, error: new Error("business not visible") }
+        : respondWith(null)(call),
+    );
+
+    await expect(activateLicense(BUSINESS, "inventory")).rejects.toThrow("business not visible");
+    expect(supabase.queries("licenses").filter((c) => usedOp(c, "insert"))).toEqual([]);
+  });
+
+  it("propagates a failed license_events insert rather than reporting success", async () => {
+    mockAdmin((call) =>
+      call.table === "license_events"
+        ? { data: null, error: new Error("event denied") }
+        : respondWith(null)(call),
+    );
+
+    await expect(activateLicense(BUSINESS, "inventory")).rejects.toThrow("event denied");
+    expect(replayParkedEvents).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failed domain_events publish", async () => {
+    mockAdmin((call) =>
+      call.table === "domain_events"
+        ? { data: null, error: new Error("publish denied") }
+        : respondWith(null)(call),
+    );
+
+    await expect(activateLicense(BUSINESS, "inventory")).rejects.toThrow("publish denied");
+  });
+
+  it("propagates a failed deactivation update", async () => {
+    mockAdmin((call) =>
+      call.table === "licenses" && usedOp(call, "update")
+        ? { data: null, error: new Error("deactivate denied") }
+        : respondWith({ id: LICENSE, status: "active" })(call),
+    );
+
+    await expect(deactivateLicense(BUSINESS, "inventory")).rejects.toThrow("deactivate denied");
+  });
+
+  it("propagates a failed grace-expiry sweep", async () => {
+    mockAdmin((call) =>
+      call.table === "licenses" ? { data: null, error: new Error("expire denied") } : { data: null, error: null },
+    );
+
+    await expect(expireGracePeriods()).rejects.toThrow("expire denied");
+  });
+});
