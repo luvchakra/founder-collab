@@ -1,6 +1,7 @@
 import { registerEventHandler } from "@cofounderai/core/events/registry";
 import type { DomainEvent } from "@cofounderai/core/events/types";
 import { generateEinvoice } from "../lib/einvoicing/mutations";
+import { postIssuedDocument } from "../lib/accounting/event-posting";
 
 /**
  * module-gst's own event subscription (00-MASTER-PLAN.md's module contract layout;
@@ -45,4 +46,29 @@ registerEventHandler("document.issued", async (event: DomainEvent) => {
     if (err instanceof Error && err.message === "No e-Invoicing credentials configured for this business.") return;
     throw err;
   }
+});
+
+/**
+ * Finance's own subscription to the same event — the automatic half of the ledger.
+ *
+ * A second handler on `document.issued` rather than an extension of the e-invoicing one
+ * above: the two are independent (a business can have Finance's books without a GSP
+ * account, and vice versa), and `drainDomainEvents()` deliberately runs every registered
+ * handler for a type even when an earlier one throws, so an unreachable GSP never costs
+ * the business its accounting entry.
+ *
+ * Idempotent by construction: `postFinanceEvent` derives the entry's idempotency key from
+ * the document's own identity, and `gst.journal_entries` carries a unique index on it —
+ * so the drain's own retry-with-backoff, a replay of parked events after a licence is
+ * reactivated, and a second drain of the same row all converge on the one entry that
+ * already exists.
+ *
+ * Refusals (a document with no accounting consequence, a chart of accounts that isn't
+ * set up yet) come back as values and are left alone. Throwing would make the drain retry
+ * with backoff until it gives up permanently, and neither of those is fixed by retrying.
+ */
+registerEventHandler("document.issued", async (event: DomainEvent) => {
+  const payload = event.payload as { invoiceId?: string };
+  if (!payload.invoiceId) return;
+  await postIssuedDocument(event.business_id, payload.invoiceId, event.id);
 });

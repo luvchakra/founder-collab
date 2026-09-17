@@ -1,4 +1,6 @@
 import { createClient } from "../../db/server";
+import { createAdminClient } from "../../db/admin";
+import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import { nextNumber } from "@cofounderai/core/numbering/mutations";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
@@ -13,7 +15,7 @@ import type { AccountRoleKey } from "./types";
 const ENTRY_NUMBER_SCOPE = "journal_entry";
 const ENTRY_NUMBER_PREFIX = "JE";
 
-type Supabase = Awaited<ReturnType<typeof createClient>>;
+type Supabase = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>;
 
 /**
  * The period a posting date falls in, and whether it will take the posting.
@@ -298,12 +300,29 @@ export async function postFinanceEvent(
   event: FinanceEvent,
   plan?: PostingPlan,
 ): Promise<PostFinanceEventResult> {
-  await requireModule(businessId, "gst");
-
   const result = plan ?? planPosting(event);
   if (!result.posted) return { posted: false, reason: result.reason };
 
-  const supabase = await createClient();
+  // Service-role throughout: this runs from the domain-event drain, where there is no
+  // signed-in user for RLS to resolve. Every statement below is scoped to the
+  // `businessId` on the event row itself, which the drain read from `core.domain_events`
+  // — never a client-supplied value.
+  const supabase = createAdminClient();
+  const core = createCoreAdminClient({ schema: "core" });
+
+  // The drain's own gate parks an event for a business with no licence, but would let
+  // one through during ADR-9's 30-day read-only grace period, where a new posting is
+  // exactly the write that must not happen. `has_module_write` is the check that knows
+  // the difference.
+  const { data: licensed, error: licenseError } = await core.rpc("has_module_write", {
+    p_business_id: businessId,
+    p_key: "gst",
+  });
+  if (licenseError) throw licenseError;
+  if (!licensed) {
+    return { posted: false, reason: "Finance isn't licensed for this business (or is in its read-only grace period)." };
+  }
+
   const { data: existing, error: existingError } = await supabase
     .from("journal_entries")
     .select("id")
@@ -325,7 +344,16 @@ export async function postFinanceEvent(
 
   const postingDate = event.occurredAt.slice(0, 10);
   const periodId = await resolvePeriod(supabase, businessId, postingDate);
-  const entryNumber = await nextNumber(businessId, ENTRY_NUMBER_SCOPE, ENTRY_NUMBER_PREFIX);
+
+  // `core.next_number()` checks membership via auth.uid(), which is null here; its
+  // service-role twin shares the same counter, so a number minted from the drain
+  // continues the identical sequence a number minted from the UI would have.
+  const { data: entryNumber, error: numberError } = await core.rpc("next_number_for_api", {
+    p_business_id: businessId,
+    p_scope: ENTRY_NUMBER_SCOPE,
+    p_prefix: ENTRY_NUMBER_PREFIX,
+  });
+  if (numberError) throw numberError;
 
   const entryId = await insertEntry(
     supabase,
