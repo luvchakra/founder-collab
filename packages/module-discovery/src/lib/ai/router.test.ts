@@ -154,6 +154,12 @@ describe("toAiProviderError", () => {
     expect(toAiProviderError(apiError(undefined), "openai").code).toBe("unknown");
   });
 
+  it("omits the parenthesised detail when the failure carries no message", () => {
+    // a thrown non-Error (or an Error with an empty message) must not render " ()"
+    expect(toAiProviderError("just a string", "openai").message).not.toContain("(");
+    expect(toAiProviderError(new Error(""), "openai").message).not.toContain("(");
+  });
+
   it("classifies the last underlying attempt inside a RetryError, not the wrapper", () => {
     const retry = new RetryError({
       message: "retries exhausted",

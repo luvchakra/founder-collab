@@ -150,4 +150,16 @@ describe("approveIcpAction", () => {
     await expect(approveIcpAction("biz-1", "prod-1", "icp-1")).rejects.toThrow("denied");
     expect(h.revalidatePath).not.toHaveBeenCalled();
   });
+
+  it("writes an empty ICP when the form submits nothing at all", async () => {
+    // clearAllMocks keeps implementations, so undo the rejection the test above set
+    h.updateIcpProfile.mockResolvedValue(undefined);
+
+    await updateIcpAction("biz-1", "prod-1", "icp-1", new FormData());
+
+    expect(h.updateIcpProfile).toHaveBeenCalledWith(
+      "icp-1",
+      expect.objectContaining({ name: "", description: "", industries: [] }),
+    );
+  });
 });

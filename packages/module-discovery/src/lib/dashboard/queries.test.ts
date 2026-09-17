@@ -181,4 +181,14 @@ describe("getAccountUsageAndProspects", () => {
 
     expect(h.getWorkspaceUsageForWorkspaces).toHaveBeenCalledWith([]);
   });
+
+  it("treats a products query that returns nothing as no products", async () => {
+    mock([{ id: "biz-1", account_id: "acct-1" }], null as unknown as unknown[]);
+
+    const result = await getAccountWorkspaceEntries("acct-1");
+
+    expect(result.allProducts).toEqual([]);
+    expect(result.entries).toEqual([]);
+    expect(result.productsByBusiness).toEqual({ "biz-1": [] });
+  });
 });

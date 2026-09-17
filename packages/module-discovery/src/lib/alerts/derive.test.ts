@@ -125,6 +125,32 @@ describe("deriveAccountAlerts", () => {
     expect(alerts.slice(1).every((a) => a.severity === "info")).toBe(true);
   });
 
+  it("lifts a later workspace's warning above an earlier one's info alert", () => {
+    const second = {
+      workspace: { id: "ws-2" },
+      product: { id: "prod-2", name: "Gadgets", product_profile: { summary: "x" } },
+      business: BUSINESS,
+    } as unknown as Input["entries"][number];
+
+    const alerts = deriveAccountAlerts({
+      entries: [entry({ product: { product_profile: null } }), second],
+      usageByWorkspace: {
+        "ws-2": {
+          workspaceId: "ws-2",
+          periodStart: "",
+          periodEnd: "",
+          totalRuns: 0,
+          totalCost: CAP,
+          byOperation: [],
+        },
+      } as unknown as Input["usageByWorkspace"],
+      prospects: [],
+    });
+
+    expect(alerts[0]!.severity).toBe("warning");
+    expect(alerts[0]!.id).toBe("usage-limit-ws-2");
+  });
+
   it("emits no usage alert for a workspace with no usage record at all", () => {
     expect(derive({ usageByWorkspace: {} as Input["usageByWorkspace"] })).toEqual([]);
   });

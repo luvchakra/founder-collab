@@ -93,4 +93,11 @@ describe("disconnectProviderAction", () => {
     await expect(disconnectProviderAction("acct-1")).rejects.toThrow("denied");
     expect(h.revalidatePath).not.toHaveBeenCalled();
   });
+
+  it("rejects a submission that names no provider at all", async () => {
+    expect(await connectProviderAction("acct-1", null, new FormData())).toEqual({
+      error: expect.any(String),
+    });
+    expect(h.connectAiProvider).not.toHaveBeenCalled();
+  });
 });

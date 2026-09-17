@@ -192,4 +192,16 @@ describe("getWorkspaceUsageForWorkspaces", () => {
     mock(null, new Error("denied"));
     await expect(getWorkspaceUsageForWorkspaces(["w1"])).rejects.toThrow("denied");
   });
+
+  it("counts a run whose cost was never recorded as zero", async () => {
+    mock([
+      { workspace_id: "w1", operation: "chat", estimated_cost: null },
+      { workspace_id: "w1", operation: "chat", estimated_cost: 0.5 },
+    ]);
+
+    const usage = await getWorkspaceUsageForWorkspaces(["w1"]);
+
+    expect(usage.w1!.totalRuns).toBe(2);
+    expect(usage.w1!.totalCost).toBe(0.5);
+  });
 });

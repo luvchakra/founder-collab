@@ -159,4 +159,12 @@ describe("bulk actions", () => {
 
     expect(h.revalidatePath).toHaveBeenCalledWith(BASE);
   });
+
+  it("checks for a duplicate even when the form omits both fields", async () => {
+    await expect(
+      createProspectAction("biz-1", "prod-1", "w1", new FormData()),
+    ).rejects.toThrow(/NEXT_REDIRECT/);
+
+    expect(h.findDuplicateProspect).toHaveBeenCalledWith("w1", { companyName: "", website: "" });
+  });
 });

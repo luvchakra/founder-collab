@@ -232,4 +232,22 @@ describe("scoreProspect — overall", () => {
 
     await expect(scoreProspect("p1")).rejects.toThrow("denied");
   });
+
+  it("says 'unset' in the reasoning for the prospect fields it has no value for", async () => {
+    const supabase = mock();
+    h.getProspect.mockResolvedValue({
+      id: "p1",
+      workspace_id: "w1",
+      company_name: "Acme",
+      industry: null,
+      company_size: null,
+      location: null,
+    });
+
+    await scoreProspect("p1");
+
+    const reasoning = String(writtenRow(supabase.queries("prospect_scores")[0]!)!.reasoning);
+    expect(reasoning).toContain("Company size (unset)");
+    expect(reasoning).toContain("Location (unset)");
+  });
 });

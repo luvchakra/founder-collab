@@ -164,6 +164,14 @@ describe("submitInterestAction", () => {
   });
 });
 
+describe("submitInterestAction — missing field", () => {
+  it("treats a submission with no email field as an empty email", async () => {
+    await expect(submitInterestAction(null, new FormData())).resolves.toEqual({
+      error: "Enter your email to get notified.",
+    });
+  });
+});
+
 describe("runOnboardingAction", () => {
   const ANSWERS = {
     accountId: "acct-1",

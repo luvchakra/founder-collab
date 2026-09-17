@@ -207,4 +207,12 @@ describe("updateProduct", () => {
     mockAll(() => ({ data: null, error: new Error("denied") }));
     await expect(updateProduct("prod-1", { name: "x" })).rejects.toThrow("denied");
   });
+
+  it("nulls a product description cleared to whitespace", async () => {
+    const supabase = mockAll(ok({ id: "prod-1" }));
+
+    await updateProduct("prod-1", { description: "   " });
+
+    expect(writtenRow(supabase.queries("products")[0]!)).toEqual({ description: null });
+  });
 });

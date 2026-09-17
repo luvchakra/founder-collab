@@ -163,4 +163,14 @@ describe("importProspectsAction", () => {
 
     expect(h.revalidatePath).toHaveBeenCalledWith(BASE);
   });
+
+  it("treats a submission with no csv field as an empty paste", async () => {
+    parsed([], ["Paste a CSV with a header row."]);
+
+    await expect(importProspectsAction("biz-1", "prod-1", "w1", new FormData())).rejects.toThrow(
+      "Paste a CSV with a header row.",
+    );
+    expect(h.parseProspectsCsv).toHaveBeenCalledWith("");
+    expect(h.createProspectsBulk).not.toHaveBeenCalled();
+  });
 });
