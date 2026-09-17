@@ -48,6 +48,13 @@ describe("ContactRow — collapsed", () => {
     expect(screen.getByText(/\(no name\)/)).toBeInTheDocument();
   });
 
+  it("omits the job title when the contact has none", () => {
+    setup({ ...CONTACT, job_title: null });
+
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+    expect(screen.queryByText("CTO")).not.toBeInTheDocument();
+  });
+
   it("falls back when there are no details at all", () => {
     setup({ ...CONTACT, email: null, phone: null, linkedin_url: null });
 
@@ -82,11 +89,21 @@ describe("ContactRow — editing", () => {
   });
 
   it("shows empty inputs for null fields rather than the string 'null'", async () => {
-    setup({ ...CONTACT, linkedin_url: null });
+    setup({
+      id: "c1",
+      first_name: null,
+      last_name: null,
+      job_title: null,
+      email: null,
+      phone: null,
+      linkedin_url: null,
+    } as Parameters<typeof ContactRow>[0]["contact"]);
 
-    await userEvent.click(screen.getByRole("button", { name: "Edit Ada" }));
+    await userEvent.click(screen.getByRole("button", { name: "Edit contact" }));
 
-    expect(screen.getByLabelText("LinkedIn URL")).toHaveValue("");
+    for (const label of ["First name", "Last name", "Job title", "Email", "Phone", "LinkedIn URL"]) {
+      expect(screen.getByLabelText(label)).toHaveValue("");
+    }
   });
 
   it("gives each field a unique id, so several rows can render together", async () => {

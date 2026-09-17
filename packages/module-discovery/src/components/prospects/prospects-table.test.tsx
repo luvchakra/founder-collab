@@ -167,4 +167,42 @@ describe("ProspectsTable — bulk actions", () => {
 
     expect(screen.getByText(/the rest are skipped/)).toBeInTheDocument();
   });
+
+  it("flags a stalled prospect and dashes out the fields it has no value for", () => {
+    setup([
+      prospect("p1", "new", {
+        isStuck: true,
+        industry: null,
+        company_size: null,
+        location: null,
+        fit_score: null,
+      }),
+    ]);
+
+    expect(screen.getByText("Needs next step")).toBeInTheDocument();
+    // industry, size, location and fit score all fall back to a dash
+    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("links the next action straight to the section that performs it", () => {
+    setup([prospect("p1", "new", { nextAction: "Research" })]);
+
+    expect(screen.getByRole("link", { name: "Research" }).getAttribute("href")).toBe(
+      `${BASE}/p1#research`,
+    );
+  });
+
+  it("still links an action it has no anchor for, rather than dropping it", () => {
+    setup([prospect("p1", "new", { nextAction: "Do something new" })]);
+
+    expect(screen.getByRole("link", { name: "Do something new" }).getAttribute("href")).toBe(
+      `${BASE}/p1#`,
+    );
+  });
+
+  it("leaves the action cell empty for a prospect waiting on someone else", () => {
+    setup([prospect("p1", "sent", { nextAction: null })]);
+
+    expect(screen.queryByRole("link", { name: /^(Research|Score|Generate)/ })).not.toBeInTheDocument();
+  });
 });
