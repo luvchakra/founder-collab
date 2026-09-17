@@ -67,7 +67,11 @@ jobs:
           path: coverage/
           retention-days: 7
 
-      - name: Discovery schema + RLS tenant-isolation test
+      # The database half of the suite: applies the whole migration timeline to a
+      # throwaway database and asserts tenancy, licensing and the ported StockPilot
+      # compat views against real Postgres — RLS is authoritative (ADR-4/ADR-8), so it
+      # is verified where it actually runs, not against a mock.
+      - name: Schema, RLS and licensing database tests
         run: npm run test:db
 
       - name: Build
