@@ -119,4 +119,18 @@ describe("findDuplicateProspect", () => {
       findDuplicateProspect(WORKSPACE, { companyName: "Acme", website: "acme.com" }),
     ).rejects.toThrow("select denied");
   });
+
+  it("propagates a failed name lookup rather than reporting no duplicate", async () => {
+    const supabase = createFakeSupabase({
+      query: (call: RecordedQuery): QueryResult =>
+        usedOp(call, "ilike")
+          ? { data: null, error: new Error("name lookup denied") }
+          : { data: null, error: null },
+    });
+    createClient.mockResolvedValue(supabase);
+
+    await expect(
+      findDuplicateProspect(WORKSPACE, { companyName: "Acme Ltd", website: "acme.com" }),
+    ).rejects.toThrow("name lookup denied");
+  });
 });

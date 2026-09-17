@@ -175,4 +175,18 @@ describe("generateReply — outcome", () => {
     await expect(generateReply("conv-1")).rejects.toThrow("normalized");
     expect(supabase.queries("messages").filter((c) => usedOp(c, "insert"))).toEqual([]);
   });
+
+  it("prompts for a generic response when the reply carried no recommended action", async () => {
+    mockDb({ inbound: { ...INBOUND, recommended_action: null } });
+
+    await generateReply("conv-1");
+
+    expect(String(h.generateObject.mock.calls[0]![0].prompt)).toContain("Respond appropriately.");
+  });
+
+  it("propagates a failure to persist the drafted reply", async () => {
+    mockDb({ error: new Error("insert denied") });
+
+    await expect(generateReply("conv-1")).rejects.toThrow();
+  });
 });

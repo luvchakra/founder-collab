@@ -128,6 +128,17 @@ describe("markMessageSent", () => {
     await expect(markMessageSent("m1")).rejects.toThrow("not visible");
     expect(h.getOrCreateConversation).not.toHaveBeenCalled();
   });
+
+  it("propagates a failure to record the send, leaving the thread un-bumped", async () => {
+    mock((call) =>
+      usedOp(call, "update")
+        ? { data: null, error: new Error("update denied") }
+        : { data: { id: "m1", workspace_id: "w1", prospect_id: "p1", contact_id: "c1", channel: "email" }, error: null },
+    );
+
+    await expect(markMessageSent("m1")).rejects.toThrow("update denied");
+    expect(h.markConversationAwaitingReply).not.toHaveBeenCalled();
+  });
 });
 
 describe("deleteMessage", () => {

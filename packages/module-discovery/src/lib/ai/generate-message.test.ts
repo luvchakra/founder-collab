@@ -163,4 +163,10 @@ describe("generateOutreachMessage — outcome", () => {
     expect(h.recordAiRun).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }));
     expect(supabase.queries("messages")).toEqual([]);
   });
+
+  it("propagates a failure to persist the drafted message", async () => {
+    mockDb(null, new Error("insert denied"));
+
+    await expect(generateOutreachMessage("s1")).rejects.toThrow();
+  });
 });

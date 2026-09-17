@@ -265,4 +265,22 @@ describe("discoverProspects — candidates", () => {
     const rows = writtenRow(supabase.queries("prospect_suggestions")[0]!) as unknown as Record<string, unknown>[];
     expect(rows[0]).toMatchObject({ workspace_id: "w1", company_name: "Co 1", match_reason: "r" });
   });
+
+  it("propagates a failure to stage the candidates", async () => {
+    mockDb(new Error("insert denied"));
+
+    await expect(discoverProspects("w1")).rejects.toThrow();
+  });
+
+  it("counts a provider that reported no token usage as zero rather than NaN", async () => {
+    mockDb();
+    h.generateText.mockResolvedValue({ text: "findings", usage: {}, toolCalls: [] });
+    h.generateObject.mockResolvedValue({ object: { prospects: [] }, usage: {} });
+
+    await discoverProspects("w1");
+
+    expect(h.recordAiRun).toHaveBeenCalledWith(
+      expect.objectContaining({ inputTokens: 0, outputTokens: 0, status: "succeeded" }),
+    );
+  });
 });

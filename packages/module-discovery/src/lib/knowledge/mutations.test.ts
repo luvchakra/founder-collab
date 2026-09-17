@@ -277,3 +277,37 @@ describe("addFileKnowledgeSource — text extraction", () => {
     );
   });
 });
+
+describe("addFileKnowledgeSource — remaining fallbacks", () => {
+  it("falls back to the placeholder when a DOCX holds only whitespace", async () => {
+    h.extractRawText.mockResolvedValue({ value: "   " });
+    const supabase = mock();
+
+    await addFileKnowledgeSource(
+      WORKSPACE,
+      file("empty.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "raw"),
+    );
+
+    expect(String(writtenRow(supabase.queries("product_knowledge")[0]!)!.content)).toContain(
+      "no text could be extracted",
+    );
+  });
+
+  it("names the placeholder generically when the browser sent no type", async () => {
+    const supabase = mock();
+
+    await addFileKnowledgeSource(WORKSPACE, file("mystery.bin", "", "binary"));
+
+    expect(writtenRow(supabase.queries("product_knowledge")[0]!)!.content).toBe(
+      "[file attachment -- no text could be extracted for AI context]",
+    );
+  });
+
+  it("propagates a failure to record the uploaded file", async () => {
+    mock({ query: () => ({ data: null, error: new Error("insert denied") }) });
+
+    await expect(
+      addFileKnowledgeSource(WORKSPACE, file("notes.txt", "text/plain", "hi")),
+    ).rejects.toThrow("insert denied");
+  });
+});
