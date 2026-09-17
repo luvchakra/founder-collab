@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Lock, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -56,6 +57,34 @@ function writeStoredModule(key: string) {
   }
 }
 
+/** Which nav sections the founder has folded away, as "<moduleKey>::<heading>" keys --
+ * scoped per module so Inventory's "Overview" and FSM's "Overview" fold independently.
+ * Only the *collapsed* ones are stored, so a module gaining a new section shows it
+ * expanded rather than inheriting some stale default. */
+const COLLAPSED_GROUPS_STORAGE_KEY = "cofounderai:collapsed-nav-groups";
+
+function readCollapsedGroups(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
+  } catch {
+    // Unavailable or corrupt (hand-edited, truncated write) -- every section just starts
+    // expanded, which is the same state a first-time visitor gets.
+    return [];
+  }
+}
+
+function writeCollapsedGroups(keys: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(keys));
+  } catch {
+    // Storage unavailable -- folds just won't survive a reload.
+  }
+}
+
 /** A leaf row in the rail: the module sub-items, and the account-level shortcuts under
  * them. Indented under its module header, muted until it's the current page. */
 function NavLink({
@@ -92,6 +121,44 @@ function NavLink({
   );
 }
 
+/** A titled section inside an expanded module ("Overview", "Catalog & Inventory",
+ * "Sales"...), collapsible on the same rules as the module rows above it: click the
+ * heading to fold its links away, and the choice persists. A module like Inventory has
+ * five such sections and ~15 links, which is more than fits a phone screen at once --
+ * folding the ones you don't work in is what makes the rest reachable without scrolling.
+ *
+ * A group with no heading has nothing to click, so it renders its items bare. */
+function NavGroup({
+  heading,
+  collapsed,
+  onToggle,
+  children,
+}: {
+  heading?: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  if (!heading) return <div className="flex flex-col gap-0.5">{children}</div>;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className="mt-2 ml-7 flex items-center gap-1 rounded-md py-1 text-left text-[11px] font-medium tracking-wide text-sidebar-muted/70 uppercase transition-colors hover:text-sidebar-foreground"
+      >
+        <ChevronDown
+          className={cn("size-3 shrink-0 transition-transform", collapsed && "-rotate-90")}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 truncate">{heading}</span>
+      </button>
+      {collapsed ? null : children}
+    </div>
+  );
+}
+
 /** The expanded module's own sub-navigation. Discovery is the one module whose real
  * content is live data (this business's offerings) rather than a static manifest tree,
  * so it renders its own shape; every other module renders its manifest nav groups. */
@@ -104,6 +171,8 @@ function ModuleNav({
   onCreateBusiness,
   onNavigate,
   hasBusinesses,
+  isGroupCollapsed,
+  onToggleGroup,
 }: {
   module: ShellNavModule;
   pathname: string | null;
@@ -113,6 +182,8 @@ function ModuleNav({
   onCreateBusiness?: () => void;
   onNavigate: () => void;
   hasBusinesses: boolean;
+  isGroupCollapsed: (heading: string) => boolean;
+  onToggleGroup: (heading: string) => void;
 }) {
   if (!hasBusinesses || !businessId) {
     return (
@@ -159,26 +230,29 @@ function ModuleNav({
           onNavigate={onNavigate}
           indent
         />
-        <span className="mt-2 ml-7 text-[11px] font-medium tracking-wide text-sidebar-muted/70 uppercase">
-          Business Offerings
-        </span>
-        {products.length === 0 ? (
-          <p className="ml-7 py-1.5 text-sm text-sidebar-muted">No business offerings yet.</p>
-        ) : (
-          products.map((product) => {
-            const href = `${base}/discovery/offerings/${product.id}`;
-            return (
-              <NavLink
-                key={product.id}
-                href={href}
-                label={product.name}
-                isActive={pathname === href || Boolean(pathname?.startsWith(`${href}/`))}
-                onNavigate={onNavigate}
-                indent
-              />
-            );
-          })
-        )}
+        <NavGroup
+          heading="Business Offerings"
+          collapsed={isGroupCollapsed("Business Offerings")}
+          onToggle={() => onToggleGroup("Business Offerings")}
+        >
+          {products.length === 0 ? (
+            <p className="ml-7 py-1.5 text-sm text-sidebar-muted">No business offerings yet.</p>
+          ) : (
+            products.map((product) => {
+              const href = `${base}/discovery/offerings/${product.id}`;
+              return (
+                <NavLink
+                  key={product.id}
+                  href={href}
+                  label={product.name}
+                  isActive={pathname === href || Boolean(pathname?.startsWith(`${href}/`))}
+                  onNavigate={onNavigate}
+                  indent
+                />
+              );
+            })
+          )}
+        </NavGroup>
       </div>
     );
   }
@@ -190,12 +264,12 @@ function ModuleNav({
   return (
     <div className="flex flex-col gap-0.5">
       {module.nav.map((group, groupIndex) => (
-        <div key={group.heading ?? groupIndex} className="flex flex-col gap-0.5">
-          {group.heading ? (
-            <span className="mt-2 ml-7 text-[11px] font-medium tracking-wide text-sidebar-muted/70 uppercase">
-              {group.heading}
-            </span>
-          ) : null}
+        <NavGroup
+          key={group.heading ?? groupIndex}
+          heading={group.heading}
+          collapsed={group.heading ? isGroupCollapsed(group.heading) : false}
+          onToggle={() => group.heading && onToggleGroup(group.heading)}
+        >
           {group.items.map((item) => {
             const href = item.slug
               ? `${base}${module.routePrefix}/${item.slug}`
@@ -212,7 +286,7 @@ function ModuleNav({
               />
             );
           })}
-        </div>
+        </NavGroup>
       ))}
     </div>
   );
@@ -283,6 +357,23 @@ export function AppSidebar({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  // Read on mount rather than in a useState initializer: the rail renders on the server
+  // too, where localStorage doesn't exist, and seeding from it during the first client
+  // render would hydrate a different tree than the server sent.
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  useEffect(() => {
+    setCollapsedGroups(readCollapsedGroups());
+  }, []);
+
+  function toggleGroup(moduleKey: string, heading: string) {
+    const key = `${moduleKey}::${heading}`;
+    setCollapsedGroups((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      writeCollapsedGroups(next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -406,6 +497,10 @@ export function AppSidebar({
                     onCreateBusiness={onCreateBusiness}
                     onNavigate={closeDrawer}
                     hasBusinesses={businesses.length > 0}
+                    isGroupCollapsed={(heading) =>
+                      collapsedGroups.includes(`${module.key}::${heading}`)
+                    }
+                    onToggleGroup={(heading) => toggleGroup(module.key, heading)}
                   />
                 ) : null}
               </div>
