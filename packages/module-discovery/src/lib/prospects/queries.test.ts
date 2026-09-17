@@ -13,6 +13,7 @@ vi.mock("../../db/server", () => ({ createClient }));
 
 const {
   getProspect,
+  listProspectSuggestions,
   getProspectCounts,
   getProspectCountsForWorkspaces,
   listProspectIndustries,
@@ -201,6 +202,30 @@ describe("listProspects — sorting", () => {
 
     expect(results.map((p) => p.id)).toEqual(["scored", "unscored"]);
   });
+
+  it("reaches the same order whichever way the rows arrive", async () => {
+    mock([row({ id: "scored", fit_score: 1 }), row({ id: "unscored", fit_score: null })]);
+
+    const results = await listProspects(WORKSPACE, {}, "priority");
+
+    expect(results.map((p) => p.id)).toEqual(["scored", "unscored"]);
+  });
+
+  it("still lifts the actionable prospect when it arrives first", async () => {
+    mock([
+      row({ id: "actionable", fit_score: 10 }),
+      row({
+        id: "waiting",
+        fit_score: 99,
+        messages: [{ status: "sent", created_at: "2026-09-04T00:00:00.000Z", sent_at: "2026-09-04T00:00:00.000Z" }],
+        conversations: [{ status: "awaiting_reply", last_message_at: "2026-09-04T00:00:00.000Z" }],
+      }),
+    ]);
+
+    const results = await listProspects(WORKSPACE, {}, "priority");
+
+    expect(results.map((p) => p.id)).toEqual(["actionable", "waiting"]);
+  });
 });
 
 describe("listProspectsForWorkspaces", () => {
@@ -312,5 +337,25 @@ describe("failure propagation", () => {
   ])("%s propagates", async (_label, run) => {
     mock(null, new Error("denied"));
     await expect(run()).rejects.toThrow("denied");
+  });
+});
+
+describe("listProspectSuggestions", () => {
+  it("returns the workspace's staged suggestions, newest first", async () => {
+    const supabase = mock([{ id: "s1", company_name: "Acme" }]);
+
+    await expect(listProspectSuggestions(WORKSPACE)).resolves.toEqual([
+      { id: "s1", company_name: "Acme" },
+    ]);
+
+    const call = supabase.queries("prospect_suggestions")[0]!;
+    expect(eqFilters(call)).toEqual({ workspace_id: WORKSPACE });
+    expect(opArgs(call, "order")).toEqual(["created_at", { ascending: false }]);
+  });
+
+  it("propagates a failure rather than showing an empty review queue", async () => {
+    mock(null, new Error("select failed"));
+
+    await expect(listProspectSuggestions(WORKSPACE)).rejects.toThrow("select failed");
   });
 });

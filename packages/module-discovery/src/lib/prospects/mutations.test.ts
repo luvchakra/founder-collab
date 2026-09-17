@@ -392,3 +392,104 @@ describe("discardProspectSuggestions", () => {
     await expect(discardProspectSuggestions(WORKSPACE, ["s1"])).rejects.toThrow("denied");
   });
 });
+
+/**
+ * Error paths and empty results. Every one of these is a silent-failure candidate: a
+ * party link or research seed that threw but was swallowed would leave a prospect half
+ * created, and a delete that failed quietly would leave an approved suggestion sitting in
+ * staging to be approved again.
+ */
+describe("write failures", () => {
+  const suggestion = {
+    id: "s1",
+    company_name: "Acme",
+    website: null,
+    industry: null,
+    company_size: null,
+    location: null,
+    description: null,
+    match_reason: null,
+    source_url: "https://news.example/acme",
+  };
+
+  it("normalizes a company X/Twitter URL like it does LinkedIn", async () => {
+    const supabase = mock(() => ({ data: prospectRow, error: null }));
+
+    await createProspect(WORKSPACE, { companyName: "Acme", twitterUrl: "x.com/acme" });
+
+    expect(writtenRow(supabase.queries("prospects")[0]!)).toMatchObject({
+      twitter_url: "https://x.com/acme",
+    });
+  });
+
+  it("reports nothing inserted when a bulk insert returns no rows", async () => {
+    mock(() => ({ data: null, error: null }));
+
+    await expect(
+      createProspectsBulk(WORKSPACE, [{ companyName: "Acme" }]),
+    ).resolves.toBe(0);
+    expect(h.ensureProspectParty).not.toHaveBeenCalled();
+  });
+
+  it("propagates a failure to write back the party link", async () => {
+    mock((call) => ({
+      data: usedOp(call, "update") ? null : [prospectRow],
+      error: usedOp(call, "update") ? new Error("link failed") : null,
+    }));
+
+    await expect(createProspectsBulk(WORKSPACE, [{ companyName: "Acme" }])).rejects.toThrow(
+      "link failed",
+    );
+  });
+
+  it("propagates a failure to seed the research rows", async () => {
+    mock((call) => {
+      if (call.table === "prospect_research") return { data: null, error: new Error("research failed") };
+      if (call.table === "prospect_suggestions") return { data: [suggestion], error: null };
+      return { data: [{ ...prospectRow, id: "p1" }], error: null };
+    });
+
+    await expect(approveProspectSuggestions(WORKSPACE, ["s1"])).rejects.toThrow("research failed");
+  });
+
+  it("propagates a failure to clear the approved suggestions from staging", async () => {
+    mock((call) => {
+      if (call.table === "prospect_suggestions") {
+        return usedOp(call, "delete")
+          ? { data: null, error: new Error("delete failed") }
+          : { data: [suggestion], error: null };
+      }
+      return { data: [{ ...prospectRow, id: "p1" }], error: null };
+    });
+
+    await expect(approveProspectSuggestions(WORKSPACE, ["s1"])).rejects.toThrow("delete failed");
+  });
+
+  it("describes the evidence generically when the suggestion carried no reason", async () => {
+    const supabase = mock((call) => {
+      if (call.table === "prospect_suggestions") {
+        return { data: usedOp(call, "delete") ? null : [suggestion], error: null };
+      }
+      if (call.table === "prospects") return { data: [{ ...prospectRow, id: "p1" }], error: null };
+      return { data: null, error: null };
+    });
+
+    await approveProspectSuggestions(WORKSPACE, ["s1"]);
+
+    const research = writtenRow(supabase.queries("prospect_research")[0]!) as unknown as Array<{
+      evidence: { claim: string }[];
+    }>;
+    expect(research[0]!.evidence[0]!.claim).toBe("Sourced during prospect discovery.");
+  });
+
+  it("reports nothing approved when the insert returns no rows", async () => {
+    mock((call) => {
+      if (call.table === "prospect_suggestions") {
+        return { data: usedOp(call, "delete") ? null : [suggestion], error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await expect(approveProspectSuggestions(WORKSPACE, ["s1"])).resolves.toBe(0);
+  });
+});

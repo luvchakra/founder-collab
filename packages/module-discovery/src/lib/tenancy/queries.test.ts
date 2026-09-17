@@ -25,6 +25,7 @@ vi.mock("react", () => ({ cache: <T,>(fn: T) => fn }));
 const {
   getAccountIdForWorkspace,
   getBusiness,
+  getBusinessIdForWorkspace,
   getCurrentAccount,
   getFirstWorkspaceForAccount,
   getFirstWorkspaceForBusiness,
@@ -284,5 +285,41 @@ describe("failure propagation", () => {
   ])("%s propagates", async (_label, run) => {
     mockAll(constant(null, new Error("denied")));
     await expect(run()).rejects.toThrow("denied");
+  });
+});
+
+/**
+ * `core.parties` and `core.party_roles` are scoped by business_id, not account_id (ADR-4:
+ * one customer ledger per business, shared across every product it markets), so party
+ * sync walks workspace → product → business rather than reusing the account chain above.
+ */
+describe("getBusinessIdForWorkspace", () => {
+  it("walks workspace → product → business", async () => {
+    mockAll((call) =>
+      call.table === "workspaces"
+        ? { data: { id: "ws-1", product_id: "prod-1" }, error: null }
+        : { data: { id: "prod-1", business_id: "biz-1" }, error: null },
+    );
+
+    await expect(getBusinessIdForWorkspace("ws-1")).resolves.toBe("biz-1");
+  });
+
+  it("returns null for a workspace the caller cannot see", async () => {
+    const supabase = mockAll((call) =>
+      call.table === "workspaces" ? { data: null, error: null } : { data: { id: "prod-1" }, error: null },
+    );
+
+    await expect(getBusinessIdForWorkspace("ws-other")).resolves.toBeNull();
+    expect(supabase.queries("products")).toHaveLength(0);
+  });
+
+  it("returns null when the product behind the workspace is out of reach", async () => {
+    mockAll((call) =>
+      call.table === "workspaces"
+        ? { data: { id: "ws-1", product_id: "prod-1" }, error: null }
+        : { data: null, error: null },
+    );
+
+    await expect(getBusinessIdForWorkspace("ws-1")).resolves.toBeNull();
   });
 });
