@@ -99,3 +99,22 @@ export function prospectWithPipeline(
     isStuck: isStuck ?? false,
   };
 }
+
+export function productProfile(
+  overrides: Partial<import("@cofounderai/module-discovery/lib/ai/schemas").ProductProfile> = {},
+): import("@cofounderai/module-discovery/lib/ai/schemas").ProductProfile {
+  return {
+    category: "B2B SaaS - returns automation",
+    problem: "Shops approve every return by hand",
+    solution: "Auto-approves returns that match the policy",
+    features: ["policy rules"],
+    differentiators: ["no plugin needed"],
+    target_industries: ["E-commerce"],
+    target_roles: ["Ops Manager"],
+    use_cases: ["returns triage"],
+    pricing_summary: null,
+    competitive_positioning: "cheaper than Loop",
+    confidence: 0.82,
+    ...overrides,
+  };
+}
