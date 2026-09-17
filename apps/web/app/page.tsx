@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@cofounderai/core/db/server";
+import { authCallbackQuery, type AuthLinkParams } from "@/lib/auth-link";
 import { Navbar } from "@/components/marketing/navbar";
 import { Hero } from "@/components/marketing/hero";
 import { FounderProblem } from "@/components/marketing/founder-problem";
@@ -17,7 +18,16 @@ import { Footer } from "@/components/marketing/footer";
 
 // co-founder-ai's own "/" is its marketing landing page -- a signed-in visitor skips
 // straight to their dashboard instead, same as the P-0 scaffold's original redirect.
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<AuthLinkParams>;
+}) {
+  // Where Supabase drops an auth link whose redirect wasn't allowlisted (see
+  // lib/auth-link.ts). Checked before anything else: the link is why the visitor is here.
+  const forwarded = authCallbackQuery(await searchParams);
+  if (forwarded) redirect(`/auth/callback?${forwarded}`);
+
   const supabase = await createClient();
   const {
     data: { user },
