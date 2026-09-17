@@ -409,7 +409,6 @@ export function AppSidebar({
   }
 
   const isExecutiveActive = pathname === "/dashboard";
-  const isAdminActive = Boolean(pathname?.startsWith("/dashboard/settings"));
 
   return (
     <>
@@ -454,6 +453,25 @@ export function AppSidebar({
           <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
             {BRAND_NAME}
           </span>
+        </a>
+
+        {/* The account-wide view, above the per-business modules and deliberately not
+            styled like them: it is the one destination in the rail that isn't scoped to
+            the business selected in the topbar, so it reads as a bordered row of its own
+            rather than another item in the module list. */}
+        <a
+          href="/dashboard"
+          onClick={closeDrawer}
+          aria-current={isExecutiveActive ? "page" : undefined}
+          className={cn(
+            "mx-3 mb-2 flex shrink-0 items-center gap-2.5 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+            isExecutiveActive
+              ? "border-transparent bg-sidebar-primary text-sidebar-primary-foreground"
+              : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent/60",
+          )}
+        >
+          <ModuleIcon name="LayoutGrid" className="size-4.5 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">Executive Dashboard</span>
         </a>
 
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
@@ -506,23 +524,6 @@ export function AppSidebar({
               </div>
             );
           })}
-
-          <div className="my-2 border-t border-sidebar-border" />
-
-          <NavLink
-            href="/dashboard"
-            label="Executive Dashboard"
-            icon="LayoutGrid"
-            isActive={isExecutiveActive}
-            onNavigate={closeDrawer}
-          />
-          <NavLink
-            href="/dashboard/settings"
-            label="Admin"
-            icon="Shield"
-            isActive={isAdminActive}
-            onNavigate={closeDrawer}
-          />
         </div>
 
         {creditsUsedPercent !== undefined ? (

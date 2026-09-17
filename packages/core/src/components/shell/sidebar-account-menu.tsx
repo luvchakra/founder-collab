@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, ShieldCheck, SunMoon, User } from "lucide-react";
+import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Shield, ShieldCheck, SunMoon, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
@@ -105,10 +105,25 @@ export function SidebarAccountMenu({
             Appearance
           </Link>
 
-          {/* No catch-all "Settings" row to /dashboard/settings here -- Profile/Usage/
-              Billing/Appearance above already cover every account-level setting that
-              page used to also list, and what's left on it (the cross-business admin
-              list) is module-level Admin's job, not a personal avatar menu's. */}
+          {/* Admin (the cross-business configuration list at /dashboard/settings) lives
+              here rather than in the rail: it is account-level, not one of the
+              per-business modules the rail navigates. */}
+          <Link
+            href="/dashboard/settings"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNavigate();
+            }}
+            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+          >
+            <Shield className="size-4 text-muted-foreground" aria-hidden="true" />
+            Admin
+          </Link>
+
+          {/* Labelled for what it actually is rather than "Admin" a second time -- this
+              is the env-gated platform tool at /dashboard/admin, whose own page is
+              titled "Demo data", not the Admin row above it. */}
           {user.isPlatformAdmin ? (
             <Link
               href="/dashboard/admin"
@@ -120,7 +135,7 @@ export function SidebarAccountMenu({
               className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
             >
               <ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />
-              Admin
+              Demo data
             </Link>
           ) : null}
 
