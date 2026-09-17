@@ -61,6 +61,11 @@ const STORAGE_METHODS = [
   "createSignedUrl", "createSignedUrls", "getPublicUrl",
 ] as const;
 
+/** `getPublicUrl` is the one storage method the real SDK returns synchronously — it
+ * builds a URL from the bucket and path rather than calling the server. Callers
+ * destructure its result directly, so the fake must not hand back a promise. */
+const SYNCHRONOUS_STORAGE_METHODS = new Set<string>(["getPublicUrl"]);
+
 export interface FakeSupabase {
   from(table: string): Record<string, (...args: unknown[]) => unknown>;
   rpc(fn: string, args?: Record<string, unknown>): PromiseLike<QueryResult>;
@@ -115,7 +120,10 @@ export function createFakeSupabase(spec: FakeSupabaseSpec = {}): FakeSupabase {
         api[method] = (...args: unknown[]) => {
           const call: RecordedStorage = { kind: "storage", bucket, method, args };
           calls.push(call);
-          return Promise.resolve().then(() => (spec.storage ? spec.storage(call) : EMPTY));
+          const result = () => (spec.storage ? spec.storage(call) : EMPTY);
+          return SYNCHRONOUS_STORAGE_METHODS.has(method)
+            ? result()
+            : Promise.resolve().then(result);
         };
       }
       return api as Record<string, (...args: unknown[]) => unknown>;

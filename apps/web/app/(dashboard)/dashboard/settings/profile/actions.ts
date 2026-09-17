@@ -54,7 +54,13 @@ export async function updateAvatarAction(
   // Path is prefixed by the user's own id (storage RLS in
   // 20260906110000_avatars_storage_bucket.sql checks exactly this against auth.uid()), and
   // timestamped so a re-upload doesn't fight browser/CDN caching on the old file's URL.
-  const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+  // `split(".").pop()` returns the whole name when there is no dot, which would produce
+  // "avatar-123.noextension" — so only treat it as an extension when the name actually
+  // has one. The upload sets contentType explicitly either way, so this is about the
+  // stored object's name, not how it is served.
+  const extension = file.name.includes(".")
+    ? (file.name.split(".").pop()?.toLowerCase() || "png")
+    : "png";
   const path = `${user.id}/avatar-${Date.now()}.${extension}`;
 
   try {
