@@ -110,8 +110,8 @@ describe("LicensesSettingsPage", () => {
     expect(h.listLicensesForBusiness).toHaveBeenCalledWith("biz-2");
     expect(screen.getByRole("heading", { name: "Acme" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Initech" })).toBeInTheDocument();
-    for (const module of moduleRegistry) {
-      expect(screen.getAllByText(module.name)).toHaveLength(2);
+    for (const entry of moduleRegistry) {
+      expect(screen.getAllByText(entry.name)).toHaveLength(2);
     }
   });
 
