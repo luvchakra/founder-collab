@@ -15,8 +15,8 @@ import type { IcpProfile } from "../../lib/icp/types";
 import type { ProductProfile } from "../../lib/ai/schemas";
 
 const h = vi.hoisted(() => ({
-  runOnboardingAction: vi.fn(async (_prev: unknown, _formData: FormData): Promise<unknown> => null),
-  approveOnboardingIcpAction: vi.fn(async (_icpId: string): Promise<unknown> => undefined),
+  runOnboardingAction: vi.fn<(prev: unknown, formData: FormData) => Promise<unknown>>(),
+  approveOnboardingIcpAction: vi.fn<(icpId: string) => Promise<unknown>>(),
 }));
 
 vi.mock("../../actions/onboarding", () => ({

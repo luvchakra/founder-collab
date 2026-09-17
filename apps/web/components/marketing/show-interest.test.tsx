@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
-  submitInterestAction: vi.fn(async (_prev: unknown, _formData: FormData): Promise<unknown> => null),
+  submitInterestAction: vi.fn<(prev: unknown, formData: FormData) => Promise<unknown>>(),
 }));
 
 vi.mock("@cofounderai/module-discovery/actions/interest", () => ({
