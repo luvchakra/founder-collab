@@ -227,3 +227,45 @@ describe("researchProspect — persistence", () => {
     await expect(researchProspect("p1")).rejects.toThrow("normalized");
   });
 });
+
+/** The search prompt is the only thing steering the provider's web search, so the parts
+ * that vary with a thin product or prospect are worth pinning: a product with no profile
+ * yet, an ICP with no buying signals recorded, and a prospect whose website we know. */
+describe("researchProspect — search prompt", () => {
+  const prompt = () => String(h.generateText.mock.calls[0]![0].prompt);
+
+  beforeEach(() => mockUpsert());
+
+  it("points the search at the prospect's website when one is known", async () => {
+    h.getProspect.mockResolvedValue({
+      id: "p1",
+      workspace_id: "w1",
+      company_name: "Acme",
+      website: "https://acme.example",
+    });
+
+    await researchProspect("p1");
+
+    expect(prompt()).toContain('Research the company "Acme" (https://acme.example) using web search.');
+  });
+
+  it("names the product alone when it has no profile yet", async () => {
+    h.getProduct.mockResolvedValue({ id: "prod-1", name: "Widgets", product_profile: null });
+
+    await researchProspect("p1");
+
+    expect(prompt()).toContain('Our product: "Widgets"');
+  });
+
+  it("says so when the ICP records no buying signals", async () => {
+    h.getIcpProfile.mockResolvedValue({
+      status: "approved",
+      name: "Mid-market manufacturers",
+      buying_signals: [],
+    });
+
+    await researchProspect("p1");
+
+    expect(prompt()).toContain("Buying signals we look for: none specified.");
+  });
+});

@@ -57,6 +57,23 @@ describe("createContact", () => {
     });
   });
 
+  it("nulls every field a caller left out entirely", async () => {
+    const supabase = mock();
+
+    await createContact("w1", "p1", { phone: "+91 99999 99999" });
+
+    expect(writtenRow(supabase.queries("contacts")[0]!)).toEqual({
+      workspace_id: "w1",
+      prospect_id: "p1",
+      first_name: null,
+      last_name: null,
+      job_title: null,
+      email: null,
+      linkedin_url: null,
+      phone: "+91 99999 99999",
+    });
+  });
+
   it("mirrors the contact onto the prospect's party", async () => {
     mock();
 

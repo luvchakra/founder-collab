@@ -180,3 +180,85 @@ describe("generateOutreachStrategy — outcome", () => {
     await expect(generateOutreachStrategy("p1", null)).rejects.toThrow();
   });
 });
+
+/**
+ * The prompt is where "grounded in the research" either happens or doesn't. These assert
+ * the substitutions the model actually reads, including the fallbacks for the fields a
+ * thin prospect leaves empty — a prompt that silently renders "undefined" or an empty
+ * line is how a strategy ends up generic.
+ */
+describe("generateOutreachStrategy — prompt grounding", () => {
+  const prompt = () => String(h.generateObject.mock.calls[0]![0].prompt);
+
+  it("names the chosen contact and their role", async () => {
+    mockDb({ id: "c1", first_name: "Sarah", last_name: "Miller", job_title: "VP Engineering" });
+
+    await generateOutreachStrategy("p1", "c1");
+
+    expect(prompt()).toContain("Targeting contact: Sarah Miller, VP Engineering.");
+  });
+
+  it("copes with a contact whose name was never captured", async () => {
+    mockDb({ id: "c1", first_name: null, last_name: null, job_title: null });
+
+    await generateOutreachStrategy("p1", "c1");
+
+    expect(prompt()).toContain("Targeting contact: (name unknown).");
+  });
+
+  it("writes for the ICP's buyer role when no contact was chosen", async () => {
+    mockDb();
+
+    await generateOutreachStrategy("p1", null);
+
+    expect(prompt()).toContain("No specific contact selected yet");
+  });
+
+  it("includes the prospect's industry when it is known", async () => {
+    mockDb();
+    h.getProspect.mockResolvedValue({ id: "p1", workspace_id: "w1", company_name: "Acme", industry: "Manufacturing" });
+
+    await generateOutreachStrategy("p1", null);
+
+    expect(prompt()).toContain("Prospect: Acme (Manufacturing).");
+  });
+
+  it("carries the fit score and its reasoning when the prospect has been scored", async () => {
+    mockDb();
+    h.getProspectScore.mockResolvedValue({ overall_score: 84, reasoning: "Strong ICP match" });
+
+    await generateOutreachStrategy("p1", null);
+
+    expect(prompt()).toContain("Fit score: 84/100 (Strong ICP match)");
+  });
+
+  it("carries a score that has no recorded reasoning", async () => {
+    mockDb();
+    h.getProspectScore.mockResolvedValue({ overall_score: 84, reasoning: null });
+
+    await generateOutreachStrategy("p1", null);
+
+    expect(prompt()).toContain("Fit score: 84/100 ()");
+  });
+
+  it("says so explicitly where the research found nothing", async () => {
+    mockDb();
+    h.getProspectResearch.mockResolvedValue({
+      summary: null,
+      pain_points: [],
+      buying_signals: [],
+      recent_events: [],
+      recommended_angle: null,
+      evidence: [],
+    });
+    h.getIcpProfile.mockResolvedValue({ ...ICP, roles: [] });
+
+    await generateOutreachStrategy("p1", null);
+
+    expect(prompt()).toContain("Summary: none");
+    expect(prompt()).toContain("Pain points: none found");
+    expect(prompt()).toContain("Buying signals: none found");
+    expect(prompt()).toContain("Recent events: none found");
+    expect(prompt()).toContain("Typical buyer roles: not specified");
+  });
+});
