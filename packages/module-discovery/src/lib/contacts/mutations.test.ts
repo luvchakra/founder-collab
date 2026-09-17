@@ -126,6 +126,29 @@ describe("updateContact", () => {
     expect(h.addPartyContact).not.toHaveBeenCalled();
   });
 
+  it("clears every field an edit left out, rather than leaving stale values", async () => {
+    const supabase = mock();
+
+    await updateContact("c1", { firstName: "Ada" });
+
+    expect(writtenRow(supabase.queries("contacts")[0]!)).toEqual({
+      first_name: "Ada",
+      last_name: null,
+      job_title: null,
+      email: null,
+      linkedin_url: null,
+      phone: null,
+    });
+  });
+
+  it("nulls a field edited down to whitespace", async () => {
+    const supabase = mock();
+
+    await updateContact("c1", { phone: "   " });
+
+    expect(writtenRow(supabase.queries("contacts")[0]!)).toMatchObject({ phone: null });
+  });
+
   it("propagates a failure", async () => {
     mock(null, new Error("denied"));
     await expect(updateContact("c1", { firstName: "A" })).rejects.toThrow("denied");

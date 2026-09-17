@@ -104,6 +104,9 @@ describe("TopProgressBar", () => {
     ["a tel link", { href: "tel:+911234" }],
     ["an off-origin link", { href: "https://example.com/x" }],
     ["a link to the current path and query", { href: "/dashboard" }],
+    // an href the URL parser rejects outright: better to do nothing than to throw inside
+    // a global click listener and break every later navigation
+    ["a malformed href", { href: "http://[" }],
   ])("ignores %s", (_label, attrs) => {
     const { link, visible } = setup(attrs);
 
