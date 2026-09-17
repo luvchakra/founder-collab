@@ -85,10 +85,23 @@ describe("SignupPage", () => {
 });
 
 describe("ForgotPasswordPage", () => {
-  it("asks for the email to send the reset link to", () => {
-    render(<ForgotPasswordPage />);
+  const renderPage = (searchParams: { error?: string } = {}) =>
+    ForgotPasswordPage({ searchParams: Promise.resolve(searchParams) }).then(render);
+
+  it("asks for the email to send the reset link to", async () => {
+    await renderPage();
 
     expect(screen.getByRole("heading", { name: "Reset your password" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send reset link" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("explains a reset link that could not be used, since this is where to get a new one", async () => {
+    await renderPage({ error: "Email link is invalid or has expired" });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Email link is invalid or has expired",
+    );
     expect(screen.getByRole("button", { name: "Send reset link" })).toBeInTheDocument();
   });
 });

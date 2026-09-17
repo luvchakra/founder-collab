@@ -8,9 +8,18 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const h = vi.hoisted(() => ({ createClient: vi.fn() }));
+const h = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  browserClient: vi.fn(),
+  refresh: vi.fn(),
+  replace: vi.fn(),
+}));
 
 vi.mock("@cofounderai/core/db/server", () => ({ createClient: h.createClient }));
+vi.mock("@cofounderai/core/db/client", () => ({ createClient: h.browserClient }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: h.refresh, replace: h.replace }),
+}));
 vi.mock("@/app/(auth)/actions", () => ({ updatePassword: vi.fn() }));
 
 const { default: ResetPasswordPage } = await import("./page");
@@ -41,7 +50,8 @@ describe("ResetPasswordPage", () => {
     render(await ResetPasswordPage());
 
     expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-    expect(screen.getByText(/This reset link is invalid or has expired\./)).toBeInTheDocument();
+    // shown once the browser has confirmed there is no fragment to consume either
+    expect(await screen.findByText(/This reset link is invalid or has expired\./)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "forgot password" })).toHaveAttribute(
       "href",
       "/forgot-password",

@@ -249,6 +249,28 @@ describe("requestPasswordReset", () => {
 });
 
 describe("updatePassword", () => {
+  it("ends every other session, since a reset often means someone else had the password", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() =>
+      updatePassword(null, form({ password: "hunter2hunter2", confirmPassword: "hunter2hunter2" })),
+    );
+
+    expect(auth.updateUser).toHaveBeenCalledWith({ password: "hunter2hunter2" });
+    expect(auth.signOut).toHaveBeenCalledWith({ scope: "others" });
+  });
+
+  it("does not revoke sessions when the password change itself failed", async () => {
+    const auth = mockAuth({
+      updateUser: vi.fn().mockResolvedValue({ error: { message: "New password should be different from the old password." } }),
+    });
+
+    expect(
+      await updatePassword(null, form({ password: "hunter2hunter2", confirmPassword: "hunter2hunter2" })),
+    ).toEqual({ error: "New password should be different from the old password." });
+    expect(auth.signOut).not.toHaveBeenCalled();
+  });
+
   it("updates the password and redirects to the dashboard", async () => {
     const auth = mockAuth();
 

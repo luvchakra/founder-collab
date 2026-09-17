@@ -114,6 +114,12 @@ export async function updatePassword(
     return { error: error.message };
   }
 
+  // A reset is often the response to someone else having had the password, so end every
+  // other session rather than leaving them signed in with the old one. Best-effort: the
+  // password is already changed, and failing the whole action here would tell the founder
+  // the reset did not work when it did.
+  await supabase.auth.signOut({ scope: "others" });
+
   redirect("/dashboard");
 }
 
