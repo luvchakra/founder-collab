@@ -269,3 +269,160 @@ describe("sendChatMessage — persistence and history", () => {
     expect(h.recordAiRun).toHaveBeenCalledWith(expect.objectContaining({ status: "failed" }));
   });
 });
+
+/**
+ * Starters are the panel's only content before a founder types anything, so they double
+ * as the product's "what should I do next" hint. They follow the pipeline order — profile,
+ * then ICP, then prospects, then the ones needing action — and only the *first* unmet step
+ * is offered, so an empty product never suggests outreach work it cannot do yet.
+ */
+describe("getChatPanelData — starter questions on a product", () => {
+  const PRODUCT_CONTEXT = { businessId: "biz-1", productId: "prod-1" };
+  const starters = async () => (await getChatPanelData(PRODUCT_CONTEXT))!.starterQuestions;
+
+  it("asks for a product profile first", async () => {
+    h.getProduct.mockResolvedValue({ id: "prod-1", name: "Widgets", business_id: "biz-1", product_profile: null });
+
+    expect(await starters()).toContain("How do I generate a product profile for Widgets?");
+  });
+
+  it("asks for an ICP once the profile exists", async () => {
+    h.getIcpProfile.mockResolvedValue(null);
+
+    const questions = await starters();
+    expect(questions).toContain("How do I define an ICP for Widgets?");
+    expect(questions).not.toContain("How do I generate a product profile for Widgets?");
+  });
+
+  it("asks for first prospects once the ICP exists", async () => {
+    expect(await starters()).toContain("How do I find my first prospects for Widgets?");
+  });
+
+  it("points at the prospects that need action, pluralised", async () => {
+    h.listProspects.mockResolvedValue([
+      { id: "p1", nextAction: "Research this prospect" },
+      { id: "p2", nextAction: "Score this prospect" },
+    ]);
+
+    expect(await starters()).toContain(
+      "What should I do next with the 2 prospects that need action?",
+    );
+  });
+
+  it("uses the singular for a single prospect needing action", async () => {
+    h.listProspects.mockResolvedValue([{ id: "p1", nextAction: "Research this prospect" }]);
+
+    expect(await starters()).toContain(
+      "What should I do next with the 1 prospect that need action?",
+    );
+  });
+
+  it("falls back to the generic prompts when nothing is outstanding", async () => {
+    h.listProspects.mockResolvedValue([{ id: "p1", nextAction: null }]);
+
+    const questions = await starters();
+    expect(questions).toContain("How can I improve my outreach messaging?");
+    expect(questions.some((q: string) => q.startsWith("How do I"))).toBe(false);
+  });
+});
+
+describe("getChatPanelData — context on a business page", () => {
+  const BUSINESS_CONTEXT = { businessId: "biz-1", productId: null };
+
+  it("offers to create a first product when the business has none", async () => {
+    h.listProducts.mockResolvedValue([]);
+
+    const data = await getChatPanelData(BUSINESS_CONTEXT);
+
+    expect(data!.starterQuestions).toEqual([
+      "How do I create my first product for Acme Co?",
+      "How does CoFounderAI work?",
+    ]);
+  });
+
+  it("asks which product needs attention once there are some", async () => {
+    const data = await getChatPanelData(BUSINESS_CONTEXT);
+
+    expect(data!.starterQuestions).toEqual([
+      "Which of my products needs attention next?",
+      "How can I improve my outreach messaging?",
+    ]);
+  });
+
+  it("falls through to the account context when the business is out of reach", async () => {
+    h.getBusiness.mockResolvedValue(null);
+
+    const data = await getChatPanelData(BUSINESS_CONTEXT);
+
+    expect(h.getFirstWorkspaceForBusiness).not.toHaveBeenCalled();
+    expect(data!.starterQuestions.length).toBeGreaterThan(0);
+  });
+
+  it("falls through to the account context when the product is out of reach", async () => {
+    h.getProduct.mockResolvedValue(null);
+
+    const data = await getChatPanelData({ businessId: "biz-1", productId: "prod-1" });
+
+    // resolved as the business page instead, not as the missing product
+    expect(data!.starterQuestions).toContain("Which of my products needs attention next?");
+  });
+
+  it("falls through when the product exists but its workspace does not", async () => {
+    h.getWorkspaceForProduct.mockResolvedValue(null);
+
+    const data = await getChatPanelData({ businessId: "biz-1", productId: "prod-1" });
+
+    expect(data!.starterQuestions).toContain("Which of my products needs attention next?");
+  });
+});
+
+describe("sendChatMessage — account summary", () => {
+  it("counts a single business, product and prospect in the singular", async () => {
+    h.listBusinesses.mockResolvedValue([{ id: "biz-1", name: "Acme Co" }]);
+    h.listProducts.mockResolvedValue([{ id: "prod-1", name: "Widgets" }]);
+    h.getProspectCountsForWorkspaces.mockResolvedValue({ w1: { total: 1, new: 1, qualified: 0, disqualified: 0 } });
+
+    await sendChatMessage([{ role: "user", content: "hi" }], NO_CONTEXT);
+
+    expect(String(h.generateObject.mock.calls[0]![0].system)).toContain(
+      "Account overview: 1 business, 1 product total, 1 prospect across the account.",
+    );
+  });
+
+  it("pluralises them once there is more than one of each", async () => {
+    h.listBusinesses.mockResolvedValue([
+      { id: "biz-1", name: "Acme Co" },
+      { id: "biz-2", name: "Initech" },
+    ]);
+    h.listProducts.mockResolvedValue([
+      { id: "prod-1", name: "Widgets" },
+      { id: "prod-2", name: "Gadgets" },
+    ]);
+
+    await sendChatMessage([{ role: "user", content: "hi" }], NO_CONTEXT);
+
+    expect(String(h.generateObject.mock.calls[0]![0].system)).toContain(
+      "5 prospects across the account.",
+    );
+  });
+
+  it("says so for a business with no products yet", async () => {
+    h.listProducts.mockResolvedValue([]);
+
+    await sendChatMessage([{ role: "user", content: "hi" }], NO_CONTEXT);
+
+    expect(String(h.generateObject.mock.calls[0]![0].system)).toContain('"Acme Co": products: none yet');
+  });
+
+  it("drops a follow-up the model returned as an empty string", async () => {
+    h.generateObject.mockResolvedValue({
+      object: { answer: "Done", followUp: "" },
+      usage: { inputTokens: 1, outputTokens: 1 },
+    });
+
+    await expect(sendChatMessage([{ role: "user", content: "hi" }], NO_CONTEXT)).resolves.toEqual({
+      answer: "Done",
+      followUp: null,
+    });
+  });
+});
