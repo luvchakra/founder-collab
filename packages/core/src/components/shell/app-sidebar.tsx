@@ -60,31 +60,39 @@ function writeStoredModule(key: string) {
   }
 }
 
-/** Which nav sections the founder has folded away, as "<moduleKey>::<heading>" keys --
- * scoped per module so Inventory's "Overview" and FSM's "Overview" fold independently.
- * Only the *collapsed* ones are stored, so a module gaining a new section shows it
- * expanded rather than inheriting some stale default. */
-const COLLAPSED_GROUPS_STORAGE_KEY = "cofounderai:collapsed-nav-groups";
+/** Which nav sections the founder has opened, as "<moduleKey>::<heading>" keys -- scoped
+ * per module so Inventory's "Overview" and FSM's "Overview" open independently.
+ *
+ * Sections start **collapsed**: an expanded module like Inventory is five sections and
+ * about fifteen links, which buries every module below it. Storing the *expanded* ones
+ * (rather than the collapsed ones) is what makes collapsed the default -- an empty or
+ * missing value means everything is shut, and a module that later gains a section gets
+ * it shut too rather than inheriting a stale default.
+ *
+ * A distinct storage key from the earlier "collapsed" list on purpose: reusing that key
+ * would read an existing user's saved folds with exactly the opposite meaning, opening
+ * every section they had closed. */
+const EXPANDED_GROUPS_STORAGE_KEY = "cofounderai:expanded-nav-groups";
 
-function readCollapsedGroups(): string[] {
+function readExpandedGroups(): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(COLLAPSED_GROUPS_STORAGE_KEY);
+    const raw = window.localStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
   } catch {
     // Unavailable or corrupt (hand-edited, truncated write) -- every section just starts
-    // expanded, which is the same state a first-time visitor gets.
+    // collapsed, which is the same state a first-time visitor gets.
     return [];
   }
 }
 
-function writeCollapsedGroups(keys: string[]) {
+function writeExpandedGroups(keys: string[]) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(COLLAPSED_GROUPS_STORAGE_KEY, JSON.stringify(keys));
+    window.localStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(keys));
   } catch {
-    // Storage unavailable -- folds just won't survive a reload.
+    // Storage unavailable -- which sections are open just won't survive a reload.
   }
 }
 
@@ -125,10 +133,12 @@ function NavLink({
 }
 
 /** A titled section inside an expanded module ("Overview", "Catalog & Inventory",
- * "Sales"...), collapsible on the same rules as the module rows above it: click the
- * heading to fold its links away, and the choice persists. A module like Inventory has
- * five such sections and ~15 links, which is more than fits a phone screen at once --
- * folding the ones you don't work in is what makes the rest reachable without scrolling.
+ * "Sales"...), on the same rules as the module rows above it: click the heading to open
+ * or shut it, and the choice persists.
+ *
+ * Sections start shut. Inventory alone is five sections and ~15 links, so opening a
+ * module with everything unfolded fills more than a phone screen and pushes the modules
+ * below it out of reach -- the founder opens the one section they want instead.
  *
  * A group with no heading has nothing to click, so it renders its items bare. */
 function NavGroup({
@@ -364,16 +374,16 @@ export function AppSidebar({
   // Read on mount rather than in a useState initializer: the rail renders on the server
   // too, where localStorage doesn't exist, and seeding from it during the first client
   // render would hydrate a different tree than the server sent.
-  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   useEffect(() => {
-    setCollapsedGroups(readCollapsedGroups());
+    setExpandedGroups(readExpandedGroups());
   }, []);
 
   function toggleGroup(moduleKey: string, heading: string) {
     const key = `${moduleKey}::${heading}`;
-    setCollapsedGroups((prev) => {
+    setExpandedGroups((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      writeCollapsedGroups(next);
+      writeExpandedGroups(next);
       return next;
     });
   }
@@ -519,7 +529,7 @@ export function AppSidebar({
                     onNavigate={closeDrawer}
                     hasBusinesses={businesses.length > 0}
                     isGroupCollapsed={(heading) =>
-                      collapsedGroups.includes(`${module.key}::${heading}`)
+                      !expandedGroups.includes(`${module.key}::${heading}`)
                     }
                     onToggleGroup={(heading) => toggleGroup(module.key, heading)}
                   />
