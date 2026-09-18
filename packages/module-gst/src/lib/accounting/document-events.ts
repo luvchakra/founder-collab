@@ -116,3 +116,65 @@ export function financeEventFromDocument(
     valueAccountRole: revenueRoleOf(document),
   };
 }
+
+export interface AllocatedPayment {
+  allocationId: string;
+  amount: number;
+  paymentDate: string;
+  method: string | null;
+  reference: string | null;
+  partyId: string | null;
+  /** The document the payment was applied to — which is what says whether money came in
+   * or went out. */
+  docType: string;
+  documentId: string;
+}
+
+/** Documents whose settlement is money coming *in*. Everything else this module posts
+ * against is a purchase, so settling it is money going out. */
+const RECEIPT_DOC_TYPES = new Set(["invoice", "debit_note"]);
+
+/** Documents a settlement can be posted against at all. A payment applied to an estimate
+ * is an advance against work not yet billed — real, but it is not settling a receivable,
+ * and posting it as one would credit a debt that was never raised. */
+const SETTLEABLE_DOC_TYPES = new Set(["invoice", "debit_note", "purchase_order"]);
+
+/** Which settlement account a payment method maps to. Cash is the only one that isn't
+ * the bank; a cheque or a card settlement still lands in a bank account, just later. */
+function settlementRoleFor(method: string | null): "bank" | "cash" {
+  return method === "cash" ? "cash" : "bank";
+}
+
+/**
+ * Builds the event for one payment allocation, or returns null when there is nothing to
+ * post.
+ *
+ * `core.payments` has no direction column, so the direction comes from the document the
+ * payment was applied to: settling an invoice is money in, settling a purchase order is
+ * money out. A payment split across three invoices is three allocations and three
+ * settlements, each with its own identity — which is also what makes a redelivery of one
+ * of them idempotent without affecting the others.
+ */
+export function financeEventFromAllocation(
+  allocation: AllocatedPayment,
+  options: { sourceEventId?: string | null } = {},
+): FinanceEvent | null {
+  if (!SETTLEABLE_DOC_TYPES.has(allocation.docType)) return null;
+  const amount = Math.round(Number(allocation.amount ?? 0) * 100) / 100;
+  if (amount <= 0) return null;
+
+  const isReceipt = RECEIPT_DOC_TYPES.has(allocation.docType);
+  return {
+    type: isReceipt ? "payment.received" : "supplier_bill.paid",
+    businessId: "",
+    sourceModule: "finance",
+    sourceEntityType: "payment_allocation",
+    sourceEntityId: allocation.allocationId,
+    sourceDocumentId: allocation.documentId,
+    sourceEventId: options.sourceEventId ?? null,
+    occurredAt: `${allocation.paymentDate}T00:00:00Z`,
+    total: amount,
+    partyId: allocation.partyId,
+    settlementAccountRole: settlementRoleFor(allocation.method),
+  };
+}

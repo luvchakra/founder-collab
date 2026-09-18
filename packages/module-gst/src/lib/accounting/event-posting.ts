@@ -1,5 +1,9 @@
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
-import { financeEventFromDocument, type PostableDocument } from "./document-events";
+import {
+  financeEventFromAllocation,
+  financeEventFromDocument,
+  type PostableDocument,
+} from "./document-events";
 import { postFinanceEvent, type PostFinanceEventResult } from "./journal-mutations";
 
 const DOCUMENT_COLUMNS =
@@ -39,6 +43,61 @@ export async function postIssuedDocument(
   const event = financeEventFromDocument(data as unknown as PostableDocument, { sourceEventId });
   if (!event) {
     return { posted: false, reason: "This document has no accounting consequence." };
+  }
+
+  return postFinanceEvent(businessId, { ...event, businessId });
+}
+
+/**
+ * Posts the ledger entry for one payment allocation.
+ *
+ * Reads `core.payments`, `core.payment_allocations` and `core.documents` directly — all
+ * three are canonical shared data, and a payment is a payment whichever module recorded
+ * it. Service-role for the same reason as `postIssuedDocument`: this runs from the drain,
+ * where there is no session.
+ */
+export async function postPaymentAllocation(
+  businessId: string,
+  allocationId: string,
+  sourceEventId?: string | null,
+): Promise<PostFinanceEventResult> {
+  const core = createCoreAdminClient({ schema: "core" });
+  const { data, error } = await core
+    .from("payment_allocations")
+    .select("id, amount, document_id, payments(payment_date, method, party_id), documents(doc_type)")
+    .eq("business_id", businessId)
+    .eq("id", allocationId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { posted: false, reason: "No such payment allocation for this business." };
+
+  type Row = {
+    id: string;
+    amount: number;
+    document_id: string;
+    payments: { payment_date: string; method: string | null; party_id: string | null } | null;
+    documents: { doc_type: string } | null;
+  };
+  const row = data as unknown as Row;
+  if (!row.payments || !row.documents) {
+    return { posted: false, reason: "This allocation is missing its payment or its document." };
+  }
+
+  const event = financeEventFromAllocation(
+    {
+      allocationId: row.id,
+      amount: Number(row.amount ?? 0),
+      paymentDate: row.payments.payment_date,
+      method: row.payments.method,
+      reference: null,
+      partyId: row.payments.party_id,
+      docType: row.documents.doc_type,
+      documentId: row.document_id,
+    },
+    { sourceEventId },
+  );
+  if (!event) {
+    return { posted: false, reason: "This payment doesn't settle anything the ledger tracks." };
   }
 
   return postFinanceEvent(businessId, { ...event, businessId });

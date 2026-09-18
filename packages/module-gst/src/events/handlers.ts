@@ -1,7 +1,7 @@
 import { registerEventHandler } from "@cofounderai/core/events/registry";
 import type { DomainEvent } from "@cofounderai/core/events/types";
 import { generateEinvoice } from "../lib/einvoicing/mutations";
-import { postIssuedDocument } from "../lib/accounting/event-posting";
+import { postIssuedDocument, postPaymentAllocation } from "../lib/accounting/event-posting";
 
 /**
  * module-gst's own event subscription (00-MASTER-PLAN.md's module contract layout;
@@ -71,4 +71,23 @@ registerEventHandler("document.issued", async (event: DomainEvent) => {
   const payload = event.payload as { invoiceId?: string };
   if (!payload.invoiceId) return;
   await postIssuedDocument(event.business_id, payload.invoiceId, event.id);
+});
+
+/**
+ * Settlements reaching the ledger.
+ *
+ * Without this, an invoice posts its receivable and the receipt never clears it: the
+ * Finance dashboard's "Owed to you" (read from the ledger) and the Receivables screen
+ * (read from `core.payment_allocations`) would quietly disagree the moment anyone paid,
+ * and the disagreement grows with every payment. Two screens in one module reporting
+ * different numbers for the same thing is worse than either screen not existing.
+ *
+ * Idempotent per allocation, not per payment: a payment split across three invoices is
+ * three settlements, each keyed on its own allocation, so a redelivery of one is caught
+ * by the unique index without touching the others.
+ */
+registerEventHandler("payment.allocated", async (event: DomainEvent) => {
+  const payload = event.payload as { allocationId?: string };
+  if (!payload.allocationId) return;
+  await postPaymentAllocation(event.business_id, payload.allocationId, event.id);
 });

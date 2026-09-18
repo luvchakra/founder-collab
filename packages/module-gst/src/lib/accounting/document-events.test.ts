@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { financeEventFromDocument, taxableValueOf, type PostableDocument } from "./document-events";
+import {
+  financeEventFromAllocation,
+  financeEventFromDocument,
+  taxableValueOf,
+  type PostableDocument,
+} from "./document-events";
+import { idempotencyKeyFor } from "./events";
 import { planPosting, type PostingPlan } from "./posting-rules";
 
 function doc(over: Partial<PostableDocument> = {}): PostableDocument {
@@ -146,5 +152,80 @@ describe("end to end, document to balanced entry", () => {
     const plan = planPosting(financeEventFromDocument(doc({ doc_type: "credit_note" }))!) as PostingPlan;
     const ar = plan.lines.filter((l) => l.role === "accounts_receivable");
     expect(ar.reduce((s, l) => s + l.credit, 0)).toBe(1180);
+  });
+});
+
+describe("settling a payment", () => {
+  const allocation = {
+    allocationId: "alloc-1",
+    amount: 600,
+    paymentDate: "2026-09-18",
+    method: "bank",
+    reference: null,
+    partyId: "party-1",
+    docType: "invoice",
+    documentId: "doc-1",
+  };
+
+  it("posts a receipt when the payment settles an invoice", () => {
+    expect(financeEventFromAllocation(allocation)?.type).toBe("payment.received");
+  });
+
+  // core.payments has no direction column; the document the payment was applied to is
+  // what says which way the money went.
+  it("posts money out when the payment settles a purchase", () => {
+    expect(financeEventFromAllocation({ ...allocation, docType: "purchase_order" })?.type).toBe(
+      "supplier_bill.paid",
+    );
+  });
+
+  // An advance against work not yet billed is real, but it settles no receivable, and
+  // posting it as one would credit a debt that was never raised.
+  it("posts nothing for a payment against a quote", () => {
+    expect(financeEventFromAllocation({ ...allocation, docType: "estimate" })).toBeNull();
+  });
+
+  it("sends cash to cash and everything else to the bank", () => {
+    expect(financeEventFromAllocation({ ...allocation, method: "cash" })?.settlementAccountRole).toBe("cash");
+    for (const method of ["bank", "cheque", "upi", "card_offline"]) {
+      expect(
+        financeEventFromAllocation({ ...allocation, method })?.settlementAccountRole,
+        method,
+      ).toBe("bank");
+    }
+  });
+
+  // A payment split across three invoices is three settlements; each needs its own
+  // identity or a redelivery of one would collide with the others.
+  it("keys each allocation separately, so a split payment posts three times", () => {
+    const first = financeEventFromAllocation({ ...allocation, allocationId: "a1" })!;
+    const second = financeEventFromAllocation({ ...allocation, allocationId: "a2" })!;
+    expect(idempotencyKeyFor(first)).not.toBe(idempotencyKeyFor(second));
+  });
+
+  it("gives a redelivery of the same allocation the same key", () => {
+    expect(idempotencyKeyFor(financeEventFromAllocation(allocation)!)).toBe(
+      idempotencyKeyFor(financeEventFromAllocation({ ...allocation })!),
+    );
+  });
+
+  it("posts nothing for a zero or negative allocation", () => {
+    expect(financeEventFromAllocation({ ...allocation, amount: 0 })).toBeNull();
+    expect(financeEventFromAllocation({ ...allocation, amount: -5 })).toBeNull();
+  });
+
+  // The whole point: the receipt has to clear the receivable the invoice raised, or the
+  // two Finance screens disagree.
+  it("clears the receivable the invoice raised", () => {
+    const plan = planPosting(financeEventFromAllocation(allocation)!) as PostingPlan;
+    expect(plan.posted).toBe(true);
+    const ar = plan.lines.filter((l) => l.role === "accounts_receivable");
+    expect(ar.reduce((s, l) => s + l.credit, 0)).toBe(600);
+    expect(plan.lines.filter((l) => l.role === "bank").reduce((s, l) => s + l.debit, 0)).toBe(600);
+  });
+
+  it("does not book revenue a second time", () => {
+    const plan = planPosting(financeEventFromAllocation(allocation)!) as PostingPlan;
+    expect(plan.lines.some((l) => l.role.includes("revenue"))).toBe(false);
   });
 });
