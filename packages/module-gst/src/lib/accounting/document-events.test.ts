@@ -229,3 +229,69 @@ describe("settling a payment", () => {
     expect(plan.lines.some((l) => l.role.includes("revenue"))).toBe(false);
   });
 });
+
+describe("supplier bills", () => {
+  const bill = doc({
+    doc_type: "supplier_bill",
+    source_module: "inventory",
+    subtotal: 2000,
+    cgst_amount: 180,
+    sgst_amount: 180,
+    total_amount: 2360,
+  });
+
+  it("posts a supplier bill as one", () => {
+    expect(financeEventFromDocument(bill)?.type).toBe("supplier_bill.created");
+  });
+
+  // The posting rule puts `valueAccountRole` on the DEBIT side, so handing it a revenue
+  // role would debit revenue with the cost of the bill — turning every purchase into
+  // negative income.
+  it("never puts a purchase's value against a revenue account", () => {
+    expect(financeEventFromDocument(bill)?.valueAccountRole).toBeUndefined();
+    const plan = planPosting(financeEventFromDocument(bill)!) as PostingPlan;
+    expect(plan.lines.some((l) => l.role.includes("revenue"))).toBe(false);
+  });
+
+  it("owes the supplier the gross, with the cost and input GST on the debit side", () => {
+    const plan = planPosting(financeEventFromDocument(bill)!) as PostingPlan;
+    expect(plan.posted).toBe(true);
+    expect(plan.lines.filter((l) => l.role === "accounts_payable").reduce((s, l) => s + l.credit, 0)).toBe(2360);
+    expect(plan.lines.filter((l) => l.role === "inventory_asset").reduce((s, l) => s + l.debit, 0)).toBe(2000);
+    expect(plan.lines.filter((l) => l.role === "input_gst").reduce((s, l) => s + l.debit, 0)).toBe(360);
+  });
+
+  it("balances", () => {
+    const plan = planPosting(financeEventFromDocument(bill)!) as PostingPlan;
+    expect(plan.lines.reduce((s, l) => s + l.debit - l.credit, 0)).toBe(0);
+  });
+
+  it("does not post a draft bill", () => {
+    expect(financeEventFromDocument({ ...bill, status: "draft" })).toBeNull();
+  });
+
+  // Paying a supplier settles a payable; it is not a receipt.
+  it("settles the payable when the bill is paid, not the receivable", () => {
+    const event = financeEventFromAllocation({
+      allocationId: "alloc-b",
+      amount: 2360,
+      paymentDate: "2026-09-18",
+      method: "bank",
+      reference: null,
+      partyId: "supplier-1",
+      docType: "supplier_bill",
+      documentId: "bill-1",
+    })!;
+    expect(event.type).toBe("supplier_bill.paid");
+    const plan = planPosting(event) as PostingPlan;
+    expect(plan.lines.filter((l) => l.role === "accounts_payable").reduce((s, l) => s + l.debit, 0)).toBe(2360);
+    expect(plan.lines.filter((l) => l.role === "bank").reduce((s, l) => s + l.credit, 0)).toBe(2360);
+  });
+
+  it("reverses stock and the payable on a supplier credit", () => {
+    const plan = planPosting(
+      financeEventFromDocument({ ...bill, doc_type: "supplier_credit" })!,
+    ) as PostingPlan;
+    expect(plan.lines.filter((l) => l.role === "accounts_payable").reduce((s, l) => s + l.debit, 0)).toBeGreaterThan(0);
+  });
+});

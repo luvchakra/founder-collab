@@ -156,16 +156,19 @@ This table is the single source of truth for "who owns what". If Claude Code is 
 - A Kickserv *invoice* and a StockPilot *sales invoice* are the same `core.documents` row with different `source_module`.
 - A Kickserv *service location* and a StockPilot *shipping address* are the same `core.addresses` row.
 
-**Open against this map, found while building Finance (2026-09-17):**
-- **There is no supplier bill / purchase invoice.** `core.documents`' own `doc_type`
-  check allows `estimate, sales_order, invoice, credit_note, debit_note,
-  proforma_invoice, purchase_order, sales_return` — a purchase *order* is a commitment,
-  not a bill, so the platform has nothing that represents "a supplier has invoiced us and
-  we owe them by a date". Finance's posting rules already handle `supplier_bill.created`
-  and its aging arithmetic is module-agnostic, so **Payables is the one Finance screen
-  that cannot be built from existing data**. Adding the doc_type is a change to this map
-  and needs sign-off, not a Finance-local table: a second copy of "a bill" is exactly the
-  triplication this section exists to prevent.
+**Resolved 2026-09-18 — supplier bills are now canonical documents.** `core.documents`'
+`doc_type` check gains `supplier_bill` and `supplier_credit`
+(`20260918120000_core_supplier_bill_doc_type`), signed off by the product owner. A
+purchase *order* is a commitment — it creates no liability, carries no due date anyone is
+chased on, and is routinely for a different amount than what is eventually billed — so it
+never stood in for a bill, and Accounts Payable could not be built without this. Added
+here rather than as a Finance-local bills table so that payments, parties and allocations
+all work on bills unchanged, and so Inventory can raise them against its own purchase
+orders later. `supplier_credit` came with it: a supplier's credit note is to a bill what a
+credit note is to an invoice, and adding the pair avoided a second migration the first
+time anyone returns goods.
+
+**Open against this map:**
 - **Credit notes link to their invoice under two different keys.** Service writes
   `source_ref.invoice_id` (`module-fsm/lib/invoices/mutations.ts#voidInvoiceViaCreditNote`)
   and Inventory writes `source_ref.sales_invoice_id` (`inventory.create_credit_note()`).

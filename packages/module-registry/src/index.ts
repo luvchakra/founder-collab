@@ -232,6 +232,7 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Journal", slug: "journal", icon: "BookText" },
           { label: "Banking", slug: "banking", icon: "Landmark" },
           { label: "Receivables", slug: "receivables", icon: "HandCoins" },
+          { label: "Payables", slug: "payables", icon: "Wallet" },
           { label: "Financial Reports", slug: "reports", icon: "BarChart3" },
           { label: "Budget", slug: "budget", icon: "Target" },
           { label: "Recurring Entries", slug: "recurring", icon: "Repeat" },

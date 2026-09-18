@@ -27,20 +27,18 @@ the same way `fsm` is displayed as "Service".
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
 | Receivables | Done | `609bfcb` | Aging by customer and by invoice |
-| **Payables** | **Blocked** | — | See "Blocked on a decision" below |
+| **Payables** | Done | `pending` | Supplier bills are now canonical `core.documents`; aging by supplier and by bill |
 
-## Blocked on a decision
+## Resolved: supplier bills are canonical documents
 
-**There is no supplier bill / purchase invoice in the platform.** `core.documents`'
-`doc_type` check allows `estimate, sales_order, invoice, credit_note, debit_note,
-proforma_invoice, purchase_order, sales_return`. A purchase *order* is a commitment, not
-a bill, so nothing represents "a supplier has invoiced us and we owe them by a date".
+`core.documents` had no supplier bill / purchase invoice type, which made Accounts Payable
+the one Finance screen that could not be built. Signed off and added 2026-09-18
+(`20260918120000_core_supplier_bill_doc_type`), along with `supplier_credit`.
 
-Finance's posting rules already handle `supplier_bill.created` and its aging arithmetic is
-module-agnostic, so **Payables is the one Finance screen that cannot be built from
-existing data**. Adding the doc_type changes the entity-ownership map
-(`docs/plan/00-MASTER-PLAN.md` §5) and needs sign-off — a Finance-local bills table would
-be exactly the triplication that section exists to prevent.
+Put in `core.documents` rather than a Finance-local table so payments, parties and
+allocations work on bills unchanged, and so Inventory can raise them against its own
+purchase orders later. A purchase order deliberately still does not count as a payable: it
+creates no liability and is routinely for a different amount than what is billed.
 
 ## Bugs found while building, and fixed
 

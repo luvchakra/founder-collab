@@ -34,7 +34,13 @@ const EVENT_BY_DOC_TYPE: Record<string, FinanceEventType> = {
   credit_note: "credit_note.created",
   debit_note: "debit_note.created",
   sales_return: "credit_note.created",
+  supplier_bill: "supplier_bill.created",
+  // A supplier's credit note reverses a bill the way a credit note reverses an invoice.
+  supplier_credit: "inventory.returned",
 };
+
+/** Documents on the buying side. They take no revenue account — see `revenueRoleOf`. */
+const PURCHASE_DOC_TYPES = new Set(["supplier_bill", "supplier_credit"]);
 
 const SOURCE_MODULES = new Set<SourceModule>(["service", "inventory", "crm", "discovery", "finance"]);
 
@@ -55,7 +61,13 @@ function sourceModuleOf(document: PostableDocument): SourceModule {
  * actually looks at. A business that wants them merged re-points both roles at the same
  * account in its own mappings; the default keeps them apart.
  */
-function revenueRoleOf(document: PostableDocument): AccountRoleKey {
+function revenueRoleOf(document: PostableDocument): AccountRoleKey | undefined {
+  // A purchase has no revenue side, and saying it does is not a cosmetic error: the
+  // posting rule for a supplier bill puts `valueAccountRole` on the DEBIT side, so
+  // handing it a revenue role would debit revenue with the cost of the bill — turning
+  // every purchase into negative income. It gets `undefined` and the rule falls back to
+  // inventory, which is what a bill is actually buying.
+  if (PURCHASE_DOC_TYPES.has(document.doc_type)) return undefined;
   return sourceModuleOf(document) === "inventory" ? "product_revenue" : "service_revenue";
 }
 
@@ -137,7 +149,12 @@ const RECEIPT_DOC_TYPES = new Set(["invoice", "debit_note"]);
 /** Documents a settlement can be posted against at all. A payment applied to an estimate
  * is an advance against work not yet billed — real, but it is not settling a receivable,
  * and posting it as one would credit a debt that was never raised. */
-const SETTLEABLE_DOC_TYPES = new Set(["invoice", "debit_note", "purchase_order"]);
+const SETTLEABLE_DOC_TYPES = new Set([
+  "invoice",
+  "debit_note",
+  "purchase_order",
+  "supplier_bill",
+]);
 
 /** Which settlement account a payment method maps to. Cash is the only one that isn't
  * the bank; a cheque or a card settlement still lands in a bank account, just later. */

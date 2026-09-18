@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  Wallet,
   BookOpen,
   BookText,
   HandCoins,
@@ -45,6 +46,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   AlertTriangle,
+  Wallet,
   Repeat,
   BookOpen,
   BookText,
