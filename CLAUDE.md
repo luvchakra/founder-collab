@@ -130,6 +130,9 @@ packages/module-<key>/             one per licensed module, created as its epic 
 supabase/migrations/               ONE ordered migration timeline for the whole platform
 scripts/                           lint-import-boundaries.mjs, lint-migration-schema.mjs
 docs/plan/                         the planning package this repo was built from
+docs/PROGRESS-TRACKER.md           every story in every backlog, done or not (generated)
+docs/user-guides/                  end-user documentation; the in-app Get Help pages are
+                                    generated from it by `npm run build:help`
 docs/PORT-PROVENANCE.md            source commit SHA per ported directory
 ```
 
@@ -160,7 +163,13 @@ only the files it touches, plus the entity-ownership map if the story creates an
 After finishing: typecheck, lint, `lint:boundaries`, `lint:migrations`, and tests all
 green; focused commit; tenant isolation and license gating preserved; no unapproved
 dependencies or architecture changes; if the story revealed the plan was wrong, update the
-plan doc in the same commit.
+plan doc in the same commit; and run `npm run build:progress` so `docs/PROGRESS-TRACKER.md`
+reflects the story you just finished (the tests fail if you don't).
+
+**Cite the story id** in the code, migration or test that implements it — a comment naming
+`COMPLY-P0-04.1` or `FIN-2` is what `docs/PROGRESS-TRACKER.md` reads to know the story is
+built. A story shipped without its id anywhere in the diff shows up as never started.
+Grouped forms (`PLATFORM-P0-15.1/15.2`, `COMPLY-P0-11.1-11.5`) are understood.
 
 **Live source of truth, not frozen spec**: `docs/plan/` describes the destination and the
 decisions that are locked, not the exact current shape of `co-founder-ai` or
