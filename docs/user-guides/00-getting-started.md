@@ -8,7 +8,10 @@ Go to **Sign up**. You'll need:
 - **Password** (required, minimum 8 characters)
 - **Name** (optional)
 
-Or use **Continue with Google** to skip the password step entirely.
+Or use **Continue with Google** to skip the password step entirely. The
+Google button only appears if the deployment's Supabase project actually has
+Google sign-in switched on — see §11 if you operate the deployment and want
+to enable it.
 
 After signing up with email/password, check your inbox and confirm your
 email address before you can log in — the signup page shows a "check your
@@ -151,7 +154,7 @@ every variable. Grouped by purpose:
 | Inbound email | `EMAIL_INBOUND_WEBHOOK_SECRET` |
 | AI credit purchases | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` — optional; leaving these unset just disables the "buy credits" flow |
 | BYOK key encryption | `API_KEY_ENCRYPTION_SECRET` — a 32-byte base64 secret; **never rotate this once customers have connected keys**, it makes every stored key permanently undecryptable |
-| Platform-wide AI fallback | `PLATFORM_AI_API_KEY` — optional; lets accounts without their own key still use AI features, against their normal usage caps |
+| Platform-wide AI fallback | `PLATFORM_AI_API_KEY` — optional; lets accounts without their own key still use AI features, against their normal usage caps. A key set on the superadmin portal's **AI Providers** page takes precedence over this variable, and needs no redeploy |
 | Scheduled jobs | `CRON_SECRET` — checked on the background event-drain endpoint |
 | Internal demo-data tool | `PLATFORM_ADMIN_EMAILS` — comma-separated allowlist for `/dashboard/admin` (distinct from the `/platform` superadmin portal) |
 | CRM channel webhooks | `CRM_META_APP_SECRET`, `CRM_META_WEBHOOK_VERIFY_TOKEN`, `CRM_WHATSAPP_APP_SECRET`, `CRM_WHATSAPP_WEBHOOK_VERIFY_TOKEN` — see the [CRM guide](./04-crm.md#connecting-a-channel-whatsapp--instagram--facebook) |
@@ -160,3 +163,81 @@ every variable. Grouped by purpose:
 None of this is needed by an ordinary business user signing up on an
 existing WonderArk deployment — it's only relevant to whoever operates the
 deployment itself.
+
+## 11. Enabling Google sign-in (for whoever deploys WonderArk)
+
+The application code for Google sign-in is already in place — the
+"Continue with Google" button, the OAuth redirect, and the
+`/auth/callback` handler that turns Google's response into a session. What
+it needs is credentials, and those are configured outside the codebase, in
+two places. Until they exist the button is hidden rather than shown and
+broken, so enabling Google is a configuration change only: nothing to
+deploy, nothing to rebuild.
+
+### Step 1 — Create OAuth credentials in Google Cloud
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) and
+   select (or create) a project for this deployment.
+2. **APIs & Services → OAuth consent screen.** Choose **External** unless
+   every user will have an account in your own Google Workspace, then fill
+   in the app name, a support email, and your logo. Add the scopes
+   `.../auth/userinfo.email`, `.../auth/userinfo.profile` and `openid` —
+   these are the defaults and are all WonderArk asks for.
+   While the consent screen is in **Testing**, only the accounts you list
+   as test users can sign in; **Publish** it before go-live.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID.**
+   Application type: **Web application**.
+4. Under **Authorised JavaScript origins**, add the origins people will
+   actually load the app from — e.g. `https://your-domain.com` and, for
+   local work, `http://localhost:3000`.
+5. Under **Authorised redirect URIs**, add **one** URI, and it is Supabase's,
+   not your app's:
+
+   ```
+   https://<your-project-ref>.supabase.co/auth/v1/callback
+   ```
+
+   This is the single most common thing to get wrong. Google redirects to
+   Supabase, and Supabase then redirects to WonderArk's own
+   `/auth/callback` — so your own domain does not belong in this field. A
+   mismatch here shows up as `redirect_uri_mismatch` at sign-in time.
+6. Copy the **Client ID** and **Client secret**.
+
+### Step 2 — Turn the provider on in Supabase
+
+1. Open the Supabase dashboard for this deployment's project →
+   **Authentication → Providers → Google**.
+2. Toggle it **Enabled**, paste the Client ID and Client secret, and save.
+3. Still in Authentication, check **URL Configuration**:
+   - **Site URL** — your production origin (e.g. `https://your-domain.com`).
+   - **Redirect URLs** — add `https://your-domain.com/auth/callback`, plus
+     `http://localhost:3000/auth/callback` for local development and a
+     wildcard for preview deployments if you use them
+     (e.g. `https://*-your-team.vercel.app/auth/callback`).
+
+   WonderArk always asks Supabase to send people back to
+   `{origin}/auth/callback`, taking the origin from the request itself, so
+   the same build works in local dev, previews and production — but every
+   origin you want that to work from has to be on this allowlist.
+
+That is the whole of it. Within five minutes (the button's cached view of
+the project's settings) — or immediately on the next cold start — the
+Google button appears on both the login and signup pages.
+
+### Checking it worked
+
+```
+curl -s -H "apikey: <your-publishable-key>" \
+  https://<your-project-ref>.supabase.co/auth/v1/settings | grep google
+```
+
+`"google": true` means the provider is live. This is the same endpoint the
+login page itself asks, so if it says `true`, the button is showing.
+
+### What happens to someone who signs in with Google
+
+They land on the same onboarding wizard an email signup does, with their
+Google display name and profile picture already filled in, and no password
+on the account. If they later want to sign in with a password instead, they
+can set one through **Forgot password?** on the login page — the reset email
+goes to the same address Google verified.

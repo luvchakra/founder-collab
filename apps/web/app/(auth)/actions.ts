@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@cofounderai/core/db/server";
+import { readableOAuthError } from "@cofounderai/core/auth/oauth-providers";
 
 export type AuthActionState = { error: string } | null;
 
@@ -134,7 +135,15 @@ export async function signInWithGoogle(next: "/dashboard" | "/onboarding" = "/da
     options: { redirectTo: `${origin}/auth/callback?next=${next}` },
   });
   if (error || !data.url) {
-    redirect(`/login?error=${encodeURIComponent(error?.message ?? "Google sign-in is not available yet.")}`);
+    // The most common failure here is that nobody has switched Google on in the Supabase
+    // dashboard yet, and Supabase says so in its own API vocabulary -- readableOAuthError
+    // turns that into an instruction. The button is normally hidden in that case
+    // (core/auth/oauth-providers.ts), so this is the path for a provider disabled between
+    // the page render and the click, or a probe that failed open.
+    const reason = error?.message
+      ? readableOAuthError(error.message, "google")
+      : "Google sign-in is not available yet.";
+    redirect(`/login?error=${encodeURIComponent(reason)}`);
   }
   redirect(data.url);
 }

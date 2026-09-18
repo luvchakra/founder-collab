@@ -35,7 +35,6 @@ test.describe("Login", () => {
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Log In" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /forgot password/i })).toBeVisible();
   });
 
@@ -226,4 +225,41 @@ test.describe("Forgot password", () => {
     await page.getByRole("button", { name: /send|reset/i }).click();
     await expect(page).toHaveURL(/\/forgot-password\/check-email$/, { timeout: 10_000 });
   });
+});
+
+/**
+ * Google sign-in is only offered when the Supabase project actually has the provider
+ * turned on -- a "Continue with Google" button on a project where Google is disabled
+ * comes back with "Unsupported provider", which reads as a broken app rather than an
+ * unfinished setup step.
+ *
+ * So this asserts the button against the project's own answer rather than against a
+ * hardcoded expectation: whichever way the deployment is configured, the page has to
+ * agree with it.
+ */
+test.describe("Google sign-in", () => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  for (const path of ["/login", "/signup"]) {
+    test(`${path} offers Google exactly when the project enables it`, async ({ page, request }) => {
+      test.skip(
+        !supabaseUrl || !supabaseKey,
+        "Needs NEXT_PUBLIC_SUPABASE_URL/PUBLISHABLE_KEY in the test runner's own environment",
+      );
+
+      const settings = await request.get(`${supabaseUrl}/auth/v1/settings`, {
+        headers: { apikey: supabaseKey! },
+      });
+      expect(settings.ok(), "the project's auth settings must be readable").toBe(true);
+      const enabled = Boolean((await settings.json()).external?.google);
+
+      await page.goto(path);
+      const button = page.getByRole("button", { name: /continue with google/i });
+      await expect(button).toHaveCount(enabled ? 1 : 0);
+
+      // The "OR" divider belongs to that button -- it must not be left behind on its own.
+      await expect(page.getByText("OR", { exact: true })).toHaveCount(enabled ? 1 : 0);
+    });
+  }
 });

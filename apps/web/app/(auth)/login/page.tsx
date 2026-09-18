@@ -3,6 +3,7 @@ import { AuthForm } from "@/components/auth/auth-form";
 import { AuthError } from "@/components/auth/auth-error";
 import { login } from "@/app/(auth)/actions";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
+import { getEnabledOAuthProviders } from "@cofounderai/core/auth/oauth-providers";
 
 /**
  * PLATFORM-P0-03.3: `login_headline`/`login_support_text` (added by PLATFORM-P0-03.1)
@@ -13,7 +14,10 @@ import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-brandin
  * platform.
  */
 export default async function LoginPage() {
-  const branding = await getPublicLoginBranding();
+  const [branding, providers] = await Promise.all([
+    getPublicLoginBranding(),
+    getEnabledOAuthProviders(),
+  ]);
   const hasLegalLinks = Boolean(branding.loginTermsUrl || branding.loginPrivacyUrl);
 
   return (
@@ -26,7 +30,7 @@ export default async function LoginPage() {
         <AuthError />
       </Suspense>
       <div className="mt-8">
-        <AuthForm mode="login" action={login} />
+        <AuthForm mode="login" action={login} googleEnabled={providers.google} />
       </div>
       {hasLegalLinks ? (
         <p className="mt-6 text-center text-xs text-landing-muted">
