@@ -137,6 +137,14 @@ Directories are created as stories require them — don't pre-create empty modul
 
 ## Workflow
 
+**Fetch `main` first, every session, before anything else.** Several sessions work on this
+repo at once and `main` moves under you: run `git fetch origin main` and look at what
+landed (`git log --oneline HEAD..origin/main`) before reading code, planning, or editing
+-- then base new work on the current `origin/main` (or bring it into the branch you were
+told to use). Two sessions have already built the same change in parallel because one
+skipped this; the wasted work is the cheap outcome, the expensive one is a fix written
+against code that no longer exists.
+
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read
 only the files it touches, plus the entity-ownership map if the story creates any table.
