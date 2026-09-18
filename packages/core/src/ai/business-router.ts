@@ -5,6 +5,7 @@ import { decryptApiKey } from "../crypto/api-key";
 import { resolveModelId, type AiProvider, type AiQualityTier } from "./model-registry";
 import { getOperationSpec, type AiOperation } from "./operation-registry";
 import { createLanguageModel } from "./provider-factory";
+import { getPlatformAiCredential } from "./platform-credential";
 
 /**
  * The `business_id`-scoped counterpart to `module-discovery/lib/ai/router.ts`
@@ -56,18 +57,12 @@ export type ResolvedBusinessAiModel = {
   modelId: string;
   model: LanguageModel;
   /** "byok" when running on the business's own connected key, "platform" when falling
-   * back to the platform's included credit (`PLATFORM_AI_API_KEY`) -- same env var and
-   * same fallback story `module-discovery/lib/ai/router.ts#getPlatformCredential`
-   * already established; it is a deployment-wide credential, not a discovery-specific
-   * one, so reusing it here needs no new secret. */
+   * back to the platform's included credit -- the key a superadmin set on the Platform
+   * Admin portal's AI Providers page, or failing that the deployment's
+   * `PLATFORM_AI_API_KEY`. See `ai/platform-credential.ts` for why both exist and which
+   * wins. */
   credentialSource: "byok" | "platform";
 };
-
-function getPlatformCredential(): { provider: AiProvider; apiKey: string } | null {
-  const apiKey = process.env.PLATFORM_AI_API_KEY;
-  if (!apiKey) return null;
-  return { provider: "anthropic", apiKey };
-}
 
 type ProviderCredentialRow = { provider: AiProvider; encrypted_api_key: string };
 
@@ -122,7 +117,8 @@ async function getAccountProviderCredential(businessId: string, client?: Supabas
  * own connected BYOK credential (`core.ai_provider_credentials`) first, then the
  * founder's account-level BYOK credential connected via Settings > Billing (see
  * `getAccountProviderCredential`'s own doc comment for why that fallback exists at all),
- * then the platform's included credit if the deployment has one configured. Throws
+ * then the platform's own included credit -- the key set on the Platform Admin portal's
+ * AI Providers page, or the deployment's `PLATFORM_AI_API_KEY`. Throws
  * `AiProviderError("no_provider_connected")` only when none of the three are available.
  */
 export async function resolveBusinessAiModel(businessId: string, operation: AiOperation, client?: SupabaseClient): Promise<ResolvedBusinessAiModel> {
@@ -131,7 +127,7 @@ export async function resolveBusinessAiModel(businessId: string, operation: AiOp
   const usedByokCredential = byokCredential ?? accountCredential;
   const credential: { provider: AiProvider; apiKey: string } | null = usedByokCredential
     ? { provider: usedByokCredential.provider, apiKey: decryptApiKey(usedByokCredential.encrypted_api_key) }
-    : getPlatformCredential();
+    : await getPlatformAiCredential();
   if (!credential) {
     throw new AiProviderError("no_provider_connected", "Connect an AI provider before using this feature.");
   }

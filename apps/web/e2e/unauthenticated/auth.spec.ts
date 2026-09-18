@@ -1,5 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
+
+/**
+ * The email/password form specifically -- `/login` also carries a second form for the
+ * Google button, and `next dev` adds its own role="alert" element for the dev-tools
+ * overlay, so assertions about *this* form's error message have to be scoped to it.
+ */
+function credentialsForm(page: Page) {
+  return page.locator("form:has(#password)");
+}
 
 /**
  * Regression guard for a real outage: every page in the `(auth)` route group renders
@@ -24,7 +33,7 @@ test.describe("Login", () => {
   test("renders the form", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Log In" })).toBeVisible();
     await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /forgot password/i })).toBeVisible();
@@ -36,9 +45,12 @@ test.describe("Login", () => {
   test("shows an error for invalid credentials", async ({ page }) => {
     await page.goto("/login");
     await page.getByLabel("Email").fill("e2e-nonexistent-user@example.com");
-    await page.getByLabel("Password").fill("wrong-password-123");
+    await page.getByLabel("Password", { exact: true }).fill("wrong-password-123");
     await page.getByRole("button", { name: "Log In" }).click();
-    await expect(page.getByRole("alert")).toBeVisible({ timeout: 10_000 });
+    // Scoped to the credentials form: `next dev` renders its own role="alert" element for
+    // the dev-tools overlay on every page, so an unscoped getByRole("alert") resolves to
+    // two elements and fails on strict mode instead of on anything about the login.
+    await expect(credentialsForm(page).getByRole("alert")).toBeVisible({ timeout: 10_000 });
     await expect(page).toHaveURL(/\/login/);
   });
 
@@ -54,7 +66,7 @@ test.describe("Signup", () => {
     await page.goto("/signup");
     await expect(page.getByLabel("Name")).toBeVisible();
     await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create Account" })).toBeVisible();
   });
 
@@ -75,11 +87,11 @@ test.describe("Signup", () => {
     await page.goto("/signup");
     await page.getByLabel("Name").fill("Too Short");
     await page.getByLabel("Email").fill("e2e-nonexistent-user@example.com");
-    await page.getByLabel("Password").fill("short");
+    await page.getByLabel("Password", { exact: true }).fill("short");
     await page.getByRole("button", { name: "Create Account" }).click();
 
     await expect(page).toHaveURL(/\/signup$/);
-    await expect(page.getByLabel("Password")).toHaveJSProperty("validity.valid", false);
+    await expect(page.getByLabel("Password", { exact: true })).toHaveJSProperty("validity.valid", false);
   });
 
   // Supabase deliberately does not reveal whether an address is already registered, so
@@ -93,7 +105,7 @@ test.describe("Signup", () => {
     await page.goto("/signup");
     await page.getByLabel("Name").fill("Duplicate Signup");
     await page.getByLabel("Email").fill(existing!);
-    await page.getByLabel("Password").fill("a-sufficiently-long-password");
+    await page.getByLabel("Password", { exact: true }).fill("a-sufficiently-long-password");
     await page.getByRole("button", { name: "Create Account" }).click();
 
     await expect(page).toHaveURL(/\/signup\/check-email$/, { timeout: 15_000 });
@@ -117,7 +129,94 @@ test.describe("Route protection", () => {
   });
 });
 
+/**
+ * The reveal toggle. Typing a password you cannot see is the one moment in signing up
+ * where a typo costs the whole attempt, and on a phone it is not a rare one.
+ *
+ * Tested here rather than as a component test because checking it needs a real DOM, and
+ * adding jsdom + testing-library for one component is exactly the dependency CLAUDE.md
+ * principle 2 rules out. Playwright is already here and tests the real thing.
+ */
+test.describe("Password reveal", () => {
+  for (const [name, path, label] of [
+    ["login", "/login", "Password"],
+    ["signup", "/signup", "Password"],
+  ] as const) {
+    test(`${name}: the password is hidden until asked for, then revealed`, async ({ page }) => {
+      await page.goto(path);
+      const field = page.getByLabel(label, { exact: true });
+
+      // Hidden by default: a password is never on screen because of an earlier choice.
+      await expect(field).toHaveAttribute("type", "password");
+
+      await field.fill("correct horse battery staple");
+      await page.getByRole("button", { name: "Show password" }).click();
+      await expect(field).toHaveAttribute("type", "text");
+      // The value survives the toggle — re-rendering the input must not clear what was typed.
+      await expect(field).toHaveValue("correct horse battery staple");
+
+      await page.getByRole("button", { name: "Hide password" }).click();
+      await expect(field).toHaveAttribute("type", "password");
+      await expect(field).toHaveValue("correct horse battery staple");
+    });
+  }
+
+  // An explicit type="button" is what stops this: without it the toggle inherits submit
+  // and reveals the password by navigating away.
+  test("toggling does not submit the form", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("e2e-nonexistent-user@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("something");
+    await page.getByRole("button", { name: "Show password" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await expect(credentialsForm(page).getByRole("alert")).toHaveCount(0);
+  });
+
+  test("the toggle is reachable by keyboard and announces its state", async ({ page }) => {
+    await page.goto("/login");
+    const toggle = page.getByRole("button", { name: "Show password" });
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: "Hide password" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  // /reset-password's two fields are also reveal fields, but they only render for a
+  // visitor arriving on a live recovery link -- signed out, the page shows the
+  // invalid-link message instead, so there is nothing here to toggle. Each PasswordInput
+  // owns its own reveal state, so the two fields are independent by construction; what
+  // this suite can check unauthenticated is that the dead-link path still offers a way
+  // back rather than stranding someone on an expired email.
+  test("reset-password without a recovery link points back at forgot password", async ({ page }) => {
+    await page.goto("/reset-password");
+    await expect(page.getByText(/invalid or has expired/i)).toBeVisible();
+    await page.getByRole("link", { name: /forgot password/i }).click();
+    await expect(page).toHaveURL(/\/forgot-password$/);
+  });
+});
+
 test.describe("Forgot password", () => {
+  // The link exists on the login page, but a link nobody can follow is the same as no
+  // link -- this walks the route a locked-out founder actually takes.
+  test("is reachable from the login page", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByRole("link", { name: /forgot password/i }).click();
+    await expect(page).toHaveURL(/\/forgot-password$/);
+    await expect(page.getByLabel("Email")).toBeVisible();
+  });
+
+  test("offers a way back to signing in", async ({ page }) => {
+    await page.goto("/forgot-password");
+    await expect(page.getByRole("link", { name: /log in/i }).first()).toBeVisible();
+  });
+
+  test("asks for an email rather than submitting an empty form", async ({ page }) => {
+    await page.goto("/forgot-password");
+    await page.getByRole("button", { name: /send|reset/i }).click();
+    await expect(page).toHaveURL(/\/forgot-password$/);
+    await expect(page.getByLabel("Email")).toHaveJSProperty("validity.valid", false);
+  });
+
   // Deliberately not the real E2E_TEST_EMAIL -- this exercises the UI flow only, not
   // whether a real inbox receives anything, and never sends real email traffic on every
   // run of this suite.

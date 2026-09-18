@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import Link from "next/link";
 import { Input } from "@cofounderai/core/ui/input";
+import { PasswordInput } from "@cofounderai/core/ui/password-input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { signInWithGoogle, type AuthActionState } from "@/app/(auth)/actions";
@@ -49,10 +50,9 @@ export function AuthForm({
               </Link>
             ) : null}
           </div>
-          <Input
+          <PasswordInput
             id="password"
             name="password"
-            type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
             minLength={isLogin ? undefined : 8}
             required

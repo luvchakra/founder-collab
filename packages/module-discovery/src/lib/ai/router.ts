@@ -3,6 +3,7 @@ import { APICallError, NoObjectGeneratedError, RetryError, type LanguageModel } 
 import { createClient } from "../../db/server";
 import { getAccountIdForWorkspace } from "../tenancy/queries";
 import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
+import { getPlatformAiCredential } from "@cofounderai/core/ai/platform-credential";
 import { resolveModelId, type AiProvider, type AiQualityTier } from "@cofounderai/core/ai/model-registry";
 import { getOperationSpec, type AiOperation } from "@cofounderai/core/ai/operation-registry";
 import { createLanguageModel } from "@cofounderai/core/ai/provider-factory";
@@ -83,15 +84,12 @@ export type ResolvedAiModel = {
   modelAtTier: (tier: AiQualityTier, options?: { webSearch?: boolean }) => LanguageModel;
 };
 
-/** The platform's own Anthropic key (docs/DESIGN.md's included-AI-credits story) --
- * "anthropic" because that was already this app's sole provider before BYOK existed
- * (see model-registry.ts's own comment), so its tiers are already tuned. Read lazily
- * (not at module load) so a deployment with no key set never pays an env lookup cost
- * anywhere near request start. */
-function getPlatformCredential(): { provider: AiProvider; apiKey: string } | null {
-  const apiKey = process.env.PLATFORM_AI_API_KEY;
-  if (!apiKey) return null;
-  return { provider: "anthropic", apiKey };
+/** Delegates to core's shared reader so this router and `core/ai/business-router.ts`
+ * resolve the platform's credential the same way -- the key a superadmin set on the
+ * Platform Admin portal first, then the deployment's `PLATFORM_AI_API_KEY`. Kept as a
+ * named local function so the call site below reads unchanged. */
+function getPlatformCredential(): Promise<{ provider: AiProvider; apiKey: string } | null> {
+  return getPlatformAiCredential();
 }
 
 type ProviderCredentialRow = {
@@ -146,7 +144,7 @@ export async function resolveAiModelForAccount(
   const byokCredential = await getProviderCredential(accountId, client);
   const credential: { provider: AiProvider; apiKey: string } | null = byokCredential
     ? { provider: byokCredential.provider, apiKey: decryptApiKey(byokCredential.encrypted_api_key) }
-    : getPlatformCredential();
+    : await getPlatformCredential();
   if (!credential) {
     throw new AiProviderError(
       "no_provider_connected",

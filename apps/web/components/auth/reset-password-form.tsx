@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Input } from "@cofounderai/core/ui/input";
+import { PasswordInput } from "@cofounderai/core/ui/password-input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { updatePassword, type AuthActionState } from "@/app/(auth)/actions";
@@ -16,10 +16,9 @@ export function ResetPasswordForm() {
     <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-2">
         <Label htmlFor="password">New password</Label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           required
@@ -27,10 +26,9 @@ export function ResetPasswordForm() {
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="confirmPassword">Confirm new password</Label>
-        <Input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           minLength={8}
           required
