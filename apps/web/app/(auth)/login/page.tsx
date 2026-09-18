@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
+import { LoginError } from "@/components/auth/login-error";
 import { login } from "@/app/(auth)/actions";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 
@@ -10,12 +12,7 @@ import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-brandin
  * render only when at least one is configured -- nothing appears on an unconfigured
  * platform.
  */
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
+export default async function LoginPage() {
   const branding = await getPublicLoginBranding();
   const hasLegalLinks = Boolean(branding.loginTermsUrl || branding.loginPrivacyUrl);
 
@@ -25,11 +22,9 @@ export default async function LoginPage({
       <p className="mt-2 text-sm text-landing-muted">
         {branding.loginSupportText || "Your next customer is waiting."}
       </p>
-      {error ? (
-        <p role="alert" className="mt-4 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <Suspense fallback={null}>
+        <LoginError />
+      </Suspense>
       <div className="mt-8">
         <AuthForm mode="login" action={login} />
       </div>

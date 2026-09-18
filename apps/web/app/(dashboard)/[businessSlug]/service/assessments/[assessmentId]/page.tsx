@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
@@ -59,9 +60,9 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
             nothing here led back until now, even though source_reference has carried
             the CRM opportunity id since this table's own first migration. */}
         {assessment.source === "crm" && assessment.source_reference ? (
-          <a href={`/${businessSlug}/crm/opportunities/${assessment.source_reference}`} className="mt-1 inline-block text-xs text-primary hover:underline">
+          <Link href={`/${businessSlug}/crm/opportunities/${assessment.source_reference}`} className="mt-1 inline-block text-xs text-primary hover:underline">
             From CRM opportunity →
-          </a>
+          </Link>
         ) : null}
       </div>
 

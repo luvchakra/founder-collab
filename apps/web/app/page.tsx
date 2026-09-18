@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@cofounderai/core/db/server";
 import { Navbar } from "@/components/marketing/navbar";
 import { Hero } from "@/components/marketing/hero";
 import { FounderProblem } from "@/components/marketing/founder-problem";
@@ -16,15 +14,11 @@ import { Faq } from "@/components/marketing/faq";
 import { FinalCta } from "@/components/marketing/final-cta";
 import { Footer } from "@/components/marketing/footer";
 
-// co-founder-ai's own "/" is its marketing landing page -- a signed-in visitor skips
-// straight to their dashboard instead, same as the P-0 scaffold's original redirect.
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) redirect("/dashboard");
-
+// co-founder-ai's own "/" is its marketing landing page. A signed-in visitor is sent
+// straight to their dashboard by the proxy (packages/core/src/db/middleware.ts) before
+// this ever renders -- deliberately not decided here, so the page reads nothing at
+// request time and is prerendered once at build and served from the CDN.
+export default function Home() {
   return (
     <div className="landing-theme flex flex-1 flex-col bg-landing-bg text-landing-fg">
       <Navbar />

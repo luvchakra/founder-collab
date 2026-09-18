@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Lock, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { BRAND_NAME } from "../../lib/brand";
+import { isPromiseLike } from "../../lib/promise-like";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
@@ -114,7 +116,7 @@ function NavLink({
   indent?: boolean;
 }) {
   return (
-    <a
+    <Link
       href={href}
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
@@ -128,7 +130,44 @@ function NavLink({
     >
       {icon ? <ModuleIcon name={icon} className="size-4 shrink-0" /> : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-    </a>
+    </Link>
+  );
+}
+
+/** The AI-credits meter at the foot of the rail. Its number needs two queries nothing
+ * else in the shell needs (this month's ai_runs, and whether a BYOK key is connected),
+ * so the layout hands it over as a promise and this resolves it behind its own Suspense
+ * boundary -- the rail paints and is usable before it lands. A plain number is still
+ * accepted for callers that already have one. */
+function CreditsMeter({
+  credits,
+  onNavigate,
+}: {
+  credits: number | Promise<number | undefined> | undefined;
+  onNavigate: () => void;
+}) {
+  const percent = isPromiseLike(credits) ? use(credits) : credits;
+  if (percent === undefined) return null;
+  return (
+    <Link
+      href="/dashboard/settings/usage"
+      onClick={onNavigate}
+      className="mx-3 mb-3 flex flex-col gap-1.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-sidebar-accent"
+    >
+      <div className="flex items-center justify-between text-xs text-sidebar-muted">
+        <span>AI Usage</span>
+        <span className="font-medium text-sidebar-foreground">{percent}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-sidebar-accent">
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width]",
+            percent >= 100 ? "bg-destructive" : "bg-primary",
+          )}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+    </Link>
   );
 }
 
@@ -334,8 +373,10 @@ export function AppSidebar({
   /** This business's discovery products, keyed by business id -- shown under the
    * Discovery section for whichever business is currently active. */
   productsByBusiness?: Record<string, ShellProduct[]>;
-  /** % of AI credits used this month, blended across every workspace on the account. */
-  creditsUsedPercent?: number;
+  /** % of AI credits used this month, blended across every workspace on the account --
+   * or a promise of it, resolved behind the meter's own Suspense boundary so the rail
+   * never waits on the usage queries. */
+  creditsUsedPercent?: number | Promise<number | undefined>;
   onCreateBusiness?: () => void;
   user: ShellUser;
   onSignOut?: () => void;
@@ -344,13 +385,13 @@ export function AppSidebar({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Navigations inside the rail use plain <a> tags (deliberately, so they work the same
-  // whether the target route exists yet or not), which reloads the page and remounts this
-  // component. Persisting which section is open across that reload -- rather than always
-  // resetting to modules[0] -- needs two sources, preferred in order: what the URL itself
-  // indicates (most reliable, since it's exactly where the founder ended up), then the
-  // last section they opened by hand, stashed in localStorage for pages whose URL
-  // doesn't indicate a module (bare /dashboard, settings, etc).
+  // Navigations inside the rail are client-side transitions (<Link>): the shell stays
+  // mounted and only the page segment is fetched, which is what makes a click feel
+  // instant. A full reload (new tab, refresh, a bookmark) still remounts this component,
+  // so which section is open is derived from two sources, preferred in order: what the
+  // URL itself indicates (most reliable, since it's exactly where the founder ended up),
+  // then the last section they opened by hand, stashed in localStorage for pages whose
+  // URL doesn't indicate a module (bare /dashboard, settings, etc).
   const [expandedModule, setExpandedModule] = useState<string | null>(() => {
     const fromUrl = inferModuleFromPath(pathname);
     if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) return fromUrl;
@@ -454,7 +495,7 @@ export function AppSidebar({
           <X className="size-4" aria-hidden="true" />
         </button>
 
-        <a
+        <Link
           href="/dashboard"
           onClick={closeDrawer}
           aria-label={BRAND_NAME}
@@ -466,13 +507,13 @@ export function AppSidebar({
           <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
             {BRAND_NAME}
           </span>
-        </a>
+        </Link>
 
         {/* The account-wide view, above the per-business modules and deliberately not
             styled like them: it is the one destination in the rail that isn't scoped to
             the business selected in the topbar, so it reads as a bordered row of its own
             rather than another item in the module list. */}
-        <a
+        <Link
           href="/dashboard"
           onClick={closeDrawer}
           aria-current={isExecutiveActive ? "page" : undefined}
@@ -485,7 +526,7 @@ export function AppSidebar({
         >
           <ModuleIcon name="LayoutGrid" className="size-4.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">Executive Dashboard</span>
-        </a>
+        </Link>
 
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
           {modules.map((module) => {
@@ -539,27 +580,9 @@ export function AppSidebar({
           })}
         </div>
 
-        {creditsUsedPercent !== undefined ? (
-          <a
-            href="/dashboard/settings/usage"
-            onClick={closeDrawer}
-            className="mx-3 mb-3 flex flex-col gap-1.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-sidebar-accent"
-          >
-            <div className="flex items-center justify-between text-xs text-sidebar-muted">
-              <span>AI Usage</span>
-              <span className="font-medium text-sidebar-foreground">{creditsUsedPercent}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-sidebar-accent">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-[width]",
-                  creditsUsedPercent >= 100 ? "bg-destructive" : "bg-primary",
-                )}
-                style={{ width: `${Math.min(creditsUsedPercent, 100)}%` }}
-              />
-            </div>
-          </a>
-        ) : null}
+        <Suspense fallback={null}>
+          <CreditsMeter credits={creditsUsedPercent} onNavigate={closeDrawer} />
+        </Suspense>
 
         <SidebarAccountMenu user={user} onSignOut={onSignOut} onNavigate={closeDrawer} />
       </nav>

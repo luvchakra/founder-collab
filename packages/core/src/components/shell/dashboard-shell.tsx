@@ -31,11 +31,13 @@ export function DashboardShell({
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
   productsByBusiness?: Record<string, ShellProduct[]>;
-  /** % of AI credits used this month, blended across every workspace on the account. */
-  creditsUsedPercent?: number;
+  /** % of AI credits used this month, blended across every workspace on the account --
+   * or a promise of it, resolved in the rail behind its own Suspense boundary. */
+  creditsUsedPercent?: number | Promise<number | undefined>;
   onCreateBusiness?: () => void;
   user: ShellUser;
-  alerts?: ShellAlert[];
+  /** The bell's alerts, or a promise of them resolved in the topbar behind Suspense. */
+  alerts?: ShellAlert[] | Promise<ShellAlert[]>;
   chatSlot?: ReactNode;
   onSignOut?: () => void;
   children: ReactNode;

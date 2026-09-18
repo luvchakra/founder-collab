@@ -6,6 +6,7 @@ import type { ShellAlert } from "@cofounderai/core/shell/types";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getAiProviderConnection } from "@cofounderai/module-discovery/lib/ai-providers/queries";
 import {
+  getAccountBusinesses,
   getAccountUsageAndProspects,
   getAccountWorkspaceEntries,
 } from "@cofounderai/module-discovery/lib/dashboard/queries";
@@ -56,25 +57,89 @@ async function getOtherModuleAlerts(
   return results.flat();
 }
 
+/**
+ * Everything the bell shows, gathered off the critical path. The shell's own render
+ * awaits nothing in here: the layout starts this and hands the promise to the topbar,
+ * which resolves it behind a Suspense boundary, so the rail and the page are on screen
+ * while these queries (workspaces, this month's usage, every prospect's pipeline state,
+ * and each licensed module's own dashboard summary) are still running. A failure here
+ * is logged and shows an empty bell -- it must never take the shell down with it.
+ */
+async function loadAlerts(
+  accountId: string,
+  businesses: { id: string }[],
+  licensedModuleKeysByBusiness: Record<string, string[]>,
+): Promise<ShellAlert[]> {
+  try {
+    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts] = await Promise.all([
+      getAccountWorkspaceEntries(accountId),
+      getAccountUsageAndProspects(accountId),
+      getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness),
+    ]);
+    const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
+    return [...discoveryAlerts, ...otherModuleAlerts].sort((a, b) =>
+      a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
+    );
+  } catch (error) {
+    console.error("[dashboard] alerts failed to load", error);
+    return [];
+  }
+}
+
+/**
+ * Same blend as co-founder-ai's own dashboard layout: total spend across every
+ * workspace on the account against the free-tier limit times workspace count. The
+ * free-tier cap (and this percentage) only means anything while the account is running
+ * on CoFounderAI's own included credit -- once BYOK is connected, usage bills to the
+ * founder's own provider account with no cap from us, so the indicator is hidden
+ * (`undefined`) rather than shown pinned at some stale/misleading number (item #16).
+ * Streamed to the rail's meter the same way `loadAlerts` feeds the bell.
+ */
+async function loadCreditsUsedPercent(accountId: string): Promise<number | undefined> {
+  try {
+    const [aiConnection, { usageByWorkspace }, { entries }] = await Promise.all([
+      getAiProviderConnection(accountId),
+      getAccountUsageAndProspects(accountId),
+      getAccountWorkspaceEntries(accountId),
+    ]);
+    if (aiConnection) return undefined;
+    const totalCost = Object.values(usageByWorkspace).reduce((sum, u) => sum + u.totalCost, 0);
+    return creditsUsedPercent(totalCost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(entries.length, 1));
+  } catch (error) {
+    console.error("[dashboard] AI credits failed to load", error);
+    return undefined;
+  }
+}
+
+/**
+ * The shell around every dashboard page. Its render is kept to what the rail and the
+ * topbar need to paint -- who's signed in, the account's businesses and products, and
+ * which modules each business has licensed: four round trips, in the order their
+ * inputs allow. Everything else (the bell's alerts, the AI-credits meter) is started
+ * here but resolved behind Suspense boundaries in the client, streaming in after the
+ * page. Previously all of it was awaited up front, a dozen sequential round trips
+ * before a single byte of any page could be sent.
+ *
+ * Client-side navigations don't re-run this component at all -- the rail's links are
+ * <Link>s, so only the page segment is fetched -- which is why the data here is allowed
+ * to be a snapshot from the last full load.
+ */
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
-  // Independent round trips (auth revalidation vs. an RLS-scoped accounts query keyed off
-  // the session cookie, not off `user`) -- run them together instead of back to back.
-  const [{ data: { user } }, account] = await Promise.all([
-    supabase.auth.getUser(),
+  // Independent round trips (verifying the session vs. an RLS-scoped accounts query
+  // keyed off the session cookie, not off `user`) -- run them together. getClaims()
+  // verifies the token's signature locally against the project's public key rather than
+  // asking the Auth server on every page (see packages/core/src/db/middleware.ts).
+  const [{ data: claims }, account] = await Promise.all([
+    supabase.auth.getClaims(),
     getCurrentAccount(),
   ]);
+  const user = claims?.claims;
   if (!user) redirect("/login");
 
-  // cache()-wrapped by accountId, so the /dashboard page below reuses this exact result
-  // instead of re-running its own full account scan in the same request.
-  const { businesses, productsByBusiness, entries } = account
-    ? await getAccountWorkspaceEntries(account.id)
-    : { businesses: [], productsByBusiness: {}, entries: [] };
-  const { usageByWorkspace, prospects } = account
-    ? await getAccountUsageAndProspects(account.id)
-    : { usageByWorkspace: {}, prospects: [] };
-  const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
+  const { businesses, productsByBusiness } = account
+    ? await getAccountBusinesses(account.id)
+    : { businesses: [], productsByBusiness: {} };
 
   // CLAUDE.md's 4th licensing-enforcement layer ("UI built from module-registry
   // filtered by entitlements") -- previously missing entirely here: this used to pass
@@ -82,22 +147,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // EXECUTION-2026-09-08.md finding 5). One batched query for every business on the
   // account; DashboardChrome filters by whichever business is currently active.
   const licensedModuleKeysByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
-  const otherModuleAlerts = await getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness);
-  const alerts = [...discoveryAlerts, ...otherModuleAlerts].sort((a, b) =>
-    a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
-  );
 
-  // Same blend as co-founder-ai's own dashboard layout: total spend across every
-  // workspace on the account against the free-tier limit times workspace count. The
-  // free-tier cap (and this percentage) only means anything while the account is
-  // running on CoFounderAI's own included credit -- once BYOK is connected, usage bills
-  // to the founder's own provider account with no cap from us, so the indicator is
-  // hidden rather than shown pinned at some stale/misleading number (item #16).
-  const aiConnection = account ? await getAiProviderConnection(account.id) : null;
-  const totalCost = Object.values(usageByWorkspace).reduce((sum, u) => sum + u.totalCost, 0);
-  const creditsPercent = aiConnection
-    ? undefined
-    : creditsUsedPercent(totalCost, FREE_TIER_MONTHLY_COST_LIMIT_USD * Math.max(entries.length, 1));
+  // Started, not awaited: see loadAlerts / loadCreditsUsedPercent.
+  const alerts = account
+    ? loadAlerts(account.id, businesses, licensedModuleKeysByBusiness)
+    : Promise.resolve<ShellAlert[]>([]);
+  const creditsPercent = account
+    ? loadCreditsUsedPercent(account.id)
+    : Promise.resolve<number | undefined>(undefined);
 
   const metadata = user.user_metadata ?? {};
   const displayName = (metadata.full_name || metadata.name || user.email || "Founder") as string;

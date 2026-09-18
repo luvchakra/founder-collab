@@ -27,6 +27,27 @@ test.describe("Executive Dashboard", () => {
 });
 
 test.describe("Sidebar navigation", () => {
+  // The rail's rows are <Link>s: a click swaps only the page segment, the shell stays
+  // mounted, and the dashboard layout's data queries don't run again. A full reload
+  // would wipe anything set on `window`, so a marker surviving the click is the proof.
+  test("navigating from the rail is a client-side transition, not a page load", async ({ page }) => {
+    const slug = await getTestBusinessSlug(page);
+    await page.goto(`/${slug}/inventory/dashboard`);
+    await page.evaluate(() => {
+      (window as unknown as { __e2eStillMounted?: boolean }).__e2eStillMounted = true;
+    });
+
+    const toggle = page.getByRole("button", { name: "Open sidebar" });
+    if (await toggle.isVisible()) await toggle.click();
+    await page.getByRole("link", { name: "Executive Dashboard" }).click();
+
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole("heading", { name: "Executive Dashboard" })).toBeVisible();
+    expect(
+      await page.evaluate(() => (window as unknown as { __e2eStillMounted?: boolean }).__e2eStillMounted),
+    ).toBe(true);
+  });
+
   // Runs at both viewports: from `lg` up the rail is permanent (nothing to open or
   // close), below it the same rail is a drawer, so the close half only applies there.
   test("shows the nav, and closes again when it's a drawer", async ({ page }) => {

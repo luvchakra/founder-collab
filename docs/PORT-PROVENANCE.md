@@ -9,7 +9,7 @@ Tracks the exact source commit SHA behind every directory ported from `co-founde
 | System | Identifier |
 |---|---|
 | GitHub repo | `github.com/luvchakra/founder-collab` (this repo — the `cofounderai-platform` target from `docs/plan/07-HANDOVER-README.md`) |
-| Supabase project | `jazdtomcgqjxjueedmck` (`https://jazdtomcgqjxjueedmck.supabase.co`) — **region not independently confirmed this session** (see note below); intended region per `docs/plan/06-DECISIONS-LOCKED.md` is `ap-south-1` |
+| Supabase project | `jazdtomcgqjxjueedmck` (`https://jazdtomcgqjxjueedmck.supabase.co`) — region **`ap-south-1`** (confirmed 2026-09-18 via the Supabase management API; matches `docs/plan/06-DECISIONS-LOCKED.md`). Vercel's functions are pinned to `bom1` (`apps/web/vercel.json`) to sit next to it |
 
 > **Network note (2026-09-06):** this session's egress policy blocks direct access to
 > `jazdtomcgqjxjueedmck.supabase.co` (both the Postgres port and the HTTPS REST endpoint

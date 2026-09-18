@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { getBusiness } from "@cofounderai/module-gst/lib/tenancy/queries";
@@ -30,9 +31,9 @@ export default async function GstProfilePage({
           {business.name}&apos;s effective GSTIN and state, used to split CGST/SGST vs. IGST on
           sales and purchase documents. If the business holds GSTINs in more than one state,
           manage them all from{" "}
-          <a href={`/${businessSlug}/finance/registrations`} className="underline underline-offset-2">
+          <Link href={`/${businessSlug}/finance/registrations`} className="underline underline-offset-2">
             GST Registrations
-          </a>{" "}
+          </Link>{" "}
           instead — the one marked primary there keeps this page&apos;s GSTIN/state in sync automatically.
         </p>
       </div>
