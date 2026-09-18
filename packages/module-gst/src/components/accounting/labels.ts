@@ -28,12 +28,7 @@ export const ACCOUNT_ROLE_LABEL: Record<AccountRoleKey, string> = {
   product_cogs: "Cost of goods sold",
 };
 
-/** Ledger money: two decimals always, unlike the platform's headline `inr` formatter,
- * which rounds to whole rupees for KPI tiles. A balance that reads ₹1,234 when it is
- * actually ₹1,233.50 will not reconcile against anything. */
-export const ledgerAmount = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
+/** Re-exported so components keep one import for their formatting, while pages outside
+ * this package can reach it too — the package's `components/*` export map serves `.tsx`
+ * only, and this is a `.ts` module. */
+export { ledgerAmount } from "../../lib/accounting/money";

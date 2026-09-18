@@ -230,6 +230,7 @@ export const moduleRegistry: ModuleManifest[] = [
         items: [
           { label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" },
           { label: "Journal", slug: "journal", icon: "BookText" },
+          { label: "Banking", slug: "banking", icon: "Landmark" },
           { label: "Receivables", slug: "receivables", icon: "HandCoins" },
           { label: "Financial Reports", slug: "reports", icon: "BarChart3" },
           { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },
