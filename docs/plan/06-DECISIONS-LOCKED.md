@@ -6,7 +6,7 @@ These three answers close every open question in `05-SP0-AUDIT-AND-GREENFIELD-RE
 |---|---|
 | Data migration (05 §B.4) | **None.** All data in both existing projects is demo data. The platform starts empty. `SP-5`/`SP-6` (data load + verification) are **removed from the backlog**. Users are created fresh in the new project (05 §B.5 already assumed this). |
 | StockPilot port strategy (05 §A.4) | **Option A.** StockPilot's TanStack Start app is ported into the Next.js platform in full — no bridge, no separate deployment. `packages/module-inventory` is Next.js from day one. |
-| Region (05 §B.6) | **`ap-south-1` (Mumbai).** New Supabase project created there. |
+| Region (05 §B.6) | **`ap-south-1` (Mumbai).** New Supabase project created there. Vercel's functions are pinned to `bom1` (`apps/web/vercel.json`, 2026-09-18) so every render's 10-20 database round trips stay in one city rather than crossing from Vercel's default `iad1`. |
 
 ## Consequences for the backlog (`04-CLAUDE-CODE-BACKLOG.md`)
 

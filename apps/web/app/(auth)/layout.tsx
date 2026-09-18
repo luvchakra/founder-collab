@@ -7,14 +7,17 @@ import { AuthInfoPanel } from "@/components/auth/auth-info-panel";
 import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 
-// Every page under `(auth)` was previously a static-prerendering candidate (no dynamic
-// API used) -- now that this shared layout reads live `platform.branding` config on every
-// render, it can no longer be prerendered at build time: `next build` has no
-// SUPABASE_SERVICE_ROLE_KEY in an environment with no `.env.local` (the exact trap
-// PLATFORM-P0-02 hit for `/platform` itself), so the build fails at the prerender step
-// rather than falling back gracefully. Forced dynamic here for the same reason that fix
-// was forced rather than relied on Next's own dynamic-API auto-detection.
-export const dynamic = "force-dynamic";
+// Prerendered and revalidated every five minutes rather than rendered per request. This
+// used to be `force-dynamic` because the live `platform.branding` read below needs
+// SUPABASE_SERVICE_ROLE_KEY, which a build without `.env.local` lacked -- but
+// `getPublicLoginBranding()` has since learned to serve its documented defaults when the
+// key or the row is missing, so a prerender can no longer fail on it. What that buys: the
+// login screen, the first thing every returning founder loads, comes off the CDN instead
+// of a 1-2 s cold function render, and a superadmin's branding change still shows within
+// five minutes. Pages under here that genuinely read the request (reset-password reads
+// the session) stay dynamic on their own; login reads its `?error=` in the browser
+// (components/auth/login-error.tsx) precisely so it doesn't have to.
+export const revalidate = 300;
 
 /**
  * PLATFORM-P0-03.3 ("Platform Login Branding",

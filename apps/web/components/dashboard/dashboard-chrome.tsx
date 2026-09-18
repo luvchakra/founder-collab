@@ -49,10 +49,12 @@ export function DashboardChrome({
   licensedModuleKeysByBusiness: Record<string, string[]>;
   businesses: ShellBusiness[];
   productsByBusiness?: Record<string, ShellProduct[]>;
-  creditsUsedPercent?: number;
+  /** Streamed by the layout (a promise) rather than awaited before the shell can
+   * paint; the rail and the bell each resolve theirs behind a Suspense boundary. */
+  creditsUsedPercent?: number | Promise<number | undefined>;
   accountId: string;
   user: ShellUser;
-  alerts?: ShellAlert[];
+  alerts?: ShellAlert[] | Promise<ShellAlert[]>;
   createBusinessAction: (accountId: string, formData: FormData) => Promise<void>;
   createBusinessFromWebsiteAction: (
     accountId: string,

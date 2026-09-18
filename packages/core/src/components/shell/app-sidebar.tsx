@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Lock, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { BRAND_NAME } from "../../lib/brand";
+import { isPromiseLike } from "../../lib/promise-like";
+import {
+  isNavGroupExpanded,
+  navGroupKey,
+  readNavGroupFolds,
+  toggleNavGroup,
+  writeNavGroupFolds,
+} from "../../lib/nav-group-folds";
+import type { NavGroupFolds } from "../../lib/nav-group-folds";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
@@ -60,42 +70,6 @@ function writeStoredModule(key: string) {
   }
 }
 
-/** Which nav sections the founder has opened, as "<moduleKey>::<heading>" keys -- scoped
- * per module so Inventory's "Overview" and FSM's "Overview" open independently.
- *
- * Sections start **collapsed**: an expanded module like Inventory is five sections and
- * about fifteen links, which buries every module below it. Storing the *expanded* ones
- * (rather than the collapsed ones) is what makes collapsed the default -- an empty or
- * missing value means everything is shut, and a module that later gains a section gets
- * it shut too rather than inheriting a stale default.
- *
- * A distinct storage key from the earlier "collapsed" list on purpose: reusing that key
- * would read an existing user's saved folds with exactly the opposite meaning, opening
- * every section they had closed. */
-const EXPANDED_GROUPS_STORAGE_KEY = "cofounderai:expanded-nav-groups";
-
-function readExpandedGroups(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
-  } catch {
-    // Unavailable or corrupt (hand-edited, truncated write) -- every section just starts
-    // collapsed, which is the same state a first-time visitor gets.
-    return [];
-  }
-}
-
-function writeExpandedGroups(keys: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(keys));
-  } catch {
-    // Storage unavailable -- which sections are open just won't survive a reload.
-  }
-}
-
 /** A leaf row in the rail: the module sub-items, and the account-level shortcuts under
  * them. Indented under its module header, muted until it's the current page. */
 function NavLink({
@@ -114,7 +88,7 @@ function NavLink({
   indent?: boolean;
 }) {
   return (
-    <a
+    <Link
       href={href}
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
@@ -128,7 +102,44 @@ function NavLink({
     >
       {icon ? <ModuleIcon name={icon} className="size-4 shrink-0" /> : null}
       <span className="min-w-0 flex-1 truncate">{label}</span>
-    </a>
+    </Link>
+  );
+}
+
+/** The AI-credits meter at the foot of the rail. Its number needs two queries nothing
+ * else in the shell needs (this month's ai_runs, and whether a BYOK key is connected),
+ * so the layout hands it over as a promise and this resolves it behind its own Suspense
+ * boundary -- the rail paints and is usable before it lands. A plain number is still
+ * accepted for callers that already have one. */
+function CreditsMeter({
+  credits,
+  onNavigate,
+}: {
+  credits: number | Promise<number | undefined> | undefined;
+  onNavigate: () => void;
+}) {
+  const percent = isPromiseLike(credits) ? use(credits) : credits;
+  if (percent === undefined) return null;
+  return (
+    <Link
+      href="/dashboard/settings/usage"
+      onClick={onNavigate}
+      className="mx-3 mb-3 flex flex-col gap-1.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-sidebar-accent"
+    >
+      <div className="flex items-center justify-between text-xs text-sidebar-muted">
+        <span>AI Usage</span>
+        <span className="font-medium text-sidebar-foreground">{percent}%</span>
+      </div>
+      <div className="h-1.5 w-full overflow-hidden rounded-full bg-sidebar-accent">
+        <div
+          className={cn(
+            "h-full rounded-full transition-[width]",
+            percent >= 100 ? "bg-destructive" : "bg-primary",
+          )}
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+    </Link>
   );
 }
 
@@ -184,7 +195,7 @@ function ModuleNav({
   onCreateBusiness,
   onNavigate,
   hasBusinesses,
-  isGroupCollapsed,
+  isGroupExpanded,
   onToggleGroup,
 }: {
   module: ShellNavModule;
@@ -195,8 +206,10 @@ function ModuleNav({
   onCreateBusiness?: () => void;
   onNavigate: () => void;
   hasBusinesses: boolean;
-  isGroupCollapsed: (heading: string) => boolean;
-  onToggleGroup: (heading: string) => void;
+  /** `holdsActive` is the default for a section the founder has never touched: open
+   * when it holds the page they're on, folded otherwise -- see lib/nav-group-folds.ts. */
+  isGroupExpanded: (heading: string, holdsActive: boolean) => boolean;
+  onToggleGroup: (heading: string, holdsActive: boolean) => void;
 }) {
   if (!hasBusinesses || !businessId) {
     return (
@@ -225,6 +238,10 @@ function ModuleNav({
     // Dashboard link instead of doubling as an editor form.
     const dashboardHref = `${base}/discovery/dashboard`;
     const businessDetailHref = `${base}/business`;
+    // Folding the section that holds the page you're on would hide where you are, so
+    // that one starts open. The offerings all live under one prefix, so a prefix test
+    // answers it without walking the list.
+    const offeringsHoldsActive = Boolean(pathname?.startsWith(`${base}/discovery/offerings/`));
     return (
       <div className="flex flex-col gap-0.5">
         <NavLink
@@ -245,8 +262,8 @@ function ModuleNav({
         />
         <NavGroup
           heading="Business Offerings"
-          collapsed={isGroupCollapsed("Business Offerings")}
-          onToggle={() => onToggleGroup("Business Offerings")}
+          collapsed={!isGroupExpanded("Business Offerings", offeringsHoldsActive)}
+          onToggle={() => onToggleGroup("Business Offerings", offeringsHoldsActive)}
         >
           {products.length === 0 ? (
             <p className="ml-7 py-1.5 text-sm text-sidebar-muted">No business offerings yet.</p>
@@ -276,31 +293,35 @@ function ModuleNav({
 
   return (
     <div className="flex flex-col gap-0.5">
-      {module.nav.map((group, groupIndex) => (
-        <NavGroup
-          key={group.heading ?? groupIndex}
-          heading={group.heading}
-          collapsed={group.heading ? isGroupCollapsed(group.heading) : false}
-          onToggle={() => group.heading && onToggleGroup(group.heading)}
-        >
-          {group.items.map((item) => {
-            const href = item.slug
-              ? `${base}${module.routePrefix}/${item.slug}`
-              : `${base}${module.routePrefix}`;
-            return (
+      {module.nav.map((group, groupIndex) => {
+        const items = group.items.map((item) => ({
+          ...item,
+          href: item.slug ? `${base}${module.routePrefix}/${item.slug}` : `${base}${module.routePrefix}`,
+        }));
+        // Folding the section that holds the page you're on would hide where you are, so
+        // that one starts open (until the founder folds it themselves).
+        const holdsActive = items.some((item) => item.href === pathname);
+        return (
+          <NavGroup
+            key={group.heading ?? groupIndex}
+            heading={group.heading}
+            collapsed={group.heading ? !isGroupExpanded(group.heading, holdsActive) : false}
+            onToggle={() => group.heading && onToggleGroup(group.heading, holdsActive)}
+          >
+            {items.map((item) => (
               <NavLink
                 key={item.slug || "root"}
-                href={href}
+                href={item.href}
                 label={item.label}
                 icon={item.icon}
-                isActive={pathname === href}
+                isActive={pathname === item.href}
                 onNavigate={onNavigate}
                 indent
               />
-            );
-          })}
-        </NavGroup>
-      ))}
+            ))}
+          </NavGroup>
+        );
+      })}
     </div>
   );
 }
@@ -334,8 +355,10 @@ export function AppSidebar({
   /** This business's discovery products, keyed by business id -- shown under the
    * Discovery section for whichever business is currently active. */
   productsByBusiness?: Record<string, ShellProduct[]>;
-  /** % of AI credits used this month, blended across every workspace on the account. */
-  creditsUsedPercent?: number;
+  /** % of AI credits used this month, blended across every workspace on the account --
+   * or a promise of it, resolved behind the meter's own Suspense boundary so the rail
+   * never waits on the usage queries. */
+  creditsUsedPercent?: number | Promise<number | undefined>;
   onCreateBusiness?: () => void;
   user: ShellUser;
   onSignOut?: () => void;
@@ -344,13 +367,13 @@ export function AppSidebar({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Navigations inside the rail use plain <a> tags (deliberately, so they work the same
-  // whether the target route exists yet or not), which reloads the page and remounts this
-  // component. Persisting which section is open across that reload -- rather than always
-  // resetting to modules[0] -- needs two sources, preferred in order: what the URL itself
-  // indicates (most reliable, since it's exactly where the founder ended up), then the
-  // last section they opened by hand, stashed in localStorage for pages whose URL
-  // doesn't indicate a module (bare /dashboard, settings, etc).
+  // Navigations inside the rail are client-side transitions (<Link>): the shell stays
+  // mounted and only the page segment is fetched, which is what makes a click feel
+  // instant. A full reload (new tab, refresh, a bookmark) still remounts this component,
+  // so which section is open is derived from two sources, preferred in order: what the
+  // URL itself indicates (most reliable, since it's exactly where the founder ended up),
+  // then the last section they opened by hand, stashed in localStorage for pages whose
+  // URL doesn't indicate a module (bare /dashboard, settings, etc).
   const [expandedModule, setExpandedModule] = useState<string | null>(() => {
     const fromUrl = inferModuleFromPath(pathname);
     if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) return fromUrl;
@@ -373,17 +396,22 @@ export function AppSidebar({
 
   // Read on mount rather than in a useState initializer: the rail renders on the server
   // too, where localStorage doesn't exist, and seeding from it during the first client
-  // render would hydrate a different tree than the server sent.
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  // render would hydrate a different tree than the server sent. Starting empty is the
+  // correct first paint either way: with no stored choices every section falls back to
+  // its default, which derives from the URL and so is identical on both sides.
+  const [groupFolds, setGroupFolds] = useState<NavGroupFolds>({});
   useEffect(() => {
-    setExpandedGroups(readExpandedGroups());
+    setGroupFolds(readNavGroupFolds());
   }, []);
 
-  function toggleGroup(moduleKey: string, heading: string) {
-    const key = `${moduleKey}::${heading}`;
-    setExpandedGroups((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      writeExpandedGroups(next);
+  function isGroupExpanded(moduleKey: string, heading: string, holdsActive: boolean) {
+    return isNavGroupExpanded(groupFolds, navGroupKey(moduleKey, heading), holdsActive);
+  }
+
+  function toggleGroup(moduleKey: string, heading: string, holdsActive: boolean) {
+    setGroupFolds((prev) => {
+      const next = toggleNavGroup(prev, navGroupKey(moduleKey, heading), holdsActive);
+      writeNavGroupFolds(next);
       return next;
     });
   }
@@ -454,7 +482,7 @@ export function AppSidebar({
           <X className="size-4" aria-hidden="true" />
         </button>
 
-        <a
+        <Link
           href="/dashboard"
           onClick={closeDrawer}
           aria-label={BRAND_NAME}
@@ -466,13 +494,13 @@ export function AppSidebar({
           <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
             {BRAND_NAME}
           </span>
-        </a>
+        </Link>
 
         {/* The account-wide view, above the per-business modules and deliberately not
             styled like them: it is the one destination in the rail that isn't scoped to
             the business selected in the topbar, so it reads as a bordered row of its own
             rather than another item in the module list. */}
-        <a
+        <Link
           href="/dashboard"
           onClick={closeDrawer}
           aria-current={isExecutiveActive ? "page" : undefined}
@@ -485,7 +513,7 @@ export function AppSidebar({
         >
           <ModuleIcon name="LayoutGrid" className="size-4.5 shrink-0" />
           <span className="min-w-0 flex-1 truncate">Executive Dashboard</span>
-        </a>
+        </Link>
 
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
           {modules.map((module) => {
@@ -528,10 +556,12 @@ export function AppSidebar({
                     onCreateBusiness={onCreateBusiness}
                     onNavigate={closeDrawer}
                     hasBusinesses={businesses.length > 0}
-                    isGroupCollapsed={(heading) =>
-                      !expandedGroups.includes(`${module.key}::${heading}`)
+                    isGroupExpanded={(heading, holdsActive) =>
+                      isGroupExpanded(module.key, heading, holdsActive)
                     }
-                    onToggleGroup={(heading) => toggleGroup(module.key, heading)}
+                    onToggleGroup={(heading, holdsActive) =>
+                      toggleGroup(module.key, heading, holdsActive)
+                    }
                   />
                 ) : null}
               </div>
@@ -539,27 +569,9 @@ export function AppSidebar({
           })}
         </div>
 
-        {creditsUsedPercent !== undefined ? (
-          <a
-            href="/dashboard/settings/usage"
-            onClick={closeDrawer}
-            className="mx-3 mb-3 flex flex-col gap-1.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-sidebar-accent"
-          >
-            <div className="flex items-center justify-between text-xs text-sidebar-muted">
-              <span>AI Usage</span>
-              <span className="font-medium text-sidebar-foreground">{creditsUsedPercent}%</span>
-            </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-sidebar-accent">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-[width]",
-                  creditsUsedPercent >= 100 ? "bg-destructive" : "bg-primary",
-                )}
-                style={{ width: `${Math.min(creditsUsedPercent, 100)}%` }}
-              />
-            </div>
-          </a>
-        ) : null}
+        <Suspense fallback={null}>
+          <CreditsMeter credits={creditsUsedPercent} onNavigate={closeDrawer} />
+        </Suspense>
 
         <SidebarAccountMenu user={user} onSignOut={onSignOut} onNavigate={closeDrawer} />
       </nav>

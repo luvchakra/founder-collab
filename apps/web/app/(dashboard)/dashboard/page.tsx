@@ -72,31 +72,36 @@ async function computeModuleWidgets(
 
   const widgets: { key: ModuleKey; label: string; icon: string; value: number; detail: string; href?: string }[] = [];
 
+  // The four module counts are independent of one another, so they're one round of
+  // parallel queries rather than four in a row; the widgets still list in module order.
   const fsmBusinesses = licensedBusinessesByModule.get("fsm") ?? [];
-  if (fsmBusinesses.length > 0) {
-    const openJobs = await getOpenJobsCount(fsmBusinesses.map((b) => b.id));
+  const inventoryBusinesses = licensedBusinessesByModule.get("inventory") ?? [];
+  const crmBusinesses = licensedBusinessesByModule.get("crm") ?? [];
+  const gstBusinesses = licensedBusinessesByModule.get("gst") ?? [];
+  const [openJobs, lowStock, openTickets, einvoices] = await Promise.all([
+    fsmBusinesses.length > 0 ? getOpenJobsCount(fsmBusinesses.map((b) => b.id)) : null,
+    inventoryBusinesses.length > 0
+      ? Promise.all(inventoryBusinesses.map((b) => listLowStockAlerts(b.id))).then((alertCounts) =>
+          alertCounts.reduce((sum, r) => sum + (r.ok ? r.data.length : 0), 0),
+        )
+      : null,
+    crmBusinesses.length > 0 ? getOpenTicketsCount(crmBusinesses.map((b) => b.id)) : null,
+    gstBusinesses.length > 0 ? getEinvoicesThisMonthCount(gstBusinesses.map((b) => b.id)) : null,
+  ]);
+
+  if (openJobs !== null) {
     const slug = soleSlug(fsmBusinesses);
     widgets.push({ key: "fsm", label: "Service", icon: "Wrench", value: openJobs, detail: "open jobs", href: slug ? `/${slug}/service/jobs` : undefined });
   }
-
-  const inventoryBusinesses = licensedBusinessesByModule.get("inventory") ?? [];
-  if (inventoryBusinesses.length > 0) {
-    const alertCounts = await Promise.all(inventoryBusinesses.map((b) => listLowStockAlerts(b.id)));
-    const lowStock = alertCounts.reduce((sum, r) => sum + (r.ok ? r.data.length : 0), 0);
+  if (lowStock !== null) {
     const slug = soleSlug(inventoryBusinesses);
     widgets.push({ key: "inventory", label: "Inventory", icon: "Package", value: lowStock, detail: "low-stock alerts", href: slug ? `/${slug}/inventory/alerts` : undefined });
   }
-
-  const crmBusinesses = licensedBusinessesByModule.get("crm") ?? [];
-  if (crmBusinesses.length > 0) {
-    const openTickets = await getOpenTicketsCount(crmBusinesses.map((b) => b.id));
+  if (openTickets !== null) {
     const slug = soleSlug(crmBusinesses);
     widgets.push({ key: "crm", label: "CRM", icon: "Inbox", value: openTickets, detail: "open tickets", href: slug ? `/${slug}/crm` : undefined });
   }
-
-  const gstBusinesses = licensedBusinessesByModule.get("gst") ?? [];
-  if (gstBusinesses.length > 0) {
-    const einvoices = await getEinvoicesThisMonthCount(gstBusinesses.map((b) => b.id));
+  if (einvoices !== null) {
     const slug = soleSlug(gstBusinesses);
     widgets.push({ key: "gst", label: "Finance", icon: "Landmark", value: einvoices, detail: "e-invoices this month", href: slug ? `/${slug}/finance/einvoicing` : undefined });
   }
@@ -206,10 +211,10 @@ export default async function DashboardPage({
   const { businesses, allProducts, entries: workspaceEntries } = await getAccountWorkspaceEntries(
     account.id,
   );
-  const { usageByWorkspace, countsByWorkspace, prospects } = await getAccountUsageAndProspects(
-    account.id,
-  );
-  const { widgets: moduleWidgets, licensesByBusiness } = await computeModuleWidgets(businesses);
+  // The usage/prospect scan and the module widgets only share `businesses`, so they run
+  // side by side rather than one after the other.
+  const [{ usageByWorkspace, countsByWorkspace, prospects }, { widgets: moduleWidgets, licensesByBusiness }] =
+    await Promise.all([getAccountUsageAndProspects(account.id), computeModuleWidgets(businesses)]);
   const attentionItems = await buildAttentionItems(businesses, licensesByBusiness);
 
   const prospectCounts = Object.values(countsByWorkspace).reduce(

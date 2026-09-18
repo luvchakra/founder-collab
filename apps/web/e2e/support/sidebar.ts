@@ -12,3 +12,16 @@ export async function openSidebar(page: Page): Promise<void> {
   if (await toggle.isVisible()) await toggle.click();
   await expect(page.locator('nav[aria-label="Main"]')).toBeVisible();
 }
+
+/**
+ * Nav sections inside a module start folded unless they hold the current page (see
+ * packages/core/src/lib/nav-group-folds.ts), so a section's links are not in the DOM
+ * until its heading is clicked. A spec that needs one on screen unfolds it here rather
+ * than assuming it is already open. Idempotent: a section already open stays open.
+ */
+export async function expandNavGroup(page: Page, heading: string): Promise<void> {
+  const toggle = page.getByRole("button", { name: heading, exact: true });
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}

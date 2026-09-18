@@ -1,10 +1,25 @@
 "use client";
 
+import { Suspense, use } from "react";
 import type { ReactNode } from "react";
+import { isPromiseLike } from "../../lib/promise-like";
 import { AlertBell } from "./alert-bell";
 import { BusinessSwitcher } from "./business-switcher";
 import { SidebarToggle } from "./sidebar-toggle";
 import type { ShellAlert, ShellBusiness } from "./types";
+
+/** The bell once its alerts have arrived. Suspends (showing an empty bell as
+ * the fallback) only while a promise is still pending; a plain array renders at once. */
+function StreamedAlertBell({
+  alerts,
+  activeBusinessId,
+}: {
+  alerts: ShellAlert[] | Promise<ShellAlert[]> | undefined;
+  activeBusinessId?: string | null;
+}) {
+  const resolved = isPromiseLike(alerts) ? use(alerts) : (alerts ?? []);
+  return <AlertBell alerts={resolved} activeBusinessId={activeBusinessId} />;
+}
 
 /**
  * The bar above the content column, to the right of the rail (docs/DESIGN.md). Module
@@ -37,7 +52,10 @@ export function AppTopbar({
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
   onCreateBusiness?: () => void;
-  alerts?: ShellAlert[];
+  /** Either the alerts themselves or a promise of them. The dashboard layout streams
+   * them: gathering every licensed module's dashboard summary is the slowest thing the
+   * shell does, and nothing else in the bar depends on it. */
+  alerts?: ShellAlert[] | Promise<ShellAlert[]>;
   chatSlot?: ReactNode;
 }) {
   return (
@@ -55,7 +73,9 @@ export function AppTopbar({
           />
         ) : null}
       </div>
-      <AlertBell alerts={alerts ?? []} activeBusinessId={activeBusinessId} />
+      <Suspense fallback={<AlertBell alerts={[]} activeBusinessId={activeBusinessId} />}>
+        <StreamedAlertBell alerts={alerts} activeBusinessId={activeBusinessId} />
+      </Suspense>
       {chatSlot}
     </header>
   );

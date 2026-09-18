@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
 import { getTestBusinessSlug } from "../support/business";
-import { openSidebar } from "../support/sidebar";
+import { expandNavGroup, openSidebar } from "../support/sidebar";
 
 test.describe("Discovery", () => {
   test("dashboard shows the business's own KPIs", async ({ page }) => {
@@ -17,10 +17,25 @@ test.describe("Discovery", () => {
     await expect(page.getByText("Business Offerings", { exact: true })).toBeVisible();
   });
 
+  // Nav sections start folded, so the offerings are behind their heading rather than on
+  // screen. Asserted rather than just clicked past: if the fold ever stopped applying to
+  // Discovery, this catches it instead of the spec quietly passing anyway.
+  test("Business Offerings starts folded and opens on click", async ({ page }) => {
+    const slug = await getTestBusinessSlug(page);
+    await page.goto(`/${slug}/discovery/dashboard`);
+    await openSidebar(page);
+
+    const heading = page.getByRole("button", { name: "Business Offerings" });
+    await expect(heading).toHaveAttribute("aria-expanded", "false");
+    await heading.click();
+    await expect(heading).toHaveAttribute("aria-expanded", "true");
+  });
+
   test("opening a Business Offering shows the right breadcrumb", async ({ page }) => {
     const slug = await getTestBusinessSlug(page);
     await page.goto(`/${slug}/discovery/dashboard`);
     await openSidebar(page);
+    await expandNavGroup(page, "Business Offerings");
     const offeringLink = page.locator(`nav[aria-label="Main"] a[href*="/discovery/offerings/"]`).first();
     const hasOffering = await offeringLink.count();
     test.skip(hasOffering === 0, "Seed business has no offerings yet");

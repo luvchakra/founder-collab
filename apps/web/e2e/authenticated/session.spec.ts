@@ -26,6 +26,13 @@ test.describe("Signed-in session", () => {
     }
   });
 
+  // The marketing page bounces too -- decided in the proxy, which is what lets "/" be
+  // served as a static page to everyone else.
+  test("visiting the marketing page bounces to the dashboard", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
   // The mid-flow pages are deliberately *not* in that bounce list: a signed-in user
   // changing their password still has to be able to complete a reset.
   test("the password reset page stays reachable while signed in", async ({ page }) => {

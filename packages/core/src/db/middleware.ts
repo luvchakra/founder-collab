@@ -180,12 +180,19 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  // Do not run any logic between createServerClient and getUser() -- it revalidates the
-  // session token and must not be skipped, or sessions can appear valid after they've
-  // been revoked.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Do not run any logic between createServerClient and getClaims() -- it is what
+  // refreshes an expiring session cookie, and must not be skipped.
+  //
+  // getClaims() rather than getUser(): it verifies the access token's signature locally
+  // against the project's public signing key (this project signs with ES256; the key set
+  // is fetched once and cached for ten minutes per instance), where getUser() is a round
+  // trip to the Auth server on *every* request -- ~200 ms from a function region on the
+  // other side of the planet from the database, paid before a single byte of page
+  // renders, for the anonymous marketing visitor too. The trade: a revoked session's
+  // token stays valid until it expires (an hour at most) instead of dying on the next
+  // request. Supabase's own guidance for server-side auth is this call, for this reason.
+  const { data: claims } = await supabase.auth.getClaims();
+  const user = claims?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   const isProtected = isProtectedPath(pathname);
@@ -197,7 +204,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthPath) {
+  // A signed-in visitor skips the marketing page for their dashboard, same as on the
+  // auth pages. Decided here rather than in the page itself so "/" has nothing left to
+  // read at request time and prerenders as a static page served from the CDN -- the
+  // one URL every first-time visitor hits, and previously a 2-3 s cold render.
+  if (user && (isAuthPath || pathname === "/")) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);

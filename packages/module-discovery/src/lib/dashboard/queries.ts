@@ -26,11 +26,17 @@ export type AccountWorkspaceEntry = { workspace: Workspace; product: Product; bu
  * caller's array by reference, which is why this takes accountId (a primitive, safe to
  * key on) rather than a pre-built id list.
  */
-export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
+/**
+ * The account's businesses with their slugs and discovery products -- everything the
+ * dashboard shell needs to draw the rail and the business switcher. Two round trips:
+ * the businesses, then their settings (slugs) and products together, since both key
+ * off the business ids alone. Split out of `getAccountWorkspaceEntries` so the shell
+ * can paint without the workspace lookup that only the alerts and the AI-credits meter
+ * need; both are cache()-wrapped by accountId, so a page that asks for the fuller
+ * shape in the same request reuses this result rather than re-scanning.
+ */
+export const getAccountBusinesses = cache(async (accountId: string) => {
   const core = await createCoreClient({ schema: "core" });
-  // Item #17 of a UX pass: a disabled business (core.businesses.disabled_at) drops out
-  // of the navbar/business switcher and this account-wide dashboard entirely -- nothing
-  // underneath it is touched, so re-enabling (Admin > Business) brings it straight back.
   const { data: rawBusinesses, error: businessesError } = await core
     .from("businesses")
     .select("*")
@@ -39,71 +45,55 @@ export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
     .order("created_at", { ascending: true });
   if (businessesError) throw businessesError;
 
-  // The business's own URL slug (core.business_settings.slug -- every business has one,
-  // generated at creation by core.handle_new_business()) lives in a separate table/schema
-  // than `businesses` itself, so it's a second batched query, merged in below, rather
-  // than a cross-schema embed (PostgREST can't do those any more than the products/
-  // workspaces join above can). apps/web/app/(dashboard)/[businessSlug]/... is the only
-  // consumer that needs it, via DashboardChrome's businessHref.
-  const rawBusinessIds = (rawBusinesses ?? []).map((b) => b.id);
-  const { data: settingsRows, error: settingsError } =
-    rawBusinessIds.length > 0
-      ? await core.from("business_settings").select("business_id, slug").in("business_id", rawBusinessIds)
-      : { data: [] as { business_id: string; slug: string }[], error: null };
-  if (settingsError) throw settingsError;
-  const slugByBusinessId = new Map((settingsRows ?? []).map((s) => [s.business_id, s.slug]));
-  const businesses = (rawBusinesses ?? []).map((b) => ({ ...b, slug: slugByBusinessId.get(b.id) ?? b.id }));
-
+  const businessIds = (rawBusinesses ?? []).map((b) => b.id);
   const productsByBusiness: Record<string, Product[]> = {};
-  const allProducts: Product[] = [];
-  const entries: AccountWorkspaceEntry[] = [];
-  const businessById = new Map<string, Business & { slug: string }>(businesses.map((b) => [b.id, b]));
-  for (const business of businesses) {
+  for (const business of rawBusinesses ?? []) {
     productsByBusiness[business.id] = [];
   }
+  if (businessIds.length === 0) {
+    return { businesses: [] as (Business & { slug: string })[], productsByBusiness, allProducts: [] as Product[] };
+  }
 
-  const businessIds = [...businessById.keys()];
-  if (businessIds.length > 0) {
-    const supabase = await createClient();
-    const { data: productRows, error } = await supabase
-      .from("products")
-      .select("*")
-      .in("business_id", businessIds)
-      .order("created_at", { ascending: true });
-    if (error) throw error;
-    const products = (productRows ?? []) as Product[];
+  const supabase = await createClient();
+  const [{ data: settingsRows, error: settingsError }, { data: productRows, error: productsError }] =
+    await Promise.all([
+      core.from("business_settings").select("business_id, slug").in("business_id", businessIds),
+      supabase.from("products").select("*").in("business_id", businessIds).order("created_at", { ascending: true }),
+    ]);
+  if (settingsError) throw settingsError;
+  if (productsError) throw productsError;
 
-    // A separate listWorkspacesForProducts() call, not a nested `.select("*,
-    // workspaces(*))")` embed -- the embed was silently resolving to zero workspaces
-    // per product for every account (Conversions on the Executive Dashboard always
-    // showed the "create your first business" empty state, even for accounts with
-    // real products/workspaces), while this same batched lookup already works
-    // correctly for getBusinessUsage() (lib/usage/queries.ts) and buildChatContext()
-    // (lib/ai/chat.ts).
-    const workspaces = await listWorkspacesForProducts(products.map((p) => p.id));
-    const workspaceByProductId = new Map(workspaces.map((w) => [w.product_id, w] as const));
+  const slugByBusinessId = new Map((settingsRows ?? []).map((s) => [s.business_id, s.slug]));
+  const businesses = (rawBusinesses ?? []).map((b) => ({ ...b, slug: slugByBusinessId.get(b.id) ?? b.id }));
+  const allProducts: Product[] = [];
+  for (const product of (productRows ?? []) as Product[]) {
+    const bucket = productsByBusiness[product.business_id];
+    if (!bucket) continue;
+    bucket.push(product);
+    allProducts.push(product);
+  }
 
-    for (const product of products) {
-      const business = businessById.get(product.business_id);
-      if (!business) continue;
-      productsByBusiness[business.id]!.push(product);
-      allProducts.push(product);
-      const workspace = workspaceByProductId.get(product.id);
-      if (workspace) entries.push({ workspace, product, business });
-    }
+  return { businesses, productsByBusiness, allProducts };
+});
+
+export const getAccountWorkspaceEntries = cache(async (accountId: string) => {
+  const { businesses, productsByBusiness, allProducts } = await getAccountBusinesses(accountId);
+  const businessById = new Map<string, Business & { slug: string }>(businesses.map((b) => [b.id, b]));
+
+  const workspaces = await listWorkspacesForProducts(allProducts.map((p) => p.id));
+  const workspaceByProductId = new Map(workspaces.map((w) => [w.product_id, w] as const));
+
+  const entries: AccountWorkspaceEntry[] = [];
+  for (const product of allProducts) {
+    const business = businessById.get(product.business_id);
+    if (!business) continue;
+    const workspace = workspaceByProductId.get(product.id);
+    if (workspace) entries.push({ workspace, product, business });
   }
 
   return { businesses, productsByBusiness, allProducts, entries };
 });
 
-/**
- * Usage + prospect status counts + the full pipeline-derived prospect list for every
- * workspace on an account, in three more batched queries -- memoized per accountId
- * alongside getAccountWorkspaceEntries above. Fetching the full prospect list once here
- * (rather than once per caller) means the dashboard's business/product slice-and-dice
- * filter and the header's alert derivation can both just filter this same in-memory list
- * by workspace id instead of issuing their own queries.
- */
 export const getAccountUsageAndProspects = cache(async (accountId: string) => {
   const { entries } = await getAccountWorkspaceEntries(accountId);
   const workspaceIds = entries.map((e) => e.workspace.id);
