@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AuthForm } from "@/components/auth/auth-form";
-import { LoginError } from "@/components/auth/login-error";
+import { AuthError } from "@/components/auth/auth-error";
 import { login } from "@/app/(auth)/actions";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 
@@ -23,7 +23,7 @@ export default async function LoginPage() {
         {branding.loginSupportText || "Your next customer is waiting."}
       </p>
       <Suspense fallback={null}>
-        <LoginError />
+        <AuthError />
       </Suspense>
       <div className="mt-8">
         <AuthForm mode="login" action={login} />
