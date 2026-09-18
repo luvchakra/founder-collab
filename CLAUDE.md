@@ -145,6 +145,15 @@ told to use). Two sessions have already built the same change in parallel becaus
 skipped this; the wasted work is the cheap outcome, the expensive one is a fix written
 against code that no longer exists.
 
+**Merge finished work into `main` without asking** (standing instruction, 2026-09-18).
+Once the checks below are green -- typecheck, lint, `lint:boundaries`,
+`lint:migrations`, `lint:migration-grants`, `lint:gst-no-duplicate-masters` and the
+tests -- merge and push rather than parking the branch and asking for permission. Run
+those checks on the *merged* result, not just on the branch: a clean merge of two
+branches that each passed can still fail together. This replaces asking per branch; it
+does not replace verifying, and it does not extend to deleting branches or to force-
+pushing over someone else's work.
+
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read
 only the files it touches, plus the entity-ownership map if the story creates any table.
