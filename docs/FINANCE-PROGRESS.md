@@ -23,7 +23,7 @@ the same way `fsm` is displayed as "Service".
 | F7 | Done | `79f36ba` | GST ledger reconciled against the return |
 | F8 | Done | `11e53c7` | ITC view: ledger vs purchase register vs GSTR-2B, with what is claimable and what is at risk |
 | F9 | Done | `9a33e77` | Filing readiness: one pre-flight check drawing on the ledger, registers, 2B, bank and period lock |
-| F10 | Partial | `pending` | Recurring entries done (template + schedule + drain). Budgets not started; no AI — Finance is deterministic, and CLAUDE.md #4 says not to use an LLM for that |
+| F10 | Done | `89e605e` + `pending` | Recurring entries (template + schedule + drain) and budget vs actual. No AI: Finance is deterministic arithmetic, and CLAUDE.md #4 says not to use an LLM for that |
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
 | Receivables | Done | `609bfcb` | Aging by customer and by invoice |
@@ -104,3 +104,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260917230000_gst_account_period_totals` | Statement totals aggregated in SQL, not in the page |
 | `20260917240000_gst_banking` | F3: bank accounts, transactions, reconciliations, `gst.banking.manage` |
 | `20260918100000_gst_recurring_entries` | F10: recurring journal templates, reusing `gst.journal.create` |
+| `20260918110000_gst_budgets` | F10: per-account, per-month budget lines, reusing `gst.accounts.write` |

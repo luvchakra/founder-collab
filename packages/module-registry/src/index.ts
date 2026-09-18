@@ -233,6 +233,7 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Banking", slug: "banking", icon: "Landmark" },
           { label: "Receivables", slug: "receivables", icon: "HandCoins" },
           { label: "Financial Reports", slug: "reports", icon: "BarChart3" },
+          { label: "Budget", slug: "budget", icon: "Target" },
           { label: "Recurring Entries", slug: "recurring", icon: "Repeat" },
           { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },
         ],
