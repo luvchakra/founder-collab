@@ -6,6 +6,9 @@ import { explainGstGap, reconcileGst } from "@cofounderai/module-gst/lib/account
 import { getPurchaseRegister, getSalesRegister } from "@cofounderai/module-gst/lib/filing/queries";
 import { monthlyPeriodsForFiscalYear, fiscalYearOf } from "@cofounderai/module-gst/lib/accounting/periods";
 import { GstLedgerView } from "@cofounderai/module-gst/components/accounting/gst-ledger-view";
+import { ItcView } from "@cofounderai/module-gst/components/accounting/itc-view";
+import { assessItc, itcActions } from "@cofounderai/module-gst/lib/accounting/itc";
+import { getPurchaseReconciliation } from "@cofounderai/module-gst/lib/reconciliation/queries";
 
 const FISCAL_YEAR_START_MONTH = 4;
 
@@ -40,16 +43,33 @@ export default async function GstLedgerPage({
     year.find((p) => p.startDate <= today && today <= p.endDate) ??
     year[0]!;
 
-  const [ledger, sales, purchases] = await Promise.all([
+  const [ledger, sales, purchases, twoB] = await Promise.all([
     getGstLedgerSummary(businessId, selected.startDate, selected.endDate),
     getSalesRegister(businessId, selected.startDate, selected.endDate),
     getPurchaseRegister(businessId, selected.startDate, selected.endDate),
+    // Null when no GSTR-2B has been imported for the period — a normal state, and the
+    // assessment says so rather than guessing at a ceiling it doesn't have.
+    getPurchaseReconciliation(businessId, selected.gstPeriod),
   ]);
 
   const reconciliation = reconcileGst(
     { output: ledger.output, input: ledger.input },
     { outputTax: sales.totalTax, inputTax: purchases.totalTax },
   );
+
+  const itc = assessItc({
+    ledger: ledger.input.total,
+    register: purchases.totalTax,
+    // 2B's own figure for the period is the matched and mismatched suppliers' tax as
+    // GSTN reports it; `excludedNoGstinTaxableValue` covers spend that was never
+    // eligible, so it is reported rather than counted as a shortfall.
+    // `gstr2bTax` is null on a books-only row (a supplier in the books that 2B has
+    // nothing for) — that contributes nothing to the ceiling, which is exactly what
+    // makes it show up as credit at risk rather than quietly raising the ceiling.
+    twoB: twoB ? twoB.rows.reduce((sum, row) => sum + (row.gstr2bTax ?? 0), 0) : 0,
+    excludedNoGstin: twoB?.excludedNoGstinTaxableValue ?? 0,
+    twoBAvailable: twoB !== null,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,6 +85,7 @@ export default async function GstLedgerPage({
         causes={explainGstGap(reconciliation)}
         hasAccounts={ledger.hasAccounts}
       />
+      {ledger.hasAccounts ? <ItcView assessment={itc} actions={itcActions(itc)} /> : null}
     </div>
   );
 }
