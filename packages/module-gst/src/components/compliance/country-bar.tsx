@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { COUNTRY_CATALOG } from "../../lib/compliance/countries";
+import { pendingSelection } from "../../lib/compliance/pending-selection";
 import type { EffectiveComplianceProfile } from "../../lib/compliance/queries";
 
 export type CountryBarActionState = { error: string } | { success: true } | null;
@@ -43,15 +44,30 @@ export function CountryBar({
   const [countryState, countryFormAction, countryPending] = useActionState<CountryBarActionState, FormData>(countryAction, null);
   const [regimeState, regimeFormAction, regimePending] = useActionState<CountryBarActionState, FormData>(regimeAction, null);
   const pending = countryPending || regimePending;
-  const current = COUNTRY_CATALOG.find((c) => c.code === profile.country);
-  const regimeName = current?.regimes.find((r) => r.key === profile.regime)?.name ?? profile.regime;
+
+  // Both selects are controlled, not `defaultValue`. React resets a form's uncontrolled
+  // fields once its action completes, which restores the value the select was *mounted*
+  // with -- so picking a new country left this control showing the old one while the
+  // badge above it showed the new one, until a reload remounted it. `pendingSelection`
+  // keeps the pick until the server answers, then defers to it, so a refused change
+  // reverts instead of sticking. See lib/compliance/pending-selection.ts.
+  const [submittedCountry, setSubmittedCountry] = useState<string | null>(null);
+  const [submittedRegime, setSubmittedRegime] = useState<string | null>(null);
+  const shownCountry = pendingSelection(profile.country, submittedCountry, Boolean(countryState && "error" in countryState));
+  const shownRegime = pendingSelection(profile.regime, submittedRegime, Boolean(regimeState && "error" in regimeState));
+  // The badge reads the same value as the select rather than `profile` directly: the two
+  // sit next to each other naming the same fact, and the bug being fixed here was
+  // precisely them disagreeing. Driving both from `shownCountry` keeps them in step
+  // through the round trip and through a refusal alike.
+  const current = COUNTRY_CATALOG.find((c) => c.code === shownCountry);
+  const regimeName = current?.regimes.find((r) => r.key === shownRegime)?.name ?? shownRegime;
   const hasRegimeChoice = (current?.regimes.length ?? 0) > 1;
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">Operating in</span>
-        <Badge variant="secondary">{current?.name ?? profile.country}</Badge>
+        <Badge variant="secondary">{current?.name ?? shownCountry}</Badge>
         <span className="text-muted-foreground">·</span>
         {hasRegimeChoice && canEdit ? null : <Badge variant="outline">{regimeName}</Badge>}
         {!profile.isExplicit ? <span className="text-xs text-muted-foreground">(default)</span> : null}
@@ -62,11 +78,14 @@ export function CountryBar({
           <form action={countryFormAction} className="flex items-center gap-2">
             <NativeSelect
               name="country"
-              defaultValue={profile.country}
+              value={shownCountry}
               className="w-auto min-w-40"
               aria-label="Compliance country"
               disabled={pending}
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
+              onChange={(e) => {
+                setSubmittedCountry(e.currentTarget.value);
+                e.currentTarget.form?.requestSubmit();
+              }}
             >
               {COUNTRY_CATALOG.map((c) => (
                 <option key={c.code} value={c.code} disabled={c.status !== "supported"}>
@@ -81,11 +100,14 @@ export function CountryBar({
             <form action={regimeFormAction} className="flex items-center gap-2">
               <NativeSelect
                 name="regime"
-                defaultValue={profile.regime}
+                value={shownRegime}
                 className="w-auto min-w-40"
                 aria-label="Tax regime"
                 disabled={pending}
-                onChange={(e) => e.currentTarget.form?.requestSubmit()}
+                onChange={(e) => {
+                  setSubmittedRegime(e.currentTarget.value);
+                  e.currentTarget.form?.requestSubmit();
+                }}
               >
                 {current!.regimes.map((r) => (
                   <option key={r.key} value={r.key}>
