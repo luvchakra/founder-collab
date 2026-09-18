@@ -27,9 +27,9 @@ the same way `fsm` is displayed as "Service".
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
 | Receivables | Done | `609bfcb` | Aging by customer and by invoice |
-| Bills (§19) | Done | `pending` | Hand entry for supplier bills |
-| Expenses (§20) | Done | `pending` | Hand entry, optionally paid on the spot |
-| Payments (§21) | Done | `pending` | One payment across a supplier's bills, from Payables |
+| Bills (§19) | Done | `d25b1d2` | Hand entry for supplier bills |
+| Expenses (§20) | Done | `d25b1d2` | Hand entry, optionally paid on the spot |
+| Payments (§21) | Done | `d25b1d2` | One payment across a supplier's bills, from Payables |
 | **Payables** | Done | `7e87a40` | Supplier bills are now canonical `core.documents`; aging by supplier and by bill |
 
 ## Resolved: supplier bills are canonical documents
