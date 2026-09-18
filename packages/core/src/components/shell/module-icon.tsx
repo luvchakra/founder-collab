@@ -8,6 +8,7 @@ import {
   CalendarRange,
   ListChecks,
   ListTodo,
+  Repeat,
   MessageCircle,
   Target,
   Package,
@@ -44,6 +45,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   AlertTriangle,
+  Repeat,
   BookOpen,
   BookText,
   HandCoins,
