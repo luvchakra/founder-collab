@@ -23,7 +23,8 @@ export type AiOperation =
   | "summarize_conversation"
   | "suggest_offering_profile"
   | "generate_research_brief"
-  | "extract_business_offerings";
+  | "extract_business_offerings"
+  | "answer_help_question";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -114,6 +115,14 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // crawl findings understand_business_website already fetched (minimize LLM calls) --
   // no fresh research of its own.
   extract_business_offerings: { qualityTier: "balanced", requiresWebSearch: false },
+  // The Get Help assistant. Balanced, not reasoning: the sections that answer the
+  // question have already been found deterministically (core/help/search.ts), so this is
+  // writing a short, accurate answer from text in hand -- the same bounded writing task
+  // summarize_customer/draft_review_response use this tier for, not the multi-source
+  // synthesis "reasoning" exists for. No web search, ever: the only allowed source is our
+  // own documentation, and a model that went looking elsewhere would answer about some
+  // other product.
+  answer_help_question: { qualityTier: "balanced", requiresWebSearch: false },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {

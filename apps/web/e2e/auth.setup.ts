@@ -23,7 +23,9 @@ setup("authenticate", async ({ page }) => {
 
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  // Exact: the reveal toggle beside this field is labelled "Show password", which a loose
+  // label lookup also matches -- two elements, and strict mode rejects both.
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
 
   // Lands on the Executive Dashboard on success; a bad login re-renders /login with an

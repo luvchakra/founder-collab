@@ -42,7 +42,7 @@ service-area/zone concept in this module today.
    create a duplicate job.
 4. **Invoice** — generate an invoice from a completed job (or let it
    auto-generate, if you turned that setting on). Send it, record payments,
-   mark paid/void, and reorder line items. If Compliance is licensed, an
+   mark paid/void, and reorder line items. If Finance is licensed, an
    e-invoice/e-way-bill panel appears here too.
 
 ### Working a job
@@ -91,8 +91,9 @@ licensed, jobs just work as plain charges with no material tracking:
   the resulting job links back to it — useful for seeing the full lifecycle
   from first contact to a completed on-site visit.
 - **Inventory**: parts reservation/consumption, described above.
-- **Compliance**: invoices show e-invoice/e-way-bill status when relevant.
+- **Finance**: invoices show e-invoice/e-way-bill status when relevant, and
+  every issued invoice posts to the ledger automatically.
 
 Service is meant to sit downstream of CRM and alongside Inventory and
-Compliance, but every one of those integrations is optional — the module
+Finance, but every one of those integrations is optional — the module
 works completely standalone if you only license Service.

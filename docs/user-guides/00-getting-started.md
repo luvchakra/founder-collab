@@ -1,5 +1,11 @@
 # Getting Started
 
+Everything from your first login to a working business: creating an account,
+setting up your first business, understanding how businesses and offerings
+differ, licensing the modules you need, and adding your team. The last two
+sections are for whoever operates the deployment rather than for everyday
+users.
+
 ## 1. Creating an account
 
 Go to **Sign up**. You'll need:
@@ -53,7 +59,7 @@ This trips up new users, so it's worth explaining once:
   records underneath.
 
 In short: **offerings are "what you sell,"** and they sit *on top of* a
-single shared business. Inventory, Service, CRM, and Compliance all operate
+single shared business. Inventory, Service, CRM, and Finance all operate
 at the business level; only Discovery operates per-offering.
 
 ## 4. Switching between businesses and modules
@@ -62,7 +68,7 @@ at the business level; only Discovery operates per-offering.
   Pin the ones you use most so they float to the top; there's always a
   "+ Create New Business" option at the bottom.
 - The **module selector** (sidebar) switches between a business's *licensed
-  modules* (Discovery / Inventory / Service / CRM / Compliance). An
+  modules* (Discovery / Inventory / Service / CRM / Finance). An
   unlicensed module still shows in the list, greyed out with a lock icon —
   clicking it explains that it isn't licensed yet rather than crashing. You
   can also "pin" to one module to keep the sidebar focused on just that

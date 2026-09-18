@@ -24,8 +24,9 @@ usable:
   scheduling, crew dispatch, and invoicing.
 - **[04 — CRM](./04-crm.md)** — leads, opportunities, the unified inbox,
   WhatsApp/Instagram/Facebook/Google Business channels, and reputation.
-- **[05 — Compliance (GST)](./05-compliance-gst.md)** — tax registrations,
-  reconciliation, and country/regime setup (India GST, EU VAT, US sales tax).
+- **[05 — Finance](./05-finance.md)** — the double-entry ledger, banking and
+  reconciliation, receivables and payables, financial statements, and tax
+  registration and filing prep (India GST, EU VAT, US sales tax).
 
 ## A note on module names vs. URLs
 
@@ -35,10 +36,11 @@ package names were already locked in:
 | You see in the sidebar | Lives at this URL | Internal module key |
 |---|---|---|
 | Service | `/service` | `fsm` |
-| Compliance | `/compliance` | `gst` |
+| Finance | `/finance` | `gst` |
 
-Old links (`/fsm/...`, `/gst/...`) still work — they redirect automatically —
-but new links and bookmarks should use `/service` and `/compliance`.
+Old links (`/fsm/...`, `/gst/...`, `/compliance/...`) still work — they
+redirect automatically — but new links and bookmarks should use `/service`
+and `/finance`.
 
 ## Licensing and degraded mode
 

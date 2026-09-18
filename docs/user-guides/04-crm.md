@@ -61,7 +61,7 @@ Reviews, Analytics, Reactivation
   timeline, open opportunities, follow-ups, products of interest, recent
   conversations, notes, and outstanding balance. If licensed, it also pulls
   in Discovery's prospect/signal data, Inventory's order history and
-  Compliance's e-invoice status, and Service's job history — sections just
+  Finance's e-invoice status, and Service's job history — sections just
   don't appear if that module isn't licensed for you.
 
 ## Connecting a channel (WhatsApp / Instagram / Facebook)

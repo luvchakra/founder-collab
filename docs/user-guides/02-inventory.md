@@ -25,7 +25,7 @@ Set these up in this order — each later step references the ones before it:
 
 There's no separate "settings" screen for units of measure or numbering —
 purchase order numbers auto-generate, units default to "pcs", and default
-tax rates come from your business's Compliance profile.
+tax rates come from your business's Finance (GST) profile.
 
 ## Day-to-day workflows
 

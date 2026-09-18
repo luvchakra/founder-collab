@@ -15,6 +15,7 @@
     "./crypto/*": "./src/crypto/*.ts",
     "./ai/*": "./src/ai/*.ts",
     "./auth/*": "./src/auth/*.ts",
+    "./help/*": "./src/help/*.ts",
     "./ai-providers/*": "./src/ai-providers/*.ts",
     "./licensing/*": "./src/licensing/*.ts",
     "./entitlements/*": "./src/entitlements/*.ts",

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Shield, ShieldCheck, SunMoon, User } from "lucide-react";
+import { BarChart3, ChevronsUpDown, CreditCard, LifeBuoy, LogOut, Shield, ShieldCheck, SunMoon, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
@@ -138,6 +138,24 @@ export function SidebarAccountMenu({
               Demo data
             </Link>
           ) : null}
+
+          <div className="my-1 border-t" />
+
+          {/* Help sits below the divider with sign-out rather than among the settings
+              rows: it is not a thing you configure, and someone hunting for it is
+              usually stuck, so it reads faster on its own. */}
+          <Link
+            href="/dashboard/help"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNavigate();
+            }}
+            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+          >
+            <LifeBuoy className="size-4 text-muted-foreground" aria-hidden="true" />
+            Get Help
+          </Link>
 
           <div className="my-1 border-t" />
 
