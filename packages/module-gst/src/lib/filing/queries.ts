@@ -30,9 +30,15 @@ export const getBusinessGstFilingProfile = cache(async (businessId: string): Pro
 
 /** Ported from stockpilot-ai-ops's gst-filing.tsx purchase-register useQuery + its
  * supplier-wise/HSN-wise summary computation, read from `core.documents`/`core.
- * document_lines` directly (source_module='inventory', doc_type='purchase_order')
- * rather than through module-inventory's own compat views -- see this file's own
- * top-of-file docstring for why that's the correct boundary, not a shortcut. */
+ * document_lines` directly (doc_type='purchase_order') rather than through
+ * module-inventory's own compat views -- see this file's own top-of-file docstring for
+ * why that's the correct boundary, not a shortcut.
+ *
+ * Every module's purchases count, not just Inventory's. The port carried a
+ * `source_module='inventory'` filter over from StockPilot, where inventory was the whole
+ * application; here it silently dropped any purchase raised elsewhere from the return.
+ * See `getSalesRegister` for the same fix on the outward side, where it was costing real
+ * money. */
 export const getPurchaseRegister = cache(
   async (businessId: string, start: string, end: string): Promise<PurchaseRegister> => {
     const supabase = await coreClient();
@@ -40,7 +46,6 @@ export const getPurchaseRegister = cache(
       .from("documents")
       .select("id, number, doc_date, party_id, subtotal, cgst_amount, sgst_amount, igst_amount")
       .eq("business_id", businessId)
-      .eq("source_module", "inventory")
       .eq("doc_type", "purchase_order")
       .gte("doc_date", start)
       .lte("doc_date", end)
@@ -142,8 +147,20 @@ export const getPurchaseRegister = cache(
   },
 );
 
-/** Ported from stockpilot-ai-ops's gst-filing.tsx sales-register useQuery + its
- * B2B/B2C/HSN-wise/credit-note summary computation. */
+/**
+ * Ported from stockpilot-ai-ops's gst-filing.tsx sales-register useQuery + its
+ * B2B/B2C/HSN-wise/credit-note summary computation.
+ *
+ * Covers every module's outward supplies. The port carried StockPilot's
+ * `source_module='inventory'` filter across, which made sense when inventory *was* the
+ * application -- but in this platform Service raises invoices into the same
+ * `core.documents` table, with GST computed on them by the same trigger. The filter
+ * excluded every one of them from the return: a business doing service work was
+ * understating its output tax by exactly that amount, and would have filed it.
+ *
+ * A GST return covers the supplies of the *business*, not of whichever module happened
+ * to raise the paperwork, so there is no module filter here at all.
+ */
 export const getSalesRegister = cache(
   async (businessId: string, start: string, end: string): Promise<SalesRegister> => {
     const supabase = await coreClient();
@@ -151,7 +168,6 @@ export const getSalesRegister = cache(
       .from("documents")
       .select("id, number, doc_date, party_id, subtotal, cgst_amount, sgst_amount, igst_amount")
       .eq("business_id", businessId)
-      .eq("source_module", "inventory")
       .eq("doc_type", "invoice")
       .gte("doc_date", start)
       .lte("doc_date", end)
@@ -189,7 +205,6 @@ export const getSalesRegister = cache(
       .from("documents")
       .select("id, number, doc_date, source_ref, subtotal, cgst_amount, sgst_amount, igst_amount")
       .eq("business_id", businessId)
-      .eq("source_module", "inventory")
       .eq("doc_type", "credit_note")
       .gte("doc_date", start)
       .lte("doc_date", end)
