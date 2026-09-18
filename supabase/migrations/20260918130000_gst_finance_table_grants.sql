@@ -1,34 +1,37 @@
--- The GRANTs three Finance migrations forgot.
+-- Finance F3/F10 — the table grants the banking, recurring-entries and budget migrations
+-- never issued.
 --
--- `20260917240000_gst_banking`, `20260918100000_gst_recurring_entries` and
--- `20260918110000_gst_budgets` each enabled RLS and wrote policies, but never granted the
--- underlying table privileges. RLS narrows what a role may reach; it does not grant the
--- reach in the first place, so `authenticated` got "permission denied for table
--- bank_accounts" and the Banking, Recurring Entries and Budget pages all failed with the
--- generic error boundary.
+-- Those three migrations enabled RLS and wrote a full set of policies, but granted no
+-- table privileges to anyone. RLS is a filter applied *after* the privilege check, not
+-- instead of it: with no `grant`, every read fails at the privilege check with
+-- `42501 permission denied for table ...` before a policy is ever consulted. The policies
+-- were correct and the tables were correct; they were simply unreachable.
 --
--- The dev database healed itself some minutes later — Supabase applies grants to new
--- tables in exposed schemas on its own schedule — which is precisely why this is worth
--- writing down rather than leaving. A fresh environment built from this timeline would
--- break exactly the same way, and "it works once the platform gets round to it" is not a
--- property to depend on: the window is unpredictable and invisible.
+-- What that broke, all of it since the tables shipped:
+--   * /finance/banking, /finance/budget and /finance/recurring — each threw on its first
+--     select and rendered the app's generic error boundary.
+--   * The statement import, matching and reconciliation write paths.
+--   * The post-recurring-entries cron, which runs as `service_role` — these tables had no
+--     service_role grant either, so it could not read the schedules or post the entries.
 --
--- Idempotent: granting a privilege that is already held is a no-op, so this is safe on the
--- dev database that has since been fixed and correct on one built from scratch.
---
--- Privileges mirror what each table's own policies already allow, and no more:
---   * no DELETE on bank accounts or reconciliations -- history must not vanish;
---   * DELETE on bank transactions (a line imported by mistake, while still unmatched),
---     budget lines (a plan, not a record) and recurring entries (a template).
+-- Each table is granted exactly the commands its own policies cover, so the grant is the
+-- coarse gate and RLS stays the fine one; `gst.accounts` and friends in
+-- 20260917200000_gst_accounting_foundation.sql are the pattern being matched here,
+-- including `grant all ... to service_role` for the admin/cron paths.
 
+-- Banking (20260917240000_gst_banking.sql).
+-- bank_transactions carries a delete policy for unmatched lines; the other two do not.
 grant select, insert, update on gst.bank_accounts to authenticated;
 grant select, insert, update, delete on gst.bank_transactions to authenticated;
 grant select, insert, update on gst.bank_reconciliations to authenticated;
+
+-- Recurring entries (20260918100000_gst_recurring_entries.sql).
 grant select, insert, update, delete on gst.recurring_entries to authenticated;
+
+-- Budgets (20260918110000_gst_budgets.sql).
 grant select, insert, update, delete on gst.budget_lines to authenticated;
 
--- The drain and the recurring-entry cron run as service_role with no session, so they
--- need their own grants -- `20260917200000`'s own accounting tables already have these.
+-- The admin/cron paths: recurring-mutations.ts and banking-mutations.ts both reach for
+-- the service-role client, which bypasses RLS but still needs the privilege.
 grant all on gst.bank_accounts, gst.bank_transactions, gst.bank_reconciliations,
-             gst.recurring_entries, gst.budget_lines
-  to service_role;
+  gst.recurring_entries, gst.budget_lines to service_role;

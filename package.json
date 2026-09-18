@@ -21,6 +21,7 @@
     "perf:rls": "node scripts/perf-check-tenant-license-rls.mjs",
     "lint:boundaries": "node scripts/lint-import-boundaries.mjs",
     "lint:migrations": "node scripts/lint-migration-schema.mjs",
+    "lint:migration-grants": "node scripts/lint-migration-grants.mjs",
     "lint:gst-no-duplicate-masters": "node scripts/lint-gst-no-duplicate-masters.mjs"
   },
   "devDependencies": {

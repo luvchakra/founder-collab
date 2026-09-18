@@ -137,6 +137,23 @@ Directories are created as stories require them — don't pre-create empty modul
 
 ## Workflow
 
+**Fetch `main` first, every session, before anything else.** Several sessions work on this
+repo at once and `main` moves under you: run `git fetch origin main` and look at what
+landed (`git log --oneline HEAD..origin/main`) before reading code, planning, or editing
+-- then base new work on the current `origin/main` (or bring it into the branch you were
+told to use). Two sessions have already built the same change in parallel because one
+skipped this; the wasted work is the cheap outcome, the expensive one is a fix written
+against code that no longer exists.
+
+**Merge finished work into `main` without asking** (standing instruction, 2026-09-18).
+Once the checks below are green -- typecheck, lint, `lint:boundaries`,
+`lint:migrations`, `lint:migration-grants`, `lint:gst-no-duplicate-masters` and the
+tests -- merge and push rather than parking the branch and asking for permission. Run
+those checks on the *merged* result, not just on the branch: a clean merge of two
+branches that each passed can still fail together. This replaces asking per branch; it
+does not replace verifying, and it does not extend to deleting branches or to force-
+pushing over someone else's work.
+
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read
 only the files it touches, plus the entity-ownership map if the story creates any table.
