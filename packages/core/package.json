@@ -10,6 +10,7 @@
     "./hooks/use-mobile": "./src/hooks/use-mobile.tsx",
     "./hooks/*": "./src/hooks/*.ts",
     "./lib/*": "./src/lib/*.ts",
+    "./test-support/*": "./src/test-support/*.ts",
     "./db/*": "./src/db/*.ts",
     "./crypto/*": "./src/crypto/*.ts",
     "./ai/*": "./src/ai/*.ts",
