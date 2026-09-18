@@ -22,6 +22,7 @@ const RESERVED_TOP_SEGMENTS = new Set([
   "auth",
   "api",
   "p",
+  "help",
 ]);
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
@@ -33,10 +34,14 @@ const AUTH_PATHS = new Set(["/login", "/signup"]);
  * segment isn't one of the app's own static top-level routes (`RESERVED_TOP_SEGMENTS`)
  * -- i.e. it's presumed to be a business's own slug
  * (apps/web/app/(dashboard)/[businessSlug]/...), which is always behind auth. `/login`,
- * `/signup`, `/onboarding`, `/auth/callback`, `/api/*` and the public `/p/*` portal are
- * each self-gated at the page/route level (see e.g. apps/web/app/onboarding/page.tsx's
- * own redirect) rather than here, same as before this function grew a business-slug
- * case at all. */
+ * `/signup`, `/onboarding`, `/auth/callback`, `/api/*`, the public `/p/*` portal and the
+ * public `/help` guides are each self-gated at the page/route level (see e.g.
+ * apps/web/app/onboarding/page.tsx's own redirect) rather than here, same as before this
+ * function grew a business-slug case at all.
+ *
+ * `/help` is deliberately open: it is the product's own documentation, and the person who
+ * most needs it is often the one who cannot get in -- a locked-out founder, or somebody
+ * deciding whether to sign up at all. Nothing on it reads tenant data. */
 export function isProtectedPath(pathname: string): boolean {
   if (pathname === "/") return false;
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return true;

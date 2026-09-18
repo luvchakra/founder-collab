@@ -54,7 +54,7 @@ export default async function HelpGuidePage({ params }: { params: Promise<{ slug
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-4 sm:p-8">
       <div className="flex flex-col gap-3">
         <Link
-          href="/dashboard/help"
+          href="/help"
           className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="size-3.5" aria-hidden="true" />
@@ -84,7 +84,7 @@ export default async function HelpGuidePage({ params }: { params: Promise<{ slug
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between">
             {previous ? (
               <Link
-                href={`/dashboard/help/${previous.slug}`}
+                href={`/help/${previous.slug}`}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary"
               >
                 <ArrowLeft className="size-3.5 shrink-0" aria-hidden="true" />
@@ -95,7 +95,7 @@ export default async function HelpGuidePage({ params }: { params: Promise<{ slug
             )}
             {next ? (
               <Link
-                href={`/dashboard/help/${next.slug}`}
+                href={`/help/${next.slug}`}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:border-primary sm:ml-auto"
               >
                 <span className="truncate">{next.title}</span>

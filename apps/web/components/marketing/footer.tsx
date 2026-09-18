@@ -20,6 +20,7 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["Benefits", "#benefits"],
       ["Pricing", "#pricing"],
       ["FAQ", "#faq"],
+      ["Help & Guides", "/help"],
     ],
   },
   {
@@ -73,9 +74,16 @@ export function Footer() {
               <ul className="mt-4 flex flex-col gap-2.5">
                 {column.links.map(([label, href]) => (
                   <li key={label}>
-                    <a href={href} className="text-sm text-landing-muted hover:text-landing-fg">
-                      {label}
-                    </a>
+                    {/* Anchors jump within this page; a real route navigates client-side. */}
+                    {href.startsWith("#") ? (
+                      <a href={href} className="text-sm text-landing-muted hover:text-landing-fg">
+                        {label}
+                      </a>
+                    ) : (
+                      <Link href={href} className="text-sm text-landing-muted hover:text-landing-fg">
+                        {label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

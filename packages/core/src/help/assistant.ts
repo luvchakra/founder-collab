@@ -136,18 +136,37 @@ async function writeCache(row: {
   }
 }
 
+const NOTHING_FOUND =
+  "I couldn't find anything in the user guides about that. Try different words, or browse the guides below — and if it's something WonderArk doesn't do yet, the guides won't cover it.";
+
+/**
+ * The retrieval half on its own, with no model behind it: the guide sections that match a
+ * question, and nothing written about them.
+ *
+ * This is what an anonymous visitor to the public `/help` gets. It costs nothing to run,
+ * it is the half that produces the links, and it is genuinely useful on its own — which is
+ * what makes it possible to keep the documentation open to everyone while keeping the AI
+ * spend behind a session.
+ */
+export function searchHelpSections(rawQuestion: string): HelpAnswer {
+  const matches = searchHelp(rawQuestion.trim().slice(0, MAX_QUESTION_LENGTH), MAX_SECTIONS);
+  if (matches.length === 0) {
+    return { answer: NOTHING_FOUND, sources: [], mode: "unknown", cached: false };
+  }
+  return {
+    answer: "Here are the sections of the guides that match your question.",
+    sources: matches.map(toSource),
+    mode: "sections",
+    cached: false,
+  };
+}
+
 export async function answerHelpQuestion(rawQuestion: string): Promise<HelpAnswer> {
   const question = rawQuestion.trim().slice(0, MAX_QUESTION_LENGTH);
   const matches = searchHelp(question, MAX_SECTIONS);
 
   if (matches.length === 0) {
-    return {
-      answer:
-        "I couldn't find anything in the user guides about that. Try different words, or browse the guides below — and if it's something WonderArk doesn't do yet, the guides won't cover it.",
-      sources: [],
-      mode: "unknown",
-      cached: false,
-    };
+    return { answer: NOTHING_FOUND, sources: [], mode: "unknown", cached: false };
   }
 
   const sources = matches.map(toSource);

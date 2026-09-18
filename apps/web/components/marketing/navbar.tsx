@@ -8,13 +8,22 @@ import { Menu, X } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
 
+/**
+ * Anchors jump within the landing page; `/help` is a real route, and is rendered with
+ * `next/link` below so it navigates client-side instead of reloading the app. It is in
+ * this bar rather than tucked into the footer because someone who cannot sign in has
+ * nowhere else to look, and because the guides are worth reading before signing up.
+ */
 const NAV_LINKS = [
   { href: "#modules", label: "Modules" },
   { href: "#how-it-works", label: "How It Works" },
   { href: "#benefits", label: "Benefits" },
   { href: "#pricing", label: "Pricing" },
   { href: "#faq", label: "FAQ" },
+  { href: "/help", label: "Help" },
 ];
+
+const isRoute = (href: string) => !href.startsWith("#");
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -32,15 +41,25 @@ export function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="text-sm text-landing-muted transition-colors hover:text-landing-fg"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) =>
+            isRoute(link.href) ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm text-landing-muted transition-colors hover:text-landing-fg"
+              >
+                {link.label}
+              </Link>
+            ) : (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-sm text-landing-muted transition-colors hover:text-landing-fg"
+              >
+                {link.label}
+              </a>
+            ),
+          )}
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -69,16 +88,19 @@ export function Navbar() {
           aria-label="Mobile"
           className="flex flex-col gap-1 border-t border-landing-surface-border px-6 py-4 md:hidden"
         >
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              onClick={() => setOpen(false)}
-              className="rounded-md px-2 py-2.5 text-sm text-landing-muted hover:bg-landing-bg hover:text-landing-fg"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const className =
+              "rounded-md px-2 py-2.5 text-sm text-landing-muted hover:bg-landing-bg hover:text-landing-fg";
+            return isRoute(link.href) ? (
+              <Link key={link.href} href={link.href} onClick={() => setOpen(false)} className={className}>
+                {link.label}
+              </Link>
+            ) : (
+              <a key={link.href} href={link.href} onClick={() => setOpen(false)} className={className}>
+                {link.label}
+              </a>
+            );
+          })}
           <div className="mt-2 flex flex-col gap-2 border-t border-landing-surface-border pt-4">
             <Link
               href="/login"

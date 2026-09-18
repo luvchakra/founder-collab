@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Input } from "@cofounderai/core/ui/input";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { askHelp, type HelpAskState } from "@/app/(dashboard)/dashboard/help/actions";
+import { askHelp, type HelpAskState } from "@/app/help/actions";
 
 /**
  * Ask-a-question box for the user guides.

@@ -145,7 +145,7 @@ export function SidebarAccountMenu({
               rows: it is not a thing you configure, and someone hunting for it is
               usually stuck, so it reads faster on its own. */}
           <Link
-            href="/dashboard/help"
+            href="/help"
             role="menuitem"
             onClick={() => {
               setOpen(false);

@@ -102,7 +102,7 @@ export default function HelpPage() {
           {guides.map((guide) => (
             <Link
               key={guide.slug}
-              href={`/dashboard/help/${guide.slug}`}
+              href={`/help/${guide.slug}`}
               className="group flex flex-col gap-2 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary"
             >
               <div className="flex items-center gap-2">

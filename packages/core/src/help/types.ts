@@ -15,7 +15,7 @@ export type HelpSection = {
 };
 
 export type HelpGuide = {
-  /** `05-finance.md` -> `finance`; the URL segment under /dashboard/help. */
+  /** `05-finance.md` -> `finance`; the URL segment under /help. */
   slug: string;
   /** The `NN-` file prefix, which is the reading order. */
   order: number;
@@ -34,6 +34,7 @@ export type HelpSectionRef = {
   body: string;
 };
 
+/** Public, deliberately: `/help` needs no session (see core/db/middleware.ts). */
 export function sectionHref(guideSlug: string, sectionId: string): string {
-  return `/dashboard/help/${guideSlug}#${sectionId}`;
+  return `/help/${guideSlug}#${sectionId}`;
 }

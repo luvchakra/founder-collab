@@ -75,7 +75,17 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             />
           )}
         </Link>
-        <AuthTabs />
+        <div className="flex items-center gap-4">
+          {/* Next to the sign-in toggle on purpose: somebody who cannot get in is the
+              likeliest person on the site to need the documentation, and it is public. */}
+          <Link
+            href="/help"
+            className="text-sm text-landing-muted transition-colors hover:text-landing-fg"
+          >
+            Help
+          </Link>
+          <AuthTabs />
+        </div>
       </header>
       <main className="flex flex-1 items-center justify-center px-6 pb-16">
         <div className="flex w-full max-w-4xl items-center justify-center gap-16">
