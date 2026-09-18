@@ -118,6 +118,40 @@ Notation: `[BLOCKER]` must finish before anything downstream. Sizes are rough: S
 
 ---
 
+## Epic 7 — Finance (details in `docs/FINANCE-PROGRESS.md`)
+
+Schema: `gst` (the module key, schema and permission namespace all stay `gst`; only the
+display name and URL segment are "Finance"). Allowed imports: `@cofounderai/core`, other
+modules' `contract/index.ts` only.
+
+F0–F10 are done, along with receivables, payables, reports, the dashboard and hand entry
+for bills, expenses and payments. What follows is what the requirements
+(`wonderark-finance-claude-code-autonomous-requirements.md`) still ask for, surveyed
+section by section on 2026-09-18. Sizes assume the accounting engine underneath is
+finished, which it is — most of these are screens over data that already exists.
+
+| ID | Story | Size |
+|---|---|---|
+| `FIN-1` | **Finance exceptions queue** (§38). One place for what is currently scattered across three screens: unposted documents (dashboard), ITC at risk (GST ledger), filing blockers (readiness). Each exception carries what happened / why it matters / source / suggested action / owner / status, with statuses Open, In Review, Resolved, Ignored. Never show a stack trace. | M |
+| `FIN-2` | **Backfill** (§41). Scan existing invoices, bills, payments and expenses when Finance is activated; propose postings, validate, preview counts, post the eligible ones and route the rest to `FIN-1`. Idempotency is already solved — every posting is keyed — so this is the scan, the preview and the routing. Must never silently duplicate history. | M |
+| `FIN-3` | **Activation wizard** (§42). Sequences the ten first-run steps: business profile, accounting method, fiscal year, chart of accounts, GST profile, account mappings, opening balances, bank accounts, review, activate. Every step already exists as its own screen; nothing orders them or tracks completion. | M |
+| `FIN-4` | **Finance invoice view** (§18). Invoices from canonical documents — never a second invoice master — showing accounting, payment, GST and e-invoice status as four independent statuses. | S |
+| `FIN-5` | **Cash flow statement** (§28). The fourth statement; the other three are done. | S |
+| `FIN-6` | **Operational reports** (§28). Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. | M |
+| `FIN-7` | **Report drill-down** (§28: "every report must drill into underlying transactions"). The journal has it; the statements do not. | M |
+| `FIN-8` | **Bank rules** (§24). Persist the categorisation that matching currently re-derives per transaction. | S |
+| `FIN-9` | **Dimensions** (§29). `gst.journal_lines` already carries `party_id`, `item_id`, `location` and `project_ref`; nothing configures them or reports on them. Optional per business — never make every dimension mandatory. | M |
+| `FIN-10` | **Seed data** (§52). The deterministic Finance fixture set: 2 businesses, several licence combinations, 30 invoices, 20 bills, 25 payments, 20 expenses, credit and debit notes, bank transactions, recurring entries, GSTR-2B matched/mismatched records, a locked period, a failed e-invoice and duplicate-transaction scenarios. Reuse existing customers and products rather than creating parallel masters. | M |
+| `FIN-11` | **End-to-end edge cases** (§53). Most are covered as unit tests already. Not covered end to end: licence cancellation and reactivation (ADR-9 grace period), historical backfill, duplicate backfill, negative inventory. | M |
+| `FIN-12` | **Explainable accounting, in reverse** (§40). Every automatic entry already records the rule and version that produced it and explains itself. Missing is the other direction: from a source document to the entries it caused. | S |
+| `FIN-13` | **AI categorisation for unmatched bank lines** (§20, §39) — *only if wanted.* Deliberately not built: Finance is deterministic arithmetic and CLAUDE.md principle 4 says not to use an LLM for that. Categorising an unmatched bank line is the one genuinely fuzzy case. If built: cache by `input_hash` + `prompt_version` per principle 5, structured JSON validated with Zod per principle 6, and never auto-post a high-risk suggestion without configured approval. | S |
+
+`FIN-1`, `FIN-2` and `FIN-3` are one cluster and are worth doing in that order: the
+exceptions queue is where backfill puts what it cannot post, and the wizard is what runs
+backfill.
+
+---
+
 ## Definition of done (per story)
 
 1. Migration files are in the single platform timeline and are reversible or explicitly documented as irreversible.

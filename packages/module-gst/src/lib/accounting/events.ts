@@ -62,6 +62,11 @@ export interface FinanceEvent {
   valueAccountRole?: AccountRoleKey;
   /** Where the money moved, for payment events. Defaults to the bank account. */
   settlementAccountRole?: Extract<AccountRoleKey, "bank" | "cash">;
+  /** An exact account for the document's value, overriding whatever `valueAccountRole`
+   * would have resolved to. Set when a person chose the account by hand — a bill entered
+   * against "Rent" has no role that means Rent, and posting it to the role's default
+   * would quietly file it under stock. */
+  valueAccountId?: string | null;
 }
 
 /**

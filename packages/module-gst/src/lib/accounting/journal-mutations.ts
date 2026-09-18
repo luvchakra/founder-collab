@@ -376,7 +376,9 @@ export async function postFinanceEvent(
       posted_at: new Date().toISOString(),
     },
     result.lines.map((line) => ({
-      accountId: accountByRole.get(line.role)!,
+      // An account the person chose by hand wins over the role's default, but only for
+      // the line actually carrying the value — tax and the payable still resolve by role.
+      accountId: (line.isValueLine && event.valueAccountId) || accountByRole.get(line.role)!,
       debit: line.debit,
       credit: line.credit,
       memo: line.memo ?? null,

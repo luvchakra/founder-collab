@@ -295,3 +295,40 @@ describe("supplier bills", () => {
     expect(plan.lines.filter((l) => l.role === "accounts_payable").reduce((s, l) => s + l.debit, 0)).toBeGreaterThan(0);
   });
 });
+
+describe("an account chosen by hand", () => {
+  const rentBill = doc({
+    doc_type: "supplier_bill",
+    source_module: "finance",
+    subtotal: 20000,
+    cgst_amount: 0,
+    sgst_amount: 0,
+    total_amount: 20000,
+    source_ref: { kind: "expense", value_account_id: "rent-account-id" },
+  });
+
+  // A bill entered against "Rent" has no role that means Rent. Without carrying the
+  // chosen account, the founder picks Rent and the money lands in Inventory Asset.
+  it("is carried on the event", () => {
+    expect(financeEventFromDocument(rentBill)?.valueAccountId).toBe("rent-account-id");
+  });
+
+  it("marks the value line, so only that line is overridden", () => {
+    const plan = planPosting(financeEventFromDocument(rentBill)!) as PostingPlan;
+    const valueLines = plan.lines.filter((l) => l.isValueLine);
+    expect(valueLines).toHaveLength(1);
+    expect(valueLines[0]!.debit).toBe(20000);
+    // The payable resolves by role and must not be overridden.
+    expect(plan.lines.find((l) => l.role === "accounts_payable")?.isValueLine).toBeFalsy();
+  });
+
+  it("is absent for a document from another module, which falls back to the role", () => {
+    expect(financeEventFromDocument(doc({ doc_type: "supplier_bill", source_ref: null }))?.valueAccountId).toBeNull();
+  });
+
+  it("is ignored when it isn't a real id", () => {
+    expect(
+      financeEventFromDocument({ ...rentBill, source_ref: { value_account_id: 42 } })?.valueAccountId,
+    ).toBeNull();
+  });
+});

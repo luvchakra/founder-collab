@@ -27,6 +27,9 @@ the same way `fsm` is displayed as "Service".
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
 | Receivables | Done | `609bfcb` | Aging by customer and by invoice |
+| Bills (§19) | Done | `pending` | Hand entry for supplier bills |
+| Expenses (§20) | Done | `pending` | Hand entry, optionally paid on the spot |
+| Payments (§21) | Done | `pending` | One payment across a supplier's bills, from Payables |
 | **Payables** | Done | `7e87a40` | Supplier bills are now canonical `core.documents`; aging by supplier and by bill |
 
 ## Resolved: supplier bills are canonical documents
@@ -92,6 +95,7 @@ other modules' data, not Finance's to make. Also recorded in
 
 ## What remains, against the spec's own 54 sections
 
+Tracked as **Epic 7** in `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (`FIN-1` … `FIN-13`).
 Surveyed 2026-09-18 against
 `wonderark-finance-claude-code-autonomous-requirements.md`, section by section, not from
 memory. The accounting engine, the ledger and the reporting on top of it are done. What is
@@ -99,14 +103,38 @@ left is mostly *entry* screens and the onboarding path — Finance can currently
 reconcile everything the operational modules produce, but a founder cannot yet type a bill
 or an expense into it directly.
 
+### Entry screens — built 2026-09-18
+
+Bills, expenses and payments can now be entered directly, which is what made Finance
+read-only for anything not raised in Inventory or Service.
+
+**A bill and an expense are one document.** `core.documents` with
+`doc_type = 'supplier_bill'`, differing only in which account takes the value and whether
+money moved at the same time. Separate tables would be the triplication §5 exists to
+prevent, and every payables query would have had to read two places and hope they agreed.
+Which it was is recorded in `source_ref.kind`.
+
+**Entered header-only.** `core.document_lines` requires an `item_id` and a rent bill has no
+item — but more to the point, a supplier's line detail is on the supplier's own paper, and
+re-keying it to reach a total the bill already states buys nothing. Verified that header
+totals survive: with no lines the recompute trigger never fires, so it cannot zero them.
+
+**A chosen account beats the role.** The posting rules resolve accounts by role, and no
+role means "Rent". Bills carry `valueAccountId`, and the rule's value line is now marked
+so `postFinanceEvent` substitutes it — for that line only, leaving tax and the payable to
+resolve by role as before. Without this a founder picks Rent and the money lands in
+Inventory Asset.
+
+**Posting still goes through the drain**, not inline. Finance already has one path from a
+document to its ledger entry with idempotency the database enforces; a second inline path
+would be a second place for that to be wrong. The e-invoicing handler on the same event
+guards on `docType === 'invoice'`, so a bill passes it by.
+
 ### Not built
 
 | § | Item | Note |
 |---|---|---|
 | 18 | Finance invoice view | Invoices list with accounting / payment / GST / e-invoice status kept independent. The data all exists; this is a screen. |
-| 19 | Bill entry | The `supplier_bill` doc type and Payables exist; the form to create one does not. Bills currently have to arrive from another module or by SQL. |
-| 20 | Expenses | Direct expense entry (vendor, account, GST, attachment, employee, job). The posting rule (`expense.created`) already exists. |
-| 21 | Payments screen | Recording a payment *in Finance*. Allocation, partial payment and overpayment already work through `core.payments`; there is no Finance-side UI for them. |
 | 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
 | 28 | Cash flow statement | The other three statements are done. |
 | 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |

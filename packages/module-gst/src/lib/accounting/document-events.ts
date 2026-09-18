@@ -13,6 +13,9 @@ import type { AccountRoleKey } from "./types";
 export interface PostableDocument {
   id: string;
   doc_type: string;
+  /** Module-specific fields with no place on the shared table — carries the value account
+   * a hand-entered bill was posted against. */
+  source_ref?: Record<string, unknown> | null;
   source_module: string;
   party_id: string | null;
   doc_date: string;
@@ -126,7 +129,16 @@ export function financeEventFromDocument(
     total,
     partyId: document.party_id,
     valueAccountRole: revenueRoleOf(document),
+    // A hand-entered bill records the exact account its value belongs to; documents from
+    // other modules carry none and fall back to the role.
+    valueAccountId: chosenValueAccountId(document.source_ref),
   };
+}
+
+/** The account a person picked when entering a bill by hand, from `source_ref`. */
+function chosenValueAccountId(sourceRef: Record<string, unknown> | null | undefined): string | null {
+  const candidate = sourceRef?.value_account_id;
+  return typeof candidate === "string" ? candidate : null;
 }
 
 export interface AllocatedPayment {

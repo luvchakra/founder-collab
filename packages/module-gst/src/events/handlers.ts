@@ -68,9 +68,13 @@ registerEventHandler("document.issued", async (event: DomainEvent) => {
  * with backoff until it gives up permanently, and neither of those is fixed by retrying.
  */
 registerEventHandler("document.issued", async (event: DomainEvent) => {
-  const payload = event.payload as { invoiceId?: string };
-  if (!payload.invoiceId) return;
-  await postIssuedDocument(event.business_id, payload.invoiceId, event.id);
+  // `documentId` is what Finance's own publishers send; `invoiceId` is the spelling
+  // Service and Inventory have always used, kept because their events are in flight and
+  // renaming a payload key would drop every one already queued.
+  const payload = event.payload as { documentId?: string; invoiceId?: string };
+  const documentId = payload.documentId ?? payload.invoiceId;
+  if (!documentId) return;
+  await postIssuedDocument(event.business_id, documentId, event.id);
 });
 
 /**

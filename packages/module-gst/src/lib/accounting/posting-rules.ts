@@ -28,6 +28,11 @@ export interface PlannedLine {
   role: AccountRoleKey;
   debit: number;
   credit: number;
+  /** The line carrying the document's own value, as opposed to tax or the counterparty
+   * balance. Marked because a hand-entered bill names the exact account its value belongs
+   * to ("Rent"), which no role can express — `postFinanceEvent` substitutes it here.
+   * Without this the founder picks Rent and the money lands in Inventory Asset. */
+  isValueLine?: boolean;
   memo?: string;
   /** Set on the tax lines so the GST ledger can be reconciled back to the journal. */
   gstAmount?: number;
@@ -213,7 +218,13 @@ export function planPosting(event: FinanceEvent): PostingResult {
       const gross = round2(event.total ?? net + tax);
       const value = event.valueAccountRole ?? (event.type === "expense.created" ? "product_cogs" : "inventory_asset");
       const lines: PlannedLine[] = [
-        { role: value, debit: net, credit: 0, memo: event.type === "expense.created" ? "Expense" : "Purchase" },
+        {
+          role: value,
+          debit: net,
+          credit: 0,
+          isValueLine: true,
+          memo: event.type === "expense.created" ? "Expense" : "Purchase",
+        },
         ...taxLines(event, "input_gst", "debit"),
         { role: "accounts_payable", debit: 0, credit: gross, memo: "Payable to supplier" },
       ];

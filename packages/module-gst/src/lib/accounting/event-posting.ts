@@ -7,7 +7,7 @@ import {
 import { postFinanceEvent, type PostFinanceEventResult } from "./journal-mutations";
 
 const DOCUMENT_COLUMNS =
-  "id, doc_type, source_module, party_id, doc_date, status, subtotal, discount_amount, shipping_amount, cgst_amount, sgst_amount, igst_amount, total_amount";
+  "id, doc_type, source_module, party_id, doc_date, status, subtotal, discount_amount, shipping_amount, cgst_amount, sgst_amount, igst_amount, total_amount, source_ref";
 
 /**
  * Posts the ledger entry for a document another module just issued.

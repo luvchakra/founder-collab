@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import { Wallet } from "lucide-react";
+import { Button } from "@cofounderai/core/ui/button";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { StatCard } from "@cofounderai/core/ui/stat-card";
 import { StatusBadge } from "@cofounderai/core/ui/status-badge";
@@ -14,6 +18,7 @@ import {
 } from "@cofounderai/core/ui/table";
 import { AGING_BUCKETS, AGING_BUCKET_LABELS, type AgingBucket, type PaymentStatus } from "../../lib/accounting/aging";
 import { ledgerAmount } from "./labels";
+import { PayBillsModal, type PayBillsActionState } from "./pay-bills-modal";
 import type { PayablesLedger } from "../../lib/accounting/payables-queries";
 
 const STATUS_LABEL: Record<PaymentStatus, string> = {
@@ -36,8 +41,17 @@ function bucketTone(bucket: AgingBucket): string {
  * this is a list of what to pay before it costs a relationship or a late fee — not a list
  * of the oldest thing to chase.
  */
-export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
+export function PayablesView({
+  ledger,
+  canPay,
+  payAction,
+}: {
+  ledger: PayablesLedger;
+  canPay: boolean;
+  payAction: (prevState: PayBillsActionState, formData: FormData) => Promise<PayBillsActionState>;
+}) {
   const { items, summary, bySupplier } = ledger;
+  const [payingSupplier, setPayingSupplier] = useState<string | null>(null);
 
   if (items.length === 0) {
     return (
@@ -83,6 +97,11 @@ export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
                     </span>
                   ))}
                 </div>
+                {canPay ? (
+                  <Button variant="outline" size="sm" className="self-start" onClick={() => setPayingSupplier(supplier.partyId)}>
+                    Pay {supplier.partyName}
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -97,6 +116,7 @@ export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
                   </TableHead>
                 ))}
                 <TableHead className="text-right">Total</TableHead>
+                {canPay ? <TableHead className="w-20 text-right">Actions</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,6 +131,13 @@ export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
                   <TableCell className="text-right font-semibold tabular-nums">
                     {ledgerAmount.format(supplier.total)}
                   </TableCell>
+                  {canPay ? (
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => setPayingSupplier(supplier.partyId)}>
+                        Pay
+                      </Button>
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               ))}
               <TableRow className="bg-muted/40 font-semibold hover:bg-muted/40">
@@ -123,6 +150,7 @@ export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
                 <TableCell className="text-right tabular-nums">
                   {ledgerAmount.format(summary.totalOutstanding)}
                 </TableCell>
+                {canPay ? <TableCell /> : null}
               </TableRow>
             </TableBody>
           </Table>
@@ -185,6 +213,15 @@ export function PayablesView({ ledger }: { ledger: PayablesLedger }) {
           </Table>
         </div>
       </section>
+
+      {payingSupplier ? (
+        <PayBillsModal
+          supplierName={bySupplier.find((s) => s.partyId === payingSupplier)?.partyName ?? "this supplier"}
+          bills={items.filter((i) => i.partyId === payingSupplier)}
+          action={payAction}
+          onClose={() => setPayingSupplier(null)}
+        />
+      ) : null}
     </div>
   );
 }
