@@ -8,6 +8,14 @@ import { ChevronDown, Lock, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { BRAND_NAME } from "../../lib/brand";
 import { isPromiseLike } from "../../lib/promise-like";
+import {
+  isNavGroupExpanded,
+  navGroupKey,
+  readNavGroupFolds,
+  toggleNavGroup,
+  writeNavGroupFolds,
+} from "../../lib/nav-group-folds";
+import type { NavGroupFolds } from "../../lib/nav-group-folds";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
@@ -59,42 +67,6 @@ function writeStoredModule(key: string) {
     window.localStorage.setItem(MODULE_STORAGE_KEY, key);
   } catch {
     // Storage unavailable (private browsing, quota) -- selection just won't persist.
-  }
-}
-
-/** Which nav sections the founder has opened, as "<moduleKey>::<heading>" keys -- scoped
- * per module so Inventory's "Overview" and FSM's "Overview" open independently.
- *
- * Sections start **collapsed**: an expanded module like Inventory is five sections and
- * about fifteen links, which buries every module below it. Storing the *expanded* ones
- * (rather than the collapsed ones) is what makes collapsed the default -- an empty or
- * missing value means everything is shut, and a module that later gains a section gets
- * it shut too rather than inheriting a stale default.
- *
- * A distinct storage key from the earlier "collapsed" list on purpose: reusing that key
- * would read an existing user's saved folds with exactly the opposite meaning, opening
- * every section they had closed. */
-const EXPANDED_GROUPS_STORAGE_KEY = "cofounderai:expanded-nav-groups";
-
-function readExpandedGroups(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === "string") : [];
-  } catch {
-    // Unavailable or corrupt (hand-edited, truncated write) -- every section just starts
-    // collapsed, which is the same state a first-time visitor gets.
-    return [];
-  }
-}
-
-function writeExpandedGroups(keys: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(keys));
-  } catch {
-    // Storage unavailable -- which sections are open just won't survive a reload.
   }
 }
 
@@ -223,7 +195,7 @@ function ModuleNav({
   onCreateBusiness,
   onNavigate,
   hasBusinesses,
-  isGroupCollapsed,
+  isGroupExpanded,
   onToggleGroup,
 }: {
   module: ShellNavModule;
@@ -234,8 +206,10 @@ function ModuleNav({
   onCreateBusiness?: () => void;
   onNavigate: () => void;
   hasBusinesses: boolean;
-  isGroupCollapsed: (heading: string) => boolean;
-  onToggleGroup: (heading: string) => void;
+  /** `holdsActive` is the default for a section the founder has never touched: open
+   * when it holds the page they're on, folded otherwise -- see lib/nav-group-folds.ts. */
+  isGroupExpanded: (heading: string, holdsActive: boolean) => boolean;
+  onToggleGroup: (heading: string, holdsActive: boolean) => void;
 }) {
   if (!hasBusinesses || !businessId) {
     return (
@@ -264,6 +238,10 @@ function ModuleNav({
     // Dashboard link instead of doubling as an editor form.
     const dashboardHref = `${base}/discovery/dashboard`;
     const businessDetailHref = `${base}/business`;
+    // Folding the section that holds the page you're on would hide where you are, so
+    // that one starts open. The offerings all live under one prefix, so a prefix test
+    // answers it without walking the list.
+    const offeringsHoldsActive = Boolean(pathname?.startsWith(`${base}/discovery/offerings/`));
     return (
       <div className="flex flex-col gap-0.5">
         <NavLink
@@ -284,8 +262,8 @@ function ModuleNav({
         />
         <NavGroup
           heading="Business Offerings"
-          collapsed={isGroupCollapsed("Business Offerings")}
-          onToggle={() => onToggleGroup("Business Offerings")}
+          collapsed={!isGroupExpanded("Business Offerings", offeringsHoldsActive)}
+          onToggle={() => onToggleGroup("Business Offerings", offeringsHoldsActive)}
         >
           {products.length === 0 ? (
             <p className="ml-7 py-1.5 text-sm text-sidebar-muted">No business offerings yet.</p>
@@ -315,31 +293,35 @@ function ModuleNav({
 
   return (
     <div className="flex flex-col gap-0.5">
-      {module.nav.map((group, groupIndex) => (
-        <NavGroup
-          key={group.heading ?? groupIndex}
-          heading={group.heading}
-          collapsed={group.heading ? isGroupCollapsed(group.heading) : false}
-          onToggle={() => group.heading && onToggleGroup(group.heading)}
-        >
-          {group.items.map((item) => {
-            const href = item.slug
-              ? `${base}${module.routePrefix}/${item.slug}`
-              : `${base}${module.routePrefix}`;
-            return (
+      {module.nav.map((group, groupIndex) => {
+        const items = group.items.map((item) => ({
+          ...item,
+          href: item.slug ? `${base}${module.routePrefix}/${item.slug}` : `${base}${module.routePrefix}`,
+        }));
+        // Folding the section that holds the page you're on would hide where you are, so
+        // that one starts open (until the founder folds it themselves).
+        const holdsActive = items.some((item) => item.href === pathname);
+        return (
+          <NavGroup
+            key={group.heading ?? groupIndex}
+            heading={group.heading}
+            collapsed={group.heading ? !isGroupExpanded(group.heading, holdsActive) : false}
+            onToggle={() => group.heading && onToggleGroup(group.heading, holdsActive)}
+          >
+            {items.map((item) => (
               <NavLink
                 key={item.slug || "root"}
-                href={href}
+                href={item.href}
                 label={item.label}
                 icon={item.icon}
-                isActive={pathname === href}
+                isActive={pathname === item.href}
                 onNavigate={onNavigate}
                 indent
               />
-            );
-          })}
-        </NavGroup>
-      ))}
+            ))}
+          </NavGroup>
+        );
+      })}
     </div>
   );
 }
@@ -414,17 +396,22 @@ export function AppSidebar({
 
   // Read on mount rather than in a useState initializer: the rail renders on the server
   // too, where localStorage doesn't exist, and seeding from it during the first client
-  // render would hydrate a different tree than the server sent.
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  // render would hydrate a different tree than the server sent. Starting empty is the
+  // correct first paint either way: with no stored choices every section falls back to
+  // its default, which derives from the URL and so is identical on both sides.
+  const [groupFolds, setGroupFolds] = useState<NavGroupFolds>({});
   useEffect(() => {
-    setExpandedGroups(readExpandedGroups());
+    setGroupFolds(readNavGroupFolds());
   }, []);
 
-  function toggleGroup(moduleKey: string, heading: string) {
-    const key = `${moduleKey}::${heading}`;
-    setExpandedGroups((prev) => {
-      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
-      writeExpandedGroups(next);
+  function isGroupExpanded(moduleKey: string, heading: string, holdsActive: boolean) {
+    return isNavGroupExpanded(groupFolds, navGroupKey(moduleKey, heading), holdsActive);
+  }
+
+  function toggleGroup(moduleKey: string, heading: string, holdsActive: boolean) {
+    setGroupFolds((prev) => {
+      const next = toggleNavGroup(prev, navGroupKey(moduleKey, heading), holdsActive);
+      writeNavGroupFolds(next);
       return next;
     });
   }
@@ -569,10 +556,12 @@ export function AppSidebar({
                     onCreateBusiness={onCreateBusiness}
                     onNavigate={closeDrawer}
                     hasBusinesses={businesses.length > 0}
-                    isGroupCollapsed={(heading) =>
-                      !expandedGroups.includes(`${module.key}::${heading}`)
+                    isGroupExpanded={(heading, holdsActive) =>
+                      isGroupExpanded(module.key, heading, holdsActive)
                     }
-                    onToggleGroup={(heading) => toggleGroup(module.key, heading)}
+                    onToggleGroup={(heading, holdsActive) =>
+                      toggleGroup(module.key, heading, holdsActive)
+                    }
                   />
                 ) : null}
               </div>

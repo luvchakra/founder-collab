@@ -27,3 +27,17 @@ test.describe("Inventory", () => {
     await expect(page.locator('nav[aria-label="Main"] a[href$="/inventory/team"]')).toHaveCount(0);
   });
 });
+
+// Sections start folded, with one exception: the section holding the page you're on
+// starts open, or the rail would show five shut headings and nothing highlighted after a
+// direct link. Inventory's Dashboard lives under "Overview".
+test.describe("Inventory nav folds", () => {
+  test("the section holding the current page starts open, the others folded", async ({ page }) => {
+    const slug = await getTestBusinessSlug(page);
+    await page.goto(`/${slug}/inventory/dashboard`);
+    await openSidebar(page);
+
+    await expect(page.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: "Sales", exact: true })).toHaveAttribute("aria-expanded", "false");
+  });
+});
