@@ -242,6 +242,7 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "GST Profile", slug: "profile", icon: "Receipt" },
           { label: "GST Registrations", slug: "registrations", icon: "Building2" },
           { label: "GST Ledger", slug: "gst-ledger", icon: "Receipt" },
+          { label: "Filing Readiness", slug: "filing-readiness", icon: "ListChecks" },
           { label: "GST Filing", slug: "filing", icon: "ClipboardList" },
           { label: "GSTR-2B Reconciliation", slug: "reconciliation", icon: "ListChecks" },
           { label: "e-Invoicing", slug: "einvoicing", icon: "FileText" },

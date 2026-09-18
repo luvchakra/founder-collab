@@ -21,8 +21,8 @@ the same way `fsm` is displayed as "Service".
 | F4 | Done | `f6b7f4b` | Posting engine wired to the ledger (rules engine itself landed with F2) |
 | F5/F6 | Partial | `d9cf354` `041e857` | Inventory/Service integration via `document.issued` + `payment.allocated`; no module internals crossed |
 | F7 | Done | `79f36ba` | GST ledger reconciled against the return |
-| F8 | Done | `pending` | ITC view: ledger vs purchase register vs GSTR-2B, with what is claimable and what is at risk |
-| F9 | Not started | — | Filing readiness |
+| F8 | Done | `11e53c7` | ITC view: ledger vs purchase register vs GSTR-2B, with what is claimable and what is at risk |
+| F9 | Done | `pending` | Filing readiness: one pre-flight check drawing on the ledger, registers, 2B, bank and period lock |
 | F10 | Not started | — | Budgets, recurring entries, AI assistance |
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
