@@ -27,7 +27,7 @@ the same way `fsm` is displayed as "Service".
 | Reports | Done | `652f8db` | P&L, balance sheet, trial balance |
 | Dashboard | Done | `39a95e8` | Money snapshot + unposted documents |
 | Receivables | Done | `609bfcb` | Aging by customer and by invoice |
-| **Payables** | Done | `pending` | Supplier bills are now canonical `core.documents`; aging by supplier and by bill |
+| **Payables** | Done | `7e87a40` | Supplier bills are now canonical `core.documents`; aging by supplier and by bill |
 
 ## Resolved: supplier bills are canonical documents
 
@@ -90,6 +90,53 @@ silently overstate receivables for the other module. Unifying the key is a chang
 other modules' data, not Finance's to make. Also recorded in
 `docs/plan/00-MASTER-PLAN.md` §5.
 
+## What remains, against the spec's own 54 sections
+
+Surveyed 2026-09-18 against
+`wonderark-finance-claude-code-autonomous-requirements.md`, section by section, not from
+memory. The accounting engine, the ledger and the reporting on top of it are done. What is
+left is mostly *entry* screens and the onboarding path — Finance can currently read and
+reconcile everything the operational modules produce, but a founder cannot yet type a bill
+or an expense into it directly.
+
+### Not built
+
+| § | Item | Note |
+|---|---|---|
+| 18 | Finance invoice view | Invoices list with accounting / payment / GST / e-invoice status kept independent. The data all exists; this is a screen. |
+| 19 | Bill entry | The `supplier_bill` doc type and Payables exist; the form to create one does not. Bills currently have to arrive from another module or by SQL. |
+| 20 | Expenses | Direct expense entry (vendor, account, GST, attachment, employee, job). The posting rule (`expense.created`) already exists. |
+| 21 | Payments screen | Recording a payment *in Finance*. Allocation, partial payment and overpayment already work through `core.payments`; there is no Finance-side UI for them. |
+| 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
+| 28 | Cash flow statement | The other three statements are done. |
+| 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |
+| 28 | Drill-down from reports | "Every report must drill into underlying transactions" — the journal has drill-down, the statements do not yet. |
+| 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
+| 38 | Finance exceptions | A queue with what happened / why it matters / suggested action / owner / status. Today's equivalents are scattered: unposted documents on the dashboard, ITC risk on the GST ledger, blockers on filing readiness. |
+| 39 | AI finance assistant | Deliberately not built — see below. |
+| 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
+| 42 | Activation wizard | The ten-step first-run flow. Every step exists as its own screen; nothing sequences them. |
+| 52 | Seed data | The deterministic Finance fixture set (30 invoices, 20 bills, locked period, failed e-invoice, duplicate scenarios…). |
+
+### Partly built
+
+- **§40 Explainable accounting** — every automatic entry records the rule and version that
+  produced it and explains itself in plain language on the entry page. What is missing is
+  the reverse direction: from a source document to the entries it caused.
+- **§53 Edge cases** — most are covered as unit tests (duplicate event, partial payment,
+  overpayment, refund, credit note after payment, closed period, invalid journal, duplicate
+  bank transaction, purchase/sales return). Not covered end-to-end: licence cancellation
+  and reactivation, historical backfill and duplicate backfill, negative inventory.
+
+### Deliberately not built
+
+**§39, the AI finance assistant.** Finance is deterministic arithmetic, and CLAUDE.md
+principle 4 is explicit about not using an LLM for that. The spec's own AI touchpoints are
+narrower than the section title suggests — categorisation suggestions (§20) and "do not
+auto-post high-risk AI suggestions without configured approval" — and the genuinely fuzzy
+case is categorising an unmatched bank line, which is a real candidate whenever it is
+wanted. Recorded as a decision rather than an oversight.
+
 ## Migrations
 
 Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
@@ -103,3 +150,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260917240000_gst_banking` | F3: bank accounts, transactions, reconciliations, `gst.banking.manage` |
 | `20260918100000_gst_recurring_entries` | F10: recurring journal templates, reusing `gst.journal.create` |
 | `20260918110000_gst_budgets` | F10: per-account, per-month budget lines, reusing `gst.accounts.write` |
+| `20260918120000_core_supplier_bill_doc_type` | `supplier_bill` + `supplier_credit` on `core.documents`, unblocking Payables |
