@@ -126,3 +126,51 @@ real story specs what "search anything" should actually search and how licensing
 scope it; don't build a placeholder in the meantime. The topbar is therefore thinner than
 the reference screens show — deliberately, since a search box that looks real and does
 nothing is worse than no search box.
+
+## The logo, and which file goes where
+
+The brand masters live in `brand/`: the full WonderArk lockup — mark, wordmark and the
+"Accelerate. Revenue. Knowledge." tagline — drawn twice, once for a light ground and once
+for a dark one. They are two pieces of artwork rather than one recoloured, because the
+mark itself changes: the light version carries a navy underside on the W, the dark version
+a white one. Neither survives being dropped on the other's background.
+
+Everything the app serves is derived from those two files by `npm run build:brand`
+(`scripts/build-brand-assets.mjs`). Nothing under `apps/web/public/brand/` or the icon
+files in `apps/web/app/` should be edited by hand — replace a master and rebuild.
+
+Components never name a file. They import `BRAND_LOCKUP` / `BRAND_MARK` from
+`@cofounderai/core/brand/generated/assets`, which the same script writes: it carries both
+the path and the intrinsic dimensions `next/image` needs to reserve space, and both are
+facts about the files rather than numbers worth copying.
+
+| Asset | What it is | Where it belongs |
+|---|---|---|
+| `BRAND_LOCKUP.onLight` | Mark + wordmark, navy artwork | Light surfaces: the marketing navbar and footer, the auth header |
+| `BRAND_LOCKUP.onDark` | Mark + wordmark, white artwork | Dark surfaces |
+| `BRAND_MARK.onLight` | The mark alone, navy artwork | Light surfaces, via `LogoMark` |
+| `BRAND_MARK.onDark` | The mark alone, white artwork | Dark surfaces, via `LogoMark onDark` — the navigation rail and the platform admin header, which are dark in both themes |
+| `app/icon.png` | The mark on brand navy, 512px | The browser tab |
+| `app/apple-icon.png` | The same, 180px | The iOS home screen |
+| `app/opengraph-image.png` | The lockup on brand navy, 1200×630 | Every link preview, Open Graph and Twitter alike |
+
+Four decisions worth not re-litigating:
+
+- **The in-app lockup has no tagline.** It renders at 28–32px tall everywhere it appears;
+  keeping the strapline would shrink the wordmark to make room for four unreadable pixels.
+  The footer sets the tagline as real text instead, where it can be read and selected.
+- **Both variants of each asset are written at identical dimensions**, so the theme swap in
+  `LogoMark` cannot shift the layout by the percent or two their natural crops differ by.
+- **The icons are not transparent.** The mark carries navy in one variant and white in the
+  other, so a transparent app icon loses part of itself against whichever browser chrome it
+  lands on. A solid brand-navy ground is the one version that reads everywhere.
+- **Every filename carries a content hash.** Replacing an image at a path it has already
+  been served from is the one change a cache cannot see — Next's image optimizer keys on
+  the URL and keeps handing out the old artwork for its minimum TTL. That is not
+  theoretical: it happened while this pipeline was being built, with the optimizer serving
+  a stale WebP of the previous logo for a URL whose PNG was already correct. New artwork is
+  now a new URL, so there is nothing to invalidate.
+
+The lockup files are the platform's *default*. A superadmin can override the login logo
+with their own URL from the Platform portal's Branding page, and each business can set its
+own logo for the business switcher — neither replaces these.

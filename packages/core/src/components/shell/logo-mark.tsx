@@ -1,41 +1,34 @@
 import Image from "next/image";
+import { BRAND_MARK } from "../../brand/generated/assets";
 import { cn } from "../../lib/utils";
 
 /**
- * Ported from co-founder-ai's components/ui/logo-mark.tsx (docs/PORT-PROVENANCE.md).
- * logo-mark.png's "tie" silhouette is a dark navy fill (for a light background);
- * logo-mark-light.png is the same artwork recolored to a near-white fill (for a dark
- * background) -- named for the *artwork's* own color, not which theme it belongs on,
- * which is the opposite of what these two `dark:`-gated branches originally assumed.
- * Swapping via the `dark:` variant is pure CSS, so this works in Server Components (the
- * topbar) with no client JS, and follows the real "Appearance" dark-mode toggle
+ * The WonderArk mark on its own — the ribbon W with its swoosh and sparkle, no wordmark —
+ * for the places that have no room for one.
+ *
+ * Two files, because the mark is drawn twice rather than recoloured: the light-ground
+ * artwork carries a navy underside that would disappear on a dark ground, and the
+ * dark-ground artwork a white one that would disappear on a light one. Both are written at
+ * identical dimensions (scripts/build-brand-assets.mjs), so swapping between them never
+ * shifts the layout, and both paths and sizes come from the generated manifest rather than
+ * being copied here, where they would go stale the next time the artwork changes.
+ *
+ * Swapping via the `dark:` variant is pure CSS, so this works in Server Components with
+ * no client JS and follows the real "Appearance" toggle
  * (packages/core/src/components/theme/theme-provider.tsx) even though the platform
  * defaults to light per docs/DESIGN.md.
  */
 export function LogoMark({ className, onDark }: { className?: string; onDark?: boolean }) {
-  // `onDark` is for surfaces that are dark in *both* themes (the sidebar rail), where
-  // following the `dark:` variant would paint the navy artwork onto a navy background.
+  // `onDark` is for surfaces that are dark in *both* themes — the navigation rail, the
+  // platform admin header — where following the `dark:` variant would paint the navy
+  // artwork onto a navy background.
   if (onDark) {
-    return <Image src="/logo-mark-light.png" alt="" width={442} height={350} priority className={className} />;
+    return <Image {...BRAND_MARK.onDark} alt="" priority className={className} />;
   }
   return (
     <>
-      <Image
-        src="/logo-mark.png"
-        alt=""
-        width={442}
-        height={350}
-        priority
-        className={cn(className, "block dark:hidden")}
-      />
-      <Image
-        src="/logo-mark-light.png"
-        alt=""
-        width={442}
-        height={350}
-        priority
-        className={cn(className, "hidden dark:block")}
-      />
+      <Image {...BRAND_MARK.onLight} alt="" priority className={cn(className, "block dark:hidden")} />
+      <Image {...BRAND_MARK.onDark} alt="" priority className={cn(className, "hidden dark:block")} />
     </>
   );
 }

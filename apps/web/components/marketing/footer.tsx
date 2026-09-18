@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 /** Real, working destinations only. Product/Modules links jump to sections already on
@@ -53,10 +54,8 @@ export function Footer() {
           <div className="col-span-2 sm:col-span-2">
             <Link href="/" aria-label={BRAND_NAME} className="inline-block">
               <Image
-                src="/logo-lockup.png"
+                {...BRAND_LOCKUP.onLight}
                 alt={BRAND_NAME}
-                width={900}
-                height={218}
                 className="h-7 w-auto"
               />
             </Link>

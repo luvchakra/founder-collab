@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+import { LogoMark } from "@cofounderai/core/shell/logo-mark";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { cn } from "@cofounderai/core/lib/utils";
 import { PLATFORM_NAV_GROUPS } from "./platform-nav";
@@ -52,6 +53,10 @@ export function PlatformShell({
           >
             {mobileNavOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
+          {/* The one shell that carried no mark at all. The header is dark in both
+              themes, so the artwork is pinned to its light-fill variant rather than
+              following the theme. */}
+          <LogoMark onDark className="h-6 w-auto shrink-0" />
           <span className="text-sm font-semibold tracking-wide">{BRAND_NAME} Platform Administration</span>
           <Badge variant="destructive">SUPERADMIN</Badge>
         </div>

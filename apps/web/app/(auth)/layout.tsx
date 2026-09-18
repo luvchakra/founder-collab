@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
@@ -67,10 +68,8 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
             <img src={branding.logoUrl} alt={branding.platformName} className="h-7 w-auto" />
           ) : (
             <Image
-              src="/logo-lockup.png"
+              {...BRAND_LOCKUP.onLight}
               alt={branding.platformName}
-              width={900}
-              height={218}
               priority
               className="h-7 w-auto"
             />

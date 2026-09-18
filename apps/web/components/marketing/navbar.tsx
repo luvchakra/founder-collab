@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
 import { Menu, X } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
@@ -23,10 +24,8 @@ export function Navbar() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" aria-label={BRAND_NAME} className="shrink-0">
           <Image
-            src="/logo-lockup.png"
+            {...BRAND_LOCKUP.onLight}
             alt={BRAND_NAME}
-            width={900}
-            height={218}
             priority
             className="h-8 w-auto"
           />
