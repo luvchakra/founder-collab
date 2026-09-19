@@ -14,6 +14,7 @@ the same way `fsm` is displayed as "Service".
 
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
+| FIN-1 | Done | `pending` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
 | F2 | Done | `ed1ef3d` `0d13019` `f6b7f4b` `d9cf354` | Chart of accounts + provisioning, accounting periods, journal, automatic posting |
@@ -130,6 +131,30 @@ document to its ledger entry with idempotency the database enforces; a second in
 would be a second place for that to be wrong. The e-invoicing handler on the same event
 guards on `docType === 'invoice'`, so a bill passes it by.
 
+### Exceptions queue (FIN-1) — built 2026-09-19
+
+One triage queue, `gst.finance_exceptions`, over the three sources §38 named as scattered:
+unposted documents (the dashboard), ITC at risk (the GST ledger), filing blockers
+(readiness). Those three screens keep their own live view; the queue sits on top, with
+Open/In Review/Resolved/Ignored status and an assignable owner.
+
+**A second table, not a widened `gst.reconciliation_exceptions`.** That table already
+persists a triage queue, but a narrower one built for GSTR-2B reconciliation/IMS, with a
+three-state status (`open`/`resolved`/`dismissed`) and its own `exception_type` check
+constraint its own migration says widening is a future story's call. FIN-1's four states
+and three different sources didn't fit it, so `gst.finance_exceptions` is additive, same
+precedent as every other "new kind of exception source" in this schema.
+
+**Sync is additive-only and manual**, same rule as the reconciliation queue's own sync: a
+fresh sync inserts an `open` row for a candidate with no existing row for its own natural
+key, and never touches an existing row's own status — nobody's triage decision is silently
+undone by a re-sync. It's a button, not automatic on page load, because it's a write.
+
+**The `posted` filing-readiness blocker is deliberately excluded** from the filing-blocker
+exceptions: it's the same underlying fact the unposted-document exceptions already raise
+one row per document for, and repeating it as a fourth, coarser exception would just be the
+same issue counted twice.
+
 ### Not built
 
 | § | Item | Note |
@@ -140,7 +165,6 @@ guards on `docType === 'invoice'`, so a bill passes it by.
 | 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |
 | 28 | Drill-down from reports | "Every report must drill into underlying transactions" — the journal has drill-down, the statements do not yet. |
 | 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
-| 38 | Finance exceptions | A queue with what happened / why it matters / suggested action / owner / status. Today's equivalents are scattered: unposted documents on the dashboard, ITC risk on the GST ledger, blockers on filing readiness. |
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
 | 42 | Activation wizard | The ten-step first-run flow. Every step exists as its own screen; nothing sequences them. |
@@ -179,3 +203,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260918100000_gst_recurring_entries` | F10: recurring journal templates, reusing `gst.journal.create` |
 | `20260918110000_gst_budgets` | F10: per-account, per-month budget lines, reusing `gst.accounts.write` |
 | `20260918120000_core_supplier_bill_doc_type` | `supplier_bill` + `supplier_credit` on `core.documents`, unblocking Payables |
+| `20260919100000_gst_finance_exceptions` | FIN-1: `gst.finance_exceptions`, `gst.exceptions.manage` permission |

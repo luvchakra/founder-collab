@@ -224,7 +224,13 @@ export const moduleRegistry: ModuleManifest[] = [
     // so listing a page before it exists ships a 404 (and fails tests/menu-routes.test.ts,
     // which asserts every nav item resolves to a real page).
     nav: [
-      { heading: "Overview", items: [{ label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" }] },
+      {
+        heading: "Overview",
+        items: [
+          { label: "Dashboard", slug: "dashboard", icon: "LayoutDashboard" },
+          { label: "Exceptions", slug: "exceptions", icon: "ListChecks" },
+        ],
+      },
       {
         heading: "Accounting",
         items: [

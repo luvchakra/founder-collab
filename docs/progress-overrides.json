@@ -217,8 +217,8 @@
       "note": "`docs/EPIC6-PROGRESS.md` \u2014 \"mostly done\"; the remaining scope is listed there"
     },
     "FIN-1": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` \u2014 surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` \u2014 exceptions queue, built 2026-09-19"
     },
     "FIN-2": {
       "status": "Not started",
