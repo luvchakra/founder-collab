@@ -14,7 +14,8 @@ the same way `fsm` is displayed as "Service".
 
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
-| FIN-1 | Done | `pending` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
+| FIN-1 | Done | `e7138b2` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
+| FIN-2 | Done | `pending` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
 | F2 | Done | `ed1ef3d` `0d13019` `f6b7f4b` `d9cf354` | Chart of accounts + provisioning, accounting periods, journal, automatic posting |
@@ -57,6 +58,7 @@ Each was caught by building the thing that depends on it, not by a separate audi
 | **A silently short trial balance.** Summing fetched lines in TypeScript would hit PostgREST's default page cap; a busy business would have got a quietly wrong statement. | Writing the reports query | Aggregation moved into `gst.account_period_totals` (`652f8db`) |
 | **Bank CSV import read `Date,Description,Amount` as having a credit column.** The two-letter aliases `cr`/`dr` substring-matched inside "des-cr-iption", so no amount could be read off any row. | The importer's own tests | Header matching on whole words (`1ac2539`) |
 | Five lucide icon names used by the crm/fsm/gst manifests were missing from the shell's resolver and silently rendered the fallback. | Adding a nav icon | Added to `module-icon.tsx` (`ed1ef3d`) |
+| **A bill or supplier credit that failed to post never showed up as unposted anywhere.** `listUnpostedDocuments`'s own `POSTABLE_DOC_TYPES` list (`invoice`/`credit_note`/`debit_note`/`sales_return`) was a second, silently drifted copy of `document-events.ts`'s `EVENT_BY_DOC_TYPE`, which had grown to include `supplier_bill`/`supplier_credit` when Payables shipped without the dashboard's own list being updated alongside it. | Scoping FIN-2's backfill to "invoices, bills, payments and expenses" and finding bills fell out of the scan entirely | `POSTABLE_DOC_TYPES` is now exported from `document-events.ts` (the one place that already had to stay correct) and imported everywhere else needs it, so there is one list, not two (`pending`) |
 
 ## Decisions worth not re-litigating
 
@@ -155,6 +157,33 @@ exceptions: it's the same underlying fact the unposted-document exceptions alrea
 one row per document for, and repeating it as a fourth, coarser exception would just be the
 same issue counted twice.
 
+### Backfill (FIN-2) — built 2026-09-19
+
+Scans `core.documents` and `core.payment_allocations` for anything with an accounting
+consequence that hasn't reached `gst.journal_entries` yet -- typically the whole of a
+business's history from before it licensed Finance -- and posts the eligible ones.
+
+**No posting path of its own.** The scan hands each candidate to
+`postIssuedDocument`/`postPaymentAllocation`, the exact functions the live
+`document.issued`/`payment.allocated` event drain already calls. A second way to reach the
+ledger is a second place for that to disagree with the first, and idempotency is already
+solved there (the unique index on `idempotency_key`/`source_entity_id`) -- running the
+backfill twice, or after the drain has already caught some of the same history, converges
+on the same ledger either way. "Must never silently duplicate history" falls out of reusing
+that path rather than needing its own guarantee.
+
+**Scan-then-run, not a predictive preview.** Whether an entry will actually post depends on
+the chart of accounts being set up -- state a dry run would have to fake to answer
+honestly. So the screen shows what will be *attempted* (a count of unposted documents and
+payments) and the run's own result says what happened, rather than a preview that
+guesses.
+
+**Whatever can't post is routed into `gst.finance_exceptions`** (the same additive-insert
+FIN-1's own sync uses) rather than reported once and dropped. A new `unposted_payment`
+exception type was added for this (`20260919110000_gst_finance_exceptions_unposted_payment`)
+-- a payment allocation isn't a `core.documents` row, so reusing `unposted_document` would
+have made `reference_key` ambiguous between the two.
+
 ### Not built
 
 | § | Item | Note |
@@ -204,3 +233,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260918110000_gst_budgets` | F10: per-account, per-month budget lines, reusing `gst.accounts.write` |
 | `20260918120000_core_supplier_bill_doc_type` | `supplier_bill` + `supplier_credit` on `core.documents`, unblocking Payables |
 | `20260919100000_gst_finance_exceptions` | FIN-1: `gst.finance_exceptions`, `gst.exceptions.manage` permission |
+| `20260919110000_gst_finance_exceptions_unposted_payment` | FIN-2: widened `exception_type` to add `unposted_payment` |

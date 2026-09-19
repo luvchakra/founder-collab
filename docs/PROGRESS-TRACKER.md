@@ -19,18 +19,18 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 270 |
+| ✅ Done | 271 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 1 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 5 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 85 |
+| ⬜ Not started | 84 |
 | **Total** | **391** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
-| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 53 | 1 | 11 | 65 |
+| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 54 | 1 | 10 | 65 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 79 | 0 | 31 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 51 | 0 | 7 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
@@ -38,11 +38,10 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-90 stories are neither built nor deliberately set aside:
+89 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
-| `FIN-2` | Backfill | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-3` | Activation wizard | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-4` | Finance invoice view | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-5` | Cash flow statement | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
@@ -229,7 +228,7 @@ Source: [`docs/plan/04-CLAUDE-CODE-BACKLOG.md`](./plan/04-CLAUDE-CODE-BACKLOG.md
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `FIN-1` | Finance exceptions queue | ✅ Done | `docs/FINANCE-PROGRESS.md` — exceptions queue, built 2026-09-19 |
-| `FIN-2` | Backfill | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
+| `FIN-2` | Backfill | ✅ Done | `docs/FINANCE-PROGRESS.md` — backfill, built 2026-09-19 |
 | `FIN-3` | Activation wizard | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-4` | Finance invoice view | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-5` | Cash flow statement | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |

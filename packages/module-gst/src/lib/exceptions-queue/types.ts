@@ -3,11 +3,15 @@
  * `supabase/migrations/20260919100000_gst_finance_exceptions.sql`'s own docstring for the
  * full scope/design trail, including why this is a second table rather than a widened
  * `gst.reconciliation_exceptions` (`lib/exceptions/types.ts`).
+ *
+ * `unposted_payment` was added by FIN-2's own migration
+ * (`20260919110000_gst_finance_exceptions_unposted_payment.sql`) once the backfill scan
+ * needed somewhere to route a payment allocation it couldn't post.
  */
 
-export type FinanceExceptionType = "unposted_document" | "itc_at_risk" | "filing_blocker";
+export type FinanceExceptionType = "unposted_document" | "unposted_payment" | "itc_at_risk" | "filing_blocker";
 
-export const FINANCE_EXCEPTION_TYPES: FinanceExceptionType[] = ["unposted_document", "itc_at_risk", "filing_blocker"];
+export const FINANCE_EXCEPTION_TYPES: FinanceExceptionType[] = ["unposted_document", "unposted_payment", "itc_at_risk", "filing_blocker"];
 
 export type FinanceExceptionStatus = "open" | "in_review" | "resolved" | "ignored";
 

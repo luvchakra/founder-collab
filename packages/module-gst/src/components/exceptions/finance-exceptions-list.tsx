@@ -7,6 +7,7 @@ import type { FinanceException, FinanceExceptionStatus, FinanceExceptionType } f
 
 const EXCEPTION_TYPE_LABEL: Record<FinanceExceptionType, string> = {
   unposted_document: "Unposted document",
+  unposted_payment: "Unposted payment",
   itc_at_risk: "ITC at risk",
   filing_blocker: "Filing blocker",
 };

@@ -4,6 +4,7 @@ import { listAccountRoles, listAccounts } from "./queries";
 import { getAccountPeriodTotals } from "./report-queries";
 import { profitAndLoss } from "./reports";
 import { fiscalYearOf, monthlyPeriodsForFiscalYear } from "./periods";
+import { POSTABLE_DOC_TYPES } from "./document-events";
 import type { AccountRoleKey } from "./types";
 
 export interface FinanceSnapshot {
@@ -79,10 +80,6 @@ export interface UnpostedDocument {
   source_module: string;
 }
 
-/** Document types Finance posts. Anything else is a commitment, not a transaction — see
- * `document-events.ts` for the same list and the reasoning. */
-const POSTABLE_DOC_TYPES = ["invoice", "credit_note", "debit_note", "sales_return"];
-
 /**
  * Documents that should have reached the ledger and haven't.
  *
@@ -93,7 +90,8 @@ const POSTABLE_DOC_TYPES = ["invoice", "credit_note", "debit_note", "sales_retur
  *
  * Deliberately scoped to the most recent documents rather than the whole history, and
  * presented as such: this is a "something is wrong, here is what" prompt, not a report to
- * reconcile against.
+ * reconcile against. FIN-2's own backfill scan calls this with a much higher limit when it
+ * needs the whole history instead.
  */
 export async function listUnpostedDocuments(
   businessId: string,

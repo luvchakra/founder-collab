@@ -42,6 +42,14 @@ const EVENT_BY_DOC_TYPE: Record<string, FinanceEventType> = {
   supplier_credit: "inventory.returned",
 };
 
+/** The single source of truth for "which document types have an accounting consequence" --
+ * `listUnpostedDocuments` (dashboard-queries.ts) and the FIN-2 backfill scan both need
+ * this same set to decide what to scan `core.documents` for, and duplicating it as its own
+ * literal list is exactly how it drifted out of sync with this one before: the dashboard's
+ * own list was missing `supplier_bill`/`supplier_credit` entirely, so a bill that failed
+ * to post never showed up as unposted anywhere. */
+export const POSTABLE_DOC_TYPES: string[] = Object.keys(EVENT_BY_DOC_TYPE);
+
 /** Documents on the buying side. They take no revenue account — see `revenueRoleOf`. */
 const PURCHASE_DOC_TYPES = new Set(["supplier_bill", "supplier_credit"]);
 

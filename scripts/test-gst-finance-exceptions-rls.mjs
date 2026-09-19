@@ -75,6 +75,10 @@ async function main() {
       console.log("An unrecognized exception_type is rejected by the check constraint...");
       assertThrows(() => psqlAsAlice(insertException(aliceBusiness, "bogus_type", "doc-2", "test")), "exception_type check constraint");
 
+      console.log("FIN-2's own 'unposted_payment' exception_type is accepted (the widened constraint)...");
+      const paymentExceptionId = psqlAsAlice(insertException(aliceBusiness, "unposted_payment", "alloc-1", "Payment unposted"));
+      assertEqual(paymentExceptionId.length > 0, true, "unposted_payment row created");
+
       console.log("An unrecognized status is rejected by the check constraint...");
       assertThrows(
         () =>
@@ -103,7 +107,7 @@ async function main() {
       assertEqual(psqlAsAlice(`select owner_id from gst.finance_exceptions where id = '${secondId}'`), ALICE, "owner assigned");
 
       console.log("Carol (viewer) CAN read Alice's exceptions (read is open to any business member)...");
-      assertEqual(psqlAsCarol(`select count(*)::int from gst.finance_exceptions where business_id = '${aliceBusiness}'`), "2", "viewer can read both");
+      assertEqual(psqlAsCarol(`select count(*)::int from gst.finance_exceptions where business_id = '${aliceBusiness}'`), "3", "viewer can read all three");
 
       console.log("Bob cannot read Alice's exceptions at all (tenant isolation)...");
       assertEqual(psqlAsBob(`select count(*)::int from gst.finance_exceptions where business_id = '${aliceBusiness}'`), "0", "cross-tenant read returns nothing");

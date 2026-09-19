@@ -245,6 +245,7 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Budget", slug: "budget", icon: "Target" },
           { label: "Recurring Entries", slug: "recurring", icon: "Repeat" },
           { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },
+          { label: "Backfill", slug: "backfill", icon: "History" },
         ],
       },
       {
