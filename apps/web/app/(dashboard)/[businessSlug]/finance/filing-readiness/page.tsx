@@ -11,9 +11,8 @@ import { listUnpostedDocuments } from "@cofounderai/module-gst/lib/accounting/da
 import { listAccountingPeriods } from "@cofounderai/module-gst/lib/accounting/queries";
 import { listBankAccounts, listBankTransactions } from "@cofounderai/module-gst/lib/accounting/banking-queries";
 import { fiscalYearOf, monthlyPeriodsForFiscalYear, periodForDate } from "@cofounderai/module-gst/lib/accounting/periods";
+import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import { FilingReadinessView } from "@cofounderai/module-gst/components/accounting/filing-readiness-view";
-
-const FISCAL_YEAR_START_MONTH = 4;
 
 /**
  * Finance F9 — the pre-flight check before filing.
@@ -36,8 +35,9 @@ export default async function FilingReadinessPage({
   const businessId = await resolveBusinessIdBySlug(businessSlug);
   if (!businessId) notFound();
 
+  const { fiscalYearStartMonth } = await getActivationSettings(businessId);
   const today = new Date().toISOString().slice(0, 10);
-  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, FISCAL_YEAR_START_MONTH), FISCAL_YEAR_START_MONTH);
+  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, fiscalYearStartMonth), fiscalYearStartMonth);
   const selected =
     year.find((p) => p.gstPeriod === period) ??
     year.find((p) => p.startDate <= today && today <= p.endDate) ??

@@ -5,6 +5,7 @@ import { getAccountPeriodTotals } from "./report-queries";
 import { profitAndLoss } from "./reports";
 import { fiscalYearOf, monthlyPeriodsForFiscalYear } from "./periods";
 import { POSTABLE_DOC_TYPES } from "./document-events";
+import { getActivationSettings } from "../activation/queries";
 import type { AccountRoleKey } from "./types";
 
 export interface FinanceSnapshot {
@@ -45,9 +46,10 @@ function sumRoles(
  * account "the bank" is.
  */
 export async function getFinanceSnapshot(businessId: string): Promise<FinanceSnapshot> {
+  const { fiscalYearStartMonth } = await getActivationSettings(businessId);
   const today = new Date().toISOString().slice(0, 10);
-  const fiscalYear = fiscalYearOf(today);
-  const year = monthlyPeriodsForFiscalYear(fiscalYear);
+  const fiscalYear = fiscalYearOf(today, fiscalYearStartMonth);
+  const year = monthlyPeriodsForFiscalYear(fiscalYear, fiscalYearStartMonth);
   const thisMonth = year.find((p) => p.startDate <= today && today <= p.endDate) ?? year[0]!;
 
   const [accounts, roles, monthTotals, yearTotals] = await Promise.all([

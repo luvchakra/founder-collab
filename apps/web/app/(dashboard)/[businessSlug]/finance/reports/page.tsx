@@ -7,6 +7,7 @@ import { PageHeader } from "@cofounderai/core/ui/page-header";
 import { cn } from "@cofounderai/core/lib/utils";
 import { getFinancialStatements } from "@cofounderai/module-gst/lib/accounting/report-queries";
 import { fiscalYearLabel, fiscalYearOf, monthlyPeriodsForFiscalYear } from "@cofounderai/module-gst/lib/accounting/periods";
+import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import {
   BalanceSheetReport,
   ProfitAndLossReport,
@@ -16,8 +17,6 @@ import {
   isReportKey,
   type ReportKey,
 } from "@cofounderai/module-gst/components/accounting/financial-statements";
-
-const FISCAL_YEAR_START_MONTH = 4;
 
 /**
  * Finance — the three statements, all from one read of the ledger.
@@ -40,9 +39,10 @@ export default async function FinanceReportsPage({
 
   const report: ReportKey = reportParam && isReportKey(reportParam) ? reportParam : "profit-and-loss";
 
+  const { fiscalYearStartMonth } = await getActivationSettings(businessId);
   const today = new Date().toISOString().slice(0, 10);
-  const fiscalYear = fiscalYearOf(today, FISCAL_YEAR_START_MONTH);
-  const year = monthlyPeriodsForFiscalYear(fiscalYear, FISCAL_YEAR_START_MONTH);
+  const fiscalYear = fiscalYearOf(today, fiscalYearStartMonth);
+  const year = monthlyPeriodsForFiscalYear(fiscalYear, fiscalYearStartMonth);
   const thisMonth = year.find((p) => p.startDate <= today && today <= p.endDate) ?? year[0]!;
 
   // Year to date by default: the period someone means when they say "how are we doing".
@@ -56,8 +56,8 @@ export default async function FinanceReportsPage({
 
   const presets: { label: string; from: string; to: string }[] = [
     { label: "This month", from: thisMonth.startDate, to: thisMonth.endDate },
-    { label: `${fiscalYearLabel(fiscalYear, FISCAL_YEAR_START_MONTH)} to date`, from: year[0]!.startDate, to: thisMonth.endDate },
-    { label: fiscalYearLabel(fiscalYear - 1, FISCAL_YEAR_START_MONTH), from: monthlyPeriodsForFiscalYear(fiscalYear - 1, FISCAL_YEAR_START_MONTH)[0]!.startDate, to: monthlyPeriodsForFiscalYear(fiscalYear - 1, FISCAL_YEAR_START_MONTH)[11]!.endDate },
+    { label: `${fiscalYearLabel(fiscalYear, fiscalYearStartMonth)} to date`, from: year[0]!.startDate, to: thisMonth.endDate },
+    { label: fiscalYearLabel(fiscalYear - 1, fiscalYearStartMonth), from: monthlyPeriodsForFiscalYear(fiscalYear - 1, fiscalYearStartMonth)[0]!.startDate, to: monthlyPeriodsForFiscalYear(fiscalYear - 1, fiscalYearStartMonth)[11]!.endDate },
   ];
 
   return (

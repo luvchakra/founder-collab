@@ -16,6 +16,8 @@ import {
   FinanceSnapshotCards,
   UnpostedDocumentsNotice,
 } from "@cofounderai/module-gst/components/accounting/finance-snapshot";
+import { getFinanceActivation } from "@cofounderai/module-gst/lib/activation/queries";
+import { ActivationBanner } from "@cofounderai/module-gst/components/activation/activation-banner";
 
 /**
  * COMPLY-P0-11.1 (Overview Dashboard): extends the existing month-snapshot dashboard
@@ -46,12 +48,13 @@ export default async function ComplianceDashboardPage({
   if (!business) notFound();
 
   const asOf = new Date().toISOString().slice(0, 10);
-  const [data, riskDashboard, filingCalendar, snapshot, unposted] = await Promise.all([
+  const [data, riskDashboard, filingCalendar, snapshot, unposted, activation] = await Promise.all([
     getComplianceDashboard(businessId),
     getRiskDashboard(businessId, asOf),
     getFilingCalendar(businessId, { monthsBack: 1, monthsForward: 2, quartersBack: 0, quartersForward: 1 }),
     getFinanceSnapshot(businessId),
     listUnpostedDocuments(businessId),
+    getFinanceActivation(businessId),
   ]);
   const financePath = `/${businessSlug}/finance`;
 
@@ -65,6 +68,8 @@ export default async function ComplianceDashboardPage({
           {business.name} -- where the money stands, and this month&apos;s GST snapshot.
         </p>
       </div>
+
+      {activation.activatedAt === null ? <ActivationBanner basePath={financePath} /> : null}
 
       <FinanceSnapshotCards snapshot={snapshot} basePath={financePath} />
 

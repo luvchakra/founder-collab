@@ -4,12 +4,9 @@ import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
 import { listAccountingPeriods } from "@cofounderai/module-gst/lib/accounting/queries";
 import { fiscalYearOf } from "@cofounderai/module-gst/lib/accounting/periods";
+import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import { AccountingPeriodsView } from "@cofounderai/module-gst/components/accounting/accounting-periods-view";
 import { openFiscalYearAction, setAccountingPeriodStatusAction } from "./actions";
-
-/** India's fiscal year, this module's home jurisdiction. Held here rather than in the
- * domain layer (which takes it as a parameter) until a business can choose its own. */
-const FISCAL_YEAR_START_MONTH = 4;
 
 /**
  * Finance F2 — the accounting calendar: which months accept postings, which are locked
@@ -28,12 +25,13 @@ export default async function FinancePeriodsPage({
   const businessId = await resolveBusinessIdBySlug(businessSlug);
   if (!businessId) notFound();
 
-  const [periods, canManage] = await Promise.all([
+  const [periods, canManage, { fiscalYearStartMonth }] = await Promise.all([
     listAccountingPeriods(businessId),
     hasPermission(businessId, "gst.periods.manage"),
+    getActivationSettings(businessId),
   ]);
 
-  const currentFiscalYear = fiscalYearOf(new Date().toISOString().slice(0, 10), FISCAL_YEAR_START_MONTH);
+  const currentFiscalYear = fiscalYearOf(new Date().toISOString().slice(0, 10), fiscalYearStartMonth);
   const openedYears = new Set(periods.map((p) => p.fiscal_year));
   const openableFiscalYears = [currentFiscalYear + 1, currentFiscalYear, currentFiscalYear - 1].filter(
     (year) => !openedYears.has(year),
@@ -49,7 +47,7 @@ export default async function FinancePeriodsPage({
       <AccountingPeriodsView
         periods={periods}
         openableFiscalYears={openableFiscalYears}
-        fiscalYearStartMonth={FISCAL_YEAR_START_MONTH}
+        fiscalYearStartMonth={fiscalYearStartMonth}
         canManage={canManage}
         openFiscalYearAction={openFiscalYearAction.bind(null, businessId)}
         setStatusAction={setAccountingPeriodStatusAction.bind(null, businessId)}

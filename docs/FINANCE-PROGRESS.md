@@ -15,7 +15,8 @@ the same way `fsm` is displayed as "Service".
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
 | FIN-1 | Done | `e7138b2` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
-| FIN-2 | Done | `pending` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
+| FIN-2 | Done | `9b0e055` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
+| FIN-3 | Done | `pending` | Activation wizard: an 8-step checklist plus the accounting-method/fiscal-year settings and the activation record §42 was actually missing -- see below, this turned out bigger than "every step already exists as its own screen" |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
 | F2 | Done | `ed1ef3d` `0d13019` `f6b7f4b` `d9cf354` | Chart of accounts + provisioning, accounting periods, journal, automatic posting |
@@ -58,7 +59,7 @@ Each was caught by building the thing that depends on it, not by a separate audi
 | **A silently short trial balance.** Summing fetched lines in TypeScript would hit PostgREST's default page cap; a busy business would have got a quietly wrong statement. | Writing the reports query | Aggregation moved into `gst.account_period_totals` (`652f8db`) |
 | **Bank CSV import read `Date,Description,Amount` as having a credit column.** The two-letter aliases `cr`/`dr` substring-matched inside "des-cr-iption", so no amount could be read off any row. | The importer's own tests | Header matching on whole words (`1ac2539`) |
 | Five lucide icon names used by the crm/fsm/gst manifests were missing from the shell's resolver and silently rendered the fallback. | Adding a nav icon | Added to `module-icon.tsx` (`ed1ef3d`) |
-| **A bill or supplier credit that failed to post never showed up as unposted anywhere.** `listUnpostedDocuments`'s own `POSTABLE_DOC_TYPES` list (`invoice`/`credit_note`/`debit_note`/`sales_return`) was a second, silently drifted copy of `document-events.ts`'s `EVENT_BY_DOC_TYPE`, which had grown to include `supplier_bill`/`supplier_credit` when Payables shipped without the dashboard's own list being updated alongside it. | Scoping FIN-2's backfill to "invoices, bills, payments and expenses" and finding bills fell out of the scan entirely | `POSTABLE_DOC_TYPES` is now exported from `document-events.ts` (the one place that already had to stay correct) and imported everywhere else needs it, so there is one list, not two (`pending`) |
+| **A bill or supplier credit that failed to post never showed up as unposted anywhere.** `listUnpostedDocuments`'s own `POSTABLE_DOC_TYPES` list (`invoice`/`credit_note`/`debit_note`/`sales_return`) was a second, silently drifted copy of `document-events.ts`'s `EVENT_BY_DOC_TYPE`, which had grown to include `supplier_bill`/`supplier_credit` when Payables shipped without the dashboard's own list being updated alongside it. | Scoping FIN-2's backfill to "invoices, bills, payments and expenses" and finding bills fell out of the scan entirely | `POSTABLE_DOC_TYPES` is now exported from `document-events.ts` (the one place that already had to stay correct) and imported everywhere else needs it, so there is one list, not two (`9b0e055`) |
 
 ## Decisions worth not re-litigating
 
@@ -184,6 +185,65 @@ exception type was added for this (`20260919110000_gst_finance_exceptions_unpost
 -- a payment allocation isn't a `core.documents` row, so reusing `unposted_document` would
 have made `reference_key` ambiguous between the two.
 
+### Activation wizard (FIN-3) — built 2026-09-19, and re-scoped on the way
+
+The backlog's own framing ("every step already exists as its own screen; nothing orders
+them or tracks completion") held for five of the ten steps -- chart of accounts, GST
+profile, account mappings (implicit in chart provisioning), bank accounts, and a review
+built from what those already report. It did not hold for the other five, checked against
+the live code rather than assumed: **no screen or stored setting existed anywhere** for
+accounting method, and fiscal year was a literal `4` hardcoded in six different files even
+though `core.business_settings.fiscal_year_start_month` already existed as a column
+nothing read or wrote; opening balances has no editable-after-creation path at all; and
+nothing recorded whether a business had ever been through activation. Building all five
+from scratch (rather than just sequencing existing screens) is why this shipped as one
+migration to `core.business_settings` plus a whole new `gst` table, not the pure-UI story
+the backlog's own size estimate implied. Recorded here rather than silently absorbed, per
+this repo's own workflow rule ("if the story revealed the plan was wrong, update the plan
+doc in the same commit").
+
+**One checklist page, not a ten-page click-through.** Most of the ten steps are "go do this
+on a screen that already exists and come back" -- trapping a founder in a linear wizard for
+that is worse UX than a status list with links, so `/finance/activate` is a single page:
+eight read-only step rows (chart of accounts, GST profile, account mappings, opening
+balances, bank accounts, plus the three that need no external screen -- business profile,
+accounting method, fiscal year, each shown complete-by-default since they always have a
+value), two small inline forms for the two genuinely new settings, and one Activate button
+that is also the review step (everything above it on the page already is the review).
+Deliberately not gating: every existing Finance screen keeps working whether or not this
+page is ever visited (ADR-10) -- it's a guided setup summary and the one thing that runs
+FIN-2's backfill, not an access checkpoint.
+
+**Accounting method is recorded, not yet applied.** §42's own text: "Support accrual/cash
+reporting configuration without rewriting source transactions." A new
+`core.business_settings.accounting_method` column stores the choice; no report reads it
+yet (they stay accrual, which is what the ledger already produces). Teaching the reports to
+re-derive a cash-basis view from an accrual ledger without rewriting the ledger itself is
+real, separate work -- building it speculatively ahead of a report that needs it would be
+exactly what CLAUDE.md principle 7 says not to do.
+
+**Fiscal year start month, actually wired through.** Six pages calling
+`fiscalYearOf`/`monthlyPeriodsForFiscalYear` with a hardcoded `4` (`periods`,
+`filing-readiness`, `budget`, `reports`, `gst-ledger` pages, plus
+`lib/exceptions-queue/mutations.ts`'s own sync and `getFinanceSnapshot`) now read
+`core.business_settings.fiscal_year_start_month` via one new `getActivationSettings()`
+call each, and the wizard is the first screen that actually lets a business set it.
+
+**Opening balances has no dedicated screen.** It's set once, at account-creation time, on
+the Chart of Accounts form; there's no way to edit it afterwards. Building a bulk
+opening-balance editor is real UI work outside a sequencing story's scope -- the wizard's
+own step says so plainly and shares chart-of-accounts' completion signal rather than
+inventing a fake independent one.
+
+**`gst.finance_activation`, not two more columns on `business_settings`.** Accounting
+method landed on `business_settings` (an existing, deliberately loose "any business member
+may write" table, matching its `gstin`/`fiscal_year_start_month` neighbours). Activation is
+different: clicking it also runs FIN-2's backfill, a real write across
+`gst.journal_entries`, so it got its own gst-schema table with the same
+permission-gated RLS every other consequential write in this schema already has (new
+permission `gst.activation.manage`), and `activated_at` stays set once written -- re-running
+the wizard reruns the (idempotent) backfill scan but never un-marks a business as activated.
+
 ### Not built
 
 | § | Item | Note |
@@ -234,3 +294,5 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260918120000_core_supplier_bill_doc_type` | `supplier_bill` + `supplier_credit` on `core.documents`, unblocking Payables |
 | `20260919100000_gst_finance_exceptions` | FIN-1: `gst.finance_exceptions`, `gst.exceptions.manage` permission |
 | `20260919110000_gst_finance_exceptions_unposted_payment` | FIN-2: widened `exception_type` to add `unposted_payment` |
+| `20260919120000_core_business_settings_accounting_method` | FIN-3: `core.business_settings.accounting_method` (accrual/cash) |
+| `20260919130000_gst_finance_activation` | FIN-3: `gst.finance_activation`, `gst.activation.manage` permission |

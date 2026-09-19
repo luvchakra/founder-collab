@@ -9,8 +9,7 @@ import { GstLedgerView } from "@cofounderai/module-gst/components/accounting/gst
 import { ItcView } from "@cofounderai/module-gst/components/accounting/itc-view";
 import { assessItc, itcActions } from "@cofounderai/module-gst/lib/accounting/itc";
 import { getPurchaseReconciliation } from "@cofounderai/module-gst/lib/reconciliation/queries";
-
-const FISCAL_YEAR_START_MONTH = 4;
+import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 
 /**
  * Finance F7 — the GST ledger, reconciled against the return.
@@ -33,8 +32,9 @@ export default async function GstLedgerPage({
   const businessId = await resolveBusinessIdBySlug(businessSlug);
   if (!businessId) notFound();
 
+  const { fiscalYearStartMonth } = await getActivationSettings(businessId);
   const today = new Date().toISOString().slice(0, 10);
-  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, FISCAL_YEAR_START_MONTH), FISCAL_YEAR_START_MONTH);
+  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, fiscalYearStartMonth), fiscalYearStartMonth);
   // `period` is user input from the URL: an unknown or empty value falls back to the
   // current month rather than reaching a query. (`period && find(...)` would yield "" for
   // an empty param, which `??` does not fall through — TypeScript caught that.)

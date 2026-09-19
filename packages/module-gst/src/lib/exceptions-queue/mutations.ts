@@ -11,6 +11,7 @@ import { listBankAccounts, listBankTransactions } from "../accounting/banking-qu
 import { fiscalYearOf, monthlyPeriodsForFiscalYear, periodForDate } from "../accounting/periods";
 import { getPurchaseRegister, getSalesRegister } from "../filing/queries";
 import { getPurchaseReconciliation } from "../reconciliation/queries";
+import { getActivationSettings } from "../activation/queries";
 import { deriveFinanceExceptions } from "./derive";
 import { getFinanceExceptionById, getFinanceExceptionByKey } from "./queries";
 import type { FinanceException, FinanceExceptionStatus, FinanceExceptionStatusHistoryEntry } from "./types";
@@ -21,8 +22,6 @@ import type { FinanceException, FinanceExceptionStatus, FinanceExceptionStatusHi
  * human makes from there (`startReviewingFinanceException`, `resolveFinanceException`,
  * `ignoreFinanceException`, `reopenFinanceException`) plus `assignFinanceException`.
  */
-
-const FISCAL_YEAR_START_MONTH = 4;
 
 async function currentUserId(supabase: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
   const {
@@ -43,8 +42,9 @@ export async function syncFinanceExceptions(businessId: string): Promise<Finance
   await requireModule(businessId, "gst");
   await requirePermission(businessId, "gst.exceptions.manage");
 
+  const { fiscalYearStartMonth } = await getActivationSettings(businessId);
   const today = new Date().toISOString().slice(0, 10);
-  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, FISCAL_YEAR_START_MONTH), FISCAL_YEAR_START_MONTH);
+  const year = monthlyPeriodsForFiscalYear(fiscalYearOf(today, fiscalYearStartMonth), fiscalYearStartMonth);
   const selected = year.find((p) => p.startDate <= today && today <= p.endDate) ?? year[0]!;
 
   const [unposted, ledger, sales, purchases, twoB, periods, bankAccounts] = await Promise.all([
