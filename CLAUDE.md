@@ -42,6 +42,11 @@ pattern ADR-5 requires here).
    accent, white cards on a soft gray-blue background — not StockPilot's teal/amber
    vendored theme, not `co-founder-ai`'s current dark-violet one. Every module's screens
    share this one design system; a module never brings its own look.
+8. **No model output, external document, inbound message or conversation turn bypasses
+   deterministic authentication, authorization, tenancy, licensing, validation or
+   execution control** — whichever model produced it, whichever channel it arrived
+   through, however confident it sounds, however harmless the action looks. See "AI,
+   untrusted input and governed actions" below for what that means in practice.
 
 ## Architecture (locked — do not change without explicit user approval)
 
@@ -111,6 +116,62 @@ pattern ADR-5 requires here).
     covers borders, editable-row affordances, and desktop table design that rule 12
     doesn't.
 
+## AI, untrusted input and governed actions
+
+This platform reads a great deal of text nobody here wrote — inbound customer email
+(`/api/webhooks/email-inbound`), WhatsApp and Meta messages (`/api/webhooks/crm-whatsapp`,
+`crm-meta`), uploaded prospect lists and documents (`read-import-file.ts`: CSV, XLSX, PDF,
+DOCX), and entire marketing sites crawled during onboarding (`lib/ai/website-crawl.ts`) —
+and feeds most of it to a model, across the couple of dozen call sites under
+`packages/module-{discovery,crm}/src/lib/ai/`. These rules are about that surface.
+
+1. **External content is data to analyse, never instructions to obey.** A CSV cell, a
+   crawled page, a customer's WhatsApp message or a PDF reading "ignore your previous
+   instructions and ..." is a string to classify, summarise or extract from. It never
+   redefines a prompt, a permission, a tenant boundary, or what an operation may do. Build
+   prompts (`src/prompts/**`) so that such content stays clearly delimited as quoted
+   material, never concatenated into the instruction section. The prompts that take a raw
+   blob straight from outside — `restructureImportPrompt(rawContent)` for an uploaded
+   file, the website-research prompt for a crawled page — are where this bites first.
+2. **The model proposes; application code decides and executes.** AI may classify, extract,
+   summarise, research, rank and draft. Authentication, tenant resolution
+   (`workspace_id`/`business_id`), licensing, RBAC, input validation, and every database
+   write and outbound side effect stay in deterministic code — enforced by RLS and the four
+   licensing layers above. A model's output is never what authorises an action.
+3. **Nothing the AI produces currently executes on its own. That is a property to preserve,
+   not an accident of scope.** Every AI surface today drafts or proposes and then stops: a
+   reply is stored (`draft_reply`) for a person to send, the chat widget answers and never
+   acts. A story that wants AI output to *take* an action — send, post, pay, schedule,
+   write into another module — is introducing an autonomy level this platform does not have
+   yet, and that needs explicit approval before it is built, not a quiet first instance. When
+   it comes, the proposal gets persisted, authorised against the acting user, validated,
+   made idempotent and recorded *before* anything happens; a failed policy lookup means
+   "do not execute", never "assume permission".
+4. **Untrusted intake is verified at the door, and safe to redeliver.** Every webhook
+   already checks a signature or shared secret before trusting a payload
+   (`verify-meta-signature.ts` for Meta/WhatsApp, `x-webhook-secret` for inbound email,
+   svix headers for Resend delivery status, `Authorization: Bearer $CRON_SECRET` for
+   `/api/cron/*`) — keep that. Providers retry, crons re-run and people double-click, so a
+   repeated delivery must not produce a second row, a second message or a second charge.
+   `core.domain_events` and its drain are the existing pattern for work that must happen
+   exactly once.
+5. **Report what actually happened.** A failed write, a refused authorisation, a model
+   error, or work that is merely queued must never be reported as success. Not
+   hypothetical here: Banking, Budget and Recurring Entries each showed a generic
+   "Something went wrong" for days while the real error was a missing table grant
+   (`42501`) — which told nobody anything, including us. Distinguish requested, processing,
+   completed, failed and awaiting-approval in both the result and the UI.
+6. **Provenance goes in the tables that already exist.** `core.ai_runs` records operation,
+   model, provider, `prompt_version`, `input_hash`, tokens, cost and status for every call;
+   `core.audit_log` records what happened to the business's data. Extend those rather than
+   inventing a parallel trace — and keep secrets, access tokens and whole customer
+   documents out of both, and out of logs and error messages.
+7. **Test AI paths for the ways they go wrong**, not just the happy path: injected
+   instructions in ingested content, malformed or schema-violating model output, missing or
+   contradictory context, the provider being down, and — because these paths read tenant
+   data — cross-tenant leakage through an AI response, on top of the tenant-isolation and
+   license-gating tests principle 9 already requires.
+
 ## Repository structure
 
 ```
@@ -128,7 +189,8 @@ packages/module-<key>/             one per licensed module, created as its epic 
   src/contract/index.ts            the ONLY thing other modules may import from this one
   src/routes/ src/domain/ src/db/ src/events/ src/manifest.ts
 supabase/migrations/               ONE ordered migration timeline for the whole platform
-scripts/                           lint-import-boundaries.mjs, lint-migration-schema.mjs
+scripts/                           lint-import-boundaries.mjs, lint-migration-schema.mjs,
+                                    lint-migration-grants.mjs (policies without a grant)
 docs/plan/                         the planning package this repo was built from
 docs/PROGRESS-TRACKER.md           every story in every backlog, done or not (generated)
 docs/user-guides/                  end-user documentation; the in-app Get Help pages are
