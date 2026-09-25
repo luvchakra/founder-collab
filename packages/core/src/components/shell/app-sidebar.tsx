@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -17,6 +17,7 @@ import {
 } from "../../lib/nav-group-folds";
 import type { NavGroupFolds } from "../../lib/nav-group-folds";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
+import { buildDiscoveryNav } from "../../lib/discovery-nav";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
 import { LogoMark } from "./logo-mark";
@@ -87,8 +88,16 @@ function NavLink({
   onNavigate: () => void;
   indent?: boolean;
 }) {
+  // A deep link can open a section far down the rail (Funding's items sit below three
+  // other sections); bring the current page's row into view so the founder sees where
+  // they are without scrolling the rail themselves (spec §3.5).
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (isActive) ref.current?.scrollIntoView?.({ block: "nearest" });
+  }, [isActive]);
   return (
     <Link
+      ref={ref}
       href={href}
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
@@ -230,59 +239,46 @@ function ModuleNav({
   const base = businessHref(businessId);
 
   if (module.key === "discovery") {
-    const products = productsByBusiness?.[businessId] ?? [];
-    // Discovery's own module dashboard lives at /discovery/dashboard, the same
-    // "<module>/dashboard" shape every other module uses. The business's own editable
-    // profile (name/website/description) and offering list live one level up at
-    // "Business" -- a separate item so "Dashboard" reads like every other module's
-    // Dashboard link instead of doubling as an editor form.
-    const dashboardHref = `${base}/discovery/dashboard`;
-    const businessDetailHref = `${base}/business`;
-    // Folding the section that holds the page you're on would hide where you are, so
-    // that one starts open. The offerings all live under one prefix, so a prefix test
-    // answers it without walking the list.
-    const offeringsHoldsActive = Boolean(pathname?.startsWith(`${base}/discovery/offerings/`));
+    // DISC-NAV-01..05: Overview, Business, then the four expandable sections -- see
+    // lib/discovery-nav.ts for the tree and its active-route rules. Each section uses the
+    // same fold mechanism (and storage) as every other module's sections (§3.4).
+    const tree = buildDiscoveryNav(base, productsByBusiness?.[businessId] ?? [], pathname);
     return (
       <div className="flex flex-col gap-0.5">
-        <NavLink
-          href={dashboardHref}
-          label="Dashboard"
-          icon="LayoutDashboard"
-          isActive={pathname === dashboardHref}
-          onNavigate={onNavigate}
-          indent
-        />
-        <NavLink
-          href={businessDetailHref}
-          label="Business"
-          icon="Building2"
-          isActive={pathname === businessDetailHref}
-          onNavigate={onNavigate}
-          indent
-        />
-        <NavGroup
-          heading="Business Offerings"
-          collapsed={!isGroupExpanded("Business Offerings", offeringsHoldsActive)}
-          onToggle={() => onToggleGroup("Business Offerings", offeringsHoldsActive)}
-        >
-          {products.length === 0 ? (
-            <p className="ml-7 py-1.5 text-sm text-sidebar-muted">No business offerings yet.</p>
-          ) : (
-            products.map((product) => {
-              const href = `${base}/discovery/offerings/${product.id}`;
-              return (
+        {tree.top.map((link) => (
+          <NavLink
+            key={link.id}
+            href={link.href}
+            label={link.label}
+            icon={link.icon}
+            isActive={link.active}
+            onNavigate={onNavigate}
+            indent
+          />
+        ))}
+        {tree.groups.map((group) => (
+          <NavGroup
+            key={group.id}
+            heading={group.heading}
+            collapsed={!isGroupExpanded(group.id, group.holdsActive)}
+            onToggle={() => onToggleGroup(group.id, group.holdsActive)}
+          >
+            {group.items.length === 0 ? (
+              <p className="ml-7 py-1.5 text-sm text-sidebar-muted">{group.emptyMessage}</p>
+            ) : (
+              group.items.map((link) => (
                 <NavLink
-                  key={product.id}
-                  href={href}
-                  label={product.name}
-                  isActive={pathname === href || Boolean(pathname?.startsWith(`${href}/`))}
+                  key={link.id}
+                  href={link.href}
+                  label={link.label}
+                  isActive={link.active}
                   onNavigate={onNavigate}
                   indent
                 />
-              );
-            })
-          )}
-        </NavGroup>
+              ))
+            )}
+          </NavGroup>
+        ))}
       </div>
     );
   }
