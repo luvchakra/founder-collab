@@ -164,6 +164,23 @@ export const assetInputSchema = z.object({
 });
 export type AssetInput = z.output<typeof assetInputSchema>;
 
+/** MKT-07 — an attribution a person records. Customer (revenue) attribution needs the
+ * evidence written down (§11: "customer/revenue attribution requires actual source evidence"). */
+export const attributionInputSchema = z
+  .object({
+    entityType: z.enum(["prospect", "opportunity", "customer"]),
+    entityId: z.uuid({ message: "Choose what the campaign influenced." }),
+    touchType: z.enum(["first_touch", "last_touch", "influenced"]).default("influenced"),
+    occurredAt: optionalDate,
+    evidence: optionalText(2000),
+  })
+  .superRefine((v, ctx) => {
+    if (v.entityType === "customer" && !v.evidence) {
+      ctx.addIssue({ code: "custom", path: ["evidence"], message: "Say how you know this customer came from the campaign." });
+    }
+  });
+export type AttributionInput = z.output<typeof attributionInputSchema>;
+
 /** First human-readable message from a failed parse, for an action's `{ error }`. */
 export function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Some of the details are not valid.";

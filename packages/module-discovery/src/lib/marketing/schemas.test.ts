@@ -2,7 +2,7 @@
  * MKT-01. The server-boundary schemas: what a form cannot be trusted to have enforced.
  */
 import { describe, expect, it } from "vitest";
-import { campaignInputSchema, contentInputSchema, firstIssue, metricSnapshotSchema, seoItemInputSchema, strategyInputSchema } from "./schemas";
+import { attributionInputSchema, campaignInputSchema, contentInputSchema, firstIssue, metricSnapshotSchema, seoItemInputSchema, strategyInputSchema } from "./schemas";
 
 const baseCampaign = { name: "Smart Home Awareness", objective: "awareness", channel: "linkedin" };
 
@@ -121,5 +121,13 @@ describe("seoItemInputSchema", () => {
 
   it("leaves 'appears' unknown when the observer did not say", () => {
     expect(seoItemInputSchema.parse({ title: "t", category: "metadata" }).companyAppears).toBeNull();
+  });
+});
+
+describe("attributionInputSchema", () => {
+  it("needs evidence before crediting a campaign with a customer", () => {
+    const base = { entityType: "customer", entityId: "22222222-2222-4222-8222-222222222222" };
+    expect(attributionInputSchema.safeParse(base).success).toBe(false);
+    expect(attributionInputSchema.safeParse({ ...base, evidence: "Signed after the webinar, per CRM note" }).success).toBe(true);
   });
 });

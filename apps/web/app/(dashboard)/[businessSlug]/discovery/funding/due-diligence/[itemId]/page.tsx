@@ -10,7 +10,7 @@ import { Field } from "@cofounderai/module-discovery/components/marketing/field"
 import { TransitionButtons } from "@cofounderai/module-discovery/components/marketing/transition-buttons";
 import { ActivityTimeline } from "@cofounderai/module-discovery/components/marketing/activity-timeline";
 import { DiligenceBadge, DataRoomBadge } from "@cofounderai/module-discovery/components/funding/status";
-import { saveDiligenceResponseAction, transitionDiligenceAction } from "../../actions";
+import { draftDiligenceWithAiAction, saveDiligenceResponseAction, transitionDiligenceAction } from "../../actions";
 import { fundingContext } from "../../context";
 
 /** FND-13 — one diligence request (§30.2): the request, the response, the data-room
@@ -53,7 +53,21 @@ export default async function DiligenceItemPage({ params }: { params: Promise<{ 
               <CardTitle>Response</CardTitle>
               {decided ? <CardDescription>This request has been {item.status}, so the response is kept as it was.</CardDescription> : null}
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-4">
+              {canManage && !decided && !item.response ? (
+                <ActionForm
+                  action={draftDiligenceWithAiAction.bind(null, businessId, item.id)}
+                  submitLabel="Draft a response with AI"
+                  pendingText="Drafting..."
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    Link the documents that answer it first. The draft fills the response box for you to edit; it is not submitted.
+                  </p>
+                </ActionForm>
+              ) : null}
               {canManage && !decided ? (
                 <ActionForm action={saveDiligenceResponseAction.bind(null, businessId, item.id)} submitLabel="Save response">
                   <Field label="Response" htmlFor="dd-response">

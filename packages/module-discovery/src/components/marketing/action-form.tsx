@@ -72,7 +72,7 @@ export function ActionForm({
         </p>
       ) : null}
       {success ? (
-        <p role="status" className="text-sm text-success-subtle">
+        <p role="status" className="text-sm break-words whitespace-pre-line text-success-subtle">
           {success}
         </p>
       ) : null}

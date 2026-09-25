@@ -57,6 +57,7 @@ import {
   shareInputSchema,
 } from "@cofounderai/module-discovery/lib/funding/schemas";
 import { OUTREACH_STATUSES, PIPELINE_STAGES, ROUND_STATUSES, type OutreachStatus, type PipelineStage, type RoundStatus } from "@cofounderai/module-discovery/lib/funding/types";
+import { draftDiligenceResponseWithAi, draftOutreachWithAi, researchInvestorWithAi } from "@cofounderai/module-discovery/lib/funding/ai";
 import type { FormState } from "@cofounderai/module-discovery/components/marketing/action-form";
 
 /**
@@ -540,4 +541,50 @@ export async function transitionDiligenceAction(businessId: string, itemId: stri
   }
   await refresh(businessId);
   return { success: true };
+}
+
+// AI drafts (FND-16) — drafts only; approving, sending, submitting stay human ----------
+
+export async function draftOutreachWithAiAction(businessId: string, investorId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const roundId = String(formData.get("roundId") ?? "").trim() || null;
+  const contactId = String(formData.get("contactId") ?? "").trim() || null;
+  let result: { id: string; cached: boolean };
+  try {
+    result = await draftOutreachWithAi(businessId, { investorId, roundId, contactId });
+  } catch (error) {
+    return failure(error, "The AI draft could not be made.");
+  }
+  await refresh(businessId);
+  redirect(`${await base(businessId)}/outreach/${result.id}`);
+}
+
+export async function researchInvestorWithAiAction(businessId: string, investorId: string): Promise<FormState> {
+  let result: { added: number; sourced: number };
+  try {
+    result = await researchInvestorWithAi(businessId, investorId);
+  } catch (error) {
+    return failure(error, "Research could not be completed.");
+  }
+  await refresh(businessId);
+  return {
+    success: true,
+    message:
+      result.added === 0
+        ? "The research found nothing it could support."
+        : `Added ${result.added} findings: ${result.sourced} with a source, ${result.added - result.sourced} marked AI-inferred (unverified).`,
+  };
+}
+
+export async function draftDiligenceWithAiAction(businessId: string, itemId: string): Promise<FormState> {
+  let result: { gaps: string[] };
+  try {
+    result = await draftDiligenceResponseWithAi(businessId, itemId);
+  } catch (error) {
+    return failure(error, "The AI draft could not be made.");
+  }
+  await refresh(businessId);
+  return {
+    success: true,
+    message: `Draft added to the response for you to edit and submit.${result.gaps.length ? ` Not covered: ${result.gaps.join("; ")}.` : ""}`,
+  };
 }

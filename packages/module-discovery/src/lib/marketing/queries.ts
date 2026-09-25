@@ -434,3 +434,91 @@ export const listEntityActivity = cache(
     }));
   },
 );
+
+export interface AttributionRow {
+  id: string;
+  entityType: "prospect" | "opportunity" | "customer";
+  entityId: string;
+  label: string;
+  touchType: "first_touch" | "last_touch" | "influenced";
+  source: "manual" | "import" | "utm" | "inferred";
+  occurredAt: string;
+  evidenceNote: string | null;
+}
+
+/** A campaign's attributions with a readable label for each record (§9.4 "associated
+ * prospects/opportunities"). Labels are read from the owning tables, not copied. */
+export const listAttributions = cache(async (businessId: string, campaignId: string): Promise<AttributionRow[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("marketing_attributions")
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("campaign_id", campaignId)
+    .order("occurred_at", { ascending: false })
+    .limit(500);
+  if (error) throw error;
+  const rows = (data ?? []) as Row[];
+  const ids = (type: string) => rows.filter((r) => r.entity_type === type).map((r) => r.entity_id as string);
+  const labels = new Map<string, string>();
+  const prospectIds = ids("prospect");
+  if (prospectIds.length) {
+    const { data: ps } = await supabase.from("prospects").select("id, company_name").in("id", prospectIds);
+    for (const p of (ps ?? []) as Row[]) labels.set(p.id as string, p.company_name as string);
+  }
+  const oppIds = ids("opportunity");
+  if (oppIds.length) {
+    const { data: os } = await supabase.from("opportunities").select("id, prospect:prospects(company_name)").in("id", oppIds);
+    for (const o of (os ?? []) as Row[]) labels.set(o.id as string, `Opportunity · ${((o.prospect as Row | null)?.company_name as string) ?? "prospect"}`);
+  }
+  const customerIds = ids("customer");
+  if (customerIds.length) {
+    const core = await createCoreClient({ schema: "core" });
+    const { data: cs } = await core.from("parties").select("id, name").eq("business_id", businessId).in("id", customerIds);
+    for (const c of (cs ?? []) as Row[]) labels.set(c.id as string, c.name as string);
+  }
+  return rows.map((r) => ({
+    id: r.id as string,
+    entityType: r.entity_type as AttributionRow["entityType"],
+    entityId: r.entity_id as string,
+    label: labels.get(r.entity_id as string) ?? "Record not visible",
+    touchType: r.touch_type as AttributionRow["touchType"],
+    source: r.source as AttributionRow["source"],
+    occurredAt: r.occurred_at as string,
+    evidenceNote: ((r.evidence as Row | null)?.note as string) ?? null,
+  }));
+});
+
+/** Records a campaign can be credited with: this business's prospects and opportunities
+ * (for the campaign's offering when it has one) and its customers. Bounded lists. */
+export const listAttributionCandidates = cache(async (businessId: string, offeringId: string | null) => {
+  const supabase = await createClient();
+  let productQuery = supabase.from("products").select("id").eq("business_id", businessId);
+  if (offeringId) productQuery = productQuery.eq("id", offeringId);
+  const { data: products } = await productQuery;
+  const productIds = ((products ?? []) as Row[]).map((p) => p.id as string);
+  const { data: workspaces } = productIds.length
+    ? await supabase.from("workspaces").select("id").in("product_id", productIds)
+    : { data: [] as Row[] };
+  const workspaceIds = ((workspaces ?? []) as Row[]).map((w) => w.id as string);
+  const [prospects, opportunities] = workspaceIds.length
+    ? await Promise.all([
+        supabase.from("prospects").select("id, company_name").in("workspace_id", workspaceIds).order("company_name").limit(300),
+        supabase.from("opportunities").select("id, prospect:prospects(company_name)").in("workspace_id", workspaceIds).limit(300),
+      ])
+    : [{ data: [] as Row[] }, { data: [] as Row[] }];
+  const core = await createCoreClient({ schema: "core" });
+  const { data: roles } = await core.from("party_roles").select("party_id").eq("business_id", businessId).eq("role", "customer").limit(300);
+  const customerIds = ((roles ?? []) as Row[]).map((r) => r.party_id as string);
+  const { data: customers } = customerIds.length
+    ? await core.from("parties").select("id, name").eq("business_id", businessId).in("id", customerIds).order("name")
+    : { data: [] as Row[] };
+  return {
+    prospects: ((prospects.data ?? []) as Row[]).map((p) => ({ id: p.id as string, label: p.company_name as string })),
+    opportunities: ((opportunities.data ?? []) as Row[]).map((o) => ({
+      id: o.id as string,
+      label: ((o.prospect as Row | null)?.company_name as string) ?? "Opportunity",
+    })),
+    customers: ((customers ?? []) as Row[]).map((c) => ({ id: c.id as string, label: c.name as string })),
+  };
+});

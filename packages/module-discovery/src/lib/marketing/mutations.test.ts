@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
   requireUser: vi.fn(),
+  createCoreClient: vi.fn(),
   order: [] as string[],
 }));
 
@@ -28,6 +29,7 @@ vi.mock("@cofounderai/core/attachments/mutations", () => ({
   deleteAttachment: h.deleteAttachment,
 }));
 vi.mock("../tenancy/queries", () => ({ requireUser: h.requireUser }));
+vi.mock("@cofounderai/core/db/server", () => ({ createClient: h.createCoreClient }));
 
 const m = await import("./mutations");
 const { campaignInputSchema, contentInputSchema } = await import("./schemas");
@@ -277,5 +279,32 @@ describe("uploadMarketingAsset", () => {
 
     await expect(m.uploadMarketingAsset(BUSINESS, file, meta)).rejects.toBeTruthy();
     expect(h.deleteAttachment).toHaveBeenCalledWith("att-1");
+  });
+});
+
+describe("recordAttribution", () => {
+  const input = { entityType: "prospect" as const, entityId: "22222222-2222-4222-8222-222222222222", touchType: "influenced" as const, occurredAt: null, evidence: null };
+
+  it("refuses a prospect that belongs to another business, and writes nothing", async () => {
+    useFake((call) => {
+      if (call.table === "marketing_campaigns") return { data: { id: "c1" }, error: null };
+      if (call.table === "prospects") return { data: { workspace_id: "w-other" }, error: null };
+      if (call.table === "workspaces") return { data: { product_id: "p-other" }, error: null };
+      return { data: null, error: null }; // products: not this business's
+    });
+    await expect(m.recordAttribution(BUSINESS, "c1", input)).rejects.toBeTruthy();
+    expect(fake.queries("marketing_attributions")).toHaveLength(0);
+  });
+
+  it("records a manual attribution for the business's own prospect, labelled manual", async () => {
+    useFake((call) => {
+      if (call.table === "prospects") return { data: { workspace_id: "w1" }, error: null };
+      if (call.table === "workspaces") return { data: { product_id: "p1" }, error: null };
+      if (call.table === "products") return { data: { id: "p1" }, error: null };
+      return { data: { id: "c1" }, error: null };
+    });
+    await m.recordAttribution(BUSINESS, "c1", input);
+    const upsert = fake.queries("marketing_attributions")[0]!.ops.find((o) => o.method === "upsert")!;
+    expect(upsert.args[0]).toMatchObject({ source: "manual", entity_type: "prospect", business_id: BUSINESS });
   });
 });

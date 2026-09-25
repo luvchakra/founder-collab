@@ -10,7 +10,8 @@ import {
   listOfferingOptions,
 } from "@cofounderai/module-discovery/lib/marketing/queries";
 import { allowedContentTransitions } from "@cofounderai/module-discovery/lib/marketing/lifecycle";
-import { CONTENT_TYPE_LABEL, type ContentStatus } from "@cofounderai/module-discovery/lib/marketing/types";
+import { CONTENT_TYPE_LABEL, type ContentStatus, type ContentType } from "@cofounderai/module-discovery/lib/marketing/types";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { ActionForm } from "@cofounderai/module-discovery/components/marketing/action-form";
 import { ContentFields } from "@cofounderai/module-discovery/components/marketing/content-fields";
 import { ContentStatusBadge } from "@cofounderai/module-discovery/components/marketing/status";
@@ -19,6 +20,7 @@ import { ActivityTimeline } from "@cofounderai/module-discovery/components/marke
 import { Field } from "@cofounderai/module-discovery/components/marketing/field";
 import { LocalDateTimeInput } from "@cofounderai/module-discovery/components/marketing/local-datetime-input";
 import {
+  assistContentAction,
   duplicateContentAction,
   rescheduleContentAction,
   transitionContentAction,
@@ -76,6 +78,7 @@ export default async function ContentDetailPage({
     archived: "Archive",
   };
   const transition = transitionContentAction.bind(null, businessId, content.id);
+  const assist = assistContentAction.bind(null, businessId, content.id);
   const editable = canManage && content.status !== "published" && content.status !== "archived";
 
   return (
@@ -176,6 +179,58 @@ export default async function ContentDetailPage({
               ) : null}
             </CardContent>
           </Card>
+
+          {canManage ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>AI assist</CardTitle>
+                <CardDescription>Each result is saved as a new draft version for review. Nothing is approved or published by AI.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {content.status !== "published" ? (
+                  <>
+                    <ActionForm action={assist} submitLabel="Generate from brief" pendingText="Writing..." size="sm" variant="secondary">
+                      <input type="hidden" name="mode" value="generate" />
+                      <Input name="tone" placeholder="Tone (optional), e.g. warm and practical" aria-label="Tone" />
+                    </ActionForm>
+                    {content.body ? (
+                      <>
+                        <ActionForm action={assist} submitLabel="Rewrite" pendingText="Rewriting..." size="sm" variant="secondary">
+                          <input type="hidden" name="mode" value="rewrite" />
+                          <NativeSelect name="style" defaultValue="clearer" aria-label="Rewrite style">
+                            <option value="shorter">Shorter</option>
+                            <option value="clearer">Clearer</option>
+                            <option value="more_technical">More technical</option>
+                            <option value="more_executive">More executive</option>
+                            <option value="more_persuasive">More persuasive</option>
+                            <option value="social">As a social post</option>
+                            <option value="email">As an email</option>
+                          </NativeSelect>
+                        </ActionForm>
+                        <ActionForm action={assist} submitLabel="Suggest SEO" pendingText="Analysing..." size="sm" variant="secondary">
+                          <input type="hidden" name="mode" value="seo" />
+                        </ActionForm>
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+                {content.body ? (
+                  <ActionForm action={assist} submitLabel="Repurpose" pendingText="Repurposing..." size="sm" variant="secondary">
+                    <input type="hidden" name="mode" value="repurpose" />
+                    <NativeSelect name="targetType" defaultValue="social" aria-label="Repurpose into">
+                      {(["social", "email", "blog", "webinar", "ad_copy", "landing_page"] as ContentType[])
+                        .filter((t) => t !== content.contentType)
+                        .map((t) => (
+                          <option key={t} value={t}>
+                            {CONTENT_TYPE_LABEL[t]}
+                          </option>
+                        ))}
+                    </NativeSelect>
+                  </ActionForm>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

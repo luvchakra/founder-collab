@@ -10,6 +10,8 @@ import {
   listAssets,
   listCampaignMetrics,
   listContent,
+  listAttributionCandidates,
+  listAttributions,
   listEntityActivity,
 } from "@cofounderai/module-discovery/lib/marketing/queries";
 import { campaignPacing, campaignTotals, formatMetric } from "@cofounderai/module-discovery/lib/marketing/metrics";
@@ -25,7 +27,18 @@ import { TransitionButtons } from "@cofounderai/module-discovery/components/mark
 import { ActionForm } from "@cofounderai/module-discovery/components/marketing/action-form";
 import { MetricFields } from "@cofounderai/module-discovery/components/marketing/metric-fields";
 import { ActivityTimeline } from "@cofounderai/module-discovery/components/marketing/activity-timeline";
-import { duplicateCampaignAction, recordMetricAction, transitionCampaignAction } from "../../actions";
+import {
+  deleteAttributionAction,
+  duplicateCampaignAction,
+  importMetricsAction,
+  recordAttributionAction,
+  recordMetricAction,
+  transitionCampaignAction,
+} from "../../actions";
+import { Input } from "@cofounderai/core/ui/input";
+import { Textarea } from "@cofounderai/core/ui/textarea";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { Field } from "@cofounderai/module-discovery/components/marketing/field";
 import { marketingContext } from "../../context";
 
 const TRANSITION_LABEL: Record<CampaignStatus, string> = {
@@ -51,11 +64,13 @@ export default async function CampaignPage({
 
   const today = new Date().toISOString().slice(0, 10);
   const from = (campaign.startAt ?? campaign.createdAt).slice(0, 10);
-  const [metrics, content, assets, activity] = await Promise.all([
+  const [metrics, content, assets, activity, attributions, candidates] = await Promise.all([
     listCampaignMetrics(businessId, { from: from < today ? from : today, to: today }, [campaign.id]),
     listContent(businessId, { campaignId: campaign.id }),
     listAssets(businessId),
     listEntityActivity(businessId, "marketing_campaign", campaign.id),
+    listAttributions(businessId, campaign.id),
+    canManage ? listAttributionCandidates(businessId, campaign.offeringId) : Promise.resolve(null),
   ]);
   const totals = campaignTotals(metrics);
   const currency = totals.currencies[0] ?? campaign.currency;
@@ -192,6 +207,32 @@ export default async function CampaignPage({
               )}
               {canManage && campaign.status !== "archived" ? (
                 <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Import from a CSV export</summary>
+                  <div className="mt-4">
+                    <ActionForm
+                      action={importMetricsAction.bind(null, businessId, campaign.id)}
+                      submitLabel="Import"
+                      pendingText="Importing..."
+                      resetOnSuccess
+                      encType="multipart/form-data"
+                    >
+                      <p className="text-xs text-muted-foreground">
+                        One row per day with a <code>date</code> column, plus any of impressions, clicks, sessions, engagements, leads,
+                        qualified_leads, opportunities, customers, spend, revenue, currency. Blank cells stay unreported. Re-importing a day
+                        replaces it.
+                      </p>
+                      <Field label="CSV file" htmlFor="csv-file">
+                        <Input id="csv-file" name="file" type="file" accept=".csv,text/csv" />
+                      </Field>
+                      <Field label="Or paste" htmlFor="csv-text">
+                        <Textarea id="csv-text" name="csv" rows={4} className="font-mono text-xs" placeholder={"date,clicks,leads,spend,currency\n2026-09-01,120,4,5000,INR"} />
+                      </Field>
+                    </ActionForm>
+                  </div>
+                </details>
+              ) : null}
+              {canManage && campaign.status !== "archived" ? (
+                <details className="rounded-lg border p-3">
                   <summary className="cursor-pointer text-sm font-medium">Record results</summary>
                   <div className="mt-4">
                     <ActionForm
@@ -254,6 +295,84 @@ export default async function CampaignPage({
               <Link href={`${root}/assets`} className="mt-2 inline-block text-sm text-primary hover:underline">
                 Manage assets
               </Link>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Attributed records</CardTitle>
+              <CardDescription>Prospects, opportunities and customers this campaign touched — only where you have evidence.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {attributions.length === 0 ? <p className="text-sm text-muted-foreground">None recorded.</p> : null}
+              <ul className="flex flex-col gap-2 text-sm">
+                {attributions.map((a) => (
+                  <li key={a.id} className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate">{a.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.entityType} · {a.touchType.replace(/_/g, " ")} · {a.source === "inferred" ? "AI-inferred" : a.source}
+                        {a.evidenceNote ? ` · ${a.evidenceNote}` : ""}
+                      </p>
+                    </div>
+                    {canManage ? (
+                      <ActionForm action={deleteAttributionAction.bind(null, businessId, a.id)} inline submitLabel="Remove" variant="ghost" />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {candidates && (candidates.prospects.length || candidates.opportunities.length || candidates.customers.length) ? (
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm font-medium">Record an attribution</summary>
+                  <div className="mt-3">
+                    <ActionForm action={recordAttributionAction.bind(null, businessId, campaign.id)} submitLabel="Record" size="sm" resetOnSuccess>
+                      <Field label="Record" htmlFor="attr-entity">
+                        <NativeSelect id="attr-entity" name="entity" required defaultValue="">
+                          <option value="" disabled>
+                            Choose
+                          </option>
+                          {candidates.prospects.length ? (
+                            <optgroup label="Prospects">
+                              {candidates.prospects.map((p) => (
+                                <option key={p.id} value={`prospect:${p.id}`}>
+                                  {p.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                          {candidates.opportunities.length ? (
+                            <optgroup label="Opportunities">
+                              {candidates.opportunities.map((o) => (
+                                <option key={o.id} value={`opportunity:${o.id}`}>
+                                  {o.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                          {candidates.customers.length ? (
+                            <optgroup label="Customers">
+                              {candidates.customers.map((c) => (
+                                <option key={c.id} value={`customer:${c.id}`}>
+                                  {c.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                        </NativeSelect>
+                      </Field>
+                      <Field label="Touch" htmlFor="attr-touch">
+                        <NativeSelect id="attr-touch" name="touchType" defaultValue="influenced">
+                          <option value="first_touch">First touch</option>
+                          <option value="last_touch">Last touch</option>
+                          <option value="influenced">Influenced</option>
+                        </NativeSelect>
+                      </Field>
+                      <Field label="Evidence" htmlFor="attr-evidence" hint="Required for customers.">
+                        <Input id="attr-evidence" name="evidence" placeholder="e.g. came in through the webinar signup form" />
+                      </Field>
+                    </ActionForm>
+                  </div>
+                </details>
+              ) : null}
             </CardContent>
           </Card>
           <Card>

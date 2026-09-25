@@ -1,5 +1,6 @@
 import { campaignTotals } from "./metrics";
 import type { CampaignMetricRow, MarketingCampaign, MarketingContent } from "./types";
+import type { Recommendation } from "../intelligence/types";
 
 /**
  * MKT-03 / MKT-16 — the Marketing dashboard's attention panel and recommendations.
@@ -11,19 +12,8 @@ import type { CampaignMetricRow, MarketingCampaign, MarketingContent } from "./t
  * the rule says the data is missing rather than inventing a verdict.
  */
 
-export type AttentionSeverity = "high" | "medium" | "low";
-
-export interface AttentionItem {
-  key: string;
-  severity: AttentionSeverity;
-  title: string;
-  reason: string;
-  data: string;
-  action: string;
-  /** Relative to the marketing section root, e.g. `campaigns/<id>`. */
-  href: string;
-  source: string;
-}
+/** INT-03: attention items are the shared Recommendation shape, always rule-based here. */
+export type AttentionItem = Recommendation;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -182,6 +172,6 @@ export function marketingAttention(input: {
     });
   }
 
-  const order: Record<AttentionSeverity, number> = { high: 0, medium: 1, low: 2 };
-  return items.sort((a, b) => order[a.severity] - order[b.severity]);
+  const order = { high: 0, medium: 1, low: 2 } as const;
+  return items.map((i) => ({ ...i, origin: "rule" as const })).sort((a, b) => order[a.severity] - order[b.severity]);
 }

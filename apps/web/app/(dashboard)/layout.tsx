@@ -11,6 +11,7 @@ import {
   getAccountWorkspaceEntries,
 } from "@cofounderai/module-discovery/lib/dashboard/queries";
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
+import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
@@ -71,13 +72,20 @@ async function loadAlerts(
   licensedModuleKeysByBusiness: Record<string, string[]>,
 ): Promise<ShellAlert[]> {
   try {
-    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts] = await Promise.all([
+    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts, marketingFundingAlerts] = await Promise.all([
       getAccountWorkspaceEntries(accountId),
       getAccountUsageAndProspects(accountId),
       getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness),
+      // MKT-15/FND-17: Discovery's Marketing and Funding items, for each business with a
+      // Discovery licence. One business failing never empties the whole bell.
+      Promise.all(
+        businesses
+          .filter((b) => (licensedModuleKeysByBusiness[b.id] ?? []).includes("discovery"))
+          .map((b) => getMarketingFundingAlerts(b.id).catch(() => [])),
+      ).then((lists) => lists.flat()),
     ]);
     const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
-    return [...discoveryAlerts, ...otherModuleAlerts].sort((a, b) =>
+    return [...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
       a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
     );
   } catch (error) {

@@ -1,4 +1,5 @@
 import { researchState } from "./metrics";
+import type { Recommendation } from "../intelligence/types";
 import type { DataRoomItem, DiligenceItem, FundingProfile, FundingRound, Investor, OutreachDraft, PipelineRecord, ReadinessItem } from "./types";
 
 /**
@@ -7,17 +8,8 @@ import type { DataRoomItem, DiligenceItem, FundingProfile, FundingRound, Investo
  * where it came from; nothing here is generated text, and nothing claims readiness.
  */
 
-export interface FundingAttentionItem {
-  key: string;
-  severity: "high" | "medium" | "low";
-  title: string;
-  reason: string;
-  data: string;
-  action: string;
-  /** Relative to the Funding section root. */
-  href: string;
-  source: string;
-}
+/** INT-03: the shared Recommendation shape, always rule-based here. */
+export type FundingAttentionItem = Recommendation;
 
 export function fundingAttention(input: {
   profile: FundingProfile | null;
@@ -222,5 +214,5 @@ export function fundingAttention(input: {
   }
 
   const order = { high: 0, medium: 1, low: 2 } as const;
-  return items.sort((a, b) => order[a.severity] - order[b.severity]);
+  return items.map((i) => ({ ...i, origin: "rule" as const })).sort((a, b) => order[a.severity] - order[b.severity]);
 }

@@ -1,12 +1,13 @@
 import { createClient } from "../../db/server";
+import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { requireModule } from "@cofounderai/core/licensing/queries";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { deleteAttachment, uploadAttachment } from "@cofounderai/core/attachments/mutations";
 import { requireUser } from "../tenancy/queries";
 import { checkCampaignTransition, checkContentTransition, statusAfterEdit } from "./lifecycle";
-import type { CampaignInput, ContentInput, MetricSnapshotInput, SeoItemInput, StrategyInput } from "./schemas";
-import type { AssetType, CampaignStatus, ContentStatus, SeoStatus, StrategyGoal } from "./types";
+import type { AttributionInput, CampaignInput, ContentInput, MetricSnapshotInput, SeoItemInput, StrategyInput } from "./schemas";
+import type { AssetType, CampaignStatus, ContentStatus, ContentVersion, SeoStatus, StrategyGoal } from "./types";
 
 /**
  * MKT-01 — the Marketing write layer. Every function here re-checks, independently of
@@ -281,7 +282,8 @@ function contentFields(input: ContentInput) {
 export async function createContent(
   businessId: string,
   input: ContentInput,
-  origin: "user" | "ai_generated" = "user",
+  origin: ContentVersion["origin"] = "user",
+  sourceRefs: Record<string, unknown> = {},
 ): Promise<string> {
   await authorise(businessId, "marketing.manage");
   const supabase = await createClient();
@@ -301,6 +303,7 @@ export async function createContent(
     body: input.body,
     summary: input.summary,
     origin,
+    source_refs: sourceRefs,
   });
   if (versionError) throw versionError;
 
@@ -351,7 +354,12 @@ export async function duplicateContent(businessId: string, contentId: string): P
  * approved or scheduled content returns it to draft — what was approved is no longer
  * what is there — and published content is refused outright (see statusAfterEdit).
  */
-export async function updateContent(businessId: string, contentId: string, input: ContentInput): Promise<void> {
+export async function updateContent(
+  businessId: string,
+  contentId: string,
+  input: ContentInput,
+  provenance: { origin: ContentVersion["origin"]; sourceRefs?: Record<string, unknown>; metadata?: Record<string, unknown> } = { origin: "user" },
+): Promise<void> {
   await authorise(businessId, "marketing.manage");
   const supabase = await createClient();
   const { data: current, error: readError } = await supabase
@@ -383,7 +391,9 @@ export async function updateContent(businessId: string, contentId: string, input
     title: input.title,
     body: input.body,
     summary: input.summary,
-    origin: "user",
+    origin: provenance.origin,
+    source_refs: provenance.sourceRefs ?? {},
+    metadata: provenance.metadata ?? {},
   });
   if (versionError) throw versionError;
 
@@ -560,6 +570,7 @@ export async function saveStrategyDraft(
   input: StrategyInput,
   basedOnId: string | null,
   origin: "user" | "ai_draft" = "user",
+  sourceRefs: Record<string, unknown> = {},
 ): Promise<string> {
   await authorise(businessId, "marketing.manage");
   const supabase = await createClient();
@@ -589,6 +600,7 @@ export async function saveStrategyDraft(
       version_number: versionNumber,
       supersedes_id: basedOnId,
       origin,
+      source_refs: sourceRefs,
     })
     .select("id")
     .single();
@@ -834,4 +846,112 @@ export async function deleteMarketingAsset(businessId: string, assetId: string):
     entityId: assetId,
     before: { name: asset.name },
   });
+}
+
+// ---------------------------------------------------------------------------
+// Metric import (MKT-06) and attribution (MKT-07)
+// ---------------------------------------------------------------------------
+
+/** Writes an imported batch in one upsert; re-importing the same file replaces rather
+ * than double-counts (the (campaign, date, source) key). */
+export async function importCampaignMetrics(businessId: string, campaignId: string, rows: MetricSnapshotInput[]): Promise<number> {
+  await authorise(businessId, "marketing.manage");
+  if (rows.length === 0) return 0;
+  const supabase = await createClient();
+  const { data: campaign, error: readError } = await supabase
+    .from("marketing_campaigns")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("id", campaignId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!campaign) throw new MarketingError("CAMPAIGN_NOT_FOUND", "That campaign no longer exists.");
+  const { error } = await supabase.from("marketing_campaign_metrics").upsert(
+    rows.map((r) => ({
+      business_id: businessId,
+      campaign_id: campaignId,
+      metric_date: r.metricDate,
+      source: "import",
+      impressions: r.impressions,
+      clicks: r.clicks,
+      sessions: r.sessions,
+      engagements: r.engagements,
+      leads: r.leads,
+      qualified_leads: r.qualifiedLeads,
+      opportunities: r.opportunities,
+      customers: r.customers,
+      revenue: r.revenue,
+      spend: r.spend,
+      currency: r.currency,
+    })),
+    { onConflict: "campaign_id,metric_date,source" },
+  );
+  if (error) throw error;
+  await writeAuditLog({ businessId, action: "marketing.metrics.imported", entityType: "marketing_campaign", entityId: campaignId, after: { rows: rows.length } });
+  return rows.length;
+}
+
+/**
+ * Records that a campaign touched a prospect, opportunity or customer. The record must be
+ * this business's own — checked here, since the target lives in another table (or schema)
+ * that a foreign key cannot reach. Ownership of that record does not move (§11).
+ */
+export async function recordAttribution(businessId: string, campaignId: string, input: AttributionInput): Promise<void> {
+  await authorise(businessId, "marketing.manage");
+  const supabase = await createClient();
+  const { data: campaign, error: campaignError } = await supabase
+    .from("marketing_campaigns")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("id", campaignId)
+    .maybeSingle();
+  if (campaignError) throw campaignError;
+  if (!campaign) throw new MarketingError("CAMPAIGN_NOT_FOUND", "That campaign no longer exists.");
+
+  let owned = false;
+  if (input.entityType === "customer") {
+    const core = await createCoreClient({ schema: "core" });
+    const { data } = await core.from("parties").select("id").eq("business_id", businessId).eq("id", input.entityId).maybeSingle();
+    owned = Boolean(data);
+  } else {
+    const table = input.entityType === "prospect" ? "prospects" : "opportunities";
+    const { data } = await supabase.from(table).select("workspace_id").eq("id", input.entityId).maybeSingle();
+    if (data) {
+      const { data: ws } = await supabase.from("workspaces").select("product_id").eq("id", data.workspace_id as string).maybeSingle();
+      const { data: product } = ws
+        ? await supabase.from("products").select("id").eq("business_id", businessId).eq("id", ws.product_id as string).maybeSingle()
+        : { data: null };
+      owned = Boolean(product);
+    }
+  }
+  if (!owned) throw new MarketingError("CAMPAIGN_NOT_FOUND", "That record was not found in this business.");
+
+  const { error } = await supabase.from("marketing_attributions").upsert(
+    {
+      business_id: businessId,
+      campaign_id: campaignId,
+      entity_type: input.entityType,
+      entity_id: input.entityId,
+      touch_type: input.touchType,
+      source: "manual",
+      occurred_at: input.occurredAt ? new Date(input.occurredAt).toISOString() : new Date().toISOString(),
+      evidence: input.evidence ? { note: input.evidence } : {},
+    },
+    { onConflict: "campaign_id,entity_type,entity_id,touch_type" },
+  );
+  if (error) throw error;
+  await writeAuditLog({
+    businessId,
+    action: "marketing.attribution.recorded",
+    entityType: "marketing_campaign",
+    entityId: campaignId,
+    after: { entityType: input.entityType, entityId: input.entityId, touchType: input.touchType },
+  });
+}
+
+export async function deleteAttribution(businessId: string, attributionId: string): Promise<void> {
+  await authorise(businessId, "marketing.manage");
+  const supabase = await createClient();
+  const { error } = await supabase.from("marketing_attributions").delete().eq("business_id", businessId).eq("id", attributionId);
+  if (error) throw error;
 }

@@ -8,8 +8,11 @@ import {
   createCampaign,
   createContent,
   createSeoItem,
+  deleteAttribution,
   deleteMarketingAsset,
   duplicateContent,
+  importCampaignMetrics,
+  recordAttribution,
   duplicateCampaign,
   recordCampaignMetric,
   rescheduleContent,
@@ -22,8 +25,10 @@ import {
   updateContent,
   uploadMarketingAsset,
 } from "@cofounderai/module-discovery/lib/marketing/mutations";
+import { parseMetricsCsv } from "@cofounderai/module-discovery/lib/marketing/import";
 import {
   assetInputSchema,
+  attributionInputSchema,
   campaignInputSchema,
   contentInputSchema,
   firstIssue,
@@ -41,6 +46,7 @@ import {
   type SeoStatus,
   type StrategyGoal,
 } from "@cofounderai/module-discovery/lib/marketing/types";
+import { assistContent, draftStrategyWithAi } from "@cofounderai/module-discovery/lib/marketing/ai";
 import type { FormState } from "@cofounderai/module-discovery/components/marketing/action-form";
 
 /**
@@ -371,6 +377,104 @@ export async function setSeoItemStatusAction(
     await setSeoItemStatus(businessId, itemId, status as SeoStatus);
   } catch (error) {
     return failure(error, "Could not update the opportunity.");
+  }
+  revalidatePath(await base(businessId), "layout");
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// AI drafts (MKT-04, MKT-09) — drafts only; review, approval and publishing stay human
+// ---------------------------------------------------------------------------
+
+export async function draftStrategyWithAiAction(businessId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const offeringId = String(formData.get("offeringId") ?? "").trim() || null;
+  let result: { id: string; cached: boolean };
+  try {
+    result = await draftStrategyWithAi(businessId, offeringId);
+  } catch (error) {
+    return failure(error, "Could not draft the strategy.");
+  }
+  const root = await base(businessId);
+  revalidatePath(root, "layout");
+  redirect(`${root}/strategy?version=${result.id}`);
+}
+
+const REWRITE_STYLES = ["shorter", "clearer", "more_technical", "more_executive", "more_persuasive", "social", "email"] as const;
+
+export async function assistContentAction(businessId: string, contentId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const mode = String(formData.get("mode") ?? "");
+  let request: Parameters<typeof assistContent>[2];
+  if (mode === "generate") request = { mode: "generate", tone: String(formData.get("tone") ?? "").trim().slice(0, 100) };
+  else if (mode === "rewrite") {
+    const style = String(formData.get("style") ?? "");
+    if (!(REWRITE_STYLES as readonly string[]).includes(style)) return { error: "Choose how to rewrite it." };
+    request = { mode: "rewrite", style: style as (typeof REWRITE_STYLES)[number] };
+  } else if (mode === "repurpose") request = { mode: "repurpose", targetType: String(formData.get("targetType") ?? "") };
+  else if (mode === "seo") request = { mode: "seo" };
+  else return { error: "Unknown request." };
+
+  let result: Awaited<ReturnType<typeof assistContent>>;
+  try {
+    result = await assistContent(businessId, contentId, request);
+  } catch (error) {
+    return failure(error, "The AI draft could not be made.");
+  }
+  const root = await base(businessId);
+  revalidatePath(root, "layout");
+  if (result.contentId !== contentId) redirect(`${root}/content/${result.contentId}`);
+  return {
+    success: true,
+    message: result.cached
+      ? "This exact request was already drafted — see the version history."
+      : `Saved as a new draft version for review.${result.notes ? `\n${result.notes}` : ""}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Metric import (MKT-06) and attribution (MKT-07)
+// ---------------------------------------------------------------------------
+
+export async function importMetricsAction(businessId: string, campaignId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const file = formData.get("file");
+  let text = String(formData.get("csv") ?? "");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 1_000_000) return { error: "That file is larger than 1 MB — split it by date range." };
+    text = await file.text();
+  }
+  if (!text.trim()) return { error: "Choose a CSV file or paste its contents." };
+  const { rows, errors } = parseMetricsCsv(text);
+  if (rows.length === 0) return { error: errors.slice(0, 5).join("\n") || "No rows to import." };
+  let n: number;
+  try {
+    n = await importCampaignMetrics(businessId, campaignId, rows);
+  } catch (error) {
+    return failure(error, "Could not import the numbers.");
+  }
+  revalidatePath(await base(businessId), "layout");
+  return {
+    success: true,
+    message: `Imported ${n} day${n === 1 ? "" : "s"}.${errors.length ? `\nSkipped ${errors.length}:\n${errors.slice(0, 5).join("\n")}` : ""}`,
+  };
+}
+
+export async function recordAttributionAction(businessId: string, campaignId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  const [entityType, entityId] = String(formData.get("entity") ?? "").split(":");
+  const parsed = attributionInputSchema.safeParse({ ...fields(formData), entityType, entityId });
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  try {
+    await recordAttribution(businessId, campaignId, parsed.data);
+  } catch (error) {
+    return failure(error, "Could not record the attribution.");
+  }
+  revalidatePath(await base(businessId), "layout");
+  return { success: true, message: "Recorded." };
+}
+
+export async function deleteAttributionAction(businessId: string, attributionId: string): Promise<FormState> {
+  try {
+    await deleteAttribution(businessId, attributionId);
+  } catch (error) {
+    return failure(error, "Could not remove the attribution.");
   }
   revalidatePath(await base(businessId), "layout");
   return { success: true };

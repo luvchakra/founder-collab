@@ -39,6 +39,8 @@ import {
   addResearchAction,
   addToRoundAction,
   deleteResearchAction,
+  draftOutreachWithAiAction,
+  researchInvestorWithAiAction,
   logInteractionAction,
   moveStageAction,
   setInvestorStatusAction,
@@ -231,6 +233,20 @@ export default async function InvestorPage({ params }: { params: Promise<{ busin
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {canManage ? (
+                <ActionForm
+                  action={researchInvestorWithAiAction.bind(null, businessId, investor.id)}
+                  submitLabel="Research with AI"
+                  pendingText="Researching the web..."
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  <p className="text-xs text-muted-foreground">
+                    Searches the web. Findings with a source link are marked source-backed; everything else is marked AI-inferred.
+                  </p>
+                </ActionForm>
               ) : null}
               {canManage ? (
                 <details className="rounded-lg border p-3">
@@ -450,7 +466,35 @@ export default async function InvestorPage({ params }: { params: Promise<{ busin
             <CardHeader>
               <CardTitle>Outreach</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex flex-col gap-3">
+              {canManage ? (
+                <ActionForm
+                  action={draftOutreachWithAiAction.bind(null, businessId, investor.id)}
+                  submitLabel="Draft with AI"
+                  pendingText="Drafting..."
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2"
+                >
+                  <NativeSelect name="roundId" defaultValue={pipeline[0]?.roundId ?? ""} aria-label="Round">
+                    <option value="">No round</option>
+                    {rounds.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <NativeSelect name="contactId" defaultValue={contacts[0]?.id ?? ""} aria-label="Contact">
+                    <option value="">General email</option>
+                    {contacts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <p className="text-xs text-muted-foreground">Uses your funding profile and this investor&apos;s research. Saved as a draft; it needs approval before it can be sent.</p>
+                </ActionForm>
+              ) : null}
               {outreach.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No outreach yet.</p>
               ) : (

@@ -7,7 +7,7 @@ import { listOfferingOptions, listStrategies, pickCurrentStrategy } from "@cofou
 import { MARKETING_CHANNEL_LABEL, type MarketingStrategy, type StrategyGoal } from "@cofounderai/module-discovery/lib/marketing/types";
 import { ActionForm } from "@cofounderai/module-discovery/components/marketing/action-form";
 import { StrategyFields } from "@cofounderai/module-discovery/components/marketing/strategy-fields";
-import { activateStrategyAction, saveStrategyAction, saveStrategyGoalsAction } from "../actions";
+import { activateStrategyAction, draftStrategyWithAiAction, saveStrategyAction, saveStrategyGoalsAction } from "../actions";
 import { marketingContext } from "../context";
 
 const GOAL_STATUS: { value: StrategyGoal["status"]; label: string }[] = [
@@ -72,6 +72,28 @@ export default async function StrategyPage({
         </div>
 
         <div className="flex flex-col gap-6">
+          {canManage ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Draft with AI</CardTitle>
+                <CardDescription>
+                  Uses your business, offerings and ICPs. Saved as a new draft for you to edit — nothing becomes active until you activate it.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ActionForm action={draftStrategyWithAiAction.bind(null, businessId)} submitLabel="Draft strategy" pendingText="Drafting..." variant="secondary">
+                  <NativeSelect name="offeringId" defaultValue="" aria-label="Scope">
+                    <option value="">Whole company</option>
+                    {offerings.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </ActionForm>
+              </CardContent>
+            </Card>
+          ) : null}
           <Card>
             <CardHeader>
               <CardTitle>Versions</CardTitle>

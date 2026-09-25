@@ -24,7 +24,12 @@ export type AiOperation =
   | "suggest_offering_profile"
   | "generate_research_brief"
   | "extract_business_offerings"
-  | "answer_help_question";
+  | "answer_help_question"
+  | "marketing_strategy_draft"
+  | "marketing_content_assist"
+  | "funding_outreach_draft"
+  | "funding_diligence_draft"
+  | "funding_investor_research";
 
 export type AiOperationSpec = {
   qualityTier: AiQualityTier;
@@ -123,6 +128,15 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // own documentation, and a model that went looking elsewhere would answer about some
   // other product.
   answer_help_question: { qualityTier: "balanced", requiresWebSearch: false },
+  // Discovery Marketing/Funding (MKT-04/09, FND-11/13/08). All draft-only: the result is
+  // stored for a person to review and never acts by itself. Investor research is the one
+  // that reads the live web, so it takes the reasoning tier with search, like
+  // research_prospect.
+  marketing_strategy_draft: { qualityTier: "balanced", requiresWebSearch: false },
+  marketing_content_assist: { qualityTier: "balanced", requiresWebSearch: false },
+  funding_outreach_draft: { qualityTier: "balanced", requiresWebSearch: false },
+  funding_diligence_draft: { qualityTier: "balanced", requiresWebSearch: false },
+  funding_investor_research: { qualityTier: "reasoning", requiresWebSearch: true },
 };
 
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {
