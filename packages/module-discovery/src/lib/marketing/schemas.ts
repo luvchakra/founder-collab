@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { currency, lines, optionalCount, optionalDate, optionalMoney, optionalText, optionalUrl, optionalUuid } from "../shared/form-fields";
 import {
   ASSET_TYPES,
   CAMPAIGN_OBJECTIVES,
@@ -15,81 +16,6 @@ import {
  * its input through one of these before touching the database, and the database's own
  * check constraints stand behind them as the last line.
  */
-
-const optionalText = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max)
-    .optional()
-    .nullable()
-    .transform((v) => (v ? v : null));
-
-const optionalUuid = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((v) => (v ? v : null))
-  .pipe(z.uuid().nullable());
-
-const optionalDate = z
-  .string()
-  .trim()
-  .optional()
-  .nullable()
-  .transform((v) => (v ? v : null))
-  .refine((v) => v === null || !Number.isNaN(new Date(v).getTime()), "Enter a valid date.");
-
-const optionalUrl = z
-  .string()
-  .trim()
-  .max(2000)
-  .optional()
-  .nullable()
-  .transform((v) => (v ? v : null))
-  .refine((v) => v === null || /^https?:\/\//i.test(v), "Links must start with http:// or https://.");
-
-const optionalMoney = z
-  .union([z.number(), z.string()])
-  .optional()
-  .nullable()
-  .transform((v, ctx) => {
-    if (v === null || v === undefined || v === "") return null;
-    const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, "").trim());
-    if (!Number.isFinite(n)) {
-      ctx.addIssue({ code: "custom", message: "Enter a number." });
-      return z.NEVER;
-    }
-    if (n < 0) {
-      ctx.addIssue({ code: "custom", message: "Amounts cannot be negative." });
-      return z.NEVER;
-    }
-    return Math.round(n * 100) / 100;
-  });
-
-const optionalCount = z
-  .union([z.number(), z.string()])
-  .optional()
-  .nullable()
-  .transform((v, ctx) => {
-    if (v === null || v === undefined || v === "") return null;
-    const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, "").trim());
-    if (!Number.isInteger(n) || n < 0) {
-      ctx.addIssue({ code: "custom", message: "Counts must be whole numbers, zero or more." });
-      return z.NEVER;
-    }
-    return n;
-  });
-
-const currency = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .optional()
-  .nullable()
-  .transform((v) => (v ? v : null))
-  .refine((v) => v === null || /^[A-Z]{3}$/.test(v), "Use a three-letter currency code such as INR.");
 
 export const campaignInputSchema = z
   .object({
@@ -176,19 +102,6 @@ export const contentInputSchema = z.object({
   seoDescription: optionalText(500),
 });
 export type ContentInput = z.output<typeof contentInputSchema>;
-
-const lines = (max: number) =>
-  z
-    .string()
-    .optional()
-    .nullable()
-    .transform((v) =>
-      (v ?? "")
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, max),
-    );
 
 export const strategyInputSchema = z.object({
   name: z.string().trim().min(1, "Give the strategy a name.").max(200),

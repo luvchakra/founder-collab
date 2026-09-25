@@ -6,6 +6,7 @@ import { generateEinvoice, cancelEinvoice } from "../lib/einvoicing/mutations";
 import { getEwayBillForDocument } from "../lib/eway-bill/queries";
 import { generateEwayBill, cancelEwayBill } from "../lib/eway-bill/mutations";
 import { getComplianceDashboard } from "../lib/dashboard/queries";
+import { getFundingFinanceSnapshot as readFundingFinanceSnapshot, type FundingFinanceSnapshot } from "../lib/accounting/funding-snapshot";
 import type { ContractEinvoice, ContractEwayBill, ContractGstDocumentStatus, ContractResult } from "./types";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 
@@ -141,4 +142,18 @@ export async function getAlerts(businessId: string): Promise<ContractResult<Shel
       },
     ],
   };
+}
+
+export type { FundingFinanceSnapshot };
+
+/**
+ * FND-15 — read-only ledger figures for Discovery's Funding pages (cash, receivables,
+ * payables, recent revenue, burn and runway), read at call time with an `asOf` stamp.
+ * Returns MODULE_NOT_LICENSED as a normal result when Finance is not licensed, so the
+ * caller shows "Finance metrics unavailable" instead of failing (ADR-10, spec §32).
+ */
+export async function getFundingFinanceSnapshot(businessId: string): Promise<ContractResult<FundingFinanceSnapshot>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+  return { ok: true, data: await readFundingFinanceSnapshot(businessId) };
 }

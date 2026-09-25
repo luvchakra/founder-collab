@@ -753,7 +753,7 @@ export function validateAssetFile(
   file: { name: string; type: string; size: number },
 ): { ok: true; defaultType: AssetType } | { ok: false; reason: string } {
   if (file.size <= 0) return { ok: false, reason: "That file is empty." };
-  if (file.size > MAX_ASSET_BYTES) return { ok: false, reason: "Files must be 25 MB or smaller." };
+  if (file.size > MAX_ASSET_BYTES) return { ok: false, reason: `Files must be ${MAX_ASSET_BYTES / (1024 * 1024)} MB or smaller.` };
   const extension = file.name.toLowerCase().split(".").pop() ?? "";
   const rule = ALLOWED_FILES[extension];
   if (!rule) {
