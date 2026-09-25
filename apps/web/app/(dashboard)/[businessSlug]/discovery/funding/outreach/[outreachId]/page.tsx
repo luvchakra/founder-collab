@@ -90,7 +90,7 @@ export default async function OutreachDetailPage({ params }: { params: Promise<{
                 {draft.status === "sent" && draft.sentAt
                   ? `Sent ${new Date(draft.sentAt).toLocaleString("en-IN")} to ${draft.recipientEmail}. Provider id ${draft.providerMessageId}.`
                   : draft.status === "failed"
-                    ? `Not sent: ${draft.failureReason ?? "unknown reason"}. Move it back to draft, fix it and approve again.`
+                    ? `Not sent: ${(draft.failureReason ?? "unknown reason").replace(/\.+$/, "")}. Move it back to draft, fix it and approve again.`
                     : draft.status === "sending"
                       ? "A send is in progress, or was interrupted. Check the recipient's inbox before doing anything else."
                       : draft.status === "awaiting_approval" && !canApprove

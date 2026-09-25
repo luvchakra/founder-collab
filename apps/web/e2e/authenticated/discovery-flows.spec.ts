@@ -270,7 +270,7 @@ test.describe("Funding flows", () => {
     await expect(page.getByLabel("Metric", { exact: true }).last()).toHaveValue(`Monitored sites ${RUN}`);
     await page.getByLabel("Source", { exact: true }).last().fill("Monitoring console export");
     await page.getByRole("button", { name: "Save profile" }).click();
-    await expect(page.getByText("Profile saved.")).toBeVisible();
+    await expect(status(page)).toHaveText("Profile saved.");
   });
 
   test("readiness: standard checklist starts Missing; only a person marks Ready", async ({ page }) => {
@@ -318,7 +318,7 @@ test.describe("Funding flows", () => {
     await page.getByLabel("First name", { exact: true }).fill("Priya");
     await page.getByLabel("Title", { exact: true }).fill("Partner");
     await page.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(page.getByText("Contact added.")).toBeVisible();
+    await expect(status(page)).toHaveText("Contact added.");
 
     await page.getByText("Add a finding").click();
     await page.getByLabel("Where it comes from", { exact: true }).selectOption("source_backed");
@@ -327,7 +327,7 @@ test.describe("Funding flows", () => {
     await expect(alert(page)).toContainText("link it came from");
     await page.getByLabel("Source link", { exact: true }).fill("https://example.com/acme-ventures/thesis");
     await page.getByRole("button", { name: "Save finding" }).click();
-    await expect(page.getByText("Finding saved.")).toBeVisible();
+    await expect(status(page)).toHaveText("Finding saved.");
     await page.reload();
     await expect(page.getByText("Source-backed").first()).toBeVisible();
   });
@@ -337,17 +337,21 @@ test.describe("Funding flows", () => {
     const roundId = roundUrl.split("/").pop()!;
     await page.getByLabel("Round", { exact: true }).first().selectOption(roundId);
     await page.getByRole("button", { name: "Add to round" }).click();
-    await expect(page.getByText("Added to the round.")).toBeVisible();
+    // Once the investor is in every open round the form unmounts, taking its
+    // confirmation with it — the round listed under "In rounds" is the proof.
+    await expect(page.locator(`a[href$="${roundId}"]`).first()).toBeVisible();
 
     await page.reload();
     await page.getByText("Move stage").first().click();
-    await page.getByLabel("Move to", { exact: true }).selectOption("committed");
-    await page.getByRole("button", { name: "Move" }).click();
-    await expect(alert(page)).toContainText("committed amount");
+    const move = page.locator("form", { has: page.locator('select[name="to"]') }).first();
+    await move.locator('select[name="to"]').selectOption("committed");
+    await move.getByRole("button", { name: "Move", exact: true }).click();
+    await expect(move.locator('p[role="alert"]')).toContainText("committed amount");
 
-    await page.getByLabel("Committed amount", { exact: true }).fill("2500000");
-    await page.getByLabel("Currency", { exact: true }).first().fill("INR");
-    await page.getByRole("button", { name: "Move" }).click();
+    await move.locator('input[name="committedAmount"]').fill("2500000");
+    await move.locator('input[name="currency"]').fill("INR");
+    await move.getByRole("button", { name: "Move", exact: true }).click();
+    await expect(page.getByText(/committed ₹25,00,000/)).toBeVisible();
     await page.reload();
     await expect(page.getByText(/committed ₹25,00,000/)).toBeVisible();
 
@@ -362,7 +366,7 @@ test.describe("Funding flows", () => {
     await page.getByLabel("When", { exact: true }).fill(localInput(new Date()));
     await page.getByLabel("Subject", { exact: true }).fill(`Intro call ${RUN}`);
     await page.getByRole("button", { name: "Log", exact: true }).click();
-    await expect(page.getByText("Logged.")).toBeVisible();
+    await expect(status(page)).toHaveText("Logged.");
     await page.reload();
     await expect(page.getByText(`Meeting — Intro call ${RUN}`)).toBeVisible();
   });
@@ -379,19 +383,25 @@ test.describe("Funding flows", () => {
     await page.getByRole("button", { name: "Approve" }).click();
     await expect(page.locator("h1")).toContainText("Approved");
     await page.getByRole("button", { name: /^Send/ }).click();
-    const outcome = page.locator('p[role="status"], p[role="alert"]').first();
-    await expect(outcome).toBeVisible({ timeout: 60_000 });
+    // The Send form unmounts once the status moves on; the Status card carries
+    // the provider's answer either way.
+    await expect(page.locator("h1")).toContainText(/Sent|Failed/, { timeout: 60_000 });
+    const outcome = page.getByText(/^(Sent .* Provider id|Not sent: )/).first();
+    await expect(outcome).toBeVisible();
     test.info().annotations.push({ type: "send-outcome", description: (await outcome.innerText()).slice(0, 200) });
-    await page.reload();
-    await expect(page.locator("h1")).toContainText(/Sent|Failed/);
   });
 
   test("data room: upload into a placeholder, share, open as an outsider, revoke", async ({ page, browser }) => {
     await page.goto(`${fund}/data-room`);
     await page.getByRole("button", { name: "Add standard checklist" }).click();
-    await expect(page.getByRole("status").first()).toBeVisible();
+    await expect(status(page)).toBeVisible();
+    // A run-specific placeholder: the standard "Pitch deck" keeps its file from earlier runs.
+    const placeholder = page.locator("form", { has: page.locator("#ph-name") });
+    await placeholder.locator("#ph-name").fill(`Pitch deck ${RUN}`);
+    await placeholder.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(placeholder.locator('p[role="status"]')).toHaveText("Added to the checklist.");
     await page.reload();
-    const row = () => page.locator("ul.divide-y > li", { hasText: "Pitch deck" }).first();
+    const row = () => page.locator("ul.divide-y > li", { hasText: `Pitch deck ${RUN}` }).first();
     await row().getByText("Upload the file").click();
     await row().getByLabel("File", { exact: true }).setInputFiles({ name: "deck.pdf", mimeType: "application/pdf", buffer: PDF });
     await row().getByRole("button", { name: "Upload" }).click();
@@ -428,13 +438,13 @@ test.describe("Funding flows", () => {
     await page.goto(`${fund}/due-diligence`);
     await page.getByLabel("Request", { exact: true }).fill(`Please share the cap table ${RUN}`);
     await page.getByRole("button", { name: "Add request" }).click();
-    await expect(page.getByText("Added.")).toBeVisible();
+    await expect(status(page)).toHaveText("Added.");
     await page.getByRole("link", { name: new RegExp(`cap table ${RUN}`) }).first().click();
     await page.getByRole("button", { name: "Mark submitted" }).click();
     await expect(alert(page)).toContainText("Write the response");
     await page.getByLabel("Response", { exact: true }).fill("Cap table attached in the data room.");
     await page.getByRole("button", { name: "Save response" }).click();
-    await expect(page.getByText("Saved.")).toBeVisible();
+    await expect(status(page)).toHaveText("Saved.");
     await page.getByRole("button", { name: "Mark submitted" }).click();
     await expect(page.locator("h1")).toContainText("Submitted");
     await page.getByRole("button", { name: "Accept" }).click();
