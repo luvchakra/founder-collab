@@ -53,6 +53,12 @@ spec" below — rather than treating this doc as the ceiling.
   first": `E2E_TEST_BUSINESS_SLUG=your-seed-business`. Most specs don't need this — see
   `e2e/support/business.ts#getTestBusinessSlug`, which discovers a slug from the sidebar
   at runtime so the suite isn't hard-coded to one environment's seed data.
+- `e2e/authenticated/discovery-flows.spec.ts` drives every Discovery Marketing and Funding
+  workflow end to end, creating campaigns, content, rounds, investors, data-room shares
+  and diligence requests as it goes. Because it writes data, it is skipped unless
+  `E2E_ALLOW_MUTATIONS=1`, runs only in the `desktop` project, and should be pointed at a
+  dedicated test business with `E2E_TEST_BUSINESS_SLUG`. Its outreach step sends one real
+  email (if email is configured) to a `+investor-…` alias of the test inbox.
 - Browsers: `npx playwright install chromium` once per machine (standard Playwright
   browser management — this repo's own dev sandbox instead has a browser pre-baked at a
   nonstandard path with no network access to fetch the expected revision; if you ever hit

@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useEffect, useRef, type ReactNode } from "react";
-import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { startTransition, useActionState, useEffect, useRef, type ReactNode } from "react";
+import { Loader2 } from "lucide-react";
+import { Button } from "@cofounderai/core/ui/button";
 import { cn } from "@cofounderai/core/lib/utils";
 
 /** What every Marketing/Funding server action returns. */
@@ -12,6 +13,12 @@ export type FormAction = (prevState: FormState, formData: FormData) => Promise<F
  * The one form wrapper the Marketing and Funding screens use: runs a server action
  * through `useActionState`, shows its error inline (never as a toast that disappears
  * before a founder on a phone has read it), and optionally clears itself on success.
+ *
+ * Submitted from `onSubmit` rather than `<form action>` on purpose. React resets every
+ * uncontrolled field after a form action completes, including when the server answered
+ * with a validation error, so a founder who forgot one field would lose everything else
+ * they typed. Dispatching the action ourselves keeps their input until it is actually
+ * saved (`resetOnSuccess` clears it then, when that is wanted).
  *
  * Kept free of field knowledge so a Server Component page can pass plain inputs as
  * children and a server action bound to the business id.
@@ -45,7 +52,7 @@ export function ActionForm({
   confirm?: string;
   encType?: "multipart/form-data";
 }) {
-  const [state, formAction] = useActionState<FormState, FormData>(action, null);
+  const [state, formAction, pending] = useActionState<FormState, FormData>(action, null);
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -58,16 +65,19 @@ export function ActionForm({
   return (
     <form
       ref={formRef}
-      action={formAction}
       encType={encType}
       className={cn(inline ? "inline-flex flex-col gap-1" : "flex flex-col gap-4", className)}
       onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
+        e.preventDefault();
+        if (pending) return;
+        if (confirm && !window.confirm(confirm)) return;
+        const data = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
+        startTransition(() => formAction(data));
       }}
     >
       {children}
       {error ? (
-        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm break-words whitespace-pre-line text-destructive">
           {error}
         </p>
       ) : null}
@@ -77,9 +87,16 @@ export function ActionForm({
         </p>
       ) : null}
       <div className={inline ? "" : "flex justify-end"}>
-        <SubmitButton variant={variant} size={size ?? (inline ? "sm" : "default")} pendingText={pendingText}>
-          {submitLabel}
-        </SubmitButton>
+        <Button type="submit" variant={variant} size={size ?? (inline ? "sm" : "default")} disabled={pending} aria-busy={pending}>
+          {pending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              {pendingText ?? "Working..."}
+            </>
+          ) : (
+            submitLabel
+          )}
+        </Button>
       </div>
     </form>
   );
