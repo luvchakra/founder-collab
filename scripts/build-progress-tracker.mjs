@@ -37,6 +37,7 @@ const BACKLOGS = [
   { file: "10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md", name: "Discovery — offering-centric upgrade" },
   { file: "08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md", name: "Discovery — opportunity intelligence" },
   { file: "11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md", name: "Compliance / Finance — global tax" },
+  { file: "12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md", name: "Discovery — Marketing, Customer Acquisition & Funding" },
 ];
 
 /** `## DISC-OFFER-P0-01.1 — Introduce Business Offering`, at any heading depth, with or
@@ -49,8 +50,9 @@ const BACKLOGS = [
 const STORY_HEADING = /^#{2,4}\s+(?:Story\s+)?((?:DISC|PLATFORM|COMPLY)[A-Z0-9-]*-\d+\.\d+)\s*[—–-]\s*(.+?)\s*$/;
 /** A section heading that is not a story: what the stories under it belong to. */
 const EPIC_HEADING = /^#{1,2}\s+(?:\d+\.\s*)?(?:EPIC\s+)?(.+?)\s*$/;
-/** `| \`FIN-1\` | **Finance exceptions queue** ... | M |` */
-const TABLE_STORY = /^\|\s*`([A-Z]+-\d+[a-z]?)`\s*\|\s*(.+?)\s*\|/;
+/** `| \`FIN-1\` | **Finance exceptions queue** ... | M |`, and multi-part prefixes such as
+ * `| \`DISC-NAV-01\` | ... |`. */
+const TABLE_STORY = /^\|\s*`([A-Z]+(?:-[A-Z]+)*-\d+[a-z]?)`\s*\|\s*(.+?)\s*\|/;
 
 /** The first clause of a story's line, as its name. Backlog entries run to a paragraph;
  * what belongs in a status table is the phrase a person would use to refer to the story. */
@@ -115,7 +117,16 @@ export function parseBacklog(fileName, source) {
  * `/` separates a list, `-` or an en dash separates a range.
  */
 export function expandCitation(token) {
-  const match = /^((?:DISC|PLATFORM|COMPLY)[A-Z0-9-]*?-)(\d+(?:\.\d+)?)((?:[/\u2013-]\d+(?:\.\d+)?)*)$/.exec(token);
+  // `MKT-03..14` — an integer range written with two dots, as the Discovery expansion
+  // stories are cited. Filled in keeping the zero padding the backlog uses (MKT-03).
+  const dotted = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT)[A-Z0-9-]*?-)(\d+)\.\.(\d+)$/.exec(token);
+  if (dotted) {
+    const [, prefix, from, to] = dotted;
+    const ids = [];
+    for (let n = Number(from); n <= Number(to) && ids.length < 100; n += 1) ids.push(`${prefix}${String(n).padStart(from.length, "0")}`);
+    return ids;
+  }
+  const match = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT)[A-Z0-9-]*?-)(\d+(?:\.\d+)?)((?:[/\u2013-]\d+(?:\.\d+)?)*)$/.exec(token);
   if (!match) return [];
 
   const [, base, first, rest] = match;
@@ -159,7 +170,7 @@ export function findCitations(ids) {
       "git",
       [
         "grep", "-oI", "--no-color", "-E",
-        "(DISC|PLATFORM|COMPLY)[A-Z0-9-]*-[0-9]+(\\.[0-9]+)?([/\u2013-][0-9]+(\\.[0-9]+)?)*",
+        "\\b(DISC|PLATFORM|COMPLY|MKT|FND|INT)[A-Z0-9-]*-[0-9]+((\\.\\.[0-9]+)|((\\.[0-9]+)?([/\u2013-][0-9]+(\\.[0-9]+)?)*))",
         // Everything that talks *about* story ids rather than implementing one: the
         // backlogs, the tracker, this script and its test (whose examples would otherwise
         // read as evidence), and the instructions that tell contributors to cite ids.

@@ -395,6 +395,10 @@
     "COMPLY-P0-01.1": {
       "status": "Done",
       "note": "The module shipped as Compliance and has since been renamed again to Finance \u2014 `packages/module-registry/src/index.ts`"
+    },
+    "INT-05": {
+      "status": "Deferred",
+      "note": "Spec \u00a757\u2013\u00a758: not to be built until an unattended-execution design exists \u2014 see `docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`"
     }
   }
 }

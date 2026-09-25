@@ -46,6 +46,11 @@ test("a heading without a minor number is an epic, not a story", () => {
   assert.equal(stories[0].epic, "COMPLY-P1-05 — UAE");
 });
 
+test("a table row with a multi-part id is a story", () => {
+  const stories = parseBacklog("12-x.md", ["## Navigation", "", "| `DISC-NAV-01` | Discovery sidebar hierarchy | M |"].join("\n"));
+  assert.deepEqual(stories.map((story) => story.id), ["DISC-NAV-01"]);
+});
+
 test("a backlog table row is a story too", () => {
   const stories = parseBacklog(
     "04-x.md",
@@ -71,6 +76,10 @@ test("expandCitation reads the grouped forms the codebase actually writes", () =
   // A range across sections is not a sequence anyone meant to enumerate.
   assert.deepEqual(expandCitation("PLATFORM-P0-08.1-09.2"), ["PLATFORM-P0-08.1", "PLATFORM-P0-09.2"]);
   assert.deepEqual(expandCitation("not-a-story-id"), []);
+  // The Discovery expansion's ids: two-part prefixes, slash lists and dotted ranges.
+  assert.deepEqual(expandCitation("MKT-03..05"), ["MKT-03", "MKT-04", "MKT-05"]);
+  assert.deepEqual(expandCitation("FND-01/02/15"), ["FND-01", "FND-02", "FND-15"]);
+  assert.deepEqual(expandCitation("DISC-NAV-01..02"), ["DISC-NAV-01", "DISC-NAV-02"]);
 });
 
 test("the tracker accounts for every story exactly once", () => {

@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 272 |
+| ✅ Done | 315 |
 | 🟡 In progress | 0 |
-| ⏸️ Deferred | 1 |
+| ⏸️ Deferred | 2 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 5 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 83 |
-| **Total** | **391** |
+| **Total** | **435** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -35,6 +35,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 51 | 0 | 7 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
+| [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 
 ## What is left
 
@@ -976,3 +977,71 @@ Source: [`docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md`](./plan/11-COMPLIANCE-G
 | `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
 | `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
 | `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
+
+## Discovery — Marketing, Customer Acquisition & Funding
+
+Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md)
+
+### Navigation
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `DISC-NAV-01` | Discovery sidebar hierarchy | ✅ Done | `apps/web/tests/discovery-nav-routes.test.ts` +3 |
+| `DISC-NAV-02` | Business Offering navigation | ✅ Done | `apps/web/tests/discovery-nav-routes.test.ts` +3 |
+| `DISC-NAV-03` | Customer Acquisition navigation adapter | ✅ Done | `apps/web/tests/discovery-nav-routes.test.ts` +3 |
+| `DISC-NAV-04` | Marketing navigation | ✅ Done | `apps/web/e2e/authenticated/marketing.spec.ts` +5 |
+| `DISC-NAV-05` | Funding navigation | ✅ Done | `apps/web/e2e/authenticated/funding.spec.ts` +4 |
+| `DISC-NAV-06` | Responsive navigation | ✅ Done | `packages/module-discovery/src/components/marketing/section-tabs.tsx` |
+
+### Marketing
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `MKT-01` | Marketing domain foundation | ✅ Done | `packages/module-discovery/src/lib/marketing/mutations.test.ts` +5 |
+| `MKT-02` | Marketing database | ✅ Done | `supabase/migrations/20260925100000_discovery_marketing.sql` |
+| `MKT-03` | Marketing Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +12 |
+| `MKT-04` | Strategy | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +9 |
+| `MKT-05` | Campaigns | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +10 |
+| `MKT-06` | Campaign metrics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +7 |
+| `MKT-07` | Attribution | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +4 |
+| `MKT-08` | Content Studio | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +9 |
+| `MKT-09` | Content AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +7 |
+| `MKT-10` | Content Calendar | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +5 |
+| `MKT-11` | Assets | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +3 |
+| `MKT-12` | Website & SEO | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +3 |
+| `MKT-13` | AI-search visibility | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/layout.tsx` +3 |
+| `MKT-14` | Marketing Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/analytics/page.tsx` +9 |
+| `MKT-15` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +2 |
+| `MKT-16` | Marketing recommendations | ✅ Done | `packages/module-discovery/src/components/marketing/attention-panel.tsx` +2 |
+
+### Funding
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `FND-01` | Funding domain foundation | ✅ Done | `packages/module-discovery/src/lib/funding/mutations.test.ts` +5 |
+| `FND-02` | Funding database | ✅ Done | `supabase/migrations/20260925110000_discovery_funding.sql` |
+| `FND-03` | Funding Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +8 |
+| `FND-04` | Funding Profile | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +3 |
+| `FND-05` | Investor Readiness | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +4 |
+| `FND-06` | Fundraising Rounds | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
+| `FND-07` | Investor Database | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +5 |
+| `FND-08` | Investor Research | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +6 |
+| `FND-09` | Investor Pipeline | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
+| `FND-10` | Investor Interactions | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +3 |
+| `FND-11` | Investor Outreach | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +13 |
+| `FND-12` | Data Room | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
+| `FND-13` | Due Diligence | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
+| `FND-14` | Funding Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/analytics/page.tsx` +5 |
+| `FND-15` | Finance read integration | ✅ Done | `packages/module-gst/src/contract/index.ts` +2 |
+| `FND-16` | Funding AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +8 |
+| `FND-17` | Funding notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +2 |
+
+### Cross-domain
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `INT-01` | Discovery data context | ✅ Done | `packages/module-discovery/src/lib/intelligence/context.ts` |
+| `INT-02` | Evidence model | ✅ Done | `packages/module-discovery/src/lib/intelligence/types.ts` +2 |
+| `INT-03` | Recommendations | ✅ Done | `packages/module-discovery/src/lib/funding/attention.ts` +2 |
+| `INT-04` | Notification integration | ✅ Done | `packages/module-crm/src/lib/timeline/queries.ts` +1 |
+| `INT-05` | Scheduled intelligence | ⏸️ Deferred | Spec §57–§58: not to be built until an unattended-execution design exists — see `docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md` |
