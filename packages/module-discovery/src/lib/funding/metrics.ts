@@ -195,3 +195,50 @@ export function formatAmount(value: number | null, currency: string | null): str
     return `${currency ?? ""} ${Math.round(value).toLocaleString("en-IN")}`.trim();
   }
 }
+
+/** Investors, pipeline records and commitments by how the investor was found (§31.1 —
+ * only the sources recorded; nothing is attributed to a source it was not given). */
+export function sourceBreakdown(
+  investors: { id: string; source: string }[],
+  pipeline: Pick<PipelineRecord, "investorId" | "stage" | "committedAmount" | "currency">[],
+): { source: string; investors: number; inPipeline: number; committed: number }[] {
+  const sourceOf = new Map(investors.map((i) => [i.id, i.source]));
+  const rows = new Map<string, { source: string; investors: number; inPipeline: number; committed: number }>();
+  const row = (source: string) => {
+    const r = rows.get(source) ?? { source, investors: 0, inPipeline: 0, committed: 0 };
+    rows.set(source, r);
+    return r;
+  };
+  for (const i of investors) row(i.source).investors += 1;
+  for (const p of pipeline) {
+    const source = sourceOf.get(p.investorId);
+    if (!source) continue;
+    if (p.stage !== "passed") row(source).inPipeline += 1;
+    if (p.stage === "committed" || p.stage === "invested") row(source).committed += 1;
+  }
+  return [...rows.values()].sort((a, b) => b.investors - a.investors);
+}
+
+/** How many investors entered each stage per week or month, from stage history (§31.2). */
+export function stageEntriesByPeriod(
+  history: StageChange[],
+  grain: "week" | "month",
+  stages: readonly PipelineStage[] = ["contacted", "meeting", "due_diligence", "term_discussion", "committed", "invested"],
+): { bucket: string; counts: Partial<Record<PipelineStage, number>> }[] {
+  const buckets = new Map<string, Partial<Record<PipelineStage, number>>>();
+  for (const h of history) {
+    if (!stages.includes(h.toStage)) continue;
+    const d = new Date(h.changedAt);
+    let key: string;
+    if (grain === "month") key = h.changedAt.slice(0, 7);
+    else {
+      const day = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+      day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+      key = day.toISOString().slice(0, 10);
+    }
+    const counts = buckets.get(key) ?? {};
+    counts[h.toStage] = (counts[h.toStage] ?? 0) + 1;
+    buckets.set(key, counts);
+  }
+  return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([bucket, counts]) => ({ bucket, counts }));
+}

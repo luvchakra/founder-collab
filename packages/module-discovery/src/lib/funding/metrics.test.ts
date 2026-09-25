@@ -4,7 +4,7 @@
  * reached, not only where records sit now.
  */
 import { describe, expect, it } from "vitest";
-import { dataRoomSummary, investorFunnel, readinessSummary, researchState, roundProgress, timeInStage } from "./metrics";
+import { dataRoomSummary, investorFunnel, readinessSummary, researchState, roundProgress, sourceBreakdown, stageEntriesByPeriod, timeInStage } from "./metrics";
 
 const round = { targetAmount: 1_000_000, currency: "INR" };
 
@@ -122,5 +122,36 @@ describe("researchState", () => {
     expect(researchState({ researchStatus: "researched", lastResearchedAt: "2026-01-01T00:00:00Z" }, now)).toBe("stale");
     expect(researchState({ researchStatus: "researched", lastResearchedAt: "2026-09-01T00:00:00Z" }, now)).toBe("researched");
     expect(researchState({ researchStatus: "not_researched", lastResearchedAt: null }, now)).toBe("not_researched");
+  });
+});
+
+describe("sourceBreakdown", () => {
+  it("counts investors, open pipeline and commitments per recorded source", () => {
+    const rows = sourceBreakdown(
+      [
+        { id: "a", source: "referral" },
+        { id: "b", source: "referral" },
+        { id: "c", source: "inbound" },
+      ],
+      [
+        { investorId: "a", stage: "committed", committedAmount: 1, currency: "INR" },
+        { investorId: "b", stage: "passed", committedAmount: null, currency: null },
+        { investorId: "c", stage: "meeting", committedAmount: null, currency: null },
+      ],
+    );
+    expect(rows[0]).toEqual({ source: "referral", investors: 2, inPipeline: 1, committed: 1 });
+    expect(rows[1]).toEqual({ source: "inbound", investors: 1, inPipeline: 1, committed: 0 });
+  });
+});
+
+describe("stageEntriesByPeriod", () => {
+  it("buckets stage entries by ISO week and by month", () => {
+    const history = [
+      { pipelineId: "a", fromStage: null, toStage: "identified" as const, changedAt: "2026-09-01T00:00:00Z" },
+      { pipelineId: "a", fromStage: "identified" as const, toStage: "contacted" as const, changedAt: "2026-09-25T10:00:00Z" },
+      { pipelineId: "b", fromStage: "contacted" as const, toStage: "meeting" as const, changedAt: "2026-09-22T10:00:00Z" },
+    ];
+    expect(stageEntriesByPeriod(history, "week")).toEqual([{ bucket: "2026-09-21", counts: { contacted: 1, meeting: 1 } }]);
+    expect(stageEntriesByPeriod(history, "month")).toEqual([{ bucket: "2026-09", counts: { contacted: 1, meeting: 1 } }]);
   });
 });
