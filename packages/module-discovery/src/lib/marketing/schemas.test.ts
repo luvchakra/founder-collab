@@ -2,7 +2,7 @@
  * MKT-01. The server-boundary schemas: what a form cannot be trusted to have enforced.
  */
 import { describe, expect, it } from "vitest";
-import { campaignInputSchema, contentInputSchema, firstIssue, metricSnapshotSchema, strategyInputSchema } from "./schemas";
+import { campaignInputSchema, contentInputSchema, firstIssue, metricSnapshotSchema, seoItemInputSchema, strategyInputSchema } from "./schemas";
 
 const baseCampaign = { name: "Smart Home Awareness", objective: "awareness", channel: "linkedin" };
 
@@ -102,5 +102,24 @@ describe("strategyInputSchema", () => {
 
   it("refuses an unknown channel", () => {
     expect(strategyInputSchema.safeParse({ name: "S", channels: ["telepathy"] }).success).toBe(false);
+  });
+});
+
+describe("seoItemInputSchema", () => {
+  it("records an AI-search observation's answer and citations as structured fields", () => {
+    const parsed = seoItemInputSchema.parse({
+      title: "Not cited for 'best home security for complexes'",
+      category: "ai_search_visibility",
+      query: "best home security for large residential complexes",
+      engine: "ChatGPT",
+      companyAppears: "no",
+      citedUrls: "https://a.example\n\nhttps://b.example",
+    });
+    expect(parsed.companyAppears).toBe(false);
+    expect(parsed.citedUrls).toEqual(["https://a.example", "https://b.example"]);
+  });
+
+  it("leaves 'appears' unknown when the observer did not say", () => {
+    expect(seoItemInputSchema.parse({ title: "t", category: "metadata" }).companyAppears).toBeNull();
   });
 });

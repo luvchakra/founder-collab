@@ -315,6 +315,38 @@ export async function createContent(
 }
 
 /**
+ * Starts a new draft from existing content — the way to change published content, which is
+ * never edited in place (see statusAfterEdit). The copy has its own version history.
+ */
+export async function duplicateContent(businessId: string, contentId: string): Promise<string> {
+  await authorise(businessId, "marketing.manage");
+  const supabase = await createClient();
+  const { data: source, error: readError } = await supabase
+    .from("marketing_content")
+    .select("title, content_type, offering_id, campaign_id, brief, body, summary, audience, channel, cta, seo_metadata")
+    .eq("business_id", businessId)
+    .eq("id", contentId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!source) throw new MarketingError("CONTENT_NOT_FOUND", "That content no longer exists.");
+  const seo = (source.seo_metadata ?? {}) as Record<string, string>;
+  return createContent(businessId, {
+    title: `Copy of ${source.title as string}`.slice(0, 300),
+    contentType: source.content_type as ContentInput["contentType"],
+    offeringId: (source.offering_id as string) ?? null,
+    campaignId: (source.campaign_id as string) ?? null,
+    brief: (source.brief as string) ?? null,
+    body: (source.body as string) ?? null,
+    summary: (source.summary as string) ?? null,
+    audience: (source.audience as string) ?? null,
+    channel: (source.channel as string) ?? null,
+    cta: (source.cta as string) ?? null,
+    seoTitle: seo.title ?? null,
+    seoDescription: seo.description ?? null,
+  });
+}
+
+/**
  * Saves an edit as a new version rather than overwriting the old one (§12.6). Editing
  * approved or scheduled content returns it to draft — what was approved is no longer
  * what is there — and published content is refused outright (see statusAfterEdit).
@@ -630,6 +662,17 @@ export async function setStrategyGoals(businessId: string, strategyId: string, g
 // SEO opportunities
 // ---------------------------------------------------------------------------
 
+function seoEvidence(input: SeoItemInput): Record<string, unknown> {
+  const evidence: Record<string, unknown> = {};
+  if (input.evidenceNote) evidence.note = input.evidenceNote;
+  if (input.query) evidence.query = input.query;
+  if (input.engine) evidence.engine = input.engine;
+  if (input.observedAnswer) evidence.observedAnswer = input.observedAnswer;
+  if (input.companyAppears !== null) evidence.companyAppears = input.companyAppears;
+  if (input.citedUrls.length > 0) evidence.citedUrls = input.citedUrls;
+  return evidence;
+}
+
 export async function createSeoItem(businessId: string, input: SeoItemInput): Promise<string> {
   await authorise(businessId, "marketing.manage");
   const supabase = await createClient();
@@ -645,7 +688,7 @@ export async function createSeoItem(businessId: string, input: SeoItemInput): Pr
       recommended_action: input.recommendedAction,
       // A manually logged finding records who observed it and what they saw — it is
       // evidence a person supplied, labelled as such (§5.2).
-      evidence: input.evidenceNote ? { note: input.evidenceNote } : {},
+      evidence: seoEvidence(input),
       source: "manual",
       observed_at: new Date().toISOString(),
     })
@@ -674,7 +717,10 @@ export async function setSeoItemStatus(businessId: string, itemId: string, statu
 // Assets
 // ---------------------------------------------------------------------------
 
-export const MAX_ASSET_BYTES = 25 * 1024 * 1024;
+/** Files travel through a server action, and Vercel refuses request bodies over 4.5 MB, so
+ * the cap sits just under that (apps/web/next.config.ts raises Next's own 1 MB default to
+ * match). Larger media belongs on a video host, linked from the content. */
+export const MAX_ASSET_BYTES = 4 * 1024 * 1024;
 
 /**
  * What an uploaded file may be, keyed by extension, with the MIME types each is allowed

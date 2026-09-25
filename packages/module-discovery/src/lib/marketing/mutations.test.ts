@@ -215,6 +215,28 @@ describe("updateContent", () => {
   });
 });
 
+describe("duplicateContent", () => {
+  it("copies the source into a new draft with its own first version", async () => {
+    useFake((call) => {
+      if (call.table === "marketing_content" && call.ops.some((o) => o.method === "insert")) return { data: { id: "copy" }, error: null };
+      if (call.table === "marketing_content") {
+        return { data: { title: "Launch post", content_type: "blog", body: "Words", seo_metadata: { title: "SEO" } }, error: null };
+      }
+      return { data: null, error: null };
+    });
+
+    await expect(m.duplicateContent(BUSINESS, "x")).resolves.toBe("copy");
+    const insert = fake.queries("marketing_content").find((q) => q.ops.some((o) => o.method === "insert"))!;
+    expect(writtenRow(insert)).toMatchObject({ title: "Copy of Launch post", status: "draft", business_id: BUSINESS });
+    expect(writtenRow(fake.queries("marketing_content_versions")[0]!)).toMatchObject({ version_number: 1, body: "Words" });
+  });
+
+  it("reports content from another business as not found", async () => {
+    useFake(() => ({ data: null, error: null }));
+    await expect(m.duplicateContent(BUSINESS, "other")).rejects.toMatchObject({ code: "CONTENT_NOT_FOUND" });
+  });
+});
+
 describe("validateAssetFile", () => {
   it("accepts a file whose extension and type agree", () => {
     expect(m.validateAssetFile({ name: "logo.png", type: "image/png", size: 1000 })).toEqual({ ok: true, defaultType: "image" });

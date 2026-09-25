@@ -319,6 +319,9 @@ export interface MarketingAsset {
   fileName: string;
   contentType: string | null;
   sizeBytes: number | null;
+  /** Where the bytes live in the shared attachments bucket; used only to mint signed URLs. */
+  storageBucket: string | null;
+  storagePath: string | null;
   altText: string | null;
   description: string | null;
   campaignId: string | null;

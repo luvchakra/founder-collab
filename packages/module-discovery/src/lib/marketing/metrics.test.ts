@@ -4,7 +4,7 @@
  * ratio. Each test below is one way that rule could quietly break.
  */
 import { describe, expect, it } from "vitest";
-import { campaignTotals, formatMetric, marketingFunnel, ratio, sumReported } from "./metrics";
+import { campaignPacing, campaignTotals, formatMetric, marketingFunnel, ratio, sumReported } from "./metrics";
 import type { CampaignMetricRow } from "./types";
 
 function row(overrides: Partial<CampaignMetricRow>): CampaignMetricRow {
@@ -154,5 +154,21 @@ describe("formatMetric", () => {
 
   it("still shows a real zero as zero", () => {
     expect(formatMetric(0, "count")).toBe("0");
+  });
+});
+
+describe("campaignPacing", () => {
+  const plan = { budget: 1000, currency: "INR", startAt: "2026-09-01T00:00:00Z", endAt: "2026-09-11T00:00:00Z" };
+
+  it("compares budget used with time elapsed", () => {
+    const pacing = campaignPacing(plan, { spend: { value: 250, definition: "" }, currencies: ["INR"] }, new Date("2026-09-06T00:00:00Z"));
+    expect(pacing).toEqual({ spendShare: 0.25, timeShare: 0.5, plannedDays: 11 });
+  });
+
+  it("is unavailable without reported spend, dates, or a matching currency", () => {
+    const now = new Date("2026-09-06T00:00:00Z");
+    expect(campaignPacing(plan, { spend: { value: null, definition: "" }, currencies: [] }, now)).toBeNull();
+    expect(campaignPacing({ ...plan, endAt: null }, { spend: { value: 1, definition: "" }, currencies: [] }, now)).toBeNull();
+    expect(campaignPacing(plan, { spend: { value: 1, definition: "" }, currencies: ["USD"] }, now)).toBeNull();
   });
 });

@@ -303,7 +303,7 @@ export const listAssets = cache(async (businessId: string): Promise<MarketingAss
   const core = await createCoreClient({ schema: "core" });
   const { data: attachments, error: attachmentError } = await core
     .from("attachments")
-    .select("id, file_name, content_type, size_bytes")
+    .select("id, file_name, content_type, size_bytes, storage_bucket, storage_path")
     .eq("business_id", businessId)
     .in(
       "id",
@@ -323,6 +323,8 @@ export const listAssets = cache(async (businessId: string): Promise<MarketingAss
       fileName: (a?.file_name as string) ?? (r.name as string),
       contentType: (a?.content_type as string) ?? null,
       sizeBytes: toNumber(a?.size_bytes),
+      storageBucket: (a?.storage_bucket as string) ?? null,
+      storagePath: (a?.storage_path as string) ?? null,
       altText: (r.alt_text as string) ?? null,
       description: (r.description as string) ?? null,
       campaignId: (r.campaign_id as string) ?? null,
@@ -371,3 +373,64 @@ export const listOfferingOptions = cache(async (businessId: string): Promise<{ i
   if (error) throw error;
   return ((data ?? []) as Row[]).map((r) => ({ id: r.id as string, name: r.name as string }));
 });
+
+/**
+ * Short-lived signed links for asset previews and downloads (§14.3: "use signed URLs for
+ * private content"). One batched call per bucket rather than one per asset. The storage
+ * API checks the caller's access when it signs, so this cannot mint a link to another
+ * business's file.
+ */
+export async function assetSignedUrls(assets: MarketingAsset[], expiresInSeconds = 3600): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  const withPath = assets.filter((a) => a.storageBucket && a.storagePath);
+  if (withPath.length === 0) return urls;
+  const core = await createCoreClient({ schema: "core" });
+  const byBucket = new Map<string, MarketingAsset[]>();
+  for (const a of withPath) {
+    const list = byBucket.get(a.storageBucket!) ?? [];
+    list.push(a);
+    byBucket.set(a.storageBucket!, list);
+  }
+  for (const [bucket, list] of byBucket) {
+    const { data, error } = await core.storage.from(bucket).createSignedUrls(
+      list.map((a) => a.storagePath!),
+      expiresInSeconds,
+    );
+    if (error) throw error;
+    for (const [i, entry] of (data ?? []).entries()) {
+      if (entry.signedUrl) urls.set(list[i]!.id, entry.signedUrl);
+    }
+  }
+  return urls;
+}
+
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  createdAt: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+}
+
+/** One record's audit trail, newest first — the "activity timeline" on detail pages (§9.4). */
+export const listEntityActivity = cache(
+  async (businessId: string, entityType: string, entityId: string): Promise<ActivityEntry[]> => {
+    const core = await createCoreClient({ schema: "core" });
+    const { data, error } = await core
+      .from("audit_log")
+      .select("id, action, created_at, before, after")
+      .eq("business_id", businessId)
+      .eq("entity_type", entityType)
+      .eq("entity_id", entityId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return ((data ?? []) as Row[]).map((r) => ({
+      id: r.id as string,
+      action: r.action as string,
+      createdAt: r.created_at as string,
+      before: (r.before as Record<string, unknown>) ?? null,
+      after: (r.after as Record<string, unknown>) ?? null,
+    }));
+  },
+);

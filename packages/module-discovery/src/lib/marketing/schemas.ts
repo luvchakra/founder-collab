@@ -228,6 +228,16 @@ export const seoItemInputSchema = z.object({
   description: optionalText(4000),
   recommendedAction: optionalText(2000),
   evidenceNote: optionalText(4000),
+  // MKT-13 — an AI-search observation (§16.5): what was asked, where, what came back, and
+  // whether the business appeared. Stored as evidence on the finding, never as a ranking.
+  query: optionalText(1000),
+  engine: optionalText(100),
+  observedAnswer: optionalText(8000),
+  companyAppears: z
+    .enum(["yes", "no", ""])
+    .optional()
+    .transform((v) => (v === "yes" ? true : v === "no" ? false : null)),
+  citedUrls: lines(20),
 });
 export type SeoItemInput = z.output<typeof seoItemInputSchema>;
 

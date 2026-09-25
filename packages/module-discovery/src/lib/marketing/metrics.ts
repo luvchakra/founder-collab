@@ -180,3 +180,28 @@ export function formatMetric(
   }
   return Math.round(value).toLocaleString("en-IN");
 }
+
+/**
+ * Budget pacing (§9.4): the share of the budget used against the share of the planned run
+ * elapsed. Null unless every input is known — a budget, spend reported in the budget's
+ * currency, and both dates — because a pacing figure built on a guess is worse than none.
+ */
+export function campaignPacing(
+  campaign: { budget: number | null; currency: string | null; startAt: string | null; endAt: string | null },
+  totals: Pick<CampaignTotals, "spend" | "currencies">,
+  now: Date,
+): { spendShare: number; timeShare: number; plannedDays: number } | null {
+  if (!campaign.budget || !campaign.startAt || !campaign.endAt) return null;
+  const spend = totals.spend.value;
+  if (spend === null) return null;
+  if (totals.currencies.length > 1 || (totals.currencies[0] && totals.currencies[0] !== campaign.currency)) return null;
+  const start = new Date(campaign.startAt).getTime();
+  const span = new Date(campaign.endAt).getTime() - start;
+  if (!(span >= 0)) return null;
+  const elapsed = Math.min(Math.max(now.getTime() - start, 0), span);
+  return {
+    spendShare: spend / campaign.budget,
+    timeShare: span > 0 ? elapsed / span : 1,
+    plannedDays: Math.round(span / 86_400_000) + 1,
+  };
+}
