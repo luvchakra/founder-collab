@@ -14,11 +14,15 @@ export type FormAction = (prevState: FormState, formData: FormData) => Promise<F
  * through `useActionState`, shows its error inline (never as a toast that disappears
  * before a founder on a phone has read it), and optionally clears itself on success.
  *
- * Submitted from `onSubmit` rather than `<form action>` on purpose. React resets every
- * uncontrolled field after a form action completes, including when the server answered
- * with a validation error, so a founder who forgot one field would lose everything else
- * they typed. Dispatching the action ourselves keeps their input until it is actually
- * saved (`resetOnSuccess` clears it then, when that is wanted).
+ * Two submission paths, on purpose. The form keeps `action={formAction}` so a click that
+ * lands before the page has hydrated still posts to the server action (React's
+ * progressive enhancement) instead of falling back to a plain GET that reloads the page
+ * and saves nothing. Once hydrated, `onSubmit` takes over and dispatches the action itself
+ * inside a transition: React resets every uncontrolled field after a `<form action>`
+ * completes — even when the server answered with a validation error — so a founder who
+ * got one field wrong would otherwise lose everything else they typed. `preventDefault()`
+ * stops React's own action dispatch, so it runs exactly once. Fields are cleared only on
+ * success, and only with `resetOnSuccess`.
  *
  * Kept free of field knowledge so a Server Component page can pass plain inputs as
  * children and a server action bound to the business id.
@@ -65,6 +69,7 @@ export function ActionForm({
   return (
     <form
       ref={formRef}
+      action={formAction}
       encType={encType}
       className={cn(inline ? "inline-flex flex-col gap-1" : "flex flex-col gap-4", className)}
       onSubmit={(e) => {

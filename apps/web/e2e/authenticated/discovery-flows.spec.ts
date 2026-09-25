@@ -26,8 +26,9 @@ let slug = "";
 let root = "";
 let fund = "";
 
-const alert = (page: Page) => page.getByRole("alert").first();
-const status = (page: Page) => page.getByRole("status").first();
+// The form error, not Next's own (empty) route-announcer region, which is also role=alert.
+const alert = (page: Page) => page.locator('p[role="alert"]').first();
+const status = (page: Page) => page.locator('p[role="status"]').first();
 const localInput = (d: Date) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -61,9 +62,9 @@ test.describe("Marketing flows", () => {
 
   test("strategy: saved as a draft version, becomes active only when activated", async ({ page }) => {
     await page.goto(`${root}/strategy`);
-    await page.getByLabel("Strategy name").fill(`FY27 strategy ${RUN}`);
-    await page.getByLabel("Positioning statement").fill("The most reliable monitored security for gated communities.");
-    await page.getByLabel("Key messages").fill("Response in 5 minutes\nLocal technicians");
+    await page.getByLabel("Strategy name", { exact: true }).fill(`FY27 strategy ${RUN}`);
+    await page.getByLabel("Positioning statement", { exact: true }).fill("The most reliable monitored security for gated communities.");
+    await page.getByLabel("Key messages", { exact: true }).fill("Response in 5 minutes\nLocal technicians");
     await page.getByRole("checkbox", { name: "LinkedIn" }).check();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(status(page)).toContainText("Saved as a new draft version");
@@ -75,18 +76,18 @@ test.describe("Marketing flows", () => {
 
   test("campaign: validation, draft on create, activation needs a start date", async ({ page }) => {
     await page.goto(`${root}/campaigns/new`);
-    await page.getByLabel("Campaign name").fill(`Gated communities ${RUN}`);
-    await page.getByLabel("Objective").selectOption("lead_generation");
-    await page.getByLabel("Channel").selectOption("linkedin");
-    await page.getByLabel("Budget").fill("10000");
-    await page.getByLabel("Currency").fill("");
+    await page.getByLabel("Campaign name", { exact: true }).fill(`Gated communities ${RUN}`);
+    await page.getByLabel("Objective", { exact: true }).selectOption("lead_generation");
+    await page.getByLabel("Channel", { exact: true }).selectOption("linkedin");
+    await page.getByLabel("Budget", { exact: true }).fill("10000");
+    await page.getByLabel("Currency", { exact: true }).fill("");
     await page.getByRole("button", { name: "Save as draft" }).click();
     await expect(alert(page)).toContainText("currency");
     // A rejected submit keeps what the founder typed.
-    await expect(page.getByLabel("Campaign name")).toHaveValue(`Gated communities ${RUN}`);
-    await expect(page.getByLabel("Budget")).toHaveValue("10000");
+    await expect(page.getByLabel("Campaign name", { exact: true })).toHaveValue(`Gated communities ${RUN}`);
+    await expect(page.getByLabel("Budget", { exact: true })).toHaveValue("10000");
 
-    await page.getByLabel("Currency").fill("INR");
+    await page.getByLabel("Currency", { exact: true }).fill("INR");
     await page.getByRole("button", { name: "Save as draft" }).click();
     await page.waitForURL(/\/campaigns\/[0-9a-f-]{36}$/);
     campaignUrl = new URL(page.url()).pathname;
@@ -101,9 +102,9 @@ test.describe("Marketing flows", () => {
 
   test("campaign: edit dates and landing page, then activate", async ({ page }) => {
     await page.goto(`${campaignUrl}/edit`);
-    await page.getByLabel("Start date").fill(isoDay(-2));
-    await page.getByLabel("End date").fill(isoDay(3));
-    await page.getByLabel("Landing page").fill("https://example.com/gated");
+    await page.getByLabel("Start date", { exact: true }).fill(isoDay(-2));
+    await page.getByLabel("End date", { exact: true }).fill(isoDay(3));
+    await page.getByLabel("Landing page", { exact: true }).fill("https://example.com/gated");
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(new RegExp(`${campaignUrl}$`));
     await page.getByRole("button", { name: "Activate" }).click();
@@ -114,14 +115,14 @@ test.describe("Marketing flows", () => {
   test("campaign results: manual entry, CSV import with a bad row, CPL and over-budget signal", async ({ page }) => {
     await page.goto(campaignUrl);
     await page.getByText("Record results").click();
-    await page.getByLabel("Website sessions").fill("300");
+    await page.getByLabel("Website sessions", { exact: true }).fill("300");
     await page.getByLabel("Leads", { exact: true }).fill("5");
-    await page.getByLabel("Spend").fill("12000");
+    await page.getByLabel("Spend", { exact: true }).fill("12000");
     await page.getByRole("button", { name: "Save numbers" }).click();
     await expect(page.getByText("Numbers recorded.")).toBeVisible();
 
     await page.getByText("Import from a CSV export").click();
-    await page.getByLabel("Or paste").fill(`date,clicks,leads,spend,currency\n${isoDay(-1)},40,,,\nnot-a-date,1,1,,\n`);
+    await page.getByLabel("Or paste", { exact: true }).fill(`date,clicks,leads,spend,currency\n${isoDay(-1)},40,,,\nnot-a-date,1,1,,\n`);
     await page.getByRole("button", { name: "Import", exact: true }).click();
     await expect(page.getByText(/Imported 1 day/)).toBeVisible();
     await expect(page.getByText(/Skipped 1/)).toBeVisible();
@@ -140,17 +141,17 @@ test.describe("Marketing flows", () => {
     const select = page.getByLabel("Record", { exact: true });
     const firstValue = await select.locator("option:not([disabled])").first().getAttribute("value");
     await select.selectOption(firstValue!);
-    await page.getByLabel("Evidence").fill("Came in through the landing page form");
+    await page.getByLabel("Evidence", { exact: true }).fill("Came in through the landing page form");
     await page.getByRole("button", { name: "Record", exact: true }).click();
     await expect(page.getByText("Recorded.")).toBeVisible();
   });
 
   test("content: draft → review → approve → schedule → publish, then locked and duplicable", async ({ page }) => {
     await page.goto(`${root}/content/new`);
-    await page.getByLabel("Title").fill(`5 signs your complex needs monitoring ${RUN}`);
-    await page.getByLabel("Type").selectOption("blog");
-    await page.getByLabel("Brief").fill("Explain the warning signs, end with a site-survey offer.");
-    await page.getByLabel("Body").fill("1. Unattended gates\n2. Blind spots\n3. Slow response");
+    await page.getByLabel("Title", { exact: true }).fill(`5 signs your complex needs monitoring ${RUN}`);
+    await page.getByLabel("Type", { exact: true }).selectOption("blog");
+    await page.getByLabel("Brief", { exact: true }).fill("Explain the warning signs, end with a site-survey offer.");
+    await page.getByLabel("Body", { exact: true }).fill("1. Unattended gates\n2. Blind spots\n3. Slow response");
     await page.getByRole("button", { name: "Save" }).click();
     await page.waitForURL(/\/content\/[0-9a-f-]{36}$/);
     contentUrl = new URL(page.url()).pathname;
@@ -163,11 +164,11 @@ test.describe("Marketing flows", () => {
     await page.getByRole("button", { name: "Approve" }).click();
     await expect(page.locator("h1")).toContainText("Approved");
 
-    await page.getByLabel("Publish on").fill(localInput(new Date(Date.now() + 2 * 86_400_000)));
+    await page.getByLabel("Publish on", { exact: true }).fill(localInput(new Date(Date.now() + 2 * 86_400_000)));
     await page.getByRole("button", { name: "Schedule", exact: true }).click();
     await expect(page.locator("h1")).toContainText("Scheduled");
 
-    await page.getByLabel("Where it was published").fill("https://example.com/blog/5-signs");
+    await page.getByLabel("Where it was published", { exact: true }).fill("https://example.com/blog/5-signs");
     await page.getByRole("button", { name: "Mark as published" }).click();
     await expect(page.locator("h1")).toContainText("Published");
     await expect(page.getByText("published", { exact: true })).toBeVisible(); // pinned version
@@ -181,7 +182,7 @@ test.describe("Marketing flows", () => {
 
   test("content: editing saves a new version", async ({ page }) => {
     await page.goto(contentUrl);
-    await page.getByLabel("Body").fill("Rewritten body for version two.");
+    await page.getByLabel("Body", { exact: true }).fill("Rewritten body for version two.");
     await page.getByRole("button", { name: "Save version" }).click();
     await expect(page.getByText("Saved as a new version.")).toBeVisible();
     await page.reload();
@@ -198,11 +199,11 @@ test.describe("Marketing flows", () => {
 
   test("assets: real image uploads, a disguised file is refused, delete works", async ({ page }) => {
     await page.goto(`${root}/assets`);
-    await page.getByLabel("File").setInputFiles({ name: "evil.pdf", mimeType: "text/html", buffer: Buffer.from("<script>") });
+    await page.getByLabel("File", { exact: true }).setInputFiles({ name: "evil.pdf", mimeType: "text/html", buffer: Buffer.from("<script>") });
     await page.getByRole("button", { name: "Upload" }).click();
     await expect(alert(page)).toContainText("does not match");
 
-    await page.getByLabel("File").setInputFiles({ name: `logo-${RUN}.png`, mimeType: "image/png", buffer: PNG });
+    await page.getByLabel("File", { exact: true }).setInputFiles({ name: `logo-${RUN}.png`, mimeType: "image/png", buffer: PNG });
     await page.getByLabel("Name", { exact: true }).fill(`Logo ${RUN}`);
     await page.getByRole("button", { name: "Upload" }).click();
     await expect(page.getByText("Uploaded.")).toBeVisible();
@@ -215,7 +216,7 @@ test.describe("Marketing flows", () => {
   test("website & SEO: log and resolve an opportunity, log an AI-search observation", async ({ page }) => {
     await page.goto(`${root}/website-seo`);
     await page.getByText("Log an opportunity").click();
-    await page.getByLabel("What is the issue?").fill(`Home page has no meta description ${RUN}`);
+    await page.getByLabel("What is the issue?", { exact: true }).fill(`Home page has no meta description ${RUN}`);
     await page.getByRole("button", { name: "Add" }).first().click();
     const item = page.locator("li", { hasText: `no meta description ${RUN}` });
     await expect(item).toBeVisible();
@@ -223,9 +224,9 @@ test.describe("Marketing flows", () => {
     await expect(page.locator("li", { hasText: `no meta description ${RUN}` })).toHaveCount(0);
 
     await page.getByText("Log an observation").click();
-    await page.getByLabel("Question asked").fill("Best monitored alarm company in Bengaluru?");
-    await page.getByLabel("Did you appear?").selectOption("no");
-    await page.getByLabel("Summary").fill(`Not mentioned by ChatGPT ${RUN}`);
+    await page.getByLabel("Question asked", { exact: true }).fill("Best monitored alarm company in Bengaluru?");
+    await page.getByLabel("Did you appear?", { exact: true }).selectOption("no");
+    await page.getByLabel("Summary", { exact: true }).fill(`Not mentioned by ChatGPT ${RUN}`);
     await page.getByRole("button", { name: "Add" }).last().click();
     await expect(page.locator("li", { hasText: `Not mentioned by ChatGPT ${RUN}` })).toContainText("you did not appear");
   });
@@ -241,7 +242,7 @@ test.describe("Marketing flows", () => {
   test("AI assist: generates a draft version, or says plainly why it cannot", async ({ page }) => {
     await page.goto(contentUrl);
     await page.getByRole("button", { name: "Generate from brief" }).click();
-    const outcome = page.getByRole("status").or(page.getByRole("alert")).first();
+    const outcome = page.locator('p[role="status"], p[role="alert"]').first();
     await expect(outcome).toBeVisible({ timeout: 90_000 });
     const text = await outcome.innerText();
     test.info().annotations.push({ type: "ai-outcome", description: text.slice(0, 200) });
@@ -260,12 +261,14 @@ test.describe("Funding flows", () => {
 
   test("profile: traction needs a source, then saves", async ({ page }) => {
     await page.goto(`${fund}/profile`);
-    await page.getByLabel("Summary").fill("Monitored security for gated communities in Bengaluru.");
-    await page.getByLabel("Metric").first().fill("Monitored sites");
-    await page.getByLabel("Value").first().fill("42");
+    await page.getByLabel("Summary", { exact: true }).fill("Monitored security for gated communities in Bengaluru.");
+    // The last traction row is always a blank one.
+    await page.getByLabel("Metric", { exact: true }).last().fill(`Monitored sites ${RUN}`);
+    await page.getByLabel("Value", { exact: true }).last().fill("42");
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(alert(page)).toContainText("source");
-    await page.getByLabel("Source").first().fill("Monitoring console export");
+    await expect(page.getByLabel("Metric", { exact: true }).last()).toHaveValue(`Monitored sites ${RUN}`);
+    await page.getByLabel("Source", { exact: true }).last().fill("Monitoring console export");
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Profile saved.")).toBeVisible();
   });
@@ -276,22 +279,26 @@ test.describe("Funding flows", () => {
     await expect(page.getByRole("status").first()).toBeVisible();
     await page.reload();
     await expect(page.getByText("Pitch deck").first()).toBeVisible();
-    const row = page.locator("li", { hasText: "Pitch deck" }).first();
-    await row.getByRole("button", { name: "Mark ready" }).click();
-    await expect(page.locator("li", { hasText: "Pitch deck" }).first()).toContainText("Ready");
+    // Any item not yet ready: marking it records the decision, and the button goes away.
+    const open = page.locator("ul.divide-y > li").filter({ has: page.getByRole("button", { name: "Mark ready" }) }).first();
+    const title = (await open.locator("p.font-medium").first().innerText()).trim();
+    await open.getByRole("button", { name: "Mark ready" }).click();
+    const row = page.locator("ul.divide-y > li").filter({ has: page.getByText(title, { exact: true }) }).first();
+    await expect(row.getByRole("button", { name: "Mark ready" })).toHaveCount(0);
+    await expect(row.getByText("Ready", { exact: true })).toBeVisible();
   });
 
   test("round: amounts need a currency; opening sets the round live", async ({ page }) => {
     await page.goto(`${fund}/rounds`);
     const live = page.locator("a", { hasText: /Open|Planning|Paused/ }).filter({ hasText: "primary" });
-    await page.getByLabel("Round name").fill(`Seed ${RUN}`);
-    await page.getByLabel("Type").selectOption("seed");
-    await page.getByLabel("Target").fill("1,00,00,000");
-    await page.getByLabel("Currency").fill("");
+    await page.getByLabel("Round name", { exact: true }).fill(`Seed ${RUN}`);
+    await page.getByLabel("Type", { exact: true }).selectOption("seed");
+    await page.getByLabel("Target", { exact: true }).fill("1,00,00,000");
+    await page.getByLabel("Currency", { exact: true }).fill("");
     if (await live.count()) await page.getByLabel(/Primary round/).uncheck();
     await page.getByRole("button", { name: "Create round" }).click();
     await expect(alert(page)).toContainText("currency");
-    await page.getByLabel("Currency").fill("INR");
+    await page.getByLabel("Currency", { exact: true }).fill("INR");
     await page.getByRole("button", { name: "Create round" }).click();
     await page.waitForURL(/\/rounds\/[0-9a-f-]{36}$/);
     roundUrl = new URL(page.url()).pathname;
@@ -301,24 +308,24 @@ test.describe("Funding flows", () => {
 
   test("investor: create, contact, research needs a source to be source-backed", async ({ page }) => {
     await page.goto(`${fund}/investors`);
-    await page.getByLabel("Investor or fund").fill(`Acme Ventures ${RUN}`);
-    await page.getByLabel("General email").fill(`aitoolshubsaas+investor-${RUN}@gmail.com`);
+    await page.getByLabel("Investor or fund", { exact: true }).fill(`Acme Ventures ${RUN}`);
+    await page.getByLabel("General email", { exact: true }).fill(`aitoolshubsaas+investor-${RUN}@gmail.com`);
     await page.getByRole("button", { name: "Add investor" }).click();
     await page.waitForURL(/\/investors\/[0-9a-f-]{36}$/);
     investorUrl = new URL(page.url()).pathname;
 
     await page.getByText("Add a contact").click();
-    await page.getByLabel("First name").fill("Priya");
-    await page.getByLabel("Title").fill("Partner");
+    await page.getByLabel("First name", { exact: true }).fill("Priya");
+    await page.getByLabel("Title", { exact: true }).fill("Partner");
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(page.getByText("Contact added.")).toBeVisible();
 
     await page.getByText("Add a finding").click();
-    await page.getByLabel("Where it comes from").selectOption("source_backed");
-    await page.getByLabel("Finding").fill("Invests in B2B security and proptech at seed.");
+    await page.getByLabel("Where it comes from", { exact: true }).selectOption("source_backed");
+    await page.getByLabel("Finding", { exact: true }).fill("Invests in B2B security and proptech at seed.");
     await page.getByRole("button", { name: "Save finding" }).click();
     await expect(alert(page)).toContainText("link it came from");
-    await page.getByLabel("Source link").fill("https://example.com/acme-ventures/thesis");
+    await page.getByLabel("Source link", { exact: true }).fill("https://example.com/acme-ventures/thesis");
     await page.getByRole("button", { name: "Save finding" }).click();
     await expect(page.getByText("Finding saved.")).toBeVisible();
     await page.reload();
@@ -334,11 +341,11 @@ test.describe("Funding flows", () => {
 
     await page.reload();
     await page.getByText("Move stage").first().click();
-    await page.getByLabel("Move to").selectOption("committed");
+    await page.getByLabel("Move to", { exact: true }).selectOption("committed");
     await page.getByRole("button", { name: "Move" }).click();
     await expect(alert(page)).toContainText("committed amount");
 
-    await page.getByLabel("Committed amount").fill("2500000");
+    await page.getByLabel("Committed amount", { exact: true }).fill("2500000");
     await page.getByLabel("Currency", { exact: true }).first().fill("INR");
     await page.getByRole("button", { name: "Move" }).click();
     await page.reload();
@@ -352,8 +359,8 @@ test.describe("Funding flows", () => {
   test("interaction: a logged meeting appears on the timeline", async ({ page }) => {
     await page.goto(investorUrl);
     await page.getByText("Log an interaction").click();
-    await page.getByLabel("When").fill(localInput(new Date()));
-    await page.getByLabel("Subject").fill(`Intro call ${RUN}`);
+    await page.getByLabel("When", { exact: true }).fill(localInput(new Date()));
+    await page.getByLabel("Subject", { exact: true }).fill(`Intro call ${RUN}`);
     await page.getByRole("button", { name: "Log", exact: true }).click();
     await expect(page.getByText("Logged.")).toBeVisible();
     await page.reload();
@@ -363,8 +370,8 @@ test.describe("Funding flows", () => {
   test("outreach: draft → approval → approve; sending records the provider's answer", async ({ page }) => {
     await page.goto(investorUrl);
     await page.getByRole("link", { name: "Draft outreach" }).click();
-    await page.getByLabel("Subject").fill(`Seed round intro ${RUN}`);
-    await page.getByLabel("Message").fill("Hi Priya — we monitor 42 gated communities and are raising our seed.");
+    await page.getByLabel("Subject", { exact: true }).fill(`Seed round intro ${RUN}`);
+    await page.getByLabel("Message", { exact: true }).fill("Hi Priya — we monitor 42 gated communities and are raising our seed.");
     await page.getByRole("button", { name: "Save draft" }).click();
     await page.waitForURL(/\/outreach\/[0-9a-f-]{36}$/);
     await expect(page.getByRole("button", { name: /^Send/ })).toHaveCount(0);
@@ -372,7 +379,7 @@ test.describe("Funding flows", () => {
     await page.getByRole("button", { name: "Approve" }).click();
     await expect(page.locator("h1")).toContainText("Approved");
     await page.getByRole("button", { name: /^Send/ }).click();
-    const outcome = page.getByRole("status").or(page.getByRole("alert")).first();
+    const outcome = page.locator('p[role="status"], p[role="alert"]').first();
     await expect(outcome).toBeVisible({ timeout: 60_000 });
     test.info().annotations.push({ type: "send-outcome", description: (await outcome.innerText()).slice(0, 200) });
     await page.reload();
@@ -386,7 +393,7 @@ test.describe("Funding flows", () => {
     await page.reload();
     const row = () => page.locator("ul.divide-y > li", { hasText: "Pitch deck" }).first();
     await row().getByText("Upload the file").click();
-    await row().getByLabel("File").setInputFiles({ name: "deck.pdf", mimeType: "application/pdf", buffer: PDF });
+    await row().getByLabel("File", { exact: true }).setInputFiles({ name: "deck.pdf", mimeType: "application/pdf", buffer: PDF });
     await row().getByRole("button", { name: "Upload" }).click();
     await expect(page.getByText(/Uploaded as a draft/)).toBeVisible();
     await page.reload();
@@ -419,7 +426,7 @@ test.describe("Funding flows", () => {
 
   test("diligence: submit needs a response; accept is recorded", async ({ page }) => {
     await page.goto(`${fund}/due-diligence`);
-    await page.getByLabel("Request").fill(`Please share the cap table ${RUN}`);
+    await page.getByLabel("Request", { exact: true }).fill(`Please share the cap table ${RUN}`);
     await page.getByRole("button", { name: "Add request" }).click();
     await expect(page.getByText("Added.")).toBeVisible();
     await page.getByRole("link", { name: new RegExp(`cap table ${RUN}`) }).first().click();
