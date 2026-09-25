@@ -31,7 +31,6 @@ export default async function BrandingPreviewPage() {
   const draft = await getPlatformBrandingDraft();
   const { values } = draft;
   const backgroundStyle = backgroundStyleFor(values.loginBackgroundStyle, values.loginBackgroundValue);
-  const hasLegalLinks = Boolean(values.loginTermsUrl || values.loginPrivacyUrl);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -86,13 +85,13 @@ export default async function BrandingPreviewPage() {
                   <div className="h-9 rounded-md border border-landing-surface-border bg-landing-bg/40" />
                   <div className="h-9 rounded-md bg-landing-accent/80" />
                 </div>
-                {hasLegalLinks ? (
-                  <p className="mt-6 text-center text-xs text-landing-muted">
-                    {values.loginTermsUrl ? <span className="underline">Terms</span> : null}
-                    {values.loginTermsUrl && values.loginPrivacyUrl ? " · " : null}
-                    {values.loginPrivacyUrl ? <span className="underline">Privacy</span> : null}
-                  </p>
-                ) : null}
+                {/* Always shown, like the live login page: an unset URL falls back to the
+                 * platform's own /terms or /privacy page rather than hiding the link. */}
+                <p className="mt-6 text-center text-xs text-landing-muted">
+                  <span className="underline">Terms</span>
+                  {" · "}
+                  <span className="underline">Privacy</span>
+                </p>
               </div>
             </div>
           </div>

@@ -36,6 +36,18 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/")).toBe(false);
   });
 
+  // Anyone deciding whether to sign up reads these first, and a search engine has to be
+  // able to fetch the crawler files anonymously -- a redirect to /login makes the whole
+  // public site unindexable.
+  it("leaves the public legal, pricing and crawler pages reachable to a signed-out visitor", () => {
+    expect(isProtectedPath("/terms")).toBe(false);
+    expect(isProtectedPath("/privacy")).toBe(false);
+    expect(isProtectedPath("/pricing")).toBe(false);
+    expect(isProtectedPath("/robots.txt")).toBe(false);
+    expect(isProtectedPath("/sitemap.xml")).toBe(false);
+    expect(isProtectedPath("/help")).toBe(false);
+  });
+
   // The pages a signup/reset actually lands on mid-flow, before any session exists.
   // Protecting one of these would bounce the user to /login at the exact moment they
   // are being told to go and check their inbox -- and, for /auth/callback, would make

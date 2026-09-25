@@ -3,21 +3,16 @@ import Image from "next/image";
 import { Mail } from "lucide-react";
 import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
-
-/** The one real, working piece of contact info this site has. Kept as constants rather
- * than inline literals since both appear in more than one place below (the CTA's href
- * and the footer's own visible website link). */
-const CONTACT_EMAIL = "connect@wonderapps.biz";
-const WEBSITE_HOST = "ark.WonderApps.biz";
-const WEBSITE_URL = "https://ark.wonderapps.biz";
+import { CONTACT_EMAIL, WEBSITE_HOST, WEBSITE_URL } from "@/lib/legal";
 
 /** Real, working destinations only. Product/Modules links jump to sections already on
- * this page; Company/Legal pages (About, Blog, Privacy, Terms, Security) don't exist yet
- * -- rather than ship dead "#" links (CoFounderAI UI & CTA Enhancement doc §4: "remove or
- * clearly mark any CTA whose destination isn't implemented"), they're rendered as
- * non-interactive, clearly-muted "coming soon" text below instead of a clickable anchor.
- * "Contact" is the one exception: a real mailto CTA now that there's a real address to
- * send it to, so it's handled separately from this list rather than living in it. The
+ * the landing page (absolute `/#...`, so they also work from /help, /pricing and the legal
+ * pages, which share this footer); Pricing, Help and the Legal column are real routes.
+ * Pages that don't exist yet (About, Blog, Security) -- rather than ship dead "#" links
+ * (CoFounderAI UI & CTA Enhancement doc §4: "remove or clearly mark any CTA whose
+ * destination isn't implemented") -- are rendered as non-interactive, clearly-muted
+ * "coming soon" text below instead of a clickable anchor. "Contact" is a real mailto CTA,
+ * so it's handled separately from these lists rather than living in them. The
  * "Platform" column is likewise real: short factual statements about the architecture
  * (ADR-4/ADR-8/ADR-9/ADR-10), not marketing fluff, and not links to pages that don't
  * exist. */
@@ -25,22 +20,29 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
   {
     title: "Product",
     links: [
-      ["Modules", "#modules"],
-      ["How It Works", "#how-it-works"],
-      ["Benefits", "#benefits"],
-      ["Pricing", "#pricing"],
-      ["FAQ", "#faq"],
+      ["Modules", "/#modules"],
+      ["How It Works", "/#how-it-works"],
+      ["Benefits", "/#benefits"],
+      ["Pricing", "/pricing"],
+      ["FAQ", "/#faq"],
       ["Help & Guides", "/help"],
     ],
   },
   {
     title: "Modules",
     links: [
-      ["Discovery", "#module-discovery"],
-      ["Inventory", "#module-inventory"],
-      ["Service", "#module-service"],
-      ["CRM", "#module-crm"],
-      ["Finance", "#module-finance"],
+      ["Discovery", "/#module-discovery"],
+      ["Inventory", "/#module-inventory"],
+      ["Service", "/#module-service"],
+      ["CRM", "/#module-crm"],
+      ["Finance", "/#module-finance"],
+    ],
+  },
+  {
+    title: "Legal",
+    links: [
+      ["Terms of Service", "/terms"],
+      ["Privacy Policy", "/privacy"],
     ],
   },
 ];
@@ -53,8 +55,7 @@ const PLATFORM_FACTS = [
 ];
 
 const COMING_SOON_COLUMNS: { title: string; items: string[] }[] = [
-  { title: "Company", items: ["About", "Blog"] },
-  { title: "Legal", items: ["Privacy", "Terms", "Security"] },
+  { title: "Company", items: ["About", "Blog", "Security"] },
 ];
 
 export function Footer() {
@@ -90,8 +91,9 @@ export function Footer() {
               <ul className="mt-4 flex flex-col gap-2.5">
                 {column.links.map(([label, href]) => (
                   <li key={label}>
-                    {/* Anchors jump within this page; a real route navigates client-side. */}
-                    {href.startsWith("#") ? (
+                    {/* Section anchors are plain links (a hash jump, or a load of the landing
+                     * page from elsewhere); a real route navigates client-side. */}
+                    {href.includes("#") ? (
                       <a href={href} className="text-sm text-landing-muted hover:text-landing-fg">
                         {label}
                       </a>

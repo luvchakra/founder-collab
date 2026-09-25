@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { createPlatformPlanSchema, updatePlatformPlanSchema } from "./platform-plans";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAdminClient } from "../db/admin";
+import { createPlatformPlanSchema, listPublicPlans, updatePlatformPlanSchema } from "./platform-plans";
+
+vi.mock("../db/admin", () => ({ createAdminClient: vi.fn() }));
 
 const validInput = {
   key: "growth",
@@ -88,5 +91,76 @@ describe("updatePlatformPlanSchema (PLATFORM-P0-04.1)", () => {
     const result = updatePlatformPlanSchema.safeParse(rest);
     expect(result.success).toBe(true);
     if (result.success) expect("key" in result.data).toBe(false);
+  });
+});
+
+/**
+ * /pricing is public, so it reads platform.plans past its superadmin-only RLS. These pin
+ * down the two things that carve-out must never get wrong: it only ever shows what a
+ * superadmin published for the marketing site, and it never takes the page down.
+ */
+describe("listPublicPlans (the /pricing page's read)", () => {
+  const KEY = "SUPABASE_SERVICE_ROLE_KEY";
+  const original = process.env[KEY];
+
+  afterEach(() => {
+    if (original === undefined) delete process.env[KEY];
+    else process.env[KEY] = original;
+    vi.restoreAllMocks();
+    vi.mocked(createAdminClient).mockReset();
+  });
+
+  function fakeClient(result: { data: unknown; error: unknown }) {
+    const calls: { select?: string; eq: [string, unknown][] } = { eq: [] };
+    const query = {
+      select(columns: string) {
+        calls.select = columns;
+        return query;
+      },
+      eq(column: string, value: unknown) {
+        calls.eq.push([column, value]);
+        return query;
+      },
+      order: () => Promise.resolve(result),
+    };
+    vi.mocked(createAdminClient).mockReturnValue({ from: () => query } as never);
+    return calls;
+  }
+
+  it("returns no plans, rather than throwing, when the service-role key is missing", async () => {
+    delete process.env[KEY];
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(listPublicPlans()).resolves.toEqual([]);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("asks only for active plans a superadmin marked visible on the marketing site", async () => {
+    process.env[KEY] = "test-key";
+    const calls = fakeClient({ data: [], error: null });
+    await listPublicPlans();
+    expect(calls.eq).toEqual([
+      ["status", "active"],
+      ["marketing_visible", true],
+    ]);
+    expect(calls.select).not.toContain("updated_by");
+    expect(calls.select).not.toContain("*");
+  });
+
+  it("normalizes a numeric price that arrives as a string", async () => {
+    process.env[KEY] = "test-key";
+    fakeClient({
+      data: [{ key: "pro", name: "Pro", description: null, price: "2999.00", billing_interval: "month", currency: "INR" }],
+      error: null,
+    });
+    await expect(listPublicPlans()).resolves.toEqual([
+      { key: "pro", name: "Pro", description: null, price: 2999, billingInterval: "month", currency: "INR" },
+    ]);
+  });
+
+  it("returns no plans when the query fails", async () => {
+    process.env[KEY] = "test-key";
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    fakeClient({ data: null, error: { message: "boom" } });
+    await expect(listPublicPlans()).resolves.toEqual([]);
   });
 });

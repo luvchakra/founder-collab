@@ -313,7 +313,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="loginTermsUrl"
             label="Terms of service URL"
             defaultValue={values.loginTermsUrl ?? ""}
-            placeholder="https://wonderark.com/terms"
+            placeholder="Blank uses this site's /terms page"
             error={fieldErrors.loginTermsUrl}
           />
           <Field
@@ -321,7 +321,7 @@ export function BrandingForm({ values }: { values: PlatformBrandingValues }) {
             name="loginPrivacyUrl"
             label="Privacy policy URL"
             defaultValue={values.loginPrivacyUrl ?? ""}
-            placeholder="https://wonderark.com/privacy"
+            placeholder="Blank uses this site's /privacy page"
             error={fieldErrors.loginPrivacyUrl}
           />
         </CardContent>

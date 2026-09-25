@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createAdminClient } from "../db/admin";
 import { createClient } from "../db/server";
 import { requireSuperadmin } from "../rbac/platform-admin";
 import { seedPlanModuleEntitlements } from "./platform-plan-modules";
@@ -100,6 +101,58 @@ export async function listPlatformPlans(): Promise<PlatformPlan[]> {
   const { data, error } = await supabase.from("plans").select("*").order("display_order", { ascending: true });
   if (error) throw error;
   return (data as PlanRow[]).map(toPlan);
+}
+
+/** What the public /pricing page shows of one plan -- display copy only. */
+export type PublicPlan = {
+  key: string;
+  name: string;
+  description: string | null;
+  price: number;
+  billingInterval: BillingInterval;
+  currency: string;
+};
+
+/**
+ * The plans an anonymous visitor may see on /pricing: `active` and `marketingVisible`,
+ * in `display_order`. Same carve-out, for the same reason, as
+ * `getPublicLoginBranding()` in platform-branding.ts: `platform.plans`' RLS lets only a
+ * superadmin read it, and that policy exists to keep the catalogue *editable* by
+ * superadmins, not to keep a price the product advertises secret. So this one function
+ * reads past RLS with the service-role client, and returns only the `PublicPlan`
+ * projection above -- never `updated_by`, never a draft or archived plan, never a plan a
+ * superadmin has hidden from the marketing site.
+ *
+ * Degrades instead of throwing, like the login branding read: a missing service-role key
+ * or a failed query yields an empty list, which the page renders as "contact us" rather
+ * than a 500 on a public page.
+ */
+export async function listPublicPlans(): Promise<PublicPlan[]> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("[platform-plans] SUPABASE_SERVICE_ROLE_KEY is not set -- /pricing shows no plans.");
+    return [];
+  }
+  const supabase = createAdminClient({ schema: "platform" });
+  const { data, error } = await supabase
+    .from("plans")
+    .select("key, name, description, price, billing_interval, currency")
+    .eq("status", "active")
+    .eq("marketing_visible", true)
+    .order("display_order", { ascending: true });
+  if (error || !data) {
+    console.warn(`[platform-plans] could not read the public plan list (${error?.message ?? "no rows"}).`);
+    return [];
+  }
+  return (data as Pick<PlanRow, "key" | "name" | "description" | "price" | "billing_interval" | "currency">[]).map(
+    (row) => ({
+      key: row.key,
+      name: row.name,
+      description: row.description,
+      price: typeof row.price === "string" ? Number(row.price) : row.price,
+      billingInterval: row.billing_interval,
+      currency: row.currency,
+    }),
+  );
 }
 
 export async function getPlatformPlan(id: string): Promise<PlatformPlan | null> {

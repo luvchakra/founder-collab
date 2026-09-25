@@ -999,20 +999,20 @@ Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOV
 |---|---|---|---|
 | `MKT-01` | Marketing domain foundation | ✅ Done | `packages/module-discovery/src/lib/marketing/mutations.test.ts` +5 |
 | `MKT-02` | Marketing database | ✅ Done | `supabase/migrations/20260925100000_discovery_marketing.sql` |
-| `MKT-03` | Marketing Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +12 |
-| `MKT-04` | Strategy | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +9 |
-| `MKT-05` | Campaigns | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +10 |
-| `MKT-06` | Campaign metrics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +7 |
-| `MKT-07` | Attribution | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +4 |
-| `MKT-08` | Content Studio | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +9 |
-| `MKT-09` | Content AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +7 |
-| `MKT-10` | Content Calendar | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +5 |
-| `MKT-11` | Assets | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +3 |
-| `MKT-12` | Website & SEO | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +3 |
-| `MKT-13` | AI-search visibility | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/layout.tsx` +3 |
-| `MKT-14` | Marketing Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/analytics/page.tsx` +9 |
-| `MKT-15` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +2 |
-| `MKT-16` | Marketing recommendations | ✅ Done | `packages/module-discovery/src/components/marketing/attention-panel.tsx` +2 |
+| `MKT-03` | Marketing Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +13 |
+| `MKT-04` | Strategy | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +10 |
+| `MKT-05` | Campaigns | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +11 |
+| `MKT-06` | Campaign metrics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +8 |
+| `MKT-07` | Attribution | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +5 |
+| `MKT-08` | Content Studio | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +10 |
+| `MKT-09` | Content AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +8 |
+| `MKT-10` | Content Calendar | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +6 |
+| `MKT-11` | Assets | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +4 |
+| `MKT-12` | Website & SEO | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/actions.ts` +4 |
+| `MKT-13` | AI-search visibility | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/layout.tsx` +4 |
+| `MKT-14` | Marketing Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/marketing/analytics/page.tsx` +10 |
+| `MKT-15` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +3 |
+| `MKT-16` | Marketing recommendations | ✅ Done | `apps/web/e2e/authenticated/discovery-flows.spec.ts` +3 |
 
 ### Funding
 
@@ -1020,21 +1020,21 @@ Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOV
 |---|---|---|---|
 | `FND-01` | Funding domain foundation | ✅ Done | `packages/module-discovery/src/lib/funding/mutations.test.ts` +5 |
 | `FND-02` | Funding database | ✅ Done | `supabase/migrations/20260925110000_discovery_funding.sql` |
-| `FND-03` | Funding Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +8 |
-| `FND-04` | Funding Profile | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +3 |
-| `FND-05` | Investor Readiness | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +4 |
-| `FND-06` | Fundraising Rounds | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
-| `FND-07` | Investor Database | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +5 |
-| `FND-08` | Investor Research | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +6 |
-| `FND-09` | Investor Pipeline | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
-| `FND-10` | Investor Interactions | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +3 |
-| `FND-11` | Investor Outreach | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +13 |
-| `FND-12` | Data Room | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
-| `FND-13` | Due Diligence | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
-| `FND-14` | Funding Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/analytics/page.tsx` +5 |
-| `FND-15` | Finance read integration | ✅ Done | `packages/module-gst/src/contract/index.ts` +2 |
-| `FND-16` | Funding AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +8 |
-| `FND-17` | Funding notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +2 |
+| `FND-03` | Funding Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
+| `FND-04` | Funding Profile | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +4 |
+| `FND-05` | Investor Readiness | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +5 |
+| `FND-06` | Fundraising Rounds | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
+| `FND-07` | Investor Database | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +6 |
+| `FND-08` | Investor Research | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +7 |
+| `FND-09` | Investor Pipeline | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +10 |
+| `FND-10` | Investor Interactions | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +4 |
+| `FND-11` | Investor Outreach | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +14 |
+| `FND-12` | Data Room | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +11 |
+| `FND-13` | Due Diligence | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +11 |
+| `FND-14` | Funding Analytics | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/analytics/page.tsx` +6 |
+| `FND-15` | Finance read integration | ✅ Done | `apps/web/e2e/authenticated/discovery-flows.spec.ts` +3 |
+| `FND-16` | Funding AI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/funding/actions.ts` +9 |
+| `FND-17` | Funding notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +3 |
 
 ### Cross-domain
 

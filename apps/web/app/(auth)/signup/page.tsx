@@ -17,6 +17,17 @@ export default async function SignupPage() {
       <div className="mt-8">
         <AuthForm mode="signup" action={signup} googleEnabled={providers.google} />
       </div>
+      <p className="mt-6 text-center text-xs text-landing-muted">
+        By creating an account, you agree to the{" "}
+        <a href={branding.loginTermsUrl || "/terms"} className="underline hover:text-landing-fg">
+          Terms of Service
+        </a>{" "}
+        and{" "}
+        <a href={branding.loginPrivacyUrl || "/privacy"} className="underline hover:text-landing-fg">
+          Privacy Policy
+        </a>
+        .
+      </p>
     </div>
   );
 }

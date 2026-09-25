@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Check } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
@@ -50,9 +51,11 @@ export function Pricing() {
               Pricing
             </h2>
             <p className="mt-4 text-landing-muted">
-              Pay for the modules you run, not a bundle you don&apos;t need. Final
-              per-module pricing is still being finalized -- here&apos;s the shape it
-              will take.
+              Pay for the modules you run, not a bundle you don&apos;t need.{" "}
+              <Link href="/pricing" className="font-medium text-landing-accent underline-offset-4 hover:underline">
+                See plan prices and AI usage
+              </Link>
+              .
             </p>
           </div>
         </FadeIn>

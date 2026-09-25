@@ -23,6 +23,16 @@ const RESERVED_TOP_SEGMENTS = new Set([
   "api",
   "p",
   "help",
+  // The public legal and pricing pages (reserved as business slugs too, in
+  // supabase/migrations/20260926090000), and the two crawler files a search engine
+  // fetches before anything else. Neither file name can ever be a slug -- the slug format
+  // allows no dots -- so they need no database counterpart; they are here only so an
+  // anonymous crawler is served them instead of being sent to /login.
+  "terms",
+  "privacy",
+  "pricing",
+  "robots.txt",
+  "sitemap.xml",
 ]);
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
@@ -34,8 +44,8 @@ const AUTH_PATHS = new Set(["/login", "/signup"]);
  * segment isn't one of the app's own static top-level routes (`RESERVED_TOP_SEGMENTS`)
  * -- i.e. it's presumed to be a business's own slug
  * (apps/web/app/(dashboard)/[businessSlug]/...), which is always behind auth. `/login`,
- * `/signup`, `/onboarding`, `/auth/callback`, `/api/*`, the public `/p/*` portal and the
- * public `/help` guides are each self-gated at the page/route level (see e.g.
+ * `/signup`, `/onboarding`, `/auth/callback`, `/api/*`, the public `/p/*` portal, the
+ * public `/help` guides and the public `/terms`, `/privacy` and `/pricing` pages are each self-gated at the page/route level (see e.g.
  * apps/web/app/onboarding/page.tsx's own redirect) rather than here, same as before this
  * function grew a business-slug case at all.
  *
