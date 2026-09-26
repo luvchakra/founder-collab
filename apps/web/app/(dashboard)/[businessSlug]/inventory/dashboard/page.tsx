@@ -5,6 +5,7 @@ import { getDashboardSummary } from "@cofounderai/module-inventory/lib/dashboard
 import { listWarehouses } from "@cofounderai/module-inventory/lib/warehouses/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { DashboardView } from "@cofounderai/module-inventory/components/dashboard/dashboard-view";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function InventoryDashboardPage({
   params,
@@ -31,12 +32,17 @@ export default async function InventoryDashboardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inventory Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {business.name}
-          {selectedWarehouseId ? ` - ${warehouseNameById.get(selectedWarehouseId)}` : " - live across all warehouses"}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inventory Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {business.name}
+            {selectedWarehouseId ? ` - ${warehouseNameById.get(selectedWarehouseId)}` : " - live across all warehouses"}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.dashboard" businessSlug={businessSlug} params={{ warehouse: warehouseFilter }} kind="dashboard" />
+        </div>
       </div>
 
       <DashboardView

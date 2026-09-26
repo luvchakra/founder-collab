@@ -5,6 +5,7 @@ import { listWarehouses } from "@cofounderai/module-inventory/lib/warehouses/que
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { WarehousesList } from "@cofounderai/module-inventory/components/warehouses/warehouses-list";
 import { createWarehouseAction, updateWarehouseAction, toggleWarehouseActiveAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function WarehousesPage({
   params,
@@ -24,11 +25,16 @@ export default async function WarehousesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Warehouses</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Warehouses, stores and distribution centers for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Warehouses</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Warehouses, stores and distribution centers for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.warehouses" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <WarehousesList

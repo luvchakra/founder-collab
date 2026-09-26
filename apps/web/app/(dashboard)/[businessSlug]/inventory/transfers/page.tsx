@@ -17,6 +17,7 @@ import {
   receiveStockTransferItemAction,
   fetchStockTransferItemsAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function StockTransfersPage({
   params,
@@ -41,11 +42,16 @@ export default async function StockTransfersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Stock Transfers</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Move stock between warehouses with a full in-transit audit trail for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Stock Transfers</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Move stock between warehouses with a full in-transit audit trail for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.transfers" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <TransfersList
