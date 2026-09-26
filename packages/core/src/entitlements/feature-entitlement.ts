@@ -1,6 +1,7 @@
 import { createClient } from "../db/server";
 import { hasModule } from "./module-entitlement";
 import { getBusinessPlan } from "./plan-lookup";
+import { buildFeatureOverrideDecision, getActiveFeatureOverride } from "./business-override";
 import type { EntitlementDecision } from "./types";
 
 function platformClient() {
@@ -28,10 +29,11 @@ function platformClient() {
  *    migration already documents and `test-platform-plan-features-rls.mjs` already proves
  *    ("no entitlement row exists for any plan yet -- 'not entitled' is the honest default").
  *
- * **Platform Global and Business Override are not composed here**, same as
- * `hasModule()`'s own docstring already explains for the identical reason: PLATFORM-P0-07.2
- * (module kill switch) is still "Not started," and PLATFORM-P1-02.1 (Business Override) is
- * explicit, named P1 scope. **User Permission is not composed here either**, same
+ * **Business Override** (PLATFORM-P1-02.1) is composed between the two: an active,
+ * unexpired, unrevoked feature override granted by a superadmin allows the feature even
+ * when the plan doesn't (source `business_override`). **Platform Global is not composed
+ * here**, same as `hasModule()`'s own docstring explains. **User Permission is not composed
+ * here either**, same
  * reasoning as `module-entitlement.ts`'s own docstring -- that axis is independently real
  * and enforced via `core.has_permission()`/`requirePermission()` at each action's own call
  * site, a different question ("can *this user* do X") from the one this function answers
@@ -40,6 +42,12 @@ function platformClient() {
 export async function hasFeature(businessId: string, moduleKey: string, featureKey: string): Promise<EntitlementDecision> {
   const moduleDecision = await hasModule(businessId, moduleKey);
   if (!moduleDecision.allowed) return moduleDecision;
+
+  // PLATFORM-P1-02.1: a superadmin's temporary Business Override sits above the plan in
+  // PLATFORM-P0-05.2's precedence chain -- but below the licence checked just above, so an
+  // override never unlocks a module the business isn't licensed for.
+  const override = await getActiveFeatureOverride(businessId, moduleKey, featureKey);
+  if (override) return buildFeatureOverrideDecision(featureKey, override);
 
   const plan = await getBusinessPlan(businessId);
   if (!plan) {

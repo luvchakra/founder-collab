@@ -56,7 +56,11 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
   },
   {
     label: "Plans",
-    links: [{ href: "/platform/plans", label: "Plans" }],
+    links: [
+      { href: "/platform/plans", label: "Plans" },
+      // PLATFORM-P1-02 -- per-business, time-boxed exceptions to a plan.
+      { href: "/platform/overrides", label: "Business Exceptions" },
+    ],
   },
   {
     // BILL-26..32 (docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md §69). Plans stays the one

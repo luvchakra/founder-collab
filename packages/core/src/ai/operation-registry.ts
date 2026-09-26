@@ -142,3 +142,9 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
 export function getOperationSpec(operation: AiOperation): AiOperationSpec {
   return OPERATION_REGISTRY[operation];
 }
+
+/** Every registered AI feature, in registry order -- the rows the Platform Admin's AI
+ * feature kill switch (PLATFORM-P0-10.4) lists. */
+export function listAiOperations(): AiOperation[] {
+  return Object.keys(OPERATION_REGISTRY) as AiOperation[];
+}

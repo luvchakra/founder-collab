@@ -6,6 +6,7 @@ import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { getPlatformAiCredential } from "@cofounderai/core/ai/platform-credential";
 import { resolveModelId, type AiProvider, type AiQualityTier } from "@cofounderai/core/ai/model-registry";
 import { getOperationSpec, type AiOperation } from "@cofounderai/core/ai/operation-registry";
+import { AI_FEATURE_DISABLED_MESSAGE, isAiOperationDisabled } from "@cofounderai/core/ai/feature-kill-switch";
 import { createLanguageModel } from "@cofounderai/core/ai/provider-factory";
 
 /**
@@ -38,6 +39,7 @@ export type AiErrorCode =
   | "no_content_found"
   | "robots_disallowed"
   | "invalid_response"
+  | "feature_disabled"
   | "unknown";
 
 /**
@@ -141,6 +143,10 @@ export async function resolveAiModelForAccount(
   operation: AiOperation,
   client?: SupabaseClient,
 ): Promise<ResolvedAiModel> {
+  // PLATFORM-P0-10.4: a superadmin can switch one AI feature off platform-wide.
+  if (await isAiOperationDisabled(operation)) {
+    throw new AiProviderError("feature_disabled", AI_FEATURE_DISABLED_MESSAGE);
+  }
   const byokCredential = await getProviderCredential(accountId, client);
   const credential: { provider: AiProvider; apiKey: string } | null = byokCredential
     ? { provider: byokCredential.provider, apiKey: decryptApiKey(byokCredential.encrypted_api_key) }
