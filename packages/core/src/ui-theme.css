@@ -27,6 +27,7 @@
   /* WonderArk brand palette (§3) as utilities: bg-brand-navy, text-brand-blue, … */
   --color-brand-navy: var(--brand-navy);
   --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-action: var(--brand-blue-action);
   --color-brand-cyan: var(--brand-cyan);
   --color-brand-light-blue: var(--brand-light-blue);
   --color-brand-cool-gray: var(--brand-cool-gray);
@@ -47,6 +48,7 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -108,6 +110,12 @@
    * #64748B, dark #0F172A. */
   --brand-navy: oklch(0.240 0.060 257.3);
   --brand-blue: oklch(0.605 0.217 257.2);
+  /* Action blue (#0067D9, 5.33:1 with white) and its hover (#005CBF): the fill for
+   * primary buttons and any control carrying normal-size white text. #007BFF (3.98:1)
+   * stays the brand accent -- logo, charts, focus ring, decoration -- never a text
+   * ground (branding QA correction §7-§8). */
+  --brand-blue-action: oklch(0.534 0.192 257.4);
+  --brand-blue-action-hover: oklch(0.490 0.172 256.8);
   --brand-cyan: oklch(0.797 0.147 221.3);
   --brand-light-blue: oklch(0.841 0.122 217.6);
   --brand-cool-gray: oklch(0.936 0.012 259.8);
@@ -119,7 +127,7 @@
   --brand-gradient: linear-gradient(135deg, oklch(0.579 0.232 259.6) 0%, var(--brand-blue) 45%, var(--brand-cyan) 100%);
 
   /* BRAND-09 -- how the existing components meet the brand (no component was restyled):
-   * primary Button = --primary (brand blue, white text, §11); outline Button = white
+   * primary Button = --primary (action blue, white text, hover --primary-hover); outline Button = white
    * card, --input border, --foreground text (§11's secondary); Card = white, --border
    * (brand cool gray), the existing radius and soft shadow (§12); inputs, tabs, tables,
    * badges, dialogs, empty states and banners inherit the same tokens. Semantic
@@ -134,8 +142,9 @@
   --card-foreground: var(--brand-dark);
   --popover: var(--brand-white);
   --popover-foreground: var(--brand-dark);
-  --primary: var(--brand-blue);
+  --primary: var(--brand-blue-action);
   --primary-foreground: var(--brand-white);
+  --primary-hover: var(--brand-blue-action-hover);
   --secondary: oklch(0.968 0.007 248);
   --secondary-foreground: oklch(0.279 0.041 260);
   --muted: oklch(0.968 0.007 248);
@@ -168,7 +177,7 @@
   --sidebar: var(--brand-navy);
   --sidebar-foreground: oklch(0.929 0.013 256);
   --sidebar-muted: oklch(0.704 0.04 257);
-  --sidebar-primary: var(--brand-blue);
+  --sidebar-primary: var(--brand-blue-action);
   --sidebar-primary-foreground: var(--brand-white);
   --sidebar-accent: oklch(1 0 0 / 8%);
   --sidebar-accent-foreground: oklch(1 0 0);
@@ -189,6 +198,7 @@
   /* Brand blue lifted one step (#4DA3FF) so it holds contrast on the dark surfaces. */
   --primary: oklch(0.705 0.159 252.4);
   --primary-foreground: oklch(0.182 0.035 265);
+  --primary-hover: oklch(0.76 0.13 252.4);
   --secondary: oklch(0.279 0.041 260);
   --secondary-foreground: oklch(0.968 0.007 248);
   --muted: oklch(0.279 0.041 260);
@@ -216,7 +226,7 @@
   --sidebar: var(--brand-navy);
   --sidebar-foreground: oklch(0.929 0.013 256);
   --sidebar-muted: oklch(0.704 0.04 257);
-  --sidebar-primary: var(--brand-blue);
+  --sidebar-primary: var(--brand-blue-action);
   --sidebar-primary-foreground: var(--brand-white);
   --sidebar-accent: oklch(1 0 0 / 8%);
   --sidebar-accent-foreground: oklch(1 0 0);

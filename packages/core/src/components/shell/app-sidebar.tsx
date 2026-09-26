@@ -509,10 +509,18 @@ export function AppSidebar({
           className="flex shrink-0 items-center gap-2.5 px-5 py-5"
         >
           {/* The rail is brand navy in both themes, so the mark is the one from the board's
-              "Logo on dark" panel rather than following the theme. */}
+              "Logo on dark" panel rather than following the theme. Beside it the name is live
+              text -- the application-shell treatment the branding QA corrections (§3, §9)
+              specify: "Wonder" white, "Ark" brand blue, in the brand typeface. */}
           <WonderArkLogo variant="mark-dark" size="md" decorative priority />
-          <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
-            {BRAND_NAME}
+          <span className="min-w-0 truncate text-lg font-bold tracking-tight text-white">
+            {BRAND_NAME === "WonderArk" ? (
+              <>
+                Wonder<span className="text-brand-blue">Ark</span>
+              </>
+            ) : (
+              BRAND_NAME
+            )}
           </span>
         </Link>
 
