@@ -18,3 +18,7 @@ apps/web/playwright-report/
 apps/web/playwright/.auth/
 apps/web/blob-report/
 apps/web/e2e/screenshots/
+
+# Local, uncommitted helper scripts (browser checks against a running app)
+apps/web/.*.mjs
+apps/web/.pw-sandbox.config.ts
