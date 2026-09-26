@@ -6,6 +6,7 @@
  *   - DISC-OFFER-P1-02.3: `discovery_definitions.play_key` (20260927300000)
  *   - DISC-OFFER-P1-01.3: `watchlist_entries` rewritten to tenant AND licensed, via
  *     `discovery.licensed_workspace_ids()` / `write_licensed_workspace_ids()` (20260927300100)
+ *   - DISC-OFFER-P1-04.3: `contacts.buying_role`, one role per person per offering (20260927300200)
  *
  * Same harness and "tenant AND licensed" shape as test-crm-backlog-rls.mjs: two
  * businesses, one per user, each with its own offering (product -> workspace), then every
@@ -114,6 +115,24 @@ async function main() {
       assertEqual(psql(`select count(*) from discovery.watchlist_entries where workspace_id in ('${aliceWorkspace}', '${aliceWorkspace2}')`), "2", "cancelling never deletes the watches (ADR-9)");
       psql(`update core.licenses set status = 'active' where business_id = '${aliceBusiness}' and module_key = 'discovery'`);
       assertEqual(psqlAsAlice("select count(*) from discovery.watchlist_entries"), "2", "reactivation restores every watch");
+
+      console.log("DISC-OFFER-P1-04.3: contacts.buying_role...");
+      const iamContact = psqlAsAlice(`insert into discovery.contacts (workspace_id, prospect_id, first_name, last_name, email, buying_role) values ('${aliceWorkspace}', '${aliceProspect}', 'Priya', 'Sharma', 'priya@acme.com', 'decision_maker') returning id;`);
+      const trainingContact = psqlAsAlice(`insert into discovery.contacts (workspace_id, prospect_id, first_name, last_name, email, buying_role) values ('${aliceWorkspace2}', '${aliceProspect2}', 'Priya', 'Sharma', 'priya@acme.com', 'not_involved') returning id;`);
+      assertEqual(
+        psqlAsAlice(`select string_agg(buying_role, ',' order by buying_role) from discovery.contacts where email = 'priya@acme.com'`),
+        "decision_maker,not_involved",
+        "the same person holds a different role under each offering",
+      );
+      assertThrows(
+        () => psqlAsAlice(`update discovery.contacts set buying_role = 'kingmaker' where id = '${iamContact}'`),
+        "an unknown buying role is rejected",
+      );
+      psqlAsAlice(`update discovery.contacts set buying_role = null where id = '${trainingContact}'`);
+      assertEqual(psqlAsAlice(`select coalesce(buying_role, 'null') from discovery.contacts where id = '${trainingContact}'`), "null", "clearing the role falls back to derived relevance");
+      assertEqual(psqlAsBob(`select count(*) from discovery.contacts where email = 'priya@acme.com'`), "0", "Bob cannot see Alice's contacts or their roles");
+      assertEqual(psqlAsBob(`update discovery.contacts set buying_role = 'user' where id = '${iamContact}' returning id`), "", "Bob cannot change the role of Alice's contact");
+      assertEqual(psql(`select buying_role from discovery.contacts where id = '${iamContact}'`), "decision_maker", "Alice's contact keeps its role");
 
       console.log("\nAll Discovery offering P1 checks passed.");
     },

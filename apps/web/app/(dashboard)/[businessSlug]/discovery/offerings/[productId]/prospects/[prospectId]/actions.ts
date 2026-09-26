@@ -14,6 +14,7 @@ import {
   updateContact,
   deleteContact,
 } from "@cofounderai/module-discovery/lib/contacts/mutations";
+import { parseBuyingRole } from "@cofounderai/module-discovery/lib/contacts/types";
 import { researchProspect } from "@cofounderai/module-discovery/lib/ai/research-prospect";
 import { applyIncrementalSignalUpdate } from "@cofounderai/module-discovery/lib/pipeline/incremental";
 import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
@@ -185,6 +186,8 @@ export async function updateContactAction(
     email: String(formData.get("email") ?? ""),
     linkedinUrl: String(formData.get("linkedinUrl") ?? ""),
     phone: String(formData.get("phone") ?? ""),
+    // DISC-OFFER-P1-04.3: this person's role for THIS offering ("" clears it).
+    ...(formData.has("buyingRole") ? { buyingRole: parseBuyingRole(String(formData.get("buyingRole"))) } : {}),
   });
   revalidatePath(await prospectPath(businessId, productId, prospectId));
 }

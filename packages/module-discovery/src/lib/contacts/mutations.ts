@@ -3,7 +3,7 @@ import { createClient } from "../../db/server";
 import { ensureProspectParty } from "../prospects/party-sync";
 import { getProspect } from "../prospects/queries";
 import { getBusinessIdForWorkspace } from "../tenancy/queries";
-import type { Contact } from "./types";
+import type { BuyingRole, Contact } from "./types";
 
 export async function createContact(
   workspaceId: string,
@@ -69,12 +69,16 @@ export async function updateContact(
     email?: string;
     linkedinUrl?: string;
     phone?: string;
+    /** DISC-OFFER-P1-04.3: this person's role for this offering; null clears it. Left
+     * untouched when omitted. */
+    buyingRole?: BuyingRole | null;
   },
 ): Promise<Contact> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("contacts")
     .update({
+      ...(input.buyingRole !== undefined ? { buying_role: input.buyingRole } : {}),
       first_name: input.firstName?.trim() || null,
       last_name: input.lastName?.trim() || null,
       job_title: input.jobTitle?.trim() || null,

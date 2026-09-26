@@ -27,7 +27,7 @@ export function buildBuyerPersonIntelligence(input: {
 
   const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || "Unnamed contact";
   const seniority = deriveSeniority(contact.job_title);
-  const relevance = deriveRelevance({ persona, jobTitle: contact.job_title, icpRoles });
+  const relevance = deriveRelevance({ persona, jobTitle: contact.job_title, icpRoles, buyingRole: contact.buying_role ?? null });
   const contactability = deriveContactability(contact);
   const supportingEvidence = findSupportingEvidence(contact, evidence);
 

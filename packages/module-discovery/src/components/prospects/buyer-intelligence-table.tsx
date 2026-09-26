@@ -2,6 +2,9 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { cn } from "@cofounderai/core/lib/utils";
 import { PERSONA_ROLE_LABEL } from "../../lib/personas/types";
+import { BUYING_ROLE_LABEL } from "../../lib/contacts/types";
+import type { OtherOfferingRole } from "../../lib/contacts/cross-offering";
+import { OtherOfferingRoles } from "./other-offering-roles";
 import { RELEVANCE_LABEL, SENIORITY_LABEL } from "../../lib/buyer-intelligence/types";
 import type { BuyerIntelligenceConfidence, BuyerPersonIntelligence } from "../../lib/buyer-intelligence/types";
 
@@ -25,7 +28,22 @@ function ConfidenceBadge({ confidence }: { confidence: BuyerIntelligenceConfiden
   return <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", CONFIDENCE_BADGE_CLASS[confidence])}>{confidence} confidence</span>;
 }
 
-export function BuyerIntelligenceTable({ buyerIntelligence }: { buyerIntelligence: BuyerPersonIntelligence[] }) {
+/** DISC-OFFER-P1-04.3: the role shown for a person is the one the founder set for this
+ * offering when there is one, otherwise the buyer persona their title matched. */
+function roleLabelFor(person: BuyerPersonIntelligence): { label: string; set: boolean } | null {
+  if (person.contact.buying_role) return { label: BUYING_ROLE_LABEL[person.contact.buying_role], set: true };
+  if (person.persona) return { label: PERSONA_ROLE_LABEL[person.persona.role_in_committee], set: false };
+  return null;
+}
+
+export function BuyerIntelligenceTable({
+  buyerIntelligence,
+  otherOfferingRoles,
+}: {
+  buyerIntelligence: BuyerPersonIntelligence[];
+  /** DISC-OFFER-P1-04.3: the same person's role under the business's other offerings. */
+  otherOfferingRoles?: Map<string, OtherOfferingRole[]>;
+}) {
   if (buyerIntelligence.length === 0) {
     return <p className="text-sm text-muted-foreground">No contacts recorded yet -- add a contact to see buyer intelligence.</p>;
   }
@@ -41,8 +59,8 @@ export function BuyerIntelligenceTable({ buyerIntelligence }: { buyerIntelligenc
               <span className="font-medium">{person.name}</span>
               {person.title ? <span className="text-muted-foreground">— {person.title}</span> : null}
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{SENIORITY_LABEL[person.seniority]}</span>
-              {person.persona ? (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</span>
+              {roleLabelFor(person) ? (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{roleLabelFor(person)?.label}</span>
               ) : (
                 <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Unassigned role</span>
               )}
@@ -56,6 +74,7 @@ export function BuyerIntelligenceTable({ buyerIntelligence }: { buyerIntelligenc
               <span className="font-medium text-foreground">Evidence: </span>
               {person.supportingEvidence[0]?.statement ?? "None found yet."}
             </p>
+            <OtherOfferingRoles roles={otherOfferingRoles?.get(person.contact.id)} />
           </li>
         ))}
       </ul>
@@ -78,12 +97,16 @@ export function BuyerIntelligenceTable({ buyerIntelligence }: { buyerIntelligenc
                 <p className="truncate font-medium">{person.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{person.title ?? SENIORITY_LABEL[person.seniority]}</p>
               </TableCell>
-              <TableCell>
-                {person.persona ? (
-                  <Badge variant="secondary">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</Badge>
+              <TableCell className="max-w-56">
+                {roleLabelFor(person) ? (
+                  <Badge variant="secondary">
+                    {roleLabelFor(person)?.label}
+                    {roleLabelFor(person)?.set ? <span className="sr-only"> (set for this offering)</span> : null}
+                  </Badge>
                 ) : (
                   <span className="text-muted-foreground">Unassigned</span>
                 )}
+                <OtherOfferingRoles roles={otherOfferingRoles?.get(person.contact.id)} className="mt-1" />
               </TableCell>
               <TableCell className="max-w-64 text-muted-foreground">
                 <span className="font-medium text-foreground">{RELEVANCE_LABEL[person.relevance]}</span> — {person.relevanceReason}

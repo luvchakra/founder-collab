@@ -39,3 +39,22 @@ describe("deriveRelevance", () => {
     expect(result.level).toBe("unknown");
   });
 });
+
+// DISC-OFFER-P1-04.3 "Offering-Specific Contact Relevance"
+describe("deriveRelevance with a founder-set buying role", () => {
+  it("lets the role set for this offering outrank the persona match", () => {
+    const result = deriveRelevance({ persona: persona({ priority: "high" }), jobTitle: "CISO", icpRoles: [], buyingRole: "not_involved" });
+    expect(result).toEqual({ level: "low", reason: "Set as not involved for this offering." });
+  });
+
+  it("gives the same person, same title, a different relevance per offering", () => {
+    const iam = deriveRelevance({ persona: null, jobTitle: "IT Manager", icpRoles: [], buyingRole: "decision_maker" });
+    const training = deriveRelevance({ persona: null, jobTitle: "IT Manager", icpRoles: [], buyingRole: "user" });
+    expect(iam.level).toBe("high");
+    expect(training.level).toBe("medium");
+  });
+
+  it("falls back to the derived relevance when no role is set", () => {
+    expect(deriveRelevance({ persona: null, jobTitle: null, icpRoles: [], buyingRole: null }).level).toBe("unknown");
+  });
+});
