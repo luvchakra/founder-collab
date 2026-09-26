@@ -10,7 +10,7 @@ vi.mock("./queries", () => ({
 vi.mock("../../lib/marketing/queries", () => ({ listOfferingOptions: h.listOfferingOptions }));
 
 import { marketingAnalyticsExport } from "./analytics";
-import { BUSINESS_ID, OFFERING, campaign, exportContext, headers, metric, params, rowValues, sheet } from "./test-support";
+import { BUSINESS_ID, OFFERING, campaign, exportContext, headers, metric, params, renderText, rowValues, sheet } from "./test-support";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -52,6 +52,7 @@ describe("EXP-MKT-07 marketing.analytics", () => {
     expect(webinar).toMatchObject({ Campaign: "Webinar", Leads: 0, Spend: null, "Cost per lead": null });
     expect(wb.metadata).toMatchObject({ Report: "By campaign", Channel: "All channels", Offering: "All offerings", "Time series": "Weekly" });
     expect(wb.metadata?.Period).toMatch(/^Last 30 days \(\d{4}-\d{2}-\d{2} to \d{4}-\d{2}-\d{2}\)$/);
+    expect((await renderText(wb, "xlsx")).startsWith("PK")).toBe(true);
   });
 
   it("channel and offering reports carry a campaign count", async () => {

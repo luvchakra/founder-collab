@@ -84,6 +84,7 @@ describe("EXP-MKT-04 marketing.campaign", () => {
     expect(rowValues(wb, "Activity")).toMatchObject({ Activity: "Status draft -> active" });
     const csv = await renderText(wb);
     expect(csv.split("\r\n")[1]).toBe("2026-09-20,Import,300,,,,2,,,INR");
+    expect((await renderText(wb, "xlsx")).startsWith("PK")).toBe(true);
   });
 
   it("never exports storage locations or raw audit payloads", async () => {
