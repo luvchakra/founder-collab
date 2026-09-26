@@ -4,12 +4,13 @@ import { cn } from "../../lib/utils";
 
 /**
  * BRAND-04 (docs/plan/16-BRANDING-BACKLOG.md §7) -- the one way the platform renders its
- * logo. Every variant is a crop of the approved brand board (brand/wonderark-brand-board.png,
- * cut by scripts/build-brand-assets.mjs); nothing here or anywhere else draws a logo.
+ * logo. Every variant is the supplied logomark (brand/wonderark-mark.png) or a crop of the
+ * approved brand board (brand/wonderark-brand-board.png), prepared by
+ * scripts/build-brand-assets.mjs; nothing here or anywhere else draws a logo.
  *
  * - `primary` / `dark` -- the board's "Primary logo" and "Logo on dark" stacked lockups.
  * - `horizontal` -- the board's "Horizontal logo".
- * - `mark` / `mark-dark` -- the W + wedge from those two panels, for light / navy grounds.
+ * - `mark` / `mark-dark` -- the supplied W + wedge logomark, for light / navy grounds.
  * - `mono` / `gray` -- the board's dark and grey "Logo variations".
  *
  * `adaptive` renders a light-ground variant with its navy-ground twin swapped in by the

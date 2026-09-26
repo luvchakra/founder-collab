@@ -1,17 +1,17 @@
 // GENERATED FILE -- do not edit by hand.
-// Source: brand/wonderark-brand-board.png. Regenerate with `npm run build:brand`.
+// Source: brand/wonderark-brand-board.png and brand/wonderark-mark.png. Regenerate with `npm run build:brand`.
 
 export type BrandAsset = { src: string; width: number; height: number };
 
-/** Every WonderArk logo, cropped from the approved brand board. */
+/** Every WonderArk logo: the supplied mark and lockups cropped from the approved brand board. */
 export const BRAND_LOGO = {
-  primary: { src: "/brand/logo-primary.7f78a148e9.png", width: 394, height: 257 },
-  primaryDark: { src: "/brand/logo-primary-dark.5b69703a02.png", width: 394, height: 257 },
-  horizontal: { src: "/brand/logo-horizontal.b9f44b5eda.png", width: 465, height: 80 },
-  mark: { src: "/brand/logo-mark.920d46a87c.png", width: 292, height: 144 },
-  markOnDark: { src: "/brand/logo-mark-on-dark.1438798029.png", width: 292, height: 144 },
-  mono: { src: "/brand/logo-mono.42a5cde98e.png", width: 142, height: 99 },
-  gray: { src: "/brand/logo-gray.b7face3e71.png", width: 138, height: 98 },
+  primary: { src: "/brand/logo-primary.3bbe8bbf5a.png", width: 1178, height: 800 },
+  primaryDark: { src: "/brand/logo-primary-dark.1c073ae7e7.png", width: 1178, height: 800 },
+  horizontal: { src: "/brand/logo-horizontal.23b891e702.png", width: 1431, height: 251 },
+  mark: { src: "/brand/logo-mark.c4fc08ed1e.png", width: 964, height: 463 },
+  markOnDark: { src: "/brand/logo-mark-on-dark.c4fc08ed1e.png", width: 964, height: 463 },
+  mono: { src: "/brand/logo-mono.9a0e1576b6.png", width: 434, height: 321 },
+  gray: { src: "/brand/logo-gray.67adb0e25a.png", width: 434, height: 321 },
 } as const satisfies Record<string, BrandAsset>;
 
 /** Fixed-name icons and the email header (FIXED_FILES in scripts/build-brand-assets.mjs). */
@@ -27,4 +27,4 @@ export const BRAND_ICON = {
 } as const;
 
 /** Intrinsic size of the email header, for its <img> width/height attributes. */
-export const BRAND_EMAIL_HEADER_SIZE = { width: 495, height: 105 } as const;
+export const BRAND_EMAIL_HEADER_SIZE = { width: 520, height: 105 } as const;

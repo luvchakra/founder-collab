@@ -1,8 +1,10 @@
 <!--
 Copied verbatim from the WonderArk Branding Implementation Specification supplied on
 2026-09-26, with §31a (a machine-readable story index) and §36 (implementation notes)
-appended. The approved brand board is `brand/wonderark-brand-board.png` -- the single
-master every logo asset is cut from (scripts/build-brand-assets.mjs).
+appended. The approved brand board is `brand/wonderark-brand-board.pdf` (rendered at 4x to
+`brand/wonderark-brand-board.png`), and the logomark master is `brand/wonderark-mark.png`
+(both supplied 2026-09-26, replacing the first board, whose W did not match across
+panels) -- every logo asset is cut from them (scripts/build-brand-assets.mjs).
 -->
 
 # WonderArk — Branding Implementation Specification
@@ -1114,7 +1116,7 @@ The meaning of "Ark" should be subtle and embedded in the W geometry. Do not exp
 
 Machine-readable index of §31's stories for `npm run build:progress`; code and tests cite
 these ids (e.g. `BRAND-04`) as evidence of implementation. Brand board:
-`brand/wonderark-brand-board.png`.
+`brand/wonderark-brand-board.png` (from `.pdf`); logomark: `brand/wonderark-mark.png`.
 
 | Story | Title |
 |---|---|

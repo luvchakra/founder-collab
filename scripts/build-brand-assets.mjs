@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * Serves the approved WonderArk brand board, `brand/wonderark-brand-board.png`, as the
- * platform's logo and icon files (docs/plan/16-BRANDING-BACKLOG.md, BRAND-03).
+ * Serves the approved WonderArk brand artwork as the platform's logo and icon files
+ * (docs/plan/16-BRANDING-BACKLOG.md, BRAND-03). Two supplied masters:
  *
- * Every file is a crop of the board. Nothing is drawn, recoloured, composed or placed on a
- * generated background: the lockups, marks, app icon and favicons are the board's own
+ * - `brand/wonderark-mark.png`: the W logomark on transparency, used as-is for the mark;
+ * - `brand/wonderark-brand-board.png`: the approved brand board
+ *   (`brand/wonderark-brand-board.pdf`) rendered at 4x (4608x3072), for everything else.
+ *
+ * Every other file is a crop of the board. Nothing is drawn, recoloured, composed or placed
+ * on a generated background: the lockups, app icon and favicons are the board's own
  * artwork, cut out of the panel that shows them. The only processing is:
  *
  * - removing the panel's flat background from the lockups and marks (so they sit on the
@@ -16,11 +20,11 @@
  * BRAND-01's audit found the previous identity (a swoosh-and-sparkle W, "Accelerate.
  * Revenue. Knowledge.") served from two older masters through this script; both are gone.
  *
- * The board is a raster image, so the files are PNGs rather than the SVGs the spec lists,
- * and the large app icons are enlarged from the board's ~108px tiles (they will sharpen
- * if a higher-resolution board replaces this one — rerun `npm run build:brand`).
+ * The masters are raster images, so the files are PNGs rather than the SVGs the spec
+ * lists. The 512px app icon is enlarged from the board's ~320px tile.
  *
- * Usage: `npm run build:brand` after replacing the board.
+ * Usage: `npm run build:brand` after replacing a master. If the board PDF changes, render
+ * it at 4x to the PNG and re-measure PANELS and TILES below.
  */
 import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -30,6 +34,8 @@ import sharp from "sharp";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const BOARD_FILE = join(ROOT, "brand", "wonderark-brand-board.png");
+/** The supplied logomark on transparency. */
+export const MARK_FILE = join(ROOT, "brand", "wonderark-mark.png");
 const PUBLIC_DIR = join(ROOT, "apps", "web", "public");
 /** Served at `/brand/…`. `npm run build:brand` empties it and writes the current set. */
 export const OUT_DIR = join(PUBLIC_DIR, "brand");
@@ -40,13 +46,13 @@ export const MANIFEST_FILE = join(ROOT, "packages", "core", "src", "brand", "gen
  * captions. The artwork inside each is located by measurement. */
 const PANELS = {
   /** "Primary logo": stacked, light ground. */
-  light: { left: 25, top: 60, width: 476, height: 350 },
+  light: { left: 69, top: 207, width: 1452, height: 1025 },
   /** "Logo on dark": stacked, navy ground. */
-  dark: { left: 535, top: 60, width: 413, height: 350 },
+  dark: { left: 1613, top: 207, width: 1232, height: 1025 },
   /** "Horizontal logo". */
-  horizontal: { left: 975, top: 50, width: 545, height: 160 },
+  horizontal: { left: 2938, top: 161, width: 1612, height: 449 },
   /** "Logo variations": full-colour, dark and grey lockups side by side. */
-  variations: { left: 955, top: 480, width: 565, height: 125 },
+  variations: { left: 2868, top: 1440, width: 1682, height: 380 },
 };
 
 /**
@@ -56,18 +62,20 @@ const PANELS = {
  * Measured on the approved board; `npm test` checks each still holds the artwork.
  */
 export const TILES = {
-  appIconLight: { left: 1142, top: 282, width: 107, height: 107 },
-  favicon256: { left: 602, top: 825, width: 108, height: 108 },
-  favicon64: { left: 743, top: 849, width: 64, height: 64 },
-  favicon32: { left: 845, top: 869, width: 45, height: 45 },
-  favicon16: { left: 929, top: 877, width: 30, height: 30 },
-  darkPanel: { left: 530, top: 70, width: 420, height: 340 },
-  horizontalOnWhite: { left: 1000, top: 75, width: 495, height: 105 },
+  appIconLight: { left: 3423, top: 843, width: 321, height: 321 },
+  favicon256: { left: 1794, top: 2469, width: 336, height: 336 },
+  favicon64: { left: 2220, top: 2532, width: 213, height: 213 },
+  favicon32: { left: 2523, top: 2565, width: 144, height: 144 },
+  favicon16: { left: 2763, top: 2577, width: 120, height: 120 },
+  darkPanel: { left: 1601, top: 138, width: 1244, height: 1106 },
+  horizontalOnWhite: { left: 2985, top: 230, width: 1545, height: 311 },
 };
 
 /**
  * Below this distance from the panel background a pixel is background. The board is a
- * rendered image, so its flat grounds carry a little noise — measured at up to 0.016.
+ * rendered image, so its flat grounds carry a little noise — measured at up to 0.016. A
+ * ground with a soft glow ("Logo on dark", up to 0.063) raises it to the glow's own
+ * strength, measured on the empty rows above the artwork, so the glow is not kept as haze.
  */
 const BACKGROUND_FLOOR = 0.03;
 /** Ink this far from the background (or further) is fully opaque. Capped per piece at
@@ -75,6 +83,11 @@ const BACKGROUND_FLOOR = 0.03;
 const MAX_INK_THRESHOLD = 0.6;
 
 const PNG = { compressionLevel: 9, palette: true };
+/** Served widths for pieces the board holds at 4x: the mark (from its 5184px master), the
+ * link preview (Open Graph's 1200px) and the email header (shown at half, for 2x screens). */
+export const MARK_WIDTH = 960;
+export const OG_WIDTH = 1200;
+export const EMAIL_HEADER_WIDTH = 520;
 const CLEAR = { r: 255, g: 255, b: 255, alpha: 0 };
 
 async function loadPanel(rect) {
@@ -84,7 +97,12 @@ async function loadPanel(rect) {
     const i = (y * info.width + x) * info.channels;
     return Math.max(Math.abs(data[i] - bg[0]), Math.abs(data[i + 1] - bg[1]), Math.abs(data[i + 2] - bg[2])) / 255;
   };
-  return { data, width: info.width, height: info.height, channels: info.channels, distance };
+  const panel = { data, width: info.width, height: info.height, channels: info.channels, distance };
+  const [first] = findBands(distance, info.width, info.height);
+  let ground = 0;
+  for (let y = 0; y < (first?.top ?? 0) - 4; y++) for (let x = 0; x < info.width; x++) ground = Math.max(ground, distance(x, y));
+  panel.floor = Math.max(BACKGROUND_FLOOR, ground + 0.01);
+  return panel;
 }
 
 /**
@@ -166,14 +184,14 @@ async function cutOut(panel, box) {
       out[to] = panel.data[from];
       out[to + 1] = panel.data[from + 1];
       out[to + 2] = panel.data[from + 2];
-      out[to + 3] = Math.round(255 * Math.max(0, Math.min(1, (d - BACKGROUND_FLOOR) / (threshold - BACKGROUND_FLOOR))));
+      out[to + 3] = Math.round(255 * Math.max(0, Math.min(1, (d - panel.floor) / (threshold - panel.floor))));
     }
   }
   const buffer = await sharp(out, { raw: { width, height, channels: 4 } }).png().toBuffer();
   return { buffer, width, height };
 }
 
-/** A stacked panel: the whole lockup, and the mark (its first band) on its own. */
+/** A stacked panel's whole lockup: mark, wordmark and tagline. */
 async function readStacked(rect, name) {
   const panel = await loadPanel(rect);
   const bands = findBands(panel.distance, panel.width, panel.height);
@@ -184,7 +202,7 @@ async function readStacked(rect, name) {
     left: Math.min(...bands.map((b) => b.left)),
     right: Math.max(...bands.map((b) => b.right)),
   };
-  return { lockup: await cutOut(panel, whole), mark: await cutOut(panel, bands[0]) };
+  return cutOut(panel, whole);
 }
 
 /** A panel holding one lockup. */
@@ -198,7 +216,15 @@ async function readSingle(rect, name) {
 /** The variations panel's lockups, left to right (the thin divider rules are skipped). */
 async function readVariations() {
   const panel = await loadPanel(PANELS.variations);
-  const columns = findColumns(panel.distance, panel.width, 0, panel.height - 1).filter((c) => c.right - c.left > 20);
+  // Letters a few pixels apart (the wordmark's "r" and "A" at 4x) belong to one lockup.
+  const columns = findColumns(panel.distance, panel.width, 0, panel.height - 1)
+    .reduce((merged, c) => {
+      const last = merged.at(-1);
+      if (last && c.left - last.right <= 8) last.right = c.right;
+      else merged.push({ ...c });
+      return merged;
+    }, [])
+    .filter((c) => c.right - c.left > 20);
   if (columns.length !== 3) throw new Error(`variations panel: expected three lockups, found ${columns.length}`);
   return Promise.all(
     columns.map((c) => {
@@ -255,8 +281,14 @@ export async function buildBrandAssets() {
   const dark = await readStacked(PANELS.dark, "dark");
   const [, variationDark, variationGray] = await readVariations();
 
-  const [primary, primaryDark] = await sameBox(light.lockup, dark.lockup);
-  const [mark, markOnDark] = await sameBox(light.mark, dark.mark);
+  const [primary, primaryDark] = await sameBox(light, dark);
+  // The supplied logomark, for light and navy surfaces alike (the board draws the same W on
+  // both), trimmed to its artwork, with the same two clear pixels every cut-out has.
+  const resized = await sharp(MARK_FILE).trim().resize({ width: MARK_WIDTH, kernel: "lanczos3" }).png().toBuffer();
+  const markBuffer = await sharp(resized).extend({ top: 2, bottom: 2, left: 2, right: 2, background: CLEAR }).png().toBuffer();
+  const markMeta = await sharp(markBuffer).metadata();
+  const mark = { buffer: markBuffer, width: markMeta.width, height: markMeta.height };
+  const markOnDark = mark;
   const logos = {
     /** "Primary logo": stacked, for light surfaces. */
     primary,
@@ -264,9 +296,9 @@ export async function buildBrandAssets() {
     primaryDark,
     /** "Horizontal logo". */
     horizontal: await readSingle(PANELS.horizontal, "horizontal"),
-    /** The mark from "Primary logo", for light surfaces. */
+    /** The supplied logomark, for light surfaces. */
     mark,
-    /** The mark from "Logo on dark", for navy surfaces. */
+    /** The same logomark, for navy surfaces. */
     markOnDark,
     /** "Logo variations": the dark and grey lockups. */
     mono: variationDark,
@@ -297,17 +329,25 @@ export async function buildBrandAssets() {
   writeFileSync(join(OUT_DIR, FIXED_FILES.icon512), await tile(TILES.appIconLight, 512));
 
   // Transactional email header (§18): the board's horizontal lockup on its own white.
-  const email = await sharp(BOARD_FILE).extract(TILES.horizontalOnWhite).png(PNG).toBuffer();
+  const email = await sharp(BOARD_FILE)
+    .extract(TILES.horizontalOnWhite)
+    .resize({ width: EMAIL_HEADER_WIDTH, kernel: "lanczos3" })
+    .png(PNG)
+    .toBuffer();
+  const emailSize = await sharp(email).metadata();
   writeFileSync(join(OUT_DIR, FIXED_FILES.emailHeader), email);
 
   // Link previews: the board's "Logo on dark" panel. Next serves app/opengraph-image.png as
   // both the Open Graph and the Twitter image.
-  writeFileSync(join(APP_DIR, "opengraph-image.png"), await sharp(BOARD_FILE).extract(TILES.darkPanel).png(PNG).toBuffer());
+  writeFileSync(
+    join(APP_DIR, "opengraph-image.png"),
+    await sharp(BOARD_FILE).extract(TILES.darkPanel).resize({ width: OG_WIDTH, kernel: "lanczos3" }).png(PNG).toBuffer(),
+  );
   // Superseded by the explicit icon metadata in apps/web/app/layout.tsx.
   for (const stale of ["icon.png", "apple-icon.png"]) rmSync(join(APP_DIR, stale), { force: true });
 
   mkdirSync(dirname(MANIFEST_FILE), { recursive: true });
-  const manifest = renderManifest(written, TILES.horizontalOnWhite);
+  const manifest = renderManifest(written, emailSize);
   writeFileSync(MANIFEST_FILE, manifest);
 
   return { logos: written, manifest, served: readdirSync(OUT_DIR) };
@@ -327,11 +367,11 @@ function renderManifest(written, email) {
     .join("\n");
 
   return `// GENERATED FILE -- do not edit by hand.
-// Source: brand/wonderark-brand-board.png. Regenerate with \`npm run build:brand\`.
+// Source: brand/wonderark-brand-board.png and brand/wonderark-mark.png. Regenerate with \`npm run build:brand\`.
 
 export type BrandAsset = { src: string; width: number; height: number };
 
-/** Every WonderArk logo, cropped from the approved brand board. */
+/** Every WonderArk logo: the supplied mark and lockups cropped from the approved brand board. */
 export const BRAND_LOGO = {
 ${logoLines}
 } as const satisfies Record<string, BrandAsset>;

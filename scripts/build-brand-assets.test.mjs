@@ -3,7 +3,19 @@ import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { BOARD_FILE, buildBrandAssets, findBands, findColumns, FIXED_FILES, MANIFEST_FILE, OUT_DIR, TILES } from "./build-brand-assets.mjs";
+import {
+  BOARD_FILE,
+  buildBrandAssets,
+  EMAIL_HEADER_WIDTH,
+  findBands,
+  findColumns,
+  FIXED_FILES,
+  MANIFEST_FILE,
+  MARK_FILE,
+  OG_WIDTH,
+  OUT_DIR,
+  TILES,
+} from "./build-brand-assets.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const APP_DIR = join(ROOT, "apps", "web", "app");
@@ -73,6 +85,13 @@ test("lockups have the shape of what they claim to be", async () => {
   for (const key of ["mono", "gray"]) assert.ok((await ratio(key)) > 1.1 && (await ratio(key)) < 1.8, key);
 });
 
+test("the mark is the supplied logomark", async () => {
+  // Same artwork, only trimmed and resized: the aspect ratio of the master's artwork holds.
+  const trimmed = await sharp(MARK_FILE).trim().toBuffer({ resolveWithObject: true });
+  const { width, height } = await meta(logo("mark"));
+  assert.ok(Math.abs((width - 4) / (height - 4) - trimmed.info.width / trimmed.info.height) < 0.01);
+});
+
 test("the wedge is present in the mark (§1)", async () => {
   // The wedge sits in the W's lower central opening: ink at the bottom-centre of the mark,
   // with clear space directly above it before the W's centre peak. Probe that column.
@@ -112,7 +131,9 @@ test("icons are the sizes each platform asks for, and opaque", async () => {
     assert.equal(isOpaque, true, `${key} must not be transparent`);
   }
   const og = await meta(join(APP_DIR, "opengraph-image.png"));
-  assert.deepEqual([og.width, og.height], [TILES.darkPanel.width, TILES.darkPanel.height]);
+  assert.deepEqual([og.width, og.height], [OG_WIDTH, Math.round((TILES.darkPanel.height * OG_WIDTH) / TILES.darkPanel.width)]);
+  const email = await meta(join(OUT_DIR, FIXED_FILES.emailHeader));
+  assert.equal(email.width, EMAIL_HEADER_WIDTH);
 });
 
 test("findBands separates stacked pieces by clear rows", () => {

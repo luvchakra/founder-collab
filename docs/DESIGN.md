@@ -129,13 +129,15 @@ nothing is worse than no search box.
 
 ## The logo, and which file goes where
 
-The one brand master is the approved WonderArk brand board, `brand/wonderark-brand-board.png`
-(docs/plan/16-BRANDING-BACKLOG.md). Every logo and icon file the app serves is a crop of
-that board, cut by `npm run build:brand` (`scripts/build-brand-assets.mjs`). Nothing is
-drawn, recoloured or composed; the only processing is removing a lockup's flat panel
-background, resizing, and padding a light/navy twin to its partner's size. Nothing under
+The brand masters are the supplied WonderArk logomark, `brand/wonderark-mark.png`, and
+the approved brand board, `brand/wonderark-brand-board.pdf`, rendered at 4x to
+`brand/wonderark-brand-board.png` (docs/plan/16-BRANDING-BACKLOG.md). The mark is served
+from the logomark master; every other logo and icon file is a crop of the board. Both are
+prepared by `npm run build:brand` (`scripts/build-brand-assets.mjs`). Nothing is drawn,
+recoloured or composed; the only processing is removing a lockup's panel background,
+trimming, resizing, and padding a light/navy twin to its partner's size. Nothing under
 `apps/web/public/brand/` or `apps/web/app/opengraph-image.png` is edited by hand —
-replace the board and rebuild.
+replace a master and rebuild.
 
 Components never name a file. They render `WonderArkLogo`
 (`@cofounderai/core/shell/wonderark-logo`) with a variant and a size; it reads the
