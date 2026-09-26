@@ -52,6 +52,10 @@ async function main() {
           select account_id into bob_account from core.account_members where user_id = '${BOB}';
           insert into core.businesses (account_id, name) values (alice_account, 'Alice Co') returning id into alice_business;
           insert into core.businesses (account_id, name) values (bob_account, 'Bob Co') returning id into bob_business;
+          -- Every new business gets a Discovery licence at creation (seedDefaultLicenses);
+          -- Discovery's RLS requires it (RBAC-39).
+          insert into core.licenses (account_id, business_id, module_key, status) values
+            (alice_account, alice_business, 'discovery', 'active'), (bob_account, bob_business, 'discovery', 'active');
           insert into discovery.products (business_id, name) values (alice_business, 'Alice Product') returning id into alice_product;
           insert into discovery.products (business_id, name) values (bob_business, 'Bob Product') returning id into bob_product;
         end $$;
@@ -119,8 +123,6 @@ async function main() {
 
       console.log("Seeding licenses (C-3)...");
       psql(`
-        insert into core.licenses (account_id, business_id, module_key, status)
-        select account_id, id, 'discovery', 'active' from core.businesses where name = 'Alice Co';
         insert into core.licenses (account_id, business_id, module_key, status, grace_ends_at)
         select account_id, id, 'inventory', 'grace', now() + interval '10 days' from core.businesses where name = 'Alice Co';
       `);
@@ -153,7 +155,7 @@ async function main() {
 
       console.log("Verifying tenant isolation on licenses (C-3)...");
       assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");
-      assertEqual(psqlAsBob("select count(*) from core.licenses"), "0", "Bob sees none of Alice's licenses");
+      assertEqual(psqlAsBob(`select count(*) from core.licenses where business_id = '${aliceBusiness}'`), "0", "Bob sees none of Alice's licenses");
       assertEqual(psql("select count(*) from core.modules"), "5", "the five module rows are seeded");
       assertEqual(psqlAsBob("select count(*) from core.modules"), "5", "the module catalogue is readable by any authenticated user");
 
