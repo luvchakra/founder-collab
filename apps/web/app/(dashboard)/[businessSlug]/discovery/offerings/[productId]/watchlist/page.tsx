@@ -2,9 +2,13 @@ import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
-import { getWatchlistDashboardRows } from "@cofounderai/module-discovery/lib/watchlist/queries";
+import { getOtherOfferingWatches, getWatchlistDashboardRows } from "@cofounderai/module-discovery/lib/watchlist/queries";
 import { WatchlistDashboard } from "@cofounderai/module-discovery/components/prospects/watchlist-dashboard";
+import { WatchlistRowActions } from "@cofounderai/module-discovery/components/prospects/watchlist-row-actions";
+import { removeWatchFromListAction, updateWatchFromListAction } from "./actions";
 
+/** DISC-OFFER-P1-01.3 "Account Watchlist" -- this offering's watched accounts, in review
+ * order, each editable in place. */
 export default async function WatchlistPage({
   params,
 }: {
@@ -20,6 +24,7 @@ export default async function WatchlistPage({
   if (!workspace) notFound();
 
   const rows = await getWatchlistDashboardRows(workspace.id);
+  const otherOfferingWatches = await getOtherOfferingWatches(businessId, workspace.id, rows);
   const basePath = `/${businessSlug}/discovery/offerings/${productId}/prospects`;
 
   return (
@@ -33,7 +38,21 @@ export default async function WatchlistPage({
           <ExportMenu exportId="discovery.watchlist" businessSlug={businessSlug} params={{ productId }} />
         </div>
       </div>
-      <WatchlistDashboard basePath={basePath} rows={rows} />
+      <WatchlistDashboard
+        basePath={basePath}
+        rows={rows}
+        otherOfferingWatches={otherOfferingWatches}
+        renderActions={(row) => (
+          <WatchlistRowActions
+            companyName={row.prospectCompanyName}
+            watchReason={row.watch_reason}
+            nextReviewAt={row.next_review_at}
+            accountHref={`${basePath}/${row.prospect_id}`}
+            updateAction={updateWatchFromListAction.bind(null, businessId, productId, row.id)}
+            removeAction={removeWatchFromListAction.bind(null, businessId, productId, row.id)}
+          />
+        )}
+      />
     </div>
   );
 }

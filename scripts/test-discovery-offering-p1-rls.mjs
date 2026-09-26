@@ -4,6 +4,8 @@
  * P1 schema changes (docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md):
  *
  *   - DISC-OFFER-P1-02.3: `discovery_definitions.play_key` (20260927300000)
+ *   - DISC-OFFER-P1-01.3: `watchlist_entries` rewritten to tenant AND licensed, via
+ *     `discovery.licensed_workspace_ids()` / `write_licensed_workspace_ids()` (20260927300100)
  *
  * Same harness and "tenant AND licensed" shape as test-crm-backlog-rls.mjs: two
  * businesses, one per user, each with its own offering (product -> workspace), then every
@@ -61,8 +63,6 @@ async function main() {
       const aliceProspect = psql(`insert into discovery.prospects (workspace_id, company_name) values ('${aliceWorkspace}', 'Acme') returning id;`);
       const aliceProspect2 = psql(`insert into discovery.prospects (workspace_id, company_name) values ('${aliceWorkspace2}', 'Acme') returning id;`);
       const bobProspect = psql(`insert into discovery.prospects (workspace_id, company_name) values ('${bobWorkspace}', 'Globex') returning id;`);
-      void aliceProspect2;
-      void bobProspect;
 
       console.log("DISC-OFFER-P1-02.3: discovery_definitions.play_key...");
       const playDefinition = psqlAsAlice(`
@@ -80,6 +80,40 @@ async function main() {
         "a malformed play key is rejected",
       );
       assertEqual(psqlAsBob(`select count(*) from discovery.discovery_definitions where play_key is not null`), "0", "Bob cannot see Alice's play-tagged definitions");
+
+      console.log("DISC-OFFER-P1-01.3: watchlist -- tenant isolation...");
+      psqlAsAlice(`insert into discovery.watchlist_entries (workspace_id, prospect_id, watch_reason) values ('${aliceWorkspace}', '${aliceProspect}', 'Budget cycle')`);
+      psqlAsAlice(`insert into discovery.watchlist_entries (workspace_id, prospect_id, watch_reason) values ('${aliceWorkspace2}', '${aliceProspect2}', 'Training refresh')`);
+      psqlAsBob(`insert into discovery.watchlist_entries (workspace_id, prospect_id, watch_reason) values ('${bobWorkspace}', '${bobProspect}', 'Bob reason')`);
+      assertEqual(psqlAsAlice("select count(*) from discovery.watchlist_entries"), "2", "Alice sees only her own two watches");
+      assertEqual(
+        psqlAsAlice("select string_agg(watch_reason, ',' order by watch_reason) from discovery.watchlist_entries"),
+        "Budget cycle,Training refresh",
+        "the same account is watched differently under each of Alice's offerings",
+      );
+      assertEqual(psqlAsBob("select count(*) from discovery.watchlist_entries"), "1", "Bob sees only his own watch");
+      assertThrows(
+        () => psqlAsBob(`insert into discovery.watchlist_entries (workspace_id, prospect_id, watch_reason) values ('${aliceWorkspace}', '${aliceProspect}', 'Intrusion')`),
+        "Bob cannot watch an account in Alice's workspace",
+      );
+      assertEqual(psqlAsBob(`update discovery.watchlist_entries set watch_reason = 'hijack' where workspace_id = '${aliceWorkspace}' returning id`), "", "Bob cannot edit Alice's watch");
+      assertEqual(psqlAsBob(`delete from discovery.watchlist_entries where workspace_id = '${aliceWorkspace}' returning id`), "", "Bob cannot delete Alice's watch");
+      assertEqual(psql(`select count(*) from discovery.watchlist_entries where workspace_id = '${aliceWorkspace}'`), "1", "Alice's watch is untouched");
+
+      console.log("DISC-OFFER-P1-01.3: watchlist -- licence gating...");
+      psql(`update core.licenses set status = 'grace', grace_ends_at = now() + interval '10 days' where business_id = '${aliceBusiness}' and module_key = 'discovery'`);
+      assertEqual(psqlAsAlice("select count(*) from discovery.watchlist_entries"), "2", "in grace, Alice can still read her watches");
+      assertThrows(
+        () => psqlAsAlice(`insert into discovery.watchlist_entries (workspace_id, prospect_id, watch_reason) values ('${aliceWorkspace}', '${aliceProspect}', 'Grace write')`),
+        "in grace, Alice cannot add a watch (read-only)",
+      );
+      assertEqual(psqlAsAlice(`update discovery.watchlist_entries set watch_reason = 'grace edit' returning id`), "", "in grace, Alice cannot edit a watch");
+      assertEqual(psqlAsAlice(`delete from discovery.watchlist_entries returning id`), "", "in grace, Alice cannot remove a watch");
+      psql(`update core.licenses set status = 'cancelled', grace_ends_at = null where business_id = '${aliceBusiness}' and module_key = 'discovery'`);
+      assertEqual(psqlAsAlice("select count(*) from discovery.watchlist_entries"), "0", "with the licence cancelled, Alice sees no watches");
+      assertEqual(psql(`select count(*) from discovery.watchlist_entries where workspace_id in ('${aliceWorkspace}', '${aliceWorkspace2}')`), "2", "cancelling never deletes the watches (ADR-9)");
+      psql(`update core.licenses set status = 'active' where business_id = '${aliceBusiness}' and module_key = 'discovery'`);
+      assertEqual(psqlAsAlice("select count(*) from discovery.watchlist_entries"), "2", "reactivation restores every watch");
 
       console.log("\nAll Discovery offering P1 checks passed.");
     },
