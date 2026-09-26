@@ -188,7 +188,12 @@ export async function runBusinessExport<F>(
   try {
     workbook = await adapter.load(context, filters);
   } catch (error) {
-    if (error instanceof ExportDeniedError) return json(error.status, { error: "forbidden", message: error.message });
+    if (error instanceof ExportDeniedError) {
+      // A refusal the adapter decided on (a record outside this business, a restricted
+      // column set) is audited like any other attempt that reached the business.
+      await audit(context, "export.failed", { ...base, reason: "denied" }).catch(() => undefined);
+      return json(error.status, { error: error.status === 404 ? "not_found" : "forbidden", message: error.message });
+    }
     await audit(context, "export.failed", { ...base, reason: "load" }).catch(() => undefined);
     console.error(`[exports] ${adapter.id} failed to load`, error);
     return json(500, { error: "export_failed", message: "We could not generate this export. No data was changed." });

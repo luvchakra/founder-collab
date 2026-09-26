@@ -6,6 +6,12 @@
  * query (same predicates as the page) with a stable order -- ending in a unique column
  * such as `id` -- and this helper asks for it one `.range()` at a time until a short page
  * says there is nothing left.
+ *
+ * "Short" is judged against what the server actually returned on the first full request,
+ * not against the chunk size asked for: if PostgREST's `max-rows` is ever set below the
+ * chunk size, every page comes back at that lower size, and treating the first one as the
+ * last would silently cut the export to one page. So the effective page size is learnt
+ * from the first response, and paging stops only on a page shorter than that -- or empty.
  */
 export const EXPORT_CHUNK_SIZE = 1000;
 
@@ -18,12 +24,22 @@ export async function fetchAllRows<T>(
   const chunk = options.chunkSize ?? EXPORT_CHUNK_SIZE;
   const max = options.maxRows ?? 200_000;
   const rows: T[] = [];
-  for (let from = 0; from < max; from += chunk) {
-    const { data, error } = await page(from, from + chunk - 1);
+  let pageSize = chunk;
+  let from = 0;
+  while (from < max) {
+    const { data, error } = await page(from, from + pageSize - 1);
     if (error) throw error;
     const batch = data ?? [];
     rows.push(...batch);
-    if (batch.length < chunk) break;
+    if (batch.length === 0) break;
+    if (from === 0 && batch.length < pageSize) {
+      // Either the whole result was smaller than one chunk, or the server caps pages below
+      // the chunk size -- one more request tells the two apart.
+      pageSize = batch.length;
+    } else if (batch.length < pageSize) {
+      break;
+    }
+    from += batch.length;
   }
   return rows;
 }

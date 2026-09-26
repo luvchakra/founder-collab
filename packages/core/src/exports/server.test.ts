@@ -179,6 +179,19 @@ describe("runBusinessExport", () => {
     const response = await runBusinessExport(request("business=acme&format=csv"), denying);
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ message: "Cost prices are restricted." });
+    expect(state.audits.map((a) => a.action)).toEqual(["export.failed"]);
+    expect(state.audits[0]!.after).toMatchObject({ reason: "denied" });
+  });
+
+  it("passes an adapter's not-found through as 404 with its own message", async () => {
+    const missing = adapter({
+      load: async () => {
+        throw new ExportDeniedError("Offering not found.", 404);
+      },
+    });
+    const response = await runBusinessExport(request("business=acme&format=csv"), missing);
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "not_found", message: "Offering not found." });
   });
 
   it("audits a failure and says so plainly", async () => {

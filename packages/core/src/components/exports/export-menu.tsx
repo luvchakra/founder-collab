@@ -98,8 +98,10 @@ export function ExportMenu({
       }
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { message?: string } | null;
-        // A denial explains itself (licence, permission); anything else gets the standard copy.
-        const description = response.status === 403 && body?.message ? body.message : FAILED;
+        // A refusal explains itself (licence, permission, a record that isn't there);
+        // anything else -- a server failure -- gets the standard copy.
+        const explains = response.status === 401 || response.status === 403 || response.status === 404;
+        const description = explains && body?.message ? body.message : FAILED;
         toast.error("Export failed", { description });
         return;
       }
