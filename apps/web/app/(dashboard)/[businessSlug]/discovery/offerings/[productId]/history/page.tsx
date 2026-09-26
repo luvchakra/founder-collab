@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listPipelineRuns } from "@cofounderai/module-discovery/lib/pipeline/queries";
 import { RunHistoryList } from "@cofounderai/module-discovery/components/pipeline/run-history-list";
@@ -23,5 +24,12 @@ export default async function RunHistoryPage({
 
   const runs = await listPipelineRuns(workspace.id);
 
-  return <RunHistoryList businessId={businessId} productId={productId} runs={runs} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <ExportMenu exportId="discovery.history" businessSlug={businessSlug} params={{ productId }} paginated />
+      </div>
+      <RunHistoryList businessId={businessId} productId={productId} runs={runs} />
+    </div>
+  );
 }

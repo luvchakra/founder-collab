@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listProspects } from "@cofounderai/module-discovery/lib/prospects/queries";
 import { computeConversionFunnel } from "@cofounderai/module-discovery/lib/prospects/pipeline";
@@ -53,6 +54,9 @@ export default async function ConversionsPage({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <ExportMenu exportId="discovery.conversions" businessSlug={businessSlug} params={{ productId }} kind="report" />
+      </div>
       <ConversionFunnelPanel funnel={funnel} wonCount={customers.length} />
 
       <div className="flex flex-col gap-3 rounded-md border p-4">

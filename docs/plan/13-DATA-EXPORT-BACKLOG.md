@@ -854,6 +854,8 @@ Excel workbook:
 
 Do not modify the existing Business/Offering query.
 
+_Implemented (`discovery.business`): the business has no stored location, so none is exported._
+
 ---
 
 ## EXP-DISC-02 — Discovery Dashboard Export
@@ -875,6 +877,8 @@ Excel sheets:
 - `Usage`
 
 Do not export visual chart screenshots.
+
+_Implemented (`discovery.dashboard`): AI usage is exported as a share of the monthly AI credit allowance, the page's own framing -- never a raw cost._
 
 ---
 
@@ -909,6 +913,8 @@ Acceptance:
 - no UI pagination limitation;
 - same tenant/workspace.
 
+_Implemented (`discovery.prospects`): prospects have no stored "source" column, so none is exported. `search` follows the page URL's `search` param (the page's live search box filters client-side without updating the URL)._
+
 ---
 
 ## EXP-DISC-04 — Prospect Detail / Buyer Intelligence Export
@@ -933,6 +939,8 @@ Excel sheets:
 
 Do not export raw secrets or provider credentials.
 
+_Implemented (`discovery.prospect`): the workbook also carries EXP-DISC-07's research-evidence and signal rows and EXP-DISC-08's outreach records, which are only rendered on this page._
+
 ---
 
 ## EXP-DISC-05 — Opportunity Export
@@ -955,6 +963,8 @@ Fields:
 - research date;
 - created date;
 - CRM handoff status.
+
+_Implemented (`discovery.opportunities`, shared with EXP-DISC-09): opportunities store no estimated value and the page shows no research date, so neither is exported; "Last evaluated" is included instead._
 
 ---
 
@@ -998,6 +1008,8 @@ Research fields:
 - URL;
 - confidence/provenance.
 
+_Implemented inside EXP-DISC-04's workbook (`Research`, `Signals` sheets): Discovery has no standalone research or signals page._
+
 Signals:
 
 - prospect;
@@ -1028,6 +1040,8 @@ Fields:
 
 Never export credentials or provider configuration.
 
+_Implemented inside EXP-DISC-04's workbook (`Outreach History` sheet): Discovery has no standalone outreach page._
+
 ---
 
 ## EXP-DISC-09 — Opportunity / Pipeline Export
@@ -1045,6 +1059,8 @@ Export:
 - CRM handoff.
 
 If the current page supports stage filters, preserve them.
+
+_Implemented with EXP-DISC-05 (`discovery.opportunities`): the opportunities page is Discovery's pipeline -- its dashboard bins are the stages; it has no filters._
 
 ---
 
@@ -1122,6 +1138,8 @@ Export:
 - last signal;
 - last checked;
 - alert state.
+
+_Implemented (`discovery.history`, `discovery.usage`, `discovery.watchlist`): watchlist entries have no status, alert state or "last checked" of their own; "Review due" (next review date passed) is exported instead._
 
 ---
 

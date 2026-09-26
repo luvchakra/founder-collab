@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getOpportunityDashboardRows } from "@cofounderai/module-discovery/lib/opportunities/dashboard-queries";
 import { OpportunitiesDashboard } from "@cofounderai/module-discovery/components/opportunities/opportunities-dashboard";
@@ -22,12 +23,17 @@ export default async function OpportunitiesPage({
   const rows = await getOpportunityDashboardRows(workspace.id);
 
   return (
-    <OpportunitiesDashboard
-      businessId={businessId}
-      productId={productId}
-      rows={rows}
-      setStatusAction={setOpportunityStatusFromListAction.bind(null, businessId, productId)}
-      researchAgainAction={researchAgainFromListAction.bind(null, businessId, productId)}
-    />
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <ExportMenu exportId="discovery.opportunities" businessSlug={businessSlug} params={{ productId }} />
+      </div>
+      <OpportunitiesDashboard
+        businessId={businessId}
+        productId={productId}
+        rows={rows}
+        setStatusAction={setOpportunityStatusFromListAction.bind(null, businessId, productId)}
+        researchAgainAction={researchAgainFromListAction.bind(null, businessId, productId)}
+      />
+    </div>
   );
 }
