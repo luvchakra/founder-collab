@@ -17,6 +17,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-1 | Done | `e7138b2` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
 | FIN-2 | Done | `9b0e055` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
 | FIN-3 | Done | `pending` | Activation wizard: an 8-step checklist plus the accounting-method/fiscal-year settings and the activation record §42 was actually missing -- see below, this turned out bigger than "every step already exists as its own screen" |
+| FIN-4 | Done | `pending` | Invoice view: every issued invoice from `core.documents` with accounting, payment, GST and e-invoice status as four independent columns |
 | FIN-5 | Done | `pending` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
 | FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
@@ -249,6 +250,31 @@ permission-gated RLS every other consequential write in this schema already has 
 permission `gst.activation.manage`), and `activated_at` stays set once written -- re-running
 the wizard reruns the (idempotent) backfill scan but never un-marks a business as activated.
 
+### Invoice view (FIN-4) — built 2026-09-27
+
+`/finance/invoices` (in the Accounting nav): issued invoices for a period, whichever module
+raised them, read from `core.documents` — no Finance-local invoice table, so
+`lint:gst-no-duplicate-masters` stays green. Four statuses, each from the place that owns
+it, never merged into one:
+
+| Status | Read from | Values |
+|---|---|---|
+| Accounting | `gst.journal_entries` by `source_document_id`, *excluding* payment entries (a posted receipt is not the invoice being posted) | Posted · Reversed · Not posted · No entry (no accounting consequence, per `financeEventFromDocument`) |
+| Payment | `core.payment_allocations` + credit notes via `creditedInvoiceId`, through the same `documentBalance` receivables uses | Unpaid · Part paid · Paid · Overpaid · — (cancelled/voided: not owed) |
+| GST | the GSTR-1 `gst.return_periods` row covering the invoice date | No GST · Not in a return · In a return (with its review stage) · Filed |
+| E-invoice | `gst.einvoices`, else a `failed` `document.issued` domain event for the invoice | IRN generated · IRN cancelled · Attempt failed (error on hover) · Not generated |
+
+**"Attempt failed" comes from the event log.** `generateEinvoice` persists nothing when a
+submission fails (see `einvoice-status/determine.ts`), so the only durable trace of a
+failed attempt is the `document.issued` event the drain marked `failed` with its
+`last_error`. Reading that is honest; a "Not generated" for an invoice somebody tried and
+failed to e-invoice would read as nobody having tried. The full per-document
+mandate/deadline evaluation (`getEinvoiceStatus`) is not run per row — it is several
+queries per invoice — so this column reports what happened, not what was required.
+
+Four tiles count what needs attention on each dimension and filter the list
+(`?status=accounting:not_posted` etc.); each invoice opens its FIN-12 ledger page.
+
 ### Cash flow statement (FIN-5) — built 2026-09-27
 
 The fourth tab on `/finance/reports`, following the other three: same period, same URL
@@ -310,7 +336,6 @@ journal entry with a source document links here, and so does the invoices list (
 
 | § | Item | Note |
 |---|---|---|
-| 18 | Finance invoice view | Invoices list with accounting / payment / GST / e-invoice status kept independent. The data all exists; this is a screen. |
 | 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
 | 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |
 | 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |

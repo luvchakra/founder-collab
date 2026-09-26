@@ -237,6 +237,8 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Chart of Accounts", slug: "accounts", icon: "BookOpen" },
           { label: "Journal", slug: "journal", icon: "BookText" },
           { label: "Banking", slug: "banking", icon: "Landmark" },
+          // FIN-4: invoices from core.documents with four independent statuses.
+          { label: "Invoices", slug: "invoices", icon: "FileText" },
           { label: "Receivables", slug: "receivables", icon: "HandCoins" },
           { label: "Payables", slug: "payables", icon: "Wallet" },
           { label: "Bills", slug: "bills", icon: "Receipt" },
