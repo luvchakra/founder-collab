@@ -55,7 +55,12 @@ function StatusBadge({
   return <Badge variant="outline">Not licensed</Badge>;
 }
 
-export default async function LicensesSettingsPage() {
+export default async function LicensesSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
+  const { notice } = await searchParams;
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
 
@@ -76,6 +81,12 @@ export default async function LicensesSettingsPage() {
           everything.
         </p>
       </div>
+
+      {notice ? (
+        <p role="status" className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
+          {notice.slice(0, 300)}
+        </p>
+      ) : null}
 
       {businesses.length === 0 ? (
         <p className="text-sm text-muted-foreground">

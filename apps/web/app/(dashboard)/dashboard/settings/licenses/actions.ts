@@ -1,9 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { activateLicense, cancelLicense } from "@cofounderai/core/licensing/lifecycle";
 import type { ModuleKey } from "@cofounderai/core/licensing/types";
+import { BillingAccessError } from "@cofounderai/core/billing/access";
+import {
+  assertModuleActivationAllowed,
+  assertModuleCancellationAllowed,
+  LicenseChangeError,
+} from "@cofounderai/core/billing/license-gate";
 
 const SETTINGS_PATH = "/dashboard/settings/licenses";
 
@@ -26,8 +33,23 @@ async function assertBusinessAccess(businessId: string): Promise<void> {
   if (!data) throw new Error("Business not found or access denied.");
 }
 
+/** BILL-17: licence changes here are for account owners/admins, and once online checkout
+ * is live a module is switched on by choosing a plan that includes it (license-gate.ts).
+ * A refusal comes back to the page as a notice rather than an error screen. */
+async function withLicenseGate(check: () => Promise<void>): Promise<void> {
+  try {
+    await check();
+  } catch (error) {
+    if (error instanceof LicenseChangeError || error instanceof BillingAccessError) {
+      redirect(`${SETTINGS_PATH}?notice=${encodeURIComponent(error.message)}`);
+    }
+    throw error;
+  }
+}
+
 export async function activateModuleAction(businessId: string, moduleKey: ModuleKey) {
   await assertBusinessAccess(businessId);
+  await withLicenseGate(() => assertModuleActivationAllowed(businessId, moduleKey));
   await activateLicense(businessId, moduleKey);
   revalidatePath(SETTINGS_PATH);
   // Also invoked from the Global Configurations hub's inline "Licenses" expander
@@ -40,6 +62,7 @@ export async function activateModuleAction(businessId: string, moduleKey: Module
  * the spot -- see cancelLicense()'s own doc comment. */
 export async function cancelModuleAction(businessId: string, moduleKey: ModuleKey) {
   await assertBusinessAccess(businessId);
+  await withLicenseGate(() => assertModuleCancellationAllowed(businessId, moduleKey));
   await cancelLicense(businessId, moduleKey);
   revalidatePath(SETTINGS_PATH);
   revalidatePath("/dashboard/settings");
