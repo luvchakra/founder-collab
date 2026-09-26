@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
@@ -94,16 +95,19 @@ export default async function CampaignPage({
         description={`${CAMPAIGN_OBJECTIVE_LABEL[campaign.objective]} · ${MARKETING_CHANNEL_LABEL[campaign.channel]}${campaign.offeringName ? ` · ${campaign.offeringName}` : " · Company-wide"}`}
         breadcrumbs={[{ label: "Campaigns", href: `${root}/campaigns` }, { label: campaign.name }]}
         actions={
-          canManage ? (
-            <>
-              {campaign.status !== "archived" ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`${root}/campaigns/${campaign.id}/edit`}>Edit</Link>
-                </Button>
-              ) : null}
-              <ActionForm action={duplicateCampaignAction.bind(null, businessId, campaign.id)} inline submitLabel="Duplicate" variant="outline" />
-            </>
-          ) : null
+          <>
+            <ExportMenu exportId="marketing.campaign" businessSlug={businessSlug} params={{ campaignId: campaign.id }} kind="report" />
+            {canManage ? (
+              <>
+                {campaign.status !== "archived" ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`${root}/campaigns/${campaign.id}/edit`}>Edit</Link>
+                  </Button>
+                ) : null}
+                <ActionForm action={duplicateCampaignAction.bind(null, businessId, campaign.id)} inline submitLabel="Duplicate" variant="outline" />
+              </>
+            ) : null}
+          </>
         }
       />
 

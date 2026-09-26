@@ -1,4 +1,5 @@
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import {
@@ -75,7 +76,11 @@ export default async function FundingAnalyticsPage({
 
   return (
     <>
-      <PageHeader title="Funding analytics" description={round ? `Pipeline figures are for ${round.name}.` : "No round yet — pipeline figures appear once a round exists."} />
+      <PageHeader
+        title="Funding analytics"
+        description={round ? `Pipeline figures are for ${round.name}.` : "No round yet — pipeline figures appear once a round exists."}
+        actions={<ExportMenu exportId="funding.analytics" businessSlug={businessSlug} params={sp} kind="report" />}
+      />
       <div className="grid max-w-md grid-cols-2 gap-3">
         <UrlSelect name="round" label="Round" value={round?.id ?? ""} options={rounds.map((r) => ({ value: r.id, label: r.name }))} />
         <UrlSelect name="grain" label="Time series" value={grain} options={[{ value: "week", label: "Weekly" }, { value: "month", label: "Monthly" }]} />

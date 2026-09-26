@@ -1,4 +1,5 @@
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
@@ -42,6 +43,7 @@ export default async function StrategyPage({
       <PageHeader
         title="Strategy"
         description="Positioning, value proposition, target markets, messaging and goals. Every save is kept as a version."
+        actions={<ExportMenu exportId="marketing.strategy" businessSlug={businessSlug} params={sp} kind="report" />}
       />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">

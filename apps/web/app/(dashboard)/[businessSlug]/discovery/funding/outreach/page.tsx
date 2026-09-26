@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Mail, Plus } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -31,13 +32,16 @@ export default async function OutreachPage({
         title="Investor outreach"
         description="Research → draft → approval → send → response. Sending is always a person's decision."
         actions={
-          canManage ? (
-            <Button asChild size="sm">
-              <Link href={`${root}/outreach/new`}>
-                <Plus className="size-4" aria-hidden="true" /> New draft
-              </Link>
-            </Button>
-          ) : null
+          <>
+            <ExportMenu exportId="funding.outreach" businessSlug={businessSlug} params={sp} />
+            {canManage ? (
+              <Button asChild size="sm">
+                <Link href={`${root}/outreach/new`}>
+                  <Plus className="size-4" aria-hidden="true" /> New draft
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <div className="max-w-xs">

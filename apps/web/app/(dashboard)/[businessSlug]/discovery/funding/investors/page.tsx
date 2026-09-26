@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { StatusBadge } from "@cofounderai/core/ui/status-badge";
@@ -39,7 +40,11 @@ export default async function InvestorsPage({
 
   return (
     <>
-      <PageHeader title="Investors" description={round ? `Stages shown for ${round.name}.` : "Your investor database."} />
+      <PageHeader
+        title="Investors"
+        description={round ? `Stages shown for ${round.name}.` : "Your investor database."}
+        actions={<ExportMenu exportId="funding.investors" businessSlug={businessSlug} params={sp} />}
+      />
       <div className="grid max-w-md grid-cols-2 gap-3">
         <UrlSelect name="status" label="Show" value={status} options={[{ value: "active", label: "Active" }, { value: "archived", label: "Archived" }]} />
         <UrlSelect name="type" label="Type" value={type ?? ""} options={[{ value: "", label: "All types" }, ...INVESTOR_TYPES.map((t) => ({ value: t, label: INVESTOR_TYPE_LABEL[t] }))]} />

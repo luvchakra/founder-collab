@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { Textarea } from "@cofounderai/core/ui/textarea";
@@ -78,7 +79,11 @@ export default async function WebsiteSeoPage({
 
   return (
     <>
-      <PageHeader title="Website & SEO" description="What the website crawl found, and the improvements you are tracking." />
+      <PageHeader
+        title="Website & SEO"
+        description="What the website crawl found, and the improvements you are tracking."
+        actions={<ExportMenu exportId="marketing.website-seo" businessSlug={businessSlug} params={sp} kind="report" />}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

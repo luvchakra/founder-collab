@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { Textarea } from "@cofounderai/core/ui/textarea";
@@ -46,7 +47,11 @@ export default async function FundingProfilePage({ params }: { params: Promise<{
 
   return (
     <>
-      <PageHeader title="Funding profile" description="The fundraising story, built from what the business already knows." />
+      <PageHeader
+        title="Funding profile"
+        description="The fundraising story, built from what the business already knows."
+        actions={<ExportMenu exportId="funding.profile" businessSlug={businessSlug} kind="report" />}
+      />
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <Card>
           <CardContent className="pt-6">

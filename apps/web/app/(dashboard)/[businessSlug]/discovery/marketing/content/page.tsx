@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, FileText, Plus } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -47,13 +48,16 @@ export default async function ContentPage({
       title="Content"
       description="Plan, draft, review and schedule. Publishing is always a deliberate action by a person."
       actions={
-        canManage ? (
-          <Button asChild size="sm">
-            <Link href={`${root}/content/new`}>
-              <Plus className="size-4" aria-hidden="true" /> Create content
-            </Link>
-          </Button>
-        ) : null
+        <>
+          <ExportMenu exportId="marketing.content" businessSlug={businessSlug} params={sp} />
+          {canManage ? (
+            <Button asChild size="sm">
+              <Link href={`${root}/content/new`}>
+                <Plus className="size-4" aria-hidden="true" /> Create content
+              </Link>
+            </Button>
+          ) : null}
+        </>
       }
     />
   );

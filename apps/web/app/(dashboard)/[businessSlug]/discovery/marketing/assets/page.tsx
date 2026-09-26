@@ -1,5 +1,6 @@
 import { ImageIcon } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
@@ -38,7 +39,11 @@ export default async function AssetsPage({ params }: { params: Promise<{ busines
 
   return (
     <>
-      <PageHeader title="Assets" description="Logos, images, decks and documents your campaigns and content use." />
+      <PageHeader
+        title="Assets"
+        description="Logos, images, decks and documents your campaigns and content use."
+        actions={<ExportMenu exportId="marketing.assets" businessSlug={businessSlug} />}
+      />
 
       {canManage ? (
         <Card>

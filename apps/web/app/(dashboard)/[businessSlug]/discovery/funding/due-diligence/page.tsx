@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileSearch } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { Textarea } from "@cofounderai/core/ui/textarea";
@@ -38,7 +39,11 @@ export default async function DiligencePage({
 
   return (
     <>
-      <PageHeader title="Due diligence" description="Investor requests, your responses and the evidence behind them." />
+      <PageHeader
+        title="Due diligence"
+        description="Investor requests, your responses and the evidence behind them."
+        actions={<ExportMenu exportId="funding.due-diligence" businessSlug={businessSlug} params={sp} />}
+      />
       <div className="max-w-xs">
         <UrlSelect
           name="status"
