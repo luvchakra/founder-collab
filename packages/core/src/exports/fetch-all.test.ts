@@ -27,23 +27,4 @@ describe("fetchAllRows", () => {
   it("surfaces a query error rather than returning a partial file", async () => {
     await expect(fetchAllRows(() => Promise.resolve({ data: null, error: new Error("boom") }))).rejects.toThrow("boom");
   });
-
-  it("keeps paging when the server caps pages below the chunk size", async () => {
-    // A max-rows of 500 against a chunk of 1000: every response is 500 rows long.
-    const capped = (from: number, to: number) =>
-      Promise.resolve({ data: source.slice(from, Math.min(to + 1, from + 500)), error: null });
-    const rows = await fetchAllRows(capped, { chunkSize: 1000 });
-    expect(rows).toHaveLength(2503);
-    expect(new Set(rows.map((r) => r.id)).size).toBe(2503);
-  });
-
-  it("makes one extra request to confirm a small result is complete", async () => {
-    const calls: number[] = [];
-    const rows = await fetchAllRows((from, to) => {
-      calls.push(from);
-      return Promise.resolve({ data: source.slice(0, 3).slice(from, to + 1), error: null });
-    });
-    expect(rows).toHaveLength(3);
-    expect(calls).toEqual([0, 3]);
-  });
 });

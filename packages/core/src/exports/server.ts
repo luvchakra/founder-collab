@@ -181,8 +181,11 @@ export async function runBusinessExport<F>(
     ? adapter.parseFilters(url.searchParams)
     : (Object.fromEntries(url.searchParams) as unknown as F);
   const filterLabels = boundedFilters(adapter.describeFilters ? adapter.describeFilters(filters) : {});
-  const [module, resource] = adapter.id.split(".");
-  const base = { module, resource, format, scope, filters: filterLabels };
+  // The licence module (e.g. "discovery" for a Marketing export) and the full export id,
+  // so an audit reader can filter by module and still tell a Funding export from a
+  // Discovery one.
+  const [idModule, resource] = adapter.id.split(".");
+  const base = { module: adapter.module ?? idModule, resource, export_id: adapter.id, format, scope, filters: filterLabels };
 
   let workbook: ExportWorkbookDefinition;
   try {

@@ -108,6 +108,7 @@ describe("runBusinessExport", () => {
     expect(entry!.after).toEqual({
       module: "crm",
       resource: "leads",
+      export_id: "crm.leads",
       format: "csv",
       scope: "all",
       filters: { Status: "open" },
