@@ -1,4 +1,5 @@
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -68,6 +69,7 @@ export default async function MarketingAnalyticsPage({
       <PageHeader
         title="Marketing analytics"
         description={`${MARKETING_PERIOD_LABEL[period]} · ${window.from} to ${window.to} · ${metrics.length} recorded snapshot${metrics.length === 1 ? "" : "s"}`}
+        actions={<ExportMenu exportId="marketing.analytics" businessSlug={businessSlug} params={sp} kind="report" />}
       />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <UrlSelect name="period" label="Period" value={period} options={MARKETING_PERIODS.map((p) => ({ value: p, label: MARKETING_PERIOD_LABEL[p] }))} />

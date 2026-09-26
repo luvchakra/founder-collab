@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Megaphone, Plus } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -47,13 +48,16 @@ export default async function CampaignsPage({
         title="Campaigns"
         description="Figures cover the last 12 months of recorded results."
         actions={
-          canManage ? (
-            <Button asChild size="sm">
-              <Link href={`${root}/campaigns/new`}>
-                <Plus className="size-4" aria-hidden="true" /> Create campaign
-              </Link>
-            </Button>
-          ) : null
+          <>
+            <ExportMenu exportId="marketing.campaigns" businessSlug={businessSlug} params={sp} />
+            {canManage ? (
+              <Button asChild size="sm">
+                <Link href={`${root}/campaigns/new`}>
+                  <Plus className="size-4" aria-hidden="true" /> Create campaign
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

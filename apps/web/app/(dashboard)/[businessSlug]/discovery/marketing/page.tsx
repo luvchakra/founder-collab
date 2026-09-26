@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Megaphone, Plus } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -102,18 +103,21 @@ export default async function MarketingDashboardPage({
         title="Marketing"
         description={`${MARKETING_PERIOD_LABEL[period]} · ${window.from} to ${window.to}`}
         actions={
-          canManage ? (
-            <>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`${root}/content/new`}>Create content</Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href={`${root}/campaigns/new`}>
-                  <Plus className="size-4" aria-hidden="true" /> Create campaign
-                </Link>
-              </Button>
-            </>
-          ) : null
+          <>
+            <ExportMenu exportId="marketing.dashboard" businessSlug={businessSlug} params={sp} kind="dashboard" />
+            {canManage ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`${root}/content/new`}>Create content</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={`${root}/campaigns/new`}>
+                    <Plus className="size-4" aria-hidden="true" /> Create campaign
+                  </Link>
+                </Button>
+              </>
+            ) : null}
+          </>
         }
       />
 
