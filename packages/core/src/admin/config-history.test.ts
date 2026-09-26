@@ -46,8 +46,8 @@ describe("diffSnapshotFields (PLATFORM-P0-17.1 Configuration Versioning)", () =>
 });
 
 describe("CONFIG_RESOURCE_TYPES (PLATFORM-P0-17.1/17.3)", () => {
-  it("lists all eleven audited platform resource types, each with a label", () => {
-    expect(CONFIG_RESOURCE_TYPES).toHaveLength(11);
+  it("lists all thirteen audited platform resource types (incl. BILL-06's billing provider and settings), each with a label", () => {
+    expect(CONFIG_RESOURCE_TYPES).toHaveLength(13);
     for (const t of CONFIG_RESOURCE_TYPES) {
       expect(t.label.length).toBeGreaterThan(0);
     }
@@ -60,6 +60,6 @@ describe("CONFIG_RESOURCE_TYPES (PLATFORM-P0-17.1/17.3)", () => {
 
   it("marks the correct resource types as singleton (no instance picker needed)", () => {
     const singletons = CONFIG_RESOURCE_TYPES.filter((t) => t.singleton).map((t) => t.key).sort();
-    expect(singletons).toEqual(["ai_feature_policies", "ai_provider_routing", "email_provider", "system_policies"].sort());
+    expect(singletons).toEqual(["ai_feature_policies", "ai_provider_routing", "billing_settings", "email_provider", "system_policies"].sort());
   });
 });

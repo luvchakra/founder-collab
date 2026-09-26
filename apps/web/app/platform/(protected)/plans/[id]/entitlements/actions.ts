@@ -14,6 +14,9 @@ import {
   setPlanFeatureEnabled,
   type CreateFeatureInput,
 } from "@cofounderai/core/admin/platform-plan-features";
+import { createPlanPrice, setPlanPriceActive } from "@cofounderai/core/admin/platform-billing-ops";
+
+type CreatePlanPriceInput = Parameters<typeof createPlanPrice>[0];
 
 export async function setModuleEnabledAction(
   planId: string,
@@ -71,6 +74,28 @@ export async function deleteFeatureAction(
   featureId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await deleteFeature(featureId);
+  if (result.ok) revalidatePath(`/platform/plans/${planId}/entitlements`);
+  return result;
+}
+
+// BILL-32 (§35, §72) -- plan price mappings shown on this plan's detail page. Provider
+// product/price ids are not secrets; createPlanPrice() validates them and deactivates any
+// active price it replaces.
+export async function createPlanPriceAction(
+  planId: string,
+  input: Omit<CreatePlanPriceInput, "planId">,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await createPlanPrice({ ...input, planId });
+  if (result.ok) revalidatePath(`/platform/plans/${planId}/entitlements`);
+  return result;
+}
+
+export async function setPlanPriceActiveAction(
+  planId: string,
+  priceId: string,
+  active: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await setPlanPriceActive(priceId, active);
   if (result.ok) revalidatePath(`/platform/plans/${planId}/entitlements`);
   return result;
 }

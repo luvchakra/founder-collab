@@ -24,7 +24,8 @@ export type AuditResourceType =
   | "compliance_pack_feature"
   | "plan_feature"
   | "plan_limit"
-  | "plan_module";
+  | "plan_module"
+  | "plan_price";
 
 export type AuditLogEntry = {
   id: string;
@@ -59,6 +60,9 @@ export const AUDIT_RESOURCE_TYPE_OPTIONS: { key: AuditResourceType; label: strin
   { key: "plan_limit", label: "Plan Limit" },
   { key: "plan_module", label: "Plan Module Entitlement" },
   { key: "plan", label: "Plan" },
+  { key: "plan_price", label: "Plan Price Mapping" },
+  { key: "billing_provider", label: "Billing Provider" },
+  { key: "billing_settings", label: "Billing Settings" },
   { key: "feature_flag", label: "Feature Flag" },
   { key: "announcement", label: "Announcement" },
   { key: "system_policies", label: "Platform Policies" },
@@ -87,6 +91,9 @@ const RESOURCE_SEVERITY: Record<Exclude<AuditResourceType, "announcement">, Audi
   plan_limit: "high",
   plan_module: "high",
   plan: "high",
+  plan_price: "high",
+  billing_provider: "high",
+  billing_settings: "high",
   feature_flag: "high",
   system_policies: "high",
   ai_provider: "high",

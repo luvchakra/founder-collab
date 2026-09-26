@@ -1,6 +1,8 @@
 import { createAdminClient } from "../db/admin";
 import { findPlanPriceByProviderId } from "./catalog";
 import { auditBilling, logBilling } from "./observability";
+import { publishBillingNotification } from "./notifications";
+import { getPlan } from "./catalog";
 import { isEntitledStatus, isLiveStatus, mapRazorpayStatus } from "./state";
 import type {
   BillingEnvironment,
@@ -227,6 +229,17 @@ export async function syncSubscription(
   }
   logBilling("billing.subscription", { business_id: businessId, subscription_id: id, provider, operation: "sync", status });
 
+  // BILL-34/35: tell the customer about the moments that matter, once each.
+  const becameEntitled = isEntitledStatus(status) && (!previousStatus || !isEntitledStatus(previousStatus));
+  const ended = (status === "cancelled" || status === "expired") && previousStatus !== null && previousStatus !== "cancelled" && previousStatus !== "expired";
+  const planChanged = Boolean(existing) && previousPlanId !== resolvedPlanId && isEntitledStatus(status);
+  if (becameEntitled || ended || planChanged) {
+    const plan = (await getPlan(resolvedPlanId))?.name ?? null;
+    if (becameEntitled) await publishBillingNotification(businessId, "billing.subscription_activated", { plan });
+    else if (ended) await publishBillingNotification(businessId, "billing.subscription_cancelled", { plan });
+    else await publishBillingNotification(businessId, "billing.plan_changed", { plan });
+  }
+
   return { id, businessId, status, previousStatus, planId: resolvedPlanId, previousPlanId, replacedSubscriptionIds };
 }
 
@@ -374,6 +387,11 @@ export async function syncPayment(
         failure_code: incoming.failureCode,
       });
     }
+  }
+  if (previousStatus !== status && (status === "succeeded" || status === "failed" || (status === "pending" && incoming.failureCode === null && incoming.invoiceId && !existing))) {
+    const amount = new Intl.NumberFormat("en-IN", { style: "currency", currency: incoming.currency }).format(incoming.amount);
+    const type = status === "succeeded" ? "billing.payment_succeeded" : status === "failed" ? "billing.payment_failed" : "billing.payment_action_required";
+    await publishBillingNotification(businessId, type, { amount });
   }
   logBilling("billing.payment", { business_id: businessId, subscription_id: subscriptionId, provider, operation: "sync", status });
   return { id, businessId, status, previousStatus };

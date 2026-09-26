@@ -45,7 +45,14 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof BillingAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
     if (error instanceof CheckoutError) {
-      const status = error.code === "already_subscribed" || error.code === "already_on_plan" ? 409 : error.code === "provider_error" ? 502 : 400;
+      const status =
+        error.code === "already_subscribed" || error.code === "already_on_plan"
+          ? 409
+          : error.code === "provider_error"
+            ? 502
+            : error.code === "rate_limited"
+              ? 429
+              : 400;
       return NextResponse.json({ error: error.message, code: error.code }, { status });
     }
     if (error instanceof BillingNotConfiguredError) return NextResponse.json({ error: error.message, code: "not_configured" }, { status: 503 });

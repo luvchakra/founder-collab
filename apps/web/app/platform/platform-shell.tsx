@@ -99,11 +99,20 @@ export function PlatformShell({
   );
 }
 
-function isLinkActive(pathname: string, href: string): boolean {
+function matchesLink(pathname: string, href: string): boolean {
   if (href === "/platform") {
     return pathname === "/platform";
   }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Only the most specific matching link is active, so "/platform/billing" (Overview)
+ * doesn't also light up while a nested "/platform/billing/payments" is open. */
+function isLinkActive(pathname: string, href: string): boolean {
+  if (!matchesLink(pathname, href)) return false;
+  return !PLATFORM_NAV_GROUPS.some((group) =>
+    group.links.some((other) => other.href.length > href.length && matchesLink(pathname, other.href)),
+  );
 }
 
 function PlatformNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {

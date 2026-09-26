@@ -13,6 +13,7 @@ import {
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
 import { getExportAlerts } from "@/lib/exports/alerts";
+import { getBillingAlerts } from "@/lib/billing-alerts";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
@@ -73,7 +74,7 @@ async function loadAlerts(
   licensedModuleKeysByBusiness: Record<string, string[]>,
 ): Promise<ShellAlert[]> {
   try {
-    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts, marketingFundingAlerts, exportAlerts] = await Promise.all([
+    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts, marketingFundingAlerts, exportAlerts, billingAlerts] = await Promise.all([
       getAccountWorkspaceEntries(accountId),
       getAccountUsageAndProspects(accountId),
       getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness),
@@ -86,9 +87,11 @@ async function loadAlerts(
       ).then((lists) => lists.flat()),
       // EXP-PLAT-06: this user's finished background exports.
       getExportAlerts().catch(() => []),
+      // BILL-34: payment trouble and plans about to end.
+      getBillingAlerts(businesses.map((b) => b.id)).catch(() => []),
     ]);
     const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
-    return [...exportAlerts, ...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
+    return [...billingAlerts, ...exportAlerts, ...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
       a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
     );
   } catch (error) {

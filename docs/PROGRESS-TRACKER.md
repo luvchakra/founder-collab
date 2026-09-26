@@ -19,13 +19,13 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 405 |
+| ✅ Done | 443 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 5 |
+| ❔ Unverified | 6 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 122 |
+| ⬜ Not started | 83 |
 | **Total** | **565** |
 
 | Backlog | Done | Set aside | Remaining | Total |
@@ -37,11 +37,11 @@ file is stale, so it cannot quietly drift out of date.
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
-| [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 1 | 0 | 39 | 40 |
+| [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
 
 ## What is left
 
-127 stories are neither built nor deliberately set aside:
+89 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -133,45 +133,7 @@ file is stale, so it cannot quietly drift out of date.
 | `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
 | `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
 | `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
-| `BILL-02` | Create provider abstraction | ⬜ Not started | — |
-| `BILL-03` | Create platform billing tables/migrations | ⬜ Not started | — |
-| `BILL-04` | Create Razorpay adapter | ⬜ Not started | — |
-| `BILL-05` | Create Stripe adapter | ⬜ Not started | — |
-| `BILL-06` | Create provider configuration | ⬜ Not started | — |
-| `BILL-07` | Create plan pricing/provider mapping | ⬜ Not started | — |
-| `BILL-08` | Create checkout session service | ⬜ Not started | — |
-| `BILL-09` | Create customer-facing pricing page | ⬜ Not started | — |
-| `BILL-10` | Create checkout confirmation page | ⬜ Not started | — |
-| `BILL-11` | Create success/failure pages | ⬜ Not started | — |
-| `BILL-12` | Razorpay webhook | ⬜ Not started | — |
-| `BILL-13` | Stripe webhook | ⬜ Not started | — |
-| `BILL-14` | Event idempotency | ⬜ Not started | — |
-| `BILL-15` | Subscription synchronization | ⬜ Not started | — |
-| `BILL-16` | Payment synchronization | ⬜ Not started | — |
-| `BILL-17` | License provisioning | ⬜ Not started | — |
-| `BILL-18` | License reconciliation | ⬜ Not started | — |
-| `BILL-19` | Billing page | ⬜ Not started | — |
-| `BILL-20` | Payment history | ⬜ Not started | — |
-| `BILL-21` | Manage billing | ⬜ Not started | — |
-| `BILL-22` | Upgrade | ⬜ Not started | — |
-| `BILL-23` | Downgrade | ⬜ Not started | — |
-| `BILL-24` | Cancellation | ⬜ Not started | — |
-| `BILL-25` | Failed payment recovery | ⬜ Not started | — |
-| `BILL-26` | Billing Overview | ⬜ Not started | — |
-| `BILL-27` | Subscriptions | ⬜ Not started | — |
-| `BILL-28` | Payments | ⬜ Not started | — |
-| `BILL-29` | Providers | ⬜ Not started | — |
-| `BILL-30` | Billing Events | ⬜ Not started | — |
-| `BILL-31` | Plan provider mappings | ⬜ Not started | — |
-| `BILL-32` | Subscription reconciliation | ⬜ Not started | — |
-| `BILL-33` | Audit | ⬜ Not started | — |
-| `BILL-34` | Notifications | ⬜ Not started | — |
-| `BILL-35` | Email templates | ⬜ Not started | — |
-| `BILL-36` | Observability | ⬜ Not started | — |
-| `BILL-37` | Security tests | ⬜ Not started | — |
-| `BILL-38` | Tenant/RBAC/license tests | ⬜ Not started | — |
-| `BILL-39` | E2E provider sandbox tests | ⬜ Not started | — |
-| `BILL-40` | Production readiness review | ⬜ Not started | — |
+| `BILL-40` | Production readiness review | ❔ Unverified | Discussed in `docs/design/subscription-billing.md`, but no code cites it — confirm before relying on this |
 
 ## Platform build-out
 
@@ -1195,42 +1157,42 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `BILL-01` | Inspect existing plans, licenses, payments, platform schema and background jobs | ✅ Done | `packages/core/src/licensing/event-handlers.test.ts` +2 |
-| `BILL-02` | Create provider abstraction | ⬜ Not started | — |
-| `BILL-03` | Create platform billing tables/migrations | ⬜ Not started | — |
-| `BILL-04` | Create Razorpay adapter | ⬜ Not started | — |
-| `BILL-05` | Create Stripe adapter | ⬜ Not started | — |
-| `BILL-06` | Create provider configuration | ⬜ Not started | — |
-| `BILL-07` | Create plan pricing/provider mapping | ⬜ Not started | — |
-| `BILL-08` | Create checkout session service | ⬜ Not started | — |
-| `BILL-09` | Create customer-facing pricing page | ⬜ Not started | — |
-| `BILL-10` | Create checkout confirmation page | ⬜ Not started | — |
-| `BILL-11` | Create success/failure pages | ⬜ Not started | — |
-| `BILL-12` | Razorpay webhook | ⬜ Not started | — |
-| `BILL-13` | Stripe webhook | ⬜ Not started | — |
-| `BILL-14` | Event idempotency | ⬜ Not started | — |
-| `BILL-15` | Subscription synchronization | ⬜ Not started | — |
-| `BILL-16` | Payment synchronization | ⬜ Not started | — |
-| `BILL-17` | License provisioning | ⬜ Not started | — |
-| `BILL-18` | License reconciliation | ⬜ Not started | — |
-| `BILL-19` | Billing page | ⬜ Not started | — |
-| `BILL-20` | Payment history | ⬜ Not started | — |
-| `BILL-21` | Manage billing | ⬜ Not started | — |
-| `BILL-22` | Upgrade | ⬜ Not started | — |
-| `BILL-23` | Downgrade | ⬜ Not started | — |
-| `BILL-24` | Cancellation | ⬜ Not started | — |
-| `BILL-25` | Failed payment recovery | ⬜ Not started | — |
-| `BILL-26` | Billing Overview | ⬜ Not started | — |
-| `BILL-27` | Subscriptions | ⬜ Not started | — |
-| `BILL-28` | Payments | ⬜ Not started | — |
-| `BILL-29` | Providers | ⬜ Not started | — |
-| `BILL-30` | Billing Events | ⬜ Not started | — |
-| `BILL-31` | Plan provider mappings | ⬜ Not started | — |
-| `BILL-32` | Subscription reconciliation | ⬜ Not started | — |
-| `BILL-33` | Audit | ⬜ Not started | — |
-| `BILL-34` | Notifications | ⬜ Not started | — |
-| `BILL-35` | Email templates | ⬜ Not started | — |
-| `BILL-36` | Observability | ⬜ Not started | — |
-| `BILL-37` | Security tests | ⬜ Not started | — |
-| `BILL-38` | Tenant/RBAC/license tests | ⬜ Not started | — |
-| `BILL-39` | E2E provider sandbox tests | ⬜ Not started | — |
-| `BILL-40` | Production readiness review | ⬜ Not started | — |
+| `BILL-02` | Create provider abstraction | ✅ Done | `packages/core/src/billing/providers/http.ts` +1 |
+| `BILL-03` | Create platform billing tables/migrations | ✅ Done | `supabase/migrations/20260926130000_platform_billing.sql` |
+| `BILL-04` | Create Razorpay adapter | ✅ Done | `packages/core/src/billing/providers/razorpay.test.ts` +1 |
+| `BILL-05` | Create Stripe adapter | ✅ Done | `packages/core/src/billing/providers/stripe.test.ts` +1 |
+| `BILL-06` | Create provider configuration | ✅ Done | `packages/core/src/admin/config-history.test.ts` +6 |
+| `BILL-07` | Create plan pricing/provider mapping | ✅ Done | `packages/core/src/billing/catalog.ts` +3 |
+| `BILL-08` | Create checkout session service | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/failed/page.tsx` +7 |
+| `BILL-09` | Create customer-facing pricing page | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/plans/page.tsx` |
+| `BILL-10` | Create checkout confirmation page | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/review/page.tsx` |
+| `BILL-11` | Create success/failure pages | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/failed/page.tsx` +2 |
+| `BILL-12` | Razorpay webhook | ✅ Done | `apps/web/app/api/webhooks/billing/razorpay/route.ts` +4 |
+| `BILL-13` | Stripe webhook | ✅ Done | `apps/web/app/api/webhooks/billing/stripe/route.ts` +3 |
+| `BILL-14` | Event idempotency | ✅ Done | `apps/web/app/api/cron/billing/route.ts` +3 |
+| `BILL-15` | Subscription synchronization | ✅ Done | `packages/core/src/billing/state.test.ts` +3 |
+| `BILL-16` | Payment synchronization | ✅ Done | `packages/core/src/billing/sync.test.ts` +1 |
+| `BILL-17` | License provisioning | ✅ Done | `apps/web/app/(dashboard)/dashboard/settings/licenses/actions.ts` +5 |
+| `BILL-18` | License reconciliation | ✅ Done | `packages/core/src/billing/provisioning.test.ts` +1 |
+| `BILL-19` | Billing page | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/billing-ui.tsx` +4 |
+| `BILL-20` | Payment history | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/billing-ui.tsx` +2 |
+| `BILL-21` | Manage billing | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/actions.ts` +3 |
+| `BILL-22` | Upgrade | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/actions.ts` +2 |
+| `BILL-23` | Downgrade | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/actions.ts` +2 |
+| `BILL-24` | Cancellation | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/actions.ts` +2 |
+| `BILL-25` | Failed payment recovery | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/billing-ui.tsx` +1 |
+| `BILL-26` | Billing Overview | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +7 |
+| `BILL-27` | Subscriptions | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
+| `BILL-28` | Payments | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
+| `BILL-29` | Providers | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +9 |
+| `BILL-30` | Billing Events | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
+| `BILL-31` | Plan provider mappings | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
+| `BILL-32` | Subscription reconciliation | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +8 |
+| `BILL-33` | Audit | ✅ Done | `packages/core/src/billing/observability.ts` |
+| `BILL-34` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +4 |
+| `BILL-35` | Email templates | ✅ Done | `packages/core/src/billing/event-handlers.test.ts` +3 |
+| `BILL-36` | Observability | ✅ Done | `packages/core/src/billing/observability.ts` |
+| `BILL-37` | Security tests | ✅ Done | `apps/web/app/api/billing/checkout/route.test.ts` +2 |
+| `BILL-38` | Tenant/RBAC/license tests | ✅ Done | `packages/core/src/billing/access.ts` +1 |
+| `BILL-39` | E2E provider sandbox tests | ✅ Done | `apps/web/e2e/authenticated/billing.spec.ts` |
+| `BILL-40` | Production readiness review | ❔ Unverified | Discussed in `docs/design/subscription-billing.md`, but no code cites it — confirm before relying on this |

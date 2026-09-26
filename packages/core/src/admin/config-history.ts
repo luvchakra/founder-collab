@@ -69,7 +69,9 @@ export type ConfigResourceType =
   | "email_provider"
   | "email_template"
   | "integration"
-  | "module_status";
+  | "module_status"
+  | "billing_provider"
+  | "billing_settings";
 
 export type ConfigResourceOption = { id: string; label: string };
 
@@ -220,6 +222,26 @@ const RESOURCE_DEFS: Record<ConfigResourceType, ResourceDef> = {
       before: { status: row.previous_status, notes: row.previous_notes },
       after: { status: row.new_status, notes: row.new_notes },
     }),
+  },
+  billing_provider: {
+    label: "Billing Providers",
+    singleton: false,
+    eventsTable: "billing_provider_events",
+    idColumn: "provider",
+    listInstances: async () => [
+      { id: "razorpay", label: "Razorpay" },
+      { id: "stripe", label: "Stripe" },
+    ],
+    // Snapshots hold fingerprints and non-secret settings only (the migration's
+    // billing_provider_snapshot()) -- there is never a secret to show here.
+    toSnapshot: jsonbPair,
+  },
+  billing_settings: {
+    label: "Billing Settings",
+    singleton: true,
+    eventsTable: "billing_settings_events",
+    idColumn: null,
+    toSnapshot: jsonbPair,
   },
   module_status: {
     label: "Module Status",

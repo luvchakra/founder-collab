@@ -59,6 +59,18 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
     links: [{ href: "/platform/plans", label: "Plans" }],
   },
   {
+    // BILL-26..32 (docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md §69). Plans stays the one
+    // canonical plan catalog above -- its price mappings live on each plan's own page.
+    label: "Billing",
+    links: [
+      { href: "/platform/billing", label: "Overview" },
+      { href: "/platform/billing/subscriptions", label: "Subscriptions" },
+      { href: "/platform/billing/payments", label: "Payments" },
+      { href: "/platform/billing/events", label: "Webhook Events" },
+      { href: "/platform/billing/providers", label: "Providers" },
+    ],
+  },
+  {
     label: "Modules & Features",
     links: [
       { href: "/platform/modules", label: "Modules" },

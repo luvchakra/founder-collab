@@ -4,10 +4,20 @@ import { getPlatformPlan } from "@cofounderai/core/admin/platform-plans";
 import { listPlanModuleEntitlements } from "@cofounderai/core/admin/platform-plan-modules";
 import { listPlanLimits } from "@cofounderai/core/admin/platform-plan-limits";
 import { listPlanFeatureEntitlements } from "@cofounderai/core/admin/platform-plan-features";
+import { listPlanPrices } from "@cofounderai/core/admin/platform-billing-ops";
 import { PlatformImpactBanner } from "../../../../impact-banner";
 import { ModuleEntitlementsSection } from "./module-entitlements-section";
 import { QuantityLimitsSection } from "./quantity-limits-section";
 import { FeatureEntitlementsSection } from "./feature-entitlements-section";
+import { BillingPricesSection } from "./billing-prices-section";
+
+function formatAmount(amount: number, currency: string) {
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
 
 /**
  * PLATFORM-P0-04.2 ("Plan Entitlements", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
@@ -24,10 +34,11 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
   const plan = await getPlatformPlan(id);
   if (!plan) notFound();
 
-  const [moduleEntitlements, limits, featureEntitlements] = await Promise.all([
+  const [moduleEntitlements, limits, featureEntitlements, prices] = await Promise.all([
     listPlanModuleEntitlements(id),
     listPlanLimits(id),
     listPlanFeatureEntitlements(id),
+    listPlanPrices(id),
   ]);
   const modules = moduleEntitlements.map((m) => ({ key: m.moduleKey, name: m.moduleName }));
 
@@ -48,6 +59,14 @@ export default async function PlanEntitlementsPage({ params }: { params: Promise
       <ModuleEntitlementsSection planId={id} entitlements={moduleEntitlements} />
       <FeatureEntitlementsSection planId={id} entitlements={featureEntitlements} modules={modules} />
       <QuantityLimitsSection planId={id} limits={limits} />
+      {/* BILL-32 (§35, §72): provider price mappings for this plan. */}
+      <BillingPricesSection
+        planId={id}
+        planName={plan.name}
+        prices={prices.map((p) => ({ ...p, amountLabel: formatAmount(p.amount, p.currency) }))}
+        defaultCurrency={plan.currency}
+        defaultInterval={plan.billingInterval}
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { FREE_TIER_MONTHLY_COST_LIMIT_USD, FREE_TIER_MONTHLY_RUN_LIMIT } from "@
 import { getCreditBalance, listCreditPurchases } from "@cofounderai/core/billing/queries";
 import { CREDIT_PLANS } from "@cofounderai/core/billing/plans";
 import { AiSection } from "@/components/settings/ai-section";
-import { PricingTiers } from "@/components/settings/pricing-tiers";
+import { SubscriptionPlans } from "@/components/settings/subscription-plans";
 import { BuyCredits } from "@/components/settings/buy-credits";
 import { CreditPurchaseHistory } from "@/components/settings/credit-purchase-history";
 import { connectProviderAction, disconnectProviderAction } from "./actions";
@@ -16,8 +16,9 @@ import { connectProviderAction, disconnectProviderAction } from "./actions";
  * and the included-credits fallback, which is just the "App Internal AI" choice inside
  * the same provider picker instead of a separate box/button. co-founder-ai is still
  * free-tier-only by default (blueprint §22 -- no subscription, no payment method
- * requirement); Free is the only plan actually live, PricingTiers below shows Pro/Max/
- * Enterprise for comparison only.
+ * requirement). Module plans are bought per business (BILL-19): the "Plans" section
+ * below lists each business's current plan and links to its own billing page, built from
+ * the live plan catalogue rather than a hard-coded tier table.
  */
 export default async function BillingSettingsPage() {
   const account = await getCurrentAccount();
@@ -60,7 +61,7 @@ export default async function BillingSettingsPage() {
         <CreditPurchaseHistory purchases={creditPurchases} />
       </section>
 
-      <PricingTiers />
+      <SubscriptionPlans accountId={account.id} />
     </main>
   );
 }

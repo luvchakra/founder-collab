@@ -1,5 +1,6 @@
 import { createAdminClient } from "../db/admin";
 import { SITE_URL } from "../site";
+import { BRAND_NAME } from "../lib/brand";
 import { requireBillingManager, type BillingManager } from "./access";
 import { getPlan, isFreePlan, listActivePlanPrices, type CatalogPlan, type PlanPrice } from "./catalog";
 import { auditBilling, logBilling } from "./observability";
@@ -39,6 +40,7 @@ export class CheckoutError extends Error {
       | "unsupported_currency"
       | "not_configured"
       | "session_expired"
+      | "rate_limited"
       | "provider_error",
     message: string,
   ) {
@@ -69,6 +71,9 @@ type SessionRow = {
 };
 
 const platformAdmin = () => createAdminClient({ schema: "platform" });
+
+const CHECKOUT_WINDOW_MS = 10 * 60 * 1000;
+const MAX_CHECKOUTS_PER_WINDOW = 10;
 
 async function liveSubscription(businessId: string): Promise<LiveSubscription | null> {
   const { data, error } = await platformAdmin()
@@ -141,7 +146,19 @@ export async function startCheckout(input: StartCheckoutInput): Promise<Checkout
   }
   const { config, price } = choice;
 
+  // §101 rate limit: provider checkouts a business can start in ten minutes. Retries with
+  // the same idempotency key reuse their session and don't count.
   const idempotencyKey = `${plan.id}:${input.billingInterval}:${input.idempotencyKey}`;
+  const { count: recent, error: recentError } = await platformAdmin()
+    .from("checkout_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("business_id", manager.businessId)
+    .neq("idempotency_key", idempotencyKey)
+    .gte("created_at", new Date(Date.now() - CHECKOUT_WINDOW_MS).toISOString());
+  if (recentError) throw recentError;
+  if ((recent ?? 0) >= MAX_CHECKOUTS_PER_WINDOW) {
+    throw new CheckoutError("rate_limited", "Too many checkout attempts. Please wait a few minutes and try again.");
+  }
   const session = await openSession(manager, plan.id, price, config, idempotencyKey);
   if (session.status !== "open") {
     throw new CheckoutError("session_expired", "Session expired. Please start checkout again.");
@@ -226,7 +243,7 @@ function toResult(
     checkoutOptions: {
       key: config.publicKey,
       subscription_id: providerSubscriptionId,
-      name: "WonderArk",
+      name: BRAND_NAME,
       description: `${plan.name} plan for ${manager.businessName}`.slice(0, 250),
       prefill: manager.email ? { email: manager.email } : {},
       notes: { business_id: manager.businessId, checkout_session_id: sessionId },
