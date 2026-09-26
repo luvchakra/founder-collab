@@ -15,6 +15,7 @@ import {
   setTechnicianStatusAction,
   updateEventDescriptionAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -75,9 +76,14 @@ export default async function SchedulePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Schedule</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Work, estimate, and reminder events for {business.name}, by technician.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Schedule</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Work, estimate, and reminder events for {business.name}, by technician.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="fsm.schedule" businessSlug={businessSlug} params={{ date, view: viewParam }} formats={["xlsx", "csv"]} />
+        </div>
       </div>
 
       {lowStockAlerts.length > 0 ? (

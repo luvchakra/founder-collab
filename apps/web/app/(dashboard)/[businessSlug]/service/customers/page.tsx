@@ -5,6 +5,7 @@ import { listFsmCustomers } from "@cofounderai/module-fsm/lib/customers/queries"
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { CustomersList } from "@cofounderai/module-fsm/components/customers/customers-list";
 import { updateFsmCustomerAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function FsmCustomersPage({
   params,
@@ -21,11 +22,16 @@ export default async function FsmCustomersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Customers</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Parties with the customer role for {business.name} -- the same list inventory sees, when both are licensed.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Customers</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Parties with the customer role for {business.name} -- the same list inventory sees, when both are licensed.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="fsm.customers" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <CustomersList customers={customers} canEdit={canEdit} updateAction={updateFsmCustomerAction.bind(null, businessId)} />

@@ -6,6 +6,7 @@ import { listCustomerOptions } from "@cofounderai/module-fsm/lib/opportunities/q
 import { listActiveServiceTypeOptions } from "@cofounderai/module-fsm/lib/service-types/queries";
 import { JobsList } from "@cofounderai/module-fsm/components/jobs/jobs-list";
 import { createJobAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function JobsPage({ params }: { params: Promise<{ businessSlug: string }> }) {
   const { businessSlug } = await params;
@@ -22,9 +23,14 @@ export default async function JobsPage({ params }: { params: Promise<{ businessS
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Jobs</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Scheduled and in-progress work for {business.name}.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Jobs</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Scheduled and in-progress work for {business.name}.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="fsm.jobs" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <JobsList jobs={jobs} customers={customers} serviceTypes={serviceTypes} createAction={createJobAction.bind(null, businessId)} />
