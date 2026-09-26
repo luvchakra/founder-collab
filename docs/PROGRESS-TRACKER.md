@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 499 |
+| ✅ Done | 500 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 82 |
-| **Total** | **615** |
+| **Total** | **616** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -38,7 +38,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
-| [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 38 | 0 | 0 | 38 |
+| [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 39 | 0 | 0 | 39 |
 | [WonderArk branding](./plan/16-BRANDING-BACKLOG.md) | 12 | 0 | 0 | 12 |
 
 ## What is left
@@ -1239,6 +1239,7 @@ Source: [`docs/plan/15-MULTI-USER-RBAC-BACKLOG.md`](./plan/15-MULTI-USER-RBAC-BA
 | `RBAC-36` | Invitation security | ✅ Done | `apps/web/e2e/unauthenticated/rbac.spec.ts` +3 |
 | `RBAC-37` | Multi-business E2E | ✅ Done | `apps/web/e2e/authenticated/rbac.spec.ts` |
 | `RBAC-38` | Full regression | ✅ Done | `scripts/test-core-rbac-rls.mjs` |
+| `RBAC-39` | Module-scoped RLS with declared cross-module hand-offs | ✅ Done | `scripts/test-discovery-party-backfill.mjs` +9 |
 
 ## WonderArk branding
 

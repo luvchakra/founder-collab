@@ -1727,6 +1727,7 @@ these ids (e.g. `RBAC-05`) as evidence of implementation. Mockups: `15-rbac-mock
 | `RBAC-36` | Invitation security |
 | `RBAC-37` | Multi-business E2E |
 | `RBAC-38` | Full regression |
+| `RBAC-39` | Module-scoped RLS with declared cross-module hand-offs (post-launch hardening; docs/design/rbac.md) |
 
 ---
 
