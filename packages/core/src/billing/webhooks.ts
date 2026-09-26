@@ -1,4 +1,3 @@
-import { loadApiPolicy } from "../api-v1/policy";
 import { createHash } from "node:crypto";
 import { createAdminClient } from "../db/admin";
 import { createProvider, loadProviderConfig } from "./provider-config";
@@ -35,6 +34,7 @@ export type IngestResult =
   | { status: 200; eventId: null; duplicate: true }
   | { status: 401 | 503; error: string };
 
+const MAX_ATTEMPTS = 8;
 
 export async function ingestWebhook(providerKey: BillingProviderKey, rawBody: string, headers: Headers): Promise<IngestResult> {
   const platform = createAdminClient({ schema: "platform" });
@@ -46,9 +46,7 @@ export async function ingestWebhook(providerKey: BillingProviderKey, rawBody: st
 
   let event: ProviderWebhookEvent;
   try {
-    // PLATFORM-P1-06.3: signatures are always required; the timestamp window is policy.
-    const policy = await loadApiPolicy();
-    event = createProvider(config).verifyWebhook(rawBody, headers, { signatureToleranceSeconds: policy.webhookSignatureToleranceSeconds });
+    event = createProvider(config).verifyWebhook(rawBody, headers);
   } catch (error) {
     await platform.from("billing_providers").update({ last_webhook_failure_at: new Date().toISOString() }).eq("provider", providerKey);
     const code = error instanceof WebhookVerificationError ? "invalid_signature" : "malformed";
@@ -229,19 +227,16 @@ async function finish(id: string, fields: Record<string, unknown>): Promise<void
 
 /**
  * The billing cron's retry sweep (§96): failed events under the attempt cap, and events
- * stranded in received/processing past the webhook timeout (a function that died after
+ * stranded in received/processing for more than ten minutes (a function that died after
  * answering the provider). Returns how many were retried and how many now succeed.
  */
 export async function retryBillingEvents(limit = 50): Promise<{ retried: number; processed: number }> {
   const platform = createAdminClient({ schema: "platform" });
-  // PLATFORM-P1-06.3 webhook policy: how many attempts an event gets, and how long one may
-  // sit in received/processing before it counts as timed out.
-  const policy = await loadApiPolicy();
-  const staleBefore = new Date(Date.now() - policy.webhookTimeoutSeconds * 1000).toISOString();
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data, error } = await platform
     .from("billing_events")
     .select("id")
-    .lt("attempt_count", policy.webhookMaxRetries)
+    .lt("attempt_count", MAX_ATTEMPTS)
     .or(`processing_status.eq.failed,and(processing_status.in.(received,processing),received_at.lt.${staleBefore})`)
     .order("received_at")
     .limit(limit);

@@ -9,7 +9,6 @@
 import { createHash } from "node:crypto";
 import { createAdminClient } from "../db/admin";
 import { ApiError } from "./response";
-import { loadApiPolicy } from "./policy";
 
 export interface ApiKeyContext {
   id: string;
@@ -17,6 +16,10 @@ export interface ApiKeyContext {
   createdBy: string;
   permissions: string[];
 }
+
+// A sane default requests-per-minute-per-business ceiling. Tiering by plan is a
+// fast-follow once a pricing model exists to hang tiers off of.
+const RATE_LIMIT_PER_MINUTE = 120;
 
 export function hashApiKey(rawKey: string): string {
   return createHash("sha256").update(rawKey).digest("hex");
@@ -61,25 +64,19 @@ export async function resolveApiKey(request: Request): Promise<ApiKeyContext> {
   // the actual request.
   void supabase.from("api_keys").update({ last_used_at: new Date().toISOString() }).eq("id", key.id);
 
-  // PLATFORM-P1-06.1: the per-minute limit (platform.system_policies) and the per-second
-  // burst limit (platform.api_policies), both set on Platform Admin -> API.
-  const policy = await loadApiPolicy();
-  const [{ data: withinLimit, error: limitError }, { data: withinBurst, error: burstError }] = await Promise.all([
-    supabase.rpc("check_api_rate_limit", { _business_id: key.business_id, _limit: policy.rateLimitPerMinute }),
-    supabase.rpc("check_api_burst_limit", { _business_id: key.business_id, _limit: policy.burstLimitPerSecond }),
-  ]);
-  if (limitError || burstError) {
+  const { data: withinLimit, error: limitError } = await supabase.rpc("check_api_rate_limit", {
+    _business_id: key.business_id,
+    _limit: RATE_LIMIT_PER_MINUTE,
+  });
+  if (limitError) {
     throw new ApiError(500, "internal_error", "Could not verify the request rate limit.");
   }
   if (withinLimit === false) {
     throw new ApiError(
       429,
       "rate_limited",
-      `This business has exceeded ${policy.rateLimitPerMinute} requests/minute. Try again shortly.`,
+      `This business has exceeded ${RATE_LIMIT_PER_MINUTE} requests/minute. Try again shortly.`,
     );
-  }
-  if (withinBurst === false) {
-    throw new ApiError(429, "rate_limited", `Too many requests at once (more than ${policy.burstLimitPerSecond}/second). Slow down and retry.`);
   }
 
   return {

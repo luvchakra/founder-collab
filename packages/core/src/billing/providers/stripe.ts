@@ -163,20 +163,13 @@ function chargePayment(charge: StripeCharge, status: PaymentStatus): ProviderPay
 
 /** Verifies `Stripe-Signature: t=...,v1=...` over `${t}.${rawBody}` (HMAC-SHA256), within
  * the replay window. */
-export function verifyStripeSignature(
-  rawBody: string,
-  header: string | null,
-  secret: string,
-  nowSeconds = Math.floor(Date.now() / 1000),
-  // PLATFORM-P1-06.3: the replay window is the platform's webhook signature policy.
-  toleranceSeconds = SIGNATURE_TOLERANCE_SECONDS,
-): void {
+export function verifyStripeSignature(rawBody: string, header: string | null, secret: string, nowSeconds = Math.floor(Date.now() / 1000)): void {
   if (!header) throw new WebhookVerificationError("Missing Stripe-Signature header.");
   const parts = header.split(",").map((p) => p.trim().split("="));
   const timestamp = Number(parts.find(([k]) => k === "t")?.[1]);
   const signatures = parts.filter(([k]) => k === "v1").map(([, v]) => v ?? "");
   if (!Number.isFinite(timestamp) || signatures.length === 0) throw new WebhookVerificationError("Malformed Stripe-Signature header.");
-  if (Math.abs(nowSeconds - timestamp) > toleranceSeconds) throw new WebhookVerificationError("Stale webhook timestamp.");
+  if (Math.abs(nowSeconds - timestamp) > SIGNATURE_TOLERANCE_SECONDS) throw new WebhookVerificationError("Stale webhook timestamp.");
   const expected = Buffer.from(createHmac("sha256", secret).update(`${timestamp}.${rawBody}`).digest("hex"));
   const matched = signatures.some((sig) => {
     const given = Buffer.from(sig);
@@ -353,9 +346,9 @@ export function createStripeProvider(config: ProviderConfig): BillingProvider {
       return { refundId: refund.id, status: refund.status };
     },
 
-    verifyWebhook(rawBody, headers, options) {
+    verifyWebhook(rawBody, headers) {
       if (!config.webhookSecret) throw new WebhookVerificationError("Stripe webhook secret isn't configured.");
-      verifyStripeSignature(rawBody, headers.get("stripe-signature"), config.webhookSecret, undefined, options?.signatureToleranceSeconds);
+      verifyStripeSignature(rawBody, headers.get("stripe-signature"), config.webhookSecret);
       return parseStripeEvent(rawBody);
     },
   };

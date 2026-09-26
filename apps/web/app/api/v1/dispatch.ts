@@ -22,7 +22,6 @@ import { openApiPaths as fsmOpenApiPaths } from "@cofounderai/module-fsm/api-v1/
 import { openApiPaths as crmOpenApiPaths } from "@cofounderai/module-crm/api-v1/openapi";
 import { openApiPaths as gstOpenApiPaths } from "@cofounderai/module-gst/api-v1/openapi";
 import { jsonResponse, ApiError, errorResponse } from "@cofounderai/core/api-v1/response";
-import { exceedsPayloadLimit, loadApiPolicy, recordApiError, requestBodyBytes } from "@cofounderai/core/api-v1/policy";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 
 type Handler = (request: Request, resource: string, id: string | undefined, query: URLSearchParams) => Promise<Response>;
@@ -39,19 +38,7 @@ export async function dispatchApiV1Request(
   id: string | undefined,
   query: URLSearchParams,
 ): Promise<Response> {
-  const response = await dispatch(request, resource, id, query);
-  // PLATFORM-P1-06.4 / 07.2: count errors (status only) for the platform's API dashboard.
-  if (response.status >= 400) recordApiError(response.status);
-  return response;
-}
-
-async function dispatch(request: Request, resource: string, id: string | undefined, query: URLSearchParams): Promise<Response> {
   try {
-    // PLATFORM-P1-06.1: the platform's payload limit, before any module parses the body.
-    const policy = await loadApiPolicy();
-    if (exceedsPayloadLimit(await requestBodyBytes(request), policy.maxPayloadKb)) {
-      throw new ApiError(413, "payload_too_large", `Request body exceeds the ${policy.maxPayloadKb} KB limit.`);
-    }
     for (const mod of OTHER_MODULES) {
       if (resource in mod.resources) {
         return await mod.handle(request, resource, id, query);

@@ -102,11 +102,7 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
   },
   {
     label: "Integrations",
-    links: [
-      { href: "/platform/integrations", label: "Integrations" },
-      // PLATFORM-P1-06 -- API/webhook policy, API usage, business API keys.
-      { href: "/platform/api", label: "API" },
-    ],
+    links: [{ href: "/platform/integrations", label: "Integrations" }],
   },
   {
     label: "Compliance",
