@@ -54,7 +54,9 @@ describe("WonderArk browser metadata", () => {
       ["crm", "CRM"],
       ["finance", "Finance"],
     ]) {
-      expect(readFileSync(join(base, dir, "layout.tsx"), "utf8")).toContain(`export const metadata: Metadata = { title: "${title}" }`);
+      expect(readFileSync(join(base, dir, "layout.tsx"), "utf8")).toContain(
+        `export const metadata: Metadata = { title: { absolute: \`${title} | \${BRAND_NAME}\`, template: BRAND_TITLE_TEMPLATE } };`,
+      );
     }
   });
 });

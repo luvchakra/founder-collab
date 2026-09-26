@@ -6,7 +6,8 @@ test.describe("WonderArk branding (public)", () => {
   test("login shows the stacked WonderArk lockup and the canonical title", async ({ page }) => {
     await page.goto("/login");
     await expectNoAppCrash(page);
-    await expect(page).toHaveTitle("WonderArk — Business in One Place");
+    // The name part is the Platform Name a superadmin publishes (Platform → Branding).
+    await expect(page).toHaveTitle(/ — Business in One Place$/);
     await expect(page.locator('img[data-logo-variant="primary"]')).toBeVisible();
   });
 

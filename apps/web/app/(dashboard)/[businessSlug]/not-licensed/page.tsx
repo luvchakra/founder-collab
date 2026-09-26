@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Lock } from "lucide-react";
 import { moduleRegistry } from "@cofounderai/module-registry";
@@ -21,6 +22,10 @@ import { formatDate } from "@cofounderai/core/lib/format";
  * needing to look different are "you don't have this" (this page) vs. "this doesn't
  * exist" (an actual 404), not "which modules exist at all."
  */
+/** BRAND-07: "Not available | WonderArk" -- this page stands in for any module or page
+ * the business isn't licensed for or the user may not open. */
+export const metadata: Metadata = { title: "Not available" };
+
 export default async function NotLicensedPage({
   params,
   searchParams,

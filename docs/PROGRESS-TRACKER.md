@@ -1260,7 +1260,7 @@ Source: [`docs/plan/16-BRANDING-BACKLOG.md`](./plan/16-BRANDING-BACKLOG.md)
 | `BRAND-04` | Logo component | ✅ Done | `packages/core/src/components/shell/wonderark-logo.test.tsx` +1 |
 | `BRAND-05` | Application shell | ✅ Done | `apps/web/app/(dashboard)/loading.tsx` +1 |
 | `BRAND-06` | Favicon / PWA | ✅ Done | `apps/web/app/manifest.ts` +4 |
-| `BRAND-07` | Metadata | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/layout.tsx` +11 |
+| `BRAND-07` | Metadata | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/layout.tsx` +12 |
 | `BRAND-08` | Authentication | ✅ Done | `apps/web/app/(auth)/layout.tsx` +2 |
 | `BRAND-09` | Existing component mapping | ✅ Done | `packages/core/src/ui-theme.css` |
 | `BRAND-10` | Module validation | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` |

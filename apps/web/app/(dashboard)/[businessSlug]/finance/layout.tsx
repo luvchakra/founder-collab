@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+import { BRAND_TITLE_TEMPLATE } from "@cofounderai/core/brand/identity";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import type { ReactNode } from "react";
@@ -12,8 +14,10 @@ import { UnsupportedCountryNotice } from "@cofounderai/module-gst/components/com
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { setComplianceCountryAction, setComplianceRegimeAction } from "./actions";
 
-/** BRAND-07: "Finance | WonderArk" in the browser tab (root layout title template). */
-export const metadata: Metadata = { title: "Finance" };
+/** BRAND-07: "Finance | WonderArk" in the browser tab. Absolute, with the template
+ * re-declared: a plain title here would stop the root "%s | WonderArk" template from
+ * reaching the pages below. */
+export const metadata: Metadata = { title: { absolute: `Finance | ${BRAND_NAME}`, template: BRAND_TITLE_TEMPLATE } };
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Finance";
 

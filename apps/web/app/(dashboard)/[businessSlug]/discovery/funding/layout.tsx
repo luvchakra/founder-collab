@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
+import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+import { BRAND_TITLE_TEMPLATE } from "@cofounderai/core/brand/identity";
 import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
 import { SectionTabs } from "@cofounderai/module-discovery/components/marketing/section-tabs";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { fundingContext } from "./context";
 
-/** BRAND-07: "Funding | WonderArk" in the browser tab (root layout title template). */
-export const metadata: Metadata = { title: "Funding" };
+/** BRAND-07: "Funding | WonderArk" in the browser tab. Absolute, with the template
+ * re-declared: a plain title here would stop the root "%s | WonderArk" template from
+ * reaching the pages below. */
+export const metadata: Metadata = { title: { absolute: `Funding | ${BRAND_NAME}`, template: BRAND_TITLE_TEMPLATE } };
 
 /** FND-03..14 — the Funding section's shared tab strip, and its access gate. */
 export default async function FundingLayout({
