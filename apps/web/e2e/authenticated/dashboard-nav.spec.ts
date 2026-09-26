@@ -19,7 +19,8 @@ test.describe("Executive Dashboard", () => {
       ["Billing", /\/dashboard\/settings\/billing$/],
     ] as const) {
       await page.goto("/dashboard");
-      await page.getByRole("link", { name }).click();
+      // exact: the sidebar's AI-usage meter is also a link whose name contains "Usage".
+      await page.getByRole("link", { name, exact: true }).first().click();
       await expect(page).toHaveURL(urlPattern);
       await expectNoAppCrash(page);
     }
@@ -61,7 +62,9 @@ test.describe("Sidebar navigation", () => {
     await expect(page.getByRole("link", { name: "Executive Dashboard" })).toBeVisible();
 
     if (isDrawer) {
-      await page.getByRole("button", { name: "Close sidebar" }).click();
+      // The topbar toggle and the drawer's own close button are both "Close sidebar";
+      // either closes it.
+      await page.getByRole("button", { name: "Close sidebar" }).first().click();
       await expect(nav).toBeHidden();
     }
   });

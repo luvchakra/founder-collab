@@ -19,7 +19,7 @@ test.describe("Users & Access", () => {
   test("the owner sees themselves as Owner", async ({ page }) => {
     await page.goto(`/${slug}/admin/users`);
     await expect(page.getByRole("heading", { level: 1, name: "Users & Access" })).toBeVisible();
-    await expect(page.getByText("Owner").first()).toBeVisible();
+    await expect(page.getByRole("table").getByText("Owner").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Invite user" })).toBeVisible();
   });
 
@@ -30,7 +30,7 @@ test.describe("Users & Access", () => {
 
   test("system roles are listed", async ({ page }) => {
     await page.goto(`/${slug}/admin/roles`);
-    await expect(page.getByText("System roles")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "System roles" })).toBeVisible();
     for (const name of ["Owner", "Admin", "Viewer"]) {
       await expect(page.getByRole("link", { name: `Open ${name}`, exact: true })).toBeVisible();
     }
