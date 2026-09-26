@@ -174,7 +174,7 @@ export interface BillingProvider {
   refundPayment(paymentId: string, input: { amount: number | null; reason: string }): Promise<{ refundId: string; status: string }>;
   /** Verifies the signature over the raw body and returns the normalized event -- or throws
    * WebhookVerificationError. Nothing is trusted before this returns. */
-  verifyWebhook(rawBody: string, headers: Headers): ProviderWebhookEvent;
+  verifyWebhook(rawBody: string, headers: Headers, options?: { signatureToleranceSeconds?: number }): ProviderWebhookEvent;
 }
 
 export class WebhookVerificationError extends Error {
