@@ -3,14 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "sideEffects": ["./src/events/handlers.ts"],
+  "sideEffects": [
+    "./src/events/handlers.ts"
+  ],
   "exports": {
     "./api-v1/*": "./src/api-v1/*.ts",
     "./lib/*": "./src/lib/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./contract/*": "./src/contract/*.ts",
-    "./events/*": "./src/events/*.ts"
+    "./events/*": "./src/events/*.ts",
+    "./exports/*": "./src/exports/*.ts",
+    "./exports": "./src/exports/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

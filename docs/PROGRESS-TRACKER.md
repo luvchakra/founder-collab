@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 315 |
+| ✅ Done | 405 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 2 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 5 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 83 |
-| **Total** | **435** |
+| **Total** | **525** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -36,6 +36,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
+| [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 90 | 0 | 0 | 90 |
 
 ## What is left
 
@@ -1045,3 +1046,102 @@ Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOV
 | `INT-03` | Recommendations | ✅ Done | `packages/module-discovery/src/lib/funding/attention.ts` +2 |
 | `INT-04` | Notification integration | ✅ Done | `packages/module-crm/src/lib/timeline/queries.ts` +1 |
 | `INT-05` | Scheduled intelligence | ⏸️ Deferred | Spec §57–§58: not to be built until an unattended-execution design exists — see `docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md` |
+
+## CSV / Excel export
+
+Source: [`docs/plan/13-DATA-EXPORT-BACKLOG.md`](./plan/13-DATA-EXPORT-BACKLOG.md)
+
+### 21a. Story index
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `EXP-PLAT-01` | Shared Export Contract | ✅ Done | `packages/core/src/exports/types.ts` |
+| `EXP-PLAT-02` | CSV Export Engine | ✅ Done | `packages/core/src/exports/csv.test.ts` +4 |
+| `EXP-PLAT-03` | Excel Export Engine | ✅ Done | `packages/core/src/exports/format.ts` +3 |
+| `EXP-PLAT-04` | Shared Export UI | ✅ Done | `packages/core/src/components/exports/export-menu.test.ts` +1 |
+| `EXP-PLAT-05` | Secure Export Route / Server Action | ✅ Done | `apps/web/app/api/exports/[exportId]/route.ts` +6 |
+| `EXP-PLAT-06` | Large Export Job | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +11 |
+| `EXP-DISC-01` | Business / Business Offerings Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-02` | Discovery Dashboard Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-03` | Offering Prospects Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-04` | Prospect Detail / Buyer Intelligence Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-05` | Opportunity Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-06` | ICP Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-07` | Research / Signals Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-08` | Outreach Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-09` | Opportunity / Pipeline Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-10` | Conversion Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-11` | Offering Performance Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-DISC-12` | Discovery History / Usage / Watchlist Export | ✅ Done | `packages/module-discovery/src/exports/customer-acquisition/index.ts` |
+| `EXP-MKT-01` | Marketing Dashboard Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-02` | Marketing Strategy Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-03` | Campaign List Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-04` | Campaign Detail / Performance Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-05` | Content Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-06` | Assets / Website SEO Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-MKT-07` | Marketing Analytics Export | ✅ Done | `packages/module-discovery/src/exports/marketing/index.ts` |
+| `EXP-FND-01` | Funding Dashboard Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-02` | Funding Profile Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-03` | Investor Readiness Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-04` | Fundraising Rounds Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-05` | Investors List Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-06` | Investor Detail Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-07` | Investor Pipeline Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-08` | Investor Outreach Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-09` | Data Room Metadata Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-FND-10` | Due Diligence and Funding Analytics Export | ✅ Done | `packages/module-discovery/src/exports/funding/index.ts` |
+| `EXP-CRM-01` | CRM Dashboard Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-02` | Leads Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-03` | Opportunities Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-04` | CRM Analytics Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-05` | Lost Business Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-06` | Reactivation Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-07` | Follow-up Queue Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-08` | Reviews Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-09` | Conversations / WhatsApp Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-CRM-10` | Customer 360 / Exceptions Export | ✅ Done | `packages/module-crm/src/exports/index.ts` |
+| `EXP-INV-01` | Inventory Dashboard Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-02` | Products Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-03` | Customers Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-04` | Suppliers Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-05` | Warehouses Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-06` | Stock Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-07` | Purchase Orders Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-08` | Sales Orders Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-09` | Sales Invoices and Returns Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-10` | Stock Transfers Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-11` | Alerts Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-INV-12` | Inventory Audit Log Export | ✅ Done | `packages/module-inventory/src/exports/index.ts` |
+| `EXP-FSM-01` | FSM Dashboard Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-02` | Customers Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-03` | Jobs Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-04` | Opportunities Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-05` | Invoices Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-06` | Schedule Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-07` | My Day Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-08` | FSM Reports Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FSM-09` | Assessment Export | ✅ Done | `packages/module-fsm/src/exports/index.ts` |
+| `EXP-FIN-01` | Finance Dashboard Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-02` | Chart of Accounts Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-03` | Bills and Expenses Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-04` | Payables Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-05` | Receivables Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-06` | Journal Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-07` | GST Ledger Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-08` | Bank / Reconciliation Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-09` | Recurring Entries Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-10` | Budget vs Actual Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-11` | Financial Statements Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-12` | Filing Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-13` | Filing Readiness Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-14` | E-invoice / E-way Bill Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-15` | Finance Exceptions Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-16` | Finance Evidence Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-FIN-17` | Audit / Backfill / Activation Export | ✅ Done | `packages/module-gst/src/exports/index.ts` |
+| `EXP-ADMIN-01` | Platform Audit Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-02` | AI Usage Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-03` | Integrations Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-04` | Plans / Entitlements Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-05` | Compliance Registry Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-06` | Config History Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |
+| `EXP-ADMIN-07` | Announcements / Feature Flags / Notification Policies Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +2 |

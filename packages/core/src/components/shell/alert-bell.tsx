@@ -122,8 +122,12 @@ export function AlertBell({ alerts, activeBusinessId }: { alerts: ShellAlert[]; 
           ) : (
             visibleAlerts.map((alert) => {
               const isRead = readIds.has(alert.id);
+              // A download (e.g. a finished background export, EXP-PLAT-06) is a route
+              // handler, not a page: a plain link lets the browser follow its redirect to
+              // the file instead of the router trying to render it.
+              const AlertLink = alert.href.startsWith("/api/") ? "a" : Link;
               return (
-                <Link
+                <AlertLink
                   key={alert.id}
                   href={alert.href}
                   role="menuitem"
@@ -147,7 +151,7 @@ export function AlertBell({ alerts, activeBusinessId }: { alerts: ShellAlert[]; 
                   <span className={isRead ? "text-muted-foreground" : undefined}>
                     {alert.message}
                   </span>
-                </Link>
+                </AlertLink>
               );
             })
           )}

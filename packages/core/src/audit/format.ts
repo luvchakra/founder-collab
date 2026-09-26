@@ -31,6 +31,9 @@ export const ACTION_LABEL: Record<string, string> = {
    * resolves, written by a DB trigger so no application code path can skip it. */
   "job.parts_shortage_resolved": "Job parts shortage resolved",
   "assessment.outcome_recorded": "FSM assessment outcome recorded",
+  /** EXP-PLAT-05: every CSV/Excel export attempt (packages/core/src/exports/server.ts). */
+  "export.generated": "Data exported",
+  "export.failed": "Data export failed",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -45,6 +48,7 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   crm_buying_intent_score: "CRM Buying Intent Score",
   job: "Job",
   assessment: "Assessment",
+  export: "Export",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

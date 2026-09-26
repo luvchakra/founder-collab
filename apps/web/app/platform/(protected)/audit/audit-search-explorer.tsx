@@ -181,7 +181,7 @@ function SeverityBadge({ severity }: { severity: AuditSeverity }) {
 }
 
 function actionLabel(action: string): string {
-  return { created: "Created", updated: "Updated", deleted: "Deleted", status_changed: "Status changed" }[action] ?? action;
+  return { created: "Created", updated: "Updated", deleted: "Deleted", exported: "Exported", status_changed: "Status changed" }[action] ?? action;
 }
 
 function formatValue(value: unknown): string {

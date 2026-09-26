@@ -12,6 +12,7 @@ import {
 } from "@cofounderai/module-discovery/lib/dashboard/queries";
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
+import { getExportAlerts } from "@/lib/exports/alerts";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
 import { listLicensedModuleKeysByBusiness } from "@cofounderai/core/licensing/queries";
@@ -72,7 +73,7 @@ async function loadAlerts(
   licensedModuleKeysByBusiness: Record<string, string[]>,
 ): Promise<ShellAlert[]> {
   try {
-    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts, marketingFundingAlerts] = await Promise.all([
+    const [{ entries }, { usageByWorkspace, prospects }, otherModuleAlerts, marketingFundingAlerts, exportAlerts] = await Promise.all([
       getAccountWorkspaceEntries(accountId),
       getAccountUsageAndProspects(accountId),
       getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness),
@@ -83,9 +84,11 @@ async function loadAlerts(
           .filter((b) => (licensedModuleKeysByBusiness[b.id] ?? []).includes("discovery"))
           .map((b) => getMarketingFundingAlerts(b.id).catch(() => [])),
       ).then((lists) => lists.flat()),
+      // EXP-PLAT-06: this user's finished background exports.
+      getExportAlerts().catch(() => []),
     ]);
     const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
-    return [...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
+    return [...exportAlerts, ...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
       a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
     );
   } catch (error) {
