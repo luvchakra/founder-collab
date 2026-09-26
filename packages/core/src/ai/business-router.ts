@@ -6,6 +6,7 @@ import { resolveModelId, type AiProvider, type AiQualityTier } from "./model-reg
 import { getOperationSpec, type AiOperation } from "./operation-registry";
 import { createLanguageModel } from "./provider-factory";
 import { getPlatformAiCredential } from "./platform-credential";
+import { AI_FEATURE_DISABLED_MESSAGE, isAiOperationDisabled } from "./feature-kill-switch";
 
 /**
  * The `business_id`-scoped counterpart to `module-discovery/lib/ai/router.ts`
@@ -37,6 +38,7 @@ export type AiErrorCode =
   | "provider_unavailable"
   | "timeout"
   | "invalid_response"
+  | "feature_disabled"
   | "unknown";
 
 export class AiProviderError extends Error {
@@ -122,6 +124,10 @@ async function getAccountProviderCredential(businessId: string, client?: Supabas
  * `AiProviderError("no_provider_connected")` only when none of the three are available.
  */
 export async function resolveBusinessAiModel(businessId: string, operation: AiOperation, client?: SupabaseClient): Promise<ResolvedBusinessAiModel> {
+  // PLATFORM-P0-10.4: a superadmin can switch one AI feature off platform-wide.
+  if (await isAiOperationDisabled(operation)) {
+    throw new AiProviderError("feature_disabled", AI_FEATURE_DISABLED_MESSAGE);
+  }
   const byokCredential = await getProviderCredential(businessId, client);
   const accountCredential = byokCredential ? null : await getAccountProviderCredential(businessId, client);
   const usedByokCredential = byokCredential ?? accountCredential;

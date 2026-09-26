@@ -51,7 +51,8 @@ export {
   type AuditSeverity,
 } from "./platform-audit-log-types";
 
-/** The six new resource types this story's own migration added triggers for -- the only
+/** The resource types written straight into `platform.audit_log` (the six this story's own
+ * migration added triggers for, plus later direct writers) -- the only
  * ones with rows in `platform.audit_log`. */
 const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "compliance_country",
@@ -60,6 +61,8 @@ const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "plan_feature",
   "plan_limit",
   "plan_module",
+  // PLATFORM-P0-10.4 -- AI feature kill switch changes.
+  "ai_operation_switch",
 ];
 
 /** The eleven resource types PLATFORM-P0-17 already built history tables for. */

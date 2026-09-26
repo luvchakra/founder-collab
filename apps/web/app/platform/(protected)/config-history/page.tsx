@@ -28,6 +28,13 @@ import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
  * `config-history-explorer.tsx`), never from a bare `useEffect`, matching
  * `plan-dialog.tsx`'s own documented reason for avoiding that shape (the
  * `react-hooks/set-state-in-effect` lint rule).
+ *
+ * PLATFORM-P0-16.4 ("Configuration History", §20: "allow administrators to inspect
+ * previous versions") -- verified 2026-09-26, satisfied by this page with no new code: pick
+ * a configuration and an instance, and every recorded version (v1..vN, who, when, reason,
+ * before/after field diff) is listed, with Restore where rollback is safe (17.3). Changes
+ * recorded only in platform.audit_log (compliance packs, plan entitlements, ...) are
+ * inspectable, with the same before/after diff, in Audit Search (`/platform/audit`).
  */
 export default async function PlatformConfigHistoryPage() {
   const first = CONFIG_RESOURCE_TYPES[0];

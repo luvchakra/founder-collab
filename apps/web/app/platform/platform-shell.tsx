@@ -29,6 +29,14 @@ import { PLATFORM_NAV_GROUPS } from "./platform-nav";
  * the header, closed by default, closing on backdrop click or link click -- same "compact
  * navigation on small screens" spirit as CLAUDE.md principle #12 applies to tables, and
  * PLATFORM-P0-19.4's own "stacked cards and progressive disclosure on smaller screens".
+ *
+ * PLATFORM-P0-19.5 ("Professional Layout Rule", §33) -- verified 2026-09-26: the rule is a
+ * standing, generic WonderArk development rule, not a per-page feature. It lives in
+ * `docs/design/claude-ui-design-rules.md` (plan the hierarchy first, intentional borders,
+ * deliberate action placement, editable rows, tables on desktop / cards on mobile) and is
+ * made mandatory for every page by CLAUDE.md development principles #12 and #13 -- exactly
+ * the "add it to the project's permanent generic development rules" the story asks for.
+ * This shell and every /platform page are built to it.
  */
 export function PlatformShell({
   userEmail,

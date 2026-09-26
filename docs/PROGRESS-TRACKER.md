@@ -19,20 +19,20 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 493 |
+| ✅ Done | 499 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 6 |
+| ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 83 |
+| ⬜ Not started | 82 |
 | **Total** | **615** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 55 | 1 | 9 | 65 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 79 | 0 | 31 | 110 |
-| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 51 | 0 | 7 | 58 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
+| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-89 stories are neither built nor deliberately set aside:
+83 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -56,8 +56,6 @@ file is stale, so it cannot quietly drift out of date.
 | `FIN-10` | Seed data | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-11` | End-to-end edge cases | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `FIN-12` | Explainable accounting, in reverse | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `PLATFORM-P0-10.4` | AI Feature Kill Switch | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P0-16.4` | Configuration History | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
 | `PLATFORM-P1-01.1` | Configuration Export | ⬜ Not started | — |
 | `PLATFORM-P1-01.2` | Configuration Import | ⬜ Not started | — |
 | `PLATFORM-P1-01.3` | Secret Exclusion | ⬜ Not started | — |
@@ -84,10 +82,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-09.1` | Terms & Privacy Version | ⬜ Not started | — |
 | `PLATFORM-P1-09.2` | Cookie / Consent Configuration | ⬜ Not started | — |
 | `PLATFORM-P1-09.4` | Policy Acceptance Tracking | ⬜ Not started | — |
-| `PLATFORM-P0-18.3` | Least Privilege | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P0-19.3` | Desktop Tables | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P0-19.5` | Professional Layout Rule | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `DISC-OFFER-P0-03.1` | Offering Context Selector | ⬜ Not started | — |
 | `DISC-OFFER-P1-01.3` | Account Watchlist | ⬜ Not started | — |
 | `DISC-OFFER-P1-01.4` | Grouped Opportunity Alerts | ⬜ Not started | — |
 | `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ⬜ Not started | — |
@@ -342,7 +336,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P0-10.1` | Platform AI Budget | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/page.tsx` +8 |
 | `PLATFORM-P0-10.2` | AI Circuit Breaker | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/page.tsx` +3 |
 | `PLATFORM-P0-10.3` | Provider Failure Fallback | ✅ Done | `supabase/migrations/20260912400000_platform_email_provider.sql` |
-| `PLATFORM-P0-10.4` | AI Feature Kill Switch | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P0-10.4` | AI Feature Kill Switch | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/actions.ts` +13 |
 
 ### Global Email / Notification Configuration
 
@@ -391,10 +385,10 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P0-16.1` | Immutable Platform Audit Log | ✅ Done | `apps/web/app/platform/(protected)/audit/page.tsx` +5 |
+| `PLATFORM-P0-16.1` | Immutable Platform Audit Log | ✅ Done | `apps/web/app/platform/(protected)/audit/page.tsx` +6 |
 | `PLATFORM-P0-16.2` | High-Risk Action Audit | ✅ Done | `apps/web/app/platform/(protected)/ai-providers/provider-config-dialog.tsx` +7 |
 | `PLATFORM-P0-16.3` | Audit Search | ✅ Done | `apps/web/app/platform/(protected)/audit/actions.ts` +8 |
-| `PLATFORM-P0-16.4` | Configuration History | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P0-16.4` | Configuration History | ✅ Done | `apps/web/app/platform/(protected)/config-history/page.tsx` |
 
 ### Configuration Versioning
 
@@ -487,8 +481,8 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 |---|---|---|---|
 | `PLATFORM-P0-18.1` | MFA Required for SUPERADMIN | ✅ Done | `apps/web/app/platform/(protected)/layout.tsx` +3 |
 | `PLATFORM-P0-18.2` | Reauthentication for High-Risk Actions | ✅ Done | `apps/web/app/platform/impact-banner.tsx` +1 |
-| `PLATFORM-P0-18.3` | Least Privilege | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P0-18.4` | Destructive Action Protection | ✅ Done | `apps/web/app/platform/impact-banner.tsx` +1 |
+| `PLATFORM-P0-18.3` | Least Privilege | ✅ Done | `packages/core/src/rbac/platform-admin.ts` |
+| `PLATFORM-P0-18.4` | Destructive Action Protection | ✅ Done | `apps/web/app/platform/impact-banner.tsx` +2 |
 
 ### Platform Administration UI
 
@@ -496,9 +490,9 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 |---|---|---|---|
 | `PLATFORM-P0-19.1` | Dedicated Admin Layout | ✅ Done | `apps/web/app/platform/layout.tsx` +2 |
 | `PLATFORM-P0-19.2` | Global Impact Banner | ✅ Done | `apps/web/app/platform/impact-banner.tsx` |
-| `PLATFORM-P0-19.3` | Desktop Tables | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P0-19.4` | Responsive Mobile | ✅ Done | `apps/web/app/platform/platform-shell.tsx` |
-| `PLATFORM-P0-19.5` | Professional Layout Rule | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P0-19.3` | Desktop Tables | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/ai-feature-switches.tsx` +1 |
+| `PLATFORM-P0-19.4` | Responsive Mobile | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/ai-feature-switches.tsx` +1 |
+| `PLATFORM-P0-19.5` | Professional Layout Rule | ✅ Done | `apps/web/app/platform/platform-shell.tsx` |
 
 ## Discovery — offering-centric upgrade
 
@@ -524,7 +518,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `DISC-OFFER-P0-03.1` | Offering Context Selector | ⬜ Not started | — |
+| `DISC-OFFER-P0-03.1` | Offering Context Selector | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/layout.tsx` +7 |
 | `DISC-OFFER-P0-03.2` | Offering Discovery Overview | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/page.tsx` +1 |
 | `DISC-OFFER-P0-03.3` | Offering Navigation | ✅ Done | `packages/module-discovery/src/components/tenancy/product-nav.tsx` |
 

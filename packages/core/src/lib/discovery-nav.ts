@@ -94,10 +94,25 @@ function sectionLinks(
   });
 }
 
+/** The offering id in a `/<business>/discovery/offerings/<id>/...` path, else null. */
+export function offeringIdFromPath(base: string, pathname: string | null): string | null {
+  const offeringsRoot = `${base}/discovery/offerings`;
+  const path = pathname ?? "";
+  return path.startsWith(`${offeringsRoot}/`) ? path.slice(offeringsRoot.length + 1).split("/")[0] || null : null;
+}
+
+/**
+ * `rememberedOfferingId` (DISC-OFFER-P0-03.1 "Offering Context Selector": "context
+ * persists through relevant navigation"): the offering the founder last worked in. When
+ * the URL names no offering -- Overview, Marketing, Funding -- Customer Acquisition keeps
+ * pointing at that one instead of falling back to the first offering, so stepping out to
+ * Marketing and back does not silently switch offerings. Ignored when it no longer exists.
+ */
 export function buildDiscoveryNav(
   base: string,
   products: { id: string; name: string }[],
   pathname: string | null,
+  rememberedOfferingId?: string | null,
 ): DiscoveryNavTree {
   const path = pathname ?? "";
   const overviewHref = `${base}/discovery/dashboard`;
@@ -106,8 +121,12 @@ export function buildDiscoveryNav(
   const marketingRoot = `${base}/discovery/marketing`;
   const fundingRoot = `${base}/discovery/funding`;
 
-  const offeringInPath = path.startsWith(`${offeringsRoot}/`) ? path.slice(offeringsRoot.length + 1).split("/")[0] : null;
-  const focus = products.find((p) => p.id === offeringInPath) ?? products[0] ?? null;
+  const offeringInPath = offeringIdFromPath(base, path);
+  const focus =
+    products.find((p) => p.id === offeringInPath) ??
+    products.find((p) => p.id === rememberedOfferingId) ??
+    products[0] ??
+    null;
 
   const offerings: DiscoveryNavGroup = {
     id: "offerings",
