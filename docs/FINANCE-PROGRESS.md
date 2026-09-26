@@ -23,6 +23,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
 | FIN-8 | Done | `pending` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
 | FIN-9 | Done | `pending` | Dimensions: per-business on/off and naming for party, item, location, project; P&L by any of them; never mandatory |
+| FIN-10 | Done | `pending` | Seed data: the deterministic fixture set (2 businesses, 30 invoices, 20 bills, 20 expenses, 25 payments, notes, bank lines, rules, recurring entries, 2B matched/mismatched/missing, locked period, failed e-invoice, duplicates) for local databases only |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
@@ -403,6 +404,43 @@ customer" is a P&L question; balance-sheet lines are excluded from the report.
 
 Permission `gst.dimensions.manage` (owner, admin, accountant); reading needs only Finance.
 
+### Seed data (FIN-10) — built 2026-09-27
+
+`scripts/lib/finance-fixtures.mjs` generates the §52 fixture set as SQL;
+`scripts/seed-finance-fixtures.mjs --database <local db>` loads it (or `--print` writes it
+out). It refuses any non-local host, anything that looks like a hosted Supabase project and
+any database named like production — the fixture writes `auth.users` directly, which a real
+project must never receive. `scripts/test-finance-fixtures.mjs` loads it through that CLI
+into a fresh harness database and asserts every promise below, RLS reachability by each
+owner only, and that a second load is a no-op.
+
+**Deterministic end to end.** Ids come from `md5(key)`, dates and amounts from each row's
+index — never the clock or a random source — so every run is byte-identical and tests can
+assert exact figures. Re-running is safe (`on conflict do nothing` on the fixed ids).
+
+**Canonical tables only.** Customers and suppliers are `core.parties` with
+`core.party_roles`, products and services are `core.items`, every invoice/bill/expense/note
+is `core.documents`, money is `core.payments` + `core.payment_allocations`; the chart of
+accounts and role mappings are parsed from `chart-of-accounts.ts` itself, so the fixture's
+chart is the one provisioning creates.
+
+**No journal entries are seeded.** The fixture is a business's history before Finance posted
+any of it: running the backfill (FIN-2) against it *is* the historical-backfill scenario,
+and hand-seeded entries would be a second posting path that could disagree with the real
+one.
+
+| Scenario | What the fixture holds (business "Fixture Traders" unless noted) |
+|---|---|
+| Businesses / licences | Traders: Finance + Inventory + Service active. Services: Finance active, Inventory cancelled and in its 30-day grace, CRM never licensed |
+| Volume | 30 invoices (itemised; 6 inter-state IGST; Inventory and Service sources), 20 bills, 20 expenses, 3 credit notes (both modules' `source_ref` keys), 2 debit notes, 2 purchase orders, 25 payments (15 receipts incl. one part-payment and one overpayment, 10 supplier payments); Services: 5 invoices, 3 bills, 2 payments |
+| Banking | an HDFC account linked to 1100 Bank, 12 statement lines (receipts, a supplier payment, AWS, rent, bank charges, interest, an unexplained deposit), 2 bank rules (AWS → Software, office rent → Rent) |
+| Recurring | depreciation and a software subscription, monthly |
+| GSTR-2B (2026-08) | 2 matched, 2 value-mismatched, 2 missing from the books |
+| Locked period | April 2026 is `locked`, with five invoices dated in it |
+| E-invoicing | one IRN generated; one invoice whose `document.issued` event failed with a GSP error and no IRN |
+| GST return | GSTR-1 for April 2026 filed |
+| Duplicates | the same `document.issued` delivered twice; two bank lines identical but for their reference; one supplier invoice number booked twice |
+
 ### Explainable accounting in reverse (FIN-12) — built 2026-09-27
 
 `/finance/documents/[documentId]`: the document's own facts, then every entry it caused in
@@ -426,7 +464,6 @@ journal entry with a source document links here, and so does the invoices list (
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
 | 42 | Activation wizard | The ten-step first-run flow. Every step exists as its own screen; nothing sequences them. |
-| 52 | Seed data | The deterministic Finance fixture set (30 invoices, 20 bills, locked period, failed e-invoice, duplicate scenarios…). |
 
 ### Partly built
 
