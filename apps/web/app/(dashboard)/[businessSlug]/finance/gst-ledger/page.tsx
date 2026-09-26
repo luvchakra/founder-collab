@@ -10,6 +10,7 @@ import { ItcView } from "@cofounderai/module-gst/components/accounting/itc-view"
 import { assessItc, itcActions } from "@cofounderai/module-gst/lib/accounting/itc";
 import { getPurchaseReconciliation } from "@cofounderai/module-gst/lib/reconciliation/queries";
 import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance F7 — the GST ledger, reconciled against the return.
@@ -76,6 +77,7 @@ export default async function GstLedgerPage({
       <PageHeader
         title="GST ledger"
         description={`Output tax, input credit and what you owe for ${selected.gstPeriod} — checked against the return before you file it.`}
+        actions={<ExportMenu exportId="finance.gst-ledger" businessSlug={businessSlug} params={{ period: selected.gstPeriod }} kind="report" />}
       />
       <GstLedgerView
         output={ledger.output}

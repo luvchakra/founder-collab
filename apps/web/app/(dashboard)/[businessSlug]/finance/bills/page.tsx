@@ -6,6 +6,7 @@ import { listBills, listSuppliers } from "@cofounderai/module-gst/lib/accounting
 import { listAccounts } from "@cofounderai/module-gst/lib/accounting/queries";
 import { BillsView } from "@cofounderai/module-gst/components/accounting/bills-view";
 import { createBillAction } from "../bills/actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** Finance §19 — hand entry for bills. */
 export default async function BillsPage({
@@ -26,7 +27,11 @@ export default async function BillsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Bills" description="What your suppliers have invoiced you. Each one posts to your ledger and shows in Payables until it's paid." />
+      <PageHeader
+        title="Bills"
+        description="What your suppliers have invoiced you. Each one posts to your ledger and shows in Payables until it's paid."
+        actions={<ExportMenu exportId="finance.bills" businessSlug={businessSlug} />}
+      />
       <BillsView
         kind="bill"
         bills={bills}

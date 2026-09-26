@@ -6,6 +6,7 @@ import { listBankAccounts } from "@cofounderai/module-gst/lib/accounting/banking
 import { listAccounts } from "@cofounderai/module-gst/lib/accounting/queries";
 import { BankAccountsView } from "@cofounderai/module-gst/components/accounting/bank-accounts-view";
 import { createBankAccountAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** Finance F3 — the accounts money actually moves through. */
 export default async function FinanceBankingPage({
@@ -28,6 +29,7 @@ export default async function FinanceBankingPage({
       <PageHeader
         title="Banking"
         description="Your bank and cash accounts. Import a statement and Finance will suggest which ledger entry each line belongs to."
+        actions={<ExportMenu exportId="finance.bank-accounts" businessSlug={businessSlug} />}
       />
       <BankAccountsView
         accounts={accounts}

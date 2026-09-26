@@ -6,6 +6,7 @@ import { listBills, listSuppliers } from "@cofounderai/module-gst/lib/accounting
 import { listAccounts } from "@cofounderai/module-gst/lib/accounting/queries";
 import { BillsView } from "@cofounderai/module-gst/components/accounting/bills-view";
 import { createBillAction } from "../bills/actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** Finance §20 — hand entry for expenses. */
 export default async function ExpensesPage({
@@ -26,7 +27,11 @@ export default async function ExpensesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Expenses" description="Things you paid for that were never stock — rent, software, travel." />
+      <PageHeader
+        title="Expenses"
+        description="Things you paid for that were never stock — rent, software, travel."
+        actions={<ExportMenu exportId="finance.expenses" businessSlug={businessSlug} />}
+      />
       <BillsView
         kind="expense"
         bills={bills}

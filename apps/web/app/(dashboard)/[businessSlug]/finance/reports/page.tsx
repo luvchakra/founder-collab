@@ -17,6 +17,7 @@ import {
   isReportKey,
   type ReportKey,
 } from "@cofounderai/module-gst/components/accounting/financial-statements";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance — the three statements, all from one read of the ledger.
@@ -65,6 +66,7 @@ export default async function FinanceReportsPage({
       <PageHeader
         title="Financial reports"
         description="Your profit and loss, balance sheet and trial balance, straight from the ledger."
+        actions={<ExportMenu exportId="finance.statements" businessSlug={businessSlug} params={{ report, from, to }} kind="report" />}
       />
 
       <div className="flex flex-col gap-3">

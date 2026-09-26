@@ -5,6 +5,7 @@ import { getPayables } from "@cofounderai/module-gst/lib/accounting/payables-que
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { PayablesView } from "@cofounderai/module-gst/components/accounting/payables-view";
 import { payBillsAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance — payables: what this business owes, soonest due first.
@@ -32,6 +33,7 @@ export default async function FinancePayablesPage({
       <PageHeader
         title="Payables"
         description="Every supplier bill you still owe, soonest due first. Payments and supplier credits are already netted off."
+        actions={<ExportMenu exportId="finance.payables" businessSlug={businessSlug} />}
       />
       <PayablesView ledger={ledger} canPay={canPay} payAction={payBillsAction.bind(null, businessId)} />
     </div>

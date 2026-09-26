@@ -7,6 +7,7 @@ import {
   getSalesRegister,
 } from "@cofounderai/module-gst/lib/filing/queries";
 import { GstFilingView } from "@cofounderai/module-gst/components/filing/gst-filing-view";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 function currentPeriod(): string {
   const now = new Date();
@@ -48,11 +49,16 @@ export default async function GstFilingPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">GST Filing</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Purchase register (inward) and sales register (outward) for {business.name}&apos;s monthly GST filing.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">GST Filing</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Purchase register (inward) and sales register (outward) for {business.name}&apos;s monthly GST filing.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="finance.filing" businessSlug={businessSlug} params={{ period }} kind="report" />
+        </div>
       </div>
 
       <GstFilingView

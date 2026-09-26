@@ -13,6 +13,7 @@ import { listBankAccounts, listBankTransactions } from "@cofounderai/module-gst/
 import { fiscalYearOf, monthlyPeriodsForFiscalYear, periodForDate } from "@cofounderai/module-gst/lib/accounting/periods";
 import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import { FilingReadinessView } from "@cofounderai/module-gst/components/accounting/filing-readiness-view";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance F9 — the pre-flight check before filing.
@@ -100,6 +101,7 @@ export default async function FilingReadinessPage({
       <PageHeader
         title="Filing readiness"
         description="Everything Finance knows about this period, asked as one question: is this safe to file?"
+        actions={<ExportMenu exportId="finance.filing-readiness" businessSlug={businessSlug} params={{ period: selected.gstPeriod }} kind="report" />}
       />
       <FilingReadinessView readiness={readiness} period={selected.gstPeriod} />
     </div>

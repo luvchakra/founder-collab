@@ -7,6 +7,7 @@ import { Button } from "@cofounderai/core/ui/button";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
 import { listJournalEntries } from "@cofounderai/module-gst/lib/accounting/journal-queries";
 import { JournalList } from "@cofounderai/module-gst/components/accounting/journal-list";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance F2 — the journal: every entry in the ledger, automatic and manual alike.
@@ -36,14 +37,17 @@ export default async function FinanceJournalPage({
         title="Journal"
         description="Every entry in your ledger. Invoices, bills and payments post here automatically; adjustments and corrections you add by hand."
         actions={
-          canCreate ? (
-            <Button asChild size="sm">
-              <Link href={`${basePath}/new`}>
-                <Plus className="size-4" aria-hidden="true" />
-                New entry
-              </Link>
-            </Button>
-          ) : null
+          <>
+            <ExportMenu exportId="finance.journal" businessSlug={businessSlug} />
+            {canCreate ? (
+              <Button asChild size="sm">
+                <Link href={`${basePath}/new`}>
+                  <Plus className="size-4" aria-hidden="true" />
+                  New entry
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
 

@@ -13,6 +13,7 @@ import {
   provisionChartOfAccountsAction,
   updateAccountAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Finance F2 — the Chart of Accounts: the ledger structure everything else in Finance
@@ -43,6 +44,7 @@ export default async function FinanceAccountsPage({
       <PageHeader
         title="Chart of accounts"
         description="Every account your books are kept in, and what each one currently holds. Invoices, bills and payments post here automatically."
+        actions={<ExportMenu exportId="finance.accounts" businessSlug={businessSlug} />}
       />
 
       <ChartOfAccountsView
