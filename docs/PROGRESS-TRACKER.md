@@ -19,18 +19,18 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 493 |
+| ✅ Done | 502 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 6 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 83 |
+| ⬜ Not started | 74 |
 | **Total** | **615** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
-| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 55 | 1 | 9 | 65 |
+| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 64 | 1 | 0 | 65 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 79 | 0 | 31 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 51 | 0 | 7 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
@@ -43,19 +43,10 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-89 stories are neither built nor deliberately set aside:
+80 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
-| `FIN-4` | Finance invoice view | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-5` | Cash flow statement | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-6` | Operational reports | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-7` | Report drill-down | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-8` | Bank rules | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-9` | Dimensions | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-10` | Seed data | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-11` | End-to-end edge cases | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-12` | Explainable accounting, in reverse | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
 | `PLATFORM-P0-10.4` | AI Feature Kill Switch | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
 | `PLATFORM-P0-16.4` | Configuration History | ❔ Unverified | Discussed in `docs/design/platform-admin-portal-audit.md`, but no code cites it — confirm before relying on this |
 | `PLATFORM-P1-01.1` | Configuration Export | ⬜ Not started | — |
@@ -235,15 +226,15 @@ Source: [`docs/plan/04-CLAUDE-CODE-BACKLOG.md`](./plan/04-CLAUDE-CODE-BACKLOG.md
 | `FIN-1` | Finance exceptions queue | ✅ Done | `docs/FINANCE-PROGRESS.md` — exceptions queue, built 2026-09-19 |
 | `FIN-2` | Backfill | ✅ Done | `docs/FINANCE-PROGRESS.md` — backfill, built 2026-09-19 |
 | `FIN-3` | Activation wizard | ✅ Done | `docs/FINANCE-PROGRESS.md` — activation wizard, built 2026-09-19 |
-| `FIN-4` | Finance invoice view | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-5` | Cash flow statement | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-6` | Operational reports | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-7` | Report drill-down | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-8` | Bank rules | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-9` | Dimensions | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-10` | Seed data | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-11` | End-to-end edge cases | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
-| `FIN-12` | Explainable accounting, in reverse | ⬜ Not started | `docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built |
+| `FIN-4` | Finance invoice view | ✅ Done | `docs/FINANCE-PROGRESS.md` — invoice view with four independent statuses, built 2026-09-27 |
+| `FIN-5` | Cash flow statement | ✅ Done | `docs/FINANCE-PROGRESS.md` — cash flow statement (and as-at balance sheet fix), built 2026-09-27 |
+| `FIN-6` | Operational reports | ✅ Done | `docs/FINANCE-PROGRESS.md` — operational reports, built 2026-09-27 |
+| `FIN-7` | Report drill-down | ✅ Done | `docs/FINANCE-PROGRESS.md` — report drill-down, built 2026-09-27 |
+| `FIN-8` | Bank rules | ✅ Done | `docs/FINANCE-PROGRESS.md` — bank rules, built 2026-09-27 |
+| `FIN-9` | Dimensions | ✅ Done | `docs/FINANCE-PROGRESS.md` — dimensions, built 2026-09-27 |
+| `FIN-10` | Seed data | ✅ Done | `docs/FINANCE-PROGRESS.md` — deterministic fixture set for local databases, built 2026-09-27 |
+| `FIN-11` | End-to-end edge cases | ✅ Done | `docs/FINANCE-PROGRESS.md` — end-to-end edge cases (DB + TypeScript), built 2026-09-27 |
+| `FIN-12` | Explainable accounting, in reverse | ✅ Done | `docs/FINANCE-PROGRESS.md` — document-to-entries view, built 2026-09-27 |
 | `FIN-13` | AI categorisation for unmatched bank lines | ⏸️ Deferred | Deliberate: Finance is deterministic arithmetic (CLAUDE.md principle 4). Only if wanted. |
 
 ## Platform Administration Portal
