@@ -24,6 +24,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-8 | Done | `pending` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
 | FIN-9 | Done | `pending` | Dimensions: per-business on/off and naming for party, item, location, project; P&L by any of them; never mandatory |
 | FIN-10 | Done | `pending` | Seed data: the deterministic fixture set (2 businesses, 30 invoices, 20 bills, 20 expenses, 25 payments, notes, bank lines, rules, recurring entries, 2B matched/mismatched/missing, locked period, failed e-invoice, duplicates) for local databases only |
+| FIN-11 | Done | `pending` | End-to-end edge cases: licence cancellation/reactivation, historical and duplicate backfill, negative inventory — DB and TypeScript tests; found and fixed a backfill that aborted on the first locked-period document |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
@@ -70,6 +71,7 @@ Each was caught by building the thing that depends on it, not by a separate audi
 | **A bill or supplier credit that failed to post never showed up as unposted anywhere.** `listUnpostedDocuments`'s own `POSTABLE_DOC_TYPES` list (`invoice`/`credit_note`/`debit_note`/`sales_return`) was a second, silently drifted copy of `document-events.ts`'s `EVENT_BY_DOC_TYPE`, which had grown to include `supplier_bill`/`supplier_credit` when Payables shipped without the dashboard's own list being updated alongside it. | Scoping FIN-2's backfill to "invoices, bills, payments and expenses" and finding bills fell out of the scan entirely | `POSTABLE_DOC_TYPES` is now exported from `document-events.ts` (the one place that already had to stay correct) and imported everywhere else needs it, so there is one list, not two (`9b0e055`) |
 
 | **A balance sheet for any period but "since the beginning" was wrong.** It was built from the same period totals as the profit and loss, so "This month" showed each account's opening balance plus only this month's movement — the bank balance silently dropped every earlier month, and the profit line was the month's rather than the year's. It still balanced (both sides dropped the same history), which is why nothing flagged it. | FIN-5's cash flow, whose closing cash has to agree with the balance sheet's cash | `gst.account_statement_totals` returns period *and* as-at totals in one read; the balance sheet uses the as-at ones and its equity line is now "Profit to date" (`20260927100000`) |
+| **A historical backfill aborted at the first document dated in a locked period.** `postFinanceEvent` let `resolvePeriod`'s locked-period error escape as an exception, so `runFinanceBackfill` stopped dead on the oldest document and posted nothing after it — and the drain would have retried that posting until it gave up. Exactly the case backfill exists for: history from before Finance, some of it in periods already filed. | FIN-11's historical-backfill test, run through the real posting path | The refusal is a value (`PeriodClosedError` → `{ posted: false, reason }`), per "posting refusals are values": the document goes to the exceptions queue with its reason and the rest of the history posts. Manual entries still get the thrown, readable error |
 
 ## Decisions worth not re-litigating
 
@@ -441,6 +443,21 @@ one.
 | GST return | GSTR-1 for April 2026 filed |
 | Duplicates | the same `document.issued` delivered twice; two bank lines identical but for their reference; one supplier invoice number booked twice |
 
+### End-to-end edge cases (FIN-11) — built 2026-09-27
+
+The four §53 cases no test covered end to end, each now covered twice — in real Postgres
+(`scripts/test-finance-e2e-edge-cases.mjs`) and through the real TypeScript posting path
+(`lib/backfill/edge-cases.test.ts`, which runs `runFinanceBackfill` → `postIssuedDocument`
+→ `planPosting` → `postFinanceEvent` against an in-memory stand-in enforcing the database's
+two rules: one entry per idempotency key, no posting into a locked period):
+
+| Case | What is proven |
+|---|---|
+| Licence cancellation + reactivation (ADR-9) | grace: ledger and statements readable, no new postings (RLS), `has_module_write` false so the drain posts nothing, the backfill refused up front; expired: every Finance table denied, rows retained; events needing Finance park and `replay_parked_events` re-queues them on reactivation; reactivated: reads and writes restored with nothing recreated; the other business untouched throughout |
+| Historical backfill | documents from before Finance post; ones dated in a locked period are refused by the period trigger and — after the fix above — routed to the exceptions queue without stopping the run |
+| Duplicate backfill | a second run posts nothing and raises no second exception; a backfill overlapping the live drain converges on the drain's entry; a stale scan cannot double-post (the idempotency index refuses it); the same key in another business is independent |
+| Negative inventory | stock can go negative, the valuation contract's query reads it as negative (never clamped), the oversold sale still posts, and the valuation report flags it beside the total instead of netting it (`operational-reports/derive.test.ts`) |
+
 ### Explainable accounting in reverse (FIN-12) — built 2026-09-27
 
 `/finance/documents/[documentId]`: the document's own facts, then every entry it caused in
@@ -464,13 +481,6 @@ journal entry with a source document links here, and so does the invoices list (
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
 | 42 | Activation wizard | The ten-step first-run flow. Every step exists as its own screen; nothing sequences them. |
-
-### Partly built
-
-- **§53 Edge cases** — most are covered as unit tests (duplicate event, partial payment,
-  overpayment, refund, credit note after payment, closed period, invalid journal, duplicate
-  bank transaction, purchase/sales return). Not covered end-to-end: licence cancellation
-  and reactivation, historical backfill and duplicate backfill, negative inventory.
 
 ### Deliberately not built
 

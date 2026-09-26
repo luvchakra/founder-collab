@@ -17,6 +17,10 @@ const ENTRY_NUMBER_PREFIX = "JE";
 
 type Supabase = Awaited<ReturnType<typeof createClient>> | ReturnType<typeof createAdminClient>;
 
+/** A posting refused because its period is locked, filed or closed. Its own class so the
+ * automatic path can tell it apart from a genuine failure (FIN-11, below). */
+export class PeriodClosedError extends Error {}
+
 /**
  * The period a posting date falls in, and whether it will take the posting.
  *
@@ -41,7 +45,7 @@ async function resolvePeriod(
 
   const period = data as { id: string; status: string };
   if (!isPeriodPostable(period.status)) {
-    throw new Error(
+    throw new PeriodClosedError(
       `The accounting period covering ${postingDate} is ${period.status} and won't take new entries. Post the correction in an open period instead.`,
     );
   }
@@ -361,7 +365,18 @@ export async function postFinanceEvent(
   }
 
   const postingDate = event.occurredAt.slice(0, 10);
-  const periodId = await resolvePeriod(supabase, businessId, postingDate);
+  // FIN-11 (historical backfill): a document dated in a locked or filed period is a
+  // refusal like any other — "Posting refusals are values, not exceptions". Thrown, it
+  // aborted the whole backfill at the first old document and would have had the drain
+  // retrying a posting no retry can fix; returned, it lands in the exceptions queue with
+  // its reason, and every other document still posts.
+  let periodId: string | null;
+  try {
+    periodId = await resolvePeriod(supabase, businessId, postingDate);
+  } catch (error) {
+    if (error instanceof PeriodClosedError) return { posted: false, reason: error.message };
+    throw error;
+  }
 
   // `core.next_number()` checks membership via auth.uid(), which is null here; its
   // service-role twin shares the same counter, so a number minted from the drain
