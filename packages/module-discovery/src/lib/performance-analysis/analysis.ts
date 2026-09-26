@@ -1,4 +1,5 @@
-import type { OfferingPerformanceAnalysis, RateBucket } from "./types";
+import { findDiscoveryPlay } from "../discovery-definitions/plays";
+import { CUSTOM_DEFINITION_LABEL, type OfferingPerformanceAnalysis, type RateBucket } from "./types";
 
 /**
  * Generic free-text grouping used for every bucket in this story except the score
@@ -50,6 +51,10 @@ export type PerformanceAnalysisRawData = {
   signals: { prospect_id: string; description: string }[];
   conversations: { prospect_id: string; contact_id: string | null; status: string }[];
   contacts: { id: string; job_title: string | null }[];
+  /** DISC-OFFER-P1-02.3: which play each definition started from, and which definition
+   * found each opportunity -- the join behind "which Discovery Plays perform best". */
+  definitions: { id: string; play_key: string | null }[];
+  opportunities: { prospect_id: string; discovery_definition_id: string | null }[];
 };
 
 /**
@@ -97,5 +102,23 @@ export function computeOfferingPerformanceAnalysis(raw: PerformanceAnalysisRawDa
 
   const scoreVsOutcome = computeScoreOutcomeBuckets(raw.prospects.map((p) => ({ score: p.fit_score, won: p.outcome === "won" })));
 
-  return { signalsProducingConversations, industryConversionRates, locationConversionRates, buyerRolesThatRespond, scoreVsOutcome };
+  // DISC-OFFER-P1-02.3: an opportunity whose definition was since deleted has nothing to
+  // attribute it to and is skipped, like any other null group key.
+  const playLabelByDefinitionId = new Map(
+    raw.definitions.map((d) => [d.id, findDiscoveryPlay(d.play_key)?.label ?? CUSTOM_DEFINITION_LABEL]),
+  );
+  const discoveryPlayPerformance = computeRateBuckets(
+    raw.opportunities,
+    (o) => (o.discovery_definition_id ? (playLabelByDefinitionId.get(o.discovery_definition_id) ?? null) : null),
+    (o) => prospectsWithConversation.has(o.prospect_id),
+  );
+
+  return {
+    signalsProducingConversations,
+    industryConversionRates,
+    locationConversionRates,
+    buyerRolesThatRespond,
+    scoreVsOutcome,
+    discoveryPlayPerformance,
+  };
 }

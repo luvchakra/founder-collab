@@ -1,6 +1,7 @@
 import { createClient } from "../../db/server";
 import { listDiscoveryDefinitions } from "./queries";
 import type { IcpProfile } from "../icp/types";
+import { findDiscoveryPlay } from "./plays";
 import type { DiscoveryDefinition, MonitoringFrequency } from "./types";
 
 type DefinitionFieldsInput = {
@@ -35,13 +36,21 @@ function definitionFieldsToRow(input: DefinitionFieldsInput) {
  * "a Discovery Definition must reference... ICP") -- a soft reference the definition
  * keeps even if that ICP is later replaced/deleted (the FK is `on delete set null`), not
  * a live join, so a past definition's traceability doesn't silently change underfoot. */
-export async function createDiscoveryDefinition(workspaceId: string, input: DefinitionFieldsInput): Promise<DiscoveryDefinition> {
+export async function createDiscoveryDefinition(
+  workspaceId: string,
+  input: DefinitionFieldsInput & { playKey?: string | null },
+): Promise<DiscoveryDefinition> {
   const supabase = await createClient();
   const { data: icp } = await supabase.from("icp_profiles").select("id").eq("workspace_id", workspaceId).maybeSingle();
 
+  // DISC-OFFER-P1-02.3: remember which play (if any) this definition started from, so
+  // play performance can be reported later. Set once at creation, never on edit -- an
+  // edited definition still started from that play.
+  const playKey = findDiscoveryPlay(input.playKey)?.key ?? null;
+
   const { data, error } = await supabase
     .from("discovery_definitions")
-    .insert({ workspace_id: workspaceId, icp_id: icp?.id ?? null, ...definitionFieldsToRow(input) })
+    .insert({ workspace_id: workspaceId, icp_id: icp?.id ?? null, play_key: playKey, ...definitionFieldsToRow(input) })
     .select()
     .single();
   if (error) throw error;

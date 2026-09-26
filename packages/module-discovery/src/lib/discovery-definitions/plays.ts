@@ -76,3 +76,11 @@ export const DISCOVERY_PLAYS: DiscoveryPlay[] = [
     desiredSignals: ["Two or more other buying signals present at the same time"],
   },
 ];
+
+/** DISC-OFFER-P1-02.3: the preset with this key, or null. A definition's own `play_key`
+ * is only ever written through this lookup, so an unknown key from a stale form never
+ * reaches the database. */
+export function findDiscoveryPlay(key: string | null | undefined): DiscoveryPlay | null {
+  if (!key) return null;
+  return DISCOVERY_PLAYS.find((play) => play.key === key) ?? null;
+}

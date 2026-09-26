@@ -23,7 +23,7 @@ export function PlayPicker({ createAction }: { createAction: (formData: FormData
             mode="create"
             action={createAction}
             triggerLabel={play.label}
-            initialValues={{ name: play.label, desiredSignals: play.desiredSignals }}
+            initialValues={{ name: play.label, desiredSignals: play.desiredSignals, playKey: play.key }}
           />
         ))}
       </div>

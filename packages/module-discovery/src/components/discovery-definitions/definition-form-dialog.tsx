@@ -40,7 +40,7 @@ export function DefinitionFormDialog({
   /** DISC-OFFER-P0-04.2's "Discovery Play" presets -- create-mode only, a starting
    * point the founder still reviews and can edit before saving, same as every other
    * pre-filled-but-not-auto-saved proposal in this platform. */
-  initialValues?: { name?: string; desiredSignals?: string[] };
+  initialValues?: { name?: string; desiredSignals?: string[]; playKey?: string };
   triggerLabel?: string;
 }) {
   const router = useRouter();
@@ -83,6 +83,8 @@ export function DefinitionFormDialog({
           <DialogTitle>{mode === "create" ? "New discovery definition" : `Edit ${definition?.name}`}</DialogTitle>
         </DialogHeader>
         <form action={handleSubmit} className="flex flex-col gap-4">
+          {/* DISC-OFFER-P1-02.3: which play this definition starts from, for play performance. */}
+          {mode === "create" && initialValues?.playKey ? <input type="hidden" name="playKey" value={initialValues.playKey} /> : null}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="name">Name</Label>
             <Input id="name" name="name" defaultValue={definition?.name ?? initialValues?.name} placeholder="e.g. Recently Funded Watch" required />

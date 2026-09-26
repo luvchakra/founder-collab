@@ -59,7 +59,7 @@ describe("computeScoreOutcomeBuckets", () => {
 });
 
 describe("computeOfferingPerformanceAnalysis", () => {
-  it("assembles all four answerable questions from raw rows", () => {
+  it("assembles every question from raw rows", () => {
     const result = computeOfferingPerformanceAnalysis({
       prospects: [
         { id: "p1", industry: "Retail", location: "Toronto", fit_score: 80, outcome: "won" },
@@ -71,6 +71,8 @@ describe("computeOfferingPerformanceAnalysis", () => {
       ],
       conversations: [{ prospect_id: "p1", contact_id: "c1", status: "replied" }],
       contacts: [{ id: "c1", job_title: "VP Engineering" }],
+      definitions: [],
+      opportunities: [],
     });
 
     expect(result.signalsProducingConversations).toEqual([{ label: "Recently funded", total: 2, matched: 1, rate: 50 }]);
@@ -89,7 +91,45 @@ describe("computeOfferingPerformanceAnalysis", () => {
       signals: [],
       conversations: [{ prospect_id: "p1", contact_id: null, status: "replied" }],
       contacts: [],
+      definitions: [],
+      opportunities: [],
     });
     expect(result.buyerRolesThatRespond).toEqual([]);
+  });
+
+  // DISC-OFFER-P1-02.3: "Which Discovery Plays perform best?"
+  it("ranks plays by the conversation rate of the opportunities their definitions found", () => {
+    const result = computeOfferingPerformanceAnalysis({
+      prospects: [],
+      signals: [],
+      conversations: [
+        { prospect_id: "p1", contact_id: null, status: "awaiting_reply" },
+        { prospect_id: "p3", contact_id: null, status: "replied" },
+      ],
+      contacts: [],
+      definitions: [
+        { id: "d-funded", play_key: "recently_funded" },
+        { id: "d-funded-2", play_key: "recently_funded" },
+        { id: "d-hiring", play_key: "hiring_relevant_roles" },
+        { id: "d-custom", play_key: null },
+        { id: "d-stale", play_key: "no_longer_a_play" },
+      ],
+      opportunities: [
+        { prospect_id: "p1", discovery_definition_id: "d-funded" },
+        { prospect_id: "p2", discovery_definition_id: "d-funded-2" },
+        { prospect_id: "p3", discovery_definition_id: "d-hiring" },
+        { prospect_id: "p4", discovery_definition_id: "d-custom" },
+        { prospect_id: "p5", discovery_definition_id: "d-stale" },
+        // No definition, or one since deleted: nothing to attribute it to.
+        { prospect_id: "p1", discovery_definition_id: null },
+        { prospect_id: "p3", discovery_definition_id: "d-deleted" },
+      ],
+    });
+    expect(result.discoveryPlayPerformance).toEqual([
+      { label: "Hiring Relevant Roles", total: 1, matched: 1, rate: 100 },
+      { label: "Recently Funded", total: 2, matched: 1, rate: 50 },
+      // A retired play key is never guessed into a current play.
+      { label: "Custom definition", total: 2, matched: 0, rate: 0 },
+    ]);
   });
 });

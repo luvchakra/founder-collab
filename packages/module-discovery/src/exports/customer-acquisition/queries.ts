@@ -167,6 +167,8 @@ export type PerformanceExportRawData = {
   })[];
   conversations: (PerformanceAnalysisRawData["conversations"][number] & { id: string; channel: string })[];
   contacts: PerformanceAnalysisRawData["contacts"];
+  definitions: PerformanceAnalysisRawData["definitions"];
+  opportunities: PerformanceAnalysisRawData["opportunities"];
 };
 
 /** EXP-DISC-11 -- lib/performance-analysis/queries.ts#getPerformanceAnalysisRawData
@@ -184,11 +186,14 @@ export async function getPerformanceAnalysisRawDataForExport(workspaceId: string
           .order("id", { ascending: true })
           .range(from, to) as unknown as Page<T>,
     );
-  const [prospects, signals, conversations, contacts] = await Promise.all([
+  const [prospects, signals, conversations, contacts, definitions, opportunities] = await Promise.all([
     all<PerformanceExportRawData["prospects"][number]>("prospects", "id, company_name, industry, location, fit_score, outcome"),
     all<PerformanceExportRawData["signals"][number]>("signals", "id, prospect_id, signal_type, description, source, observed_at"),
     all<PerformanceExportRawData["conversations"][number]>("conversations", "id, prospect_id, contact_id, channel, status"),
     all<PerformanceExportRawData["contacts"][number]>("contacts", "id, job_title"),
+    // DISC-OFFER-P1-02.3: the play behind each opportunity's definition.
+    all<PerformanceExportRawData["definitions"][number]>("discovery_definitions", "id, play_key"),
+    all<PerformanceExportRawData["opportunities"][number]>("opportunities", "prospect_id, discovery_definition_id"),
   ]);
-  return { prospects, signals, conversations, contacts };
+  return { prospects, signals, conversations, contacts, definitions, opportunities };
 }

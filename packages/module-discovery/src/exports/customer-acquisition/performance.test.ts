@@ -25,6 +25,12 @@ beforeEach(() => {
     signals: [{ id: "s1", prospect_id: "p1", signal_type: "buying_signal", description: "Hiring ops leads", source: null, observed_at: "2026-09-01T00:00:00Z" }],
     conversations: [{ id: "c1", prospect_id: "p1", contact_id: "k1", channel: "email", status: "replied" }],
     contacts: [{ id: "k1", job_title: "Head of Ops" }],
+    definitions: [{ id: "d1", play_key: "recently_funded" }, { id: "d2", play_key: null }],
+    opportunities: [
+      { prospect_id: "p1", discovery_definition_id: "d1" },
+      { prospect_id: "p2", discovery_definition_id: "d1" },
+      { prospect_id: "p3", discovery_definition_id: "d2" },
+    ],
   });
 });
 
@@ -64,6 +70,9 @@ describe("discovery.performance (EXP-DISC-11)", () => {
     expect(prospects[1]).toMatchObject({ "Fit score": null, "Fit score basis": null, Location: null });
     expect(rowsOf(workbook, "Signals")[0]).toMatchObject({ Company: "Globex", "Signal type": "Buying signal", "Prospect has a conversation": true, Basis: "AI-derived", Source: null });
     expect(rowsOf(workbook, "Conversations")[0]).toMatchObject({ Company: "Globex", "Contact job title": "Head of Ops", Channel: "Email", Status: "Needs response", Replied: true });
-    expect(workbook.metadata?.["Not answered"]).toMatch(/Discovery Plays/);
+    // DISC-OFFER-P1-02.3: plays are answered now, not listed as unanswerable.
+    expect(analysis).toContainEqual(expect.objectContaining({ Question: "Which Discovery Plays perform best?", Group: "Recently Funded", Total: 2, Successes: 1 }));
+    expect(analysis).toContainEqual(expect.objectContaining({ Question: "Which Discovery Plays perform best?", Group: "Custom definition", Total: 1, Successes: 0 }));
+    expect(workbook.metadata?.["Not answered"]).toBeUndefined();
   });
 });

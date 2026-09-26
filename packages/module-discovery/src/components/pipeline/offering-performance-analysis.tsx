@@ -1,4 +1,3 @@
-import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { DISCOVERY_PLAYS_NOTE, type OfferingPerformanceAnalysis, type RateBucket } from "../../lib/performance-analysis/types";
 
 function RateBucketList({ buckets, emptyMessage }: { buckets: RateBucket[]; emptyMessage: string }) {
@@ -20,10 +19,9 @@ function RateBucketList({ buckets, emptyMessage }: { buckets: RateBucket[]; empt
 }
 
 /**
- * DISC-OFFER-P1 §7-02.3 "Offering Performance Analysis" -- four of the doc's own five
- * questions, each its own section; the fifth ("which Discovery Plays perform best") is
- * named as not-yet-answerable rather than silently dropped -- see `DISCOVERY_PLAYS_NOTE`
- * (types.ts) for exactly why.
+ * DISC-OFFER-P1-02.3 "Offering Performance Analysis" -- the doc's own five questions, each
+ * its own section. Plays are answered from each definition's recorded `play_key`; see
+ * `DISCOVERY_PLAYS_NOTE` (types.ts) for how older definitions are counted.
  */
 export function OfferingPerformanceAnalysisView({ analysis }: { analysis: OfferingPerformanceAnalysis }) {
   return (
@@ -60,7 +58,11 @@ export function OfferingPerformanceAnalysisView({ analysis }: { analysis: Offeri
         <RateBucketList buckets={analysis.scoreVsOutcome} emptyMessage="No scored prospects yet." />
       </section>
 
-      <EmptyState message={DISCOVERY_PLAYS_NOTE} variant="inline" />
+      <section className="flex flex-col gap-2 rounded-md border p-4">
+        <h2 className="font-medium">Which Discovery Plays perform best?</h2>
+        <p className="text-xs text-muted-foreground">{DISCOVERY_PLAYS_NOTE}</p>
+        <RateBucketList buckets={analysis.discoveryPlayPerformance} emptyMessage="No opportunities found by a discovery definition yet." />
+      </section>
     </div>
   );
 }
