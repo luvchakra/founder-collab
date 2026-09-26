@@ -6,6 +6,7 @@ import { listRecurringEntries } from "@cofounderai/module-gst/lib/accounting/rec
 import { listAccounts } from "@cofounderai/module-gst/lib/accounting/queries";
 import { RecurringEntriesView } from "@cofounderai/module-gst/components/accounting/recurring-entries-view";
 import { createRecurringEntryAction, setRecurringEntryActiveAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** Finance F10 — entries that post themselves: rent, depreciation, subscriptions. */
 export default async function RecurringEntriesPage({
@@ -28,6 +29,7 @@ export default async function RecurringEntriesPage({
       <PageHeader
         title="Recurring entries"
         description="Anything you post the same way every period. Set it up once and it posts itself, catching up if a run is ever missed."
+        actions={<ExportMenu exportId="finance.recurring" businessSlug={businessSlug} />}
       />
       <RecurringEntriesView
         entries={entries}

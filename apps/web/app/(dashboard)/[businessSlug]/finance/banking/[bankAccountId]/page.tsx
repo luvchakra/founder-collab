@@ -19,6 +19,7 @@ import {
   reconcileAction,
   unmatchBankTransactionAction,
 } from "../actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * One bank account: import its statement, match its lines, reconcile it.
@@ -59,6 +60,7 @@ export default async function BankAccountPage({
           .filter(Boolean)
           .join(" · ")}
         breadcrumbs={[{ label: "Banking", href: `${basePath}/banking` }, { label: account.name }]}
+        actions={<ExportMenu exportId="finance.bank-transactions" businessSlug={businessSlug} params={{ bankAccountId }} />}
       />
 
       <div className="grid gap-3 sm:grid-cols-3">

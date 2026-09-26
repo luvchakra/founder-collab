@@ -18,6 +18,7 @@ import {
 } from "@cofounderai/module-gst/components/accounting/finance-snapshot";
 import { getFinanceActivation } from "@cofounderai/module-gst/lib/activation/queries";
 import { ActivationBanner } from "@cofounderai/module-gst/components/activation/activation-banner";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * COMPLY-P0-11.1 (Overview Dashboard): extends the existing month-snapshot dashboard
@@ -62,11 +63,16 @@ export default async function ComplianceDashboardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Finance dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {business.name} -- where the money stands, and this month&apos;s GST snapshot.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Finance dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {business.name} -- where the money stands, and this month&apos;s GST snapshot.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="finance.dashboard" businessSlug={businessSlug} kind="dashboard" />
+        </div>
       </div>
 
       {activation.activatedAt === null ? <ActivationBanner basePath={financePath} /> : null}

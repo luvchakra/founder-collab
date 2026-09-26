@@ -9,6 +9,7 @@ import { scanFinanceBackfill } from "@cofounderai/module-gst/lib/backfill/querie
 import { BackfillScanCard } from "@cofounderai/module-gst/components/backfill/backfill-scan-card";
 import { businessPath } from "@/lib/business-path";
 import { runFinanceBackfillAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * FIN-2 (Backfill, §41) -- scans for invoices, bills and payments that never reached the
@@ -36,6 +37,7 @@ export default async function FinanceBackfillPage({
       <PageHeader
         title="Backfill"
         description="Catch up the ledger on history that predates Finance -- invoices, bills and payments that never posted."
+        actions={<ExportMenu exportId="finance.backfill" businessSlug={businessSlug} />}
       />
 
       {total === 0 ? (

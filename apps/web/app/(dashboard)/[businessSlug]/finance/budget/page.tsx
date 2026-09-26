@@ -5,6 +5,7 @@ import { getBudgetVsActual } from "@cofounderai/module-gst/lib/accounting/budget
 import { fiscalYearLabel, fiscalYearOf, monthlyPeriodsForFiscalYear } from "@cofounderai/module-gst/lib/accounting/periods";
 import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import { BudgetView } from "@cofounderai/module-gst/components/accounting/budget-view";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** Finance F10 — budget against actual, year to date. */
 export default async function BudgetPage({
@@ -29,6 +30,7 @@ export default async function BudgetPage({
       <PageHeader
         title="Budget"
         description={`What you planned against what happened, ${fiscalYearLabel(fiscalYear, fiscalYearStartMonth)} to date.`}
+        actions={<ExportMenu exportId="finance.budget" businessSlug={businessSlug} kind="report" />}
       />
       <BudgetView summary={summary} basePath={`/${businessSlug}/finance`} />
     </div>

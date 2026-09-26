@@ -15,6 +15,7 @@ import {
   claimFinanceExceptionAction,
   unclaimFinanceExceptionAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * FIN-1 (Finance exceptions queue, §38) -- one place for what otherwise sits scattered
@@ -51,6 +52,7 @@ export default async function FinanceExceptionsPage({
       <PageHeader
         title="Exceptions"
         description="What needs your attention across accounting, GST and filing -- one queue instead of three screens."
+        actions={<ExportMenu exportId="finance.exceptions" businessSlug={businessSlug} />}
       />
 
       {canManage ? (

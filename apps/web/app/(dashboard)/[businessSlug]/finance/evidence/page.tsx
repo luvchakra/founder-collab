@@ -8,6 +8,7 @@ import { EvidenceUploadForm } from "@cofounderai/module-gst/components/evidence/
 import { EvidenceList } from "@cofounderai/module-gst/components/evidence/evidence-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { recordComplianceEvidenceAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function ComplianceEvidencePage({ params }: { params: Promise<{ businessSlug: string }> }) {
   const { businessSlug } = await params;
@@ -30,11 +31,16 @@ export default async function ComplianceEvidencePage({ params }: { params: Promi
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Evidence</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Return acknowledgments, government notices, and payment challans kept on file for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Evidence</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Return acknowledgments, government notices, and payment challans kept on file for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="finance.evidence" businessSlug={businessSlug} />
+        </div>
       </div>
 
       {canManage ? (

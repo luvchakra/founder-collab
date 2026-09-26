@@ -8,6 +8,7 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { ExceptionsList } from "@cofounderai/module-gst/components/reconciliation/exceptions-list";
 import { syncReconciliationExceptionsAction, resolveExceptionAction, dismissExceptionAction } from "./actions";
 import { PeriodPicker } from "./period-picker";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 function currentPeriod(): string {
   const now = new Date();
@@ -43,11 +44,16 @@ export default async function ComplianceReconciliationPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reconciliation</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          GSTR-2B matching and IMS exceptions for {business.name}, by return period.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reconciliation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            GSTR-2B matching and IMS exceptions for {business.name}, by return period.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="finance.reconciliation-exceptions" businessSlug={businessSlug} params={{ period }} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">

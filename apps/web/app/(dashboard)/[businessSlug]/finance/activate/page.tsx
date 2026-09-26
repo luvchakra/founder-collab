@@ -8,6 +8,7 @@ import { ActivationSettingsForm } from "@cofounderai/module-gst/components/activ
 import { ActivateButton } from "@cofounderai/module-gst/components/activation/activate-button";
 import { businessPath } from "@/lib/business-path";
 import { activateFinanceAction, setAccountingMethodAction, setFiscalYearStartMonthAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * FIN-3 (Activation Wizard, §42) -- the ten first-run steps as one checklist rather than a
@@ -40,6 +41,7 @@ export default async function FinanceActivatePage({
       <PageHeader
         title="Activate Finance"
         description={`Set up ${summary.businessName}'s books, one step at a time -- or skip ahead to whatever's left.`}
+        actions={<ExportMenu exportId="finance.activation" businessSlug={businessSlug} />}
       />
 
       <ActivationChecklist steps={summary.steps} basePath={`${base}/finance`} />
