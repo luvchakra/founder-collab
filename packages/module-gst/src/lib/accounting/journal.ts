@@ -22,6 +22,10 @@ export interface JournalLineDraft extends JournalLineInput {
   memo?: string | null;
   partyId?: string | null;
   itemId?: string | null;
+  /** FIN-9's free-text dimensions. Optional, always: a business that has not switched a
+   * dimension on never sees or fills it. */
+  location?: string | null;
+  projectRef?: string | null;
   taxCode?: string | null;
   gstAmount?: number | null;
 }

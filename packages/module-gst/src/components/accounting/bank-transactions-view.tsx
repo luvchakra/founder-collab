@@ -35,6 +35,9 @@ export function BankTransactionsView({
   settled,
   journalPath,
   canManage,
+  ruleSuggestions = {},
+  canCategorise = false,
+  categoriseAction,
   matchAction,
   unmatchAction,
   ignoreAction,
@@ -43,6 +46,11 @@ export function BankTransactionsView({
   settled: BankTransactionRow[];
   journalPath: string;
   canManage: boolean;
+  /** FIN-8: the bank rule that fits each unmatched line, by transaction id. */
+  ruleSuggestions?: Record<string, { ruleName: string; accountLabel: string }>;
+  /** Whether this person may apply a rule (it posts an entry and matches the line). */
+  canCategorise?: boolean;
+  categoriseAction?: (transactionId: string) => Promise<void>;
   matchAction: (transactionId: string, entryId: string) => Promise<void>;
   unmatchAction: (transactionId: string) => Promise<void>;
   ignoreAction: (transactionId: string) => Promise<void>;
@@ -84,7 +92,22 @@ export function BankTransactionsView({
                 </div>
 
                 <div className="flex flex-col gap-2 p-3">
-                  {suggestions.length === 0 ? (
+                  {ruleSuggestions[transaction.id] ? (
+                    <div className="flex flex-col gap-2 rounded-xl border border-primary/30 bg-primary/5 p-2.5 text-sm sm:flex-row sm:items-center sm:justify-between">
+                      <p className="min-w-0">
+                        Rule <span className="font-medium">&ldquo;{ruleSuggestions[transaction.id]!.ruleName}&rdquo;</span> says this
+                        belongs in <span className="font-medium">{ruleSuggestions[transaction.id]!.accountLabel}</span>.
+                      </p>
+                      {canCategorise && categoriseAction ? (
+                        <form action={categoriseAction.bind(null, transaction.id)} className="shrink-0">
+                          <SubmitButton size="sm" pendingText="Posting...">
+                            Post and match
+                          </SubmitButton>
+                        </form>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {suggestions.length === 0 && ruleSuggestions[transaction.id] ? null : suggestions.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       Nothing in the ledger matches this amount within a week of this date. It may
                       need a journal entry, or it may be a transfer between your own accounts.

@@ -9,10 +9,13 @@ import {
   listBankTransactions,
 } from "@cofounderai/module-gst/lib/accounting/banking-queries";
 import { ledgerAmount } from "@cofounderai/module-gst/lib/accounting/money";
+import { listBankRules } from "@cofounderai/module-gst/lib/accounting/bank-rule-queries";
+import { findMatchingRule } from "@cofounderai/module-gst/lib/accounting/bank-rules";
 import { BankImportForm } from "@cofounderai/module-gst/components/accounting/bank-import-form";
 import { BankTransactionsView } from "@cofounderai/module-gst/components/accounting/bank-transactions-view";
 import { ReconcileForm } from "@cofounderai/module-gst/components/accounting/reconcile-form";
 import {
+  categoriseBankTransactionAction,
   ignoreBankTransactionAction,
   importBankStatementAction,
   matchBankTransactionAction,
@@ -41,11 +44,21 @@ export default async function BankAccountPage({
   const account = accounts.find((a) => a.id === bankAccountId);
   if (!account) notFound();
 
-  const [transactions, unmatched, canManage] = await Promise.all([
+  const [transactions, unmatched, canManage, canPost, rules] = await Promise.all([
     listBankTransactions(businessId, bankAccountId),
     getUnmatchedWithSuggestions(businessId, bankAccountId, account.ledger_account_id),
     hasPermission(businessId, "gst.banking.manage"),
+    hasPermission(businessId, "gst.journal.create"),
+    listBankRules(businessId),
   ]);
+
+  // FIN-8: the rule that fits each unmatched line, if any. Suggested only — applying it is
+  // a click, and the action re-derives the rule server-side rather than trusting this.
+  const ruleSuggestions: Record<string, { ruleName: string; accountLabel: string }> = {};
+  for (const { transaction } of unmatched) {
+    const rule = findMatchingRule(rules, { description: transaction.description, amount: transaction.amount });
+    if (rule) ruleSuggestions[transaction.id] = { ruleName: rule.name, accountLabel: rule.accountLabel };
+  }
 
   const settled = transactions.filter((t) => t.status !== "unmatched");
   const basePath = `/${businessSlug}/finance`;
@@ -102,6 +115,9 @@ export default async function BankAccountPage({
         settled={settled}
         journalPath={`${basePath}/journal`}
         canManage={canManage}
+        ruleSuggestions={ruleSuggestions}
+        canCategorise={canManage && canPost && Boolean(account.ledger_account_id)}
+        categoriseAction={categoriseBankTransactionAction.bind(null, businessId, bankAccountId)}
         matchAction={matchBankTransactionAction.bind(null, businessId, bankAccountId)}
         unmatchAction={unmatchBankTransactionAction.bind(null, businessId, bankAccountId)}
         ignoreAction={ignoreBankTransactionAction.bind(null, businessId, bankAccountId)}

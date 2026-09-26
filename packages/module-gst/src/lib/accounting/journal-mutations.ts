@@ -55,6 +55,13 @@ export interface JournalEntryInput {
   lines: JournalLineDraft[];
   /** A draft may be unbalanced and edited later; posting is the point of no return. */
   status?: "draft" | "posted";
+  /** FIN-8: an entry Finance itself posts on a person's say-so (applying a bank rule)
+   * records where it came from and which rule, so it explains itself like any automatic
+   * entry. Absent for a hand-typed entry. */
+  source?: { entityType: string; entityId: string; ruleKey: string; ruleVersion: number };
+  /** Keys the entry so the same act cannot post twice (a double-click, a retried
+   * request) — enforced by the unique index on (business_id, idempotency_key). */
+  idempotencyKey?: string;
 }
 
 /**
@@ -90,6 +97,8 @@ async function insertEntry(
       memo: line.memo ?? null,
       party_id: line.partyId ?? null,
       item_id: line.itemId ?? null,
+      location: line.location ?? null,
+      project_ref: line.projectRef ?? null,
       tax_code: line.taxCode ?? null,
       gst_amount: line.gstAmount ?? null,
     })),
@@ -126,6 +135,11 @@ export async function createJournalEntry(
       memo: input.memo ?? null,
       status,
       source_module: "finance",
+      source_entity_type: input.source?.entityType ?? null,
+      source_entity_id: input.source?.entityId ?? null,
+      posting_rule_key: input.source?.ruleKey ?? null,
+      posting_rule_version: input.source?.ruleVersion ?? null,
+      idempotency_key: input.idempotencyKey ?? null,
       posted_at: status === "posted" ? new Date().toISOString() : null,
     },
     input.lines,
@@ -187,7 +201,7 @@ export async function reverseJournalEntry(
       .single(),
     supabase
       .from("journal_lines")
-      .select("account_id, debit, credit, memo, party_id, item_id, tax_code, gst_amount")
+      .select("account_id, debit, credit, memo, party_id, item_id, location, project_ref, tax_code, gst_amount")
       .eq("business_id", businessId)
       .eq("entry_id", entryId)
       .order("line_number", { ascending: true }),
@@ -223,6 +237,10 @@ export async function reverseJournalEntry(
       memo: (line.memo as string | null) ?? null,
       partyId: (line.party_id as string | null) ?? null,
       itemId: (line.item_id as string | null) ?? null,
+      // FIN-9: a reversal carries the original's dimensions, so reporting by location or
+      // project nets the pair to nothing instead of leaving the reversal unattributed.
+      location: (line.location as string | null) ?? null,
+      projectRef: (line.project_ref as string | null) ?? null,
       taxCode: (line.tax_code as string | null) ?? null,
       gstAmount: line.gst_amount === null || line.gst_amount === undefined ? null : Number(line.gst_amount),
     })),

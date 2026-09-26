@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Wand2 } from "lucide-react";
+import { Button } from "@cofounderai/core/ui/button";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
@@ -29,7 +32,18 @@ export default async function FinanceBankingPage({
       <PageHeader
         title="Banking"
         description="Your bank and cash accounts. Import a statement and Finance will suggest which ledger entry each line belongs to."
-        actions={<ExportMenu exportId="finance.bank-accounts" businessSlug={businessSlug} />}
+        actions={
+          <>
+            {/* FIN-8: where statement lines are categorised from. */}
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/${businessSlug}/finance/banking/rules`}>
+                <Wand2 className="size-4" aria-hidden="true" />
+                Bank rules
+              </Link>
+            </Button>
+            <ExportMenu exportId="finance.bank-accounts" businessSlug={businessSlug} />
+          </>
+        }
       />
       <BankAccountsView
         accounts={accounts}

@@ -10,6 +10,7 @@ import {
   matchBankTransaction,
   unmatchBankTransaction,
 } from "@cofounderai/module-gst/lib/accounting/banking-mutations";
+import { categoriseBankTransaction } from "@cofounderai/module-gst/lib/accounting/bank-rule-mutations";
 import type { BankAccountActionState } from "@cofounderai/module-gst/components/accounting/bank-account-modal";
 import type { ImportActionState } from "@cofounderai/module-gst/components/accounting/bank-import-form";
 import type { ReconcileActionState } from "@cofounderai/module-gst/components/accounting/reconcile-form";
@@ -111,6 +112,17 @@ export async function unmatchBankTransactionAction(
 ): Promise<void> {
   await unmatchBankTransaction(businessId, transactionId);
   await revalidateBanking(businessId, bankAccountId);
+}
+
+/** FIN-8: applies the bank rule that fits a line — posts its entry and matches the line. */
+export async function categoriseBankTransactionAction(
+  businessId: string,
+  bankAccountId: string,
+  transactionId: string,
+): Promise<void> {
+  await categoriseBankTransaction(businessId, transactionId);
+  await revalidateBanking(businessId, bankAccountId);
+  revalidatePath(`${await businessPath(businessId)}/finance/journal`);
 }
 
 export async function ignoreBankTransactionAction(
