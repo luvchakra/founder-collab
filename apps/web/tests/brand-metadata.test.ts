@@ -1,0 +1,62 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import manifest from "../app/manifest";
+import {
+  BRAND_HEX,
+  BRAND_METADATA_ICONS,
+  BRAND_THEME_COLOR,
+  BRAND_TITLE,
+  BRAND_TITLE_TEMPLATE,
+} from "@cofounderai/core/brand/identity";
+
+/** BRAND-06 / BRAND-07 (§32): favicon metadata, manifest icon paths, theme colour, page
+ * titles -- checked against the files the build actually wrote. */
+const PUBLIC = join(__dirname, "..", "public");
+const served = (url: string) => existsSync(join(PUBLIC, url));
+
+describe("WonderArk browser metadata", () => {
+  it("uses the canonical title and the {Page} | WonderArk pattern", () => {
+    expect(BRAND_TITLE).toBe("WonderArk — Business in One Place");
+    expect(BRAND_TITLE_TEMPLATE.replace("%s", "Discovery")).toBe("Discovery | WonderArk");
+  });
+
+  it("sets the brand navy theme colour", () => {
+    expect(BRAND_THEME_COLOR).toBe("#0B1F3B");
+    expect(manifest().theme_color).toBe("#0B1F3B");
+    expect(BRAND_HEX.blue).toBe("#007BFF");
+  });
+
+  it("lists every favicon size (16/32/48/64) and the Apple icon, all served", () => {
+    const sizes = BRAND_METADATA_ICONS.icon.map((i) => i.sizes);
+    expect(sizes).toEqual(["16x16", "32x32", "48x48", "64x64"]);
+    for (const icon of [...BRAND_METADATA_ICONS.icon, ...BRAND_METADATA_ICONS.apple]) {
+      expect(served(icon.url), icon.url).toBe(true);
+    }
+  });
+
+  it("gives the manifest 192/512 icons in both any and maskable, all served", () => {
+    const icons = manifest().icons ?? [];
+    for (const purpose of ["any", "maskable"]) {
+      expect(icons.filter((i) => i.purpose === purpose).map((i) => i.sizes)).toEqual(["192x192", "512x512"]);
+    }
+    for (const icon of icons) expect(served(icon.src), icon.src).toBe(true);
+    expect(manifest().name).toBe(BRAND_TITLE);
+  });
+
+  it("module layouts name their page for the title template", () => {
+    const base = join(__dirname, "..", "app", "(dashboard)", "[businessSlug]");
+    for (const [dir, title] of [
+      ["discovery", "Discovery"],
+      ["discovery/marketing", "Marketing"],
+      ["discovery/offerings", "Customer Acquisition"],
+      ["discovery/funding", "Funding"],
+      ["inventory", "Inventory"],
+      ["service", "Service"],
+      ["crm", "CRM"],
+      ["finance", "Finance"],
+    ]) {
+      expect(readFileSync(join(base, dir, "layout.tsx"), "utf8")).toContain(`export const metadata: Metadata = { title: "${title}" }`);
+    }
+  });
+});

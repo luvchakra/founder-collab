@@ -3,156 +3,161 @@ import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import {
-  buildBrandAssets,
-  extractMarkMask,
-  findWordmarkBand,
-  findLockupExtent,
-  MANIFEST_FILE,
-  OUT_DIR,
-} from "./build-brand-assets.mjs";
+import { buildBrandAssets, findBands, findColumns, FIXED_FILES, MANIFEST_FILE, OUT_DIR } from "./build-brand-assets.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const APP_DIR = join(ROOT, "apps", "web", "app");
 
 const built = await buildBrandAssets();
-const asset = (kind, variant) => join(OUT_DIR, built.variants.find((v) => v.variant === variant)[kind].file);
-
+const logo = (key) => join(OUT_DIR, built.logos[key].file);
 const meta = (path) => sharp(path).metadata();
 
 /**
- * Checked on what the assets *are* rather than byte-for-byte against a fresh build: PNG
- * palette encoding is not guaranteed identical across sharp builds, so a byte comparison
- * would fail on someone else's machine for no reason anybody could act on. These are the
- * properties that actually break the UI when they regress.
+ * BRAND-03 / §32. Checked on what the assets *are* rather than byte-for-byte against a
+ * fresh build: PNG palette encoding is not guaranteed identical across sharp builds.
  */
-test("both variants of each asset are the same size, so swapping them cannot shift the layout", async () => {
-  for (const kind of ["lockup", "mark"]) {
-    const [onLight, onDark] = await Promise.all([meta(asset(kind, "on-light")), meta(asset(kind, "on-dark"))]);
-    assert.equal(onLight.width, onDark.width, `${kind} variants differ in width`);
-    assert.equal(onLight.height, onDark.height, `${kind} variants differ in height`);
-  }
-});
-
-test("the manifest matches the files, and every render site reads it", async () => {
-  // next/image reserves space from these numbers before the file loads, and the ?v= is
-  // what stops an optimizer that has already cached the previous artwork from serving it
-  // for hours. Both are facts about the files, so a component that copies either instead
-  // of importing them is a bug waiting for the next brand change.
-  assert.equal(
-    readFileSync(MANIFEST_FILE, "utf8"),
-    built.manifest,
-    "the brand manifest is stale -- run `npm run build:brand`",
-  );
-
-  for (const [kind, key] of [
-    ["lockup", "BRAND_LOCKUP"],
-    ["mark", "BRAND_MARK"],
-  ]) {
-    const entry = built.variants.find((v) => v.variant === "on-light")[kind];
-    const { width, height } = await meta(asset(kind, "on-light"));
-    // The name carries a content hash, so new artwork is a new URL and no cache anywhere
-    // can keep serving the old one.
-    assert.match(entry.file, /\.[0-9a-f]{10}\.png$/, `${key} should be content-addressed`);
-    assert.match(
-      built.manifest,
-      new RegExp(`${key}[\\s\\S]*?/brand/${entry.file}", width: ${width}, height: ${height}`),
-      `${key} disagrees with the file it names`,
-    );
+test("the manifest matches the files, and every render site goes through WonderArkLogo", async () => {
+  assert.equal(readFileSync(MANIFEST_FILE, "utf8"), built.manifest, "the brand manifest is stale -- run `npm run build:brand`");
+  for (const [key, entry] of Object.entries(built.logos)) {
+    const { width, height } = await meta(logo(key));
+    assert.match(entry.file, /^logo-[a-z-]+\.[0-9a-f]{10}\.png$/, `${key} should be content-addressed`);
+    assert.match(built.manifest, new RegExp(`${key}: \\{ src: "/brand/${entry.file.replace(".", "\\.")}", width: ${width}, height: ${height} \\}`));
   }
 
+  // One logo system (§7, "no duplicated SVG logo implementations"): every surface renders
+  // the component, and none names a logo file or draws its own.
   for (const file of [
     "apps/web/components/marketing/navbar.tsx",
     "apps/web/components/marketing/footer.tsx",
     "apps/web/app/(auth)/layout.tsx",
-    "packages/core/src/components/shell/logo-mark.tsx",
+    "apps/web/app/invite/[token]/page.tsx",
+    "apps/web/app/(dashboard)/loading.tsx",
+    "apps/web/app/platform/platform-shell.tsx",
+    "packages/core/src/components/shell/app-sidebar.tsx",
   ]) {
     const source = readFileSync(join(ROOT, file), "utf8");
-    assert.match(source, /BRAND_(LOCKUP|MARK)/, `${file} should take its logo from the generated manifest`);
-    assert.doesNotMatch(source, /src="\/(brand\/)?logo/, `${file} hardcodes a logo path, which cannot be cache-busted`);
+    assert.match(source, /<WonderArkLogo\b/, `${file} should render WonderArkLogo`);
+    assert.doesNotMatch(source, /\/brand\/logo-|BRAND_LOGO/, `${file} names a logo file instead of using the component`);
   }
 });
 
-test("the lockup and the mark are transparent to the corner", async () => {
-  // A logo that ships its master's background paints a pale slab onto whatever surface it
-  // lands on -- the failure this whole pipeline exists to avoid.
-  for (const file of ["lockup", "mark"].flatMap((kind) => [asset(kind, "on-light"), asset(kind, "on-dark")])) {
+test("twins share one box, so the theme swap cannot shift the layout", async () => {
+  for (const [a, b] of [
+    ["primary", "primaryDark"],
+    ["horizontal", "horizontalDark"],
+    ["inline", "inlineDark"],
+    ["mark", "markOnDark"],
+  ]) {
+    const [x, y] = await Promise.all([meta(logo(a)), meta(logo(b))]);
+    assert.deepEqual([x.width, x.height], [y.width, y.height], `${a} and ${b} differ in size`);
+  }
+});
+
+test("logos are transparent to the corner", async () => {
+  // A logo that ships the board's background paints a slab onto whatever surface it lands on.
+  for (const key of Object.keys(built.logos)) {
+    const { data, info } = await sharp(logo(key)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const corners = [0, (info.width - 1) * 4, (info.height - 1) * info.width * 4, ((info.height - 1) * info.width + info.width - 1) * 4];
+    for (const at of corners) assert.equal(data[at + 3], 0, `${key} has an opaque corner`);
+  }
+});
+
+test("lockups have the shape of what they claim to be", async () => {
+  const ratio = async (key) => {
+    const { width, height } = await meta(logo(key));
+    return width / height;
+  };
+  // The mark is about twice as wide as tall (the W), the stacked lockup is squarish, the
+  // horizontal lockups are long.
+  assert.ok((await ratio("mark")) > 1.6 && (await ratio("mark")) < 2.5);
+  assert.ok((await ratio("primary")) > 1.2 && (await ratio("primary")) < 2);
+  assert.ok((await ratio("horizontal")) > 4);
+  assert.ok((await ratio("inline")) > 4);
+});
+
+test("the wedge survives in the mark and at 16px (§15)", async () => {
+  // The wedge sits in the W's lower central opening: ink at the bottom-centre of the mark,
+  // with clear space directly above it before the W's centre peak. Probe that column.
+  const probe = async (file) => {
     const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const corners = [
-      0,
-      (info.width - 1) * 4,
-      (info.height - 1) * info.width * 4,
-      ((info.height - 1) * info.width + info.width - 1) * 4,
-    ];
-    for (const at of corners) assert.equal(data[at + 3], 0, `${file} has an opaque corner`);
-  }
+    const x = Math.floor(info.width / 2);
+    const alphaAt = (y) => data[(y * info.width + x) * 4 + 3];
+    const column = Array.from({ length: info.height }, (_, y) => alphaAt(y));
+    const inkRows = column.map((a, y) => (a > 96 ? y : -1)).filter((y) => y >= 0);
+    return { column, inkRows, height: info.height };
+  };
+  const mark = await probe(logo("mark"));
+  const bottom = mark.inkRows.at(-1);
+  assert.ok(bottom > mark.height * 0.8, "no ink at the bottom-centre of the mark: the wedge is missing");
+  // Walking up from the wedge, the column clears before it meets the W's peak.
+  const gap = mark.column.slice(0, bottom).findLastIndex((a) => a < 32);
+  assert.ok(gap > 0, "the wedge is not separate from the W");
+
+  const favicon16 = await probe(join(OUT_DIR, FIXED_FILES.favicon16));
+  assert.ok(favicon16.column.some((a) => a > 64), "the 16px favicon lost its wedge");
 });
 
-test("the icons are opaque, square and the sizes each platform asks for", async () => {
-  const icon = await meta(join(APP_DIR, "icon.png"));
-  assert.deepEqual([icon.width, icon.height], [512, 512]);
-  const apple = await meta(join(APP_DIR, "apple-icon.png"));
-  assert.deepEqual([apple.width, apple.height], [180, 180]);
+test("icons are the sizes each platform asks for, opaque where they must be", async () => {
+  for (const [key, size] of [
+    ["favicon16", 16],
+    ["favicon32", 32],
+    ["favicon48", 48],
+    ["favicon64", 64],
+    ["appleIcon", 180],
+    ["icon192", 192],
+    ["icon512", 512],
+    ["iconMaskable192", 192],
+    ["iconMaskable512", 512],
+  ]) {
+    const { width, height } = await meta(join(OUT_DIR, FIXED_FILES[key]));
+    assert.deepEqual([width, height], [size, size], key);
+  }
+  // Maskable and Apple icons are full-bleed: an OS mask over transparency shows black.
+  for (const key of ["appleIcon", "iconMaskable192", "iconMaskable512", "emailHeader"]) {
+    const { isOpaque } = await sharp(join(OUT_DIR, FIXED_FILES[key])).stats();
+    assert.equal(isOpaque, true, `${key} must not be transparent`);
+  }
   const og = await meta(join(APP_DIR, "opengraph-image.png"));
   assert.deepEqual([og.width, og.height], [1200, 630]);
+});
 
-  // Solid grounds, deliberately: a transparent app icon loses half the mark against dark
-  // browser chrome, and a transparent card renders on whatever the client feels like.
-  for (const file of ["icon.png", "apple-icon.png", "opengraph-image.png"]) {
-    const { isOpaque } = await sharp(join(APP_DIR, file)).stats();
-    assert.equal(isOpaque, true, `${file} must not be transparent`);
+test("maskable icons keep the whole mark inside the 80% safe circle (§16)", async () => {
+  const { data, info } = await sharp(join(OUT_DIR, FIXED_FILES.iconMaskable512)).raw().toBuffer({ resolveWithObject: true });
+  const c = info.width / 2;
+  const radius = info.width * 0.4;
+  for (let y = 0; y < info.height; y++) {
+    for (let x = 0; x < info.width; x++) {
+      const i = (y * info.width + x) * info.channels;
+      const ink = 255 - Math.min(data[i], data[i + 1], data[i + 2]) > 40; // not white ground
+      if (ink) assert.ok(Math.hypot(x - c, y - c) <= radius, `ink outside the safe zone at ${x},${y}`);
+    }
   }
 });
 
-test("the mark is the mark and nothing else", () => {
-  assert.equal(built.variants.length, 2);
-  for (const variant of built.variants) {
-    // The W ribbon, the swoosh and the sparkle. A fourth shape means a letter of the
-    // wordmark came along; fewer means part of the mark was cut away.
-    assert.equal(variant.mark.shapes, 3, `${variant.variant} kept ${variant.mark.shapes} shapes, expected 3`);
-    // Squarish, unlike the lockup it was taken out of.
-    assert.ok(variant.mark.width / variant.mark.height < 2, "the mark should not be wordmark-shaped");
-    assert.ok(variant.lockup.width / variant.lockup.height > 3, "the lockup should be wordmark-shaped");
-  }
+test("findBands separates stacked pieces by clear rows", () => {
+  const rows = [
+    [2, 6],
+    [9, 11],
+    [14, 15],
+  ];
+  const distance = (x, y) => (x > 1 && x < 18 && rows.some(([a, b]) => y >= a && y <= b) ? 1 : 0);
+  const bands = findBands(distance, 20, 20);
+  assert.deepEqual(
+    bands.map((b) => [b.top, b.bottom]),
+    rows,
+  );
+  assert.deepEqual([bands[0].left, bands[0].right], [2, 17]);
 });
 
-test("findWordmarkBand takes the lockup and leaves the tagline", () => {
-  // Two bands of ink with clear space between them: the lockup, then the strapline.
-  const rows = { lockup: [4, 9], tagline: [14, 17] };
-  const distance = (x, y) =>
-    (y >= rows.lockup[0] && y <= rows.lockup[1]) || (y >= rows.tagline[0] && y <= rows.tagline[1]) ? 1 : 0;
-  const band = findWordmarkBand(distance, 20, 20, 0.5);
-  assert.deepEqual([band.top, band.bottom], rows.lockup);
-  assert.equal(band.bandCount, 2);
+test("findBands ignores a stray pixel", () => {
+  const distance = (x, y) => (y === 5 && x === 3 ? 1 : 0);
+  assert.equal(findBands(distance, 20, 20).length, 0);
 });
 
-test("extractMarkMask drops the shape its slice cuts through", () => {
-  // A 40-wide strip: a self-contained blob on the left (the mark) and a long one that runs
-  // past the slice (the wordmark). Only the first should survive.
-  const width = 40;
-  const distance = (x, y) => {
-    if (y < 2 || y > 6) return 0;
-    if (x >= 2 && x <= 6) return 1; // the mark
-    if (x >= 10 && x <= 38) return 1; // the wordmark, which the slice will cut
-    return 0;
-  };
-  const band = { top: 0, bottom: 9 };
-  const extent = findLockupExtent(distance, width, band, 0.5);
-  const region = extractMarkMask(distance, band, extent, 0.5);
-
-  assert.equal(region.shapes, 1);
-  const kept = new Set();
-  for (let y = 0; y < region.height; y++) {
-    for (let x = 0; x < region.width; x++) if (region.mask[y * region.width + x]) kept.add(region.left + x);
-  }
-  assert.deepEqual([...kept].sort((a, b) => a - b), [2, 3, 4, 5, 6]);
-});
-
-test("extractMarkMask refuses rather than emitting an empty mark", () => {
-  // One shape spanning the whole lockup: there is no mark to separate, and silently
-  // writing a blank PNG would be the worst outcome.
-  const distance = (x, y) => (y >= 2 && y <= 6 ? 1 : 0);
-  const band = { top: 0, bottom: 9 };
-  const extent = findLockupExtent(distance, 40, band, 0.5);
-  assert.throws(() => extractMarkMask(distance, band, extent, 0.5), /cut through every shape/);
+test("findColumns separates the mark from the text", () => {
+  const distance = (x) => ((x >= 1 && x <= 4) || (x >= 8 && x <= 15) ? 1 : 0);
+  assert.deepEqual(findColumns(distance, 20, 0, 5), [
+    { left: 1, right: 4 },
+    { left: 8, right: 15 },
+  ]);
 });

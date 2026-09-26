@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 481 |
+| ✅ Done | 493 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 6 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 83 |
-| **Total** | **603** |
+| **Total** | **615** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -39,6 +39,7 @@ file is stale, so it cannot quietly drift out of date.
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
 | [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 38 | 0 | 0 | 38 |
+| [WonderArk branding](./plan/16-BRANDING-BACKLOG.md) | 12 | 0 | 0 | 12 |
 
 ## What is left
 
@@ -1244,3 +1245,24 @@ Source: [`docs/plan/15-MULTI-USER-RBAC-BACKLOG.md`](./plan/15-MULTI-USER-RBAC-BA
 | `RBAC-36` | Invitation security | ✅ Done | `apps/web/e2e/unauthenticated/rbac.spec.ts` +3 |
 | `RBAC-37` | Multi-business E2E | ✅ Done | `apps/web/e2e/authenticated/rbac.spec.ts` |
 | `RBAC-38` | Full regression | ✅ Done | `scripts/test-core-rbac-rls.mjs` |
+
+## WonderArk branding
+
+Source: [`docs/plan/16-BRANDING-BACKLOG.md`](./plan/16-BRANDING-BACKLOG.md)
+
+### 31a. Story index
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `BRAND-01` | Audit existing branding | ✅ Done | `scripts/build-brand-assets.mjs` |
+| `BRAND-02` | Brand tokens | ✅ Done | `packages/core/src/brand/identity.ts` |
+| `BRAND-03` | Canonical assets | ✅ Done | `scripts/build-brand-assets.mjs` +1 |
+| `BRAND-04` | Logo component | ✅ Done | `packages/core/src/components/shell/wonderark-logo.test.tsx` +1 |
+| `BRAND-05` | Application shell | ✅ Done | `apps/web/app/(dashboard)/loading.tsx` +1 |
+| `BRAND-06` | Favicon / PWA | ✅ Done | `apps/web/app/manifest.ts` +4 |
+| `BRAND-07` | Metadata | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/layout.tsx` +11 |
+| `BRAND-08` | Authentication | ✅ Done | `apps/web/app/(auth)/layout.tsx` +2 |
+| `BRAND-09` | Existing component mapping | ✅ Done | `packages/core/src/ui-theme.css` |
+| `BRAND-10` | Module validation | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` |
+| `BRAND-11` | Email/documents | ✅ Done | `packages/core/src/email/render.test.ts` +1 |
+| `BRAND-12` | Visual QA | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` +1 |

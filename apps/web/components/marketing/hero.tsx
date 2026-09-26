@@ -12,7 +12,7 @@ export function Hero() {
       <div className="relative mx-auto flex max-w-4xl flex-col items-center text-center">
         <FadeIn>
           <p className="text-xs font-semibold tracking-[0.2em] text-landing-accent uppercase">
-            Accelerate. Revenue. Knowledge.
+            Business in One Place
           </p>
           <h1 className="mt-4 text-balance text-4xl font-semibold tracking-tight text-landing-fg sm:text-6xl">
             One login. Every part of your business. Zero duplicate data.

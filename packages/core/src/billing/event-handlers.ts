@@ -89,7 +89,7 @@ export async function sendBillingEmail(event: DomainEvent): Promise<"sent" | "sk
       from,
       to: emails,
       subject,
-      html: renderEmailHtml({ brandName: BRAND_NAME, body: fullBody, websiteUrl: SITE_URL, replyToEmail: from }),
+      html: renderEmailHtml({ brandName: BRAND_NAME, body: fullBody, websiteUrl: SITE_URL, replyToEmail: from, platform: true }),
       text: renderEmailText(fullBody),
     }),
   });

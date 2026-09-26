@@ -1,6 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
-import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
+import { WonderArkLogo } from "@cofounderai/core/shell/wonderark-logo";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { AuthTabs } from "@/components/auth/auth-tabs";
@@ -47,7 +46,7 @@ export const revalidate = 300;
  */
 export async function generateMetadata(): Promise<Metadata> {
   const branding = await getPublicLoginBranding();
-  return { title: { absolute: branding.platformName } };
+  return { title: { absolute: `${branding.platformName} — Business in One Place` } };
 }
 
 export default async function AuthLayout({ children }: { children: ReactNode }) {
@@ -59,22 +58,9 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       className="landing-theme flex min-h-full flex-1 flex-col bg-landing-bg text-landing-fg"
       style={backgroundStyle}
     >
-      <header className="landing-grid flex items-center justify-between px-6 py-6 sm:px-10">
-        <Link href="/" aria-label={branding.platformName} className="flex items-center gap-2">
-          {branding.logoUrl ? (
-            // Superadmin-configured, arbitrary external URL -- next/image would need a
-            // build-time domain allowlist for a value that changes at runtime.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={branding.logoUrl} alt={branding.platformName} className="h-7 w-auto" />
-          ) : (
-            <Image
-              {...BRAND_LOCKUP.onLight}
-              alt={branding.platformName}
-              priority
-              className="h-7 w-auto"
-            />
-          )}
-        </Link>
+      {/* BRAND-08: the logo sits above the form as the stacked lockup (spec §13), so the
+          header carries only navigation -- one logo per screen, not two. */}
+      <header className="landing-grid flex items-center justify-end px-6 py-6 sm:px-10">
         <div className="flex items-center gap-4">
           {/* Next to the sign-in toggle on purpose: somebody who cannot get in is the
               likeliest person on the site to need the documentation, and it is public. */}
@@ -90,7 +76,19 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       <main className="flex flex-1 items-center justify-center px-6 pb-16">
         <div className="flex w-full max-w-4xl items-center justify-center gap-16">
           <AuthInfoPanel />
-          {children}
+          <div className="flex w-full max-w-sm flex-col items-center gap-6">
+            <Link href="/" aria-label={branding.platformName}>
+              {branding.logoUrl ? (
+                // Superadmin-configured, arbitrary external URL -- next/image would need a
+                // build-time domain allowlist for a value that changes at runtime.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={branding.logoUrl} alt={branding.platformName} className="h-16 w-auto" />
+              ) : (
+                <WonderArkLogo variant="primary" size="sm" alt={branding.platformName} priority />
+              )}
+            </Link>
+            {children}
+          </div>
         </div>
       </main>
     </div>

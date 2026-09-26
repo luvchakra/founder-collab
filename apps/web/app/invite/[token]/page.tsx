@@ -5,6 +5,7 @@ import { createClient } from "@cofounderai/core/db/server";
 import { previewInvitation } from "@cofounderai/core/rbac/members";
 import { Button } from "@cofounderai/core/ui/button";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
+import { WonderArkLogo } from "@cofounderai/core/shell/wonderark-logo";
 import { AcceptInvitationButton } from "./accept-button";
 
 /**
@@ -20,6 +21,10 @@ export const dynamic = "force-dynamic";
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto flex min-h-svh w-full max-w-md flex-col items-center justify-center gap-5 px-4 py-10 text-center">
+      {/* Platform identity, not the inviting business's (BRAND-08, §29): the invitee is
+          joining through WonderArk, and nothing about the business shows until
+          core.get_invitation() says this user may see it. */}
+      <WonderArkLogo variant="primary" size="xs" adaptive priority className="mb-3" />
       <MailCheck className="size-12 text-primary" aria-hidden="true" />
       {children}
     </main>

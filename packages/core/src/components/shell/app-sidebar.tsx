@@ -20,7 +20,7 @@ import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/mod
 import { buildDiscoveryNav } from "../../lib/discovery-nav";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
-import { LogoMark } from "./logo-mark";
+import { WonderArkLogo } from "./wonderark-logo";
 import { ModuleIcon } from "./module-icon";
 import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./types";
 
@@ -484,12 +484,9 @@ export function AppSidebar({
           aria-label={BRAND_NAME}
           className="flex shrink-0 items-center gap-2.5 px-5 py-5"
         >
-          {/* The rail is dark in both themes, so the logo is pinned to its light-fill
-              artwork here rather than following the theme like it does on light pages. */}
-          <LogoMark onDark className="h-8 w-auto shrink-0" />
-          <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
-            {BRAND_NAME}
-          </span>
+          {/* The rail is brand navy in both themes, so the logo is pinned to the artwork
+              drawn for navy rather than following the theme. The link carries the name. */}
+          <WonderArkLogo variant="inline-dark" size="md" decorative priority />
         </Link>
 
         {/* The account-wide view, above the per-business modules and deliberately not

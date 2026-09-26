@@ -294,7 +294,7 @@ async function sendInvitationEmail(businessId: string, email: string, roleId: st
         from,
         to: [email],
         subject: `You're invited to ${business?.name ?? BRAND_NAME}`,
-        html: renderEmailHtml({ brandName: BRAND_NAME, body, websiteUrl: SITE_URL, replyToEmail: from }),
+        html: renderEmailHtml({ brandName: BRAND_NAME, body, websiteUrl: SITE_URL, replyToEmail: from, platform: true }),
         text: renderEmailText(body),
       }),
     });

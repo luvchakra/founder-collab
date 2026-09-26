@@ -129,48 +129,49 @@ nothing is worse than no search box.
 
 ## The logo, and which file goes where
 
-The brand masters live in `brand/`: the full WonderArk lockup — mark, wordmark and the
-"Accelerate. Revenue. Knowledge." tagline — drawn twice, once for a light ground and once
-for a dark one. They are two pieces of artwork rather than one recoloured, because the
-mark itself changes: the light version carries a navy underside on the W, the dark version
-a white one. Neither survives being dropped on the other's background.
+The one brand master is the approved WonderArk brand board, `brand/wonderark-brand-board.png`
+(docs/plan/16-BRANDING-BACKLOG.md): the W with its triangular wedge, the "WonderArk"
+wordmark and the "BUSINESS IN ONE PLACE" tagline, on light and on navy. Nothing in the
+repo draws a logo. `npm run build:brand` (`scripts/build-brand-assets.mjs`) cuts every
+asset out of the board — the stacked lockups whole, the mark, wordmark and tagline as
+pieces — and composes the horizontal lockups in the board's own horizontal proportions,
+so the W and wedge are identical everywhere by construction. Nothing under
+`apps/web/public/brand/` or `apps/web/app/opengraph-image.png` is edited by hand —
+replace the board and rebuild.
 
-Everything the app serves is derived from those two files by `npm run build:brand`
-(`scripts/build-brand-assets.mjs`). Nothing under `apps/web/public/brand/` or the icon
-files in `apps/web/app/` should be edited by hand — replace a master and rebuild.
+Components never name a file. They render `WonderArkLogo`
+(`@cofounderai/core/shell/wonderark-logo`) with a variant and a size; it reads the
+generated manifest (`@cofounderai/core/brand/generated/assets`), which carries each path
+and the intrinsic dimensions `next/image` needs.
 
-Components never name a file. They import `BRAND_LOCKUP` / `BRAND_MARK` from
-`@cofounderai/core/brand/generated/assets`, which the same script writes: it carries both
-the path and the intrinsic dimensions `next/image` needs to reserve space, and both are
-facts about the files rather than numbers worth copying.
-
-| Asset | What it is | Where it belongs |
+| Variant | What it is | Where it belongs |
 |---|---|---|
-| `BRAND_LOCKUP.onLight` | Mark + wordmark, navy artwork | Light surfaces: the marketing navbar and footer, the auth header |
-| `BRAND_LOCKUP.onDark` | Mark + wordmark, white artwork | Dark surfaces |
-| `BRAND_MARK.onLight` | The mark alone, navy artwork | Light surfaces, via `LogoMark` |
-| `BRAND_MARK.onDark` | The mark alone, white artwork | Dark surfaces, via `LogoMark onDark` — the navigation rail and the platform admin header, which are dark in both themes |
-| `app/icon.png` | The mark on brand navy, 512px | The browser tab |
-| `app/apple-icon.png` | The same, 180px | The iOS home screen |
-| `app/opengraph-image.png` | The lockup on brand navy, 1200×630 | Every link preview, Open Graph and Twitter alike |
+| `primary` / `dark` | Stacked: mark, wordmark, tagline — light / navy ground | Auth screens, the invitation page |
+| `horizontal` / `horizontal-dark` | Mark beside wordmark and tagline | Marketing footer; the email header (as `email-header.png`) |
+| `inline` / `inline-dark` | Mark beside wordmark, no tagline | Marketing navbar; the navigation rail (`inline-dark`) |
+| `mark` / `mark-dark` | The mark alone | Loading state; the platform admin header (`mark-dark`) |
+| `white` / `mono` / `gray` | The mark in one colour | Blue grounds, print, disabled states |
+| `favicon-16/32/48/64.png` | The mark on transparency | The browser tab (`metadata.icons` in app/layout.tsx) |
+| `apple-icon.png`, `icon-192/512.png`, `icon-maskable-192/512.png` | The mark on white | Home screen and install (app/manifest.ts) |
+| `app/opengraph-image.png` | The dark stacked lockup on brand navy, 1200×630 | Every link preview |
 
-Four decisions worth not re-litigating:
+Decisions worth not re-litigating:
 
-- **The in-app lockup has no tagline.** It renders at 28–32px tall everywhere it appears;
-  keeping the strapline would shrink the wordmark to make room for four unreadable pixels.
-  The footer sets the tagline as real text instead, where it can be read and selected.
-- **Both variants of each asset are written at identical dimensions**, so the theme swap in
-  `LogoMark` cannot shift the layout by the percent or two their natural crops differ by.
-- **The icons are not transparent.** The mark carries navy in one variant and white in the
-  other, so a transparent app icon loses part of itself against whichever browser chrome it
-  lands on. A solid brand-navy ground is the one version that reads everywhere.
-- **Every filename carries a content hash.** Replacing an image at a path it has already
-  been served from is the one change a cache cannot see — Next's image optimizer keys on
-  the URL and keeps handing out the old artwork for its minimum TTL. That is not
-  theoretical: it happened while this pipeline was being built, with the optimizer serving
-  a stale WebP of the previous logo for a URL whose PNG was already correct. New artwork is
-  now a new URL, so there is nothing to invalidate.
+- **The assets are PNGs, not SVGs.** The board is a raster image. An SVG wrapping a
+  bitmap is a vector file in name only, and redrawing the mark as a vector would be the
+  "separately drawn W" the branding spec forbids.
+- **The shell uses the inline lockup, without the tagline.** At 28px tall the tagline
+  would be a few unreadable pixels. The stacked and horizontal lockups carry it where
+  there is room.
+- **Light and navy twins share one box**, so `WonderArkLogo adaptive` swapping between
+  them on the theme cannot shift the layout.
+- **Logo filenames carry a content hash.** Next's image optimizer keys on the URL, so
+  replacing artwork at a path already served keeps handing out the old image for its
+  minimum TTL. Icons and the email header keep fixed names, because the web manifest,
+  browsers' favicon caches and sent emails reference them by name.
 
-The lockup files are the platform's *default*. A superadmin can override the login logo
-with their own URL from the Platform portal's Branding page, and each business can set its
-own logo for the business switcher — neither replaces these.
+The brand colours are the `--brand-*` tokens in `packages/core/src/ui-theme.css` (hex
+equivalents in `@cofounderai/core/brand/identity` for metadata, email and hosted
+checkout). The lockups are the platform's *default*: a superadmin can override the login
+logo from the Platform portal's Branding page, and each business can set its own logo for
+the business switcher — neither replaces the platform identity in the shell.

@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import type { ReactNode } from "react";
 import { getBusiness } from "@cofounderai/module-fsm/lib/tenancy/queries";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
 import { moduleRegistry } from "@cofounderai/module-registry";
+
+/** BRAND-07: "Service | WonderArk" in the browser tab (root layout title template). */
+export const metadata: Metadata = { title: "Service" };
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "fsm")?.name ?? "Service";
 

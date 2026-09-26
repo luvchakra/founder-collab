@@ -44,6 +44,7 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/privacy")).toBe(false);
     expect(isProtectedPath("/pricing")).toBe(false);
     expect(isProtectedPath("/robots.txt")).toBe(false);
+    expect(isProtectedPath("/manifest.webmanifest")).toBe(false);
     expect(isProtectedPath("/sitemap.xml")).toBe(false);
     expect(isProtectedPath("/help")).toBe(false);
   });

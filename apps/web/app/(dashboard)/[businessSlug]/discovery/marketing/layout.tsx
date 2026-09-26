@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { SectionTabs } from "@cofounderai/module-discovery/components/marketing/section-tabs";
+
+/** BRAND-07: "Marketing | WonderArk" in the browser tab (root layout title template). */
+export const metadata: Metadata = { title: "Marketing" };
 
 /** MKT-03..14 — every Marketing page shares one tab strip (see SectionTabs). */
 export default async function MarketingLayout({

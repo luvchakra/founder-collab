@@ -1,7 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Mail } from "lucide-react";
-import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
+import { WonderArkLogo } from "@cofounderai/core/shell/wonderark-logo";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { CONTACT_EMAIL, WEBSITE_HOST, WEBSITE_URL } from "@/lib/legal";
 
@@ -65,18 +64,11 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-6">
           <div className="col-span-2 sm:col-span-2">
             <Link href="/" aria-label={BRAND_NAME} className="inline-block">
-              <Image
-                {...BRAND_LOCKUP.onLight}
-                alt={BRAND_NAME}
-                className="h-7 w-auto"
-              />
+              <WonderArkLogo variant="horizontal" size="md" alt={BRAND_NAME} />
             </Link>
             <p className="mt-4 max-w-xs text-sm text-landing-muted">
               One portal, one login, five independently licensed modules for customer
               discovery, inventory, field service, CRM and GST compliance.
-            </p>
-            <p className="mt-4 text-xs font-semibold tracking-widest text-landing-muted/70 uppercase">
-              Accelerate. Revenue. Knowledge.
             </p>
             <a
               href={WEBSITE_URL}

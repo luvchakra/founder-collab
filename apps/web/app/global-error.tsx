@@ -1,5 +1,8 @@
 "use client";
 
+import { BRAND_HEX } from "@cofounderai/core/brand/identity";
+import { BRAND_ICON } from "@cofounderai/core/brand/generated/assets";
+
 /**
  * The one boundary that catches an error thrown by the root layout itself (or
  * anything above every other error.tsx in the tree) -- Next.js requires this file to
@@ -19,7 +22,7 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif" }}>
+      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", color: BRAND_HEX.dark }}>
         <div
           style={{
             display: "flex",
@@ -32,8 +35,12 @@ export default function GlobalError({
             textAlign: "center",
           }}
         >
+          {/* Platform identity on the last-resort error page (§29). A plain <img> of the
+              fixed-name icon: nothing here may depend on next/image or the stylesheet. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={BRAND_ICON.favicon64} alt="WonderArk" width={64} height={64} />
           <h1 style={{ fontSize: "1.125rem", fontWeight: 600, margin: 0 }}>Something went wrong</h1>
-          <p style={{ maxWidth: "28rem", fontSize: "0.875rem", color: "#71717a", margin: 0 }}>
+          <p style={{ maxWidth: "28rem", fontSize: "0.875rem", color: BRAND_HEX.slate, margin: 0 }}>
             An unexpected error occurred. Please try again.
           </p>
           <button
@@ -42,7 +49,7 @@ export default function GlobalError({
               padding: "0.5rem 1rem",
               borderRadius: "0.375rem",
               border: "none",
-              background: "#2563eb",
+              background: BRAND_HEX.blue,
               color: "white",
               fontSize: "0.875rem",
               cursor: "pointer",

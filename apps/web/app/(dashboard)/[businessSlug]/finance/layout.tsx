@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import type { ReactNode } from "react";
@@ -10,6 +11,9 @@ import { CountryBar } from "@cofounderai/module-gst/components/compliance/countr
 import { UnsupportedCountryNotice } from "@cofounderai/module-gst/components/compliance/unsupported-country-notice";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { setComplianceCountryAction, setComplianceRegimeAction } from "./actions";
+
+/** BRAND-07: "Finance | WonderArk" in the browser tab (root layout title template). */
+export const metadata: Metadata = { title: "Finance" };
 
 const MODULE_NAME = moduleRegistry.find((m) => m.key === "gst")?.name ?? "Finance";
 

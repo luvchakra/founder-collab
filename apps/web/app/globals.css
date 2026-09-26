@@ -10,8 +10,8 @@
 @source "../../../packages/module-gst/src/**/*.{ts,tsx}";
 
 /*
- * WonderArk's own marketing/auth identity (docs/design/wonderark-brand.md doesn't exist
- * yet -- the source of truth is the brand lockup itself): light theme, navy text, the
+ * WonderArk's own marketing/auth identity (docs/plan/16-BRANDING-BACKLOG.md; the brand
+ * tokens live in packages/core/src/ui-theme.css): light theme, navy text, the
  * same mid-blue as the dashboard shell's --primary (CLAUDE.md non-negotiable #7 says
  * every module's screens share one design system; this brings the pre-login
  * marketing/auth pages -- previously co-founder-ai's own unrelated dark-violet identity --
@@ -25,18 +25,18 @@
   --landing-bg-elevated: oklch(1 0 0);
   --landing-surface: oklch(0.99 0.004 250);
   --landing-surface-border: oklch(0.906 0.012 255);
-  --landing-fg: oklch(0.22 0.02 258);
+  --landing-fg: var(--brand-dark);
   --landing-muted: oklch(0.46 0.02 258);
-  --landing-accent: oklch(0.546 0.215 260);
-  --landing-accent-foreground: oklch(0.99 0.002 250);
-  --landing-accent-glow: oklch(0.546 0.215 260 / 16%);
+  --landing-accent: var(--brand-blue);
+  --landing-accent-foreground: var(--brand-white);
+  --landing-accent-glow: oklch(0.605 0.217 257.2 / 16%);
 
   /* Same hue as the dashboard shell's own --primary (packages/core/src/ui-theme.css) --
      a shared Button/Input rendered on an auth/marketing page now reads as the same
      product, not a second brand. Scoped to .landing-theme only. */
   --primary: var(--landing-accent);
   --primary-foreground: var(--landing-accent-foreground);
-  --ring: oklch(0.546 0.215 260 / 50%);
+  --ring: oklch(0.605 0.217 257.2 / 50%);
 }
 
 @theme inline {

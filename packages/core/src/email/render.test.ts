@@ -95,6 +95,19 @@ describe("renderEmailHtml", () => {
     expect(html).toContain("Ben &amp; Jerry&#39;s");
     expect(html).not.toContain("&amp;amp;");
   });
+
+  it("BRAND-11: platform mail carries the canonical WonderArk header image, never a recreated logo", () => {
+    const html = renderEmailHtml({ ...BASE, brandName: "WonderArk", platform: true });
+    expect(html).toMatch(/<img src="https?:\/\/[^"]+\/brand\/email-header\.png"/);
+    expect(html).toContain('alt="WonderArk — Business in One Place"');
+    expect(html).toContain("background-color:#007BFF");
+  });
+
+  it("business mail keeps the business's own name and no WonderArk header (§19)", () => {
+    const html = renderEmailHtml(BASE);
+    expect(html).not.toContain("email-header.png");
+    expect(html).toContain(BASE.brandName.replace(/&/g, "&amp;"));
+  });
 });
 
 describe("renderEmailText", () => {

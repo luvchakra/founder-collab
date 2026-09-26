@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { BRAND_LOCKUP } from "@cofounderai/core/brand/generated/assets";
+import { WonderArkLogo } from "@cofounderai/core/shell/wonderark-logo";
 import { Menu, X } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { LandingButton } from "./landing-button";
@@ -35,12 +34,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-landing-surface-border bg-landing-bg/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" aria-label={BRAND_NAME} className="shrink-0">
-          <Image
-            {...BRAND_LOCKUP.onLight}
-            alt={BRAND_NAME}
-            priority
-            className="h-8 w-auto"
-          />
+          <WonderArkLogo variant="inline" size="md" alt={BRAND_NAME} priority />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">

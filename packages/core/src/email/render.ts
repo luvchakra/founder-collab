@@ -1,3 +1,7 @@
+import { BRAND_EMAIL_HEADER_SIZE, BRAND_ICON } from "../brand/generated/assets";
+import { BRAND_HEX, BRAND_TAGLINE } from "../brand/identity";
+import { SITE_URL } from "../site";
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
@@ -46,10 +50,22 @@ export function renderEmailHtml(input: {
   body: string;
   websiteUrl: string | null;
   replyToEmail: string;
+  /**
+   * BRAND-11: the platform's own transactional mail (invitations, access changes,
+   * billing) carries the WonderArk header image -- the horizontal lockup with its
+   * tagline, cut from the brand board, never recreated in HTML (§18). Off by default:
+   * a business's mail to its own customers keeps the business's name, not ours (§19).
+   */
+  platform?: boolean;
 }): string {
-  const { brandName, body, websiteUrl, replyToEmail } = input;
+  const { brandName, body, websiteUrl, replyToEmail, platform = false } = input;
+  const header = platform
+    ? `<img src="${escapeHtml(`${SITE_URL}${BRAND_ICON.emailHeader}`)}" width="${Math.round(BRAND_EMAIL_HEADER_SIZE.width / 3)}" height="${Math.round(BRAND_EMAIL_HEADER_SIZE.height / 3)}" alt="${escapeHtml(`${brandName} — ${BRAND_TAGLINE}`)}" style="display:block;border:0;outline:none;text-decoration:none;" />`
+    : `<span style="font-size:18px;font-weight:700;color:#18181b;">${escapeHtml(brandName)}</span>`;
+  const buttonColor = platform ? BRAND_HEX.blue : "#18181b";
+  const footerColor = platform ? BRAND_HEX.slate : "#71717a";
   const footerLink = websiteUrl
-    ? ` · <a href="${escapeHtml(websiteUrl)}" style="color:#71717a;text-decoration:none;">${escapeHtml(
+    ? ` · <a href="${escapeHtml(websiteUrl)}" style="color:${footerColor};text-decoration:none;">${escapeHtml(
         websiteUrl.replace(/^https?:\/\//, ""),
       )}</a>`
     : "";
@@ -63,7 +79,7 @@ export function renderEmailHtml(input: {
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background-color:#ffffff;border-radius:8px;overflow:hidden;">
             <tr>
               <td style="padding:24px 32px;border-bottom:1px solid #e4e4e7;">
-                <span style="font-size:18px;font-weight:700;color:#18181b;">${escapeHtml(brandName)}</span>
+                ${header}
               </td>
             </tr>
             <tr>
@@ -71,7 +87,7 @@ export function renderEmailHtml(input: {
                 ${bodyToHtmlParagraphs(body)}
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:8px;">
                   <tr>
-                    <td style="border-radius:6px;background-color:#18181b;">
+                    <td style="border-radius:6px;background-color:${buttonColor};">
                       <a href="mailto:${escapeHtml(replyToEmail)}" style="display:inline-block;padding:10px 20px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">Reply to this email</a>
                     </td>
                   </tr>
@@ -80,7 +96,7 @@ export function renderEmailHtml(input: {
             </tr>
             <tr>
               <td style="padding:20px 32px;border-top:1px solid #e4e4e7;">
-                <p style="margin:0;font-size:12px;color:#71717a;">${escapeHtml(brandName)}${footerLink}</p>
+                <p style="margin:0;font-size:12px;color:${footerColor};">${escapeHtml(brandName)}${footerLink}</p>
               </td>
             </tr>
           </table>

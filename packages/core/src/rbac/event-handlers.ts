@@ -76,7 +76,7 @@ export async function sendMemberEmail(event: DomainEvent): Promise<"sent" | "ski
       from,
       to: [to],
       subject,
-      html: renderEmailHtml({ brandName: BRAND_NAME, body: full, websiteUrl: SITE_URL, replyToEmail: from }),
+      html: renderEmailHtml({ brandName: BRAND_NAME, body: full, websiteUrl: SITE_URL, replyToEmail: from, platform: true }),
       text: renderEmailText(full),
     }),
   });

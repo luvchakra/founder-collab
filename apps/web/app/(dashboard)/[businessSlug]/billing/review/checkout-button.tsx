@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cofounderai/core/ui/button";
 import type { CheckoutResult } from "@cofounderai/core/billing/subscription-types";
+import { BRAND_HEX } from "@cofounderai/core/brand/identity";
 
 declare global {
   interface Window {
@@ -63,7 +64,7 @@ export function CheckoutButton({ businessSlug, planId, interval, free }: { busin
       if (!window.Razorpay) throw new Error("The payment window couldn't load. Please try again.");
       const checkout = new window.Razorpay({
         ...body.checkoutOptions,
-        theme: { color: "#2563eb" },
+        theme: { color: BRAND_HEX.blue },
         handler: () => router.push(successUrl(body.sessionId)),
         modal: { ondismiss: () => setPending(false) },
       });

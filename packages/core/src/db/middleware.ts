@@ -37,6 +37,9 @@ const RESERVED_TOP_SEGMENTS = new Set([
   "invite",
   "robots.txt",
   "sitemap.xml",
+  // BRAND-06: the web app manifest (apps/web/app/manifest.ts). Browsers fetch it without
+  // credentials, so it must never bounce to /login.
+  "manifest.webmanifest",
 ]);
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
