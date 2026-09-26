@@ -1,6 +1,7 @@
 import type { Contact } from "../contacts/types";
 import type { BuyerPersona } from "../personas/types";
 import type { EvidenceItem } from "../research/types";
+import type { ContactVerification } from "../data-providers/contracts";
 
 /** DISC-OFFER-P0-06.3: "Buyer/Person Intelligence" -- a per-contact enrichment layer
  * over 06.2's own `BuyingCommitteeMatch` (contact + matched persona), adding the
@@ -71,6 +72,9 @@ export type BuyerPersonIntelligence = {
   relevanceReason: string;
   contactability: Contactability;
   contactabilityReason: string;
+  /** DISC-OFFER-P1-03.3: the configured data provider's check of this contact's email, in
+   * the normalized contract shape; null when there is no email or no check was made. */
+  emailVerification: ContactVerification | null;
   supportingEvidence: EvidenceItem[];
   confidence: BuyerIntelligenceConfidence;
 };

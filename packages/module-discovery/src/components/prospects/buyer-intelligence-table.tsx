@@ -24,6 +24,21 @@ const CONFIDENCE_BADGE_CLASS: Record<BuyerIntelligenceConfidence, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
+/** DISC-OFFER-P1-03.3: the email check from the configured data provider, when it found
+ * something worth knowing. "Unverified" (well-formed, delivery not tested) is not shown:
+ * it would sit on every row and say nothing. */
+function EmailCheck({ person }: { person: BuyerPersonIntelligence }) {
+  const check = person.emailVerification;
+  if (!check || check.status === "unverified") return null;
+  const tone = check.status === "deliverable" ? "text-success-subtle" : check.status === "risky" ? "text-warning-subtle" : "text-destructive-subtle";
+  const label = check.status === "deliverable" ? "Email verified" : check.status === "risky" ? "Email risky" : "Email undeliverable";
+  return (
+    <p className={cn("text-xs", tone)} title={check.reason}>
+      {label}: <span className="text-muted-foreground">{check.reason}</span>
+    </p>
+  );
+}
+
 function ConfidenceBadge({ confidence }: { confidence: BuyerIntelligenceConfidence }) {
   return <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", CONFIDENCE_BADGE_CLASS[confidence])}>{confidence} confidence</span>;
 }
@@ -70,6 +85,7 @@ export function BuyerIntelligenceTable({
               <span className="font-medium text-foreground">Fit: </span>
               {RELEVANCE_LABEL[person.relevance]} — {person.relevanceReason}
             </p>
+            <EmailCheck person={person} />
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Evidence: </span>
               {person.supportingEvidence[0]?.statement ?? "None found yet."}
@@ -96,6 +112,7 @@ export function BuyerIntelligenceTable({
               <TableCell className="max-w-48">
                 <p className="truncate font-medium">{person.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{person.title ?? SENIORITY_LABEL[person.seniority]}</p>
+                <EmailCheck person={person} />
               </TableCell>
               <TableCell className="max-w-56">
                 {roleLabelFor(person) ? (

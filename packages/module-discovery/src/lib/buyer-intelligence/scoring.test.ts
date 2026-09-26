@@ -27,6 +27,7 @@ function candidate(overrides: Partial<BuyerPersonIntelligence>): BuyerPersonInte
     relevanceReason: "",
     contactability: "low",
     contactabilityReason: "",
+    emailVerification: null,
     supportingEvidence: [],
     confidence: "medium",
     ...overrides,

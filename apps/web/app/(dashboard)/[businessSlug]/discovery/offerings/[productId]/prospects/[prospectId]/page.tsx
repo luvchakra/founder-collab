@@ -44,6 +44,8 @@ import { listProspectFeedback } from "@cofounderai/module-discovery/lib/prospect
 import { DiscoveryOutcomeBadge } from "@cofounderai/module-discovery/components/prospects/discovery-outcome-badge";
 import { computeDiscoveryOutcomeStage } from "@cofounderai/module-discovery/lib/prospects/outcome";
 import { ResearchCacheStatusLine } from "@cofounderai/module-discovery/components/prospects/research-cache-status";
+import { DetectedTechnologies } from "@cofounderai/module-discovery/components/prospects/detected-technologies";
+import { detectProspectTechnologies } from "@cofounderai/module-discovery/lib/data-providers/prospect-data";
 import { computeResearchCacheStatus } from "@cofounderai/module-discovery/lib/research/cache-status";
 import { getAiRun } from "@cofounderai/module-discovery/lib/ai/queries";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
@@ -365,7 +367,12 @@ export default async function ProspectDetailPage({
 
   // DISC-OFFER-P1-04.3: the same people under this business's other offerings, with the
   // role each has there -- one person can matter differently per offering.
-  const samePersonElsewhere = await getSamePersonInOtherOfferings(businessId, workspace.id, prospect, contacts);
+  // DISC-OFFER-P1-03.3: technology detection through the provider-agnostic data contract,
+  // over the research already on file.
+  const [samePersonElsewhere, technologies] = await Promise.all([
+    getSamePersonInOtherOfferings(businessId, workspace.id, prospect, contacts),
+    detectProspectTechnologies(prospect, research),
+  ]);
 
   // DISC-OFFER-P1 §7-03.2 "Research Cache" -- the exact ai_runs row this cached research
   // came from, if one is on file (null for research written before ai_run_id existed).
@@ -764,6 +771,7 @@ export default async function ProspectDetailPage({
                 <p className="text-muted-foreground">{research.recommended_angle}</p>
               </div>
             ) : null}
+            <DetectedTechnologies result={technologies} />
             {research.evidence.length > 0 ? (
               <div>
                 <p className="font-medium">Evidence</p>
