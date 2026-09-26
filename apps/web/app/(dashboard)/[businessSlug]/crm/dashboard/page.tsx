@@ -5,6 +5,7 @@ import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { getPotentialLostBusinessDashboard, getCrmDashboardKpis } from "@cofounderai/module-crm/lib/dashboard/queries";
 import { listCrossModuleExceptions } from "@cofounderai/module-crm/lib/exceptions/queries";
 import { inr } from "@cofounderai/core/lib/format";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * CRM-14.2's "Potential Lost Business Dashboard" -- "a primary dashboard, not a hidden
@@ -42,9 +43,14 @@ export default async function CrmDashboardPage({ params }: { params: Promise<{ b
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s potential lost business, at a glance.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s potential lost business, at a glance.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.dashboard" businessSlug={businessSlug} kind="dashboard" />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

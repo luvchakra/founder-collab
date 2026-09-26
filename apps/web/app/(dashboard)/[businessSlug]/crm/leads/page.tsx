@@ -15,6 +15,7 @@ import { Users } from "lucide-react";
 import type { EmployeeOption } from "@cofounderai/module-crm/lib/tickets/types";
 import type { LeadStatus } from "@cofounderai/module-crm/lib/leads/types";
 import { assignLeadAction, updateLeadStatusAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const LEAD_STATUSES: LeadStatus[] = [
   "new",
@@ -122,9 +123,14 @@ export default async function CrmLeadsPage({ params }: { params: Promise<{ busin
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Leads</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Every relationship {business.name} is tracking, from first contact to opportunity.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Leads</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every relationship {business.name} is tracking, from first contact to opportunity.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.leads" businessSlug={businessSlug} />
+        </div>
       </div>
 
       {leads.length === 0 ? (
