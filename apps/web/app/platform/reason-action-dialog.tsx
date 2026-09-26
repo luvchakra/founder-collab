@@ -22,9 +22,8 @@ const DIALOG_CLASS = "border-zinc-800 bg-zinc-900 text-zinc-50";
 const FIELD_CLASS = "border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500";
 
 /**
- * One confirm-with-a-reason dialog for the single-click platform mutations the P1 stories
- * add (switch an AI feature off, revoke an override or an API key, roll a flag back,
- * activate a legal version, ...). PLATFORM-P0-18.4's rule for a global change -- explicit
+ * A confirm-with-a-reason dialog for single-click platform mutations -- first used by
+ * PLATFORM-P0-10.4's AI feature kill switch. PLATFORM-P0-18.4's rule for a global change -- explicit
  * confirmation, a reason, audit, and a typed confirmation for critical operations -- in one
  * place: `confirmText` adds the typed step, the reason is always required, and the server
  * action it calls is what writes the audit row. The action is a server action bound in the
