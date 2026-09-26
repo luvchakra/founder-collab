@@ -12,6 +12,7 @@ import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { CheckCircle2 } from "lucide-react";
 import { requestExceptionAssessmentAction, resolveExceptionPartsShortageAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const SHORTAGE_RESOLUTION_LABEL: Record<JobPartsShortageResolution, string> = {
   await_replenishment: "Wait for replenishment",
@@ -49,11 +50,16 @@ export default async function CrmExceptionsPage({ params }: { params: Promise<{ 
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Exceptions</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {business.name}&apos;s open cross-module exceptions -- parts shortages and assessments waiting on a decision.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Exceptions</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {business.name}&apos;s open cross-module exceptions -- parts shortages and assessments waiting on a decision.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.exceptions" businessSlug={businessSlug} />
+        </div>
       </div>
 
       {exceptions.length === 0 ? (

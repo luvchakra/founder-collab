@@ -18,6 +18,7 @@ import {
   cancelSalesOrderAction,
   fetchSalesOrderItemsAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function SalesOrdersPage({
   params,
@@ -45,9 +46,14 @@ export default async function SalesOrdersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sales Orders</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Create, confirm and fulfil sales orders for {business.name}.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sales Orders</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Create, confirm and fulfil sales orders for {business.name}.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.sales-orders" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <SalesOrdersList

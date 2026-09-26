@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle } from "lucide-react";
 import { overrideInteractionIntentAction } from "./actions";
 import { LostBusinessActionsRow } from "./actions-row";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const MESSAGE_INTENTS: MessageIntent[] = [
   "pricing",
@@ -81,9 +82,14 @@ export default async function CrmLostBusinessPage({ params }: { params: Promise<
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Potential Lost Business</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Unanswered commercial messages {business.name} might lose if nobody replies.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Potential Lost Business</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Unanswered commercial messages {business.name} might lose if nobody replies.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.lost-business" businessSlug={businessSlug} paginated />
+        </div>
       </div>
 
       {queue.length === 0 ? (

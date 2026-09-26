@@ -9,6 +9,7 @@ import {
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { StockList } from "@cofounderai/module-inventory/components/stock/stock-list";
 import { recordStockMovementAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function StockPage({
   params,
@@ -30,11 +31,16 @@ export default async function StockPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inventory</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Live stock levels across every warehouse for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Inventory</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Live stock levels across every warehouse for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.stock" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <StockList

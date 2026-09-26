@@ -5,6 +5,7 @@ import { listAlerts } from "@cofounderai/module-inventory/lib/alerts/queries";
 import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { AlertsList } from "@cofounderai/module-inventory/components/alerts/alerts-list";
 import { updateAlertStatusAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function AlertsPage({
   params,
@@ -24,11 +25,16 @@ export default async function AlertsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Alerts</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Everything that needs your attention today for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Alerts</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Everything that needs your attention today for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.alerts" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <AlertsList alerts={alerts} canManage={canManage} updateStatusAction={updateAlertStatusAction.bind(null, businessId)} />

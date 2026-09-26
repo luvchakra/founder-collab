@@ -9,6 +9,7 @@ import { inr } from "@cofounderai/core/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { BarChart3 } from "lucide-react";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 function formatMinutes(minutes: number | null): string {
   if (minutes === null) return "--";
@@ -53,9 +54,14 @@ export default async function CrmAnalyticsPage({ params }: { params: Promise<{ b
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Analytics</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s response performance, last 30 days.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Analytics</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s response performance, last 30 days.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.analytics" businessSlug={businessSlug} kind="report" />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

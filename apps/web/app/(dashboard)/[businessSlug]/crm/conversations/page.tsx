@@ -50,6 +50,7 @@ import { ConversationSummaryCard } from "./conversation-summary-card";
 import { WhatsAppReplyForm } from "./reply-form";
 import { WhatsAppMediaSendForm } from "./media-send-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const STATUSES: ConversationStatus[] = ["new", "open", "waiting", "resolved"];
 
@@ -492,9 +493,14 @@ export default async function CrmConversationsPage({
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Conversations</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s unified inbox across every channel.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Conversations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s unified inbox across every channel.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.conversations" businessSlug={businessSlug} params={search} />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[240px_minmax(0,1fr)_minmax(0,1.3fr)]">

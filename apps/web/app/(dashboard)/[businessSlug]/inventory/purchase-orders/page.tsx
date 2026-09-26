@@ -16,6 +16,7 @@ import {
   receivePurchaseOrderItemAction,
   fetchPurchaseOrderItemsAction,
 } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function PurchaseOrdersPage({
   params,
@@ -43,11 +44,16 @@ export default async function PurchaseOrdersPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Purchase Orders</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Create, approve and receive purchase orders for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Purchase Orders</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create, approve and receive purchase orders for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.purchase-orders" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <PurchaseOrdersList

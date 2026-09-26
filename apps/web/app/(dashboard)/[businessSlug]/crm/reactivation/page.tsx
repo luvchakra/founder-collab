@@ -7,6 +7,7 @@ import { REACTIVATION_REASON_LABEL } from "@cofounderai/module-crm/lib/reactivat
 import { Badge } from "@cofounderai/core/ui/badge";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { RefreshCw } from "lucide-react";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * CRM-12.7's "Reactivation Opportunities" -- four signals (verbatim from the backlog):
@@ -31,9 +32,14 @@ export default async function CrmReactivationPage({ params }: { params: Promise<
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reactivation</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s customers worth reaching out to again.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reactivation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s customers worth reaching out to again.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.reactivation" businessSlug={businessSlug} />
+        </div>
       </div>
 
       {opportunities.length === 0 ? (

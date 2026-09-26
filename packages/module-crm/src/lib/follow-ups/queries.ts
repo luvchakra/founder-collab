@@ -50,7 +50,16 @@ export async function listFollowUpQueue(businessId: string): Promise<FollowUpQue
     .eq("status", "pending")
     .order("due_at", { ascending: true });
   if (error) throw error;
+  return enrichFollowUpQueue(businessId, followUps as FollowUp[]);
+}
+
+/** The enrichment half of `listFollowUpQueue()` -- party name, source/channel, review and
+ * product-interest context for a given set of follow-ups. Split out (unchanged) so
+ * EXP-CRM-07's export can page past PostgREST's row cap and enrich the same way, one
+ * bounded batch at a time. */
+export async function enrichFollowUpQueue(businessId: string, followUps: FollowUp[]): Promise<FollowUpQueueRow[]> {
   if (followUps.length === 0) return [];
+  const supabase = await createClient();
 
   const leadIds = [...new Set(followUps.map((f) => f.lead_id).filter((id): id is string => Boolean(id)))];
   const opportunityIds = [...new Set(followUps.map((f) => f.opportunity_id).filter((id): id is string => Boolean(id)))];

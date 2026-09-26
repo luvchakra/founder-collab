@@ -19,6 +19,7 @@ import {
 } from "./actions";
 import { ConnectGoogleBusinessProfileForm } from "./connect-form";
 import { ReviewsList } from "./reviews-list";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * CRM-08.5 ("Google Business Profile Review Inbox") + CRM-08.6 ("Review Response
@@ -43,9 +44,14 @@ export default async function CrmReviewsPage({ params }: { params: Promise<{ bus
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reviews</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s Google Business Profile reputation queue.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reviews</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s Google Business Profile reputation queue.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.reviews" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <Card className="mx-auto w-full max-w-lg">

@@ -3,6 +3,7 @@ import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { getBusiness } from "@cofounderai/module-inventory/lib/tenancy/queries";
 import { listAuditLogForBusiness, listAuditActors } from "@cofounderai/core/audit/queries";
 import { AuditLogView } from "@cofounderai/core/audit-log/audit-log-view";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function AuditLogPage({
   params,
@@ -30,11 +31,16 @@ export default async function AuditLogPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Audit Log</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          A read-only, chronological record of who changed what and when for {business.name}.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Audit Log</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A read-only, chronological record of who changed what and when for {business.name}.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="inventory.audit-log" businessSlug={businessSlug} params={{ entityType, actorId, dateFrom, dateTo }} paginated />
+        </div>
       </div>
 
       <AuditLogView entries={entries} actors={actors} filters={{ entityType, actorId, dateFrom, dateTo }} />

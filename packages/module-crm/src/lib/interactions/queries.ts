@@ -41,6 +41,14 @@ export type PotentialLostBusinessQueueEntry = PotentialLostBusinessQueueRow & {
  */
 export async function listPotentialLostBusinessQueue(businessId: string): Promise<PotentialLostBusinessQueueEntry[]> {
   const interactions = await getOpenCommercialInteractions(businessId, 200);
+  return buildPotentialLostBusinessQueue(interactions);
+}
+
+/** The join half of `listPotentialLostBusinessQueue()` -- conversation owner/opportunity,
+ * opportunity value and party name for a given set of open commercial interactions.
+ * Split out (unchanged) so EXP-CRM-05's "all matching records" export can page past the
+ * page's own 200-row cap and join the same way, one bounded batch at a time. */
+export async function buildPotentialLostBusinessQueue(interactions: Interaction[]): Promise<PotentialLostBusinessQueueEntry[]> {
   if (interactions.length === 0) return [];
 
   const supabase = await createClient();

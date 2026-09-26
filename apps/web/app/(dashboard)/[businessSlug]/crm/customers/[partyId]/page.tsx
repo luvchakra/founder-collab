@@ -18,6 +18,7 @@ import { getGstDocumentStatus } from "@cofounderai/module-gst/contract/index";
 import { TrendingUp } from "lucide-react";
 import { generateCustomerSummaryAction, linkTicketToDocumentAction, recalculateBuyingIntentScoreAction } from "./actions";
 import { CustomerSummaryCard } from "./customer-summary-card";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
  * Customer 360 (docs/design/crm-module-design.md Part B, B1 + CRM-02.1). One panel
@@ -102,17 +103,22 @@ export default async function CustomerPanelPage({
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6">
-      <div>
-        <Link href={`/${businessSlug}/crm`} className="text-sm text-muted-foreground hover:underline">
-          &larr; Back to inbox
-        </Link>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{party.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {party.email ?? party.phone ?? "No contact details on file"}
-        </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {customer360.lifecycleStatus ? <Badge variant="outline">{customer360.lifecycleStatus}</Badge> : null}
-          {customer360.source ? <Badge variant="outline">Source: {customer360.source}</Badge> : null}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Link href={`/${businessSlug}/crm`} className="text-sm text-muted-foreground hover:underline">
+            &larr; Back to inbox
+          </Link>
+          <h1 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">{party.name}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {party.email ?? party.phone ?? "No contact details on file"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {customer360.lifecycleStatus ? <Badge variant="outline">{customer360.lifecycleStatus}</Badge> : null}
+            {customer360.source ? <Badge variant="outline">Source: {customer360.source}</Badge> : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.customer-360" businessSlug={businessSlug} params={{ partyId }} kind="report" />
         </div>
       </div>
 

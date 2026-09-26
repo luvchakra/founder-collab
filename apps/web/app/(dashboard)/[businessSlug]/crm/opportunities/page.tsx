@@ -20,6 +20,7 @@ import type { EmployeeOption } from "@cofounderai/module-crm/lib/tickets/types";
 import { assignOpportunityAction, updateOpportunityStageAction, updateOpportunityValueAction } from "./actions";
 import { OpportunitiesKanban } from "./opportunities-kanban";
 import { EditValueDialog } from "./edit-value-dialog";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /** CRM-05.4's inline assign form -- mirrors the Leads page's own AssignForm exactly. */
 function AssignForm({ businessId, opportunityId, ownerId, employees }: { businessId: string; opportunityId: string; ownerId: string | null; employees: EmployeeOption[] }) {
@@ -86,13 +87,16 @@ export default async function CrmOpportunitiesPage({
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Sales Opportunities</h1>
           <p className="mt-1 text-sm text-muted-foreground">{business.name}&apos;s pipeline of open deals.</p>
         </div>
-        <div className="flex items-center gap-1 rounded-lg border border-border p-1">
-          <Button asChild variant={!isListView ? "secondary" : "ghost"} size="sm">
-            <Link href={basePath}>Kanban</Link>
-          </Button>
-          <Button asChild variant={isListView ? "secondary" : "ghost"} size="sm">
-            <Link href={`${basePath}?view=list`}>List</Link>
-          </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="crm.opportunities" businessSlug={businessSlug} params={{ view }} />
+          <div className="flex items-center gap-1 rounded-lg border border-border p-1">
+            <Button asChild variant={!isListView ? "secondary" : "ghost"} size="sm">
+              <Link href={basePath}>Kanban</Link>
+            </Button>
+            <Button asChild variant={isListView ? "secondary" : "ghost"} size="sm">
+              <Link href={`${basePath}?view=list`}>List</Link>
+            </Button>
+          </div>
         </div>
       </div>
 
