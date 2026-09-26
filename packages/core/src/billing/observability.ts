@@ -28,7 +28,9 @@ export type BillingAuditAction =
   | "billing.license_reconciled"
   | "billing.webhook_failed"
   | "billing.refund_created"
-  | "billing.subscription_synced";
+  | "billing.subscription_synced"
+  | "billing.trial_started"
+  | "billing.trial_ended";
 
 export async function auditBilling(
   businessId: string,

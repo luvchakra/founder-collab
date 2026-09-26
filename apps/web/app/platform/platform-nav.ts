@@ -72,6 +72,8 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
       { href: "/platform/billing/payments", label: "Payments" },
       { href: "/platform/billing/events", label: "Webhook Events" },
       { href: "/platform/billing/providers", label: "Providers" },
+      // PLATFORM-P1-04.2..04.4 / 05.1..05.4 -- trials, grace, currency, subscription tax.
+      { href: "/platform/billing/lifecycle", label: "Lifecycle & Tax" },
     ],
   },
   {

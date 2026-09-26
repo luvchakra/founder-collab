@@ -15,6 +15,7 @@ describe("PLATFORM_NAV_GROUPS", () => {
       "/platform/billing/payments",
       "/platform/billing/events",
       "/platform/billing/providers",
+      "/platform/billing/lifecycle",
     ]);
   });
 

@@ -6,6 +6,7 @@ import { getPlan, isFreePlan, listActivePlanPrices, type CatalogPlan, type PlanP
 import { auditBilling, logBilling } from "./observability";
 import { createProvider, isCheckoutReady, loadProviderConfigs } from "./provider-config";
 import { reconcileSubscriptionLicenses } from "./provisioning";
+import { businessHadTrial, isSupportedCurrency, isTrialEligible, loadLifecycleSettings, type SubscriptionLifecycleSettings } from "./lifecycle";
 import {
   BillingNotConfiguredError,
   BillingProviderError,
@@ -128,7 +129,10 @@ export async function startCheckout(input: StartCheckoutInput): Promise<Checkout
   if (!plan || plan.status !== "active") throw new CheckoutError("invalid_plan", "That plan isn't available.");
 
   const current = await liveSubscription(manager.businessId);
-  if (current && current.plan_id === plan.id) throw new CheckoutError("already_on_plan", "You're already on this plan.");
+  // An internal trial of this plan may be converted to the paid plan early
+  // (PLATFORM-P1-04.2); any other subscription to the same plan is a no-op.
+  const onTrial = current?.provider === "internal" && current.status === "trialing";
+  if (current && current.plan_id === plan.id && !onTrial) throw new CheckoutError("already_on_plan", "You're already on this plan.");
   // One paid subscription per business (§50); plan changes go through Change plan.
   if (current && current.provider !== "internal") {
     throw new CheckoutError("already_subscribed", "You already have an active subscription. Manage your current plan to change it.");
@@ -136,7 +140,19 @@ export async function startCheckout(input: StartCheckoutInput): Promise<Checkout
 
   if (isFreePlan(plan)) return activateFreePlan(manager, plan, input.idempotencyKey);
 
+  const lifecycle = await loadLifecycleSettings();
+  // PLATFORM-P1-04.2: an eligible plan starts with the configured free trial -- no
+  // provider, no payment details -- once per business.
+  if (!onTrial && isTrialEligible(lifecycle, plan.id, await businessHadTrial(manager.businessId))) {
+    return activateTrial(manager, plan, lifecycle, input.idempotencyKey);
+  }
+
   const currency = await businessCurrency(manager.businessId, plan.currency);
+  // PLATFORM-P1-05.1: WonderArk bills only in the platform's supported currencies.
+  if (!isSupportedCurrency(lifecycle, currency)) {
+    logBilling("billing.checkout", { business_id: manager.businessId, operation: "start", status: "failed", error_code: "unsupported_currency" });
+    throw new CheckoutError("unsupported_currency", "This plan is not available in your billing currency.");
+  }
   const [configs, prices] = await Promise.all([loadProviderConfigs(), listActivePlanPrices({ planId: plan.id })]);
   const choice = choosePriceForCheckout(configs, prices, { planId: plan.id, currency, interval: input.billingInterval });
   if ("error" in choice) {
@@ -359,6 +375,110 @@ async function activateFreePlan(manager: BillingManager, plan: CatalogPlan, idem
   await reconcileSubscriptionLicenses(sub.id as string);
   logBilling("billing.checkout", { business_id: manager.businessId, subscription_id: sub.id as string, provider: "internal", operation: "start", status: "activated" });
   return { provider: "internal", mode: "activated", sessionId: session.id as string };
+}
+
+/**
+ * PLATFORM-P1-04.2 -- a free trial: an internal subscription in `trialing`, no provider,
+ * ending after the configured number of days. Licences follow the trial entitlements
+ * (reconcileSubscriptionLicenses); when the trial ends without a paid checkout,
+ * expireEndedTrials() ends it and those licences go into the read-only grace like any
+ * other ended subscription -- nothing is deleted (04.4). Converting early is a normal
+ * paid checkout of the same plan, which replaces the internal subscription (sync.ts).
+ */
+async function activateTrial(manager: BillingManager, plan: CatalogPlan, lifecycle: SubscriptionLifecycleSettings, idempotencyKey: string): Promise<CheckoutResult> {
+  const platform = platformAdmin();
+  const now = new Date();
+  const trialEnd = new Date(now.getTime() + lifecycle.trialDays * 24 * 60 * 60 * 1000).toISOString();
+  // A trial replaces the free plan's internal subscription (one live subscription each).
+  const { error: freeError } = await platform
+    .from("subscriptions")
+    .update({ status: "cancelled", cancelled_at: now.toISOString(), updated_at: now.toISOString() })
+    .eq("business_id", manager.businessId)
+    .eq("provider", "internal")
+    .eq("status", "active");
+  if (freeError) throw freeError;
+  const { data: sub, error } = await platform
+    .from("subscriptions")
+    .insert({
+      business_id: manager.businessId,
+      plan_id: plan.id,
+      provider: "internal",
+      environment: "live",
+      status: "trialing",
+      provider_status: "trialing",
+      currency: plan.currency,
+      amount: 0,
+      trial_start: now.toISOString(),
+      trial_end: trialEnd,
+      current_period_start: now.toISOString(),
+      current_period_end: trialEnd,
+      metadata: { trial: true, trial_days: lifecycle.trialDays },
+    })
+    .select("id")
+    .single();
+  if (error) {
+    if (error.code === "23505") throw new CheckoutError("already_subscribed", "You already have an active subscription. Manage your current plan to change it.");
+    throw error;
+  }
+  const { data: session, error: sessionError } = await platform
+    .from("checkout_sessions")
+    .insert({
+      business_id: manager.businessId,
+      plan_id: plan.id,
+      provider: "internal",
+      environment: "live",
+      idempotency_key: `${plan.id}:trial:${idempotencyKey}`,
+      requested_by: manager.userId,
+      subscription_id: sub.id,
+      status: "completed",
+      completed_at: now.toISOString(),
+    })
+    .select("id")
+    .single();
+  if (sessionError) throw sessionError;
+
+  await auditBilling(manager.businessId, "billing.trial_started", "subscription", sub.id as string, { plan: plan.key, trial_days: lifecycle.trialDays, trial_end: trialEnd }, manager.userId);
+  await reconcileSubscriptionLicenses(sub.id as string);
+  logBilling("billing.checkout", { business_id: manager.businessId, subscription_id: sub.id as string, provider: "internal", operation: "trial", status: "activated" });
+  return { provider: "internal", mode: "activated", sessionId: session.id as string };
+}
+
+/** PLATFORM-P1-04.2 -- ends every internal trial whose time is up. Its licences move into
+ * the read-only grace (never deleted) and the business falls back to the free plan. */
+export async function expireEndedTrials(): Promise<number> {
+  const { data, error } = await platformAdmin()
+    .from("subscriptions")
+    .update({ status: "expired", updated_at: new Date().toISOString() })
+    .eq("provider", "internal")
+    .eq("status", "trialing")
+    .lte("trial_end", new Date().toISOString())
+    .select("id, business_id, plan_id");
+  if (error) throw error;
+  for (const sub of (data ?? []) as { id: string; business_id: string; plan_id: string }[]) {
+    await auditBilling(sub.business_id, "billing.trial_ended", "subscription", sub.id, { plan_id: sub.plan_id });
+    await reconcileSubscriptionLicenses(sub.id);
+  }
+  return data?.length ?? 0;
+}
+
+/** PLATFORM-P1-04.3 -- re-provisions every past_due subscription whose payment grace has
+ * run out, so its licences start the read-only grace. Idempotent: reconciliation acts only
+ * on the difference. */
+export async function enforcePaymentGrace(): Promise<number> {
+  const lifecycle = await loadLifecycleSettings();
+  const cutoff = new Date(Date.now() - lifecycle.paymentGraceDays * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await platformAdmin()
+    .from("subscriptions")
+    .select("id")
+    .eq("status", "past_due")
+    .lte("past_due_since", cutoff);
+  if (error) throw error;
+  let changed = 0;
+  for (const sub of (data ?? []) as { id: string }[]) {
+    const result = await reconcileSubscriptionLicenses(sub.id);
+    if (result.deactivated.length > 0) changed++;
+  }
+  return changed;
 }
 
 /** Sweeps open sessions past their expiry (§52). Returns how many expired. */

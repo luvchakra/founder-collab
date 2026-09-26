@@ -3,7 +3,7 @@ import { activateLicense, deactivateLicense } from "../licensing/lifecycle";
 import type { LicenseStatus, ModuleKey } from "../licensing/types";
 import { getPlan, resolvePlanEntitlements } from "./catalog";
 import { auditBilling, logBilling } from "./observability";
-import { isEntitledStatus } from "./state";
+import { isEntitledNow, loadLifecycleSettings, trialEntitlements } from "./lifecycle";
 import type { SubscriptionStatus } from "./subscription-types";
 
 /**
@@ -37,6 +37,7 @@ type SubscriptionRow = {
   business_id: string;
   plan_id: string;
   status: SubscriptionStatus;
+  past_due_since?: string | null;
 };
 
 export type ReconcileResult = {
@@ -82,19 +83,23 @@ export async function reconcileSubscriptionLicenses(subscriptionId: string): Pro
 
   const { data: sub, error: subError } = await platform
     .from("subscriptions")
-    .select("id, business_id, plan_id, status")
+    .select("id, business_id, plan_id, status, past_due_since")
     .eq("id", subscriptionId)
     .single();
   if (subError) throw subError;
   const subscription = sub as SubscriptionRow;
-  const entitled = isEntitledStatus(subscription.status);
+  // PLATFORM-P1-04.3: past_due keeps the modules only for the configured payment grace;
+  // PLATFORM-P1-04.2: a trial licenses the configured trial entitlements.
+  const settings = await loadLifecycleSettings();
+  const entitled = isEntitledNow(subscription.status, subscription.past_due_since ?? null, settings);
 
-  const [entitlements, plan, { data: licenseRows, error: licenseError }] = await Promise.all([
+  const [planModules, plan, { data: licenseRows, error: licenseError }] = await Promise.all([
     resolvePlanEntitlements(subscription.plan_id),
     getPlan(subscription.plan_id),
     core.from("licenses").select("id, module_key, status, cancel_at, source, subscription_id").eq("business_id", subscription.business_id),
   ]);
   if (licenseError) throw licenseError;
+  const entitlements = subscription.status === "trialing" ? trialEntitlements(planModules, settings) : planModules;
 
   const changes = planLicenseChanges({ id: subscription.id, entitled }, entitlements, (licenseRows ?? []) as LicenseRow[]);
 

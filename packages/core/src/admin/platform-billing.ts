@@ -13,6 +13,11 @@ import type { BillingEnvironment, BillingProviderKey } from "../billing/subscrip
  * platform.is_superadmin() itself and records a *_events row. Secrets are encrypted here,
  * before they leave this process, and are never read back: the admin page only ever sees
  * "configured" plus an 8-character fingerprint (§43).
+ *
+ * This is also PLATFORM-P1-05.2 ("Billing Provider: configure provider and environment",
+ * docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §27) -- provider, enabled, test/live
+ * environment and priority per provider -- so the Platform Admin backlog story is served
+ * here rather than by a second provider table.
  */
 
 export type BillingProviderStatus = {

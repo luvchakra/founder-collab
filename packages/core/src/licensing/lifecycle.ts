@@ -1,8 +1,7 @@
 import { createAdminClient } from "../db/admin";
 import { replayParkedEvents } from "../events/drain";
+import { loadFeatureGraceDays } from "../billing/lifecycle";
 import type { LicenseEventType, LicenseStatus, ModuleKey } from "./types";
-
-const GRACE_PERIOD_DAYS = 30;
 
 function coreAdmin() {
   return createAdminClient({ schema: "core" });
@@ -147,7 +146,11 @@ export async function activateLicense(businessId: string, moduleKey: ModuleKey):
  */
 export async function deactivateLicense(businessId: string, moduleKey: ModuleKey): Promise<void> {
   const supabase = coreAdmin();
-  const graceEndsAt = new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // PLATFORM-P1-04.3/04.4 feature grace: configurable on Platform Admin -> Billing ->
+  // Lifecycle, never below ADR-9's 30 days, and still read-only grace -> expired, never
+  // deletion.
+  const graceDays = await loadFeatureGraceDays();
+  const graceEndsAt = new Date(Date.now() + graceDays * 24 * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await supabase
     .from("licenses")
