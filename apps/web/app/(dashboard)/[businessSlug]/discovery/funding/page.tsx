@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Landmark, Plus } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
@@ -119,18 +120,21 @@ export default async function FundingDashboardPage({ params }: { params: Promise
             : "No live round."
         }
         actions={
-          canManage ? (
-            <>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`${root}/investors`}>
-                  <Plus className="size-4" aria-hidden="true" /> Add investor
-                </Link>
-              </Button>
-              <Button asChild size="sm">
-                <Link href={round ? `${root}/rounds/${round.id}` : `${root}/rounds`}>{round ? "Open round" : "Set up a round"}</Link>
-              </Button>
-            </>
-          ) : null
+          <>
+            <ExportMenu exportId="funding.dashboard" businessSlug={businessSlug} kind="dashboard" />
+            {canManage ? (
+              <>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`${root}/investors`}>
+                    <Plus className="size-4" aria-hidden="true" /> Add investor
+                  </Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link href={round ? `${root}/rounds/${round.id}` : `${root}/rounds`}>{round ? "Open round" : "Set up a round"}</Link>
+                </Button>
+              </>
+            ) : null}
+          </>
         }
       />
 

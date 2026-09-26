@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Landmark } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { listPipeline, listRounds } from "@cofounderai/module-discovery/lib/funding/queries";
@@ -21,7 +22,11 @@ export default async function RoundsPage({ params }: { params: Promise<{ busines
 
   return (
     <>
-      <PageHeader title="Fundraising" description="Your rounds — planned, open and past — with what has been committed and received." />
+      <PageHeader
+        title="Fundraising"
+        description="Your rounds — planned, open and past — with what has been committed and received."
+        actions={<ExportMenu exportId="funding.rounds" businessSlug={businessSlug} />}
+      />
       {rounds.length === 0 ? (
         <Card>
           <CardContent className="py-10">

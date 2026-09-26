@@ -1,5 +1,6 @@
 import { FolderLock } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
@@ -76,7 +77,12 @@ export default async function DataRoomPage({ params }: { params: Promise<{ busin
       <PageHeader
         title="Data room"
         description="Documents investors ask for, kept private until you share them."
-        actions={canManage ? <ActionForm action={addStandardDataRoomAction.bind(null, businessId)} inline submitLabel="Add standard checklist" variant="outline" /> : null}
+        actions={
+          <>
+            <ExportMenu exportId="funding.data-room" businessSlug={businessSlug} kind="report" />
+            {canManage ? <ActionForm action={addStandardDataRoomAction.bind(null, businessId)} inline submitLabel="Add standard checklist" variant="outline" /> : null}
+          </>
+        }
       />
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-5">

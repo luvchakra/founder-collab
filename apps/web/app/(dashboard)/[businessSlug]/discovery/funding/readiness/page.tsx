@@ -1,5 +1,6 @@
 import { ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
 import { Textarea } from "@cofounderai/core/ui/textarea";
@@ -47,9 +48,12 @@ export default async function ReadinessPage({ params }: { params: Promise<{ busi
         title="Investor readiness"
         description="What investors will ask for, and where you stand on each. Only you mark an item Ready."
         actions={
-          canManage ? (
-            <ActionForm action={addStandardReadinessAction.bind(null, businessId)} inline submitLabel="Add standard checklist" variant="outline" />
-          ) : null
+          <>
+            <ExportMenu exportId="funding.readiness" businessSlug={businessSlug} />
+            {canManage ? (
+              <ActionForm action={addStandardReadinessAction.bind(null, businessId)} inline submitLabel="Add standard checklist" variant="outline" />
+            ) : null}
+          </>
         }
       />
 

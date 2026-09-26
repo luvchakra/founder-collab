@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { getRound, listEntityActivity, listInvestors, listPipeline, listStageHistory } from "@cofounderai/module-discovery/lib/funding/queries";
 import { formatAmount, investorFunnel, roundProgress } from "@cofounderai/module-discovery/lib/funding/metrics";
@@ -55,6 +56,7 @@ export default async function RoundPage({ params }: { params: Promise<{ business
         }
         description={`${ROUND_TYPE_LABEL[round.roundType]} · target ${formatAmount(round.targetAmount, round.currency)}${round.instrument ? ` · ${round.instrument}` : ""}`}
         breadcrumbs={[{ label: "Fundraising", href: `${root}/rounds` }, { label: round.name }]}
+        actions={<ExportMenu exportId="funding.pipeline" businessSlug={businessSlug} params={{ roundId: round.id }} kind="report" />}
       />
 
       {canManage ? (

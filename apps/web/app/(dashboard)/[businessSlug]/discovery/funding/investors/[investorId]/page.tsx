@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { Button } from "@cofounderai/core/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { Input } from "@cofounderai/core/ui/input";
@@ -86,21 +87,24 @@ export default async function InvestorPage({ params }: { params: Promise<{ busin
         description={`${INVESTOR_TYPE_LABEL[investor.investorType]} · found via ${INVESTOR_SOURCE_LABEL[investor.source].toLowerCase()}${investor.sourceNote ? ` (${investor.sourceNote})` : ""}`}
         breadcrumbs={[{ label: "Investors", href: `${root}/investors` }, { label: investor.name }]}
         actions={
-          canManage ? (
-            <>
-              <Button asChild size="sm">
-                <Link href={`${root}/outreach/new?investor=${investor.id}`}>Draft outreach</Link>
-              </Button>
-              <ActionForm
-                action={setInvestorStatusAction.bind(null, businessId, investor.id)}
-                inline
-                submitLabel={investor.status === "archived" ? "Restore" : "Archive"}
-                variant="outline"
-              >
-                <input type="hidden" name="to" value={investor.status === "archived" ? "active" : "archived"} />
-              </ActionForm>
-            </>
-          ) : null
+          <>
+            <ExportMenu exportId="funding.investor" businessSlug={businessSlug} params={{ investorId: investor.id }} kind="report" />
+            {canManage ? (
+              <>
+                <Button asChild size="sm">
+                  <Link href={`${root}/outreach/new?investor=${investor.id}`}>Draft outreach</Link>
+                </Button>
+                <ActionForm
+                  action={setInvestorStatusAction.bind(null, businessId, investor.id)}
+                  inline
+                  submitLabel={investor.status === "archived" ? "Restore" : "Archive"}
+                  variant="outline"
+                >
+                  <input type="hidden" name="to" value={investor.status === "archived" ? "active" : "archived"} />
+                </ActionForm>
+              </>
+            ) : null}
+          </>
         }
       />
 
