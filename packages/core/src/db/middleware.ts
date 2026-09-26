@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { moduleRegistry } from "@cofounderai/module-registry";
+import { MODULE_VIEW_PERMISSION } from "../rbac/module-permissions";
 
 /** Every static path the app owns at the top level -- a business's own slug
  * (core.business_settings.slug) can never collide with one of these, since this is
@@ -31,6 +32,9 @@ const RESERVED_TOP_SEGMENTS = new Set([
   "terms",
   "privacy",
   "pricing",
+  // RBAC-27: invitation acceptance (apps/web/app/invite/[token]) -- self-gated, since a
+  // brand-new invitee arrives signed out.
+  "invite",
   "robots.txt",
   "sitemap.xml",
 ]);
@@ -390,6 +394,23 @@ export async function updateSession(request: NextRequest) {
             url.searchParams.set("graceEndsAt", license.grace_ends_at as string);
           }
           return NextResponse.rewrite(url);
+        }
+
+        // RBAC-20 / §29-§31: licensed is not enough -- the user's role in this business
+        // must also open the module. Checked after the licence so the two messages stay
+        // distinct ("not in your plan" vs "no permission").
+        const routeModule = moduleForRoute(pathname);
+        const viewPermission = routeModule ? MODULE_VIEW_PERMISSION[routeModule.key] : undefined;
+        if (routeModule && viewPermission) {
+          const { data: allowed } = await coreClient.rpc("has_permission", { p_business_id: businessId, p_key: viewPermission });
+          if (allowed === false) {
+            const url = request.nextUrl.clone();
+            url.pathname = `/${businessSlug}/not-licensed`;
+            url.search = "";
+            url.searchParams.set("module", routeModule.key);
+            url.searchParams.set("reason", "no_permission");
+            return NextResponse.rewrite(url);
+          }
         }
       }
     }

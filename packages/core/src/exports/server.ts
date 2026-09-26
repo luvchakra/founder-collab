@@ -118,6 +118,17 @@ async function audit(
   });
 }
 
+/** RBAC-21 -- the export permission each export family needs, by export-id prefix. */
+export const EXPORT_PERMISSION_BY_PREFIX: Record<string, string> = {
+  discovery: "discovery.export",
+  marketing: "marketing.export",
+  funding: "funding.export",
+  inventory: "inventory.export",
+  fsm: "service.export",
+  crm: "crm.export",
+  finance: "finance.reports.export",
+};
+
 /**
  * Runs one export for a business: authenticate, resolve, license, permit, load, render,
  * audit, respond. `request` is the incoming GET; the adapter id has already been looked
@@ -159,6 +170,12 @@ export async function runBusinessExport<F>(
     if (!(await hasModule(businessId, adapter.module))) {
       return json(403, { error: "MODULE_NOT_LICENSED", message: "This module isn't licensed for this business." });
     }
+  }
+  // RBAC-21 (§32): viewing a module is not exporting it -- every business export also needs
+  // that area's export permission. Unknown prefixes fail closed.
+  const exportPermission = EXPORT_PERMISSION_BY_PREFIX[adapter.id.split(".")[0] ?? ""];
+  if (!exportPermission || !(await hasPermission(businessId, exportPermission))) {
+    return json(403, { error: "forbidden", message: "You don't have permission to export this. Contact your business administrator." });
   }
   for (const key of adapter.permissions ?? []) {
     if (!(await hasPermission(businessId, key))) {

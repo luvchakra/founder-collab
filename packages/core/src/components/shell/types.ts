@@ -60,6 +60,8 @@ export interface ShellBusiness {
   description?: string | null;
   /** core.businesses.logo_url -- the switcher falls back to a generic icon when unset. */
   logoUrl?: string | null;
+  /** RBAC-31 -- the signed-in user's role in this business, shown in the switcher. */
+  roleName?: string | null;
 }
 
 /** A discovery product/workspace belonging to a business -- shown under the sidebar's

@@ -34,6 +34,20 @@ export const ACTION_LABEL: Record<string, string> = {
   /** EXP-PLAT-05: every CSV/Excel export attempt (packages/core/src/exports/server.ts). */
   "export.generated": "Data exported",
   "export.failed": "Data export failed",
+  /** RBAC (docs/plan/15-MULTI-USER-RBAC-BACKLOG.md §47): written by the core.* member and
+   * role functions (20260926150100_core_rbac_members.sql) in the same transaction as the change. */
+  "member.invited": "Invited",
+  "member.invitation_accepted": "Accepted invitation",
+  "member.invitation_revoked": "Invitation revoked",
+  "member.role_changed": "Role changed",
+  "member.suspended": "Member suspended",
+  "member.reactivated": "Member reactivated",
+  "member.removed": "Member removed",
+  "role.created": "Role created",
+  "role.updated": "Role updated",
+  "role.permissions_changed": "Role permissions changed",
+  "role.archived": "Role archived",
+  "ownership.transferred": "Ownership transferred",
 };
 
 export const ENTITY_TYPE_LABEL: Record<string, string> = {
@@ -49,6 +63,9 @@ export const ENTITY_TYPE_LABEL: Record<string, string> = {
   job: "Job",
   assessment: "Assessment",
   export: "Export",
+  business_member: "Member",
+  role: "Role",
+  business_invitation: "Invitation",
 };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

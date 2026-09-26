@@ -1,14 +1,11 @@
 import { createClient } from "../db/server";
 
 /**
- * BILL-08 / BILL-38 -- who may buy, change or cancel a business's subscription: the
- * owners and admins of the account that owns the business (§63, §83). Every billing
- * action resolves this server-side from the session; a business id arriving from a form
- * or a URL is only ever a question, never an authorization.
- *
- * Two RLS-scoped reads: the business (invisible unless the caller belongs to its
- * account) and core.user_admin_account_ids() (the accounts where the caller is owner or
- * admin). An ordinary member sees the business but is not a billing manager.
+ * BILL-08 / BILL-38 / RBAC-22 -- who may buy, change or cancel a business's subscription:
+ * whoever holds billing.subscription.change in that business (owners always; anyone else
+ * only if their role grants it -- docs/plan/15-MULTI-USER-RBAC-BACKLOG.md §33). Every
+ * billing action resolves this server-side from the session; a business id arriving from a
+ * form or a URL is only ever a question, never an authorization.
  */
 export type BillingManager = {
   userId: string;
@@ -19,7 +16,7 @@ export type BillingManager = {
 };
 
 export class BillingAccessError extends Error {
-  constructor(message = "Only account owners and admins can manage billing.") {
+  constructor(message = "You don't have permission to manage billing for this business.") {
     super(message);
     this.name = "BillingAccessError";
   }
@@ -32,16 +29,13 @@ export async function getBillingManager(businessId: string): Promise<BillingMana
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [{ data: business, error: businessError }, { data: adminAccounts, error: adminError }] = await Promise.all([
+  const [{ data: business, error: businessError }, { data: allowed, error: permissionError }] = await Promise.all([
     supabase.from("businesses").select("id, name, account_id").eq("id", businessId).maybeSingle(),
-    supabase.rpc("user_admin_account_ids"),
+    supabase.rpc("has_permission", { p_business_id: businessId, p_key: "billing.subscription.change" }),
   ]);
   if (businessError) throw businessError;
-  if (adminError) throw adminError;
-  if (!business) return null;
-
-  const adminIds = new Set(((adminAccounts ?? []) as unknown[]).map((row) => (typeof row === "string" ? row : String(Object.values(row as object)[0]))));
-  if (!adminIds.has(business.account_id as string)) return null;
+  if (permissionError) throw permissionError;
+  if (!business || !allowed) return null;
 
   return {
     userId: user.id,

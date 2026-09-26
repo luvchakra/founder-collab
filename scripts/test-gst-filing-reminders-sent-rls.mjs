@@ -14,7 +14,7 @@ const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 const STUB_FILE = join(ROOT, "supabase", "tests", "local-stub.sql");
 
 const ALICE = "11111111-1111-1111-1111-111111111111"; // owner
-const CAROL = "33333333-3333-3333-3333-333333333333"; // viewer, no settings.manage
+const CAROL = "33333333-3333-3333-3333-333333333333"; // sales manager: operational, no settings.manage (a viewer is read-only since RBAC-19)
 const BOB = "22222222-2222-2222-2222-222222222222"; // separate business
 
 async function main() {
@@ -52,7 +52,7 @@ async function main() {
         select account_id, '${CAROL}', 'member' from core.businesses where id = '${aliceBusiness}';
         insert into core.business_members (business_id, user_id, role) values
           ('${aliceBusiness}', '${ALICE}', 'owner'),
-          ('${aliceBusiness}', '${CAROL}', 'viewer'),
+          ('${aliceBusiness}', '${CAROL}', 'sales_manager'),
           ('${bobBusiness}', '${BOB}', 'owner');
       `);
 
@@ -73,7 +73,7 @@ async function main() {
         select account_id, id, 'gst', 'active' from core.businesses where id = '${aliceBusiness}';
       `);
 
-      console.log("Carol (viewer, no settings.manage) CAN record a reminder sent -- this table's INSERT is licensed-membership only, not a settings action...");
+      console.log("Carol (sales manager, no settings.manage) CAN record a reminder sent -- this table's INSERT is licensed-membership only, not a settings action...");
       const reminder1 = psqlAsCarol(insertReminder(aliceBusiness, "gstr3b", "2026-09-30", 7));
 
       console.log("Alice (owner) can record a DIFFERENT lead-day threshold for the same obligation...");

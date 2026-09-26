@@ -13,6 +13,7 @@ import {
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
 import { getExportAlerts } from "@/lib/exports/alerts";
+import { getMyBusinessAccess, modulesVisibleTo, type BusinessAccess } from "@cofounderai/core/rbac/effective";
 import { getBillingAlerts } from "@/lib/billing-alerts";
 import { creditsUsedPercent } from "@cofounderai/module-discovery/lib/usage/format";
 import { FREE_TIER_MONTHLY_COST_LIMIT_USD } from "@cofounderai/module-discovery/lib/usage/limits";
@@ -160,7 +161,15 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // the raw registry straight through with no license check (docs/testing/
   // EXECUTION-2026-09-08.md finding 5). One batched query for every business on the
   // account; DashboardChrome filters by whichever business is currently active.
-  const licensedModuleKeysByBusiness = await listLicensedModuleKeysByBusiness(businesses.map((b) => b.id));
+  const [licensedByBusiness, accessByBusiness] = await Promise.all([
+    listLicensedModuleKeysByBusiness(businesses.map((b) => b.id)),
+    // RBAC-30/31: the user's role in each business. Navigation shows a module only when it
+    // is licensed AND the role may open it; the route guard and RLS enforce the same.
+    getMyBusinessAccess().catch(() => new Map<string, BusinessAccess>()),
+  ]);
+  const licensedModuleKeysByBusiness = Object.fromEntries(
+    Object.entries(licensedByBusiness).map(([businessId, keys]) => [businessId, modulesVisibleTo(accessByBusiness.get(businessId), keys)]),
+  );
 
   // Started, not awaited: see loadAlerts / loadCreditsUsedPercent.
   const alerts = account
@@ -181,7 +190,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       // `logo_url` is the column; `logoUrl` is what the shell's own (deliberately
       // framework-shaped, not row-shaped) ShellBusiness exposes, so it's mapped here
       // rather than leaking the DB's snake_case into packages/core.
-      businesses={businesses.map((b) => ({ ...b, logoUrl: b.logo_url }))}
+      businesses={businesses.map((b) => ({ ...b, logoUrl: b.logo_url, roleName: accessByBusiness.get(b.id)?.roleName ?? null }))}
       productsByBusiness={productsByBusiness}
       creditsUsedPercent={creditsPercent}
       accountId={account?.id ?? ""}

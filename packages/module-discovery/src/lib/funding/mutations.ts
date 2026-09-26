@@ -843,6 +843,8 @@ export async function addStandardReadinessItems(businessId: string): Promise<num
 
 export async function createDataRoomPlaceholder(businessId: string, input: DataRoomItemInput): Promise<string> {
   await authorise(businessId, "funding.manage");
+  // RBAC-23 (§34): Data Room changes need their own permission too.
+  await requirePermission(businessId, "funding.data_room.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("data_room_items")
@@ -864,6 +866,8 @@ export async function createDataRoomPlaceholder(businessId: string, input: DataR
 
 export async function addStandardDataRoomItems(businessId: string): Promise<number> {
   await authorise(businessId, "funding.manage");
+  // RBAC-23 (§34): Data Room changes need their own permission too.
+  await requirePermission(businessId, "funding.data_room.manage");
   const supabase = await createClient();
   const { data: existing, error: readError } = await supabase
     .from("data_room_items")
@@ -896,6 +900,8 @@ export async function uploadDataRoomFile(
   target: { itemId: string } | { item: DataRoomItemInput },
 ): Promise<string> {
   await authorise(businessId, "funding.manage");
+  // RBAC-23 (§34): Data Room changes need their own permission too.
+  await requirePermission(businessId, "funding.data_room.manage");
   const check = validateDataRoomFile(file);
   if (!check.ok) throw new FundingError("FILE_INVALID", check.reason);
   const supabase = await createClient();
@@ -983,6 +989,8 @@ export async function uploadDataRoomFile(
 
 export async function setDataRoomItemStatus(businessId: string, itemId: string, status: "draft" | "ready" | "expired"): Promise<void> {
   await authorise(businessId, "funding.manage");
+  // RBAC-23 (§34): Data Room changes need their own permission too.
+  await requirePermission(businessId, "funding.data_room.manage");
   const supabase = await createClient();
   const { data: item, error: readError } = await supabase
     .from("data_room_items")
@@ -1005,6 +1013,8 @@ export async function setDataRoomItemStatus(businessId: string, itemId: string, 
 /** A placeholder or never-shared document can be removed; a shared one is kept for the record. */
 export async function deleteDataRoomItem(businessId: string, itemId: string): Promise<void> {
   await authorise(businessId, "funding.manage");
+  // RBAC-23 (§34): Data Room changes need their own permission too.
+  await requirePermission(businessId, "funding.data_room.manage");
   const supabase = await createClient();
   const { count, error: countError } = await supabase
     .from("data_room_shares")
@@ -1035,6 +1045,8 @@ export async function deleteDataRoomItem(businessId: string, itemId: string): Pr
  */
 export async function shareDataRoomItem(businessId: string, itemId: string, input: ShareInput): Promise<string> {
   await authorise(businessId, "funding.approve");
+  // RBAC-23 (§34): sharing with investors is its own, audited permission.
+  await requirePermission(businessId, "funding.data_room.share");
   const supabase = await createClient();
   const { data: item, error: readError } = await supabase
     .from("data_room_items")
@@ -1082,6 +1094,8 @@ export async function shareDataRoomItem(businessId: string, itemId: string, inpu
 
 export async function revokeShare(businessId: string, shareId: string): Promise<void> {
   await authorise(businessId, "funding.approve");
+  // RBAC-23 (§34): sharing with investors is its own, audited permission.
+  await requirePermission(businessId, "funding.data_room.share");
   const supabase = await createClient();
   const user = await requireUser();
   const { data, error } = await supabase

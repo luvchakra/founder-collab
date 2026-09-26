@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import {
   getAccountUsageAndProspects,
@@ -202,6 +203,10 @@ export default async function DashboardPage({
 }) {
   const account = await getCurrentAccount();
   if (!account) redirect("/login");
+
+  // RBAC-27: back to the invitation a signed-out invitee started from.
+  const pendingInvite = (await cookies()).get("wa_pending_invite")?.value;
+  if (pendingInvite) redirect(`/invite/${pendingInvite}`);
 
   const { business: businessFilter, product: productFilter, industry: industryFilter } = await searchParams;
 

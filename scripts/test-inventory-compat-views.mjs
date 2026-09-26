@@ -51,10 +51,12 @@ async function main() {
       // "starter" (the column's old, disconnected default) is gone -- "free" (the new
       // default, a real platform.plans.key) is what a fresh business reads instead.
       assertEqual(as(`select name, plan, currency from inventory.organizations where id = '${business}'`), "Alice Co|free|INR", "the view reads the auto-created business_settings row's real defaults");
-      as(`update inventory.organizations set name = 'Alice Co Renamed', plan = 'pro', currency = 'USD', gstin = '27ALICE0001Z5', state = 'Maharashtra' where id = '${business}'`);
+      // BILL-01: the plan isn't the member's to set -- through the view or otherwise.
+      assertThrows(() => as(`update inventory.organizations set plan = 'pro' where id = '${business}'`), "the compat view can't be used to change the plan");
+      as(`update inventory.organizations set name = 'Alice Co Renamed', currency = 'USD', gstin = '27ALICE0001Z5', state = 'Maharashtra' where id = '${business}'`);
       assertEqual(as(`select name from core.businesses where id = '${business}'`), "Alice Co Renamed", "updating the view renamed the underlying business");
-      assertEqual(as(`select plan, currency, gstin from core.business_settings where business_id = '${business}'`), "pro|USD|27ALICE0001Z5", "updating the view upserted business_settings");
-      assertEqual(as(`select plan, currency, gstin from inventory.organizations where id = '${business}'`), "pro|USD|27ALICE0001Z5", "reading the view back reflects the update");
+      assertEqual(as(`select plan, currency, gstin from core.business_settings where business_id = '${business}'`), "free|USD|27ALICE0001Z5", "updating the view upserted business_settings");
+      assertEqual(as(`select plan, currency, gstin from inventory.organizations where id = '${business}'`), "free|USD|27ALICE0001Z5", "reading the view back reflects the update");
 
       // -----------------------------------------------------------------------
       console.log("Verifying inventory.organization_members / profiles / categories (simple auto-updatable views)...");

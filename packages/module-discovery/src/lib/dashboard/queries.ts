@@ -40,7 +40,9 @@ export const getAccountBusinesses = cache(async (accountId: string) => {
   const { data: rawBusinesses, error: businessesError } = await core
     .from("businesses")
     .select("*")
-    .eq("account_id", accountId)
+    // RBAC-11: every business the user belongs to -- their own account's and any they were
+    // invited into. RLS (core.user_business_ids()) is what scopes this, not the account id;
+    // accountId stays the cache key.
     .is("disabled_at", null)
     .order("created_at", { ascending: true });
   if (businessesError) throw businessesError;

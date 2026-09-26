@@ -22,9 +22,10 @@ import { formatDate } from "@cofounderai/core/lib/format";
  * exist" (an actual 404), not "which modules exist at all."
  */
 export default async function NotLicensedPage({
+  params,
   searchParams,
 }: {
-  params: Promise<{ businessId: string }>;
+  params: Promise<{ businessSlug: string }>;
   searchParams: Promise<{
     module?: string;
     reason?: string;
@@ -33,6 +34,7 @@ export default async function NotLicensedPage({
     message?: string;
   }>;
 }) {
+  const { businessSlug } = await params;
   const { module: moduleKey, reason, graceEndsAt, platformStatus, message } = await searchParams;
 
   const matchedModule = moduleRegistry.find((m) => m.key === moduleKey);
@@ -44,8 +46,10 @@ export default async function NotLicensedPage({
   // so its CTA points back at the dashboard rather than a "Licenses" page that would imply
   // reactivating something fixes it.
   const isPlatformDisabled = reason === "platform_disabled";
-  const ctaHref = isPlatformDisabled ? "/dashboard" : "/dashboard/settings/licenses";
-  const ctaLabel = isPlatformDisabled ? "Back to Dashboard" : "Go to Settings → Licenses";
+  // RBAC-20: a permission refusal isn't fixed by a licence or a plan either.
+  const isNoPermission = reason === "no_permission";
+  const ctaHref = isPlatformDisabled || isNoPermission ? "/dashboard" : `/${businessSlug}/billing/plans`;
+  const ctaLabel = isPlatformDisabled || isNoPermission ? "Back to Dashboard" : "View plans";
 
   return (
     <div className="mx-auto flex max-w-xl flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
@@ -86,6 +90,14 @@ function describeReason(
       description: `${moduleName}'s license grace period has ended, so access is fully denied for now. Your data is retained, not deleted -- reactivate the license any time to restore full access immediately, exactly as it was.`,
     };
   }
+  if (reason === "no_permission") {
+    // RBAC-20 / §31 -- licensed, but this user's role doesn't open it. Never phrased as a
+    // plan problem: buying anything wouldn't help.
+    return {
+      title: `You don't have access to ${moduleName}`,
+      description: `You don't have permission to access ${moduleName}. Contact your business administrator.`,
+    };
+  }
   if (reason === "platform_disabled") {
     // PLATFORM-P0-07.2/07.3 -- distinct from every other reason above: this business's
     // own license is fine, WonderArk has fully blocked the module for every business,
@@ -113,6 +125,6 @@ function describeReason(
   }
   return {
     title: `${moduleName} isn't part of your plan yet`,
-    description: `${moduleName} isn't licensed for this business. Activate it from Settings → Licenses to unlock it.`,
+    description: `${moduleName} isn't included in your current plan. Choose a plan that includes it to unlock it.`,
   };
 }

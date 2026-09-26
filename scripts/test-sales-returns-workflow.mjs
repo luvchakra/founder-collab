@@ -16,7 +16,7 @@ const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 const STUB_FILE = join(ROOT, "supabase", "tests", "local-stub.sql");
 
 const ALICE = "11111111-1111-1111-1111-111111111111"; // owner -- every permission
-const CAROL = "33333333-3333-3333-3333-333333333333"; // viewer -- no returns permissions
+const CAROL = "33333333-3333-3333-3333-333333333333"; // warehouse operator -- operational, but no returns permissions (a viewer is read-only since RBAC-19)
 const BOB = "44444444-4444-4444-4444-444444444444"; // owner of a separate business
 
 async function main() {
@@ -55,7 +55,7 @@ async function main() {
         select account_id, '${CAROL}', 'member' from core.businesses where id = '${business}';
         insert into core.business_members (business_id, user_id, role) values
           ('${business}', '${ALICE}', 'owner'),
-          ('${business}', '${CAROL}', 'viewer'),
+          ('${business}', '${CAROL}', 'warehouse_operator'),
           ('${bobBusiness}', '${BOB}', 'owner');
         insert into core.licenses (account_id, business_id, module_key, status)
         select account_id, '${business}', 'inventory', 'active' from core.businesses where id = '${business}';
@@ -112,7 +112,7 @@ async function main() {
       // by the status-transition trigger below instead, matching sales_orders.edit's own
       // precedent (test-inventory-procedural.mjs's own viewer-can-edit-notes assertion).
       const carolReturn = asCarol(`insert into inventory.sales_returns (org_id, sales_order_id) values ('${business}', '${soNoInvoice}') returning id;`);
-      assertEqual(asCarol(`select status from inventory.sales_returns where id = '${carolReturn}'`), "draft", "a viewer CAN open a draft return -- ordinary CRUD isn't permission-gated at the base RLS layer");
+      assertEqual(asCarol(`select status from inventory.sales_returns where id = '${carolReturn}'`), "draft", "an operational member without returns permissions CAN open a draft return -- only the status transitions are permission-gated");
 
       // ---------------------------------------------------------------------
       // 2. approve_sales_return(): requires an invoice, restock/damage movements,

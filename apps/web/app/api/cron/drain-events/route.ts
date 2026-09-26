@@ -6,6 +6,7 @@ import { drainDomainEvents } from "@cofounderai/core/events/drain";
 // type has no handler registered fails permanently on its very next drain attempt.
 import "@cofounderai/core/licensing/event-handlers";
 import "@cofounderai/core/billing/event-handlers";
+import "@cofounderai/core/rbac/event-handlers";
 import "@cofounderai/module-inventory/events/handlers";
 import "@cofounderai/module-fsm/events/handlers";
 import "@cofounderai/module-gst/events/handlers";

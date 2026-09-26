@@ -255,13 +255,12 @@ async function main() {
       `);
       psqlAsAlice(`insert into core.document_lines (business_id, document_id, item_id, quantity) values ('${business}', '${soPerm}', '${soItem}', 1);`);
 
-      assertThrows(
-        () => psqlAsCarol(`update core.documents set status = 'confirmed' where id = '${soPerm}'`),
-        "a viewer lacks sales_orders.confirm and cannot confirm a sales order",
-      );
-      assertEqual(psqlAsAlice(`select status from core.documents where id = '${soPerm}'`), "draft", "the rejected transition left status unchanged");
+      // RBAC-19: RLS now stops a viewer before the status trigger does (0 rows, no error).
+      psqlAsCarol(`update core.documents set status = 'confirmed' where id = '${soPerm}'`);
+      assertEqual(psqlAsAlice(`select status from core.documents where id = '${soPerm}'`), "draft", "a viewer lacks sales_orders.confirm and cannot confirm a sales order");
+      // RBAC-19: a viewer is read-only in the database, not just blocked on status changes.
       psqlAsCarol(`update core.documents set notes = 'just checking' where id = '${soPerm}'`);
-      assertEqual(psqlAsAlice(`select notes from core.documents where id = '${soPerm}'`), "just checking", "a viewer CAN update a non-status column -- the trigger only gates status changes");
+      assertEqual(psqlAsAlice(`select coalesce(notes, '') from core.documents where id = '${soPerm}'`), "", "a viewer can't update the document at all");
       psqlAsAlice(`update core.documents set status = 'confirmed' where id = '${soPerm}'`);
       assertEqual(psqlAsAlice(`select status from core.documents where id = '${soPerm}'`), "confirmed", "an owner (has sales_orders.confirm via the blanket owner grant) can confirm it");
 
@@ -269,8 +268,10 @@ async function main() {
         insert into inventory.stock_transfers (business_id, transfer_number, source_warehouse_id, destination_warehouse_id)
         values ('${business}', 'XFER-4', '${whSource}', '${whDest}') returning id;
       `);
-      assertThrows(
-        () => psqlAsCarol(`update inventory.stock_transfers set status = 'requested' where id = '${xfer4}'`),
+      psqlAsCarol(`update inventory.stock_transfers set status = 'requested' where id = '${xfer4}'`);
+      assertEqual(
+        psqlAsAlice(`select status from inventory.stock_transfers where id = '${xfer4}'`),
+        "draft",
         "a viewer lacks stock_transfers.edit and cannot request a stock transfer",
       );
       psqlAsAlice(`update inventory.stock_transfers set status = 'requested' where id = '${xfer4}'`);

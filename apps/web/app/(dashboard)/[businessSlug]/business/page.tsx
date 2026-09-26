@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
-import { Globe, Sparkles, CreditCard } from "lucide-react";
+import { Globe, Sparkles, CreditCard, Users } from "lucide-react";
 import Link from "next/link";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import {
@@ -94,6 +94,13 @@ export default async function BusinessDetailPage({
             >
               <CreditCard className="size-3.5" aria-hidden="true" />
               Billing
+            </Link>
+            <Link
+              href={`/${businessSlug}/admin/users`}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <Users className="size-3.5" aria-hidden="true" />
+              Users &amp; access
             </Link>
           </div>
         </div>

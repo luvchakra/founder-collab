@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 443 |
+| ✅ Done | 481 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 6 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 83 |
-| **Total** | **565** |
+| **Total** | **603** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -38,6 +38,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
+| [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 38 | 0 | 0 | 38 |
 
 ## What is left
 
@@ -1156,7 +1157,7 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `BILL-01` | Inspect existing plans, licenses, payments, platform schema and background jobs | ✅ Done | `packages/core/src/licensing/event-handlers.test.ts` +2 |
+| `BILL-01` | Inspect existing plans, licenses, payments, platform schema and background jobs | ✅ Done | `packages/core/src/licensing/event-handlers.test.ts` +4 |
 | `BILL-02` | Create provider abstraction | ✅ Done | `packages/core/src/billing/providers/http.ts` +1 |
 | `BILL-03` | Create platform billing tables/migrations | ✅ Done | `supabase/migrations/20260926130000_platform_billing.sql` |
 | `BILL-04` | Create Razorpay adapter | ✅ Done | `packages/core/src/billing/providers/razorpay.test.ts` +1 |
@@ -1196,3 +1197,50 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 | `BILL-38` | Tenant/RBAC/license tests | ✅ Done | `packages/core/src/billing/access.ts` +1 |
 | `BILL-39` | E2E provider sandbox tests | ✅ Done | `apps/web/e2e/authenticated/billing.spec.ts` |
 | `BILL-40` | Production readiness review | ❔ Unverified | Discussed in `docs/design/subscription-billing.md`, but no code cites it — confirm before relying on this |
+
+## Multi-user / multi-business RBAC
+
+Source: [`docs/plan/15-MULTI-USER-RBAC-BACKLOG.md`](./plan/15-MULTI-USER-RBAC-BACKLOG.md)
+
+### 61a. Story index
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `RBAC-01` | Inspect current auth/RLS | ✅ Done | `supabase/migrations/20260926150000_core_rbac_roles.sql` |
+| `RBAC-02` | Canonical roles | ✅ Done | `supabase/migrations/20260926150000_core_rbac_roles.sql` |
+| `RBAC-03` | Map existing roles | ✅ Done | `supabase/migrations/20260926150000_core_rbac_roles.sql` |
+| `RBAC-04` | Role permission grants | ✅ Done | `scripts/test-discovery-rls.mjs` |
+| `RBAC-05` | Effective permission resolution | ✅ Done | `packages/core/src/rbac/effective.ts` |
+| `RBAC-06` | Role-assignment ceiling | ✅ Done | `supabase/migrations/20260926150000_core_rbac_roles.sql` +1 |
+| `RBAC-07` | Invitations | ✅ Done | `packages/core/src/rbac/members.ts` +1 |
+| `RBAC-08` | Invitation acceptance | ✅ Done | `apps/web/app/invite/[token]/actions.ts` +1 |
+| `RBAC-09` | Active/suspended/removed status | ✅ Done | `supabase/migrations/20260926150000_core_rbac_roles.sql` |
+| `RBAC-10` | Role assignment | ✅ Done | `packages/core/src/rbac/rbac-services.test.ts` +1 |
+| `RBAC-11` | Multi-business membership UI | ✅ Done | `packages/module-discovery/src/lib/dashboard/queries.ts` |
+| `RBAC-12` | Roles page | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/page.tsx` |
+| `RBAC-13` | Custom role creation | ✅ Done | `packages/core/src/rbac/rbac-services.test.ts` +1 |
+| `RBAC-14` | Permission editor | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/role-form.tsx` |
+| `RBAC-15` | Role templates | ✅ Done | `supabase/migrations/20260926150100_core_rbac_members.sql` |
+| `RBAC-16` | Role comparison | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/member-actions.tsx` |
+| `RBAC-17` | Role archive/reassignment | ✅ Done | `packages/core/src/rbac/members.ts` +1 |
+| `RBAC-18` | Server guards | ✅ Done | `packages/core/src/rbac/effective.ts` +1 |
+| `RBAC-19` | RLS enforcement | ✅ Done | `scripts/test-gst-filing-reminders-sent-rls.mjs` +5 |
+| `RBAC-20` | License × permission enforcement | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/not-licensed/page.tsx` +4 |
+| `RBAC-21` | Export authorization | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/access-ui.tsx` +5 |
+| `RBAC-22` | Billing authorization | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/access-ui.tsx` +6 |
+| `RBAC-23` | Funding/Data Room authorization | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/[memberId]/page.tsx` +4 |
+| `RBAC-24` | Discovery authorization adapters without restructuring Discovery | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/access-ui.tsx` +3 |
+| `RBAC-25` | Users & Access navigation | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/actions.ts` +2 |
+| `RBAC-26` | Users desktop/mobile | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/[roleId]/page.tsx` +3 |
+| `RBAC-27` | Invite flow | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/actions.ts` +11 |
+| `RBAC-28` | User details / role change | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/[roleId]/page.tsx` +2 |
+| `RBAC-29` | Roles desktop/mobile | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/[roleId]/archive-role-button.tsx` +3 |
+| `RBAC-30` | Permission editor UI | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/roles/actions.ts` +7 |
+| `RBAC-31` | Business switcher role display | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +4 |
+| `RBAC-32` | Audit | ✅ Done | `packages/core/src/rbac/event-handlers.ts` +1 |
+| `RBAC-33` | Privilege escalation tests | ✅ Done | `scripts/test-core-rbac-rls.mjs` |
+| `RBAC-34` | Cross-business tests | ✅ Done | `scripts/test-core-rbac-rls.mjs` |
+| `RBAC-35` | RLS tests | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/admin/users/activity/page.tsx` |
+| `RBAC-36` | Invitation security | ✅ Done | `apps/web/e2e/unauthenticated/rbac.spec.ts` +3 |
+| `RBAC-37` | Multi-business E2E | ✅ Done | `apps/web/e2e/authenticated/rbac.spec.ts` |
+| `RBAC-38` | Full regression | ✅ Done | `scripts/test-core-rbac-rls.mjs` |

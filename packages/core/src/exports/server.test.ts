@@ -8,7 +8,7 @@ const state = vi.hoisted(() => ({
   businessBySlug: { acme: "biz-a" } as Record<string, string>,
   licensed: true,
   platformStatus: "available" as string,
-  permissions: new Set<string>(["crm.view"]),
+  permissions: new Set<string>(["crm.view", "crm.export"]),
   audits: [] as { action: string; businessId: string; after: Record<string, unknown> }[],
   auditFails: false,
 }));
@@ -85,7 +85,7 @@ beforeEach(() => {
   state.user = { id: "user-1", email: "owner@example.com" };
   state.licensed = true;
   state.platformStatus = "available";
-  state.permissions = new Set(["crm.view"]);
+  state.permissions = new Set(["crm.view", "crm.export"]);
   state.audits = [];
   state.auditFails = false;
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -164,6 +164,11 @@ describe("runBusinessExport", () => {
   it("still exports while the platform has the module read-only", async () => {
     state.platformStatus = "read_only";
     expect((await runBusinessExport(request("business=acme&format=csv"), adapter())).status).toBe(200);
+  });
+
+  it("RBAC-21: refuses a user who can view the module but not export it", async () => {
+    state.permissions = new Set(["crm.view"]);
+    expect((await runBusinessExport(request("business=acme&format=csv"), adapter())).status).toBe(403);
   });
 
   it("refuses without the page's read permission", async () => {

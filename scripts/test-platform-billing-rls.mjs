@@ -26,7 +26,7 @@ const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 const STUB_FILE = join(ROOT, "supabase", "tests", "local-stub.sql");
 
 const ALICE = "99999999-9999-9999-9999-9999999999a1"; // owner of Alice's account
-const MIA = "99999999-9999-9999-9999-9999999999a2"; // plain member of Alice's account
+const MIA = "99999999-9999-9999-9999-9999999999a2"; // viewer of Alice's business (RBAC-22)
 const BOB = "99999999-9999-9999-9999-9999999999b1"; // owner of a different account
 const ZOE = "99999999-9999-9999-9999-9999999999c1"; // platform superadmin
 
@@ -45,8 +45,8 @@ async function main() {
           ('${ZOE}', 'zoe-billing@example.com');
       `);
       const aliceAccount = psql(`select account_id from core.account_members where user_id = '${ALICE}'`);
-      psql(`insert into core.account_members (account_id, user_id, role) values ('${aliceAccount}', '${MIA}', 'member')`);
       const aliceBiz = psql(`insert into core.businesses (account_id, name) values ('${aliceAccount}', 'Alice Co') returning id`);
+      psql(`insert into core.business_members (business_id, user_id, role) values ('${aliceBiz}', '${ALICE}', 'owner'), ('${aliceBiz}', '${MIA}', 'viewer')`);
       const bobBiz = psql(`
         insert into core.businesses (account_id, name)
         select account_id, 'Bob Co' from core.account_members where user_id = '${BOB}' returning id;
@@ -103,7 +103,7 @@ async function main() {
       assertEqual(psqlAs(MIA, `select count(*) from platform.subscriptions`), "1", "a member sees which plan the business is on");
       assertEqual(psqlAs(BOB, `select count(*) from platform.subscriptions`), "0", "another account sees nothing");
       assertEqual(psqlAs(ALICE, `select count(*) from platform.billing_payments`), "1", "the owner sees payments");
-      assertEqual(psqlAs(MIA, `select count(*) from platform.billing_payments`), "0", "a plain member does not see payments");
+      assertEqual(psqlAs(MIA, `select count(*) from platform.billing_payments`), "0", "a viewer (no billing.view) does not see payments");
       assertEqual(psqlAs(BOB, `select count(*) from platform.billing_payments`), "0", "another account sees no payments");
       assertThrows(
         () => psqlAs(ALICE, `update platform.subscriptions set status = 'active', plan_id = '${pro}'`),

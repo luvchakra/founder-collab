@@ -76,7 +76,7 @@ async function main() {
 
       console.log("Verifying core.business_settings.plan is a real FK into platform.plans.key...");
       assertThrows(
-        () => psqlAsAlice(`update core.business_settings set plan = 'nonexistent_plan' where business_id = '${aliceBiz}'`),
+        () => psql(`set local role service_role; update core.business_settings set plan = 'nonexistent_plan' where business_id = '${aliceBiz}'`),
         "setting plan to a value with no matching platform.plans.key is rejected by the FK constraint",
       );
       assertEqual(
@@ -84,7 +84,12 @@ async function main() {
         "free",
         "the rejected update left the row's real plan untouched",
       );
-      psqlAsAlice(`update core.business_settings set plan = 'pro' where business_id = '${aliceBiz}'`);
+      // BILL-01: only billing (the service role) sets a plan; a member's own attempt is refused.
+      assertThrows(
+        () => psqlAsAlice(`update core.business_settings set plan = 'pro' where business_id = '${aliceBiz}'`),
+        "a member can't set their own business's plan (20260926120000 plan guard)",
+      );
+      psql(`set local role service_role; update core.business_settings set plan = 'pro' where business_id = '${aliceBiz}'`);
       assertEqual(
         psqlAsAlice(`select plan from core.business_settings where business_id = '${aliceBiz}'`),
         "pro",

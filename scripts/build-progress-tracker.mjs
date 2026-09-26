@@ -40,6 +40,7 @@ const BACKLOGS = [
   { file: "12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md", name: "Discovery — Marketing, Customer Acquisition & Funding" },
   { file: "13-DATA-EXPORT-BACKLOG.md", name: "CSV / Excel export" },
   { file: "14-SUBSCRIPTION-BILLING-BACKLOG.md", name: "Subscriptions & billing (Razorpay + Stripe)" },
+  { file: "15-MULTI-USER-RBAC-BACKLOG.md", name: "Multi-user / multi-business RBAC" },
 ];
 
 /** `## DISC-OFFER-P0-01.1 — Introduce Business Offering`, at any heading depth, with or
@@ -121,14 +122,14 @@ export function parseBacklog(fileName, source) {
 export function expandCitation(token) {
   // `MKT-03..14` — an integer range written with two dots, as the Discovery expansion
   // stories are cited. Filled in keeping the zero padding the backlog uses (MKT-03).
-  const dotted = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL)[A-Z0-9-]*?-)(\d+)\.\.(\d+)$/.exec(token);
+  const dotted = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL|RBAC)[A-Z0-9-]*?-)(\d+)\.\.(\d+)$/.exec(token);
   if (dotted) {
     const [, prefix, from, to] = dotted;
     const ids = [];
     for (let n = Number(from); n <= Number(to) && ids.length < 100; n += 1) ids.push(`${prefix}${String(n).padStart(from.length, "0")}`);
     return ids;
   }
-  const match = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL)[A-Z0-9-]*?-)(\d+(?:\.\d+)?)((?:[/\u2013-]\d+(?:\.\d+)?)*)$/.exec(token);
+  const match = /^((?:DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL|RBAC)[A-Z0-9-]*?-)(\d+(?:\.\d+)?)((?:[/\u2013-]\d+(?:\.\d+)?)*)$/.exec(token);
   if (!match) return [];
 
   const [, base, first, rest] = match;
@@ -172,7 +173,7 @@ export function findCitations(ids) {
       "git",
       [
         "grep", "-oI", "--no-color", "-E",
-        "\\b(DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL)[A-Z0-9-]*-[0-9]+((\\.\\.[0-9]+)|((\\.[0-9]+)?([/\u2013-][0-9]+(\\.[0-9]+)?)*))",
+        "\\b(DISC|PLATFORM|COMPLY|MKT|FND|INT|EXP|BILL|RBAC)[A-Z0-9-]*-[0-9]+((\\.\\.[0-9]+)|((\\.[0-9]+)?([/\u2013-][0-9]+(\\.[0-9]+)?)*))",
         // Everything that talks *about* story ids rather than implementing one: the
         // backlogs, the tracker, this script and its test (whose examples would otherwise
         // read as evidence), and the instructions that tell contributors to cite ids.

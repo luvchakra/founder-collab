@@ -139,6 +139,9 @@ export function BusinessSwitcher({
                     ) : null}
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
+                    {business.roleName ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{business.roleName}</span>
+                    ) : null}
                     {business.id === activeBusinessId ? (
                       <Check className="size-4 text-primary" aria-hidden="true" />
                     ) : null}
