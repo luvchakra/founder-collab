@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { Globe, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import {
   getBusiness,
   getWorkspaceForProduct,
@@ -78,13 +79,16 @@ export default async function BusinessDetailPage({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <Breadcrumbs items={[{ label: "Business" }]} />
-          <Link
-            href={`/${businessSlug}/usage`}
-            className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-          >
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            AI usage
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <ExportMenu exportId="discovery.business" businessSlug={businessSlug} kind="report" />
+            <Link
+              href={`/${businessSlug}/usage`}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+            >
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              AI usage
+            </Link>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import {
   getProduct,
   getWorkspaceForProduct,
@@ -46,6 +47,7 @@ export default async function ProspectsPage({
   const { businessSlug, productId } = await params;
   const businessId = await resolveBusinessIdBySlug(businessSlug);
   if (!businessId) notFound();
+  const query = await searchParams;
   const {
     status,
     industry,
@@ -61,7 +63,7 @@ export default async function ProspectsPage({
     bulkLimit,
     autopopulated,
     aiRestructured,
-  } = await searchParams;
+  } = query;
 
   const product = await getProduct(productId);
   if (!product || product.business_id !== businessId) notFound();
@@ -95,11 +97,15 @@ export default async function ProspectsPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Prospects</h1>
-        <ProspectToolbarActions
-          importHref={`${basePath}/import`}
-          discoverHref={`${basePath}/discover`}
-          createAction={createProspectAction.bind(null, businessId, productId, workspace.id)}
-        />
+        {/* Wraps like the toolbar inside it, so four buttons never overflow a phone screen. */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <ExportMenu exportId="discovery.prospects" businessSlug={businessSlug} params={{ ...query, productId }} />
+          <ProspectToolbarActions
+            importHref={`${basePath}/import`}
+            discoverHref={`${basePath}/discover`}
+            createAction={createProspectAction.bind(null, businessId, productId, workspace.id)}
+          />
+        </div>
       </div>
 
       <AutoPopulateStepBanner

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { getProduct, getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getWorkspaceUsage } from "@cofounderai/module-discovery/lib/usage/queries";
 import { creditsUsedPercent, OPERATION_LABEL } from "@cofounderai/module-discovery/lib/usage/format";
@@ -28,6 +29,9 @@ export default async function UsagePage({
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <ExportMenu exportId="discovery.usage" businessSlug={businessSlug} params={{ productId }} kind="report" />
+      </div>
       <section className="flex flex-col gap-3 rounded-md border p-4">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Usage this month</h2>

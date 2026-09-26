@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { ArrowRight, Globe, Package, Sparkles, Target, TrendingUp, Users } from "lucide-react";
@@ -154,6 +155,7 @@ export default async function BusinessDashboardPage({
             {/* No separate "Business" button here -- the breadcrumb's own "Business"
                 crumb already links to the same place, so this was a redundant second
                 copy of the same link right next to it. */}
+            <ExportMenu exportId="discovery.dashboard" businessSlug={businessSlug} kind="dashboard" />
             <Link
               href={`/${businessSlug}/usage`}
               className="flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"

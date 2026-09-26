@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import {
   getProduct,
   getWorkspaceForProduct,
@@ -431,9 +432,14 @@ export default async function ProspectDetailPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <Link href={basePath} className="text-sm text-muted-foreground hover:underline">
-        ← Back to prospects
-      </Link>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <Link href={basePath} className="text-sm text-muted-foreground hover:underline">
+          ← Back to prospects
+        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="discovery.prospect" businessSlug={businessSlug} params={{ productId, prospectId }} kind="report" />
+        </div>
+      </div>
 
       {duplicate ? (
         <p className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">

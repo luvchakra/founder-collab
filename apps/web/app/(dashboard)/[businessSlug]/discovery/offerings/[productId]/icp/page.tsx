@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import {
   getProduct,
   getWorkspaceForProduct,
@@ -135,6 +136,7 @@ export default async function IcpPage({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          <ExportMenu exportId="discovery.icp" businessSlug={businessSlug} params={{ productId }} kind="report" />
           <AiActionForm
             action={generateIcpAction.bind(null, businessId, productId)}
             buttonLabel="Regenerate"
