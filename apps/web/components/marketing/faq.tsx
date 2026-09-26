@@ -4,7 +4,7 @@ import { FadeIn } from "./fade-in";
 const FAQS: [string, string][] = [
   [
     `What exactly is ${BRAND_NAME}?`,
-    `${BRAND_NAME} is one portal, one login, five independently licensed modules: Discovery (customer discovery and outreach), Inventory (products and purchasing), Service (field service and jobs), CRM (a unified inbox) and Finance (accounting and GST). Every module shares the same underlying customer, item and document data.`,
+    `${BRAND_NAME} is one portal, one login, five independently licensed modules: Discovery (customer acquisition, marketing and fundraising), Inventory (products, purchasing and stock), Service (field service and jobs), CRM (a unified inbox and pipeline) and Finance (accounting, banking and GST). Every module shares the same underlying customer, item and document data.`,
   ],
   [
     "Do I have to buy all five modules?",
@@ -24,7 +24,19 @@ const FAQS: [string, string][] = [
   ],
   [
     "Can I use my own AI provider?",
-    "Yes, for Discovery. Connect a supported AI provider using your own API key; you choose the provider, and it internally selects the right model per task.",
+    `Yes. Connect a supported AI provider with your own API key, or use ${BRAND_NAME}'s included AI credits. Either way ${BRAND_NAME} picks the right model for each task, and repeat requests are cached so you aren't billed twice.`,
+  ],
+  [
+    "Can I invite my team and control what each person sees?",
+    "Yes. Invite people by email and give each one a role -- Owner, Admin, Sales Manager, Accountant, Inventory Manager, Viewer and more -- or build your own role from a template. Access is enforced in the database for every module, so a role that can't open Inventory can't read its data either.",
+  ],
+  [
+    "Can I get my data out?",
+    "Yes. Every list can be exported to CSV or Excel with the filters you've applied, and large exports run in the background with a download link when they're ready. Exports respect each person's permissions.",
+  ],
+  [
+    "How do I pay?",
+    "Choose a plan inside the app and pay securely by card or UPI through our payment partners. You can change plans, see every payment and cancel from the Billing page -- we never store card details.",
   ],
   [
     "Is my business's data isolated from other businesses?",

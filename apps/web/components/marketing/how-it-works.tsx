@@ -64,7 +64,7 @@ export function HowItWorks() {
           <StepShell
             index={2}
             title="License the modules you need today"
-            body="Turn on Discovery, Inventory, Service, CRM and Compliance independently. Drop a module later without losing its data -- cancelling keeps everything, read-only, for 30 days before access is paused."
+            body="Turn on Discovery, Inventory, Service, CRM and Finance independently. Drop a module later without losing its data -- cancelling keeps everything, read-only, for 30 days before access is paused."
           >
             <OutputList
               items={["Discovery", "Inventory", "Service", "CRM", "Finance"]}
@@ -87,7 +87,7 @@ export function HowItWorks() {
               </div>
               <div className="mt-2 flex justify-between text-landing-muted">
                 <span>Job is invoiced</span>
-                <span className="text-landing-fg">→ Compliance has the sale</span>
+                <span className="text-landing-fg">→ Finance has the sale</span>
               </div>
             </div>
           </StepShell>
@@ -99,7 +99,7 @@ export function HowItWorks() {
           >
             <div className="rounded-xl border border-landing-surface-border bg-landing-bg-elevated p-5 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-medium text-landing-fg">Add Compliance</p>
+                <p className="font-medium text-landing-fg">Add Finance</p>
                 <span className="rounded-full bg-landing-accent px-4 py-1.5 text-xs font-medium whitespace-nowrap text-landing-accent-foreground">
                   Activate
                 </span>

@@ -17,7 +17,7 @@ const TIERS = [
     name: "Pro",
     tagline: "License exactly what you run",
     features: [
-      "Discovery, Inventory, Service, CRM or Compliance",
+      "Discovery, Inventory, Service, CRM or Finance",
       "Full features of every module you license",
       "Data shared automatically across licensed modules",
       "Cancel a module anytime -- 30-day read-only grace, data always kept",

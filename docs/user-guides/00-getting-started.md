@@ -16,7 +16,7 @@ Go to **Sign up**. You'll need:
 
 Or use **Continue with Google** to skip the password step entirely. The
 Google button only appears if the deployment's Supabase project actually has
-Google sign-in switched on — see §11 if you operate the deployment and want
+Google sign-in switched on — see §13 if you operate the deployment and want
 to enable it.
 
 After signing up with email/password, check your inbox and confirm your
@@ -97,57 +97,119 @@ Cancelling a module **never deletes your data** — worst case you get a
 30-day read-only window, then the module is simply inaccessible until you
 reactivate.
 
-## 6. Billing and AI credits
+## 6. Plans, billing and AI credits
 
-**Settings → Billing** is account-wide (not per business):
+Each business has its own plan. Open **\<business\> → Billing** to see the
+current plan, the modules it includes and your next payment date.
+
+- **Change plan** opens **Choose your plan**. Pick a plan and billing
+  period, check the **Review your plan** summary, then pay through the
+  secure checkout (card or UPI, depending on your region). Licences update
+  as soon as the payment is confirmed; the success page says so.
+- If a payment doesn't go through, nothing changes — you stay on your
+  current plan and can try again.
+- **Payment history** lists every payment and receipt. WonderArk never
+  stores card details.
+- **Cancel subscription** keeps full access until the end of the paid
+  period, then the modules move to the 30-day read-only grace described in
+  §5. Your data is never deleted.
+
+Changing or cancelling a plan needs the `billing.subscription.change`
+permission (the Owner, plus anyone the business grants it to); seeing
+payments needs `billing.view`.
+
+**Settings → Billing** (account-wide) is where AI is configured:
 
 - Connect your own AI provider key (OpenAI, Anthropic, or Google Gemini) so
   AI features run on your own account, or leave it on **App Internal AI** to
-  use WonderArk's shared credits instead — no key required, capped by your
-  plan's free-tier allowance.
+  use WonderArk's included credits — no key required, capped by your plan's
+  allowance.
 - **Buy AI credits** if you're on App Internal AI and need more headroom.
-- A pricing-tier comparison table for reference (Free is the only plan you
-  can actually purchase today).
 
 **Settings → Usage** shows your account-wide AI usage this month, remaining
-credit balance, and a breakdown per business/offering (each Discovery
-offering has its own separate free-tier allowance, so there's no single
-blended percentage across your account).
+credit balance, and a breakdown per business and offering. Repeated AI
+requests are cached, so asking for the same research twice doesn't cost
+twice.
 
-## 7. Team & permissions
+## 7. Users, roles and invitations
 
-**\<business\> → Admin → Team** is the one shared place — across every
-module — where you see:
+**\<business\> → Admin → Users & Access** is where you manage who can use a
+business and what they can do. Everything here is per business: someone can
+be an Admin in one business and a Viewer in another.
 
-- Every member of the business and their role.
-- The eight built-in roles (**Owner, Admin, Inventory Manager, Procurement
-  Manager, Sales Manager, Accountant, Warehouse Operator, Viewer**) and,
-  for each one, exactly which permissions it grants, grouped by module.
+- **Invite user** sends an email invitation with a role. The link works for
+  7 days, only for the email address it was sent to, and only once.
+  Someone without an account signs up from the link and lands straight back
+  on the invitation. Pending invitations can be revoked.
+- **Change a role** from the user's details; it takes effect on their next
+  page load. You can never give someone more than you hold yourself, and
+  nobody can change their own role.
+- **Suspend** removes access immediately without losing the person's history;
+  reactivate to restore it. **Remove** ends their membership.
+- **Transfer ownership** hands the Owner role to another member (the old
+  owner becomes an Admin). A business always keeps at least one Owner.
+- **Activity** shows every invitation, role change and suspension.
 
-Today this page is **read-only** — it's where you check what a role can do,
-not yet where you invite people or reassign roles (custom roles and
-in-app role assignment are on the roadmap). Note that only **Owner** and
-**Admin** can touch module-configuration screens like CRM's channel
-connections or routing rules — operating roles like Sales Manager can work
-the pipeline but not reconfigure integrations.
+**System roles** — Owner, Admin, Sales Manager, Accountant, Inventory
+Manager, Procurement Manager, Warehouse Operator and Viewer — each show
+exactly which permissions they grant, grouped by module. For anything else,
+**Create role** builds a **custom role** from a template (Sales Manager,
+Marketing Manager, Finance Manager, Operations Manager, Field Technician,
+Accountant, Viewer…) that you then adjust.
+
+Roles are enforced in the database, not just hidden in the menus:
+
+- A role only sees the modules it has permission for, even when the business
+  licenses more. A **Viewer** can read everything licensed and change
+  nothing.
+- A role that works in one module can still trigger the hand-offs that
+  module owns — a Sales Manager creating a service quote from a CRM
+  opportunity, or a technician reserving parts for a job — without being
+  given the rest of the other module.
+- If someone opens a page their role doesn't allow, they see a
+  "you don't have permission" page, which is different from the
+  "not in your plan" page for a module the business hasn't licensed.
 
 ## 8. API keys
 
 **\<business\> → Admin → API Keys** manages keys for WonderArk's public REST
-API, which every licensed module exposes resources through. Generating and
-revoking keys requires the `settings.manage` permission (Owner/Admin by
-default).
+API, which every licensed module exposes resources through. A key is shown
+once when it's created; revoke it here and it stops working immediately.
+Generating and revoking keys requires the `settings.manage` permission
+(Owner/Admin by default).
 
-## 9. The Superadmin Platform Portal
+## 9. Exporting your data
+
+Most lists have an **Export** button: choose **CSV** or **Excel**. The file
+contains what you're looking at — the same filters, search and columns.
+Large exports run in the background and you get a download link (and a
+notification) when the file is ready; download links expire after a few
+days. Exports respect permissions: each module has its own export
+permission (for example `crm.export` or `finance.reports.export`), and every
+export is recorded in the audit log.
+
+## 10. Appearance
+
+**Settings → Appearance** switches between **Light**, **Dark** and
+**System** (follows your device). The choice is saved on the device you set
+it on.
+
+## 11. The Superadmin Platform Portal
 
 If you operate a WonderArk deployment (rather than just using one), there is
-a separate staff-only control plane at `/platform` — global branding, plans,
-feature entitlements, usage limits, which modules exist at all, internal AI
-provider keys, and so on. It's not a licensable module and ordinary business
-admins never see it; it exists for whoever runs the WonderArk service
-itself.
+a separate staff-only control plane at `/platform` — global branding, plans
+and prices, feature entitlements, usage limits, which modules exist at all,
+internal AI provider keys, subscription and payment records, and so on. It
+is protected by multi-factor sign-in, and every change there is recorded in
+the platform audit log and configuration history.
 
-## 10. Environment variables (for whoever deploys WonderArk)
+A superadmin can also switch off a single AI feature for everyone (for
+example, AI outreach drafts) from **AI feature policies**, without turning
+off the module or any other AI feature — each switch needs a reason and is
+audited. It's not a licensable module and ordinary business admins never
+see it; it exists for whoever runs the WonderArk service itself.
+
+## 12. Environment variables (for whoever deploys WonderArk)
 
 If you're standing up your own instance, `apps/web/.env.example` documents
 every variable. Grouped by purpose:
@@ -170,7 +232,7 @@ None of this is needed by an ordinary business user signing up on an
 existing WonderArk deployment — it's only relevant to whoever operates the
 deployment itself.
 
-## 11. Enabling Google sign-in (for whoever deploys WonderArk)
+## 13. Enabling Google sign-in (for whoever deploys WonderArk)
 
 The application code for Google sign-in is already in place — the
 "Continue with Google" button, the OAuth redirect, and the

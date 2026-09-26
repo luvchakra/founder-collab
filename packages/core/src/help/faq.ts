@@ -54,9 +54,25 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Someone on my team can't see a page I can see. Why?",
     answer:
-      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. An unlicensed module's pages don't appear at all. Check the member's role under the business's Team & Permissions screen.",
+      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. An unlicensed module shows \"not in your plan\"; a page their role doesn't allow shows \"you don't have permission\". Check the member's role under Admin → Users & Access.",
     guideSlug: "getting-started",
-    sectionId: "team-permissions",
+    sectionId: "users-roles-and-invitations",
+  },
+  {
+    category: "Account & access",
+    question: "How do I invite someone to my business?",
+    answer:
+      "Admin → Users & Access → Invite user. Enter their email and choose a role. The invitation link works for 7 days, only for that email address, and only once; someone without an account can sign up from the link and is brought straight back to accept it.",
+    guideSlug: "getting-started",
+    sectionId: "users-roles-and-invitations",
+  },
+  {
+    category: "Account & access",
+    question: "Can I create a role that fits my team exactly?",
+    answer:
+      "Yes. Under Users & Access, Create role starts a custom role from a template (Sales Manager, Finance Manager, Field Technician and others) that you then adjust. You can't grant permissions you don't hold yourself.",
+    guideSlug: "getting-started",
+    sectionId: "users-roles-and-invitations",
   },
   {
     category: "Businesses & modules",
@@ -104,7 +120,15 @@ export const FAQ: FaqEntry[] = [
     answer:
       "Settings → Usage breaks down AI runs and credit consumption. Repeatable AI operations are cached, so asking for the same thing twice doesn't bill twice.",
     guideSlug: "getting-started",
-    sectionId: "billing-and-ai-credits",
+    sectionId: "plans-billing-and-ai-credits",
+  },
+  {
+    category: "Billing & AI",
+    question: "How do I change or cancel my plan?",
+    answer:
+      "Open your business's Billing page. Change plan takes you through choosing a plan, reviewing it and paying securely; Cancel subscription keeps full access until the end of the paid period, then the modules become read-only for 30 days. Your data is never deleted.",
+    guideSlug: "getting-started",
+    sectionId: "plans-billing-and-ai-credits",
   },
   {
     category: "Day to day",
@@ -161,6 +185,46 @@ export const FAQ: FaqEntry[] = [
       "No, that's the intended behaviour platform-wide. Below the tablet breakpoint every table becomes one card per row with labelled fields, rather than a table you'd have to scroll sideways through or squint at.",
     guideSlug: "getting-started",
     sectionId: "switching-between-businesses-and-modules",
+  },
+  {
+    category: "Day to day",
+    question: "How do I export a list to Excel?",
+    answer:
+      "Use the Export button on the list and choose CSV or Excel. You get exactly what you're looking at, with your filters applied. Large exports run in the background and you get a download link when they're ready.",
+    guideSlug: "getting-started",
+    sectionId: "exporting-your-data",
+  },
+  {
+    category: "Day to day",
+    question: "Why can't I publish the content I wrote?",
+    answer:
+      "Publishing and approving need the marketing.approve permission, and only approved content can be published. Editing approved content sends it back to Draft, so what goes out is always what was approved.",
+    guideSlug: "discovery",
+    sectionId: "marketing",
+  },
+  {
+    category: "Day to day",
+    question: "How do I share our data room with an investor?",
+    answer:
+      "In Funding → Data Room, upload the documents, then share with the investor. The link expires and you can revoke it at any time. Sharing needs the funding.data_room.share permission.",
+    guideSlug: "discovery",
+    sectionId: "funding",
+  },
+  {
+    category: "Day to day",
+    question: "How do I see the transactions behind a figure on a report?",
+    answer:
+      "Click the line. Every figure on the Profit & Loss, Balance Sheet, Cash Flow and Trial Balance opens that account for the same period, and the entries listed add up to the number you clicked.",
+    guideSlug: "finance",
+    sectionId: "financial-reports",
+  },
+  {
+    category: "Day to day",
+    question: "Can Finance remember how I categorise recurring bank lines?",
+    answer:
+      "Yes — add a bank rule under Banking → Rules (for example, \"description contains AWS → Software expenses\"). Matching lines then show the rule, and Post and match posts and matches in one click. Rules only suggest; nothing posts until you confirm.",
+    guideSlug: "finance",
+    sectionId: "banking",
   },
   {
     category: "For administrators",

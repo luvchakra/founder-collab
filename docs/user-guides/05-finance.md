@@ -14,13 +14,33 @@ visible in the picker as "(Planned)" but not yet selectable.
 
 ## Navigation
 
-**Overview**: Dashboard
-**Accounting**: Chart of Accounts, Journal, Banking, Receivables, Payables,
-Bills, Expenses, Financial Reports, Budget, Recurring Entries, Accounting
-Periods
+**Overview**: Dashboard, Exceptions
+**Accounting**: Chart of Accounts, Journal, Banking, Invoices, Receivables,
+Payables, Bills, Expenses, Financial Reports, Operational Reports,
+Dimensions, Budget, Recurring Entries, Accounting Periods, Backfill
 **Tax & GST**: GST Profile, GST Registrations, GST Ledger, Filing Readiness,
 GST Filing, GSTR-2B Reconciliation, e-Invoicing, e-Way Bill
 **Records**: Evidence, Audit Log
+
+## Activating Finance
+
+The first time you open Finance, **Activate Finance** walks you through the
+setup in order and ticks each step off as you finish it: business profile,
+accounting method (accrual or cash), fiscal year, chart of accounts, tax
+profile, account mappings, opening balances, bank accounts, a final review,
+and activation. You can leave and come back; progress is kept.
+
+Activation offers a **Backfill**: Finance scans the invoices, bills,
+payments and expenses your other modules already recorded, shows you how many
+it can post before it posts anything, then posts the eligible ones. Anything
+it can't post safely — a document in a locked period, a missing account
+mapping — goes to **Exceptions** instead of stopping the run. Running it twice
+never posts anything twice.
+
+**Exceptions** is the one queue for anything that needs a person: unposted
+documents, input tax credit at risk, filing blockers. Each item says what
+happened, why it matters, where it came from and what to do, and moves
+through **Open → In review → Resolved** (or **Ignored**).
 
 ## First run: set up your chart of accounts
 
@@ -95,6 +115,12 @@ reconciliations.
   a normal outcome, and refusing to save it just pushes the reconciliation
   into a spreadsheet nobody can see. "Reconciled" needs agreement *and*
   nothing left hanging.
+- **Bank rules** (**Banking → Rules**) remember how you categorise recurring
+  lines — "description contains AWS, money out → Software expenses". An
+  unmatched line shows the rule that fits it, and **Post and match** posts the
+  entry and matches the line in one step. Rules only suggest: nothing is
+  posted until you click, and a double-click can't post twice. Managing rules
+  needs `gst.bank_rules.manage`.
 
 ## Money in: Receivables
 
@@ -122,13 +148,67 @@ there is nothing to keep in sync.
 **Financial Reports** produces, for any period you choose:
 
 - **Profit & Loss** — income and expenses, with the period's result.
-- **Balance Sheet** — assets, liabilities and equity. The period's profit
-  appears as its own equity line: until the year is closed, nothing has moved
-  trading results into retained earnings, and leaving that line out puts the
-  sheet out by exactly the profit. That is the classic "my balance sheet
-  doesn't balance", and it is a missing line rather than a broken ledger.
+- **Balance Sheet** — assets, liabilities and equity **as at the end of the
+  period** (a balance sheet is a position on a date, so "This month" shows
+  every balance up to the month end, not just the month's movement). Profit
+  appears as its own **Profit to date** equity line: until the year is
+  closed, nothing has moved trading results into retained earnings, and
+  leaving that line out puts the sheet out by exactly the profit.
+- **Cash Flow** — where cash came from and went, grouped into operating,
+  investing and financing, read straight off the ledger. It always
+  reconciles opening cash to closing cash.
 - **Trial Balance** — every account's debit and credit totals, which should
   agree.
+
+**Every figure drills down.** Click any line on any statement to open that
+account for the same period; the entries listed there add up to the figure
+you clicked. From an entry you can open the document that caused it.
+
+All four statements export to Excel together.
+
+## Operational Reports
+
+**Operational Reports** answers the everyday questions from the same books:
+
+- **Sales** — by customer, and by product or service.
+- **Purchases** and **Expenses** — what you bought and spent in the period,
+  by supplier.
+- **Inventory valuation** — stock on hand at cost, if Inventory is licensed
+  and your role can see costs (otherwise the tab says why). Oversold stock is
+  flagged next to the total, never quietly subtracted.
+- **COGS & gross margin** — cost of sales against revenue.
+
+## Invoices
+
+**Invoices** lists every invoice your business has raised — from Inventory,
+Service or Finance — with four separate statuses, because they answer
+different questions:
+
+| Status | Question it answers |
+|---|---|
+| Accounting | Has it been posted to the ledger? |
+| Payment | Unpaid, partly paid or paid (credit notes included) |
+| GST | Which return period it belongs to, and whether that period is filed |
+| e-Invoice | Generated, cancelled, failed or not needed |
+
+The tiles at the top count what needs attention and filter the list.
+
+## From a document to its entries
+
+From a journal entry or an invoice, open the source document's **accounting
+view** to see every journal entry it caused — the sale itself, the cost of goods, payments against it and
+any reversals — and the net effect on each account. It is the reverse of the
+explanation every automatic entry already carries ("posted by rule … from
+document …").
+
+## Dimensions
+
+**Dimensions** lets a business report profit and loss by **party**, **item**,
+**location** or **project**. Switch on only the ones you use and give them
+your own names ("Branch" for location, "Job" for project). They are never
+required: untagged lines appear as **Unassigned**. The manual journal form
+shows location and project only when they're switched on. Managing dimensions
+needs `gst.dimensions.manage`.
 
 ## Budget and Recurring Entries
 

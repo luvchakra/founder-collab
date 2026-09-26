@@ -33,10 +33,10 @@ export default function HelpPage() {
 
       <HelpAssistant
         suggestions={[
+          "How do I invite someone and choose their role?",
+          "How do I change my plan?",
+          "How do I share our data room with an investor?",
           "How do I reconcile a bank statement?",
-          "How do I license a module?",
-          "Why isn't my invoice in the ledger?",
-          "How do I add someone to my team?",
         ]}
       />
 

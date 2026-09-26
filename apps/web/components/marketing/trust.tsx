@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Globe2,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
@@ -31,6 +32,7 @@ const SECURITY_POINTS = [
   { icon: Eye, label: "No API keys exposed in the browser" },
   { icon: UserCheck, label: "You approve AI-generated outreach before it sends" },
   { icon: FileCheck2, label: "Full audit trail across every module" },
+  { icon: Users, label: "Role-based access for every team member, enforced in the database" },
   { icon: ShieldAlert, label: "Data encrypted in transit and at rest" },
   { icon: Globe2, label: "Built for multi-jurisdiction tax regulation" },
 ];
@@ -124,7 +126,7 @@ export function Trust() {
               <p className="mt-4 text-landing-muted">
                 Ask the built-in AI assistant a question and it can pull live data from
                 every module you&apos;ve licensed -- Discovery, Inventory, Service, CRM
-                and Compliance -- to answer it and suggest what to do next.
+                and Finance -- to answer it and suggest what to do next.
               </p>
               <ul className="mt-5 flex flex-col gap-2.5">
                 {CHAT_POINTS.map((point) => (

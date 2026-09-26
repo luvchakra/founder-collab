@@ -21,9 +21,9 @@ export function Hero() {
         <FadeIn delayMs={100}>
           <p className="mt-6 max-w-2xl text-balance text-lg text-landing-muted">
             {BRAND_NAME} replaces the pile of disconnected apps a growing business ends up
-            with — customer discovery, inventory, field service, a shared inbox, and GST
-            compliance — with one portal where every module already knows your customers,
-            your items, and your team.
+            with — customer discovery, marketing, fundraising, inventory, field service, a
+            shared inbox, and accounting with GST — with one portal where every module
+            already knows your customers, your items, and your team.
           </p>
         </FadeIn>
         <FadeIn delayMs={200}>

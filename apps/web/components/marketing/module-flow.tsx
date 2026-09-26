@@ -78,7 +78,7 @@ export function ModuleFlow() {
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-landing-muted">
               A customer Discovery finds is the exact same party CRM messages, Service
-              schedules a job for, and Compliance invoices -- not five copies slowly
+              schedules a job for, and Finance invoices -- not five copies slowly
               drifting apart.
             </p>
           </div>

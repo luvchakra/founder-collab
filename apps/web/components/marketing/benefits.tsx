@@ -10,7 +10,7 @@ const BENEFITS = [
   {
     icon: Boxes,
     title: "One stock count",
-    body: "What a job consumes, a sales order sells, and Compliance reports on all come from the same inventory number.",
+    body: "What a job consumes, a sales order sells, and Finance reports on all come from the same inventory number.",
   },
   {
     icon: CalendarClock,

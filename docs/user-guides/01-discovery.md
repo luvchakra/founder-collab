@@ -1,9 +1,35 @@
-# Discovery: Customer Acquisition
+# Discovery: Customer Acquisition, Marketing & Funding
 
-Discovery helps you figure out who to sell to, find them, and hand qualified
-opportunities to your sales process. Unlike the other modules, Discovery's
-navigation isn't a fixed menu — it's built from your own business offerings,
-so the sidebar always shows exactly the offerings you've created.
+Discovery is where a business finds its customers, markets to them and raises
+money to grow. It has three working areas that share the same business,
+offerings and data:
+
+- **Customer Acquisition** — who to sell each offering to, finding them, and
+  handing qualified opportunities to your sales process.
+- **Marketing** — strategy, campaigns, content, assets, website & SEO and
+  analytics.
+- **Funding** — your funding profile, investor readiness, rounds, investors,
+  outreach, data room and due diligence.
+
+## How Discovery is organised
+
+The Discovery sidebar is always the same shape:
+
+| Item | What it is |
+|---|---|
+| **Overview** | The Discovery dashboard (below) |
+| **Business** | Your business profile and its offerings |
+| **Business Offerings** | One entry per offering you've created |
+| **Marketing** | Dashboard, Strategy, Campaigns, Content, Assets, Website & SEO, Analytics |
+| **Customer Acquisition** | Products, ICP, Prospects, Research, Signals, Outreach, Pipeline, Conversion, Knowledge — for one offering at a time |
+| **Funding** | Dashboard, Funding Profile, Investor Readiness, Fundraising, Investors, Investor Outreach, Data Room, Due Diligence, Analytics |
+
+**Switching offering.** When a business has more than one offering, the
+header of every offering page has an **Offering** selector. Switching keeps
+you on the same section — from ICP to the other offering's ICP, from
+Prospects to its Prospects. The sidebar also remembers the offering you last
+worked in, so going to Marketing and back to Customer Acquisition returns to
+it rather than to the first offering.
 
 ## Before you start: business offerings
 
@@ -96,10 +122,84 @@ module (if licensed) — WonderArk checks first whether this contact already
 exists there, so you see "Already in CRM" instead of creating a duplicate.
 If CRM isn't licensed, this option simply isn't shown; nothing breaks.
 
-### Conversions
+### Conversions and handing off to Service
 
-Tracks your funnel from prospect to won customer, and — if the Service (FSM)
-module is licensed — shows each won customer's field-service handoff status.
+Tracks your funnel from prospect to won customer. If the Service module is
+licensed, a won customer can be handed straight to field service: **create a
+service opportunity** from the conversion, and its status (quoted, job
+scheduled, completed, invoiced) shows back here. If Service isn't licensed,
+the option isn't shown.
+
+## Marketing
+
+Marketing works across the whole business, not per offering, and uses the
+same customers, offerings and prospects as the rest of Discovery.
+
+- **Dashboard** — campaign performance, content in flight, and a list of
+  what needs attention (content awaiting approval, campaigns ending soon,
+  metrics to update).
+- **Strategy** — your positioning, audiences, channels and goals. Saving
+  keeps a version history.
+- **Campaigns** — plan a campaign with its channels, budget and dates, track
+  its metrics, and see which prospects and customers it influenced.
+- **Content** — write posts, emails and pages, or ask the AI to draft them
+  from your strategy and offering. Content moves **Idea → Draft → In review →
+  Approved → Scheduled / Published**. Approving and publishing need the
+  `marketing.approve` permission, and editing approved content sends it back
+  to Draft so what goes out is always what was approved. A **calendar** view
+  shows what's scheduled when.
+- **Assets** — upload images and files to reuse in campaigns and content.
+- **Website & SEO** — track pages, keywords and how visible you are in
+  search and AI-search answers.
+- **Analytics** — channel and campaign figures in one place. Import metrics
+  from a CSV export of your ad or analytics tools; rows that can't be read
+  are listed rather than silently dropped.
+
+Nothing is ever published or sent automatically: AI drafts, a person
+approves.
+
+## Funding
+
+Funding helps you get ready for and run a raise.
+
+- **Dashboard** — your round's progress, the investor pipeline and what
+  needs attention next.
+- **Funding Profile** — the company story investors ask for: stage, traction,
+  team, use of funds. If Finance is licensed, key figures (revenue, burn,
+  cash) are read from your books; otherwise you enter them.
+- **Investor Readiness** — a checklist score across the areas investors
+  check, with what's missing.
+- **Fundraising** — create a round (target, instrument, dates) and move it
+  through its stages.
+- **Investors** — your investor list, with research on each. Investors move
+  through the pipeline **Identified → Researched → Target → Contacted →
+  Meeting → Partner review → Due diligence → Term discussion → Committed →
+  Invested** (or **Passed**). Forward moves can skip stages; amounts are
+  required once an investor commits.
+- **Investor Outreach** — draft outreach (the AI can help) and log replies.
+  Outreach can only be sent once it's approved.
+- **Data Room** — upload documents (pitch deck, financials, legal) by
+  category; uploading a new version keeps the old one. Share with an investor
+  through a link that expires and can be revoked at any time. Uploading needs
+  `funding.data_room.manage`; sharing needs `funding.data_room.share`.
+- **Due Diligence** — track each investor's diligence requests from asked to
+  answered.
+- **Analytics** — conversion through the pipeline and how the round is
+  tracking.
+
+## Who can do what
+
+| Permission | Allows |
+|---|---|
+| `discovery.view` | Open Discovery and read everything in it |
+| `discovery.manage` | Create and edit offerings, prospects, research and outreach |
+| `marketing.manage` / `marketing.approve` | Work on marketing / approve and publish it |
+| `funding.manage` / `funding.approve` | Work on funding / approve investor outreach |
+| `funding.data_room.manage` / `funding.data_room.share` | Upload to / share the data room |
+| `discovery.export`, `marketing.export`, `funding.export` | Export lists to CSV or Excel |
+
+A **Viewer** can read all of Discovery but change nothing. See Getting
+Started §7 for roles and invitations.
 
 ## Licensing
 
