@@ -5,7 +5,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ resolveBusinessIdBySlug: vi.fn(), startCheckout: vi.fn() }));
+const mocks = vi.hoisted(() => ({ resolveBusinessIdBySlug: vi.fn(), startCheckout: vi.fn(), getUser: vi.fn() }));
+vi.mock("@cofounderai/core/db/server", () => ({ createClient: async () => ({ auth: { getUser: mocks.getUser } }) }));
 vi.mock("@cofounderai/core/businesses/resolve", () => ({ resolveBusinessIdBySlug: mocks.resolveBusinessIdBySlug }));
 vi.mock("@cofounderai/core/billing/checkout", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -26,6 +27,7 @@ const post = (body: unknown) => POST(new Request("https://example.com/api/billin
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getUser.mockResolvedValue({ data: { user: { id: "u1" } } });
   mocks.resolveBusinessIdBySlug.mockResolvedValue("biz-1");
   mocks.startCheckout.mockResolvedValue({ provider: "stripe", mode: "redirect", url: "https://checkout.stripe.com/x", sessionId: "s1" });
 });
@@ -45,6 +47,12 @@ describe("POST /api/billing/checkout", () => {
       expect(mocks.startCheckout).not.toHaveBeenCalled();
     },
   );
+
+  it("401s a signed-out caller before any lookup", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null } });
+    expect((await post(valid)).status).toBe(401);
+    expect(mocks.resolveBusinessIdBySlug).not.toHaveBeenCalled();
+  });
 
   it("404s a business the caller can't see", async () => {
     mocks.resolveBusinessIdBySlug.mockResolvedValue(null);

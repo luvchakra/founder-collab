@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { createClient } from "@cofounderai/core/db/server";
 import { BillingAccessError } from "@cofounderai/core/billing/access";
 import { CheckoutError, startCheckout } from "@cofounderai/core/billing/checkout";
 import { BillingNotConfiguredError } from "@cofounderai/core/billing/subscription-types";
@@ -28,6 +29,14 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Invalid checkout request." }, { status: 400 });
   }
+
+  // /api is outside the proxy's session gate: refuse a signed-out caller here, before any
+  // tenant lookup (whose RLS helpers aren't executable by anon at all).
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Sign in to change your plan." }, { status: 401 });
 
   // RLS-scoped: a slug the caller can't see resolves to nothing.
   const businessId = await resolveBusinessIdBySlug(body.businessSlug);
