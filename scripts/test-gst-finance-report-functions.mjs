@@ -136,13 +136,73 @@ async function main() {
         "Bob's own cash flow is his alone",
       );
 
-      globalThis.__finReportCtx = { psql, asAlice, asBob, alice, bob, a, post, P, assertEqual };
+      console.log("FIN-6: seeding customers, suppliers, items and documents on the canonical core tables...");
+      const party = (business, name) => psql(`insert into core.parties (business_id, name) values ('${business}', '${name}') returning id;`);
+      const acme = party(alice, "Acme");
+      const zenith = party(alice, "Zenith");
+      const supplier = party(alice, "Steel Supplier");
+      const landlord = party(alice, "Landlord");
+      const bobCustomer = party(bob, "Bob Customer");
+      const item = (business, name, kind) => psql(`insert into core.items (business_id, name, kind, sku) values ('${business}', '${name}', '${kind}', '${name.toUpperCase()}') returning id;`);
+      const widget = item(alice, "Widget", "good");
+      const install = item(alice, "Install", "service");
+      /** A document with optional lines [itemId, qty, unitPrice]; header totals set directly
+       * for a header-only one (no lines, so the recompute trigger never runs). */
+      const doc = (business, type, partyId, date, status, header, lines = [], sourceRef = "{}") => {
+        const id = psql(`insert into core.documents (business_id, doc_type, source_module, party_id, doc_date, status, subtotal, cgst_amount, sgst_amount, total_amount, source_ref, created_by)
+          values ('${business}', '${type}', 'finance', '${partyId}', '${date}', '${status}', ${header.subtotal ?? 0}, ${header.cgst ?? 0}, ${header.sgst ?? 0}, ${header.total ?? 0}, '${sourceRef}', '${ALICE}') returning id;`);
+        for (const [itemId, qty, price] of lines) {
+          psql(`insert into core.document_lines (document_id, business_id, item_id, quantity, unit_price, tax_rate) values ('${id}', '${business}', '${itemId}', ${qty}, ${price}, 18);`);
+        }
+        return id;
+      };
+      doc(alice, "invoice", acme, "2026-09-03", "issued", {}, [[widget, 4, 250], [install, 1, 1000]]); // 2000 taxable
+      doc(alice, "invoice", zenith, "2026-09-04", "issued", { subtotal: 500, cgst: 45, sgst: 45, total: 590 }); // header-only
+      doc(alice, "credit_note", acme, "2026-09-20", "issued", {}, [[widget, 1, 250]]); // returns one widget
+      doc(alice, "invoice", acme, "2026-09-21", "draft", {}, [[widget, 100, 250]]); // a draft is not a sale
+      doc(alice, "invoice", acme, "2026-08-30", "issued", {}, [[widget, 9, 250]]); // outside the period
+      doc(alice, "supplier_bill", supplier, "2026-09-06", "issued", { subtotal: 1000, cgst: 90, sgst: 90, total: 1180 }, [], '{"kind":"bill"}');
+      doc(alice, "supplier_credit", supplier, "2026-09-16", "issued", { subtotal: 100, cgst: 9, sgst: 9, total: 118 });
+      doc(alice, "supplier_bill", landlord, "2026-09-01", "issued", { subtotal: 20000, total: 20000 }, [], '{"kind":"expense"}');
+      doc(bob, "invoice", bobCustomer, "2026-09-05", "issued", { subtotal: 777, total: 777 });
+
+      console.log("FIN-6: sales_by_party nets credit notes and ignores drafts and other periods...");
+      assertEqual(
+        asAlice(`select string_agg(party_name || '=' || taxable_value || '/' || document_count, ',' order by party_name) from gst.sales_by_party(${P})`),
+        "Acme=1750.00/1,Zenith=500.00/1",
+        "Acme: 2000 invoiced less a 250 credit; Zenith's header-only invoice",
+      );
+
+      console.log("FIN-6: sales_by_item attributes lines to items and reports header-only sales once...");
+      assertEqual(
+        asAlice(`select string_agg(coalesce(item_name, '(not itemised)') || ':' || coalesce(item_kind, '-') || '=' || coalesce(quantity::text, '-') || '/' || sales_value, ',' order by coalesce(item_name, '')) from gst.sales_by_item(${P})`),
+        "(not itemised):-=-/500.00,Install:service=1.00/1000.00,Widget:good=3.00/750.00",
+        "3 widgets net of the return, one install, 500 unattributed",
+      );
+
+      console.log("FIN-6: purchases_by_party splits bills from expenses and nets supplier credits...");
+      assertEqual(
+        asAlice(`select string_agg(party_name || ':' || kind || '=' || total, ',' order by party_name) from gst.purchases_by_party(${P})`),
+        "Landlord:expense=20000.00,Steel Supplier:bill=1062.00",
+        "1180 bill less a 118 supplier credit; rent as an expense",
+      );
+
+      console.log("FIN-6 tenant isolation: nothing of Bob's reaches Alice, nothing of Alice's reaches Bob...");
+      assertEqual(asAlice(`select count(*) from gst.sales_by_party('${bob}', null, null)`), "0", "sales_by_party across tenants");
+      assertEqual(asAlice(`select count(*) from gst.sales_by_item('${bob}', null, null)`), "0", "sales_by_item across tenants");
+      assertEqual(asBob(`select count(*) from gst.purchases_by_party(${P})`), "0", "purchases_by_party across tenants");
+      assertEqual(asBob(`select string_agg(party_name, ',') from gst.sales_by_party('${bob}', null, null)`), "Bob Customer", "Bob's own sales");
+
+      globalThis.__finReportCtx = { psql, asAlice, asBob, alice, bob, a, post, P, assertEqual, acme, widget };
       await runLaterSections(globalThis.__finReportCtx);
 
       console.log("Licence gating: once Alice's Finance licence has expired, every aggregate returns nothing...");
       psql(`update core.licenses set status = 'expired' where business_id = '${alice}' and module_key = 'gst';`);
       assertEqual(asAlice(`select count(*) from gst.account_statement_totals(${P})`), "0", "statement totals gated by licence");
       assertEqual(asAlice(`select count(*) from gst.cash_flow_totals(${P})`), "0", "cash flow gated by licence");
+      assertEqual(asAlice(`select count(*) from gst.sales_by_party(${P})`), "0", "sales_by_party gated by the Finance licence, though core.documents itself is not");
+      assertEqual(asAlice(`select count(*) from gst.sales_by_item(${P})`), "0", "sales_by_item gated by licence");
+      assertEqual(asAlice(`select count(*) from gst.purchases_by_party(${P})`), "0", "purchases_by_party gated by licence");
       await runGatedChecks(globalThis.__finReportCtx);
       assertEqual(psql(`select count(*) from gst.journal_entries where business_id = '${alice}'`), "5", "the ledger itself is retained (ADR-9)");
 
@@ -151,7 +211,7 @@ async function main() {
   });
 }
 
-/** FIN-6/FIN-9 sections are appended here as their functions land. */
+/** FIN-9's section is appended here when its function lands. */
 async function runLaterSections() {}
 async function runGatedChecks() {}
 

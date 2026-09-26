@@ -19,6 +19,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-3 | Done | `pending` | Activation wizard: an 8-step checklist plus the accounting-method/fiscal-year settings and the activation record §42 was actually missing -- see below, this turned out bigger than "every step already exists as its own screen" |
 | FIN-4 | Done | `pending` | Invoice view: every issued invoice from `core.documents` with accounting, payment, GST and e-invoice status as four independent columns |
 | FIN-5 | Done | `pending` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
+| FIN-6 | Done | `pending` | Operational reports: sales by customer/product/service, purchases and expenses, inventory valuation (via Inventory's contract), COGS and gross margin |
 | FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
@@ -305,6 +306,41 @@ editing the report.
 independently of the flows, and the page shows the same out-of-balance notice the other
 statements use if opening + net change ≠ closing.
 
+### Operational reports (FIN-6) — built 2026-09-27
+
+`/finance/operational-reports` (Accounting nav), five tabs sharing the reports' period
+presets. Each figure is read from whoever owns it, and nothing is copied:
+
+| Report | Source |
+|---|---|
+| Sales by customer | `gst.sales_by_party` over `core.documents` — invoices and debit notes less credit notes and sales returns, drafts/cancelled excluded |
+| Sales by product / by service | `gst.sales_by_item` over `core.document_lines` × `core.items.kind` (good/part → product, service/labour → service), at each line's own price snapshot |
+| Purchases | `gst.purchases_by_party`, supplier bills (`source_ref.kind` bill) less supplier credits |
+| Expenses | by category from the ledger's expense accounts (the P&L's own numbers, each drilling into its account), and by payee from `gst.purchases_by_party` (kind expense) |
+| Inventory valuation | `module-inventory`'s new contract function `getStockValuation` (quantity × current cost price, the basis Inventory's own dashboard uses) |
+| COGS & gross margin | the ledger's COGS accounts and `profitAndLoss` — revenue, COGS, gross profit, margin % |
+
+**The core-table aggregates carry their own licence check.** RLS on `core.documents` is
+tenant-only (every module reads it), so each function adds
+`core.licensed_business_ids('gst')` itself: a lapsed Finance licence returns nothing, the
+same as the gst-schema tables, even though the underlying documents stay readable to
+Inventory and Service.
+
+**Header-only invoices are reported, not dropped.** A hand-entered invoice with no lines
+has nothing to attribute to an item; `sales_by_item` returns it once as a "not itemised"
+row and the page says so, along with the fact that document-level discount and shipping
+aren't spread across lines — which is exactly why the by-item total can differ from the
+by-customer total.
+
+**Inventory degrades, the rest doesn't (ADR-10).** `getStockValuation` returns
+`MODULE_NOT_LICENSED` for a Finance-only business and `FORBIDDEN` for a role without
+`inventory.view_cost` (the permission Inventory's own screens mask cost behind); both
+render as a sentence on that tab only.
+
+**Negative stock is flagged, never netted.** An item with more sold than received is left
+out of the valuation total and reported beside it ("3 items show negative stock, ₹X at
+cost") — netting it against real stock would quietly understate what is on the shelves.
+
 ### Report drill-down (FIN-7) — built 2026-09-27
 
 Every account line on all four statements links to `/finance/accounts/[accountId]` for the
@@ -337,7 +373,6 @@ journal entry with a source document links here, and so does the invoices list (
 | § | Item | Note |
 |---|---|---|
 | 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
-| 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |
 | 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
@@ -379,3 +414,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260919120000_core_business_settings_accounting_method` | FIN-3: `core.business_settings.accounting_method` (accrual/cash) |
 | `20260919130000_gst_finance_activation` | FIN-3: `gst.finance_activation`, `gst.activation.manage` permission |
 | `20260927100000_gst_statement_totals_cash_flow` | FIN-5: `gst.account_statement_totals` (period + as-at totals, cash accounts flagged) and `gst.cash_flow_totals`; fixes the period-only balance sheet |
+| `20260927110000_gst_operational_report_totals` | FIN-6: `gst.sales_by_party`, `gst.sales_by_item`, `gst.purchases_by_party` (licence-gated aggregates over `core.documents`) |

@@ -93,3 +93,16 @@ export type UpsertItemInput = {
   reorderQuantity?: number;
   barcode?: string | null;
 };
+
+/** FIN-6's inventory valuation (Finance's operational reports): one stock position per
+ * item, summed across warehouses, at the item's current cost price -- the same
+ * quantity x cost_price basis Inventory's own dashboard values stock on. `quantity` is
+ * passed through as stored, negative included: whether and how a negative position is
+ * valued is the reader's decision, and hiding it here would hide oversold stock. */
+export type ContractStockPosition = {
+  itemId: string;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  unitCost: number;
+};

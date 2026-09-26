@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@cofounderai/core": "*",
+    "@cofounderai/module-inventory": "*",
     "react": "19.2.8"
   },
   "peerDependencies": {

@@ -1,6 +1,8 @@
 import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { hasModule } from "@cofounderai/core/licensing/queries";
 import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
+import { fetchAllRows } from "@cofounderai/core/exports/fetch-all";
+import { hasPermission } from "@cofounderai/core/rbac/require-permission";
 import { publish } from "@cofounderai/core/events/mutations";
 import { addPartyRole } from "@cofounderai/core/parties/mutations";
 import { createClient } from "../db/server";
@@ -12,6 +14,7 @@ import type {
   ContractLowStockAlert,
   ContractOrderSummary,
   ContractResult,
+  ContractStockPosition,
   ContractSubstitute,
   ContractWarehouse,
   CreateFulfillmentRequestInput,
@@ -212,6 +215,52 @@ export async function listLowStockAlerts(businessId: string): Promise<ContractRe
   if (error) return { ok: false, error: error.message };
 
   return { ok: true, data: data.map((a) => ({ id: a.id, title: a.title, description: a.description, severity: a.severity, createdAt: a.created_at })) };
+}
+
+/**
+ * FIN-6: every stocked item's position at cost, for Finance's inventory valuation report.
+ *
+ * Costs are masked exactly where Inventory's own screens mask them: without
+ * `inventory.view_cost` the answer is `FORBIDDEN`, a normal result for the caller to say
+ * so, rather than a list with the costs quietly zeroed. Both reads page through with
+ * `fetchAllRows` -- a valuation that silently stopped at PostgREST's row cap would
+ * understate the stock.
+ */
+export async function getStockValuation(businessId: string): Promise<ContractResult<ContractStockPosition[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+  if (!(await hasPermission(businessId, "inventory.view_cost"))) return { ok: false, error: "FORBIDDEN" };
+
+  const supabase = await createClient();
+  const core = await coreClient();
+  try {
+    const [levels, items] = await Promise.all([
+      fetchAllRows<{ id: string; item_id: string; quantity: number | string }>((from, to) =>
+        supabase.from("stock_levels").select("id, item_id, quantity").eq("business_id", businessId).order("id").range(from, to),
+      ),
+      fetchAllRows<{ id: string; name: string; sku: string | null; cost_price: number | string }>((from, to) =>
+        core.from("items").select("id, name, sku, cost_price").eq("business_id", businessId).eq("kind", "good").order("id").range(from, to),
+      ),
+    ]);
+
+    const quantityByItem = new Map<string, number>();
+    for (const level of levels) quantityByItem.set(level.item_id, (quantityByItem.get(level.item_id) ?? 0) + Number(level.quantity ?? 0));
+
+    return {
+      ok: true,
+      data: items
+        .filter((item) => quantityByItem.has(item.id))
+        .map((item) => ({
+          itemId: item.id,
+          name: item.name,
+          sku: item.sku,
+          quantity: quantityByItem.get(item.id) ?? 0,
+          unitCost: Number(item.cost_price ?? 0),
+        })),
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Could not read stock." };
+  }
 }
 
 /**
