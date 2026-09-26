@@ -1,0 +1,17 @@
+import { launch, login, BASE } from "./.browser.mjs";
+const b = await launch(); const page = await b.newPage();
+await login(page);
+await page.waitForTimeout(2000);
+await page.getByRole("button", { name: "Select a business" }).click();
+await page.getByText("Create New Business").first().click();
+await page.getByText("Manual entry", { exact: true }).click();
+await page.waitForTimeout(500);
+console.log(await page.locator("input,textarea,button").evaluateAll((els) => els.filter(e=>e.offsetParent).map((e) => `${e.tagName}:${e.name||""}:${e.type||""}:${(e.innerText||e.placeholder||"").slice(0,40)}`)).then(a=>a.slice(12)));
+await page.locator('input[name="name"]').fill("Acme Home Security (E2E)");
+const desc = page.locator('textarea[name="description"], input[name="description"]');
+if (await desc.count()) await desc.first().fill("Installs and monitors smart alarm and CCTV systems for residential complexes in Bengaluru.");
+const ind = page.locator('input[name="industry"]'); if (await ind.count()) await ind.fill("Home security");
+await page.locator('button[type="submit"]').last().click();
+await page.waitForURL((u) => !u.pathname.startsWith("/dashboard"), { timeout: 30000 });
+console.log("url:", page.url());
+await b.close();

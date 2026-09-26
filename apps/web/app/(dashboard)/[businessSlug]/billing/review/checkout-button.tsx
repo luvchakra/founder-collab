@@ -64,7 +64,7 @@ export function CheckoutButton({ businessSlug, planId, interval, free }: { busin
       if (!window.Razorpay) throw new Error("The payment window couldn't load. Please try again.");
       const checkout = new window.Razorpay({
         ...body.checkoutOptions,
-        theme: { color: BRAND_HEX.blue },
+        theme: { color: BRAND_HEX.blueAction },
         handler: () => router.push(successUrl(body.sessionId)),
         modal: { ondismiss: () => setPending(false) },
       });

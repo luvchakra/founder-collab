@@ -17,7 +17,7 @@ export const landingButtonVariants = cva(
     variants: {
       variant: {
         primary:
-          "bg-landing-accent text-landing-accent-foreground shadow-sm shadow-landing-accent/20 hover:bg-landing-accent/90",
+          "bg-landing-accent text-landing-accent-foreground shadow-sm shadow-landing-accent/20 hover:bg-landing-accent-hover",
         secondary:
           "border border-landing-surface-border bg-landing-surface text-landing-fg hover:bg-landing-bg",
         ghost: "text-landing-fg hover:text-landing-accent",

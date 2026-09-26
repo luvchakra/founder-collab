@@ -49,7 +49,7 @@ export default function GlobalError({
               padding: "0.5rem 1rem",
               borderRadius: "0.375rem",
               border: "none",
-              background: BRAND_HEX.blue,
+              background: BRAND_HEX.blueAction,
               color: "white",
               fontSize: "0.875rem",
               cursor: "pointer",

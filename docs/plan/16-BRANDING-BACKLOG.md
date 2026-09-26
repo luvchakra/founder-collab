@@ -1161,10 +1161,8 @@ Where the implementation deliberately departs from, or had to interpret, the tex
   navy; 48 from the 256 tile), app icons from its light app-icon tile. They are enlarged
   from ~108px, so the 512px icon is soft; a higher-resolution board fixes that on the next
   `npm run build:brand`. No maskable icon: the board's icon is a finished rounded tile.
-- **Primary blue #007BFF on white is 3.98:1**, below WCAG AA's 4.5:1 for normal-size
-  text. §11 specifies it for primary buttons and it is used as specified; blue *text* on
-  light tints uses one darker step (#0062CC, 5.8:1) via `--primary-subtle` /
-  `--accent-foreground`. Flagged for the product owner.
+- **Primary blue.** #007BFF on white is 3.98:1, below WCAG AA's 4.5:1 for normal text;
+  superseded by the QA corrections (§37): filled controls use action blue #0067D9.
 - **Auth screens** show the stacked lockup above the form (§13); the header carries only
   navigation, so no screen shows the logo twice. A superadmin's login-logo override
   (Platform portal → Branding) still wins, as before.
@@ -1174,3 +1172,15 @@ Where the implementation deliberately departs from, or had to interpret, the tex
 - **Dark theme.** The rail, platform header and link-preview card use the board's
   navy-ground artwork; the logo component's `adaptive` mode swaps light/navy twins with
   the theme.
+
+---
+
+# 37. Branding QA corrections (2026-09-26)
+
+Source: "WonderArk — Branding QA Corrections for Claude Code", supplied 2026-09-26.
+
+| Correction | Status |
+|---|---|
+| §7-§8 Button contrast: `--brand-blue-action` #0067D9 (5.33:1) for primary buttons and white-text fills, hover #005CBF; #007BFF kept as the brand accent (logo, charts, focus ring, gradient) | Done — `ui-theme.css` (`--primary`, `--primary-hover`, `--sidebar-primary`), `globals.css` (`--landing-accent`), `BRAND_HEX.blueAction` for email, hosted checkout and the root error page |
+| §3, §9 Sidebar: canonical mark + live "WonderArk" text, "Wonder" white, "Ark" brand blue | Done — `app-sidebar.tsx` (desktop rail and mobile drawer share it) |
+| §1, §2, §4, §5, §10-§12 Vector/high-resolution assets (`wonderark-mark*.svg`, `wonderark-horizontal*.svg`, `wonderark-icon-light-*.png`, `wonderark-maskable-*-1024.png`), white/navy mark variants, maskable manifest icons | **Waiting on new files** — the first asset pack (2026-09-26) was checked and not applied: its W is a different shape from the board (narrower, straight arms, a spike wedge) and the SVG paths are stair-stepped traces. The product owner is supplying new assets; until then the platform keeps serving crops of the approved board, and nothing is redrawn or upscaled |
