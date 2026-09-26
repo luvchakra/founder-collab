@@ -167,17 +167,12 @@ export async function syncSubscription(
     provider_updated_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...(clearPending ? { pending_plan_id: null, pending_change_at: null } : {}),
-    // PLATFORM-P1-05.4: the exact (immutable) price row this subscription bills.
-    plan_price_id: billedPrice?.id ?? null,
-    // PLATFORM-P1-04.3: when the payment first failed -- the payment grace counts from here.
-    ...pastDueSinceField(existing?.status ?? null, status),
   };
   // A price we can't map (the admin removed the row) leaves the stored money fields alone.
   if (!billedPrice) {
     delete (fields as Partial<typeof fields>).billing_interval;
     delete (fields as Partial<typeof fields>).currency;
     delete (fields as Partial<typeof fields>).amount;
-    delete (fields as Partial<typeof fields>).plan_price_id;
   }
 
   let id: string;
@@ -400,11 +395,4 @@ export async function syncPayment(
   }
   logBilling("billing.payment", { business_id: businessId, subscription_id: subscriptionId, provider, operation: "sync", status });
   return { id, businessId, status, previousStatus };
-}
-
-/** PLATFORM-P1-04.3 -- pure: stamp past_due_since on entering past_due, keep it while the
- * subscription stays past_due, clear it on leaving. Exported for tests. */
-export function pastDueSinceField(previous: SubscriptionStatus | null, next: SubscriptionStatus, now: Date = new Date()): { past_due_since?: string | null } {
-  if (next !== "past_due") return { past_due_since: null };
-  return previous === "past_due" ? {} : { past_due_since: now.toISOString() };
 }

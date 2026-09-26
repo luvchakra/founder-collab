@@ -18,12 +18,6 @@ import {
   retryPlatformBillingEvent,
   type SyncDifference,
 } from "@cofounderai/core/admin/platform-billing-ops";
-import {
-  updateSubscriptionBillingConfig,
-  updateSubscriptionLifecycle,
-  type UpdateBillingConfigInput,
-  type UpdateLifecycleInput,
-} from "@cofounderai/core/admin/platform-billing-lifecycle";
 
 /**
  * BILL-26..32 -- thin wrappers over the audited core functions (each of which re-checks
@@ -94,18 +88,5 @@ export async function setBillingProviderSecretsAction(input: SetBillingProviderS
 export async function updateBillingSettingsAction(input: UpdateBillingSettingsInput): Promise<Result> {
   const result = await updateBillingSettings(input);
   if (result.ok) revalidateBilling();
-  return result;
-}
-
-// PLATFORM-P1-04.2/04.3/04.4 + 05.1/05.3 -- subscription lifecycle, currency and tax.
-export async function updateSubscriptionLifecycleAction(input: UpdateLifecycleInput): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await updateSubscriptionLifecycle(input);
-  if (result.ok) revalidatePath("/platform/billing/lifecycle");
-  return result;
-}
-
-export async function updateSubscriptionBillingConfigAction(input: UpdateBillingConfigInput): Promise<{ ok: true } | { ok: false; error: string }> {
-  const result = await updateSubscriptionBillingConfig(input);
-  if (result.ok) revalidatePath("/platform/billing/lifecycle");
   return result;
 }

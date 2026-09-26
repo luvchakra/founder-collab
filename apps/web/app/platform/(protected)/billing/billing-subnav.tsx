@@ -10,7 +10,6 @@ const TABS = [
   { href: "/platform/billing/payments", label: "Payments" },
   { href: "/platform/billing/events", label: "Webhook events" },
   { href: "/platform/billing/providers", label: "Providers" },
-  { href: "/platform/billing/lifecycle", label: "Lifecycle & tax" },
 ] as const;
 
 /** BILL-26 -- the billing console's own tab strip (§69), shared by every page under /platform/billing. */

@@ -31,20 +31,7 @@ function loadRazorpay(): Promise<void> {
  * Returning from payment only ever leads to the success page, which waits for WonderArk's
  * own confirmation (BILL-11); nothing here marks anything paid.
  */
-export function CheckoutButton({
-  businessSlug,
-  planId,
-  interval,
-  free,
-  trialDays = null,
-}: {
-  businessSlug: string;
-  planId: string;
-  interval: "month" | "year";
-  free: boolean;
-  /** PLATFORM-P1-04.2 -- set when choosing this plan starts a free trial. */
-  trialDays?: number | null;
-}) {
+export function CheckoutButton({ businessSlug, planId, interval, free }: { businessSlug: string; planId: string; interval: "month" | "year"; free: boolean }) {
   const router = useRouter();
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
@@ -91,7 +78,7 @@ export function CheckoutButton({
   return (
     <div className="flex flex-col gap-2">
       <Button onClick={start} disabled={pending}>
-        {pending ? "Starting…" : free ? "Activate free plan" : trialDays ? `Start ${trialDays}-day free trial` : "Continue to payment"}
+        {pending ? "Starting…" : free ? "Activate free plan" : "Continue to payment"}
       </Button>
       {error ? (
         <p role="alert" className="text-sm text-destructive">
