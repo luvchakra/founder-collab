@@ -17,7 +17,7 @@ import {
 
 describe("AUDIT_RESOURCE_TYPE_OPTIONS", () => {
   it("lists all six newly-audited resource types, all eleven pre-existing ones and the three billing ones", () => {
-    expect(AUDIT_RESOURCE_TYPE_OPTIONS).toHaveLength(29);
+    expect(AUDIT_RESOURCE_TYPE_OPTIONS).toHaveLength(21);
     const keys = new Set(AUDIT_RESOURCE_TYPE_OPTIONS.map((o) => o.key));
     for (const k of [
       "compliance_country",
@@ -40,6 +40,7 @@ describe("AUDIT_RESOURCE_TYPE_OPTIONS", () => {
       "plan_price",
       "billing_provider",
       "billing_settings",
+      "ai_operation_switch",
     ]) {
       expect(keys.has(k as never)).toBe(true);
     }

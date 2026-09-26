@@ -51,7 +51,8 @@ export {
   type AuditSeverity,
 } from "./platform-audit-log-types";
 
-/** The six new resource types this story's own migration added triggers for -- the only
+/** The resource types written straight into `platform.audit_log` (the six this story's own
+ * migration added triggers for, plus later direct writers) -- the only
  * ones with rows in `platform.audit_log`. */
 const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "compliance_country",
@@ -60,16 +61,8 @@ const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "plan_feature",
   "plan_limit",
   "plan_module",
-  "plan_price",
-  "business_override",
+  // PLATFORM-P0-10.4 -- AI feature kill switch changes.
   "ai_operation_switch",
-  "api_policies",
-  "api_key",
-  "ops_alert_settings",
-  "rollout_cohort",
-  "legal_document",
-  "consent_settings",
-  "platform_configuration",
 ];
 
 /** The eleven resource types PLATFORM-P0-17 already built history tables for. */
@@ -85,10 +78,6 @@ const LEGACY_RESOURCE_TYPES: ConfigResourceType[] = [
   "email_template",
   "integration",
   "module_status",
-  // Billing (BILL-29) -- billing_settings also carries PLATFORM-P1-04.2/04.3/05.1/05.3's
-  // subscription lifecycle, currency and tax settings.
-  "billing_provider",
-  "billing_settings",
 ];
 
 type AuditLogRow = {

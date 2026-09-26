@@ -26,17 +26,8 @@ export type AuditResourceType =
   | "plan_limit"
   | "plan_module"
   | "plan_price"
-  // PLATFORM-P0-10.4 and the P1 stories (02, 06, 07, 08, 09, 01) write these directly
-  // into platform.audit_log from their own SECURITY DEFINER functions.
-  | "ai_operation_switch"
-  | "business_override"
-  | "api_policies"
-  | "api_key"
-  | "ops_alert_settings"
-  | "rollout_cohort"
-  | "legal_document"
-  | "consent_settings"
-  | "platform_configuration";
+  // PLATFORM-P0-10.4 -- written by platform.set_ai_operation_enabled().
+  | "ai_operation_switch";
 
 export type AuditLogEntry = {
   id: string;
@@ -72,15 +63,7 @@ export const AUDIT_RESOURCE_TYPE_OPTIONS: { key: AuditResourceType; label: strin
   { key: "plan_module", label: "Plan Module Entitlement" },
   { key: "plan", label: "Plan" },
   { key: "plan_price", label: "Plan Price Mapping" },
-  { key: "business_override", label: "Business Exception" },
   { key: "ai_operation_switch", label: "AI Feature Kill Switch" },
-  { key: "api_policies", label: "API & Webhook Policy" },
-  { key: "api_key", label: "Business API Key" },
-  { key: "ops_alert_settings", label: "Operational Alert Thresholds" },
-  { key: "rollout_cohort", label: "Rollout Cohort" },
-  { key: "legal_document", label: "Legal Document Version" },
-  { key: "consent_settings", label: "Cookie / Consent Settings" },
-  { key: "platform_configuration", label: "Configuration Import / Export" },
   { key: "billing_provider", label: "Billing Provider" },
   { key: "billing_settings", label: "Billing Settings" },
   { key: "feature_flag", label: "Feature Flag" },
@@ -112,15 +95,7 @@ const RESOURCE_SEVERITY: Record<Exclude<AuditResourceType, "announcement">, Audi
   plan_module: "high",
   plan: "high",
   plan_price: "high",
-  business_override: "high",
   ai_operation_switch: "high",
-  api_policies: "high",
-  api_key: "high",
-  ops_alert_settings: "normal",
-  rollout_cohort: "high",
-  legal_document: "high",
-  consent_settings: "normal",
-  platform_configuration: "high",
   billing_provider: "high",
   billing_settings: "high",
   feature_flag: "high",

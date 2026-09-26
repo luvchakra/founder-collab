@@ -2,7 +2,6 @@ import { createClient } from "../db/server";
 import { currentMonthPeriod } from "../usage/types";
 import { getUsageCounter } from "../usage/queries";
 import { getBusinessPlan } from "./plan-lookup";
-import { buildLimitOverrideDecision, getActiveLimitOverride } from "./business-override";
 import { isPeriodicResource, type ResourceKey } from "./resource-keys";
 import type { EntitlementDecision } from "./types";
 
@@ -70,15 +69,6 @@ export async function getLimit(businessId: string, resourceKey: ResourceKey): Pr
     };
   }
 
-  const period = isPeriodicResource(resourceKey) ? currentMonthPeriod() : "current";
-
-  // PLATFORM-P1-02.1: an active Business Override replaces the plan's limit outright.
-  const override = await getActiveLimitOverride(businessId, resourceKey);
-  if (override) {
-    const counter = await getUsageCounter(businessId, resourceKey, period);
-    return buildLimitOverrideDecision(resourceKey, override, counter?.count ?? 0);
-  }
-
   const platform = await platformClient();
   const { data: row, error } = await platform
     .from("plan_limits")
@@ -88,6 +78,7 @@ export async function getLimit(businessId: string, resourceKey: ResourceKey): Pr
     .maybeSingle();
   if (error) throw error;
 
+  const period = isPeriodicResource(resourceKey) ? currentMonthPeriod() : "current";
   const counter = await getUsageCounter(businessId, resourceKey, period);
   const usage = counter?.count ?? 0;
 
@@ -238,11 +229,7 @@ export async function canConsume(businessId: string, resourceKey: ResourceKey, q
     .single();
   if (error) throw error;
 
-  const decision = buildConsumeEntitlementDecision(resourceKey, plan.planKey, data as ConsumeAttempt, quantity);
-  // PLATFORM-P1-02.1: try_consume_usage_counter() already applied any active override
-  // atomically; this only labels the decision with where its limit came from.
-  const override = await getActiveLimitOverride(businessId, resourceKey);
-  return override ? relabelAsOverride(decision, resourceKey, override.expires_at) : decision;
+  return buildConsumeEntitlementDecision(resourceKey, plan.planKey, data as ConsumeAttempt, quantity);
 }
 
 /**
@@ -334,17 +321,4 @@ export function buildConsumeEntitlementDecision(
     usage: attempt.usage_before,
     remaining: Math.max(limit - attempt.usage_before, 0),
   };
-}
-
-/** Pure: a `canConsume()` decision whose limit came from a Business Override
- * (PLATFORM-P1-02.1) -- same numbers, source and wording that say so. */
-export function relabelAsOverride(decision: EntitlementDecision, resourceKey: ResourceKey, expiresAt: string): EntitlementDecision {
-  const until = new Date(expiresAt).toISOString().slice(0, 10);
-  const reason =
-    decision.limit === null
-      ? `${resourceKey} is unlimited for this business until ${until} (temporary exception).`
-      : decision.allowed
-        ? `${resourceKey} usage (${decision.usage}) is within this business's temporary limit of ${decision.limit} (until ${until}).`
-        : `This business's temporary limit allows ${decision.limit} ${resourceKey} (until ${until}).`;
-  return { ...decision, source: "business_override", reason };
 }
