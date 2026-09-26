@@ -29,6 +29,14 @@ import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
  * zinc-* overrides every other `/platform` page needs (see branding-form.tsx's own note)
  * since the vendored Table's default `border-muted-foreground` tokens resolve against the
  * site's light theme, which `/platform` never opts into.
+ *
+ * PLATFORM-P0-19.3 ("Desktop Tables", §33) -- verified 2026-09-26, no new code needed: every
+ * list the story names is a table (or a row-per-record proto-table) on desktop -- plans
+ * (this page), feature flags (`feature-flags/page.tsx`), AI providers
+ * (`ai-providers/page.tsx`), integrations (`integration-registry-table.tsx`), module and
+ * quantity entitlements (`plans/[id]/entitlements/*-section.tsx`; feature entitlements are
+ * a per-module checklist of rows), customers (`billing/subscriptions/page.tsx`) and audit
+ * records (`audit/audit-search-explorer.tsx`, expandable rows with actor/time aligned right).
  */
 export default async function PlatformPlansPage() {
   const plans = await listPlatformPlans();

@@ -17,7 +17,8 @@ import {
 } from "../../lib/nav-group-folds";
 import type { NavGroupFolds } from "../../lib/nav-group-folds";
 import { SELECTED_MODULE_STORAGE_KEY as MODULE_STORAGE_KEY } from "../../lib/module-selection";
-import { buildDiscoveryNav } from "../../lib/discovery-nav";
+import { buildDiscoveryNav, offeringIdFromPath } from "../../lib/discovery-nav";
+import { readOfferingFocus, writeOfferingFocus, type OfferingFocus } from "../../lib/offering-focus";
 import { useSidebar } from "./sidebar-context";
 import { SidebarAccountMenu } from "./sidebar-account-menu";
 import { WonderArkLogo } from "./wonderark-logo";
@@ -201,6 +202,7 @@ function ModuleNav({
   businessId,
   businessHref,
   productsByBusiness,
+  rememberedOfferingId,
   onCreateBusiness,
   onNavigate,
   hasBusinesses,
@@ -212,6 +214,8 @@ function ModuleNav({
   businessId: string | null;
   businessHref: (businessId: string) => string;
   productsByBusiness?: Record<string, ShellProduct[]>;
+  /** DISC-OFFER-P0-03.1: the offering this business was last worked in. */
+  rememberedOfferingId?: string;
   onCreateBusiness?: () => void;
   onNavigate: () => void;
   hasBusinesses: boolean;
@@ -242,7 +246,7 @@ function ModuleNav({
     // DISC-NAV-01..05: Overview, Business, then the four expandable sections -- see
     // lib/discovery-nav.ts for the tree and its active-route rules. Each section uses the
     // same fold mechanism (and storage) as every other module's sections (§3.4).
-    const tree = buildDiscoveryNav(base, productsByBusiness?.[businessId] ?? [], pathname);
+    const tree = buildDiscoveryNav(base, productsByBusiness?.[businessId] ?? [], pathname, rememberedOfferingId);
     return (
       <div className="flex flex-col gap-0.5">
         {tree.top.map((link) => (
@@ -427,6 +431,26 @@ export function AppSidebar({
   const effectiveBusinessId = activeBusinessId ?? businesses[0]?.id ?? null;
   const closeDrawer = () => setOpen(false);
 
+  // DISC-OFFER-P0-03.1: remember the offering last worked in, per business, so Customer
+  // Acquisition stays on it from pages that name no offering. Read on mount for the same
+  // hydration reason as the folds above; written whenever the URL names an offering.
+  const [offeringFocus, setOfferingFocus] = useState<OfferingFocus>({});
+  useEffect(() => {
+    setOfferingFocus(readOfferingFocus());
+  }, []);
+  useEffect(() => {
+    if (!effectiveBusinessId) return;
+    const offeringId = offeringIdFromPath(businessHref(effectiveBusinessId), pathname);
+    if (!offeringId || !productsByBusiness?.[effectiveBusinessId]?.some((p) => p.id === offeringId)) return;
+    setOfferingFocus((prev) => {
+      if (prev[effectiveBusinessId] === offeringId) return prev;
+      const next = { ...readOfferingFocus(), ...prev, [effectiveBusinessId]: offeringId };
+      writeOfferingFocus(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, effectiveBusinessId]);
+
   function handleModuleClick(module: ShellNavModule) {
     // Every module is listed regardless of entitlement -- an unlicensed one routes
     // straight to that business's own not-licensed page (the same one the proxy's route
@@ -485,10 +509,18 @@ export function AppSidebar({
           className="flex shrink-0 items-center gap-2.5 px-5 py-5"
         >
           {/* The rail is brand navy in both themes, so the mark is the one from the board's
-              "Logo on dark" panel rather than following the theme. */}
+              "Logo on dark" panel rather than following the theme. Beside it the name is live
+              text -- the application-shell treatment the branding QA corrections (§3, §9)
+              specify: "Wonder" white, "Ark" brand blue, in the brand typeface. */}
           <WonderArkLogo variant="mark-dark" size="md" decorative priority />
-          <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
-            {BRAND_NAME}
+          <span className="min-w-0 truncate text-lg font-bold tracking-tight text-white">
+            {BRAND_NAME === "WonderArk" ? (
+              <>
+                Wonder<span className="text-brand-blue">Ark</span>
+              </>
+            ) : (
+              BRAND_NAME
+            )}
           </span>
         </Link>
 
@@ -549,6 +581,7 @@ export function AppSidebar({
                     businessId={effectiveBusinessId}
                     businessHref={businessHref}
                     productsByBusiness={productsByBusiness}
+                    rememberedOfferingId={effectiveBusinessId ? offeringFocus[effectiveBusinessId] : undefined}
                     onCreateBusiness={onCreateBusiness}
                     onNavigate={closeDrawer}
                     hasBusinesses={businesses.length > 0}

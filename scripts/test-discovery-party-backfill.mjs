@@ -49,6 +49,8 @@ async function main() {
         select account_id, 'Alice Co' from core.account_members where user_id = '${ALICE}'
         returning id;
       `);
+      // The Discovery licence every new business gets at creation (RBAC-39: required by RLS).
+      psql(`insert into core.licenses (account_id, business_id, module_key, status) select account_id, id, 'discovery', 'active' from core.businesses where id = '${business}'`);
       const product = psqlAsAlice(`
         insert into discovery.products (business_id, name) values ('${business}', 'Alice Product') returning id;
       `);

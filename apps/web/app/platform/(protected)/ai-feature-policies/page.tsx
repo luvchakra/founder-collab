@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { getAiFeaturePolicy, listAiFeaturePolicyProviderOptions } from "@cofounderai/core/admin/platform-ai-feature-policies";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { listAiOperationSwitches } from "@cofounderai/core/admin/platform-ai-operation-switches";
 import { FeaturePolicyDialog } from "./feature-policy-dialog";
+import { AiFeatureSwitches } from "./ai-feature-switches";
 
 /**
  * PLATFORM-P0-09.4 ("AI Feature Policies", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
@@ -22,7 +24,11 @@ import { FeaturePolicyDialog } from "./feature-policy-dialog";
  * deferred (see `20260912390000_platform_ai_feature_policies_monthly_budget.sql`).
  */
 export default async function PlatformAiFeaturePoliciesPage() {
-  const [policy, providerOptions] = await Promise.all([getAiFeaturePolicy(), listAiFeaturePolicyProviderOptions()]);
+  const [policy, providerOptions, switches] = await Promise.all([
+    getAiFeaturePolicy(),
+    listAiFeaturePolicyProviderOptions(),
+    listAiOperationSwitches(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -82,6 +88,8 @@ export default async function PlatformAiFeaturePoliciesPage() {
           <FeaturePolicyDialog policy={policy} providerOptions={providerOptions} />
         </div>
       </div>
+
+      <AiFeatureSwitches switches={switches} />
     </div>
   );
 }

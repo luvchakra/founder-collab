@@ -100,7 +100,7 @@ describe("renderEmailHtml", () => {
     const html = renderEmailHtml({ ...BASE, brandName: "WonderArk", platform: true });
     expect(html).toMatch(/<img src="https?:\/\/[^"]+\/brand\/email-header\.png"/);
     expect(html).toContain('alt="WonderArk — Business in One Place"');
-    expect(html).toContain("background-color:#007BFF");
+    expect(html).toContain("background-color:#0067D9");
   });
 
   it("business mail keeps the business's own name and no WonderArk header (§19)", () => {

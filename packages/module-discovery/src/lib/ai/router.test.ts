@@ -18,6 +18,7 @@ const { decryptApiKey } = vi.hoisted(() => ({ decryptApiKey: vi.fn() }));
 const { resolveModelId } = vi.hoisted(() => ({ resolveModelId: vi.fn() }));
 const { getOperationSpec } = vi.hoisted(() => ({ getOperationSpec: vi.fn() }));
 const { createLanguageModel } = vi.hoisted(() => ({ createLanguageModel: vi.fn() }));
+const { isAiOperationDisabled } = vi.hoisted(() => ({ isAiOperationDisabled: vi.fn(async () => false) }));
 
 vi.mock("../../db/server", () => ({ createClient }));
 vi.mock("../tenancy/queries", () => ({ getAccountIdForWorkspace }));
@@ -25,6 +26,10 @@ vi.mock("@cofounderai/core/crypto/api-key", () => ({ decryptApiKey }));
 vi.mock("@cofounderai/core/ai/model-registry", () => ({ resolveModelId }));
 vi.mock("@cofounderai/core/ai/operation-registry", () => ({ getOperationSpec }));
 vi.mock("@cofounderai/core/ai/provider-factory", () => ({ createLanguageModel }));
+vi.mock("@cofounderai/core/ai/feature-kill-switch", () => ({
+  isAiOperationDisabled,
+  AI_FEATURE_DISABLED_MESSAGE: "This AI feature is temporarily unavailable. Please try again later.",
+}));
 
 const { AiProviderError, resolveAiModel, toAiProviderError } = await import("./router");
 
@@ -122,6 +127,16 @@ describe("resolveAiModel", () => {
 
     expect(createClient).not.toHaveBeenCalled();
     expect(getAccountIdForWorkspace).toHaveBeenCalledWith(WORKSPACE, supplied);
+  });
+
+  it("refuses an AI feature a superadmin switched off, before touching any credential (PLATFORM-P0-10.4)", async () => {
+    isAiOperationDisabled.mockResolvedValueOnce(true);
+    const supabase = mockCredential({ provider: "openai", encrypted_api_key: "cipher" });
+
+    await expect(resolveAiModel(WORKSPACE, "generate_reply")).rejects.toMatchObject({ code: "feature_disabled" });
+    expect(isAiOperationDisabled).toHaveBeenCalledWith("generate_reply");
+    expect(supabase.queries("ai_provider_credentials")).toHaveLength(0);
+    expect(decryptApiKey).not.toHaveBeenCalled();
   });
 
   it("propagates a failed credential lookup", async () => {

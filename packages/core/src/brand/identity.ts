@@ -23,6 +23,8 @@ export const BRAND_DESCRIPTION = `${BRAND_NAME} runs your whole business in one 
 export const BRAND_HEX = {
   navy: "#0B1F3B",
   blue: "#007BFF",
+  /** Fill for controls carrying white text (5.33:1); #007BFF is the brand accent only. */
+  blueAction: "#0067D9",
   cyan: "#00D1FF",
   lightBlue: "#5CDEFF",
   coolGray: "#E5EAF2",

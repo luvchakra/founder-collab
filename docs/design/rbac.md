@@ -46,7 +46,7 @@ Business ─ core.licenses ─► module access
 | Rule | Where |
 |---|---|
 | Who is in the business, with which role | `core.current_role_id()`, `core.has_business_permission()`, `core.effective_permissions()`; `core.has_permission()` keeps its signature and now resolves through them |
-| Module data: tenant AND licensed AND permission | `core.licensed_business_ids()` / `write_licensed_business_ids()` — see the decision below |
+| Module data: tenant AND licensed AND permission | `core.licensed_business_ids()` / `write_licensed_business_ids()` — see "Module RLS" below |
 | Shared core data (parties, documents, …) read-only for read-only roles | `core.user_write_business_ids()` in every core write policy (`20260926150200`) |
 | Privilege ceiling, last owner, self-elevation | `core.can_assign_role()`, `core.can_grant_permissions()`, trigger `guard_last_owner`, the member/role functions in `20260926150100` |
 | No direct membership writes | only the creator's first owner row may be inserted directly; everything else goes through SECURITY DEFINER functions |
@@ -57,28 +57,43 @@ Business ─ core.licenses ─► module access
 | Billing | `billing.subscription.change` to buy/change/cancel; `billing.view` to see payments (RLS) |
 | Data Room | upload/remove needs `funding.data_room.manage`; sharing needs `funding.data_room.share` |
 
-## Decision: module-level RLS for operational roles
+## Module RLS: per-module, with declared hand-offs (RBAC-39)
 
-The spec asks module tables to enforce `tenant AND licensed AND permission`. Modules call
-each other's contracts **with the signed-in user's session** (an Inventory invoice records
-its GST tax determination; CRM reads stock; FSM reads tax rules). Requiring each module's
-own view/write permission in RLS would make those flows fail for any role that isn't
-granted every module — a sales manager could no longer create an invoice.
+The first cut of RBAC let any role holding a write permission reach every licensed
+module's tables, leaving *which module* to the app's per-action checks. That is not a
+security boundary: the Supabase API is public, so a CRM-only role could read or change
+Inventory rows with its own session. Since `20260927050000..050400` the database enforces
+the module boundary for every role:
 
-So the database enforces:
+| | Rule | Helper |
+|---|---|---|
+| Read module M | licence active (or in grace) AND (M's view permission OR any permission in M) | `core.licensed_business_ids(M)` |
+| Write module M | licence active AND a permission in M beyond view/export (owner always) | `core.write_licensed_business_ids(M)`, `core.has_module_write_permission()` |
+| Discovery core tables | read as above; write needs `discovery.manage` (new) | `discovery.readable_*()` / `discovery.writable_*()` |
 
-- **Read-only roles** (Viewer, or any custom role with only view/export permissions) see
-  exactly the modules they may view, and can write nothing — module or core.
-- **Operational roles** (any write permission) can reach licensed module data at the
-  database level; *which action in which module* is enforced per action by
-  `requirePermission()` / `requireModulePermission()`, the route guard and navigation, and
-  the `has_permission()` checks already inside module policies and triggers.
-- Cross-business isolation is always database-enforced: permissions are evaluated per
-  business, so an admin in A who is a viewer in B is a viewer in B.
+Discovery's offering-centric tables were tenant-only until now (no licence, no
+permission); their policies were rewritten in place to the helpers above.
 
-Tightening this further means moving cross-module contract writes to SECURITY DEFINER
-functions module by module, a follow-up rather than something to change under every
-module at once.
+**Cross-module hand-offs** are the only writes that cross a module boundary. Each is an
+additive policy on exactly the tables the hand-off touches, keyed to the permission of the
+module that *initiates* it (`core.handoff_business_ids(module, permission, write)`):
+
+| Hand-off | Initiating permission | Target tables |
+|---|---|---|
+| CRM → Service: FSM quote, assessment, accept quote → job | `crm_opportunities.manage` | `fsm.opportunities` (insert/update/select), `fsm.assessments`, `fsm.jobs` (insert/select) |
+| Discovery → Service: won prospect → service opportunity | `discovery.manage` | `fsm.opportunities` (insert/select), `fsm.jobs` (select) |
+| Discovery → CRM: promote prospect, log reply, existing-customer check | `discovery.manage` | `crm.lead` (insert/select), `crm.conversation`/`conversation_participant`/`interaction` (insert/update/select), `crm.opportunity` (select) |
+| CRM → Discovery: ticket → prospect | `leads.manage` | `discovery.prospects` (insert/select), offerings and workspaces (select) |
+| Inventory → Discovery: item mirrored as offering | `inventory.edit` | `discovery.products` (insert/update/select) |
+| Service → Inventory: reserve / release / consume parts | `jobs.edit` | `inventory.stock_movements` (insert/select), `inventory.stock_levels` (select) |
+
+Hand-off writes follow the target module's licence (grace is read-only, ADR-9). Every
+other cross-module *read* degrades exactly as an unlicensed module does (ADR-10): a
+sales manager without `service.view` sees no job history in Customer 360.
+
+Role fixes in the same change: Accountant gains every Finance operation except activation
+(it could view Finance but post nothing); `discovery.manage` goes to Admin and Sales
+Manager and their templates. Tested in `scripts/test-rbac-module-scoping-rls.mjs`.
 
 ## Invitations
 
@@ -100,9 +115,9 @@ module at once.
 
 ## Known follow-ups
 
-- Discovery's own tables are still tenant-only in RLS (§37: Discovery is not
-  restructured); Discovery pages are gated by `discovery.view` through the route guard and
-  navigation.
+- A user whose role lacks a module's write permission gets a generic error if they try a
+  write the UI still offers (the database refuses it); hiding those controls per permission
+  is a UI follow-up.
 - Export buttons are not yet hidden for users without the export permission (the server
   refuses them).
 - `test-gst-tax-rules-rls.mjs` already failed on `main` before this work (unrelated

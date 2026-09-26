@@ -15,7 +15,7 @@ const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 const STUB_FILE = join(ROOT, "supabase", "tests", "local-stub.sql");
 
 const ALICE = "11111111-1111-1111-1111-111111111111"; // owner
-const CAROL = "33333333-3333-3333-3333-333333333333"; // sales manager: operational, no settings.manage (a viewer is read-only since RBAC-19)
+const CAROL = "33333333-3333-3333-3333-333333333333"; // accountant: a Finance role without settings.manage (a viewer is read-only since RBAC-19; since RBAC-39 a role with no Finance permission can't write Finance tables at all)
 const BOB = "22222222-2222-2222-2222-222222222222"; // separate business
 
 async function main() {
@@ -53,7 +53,7 @@ async function main() {
         select account_id, '${CAROL}', 'member' from core.businesses where id = '${aliceBusiness}';
         insert into core.business_members (business_id, user_id, role) values
           ('${aliceBusiness}', '${ALICE}', 'owner'),
-          ('${aliceBusiness}', '${CAROL}', 'sales_manager'),
+          ('${aliceBusiness}', '${CAROL}', 'accountant'),
           ('${bobBusiness}', '${BOB}', 'owner');
       `);
 
@@ -75,7 +75,7 @@ async function main() {
         select account_id, id, 'gst', 'active' from core.businesses where id = '${aliceBusiness}';
       `);
 
-      console.log("Carol (sales manager, no settings.manage) CAN record a determination -- this table's INSERT is licensed-membership only, not a settings action (same shape core.domain_events already uses)...");
+      console.log("Carol (accountant, no settings.manage) CAN record a determination -- this table's INSERT needs a Finance write permission (RBAC-39), not a settings action (same shape core.domain_events already uses)...");
       const det1 = psqlAsCarol(insertDetermination(aliceBusiness, "invoice-1", 180));
 
       console.log("Alice (owner) can also record one, including for the same transaction reference (a recompute)...");
