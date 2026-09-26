@@ -36,6 +36,9 @@ export async function createJournalEntryAction(
   const debits = formData.getAll("debit").map(String);
   const credits = formData.getAll("credit").map(String);
   const memos = formData.getAll("line_memo").map(String);
+  // FIN-9: optional dimensions, entry-wide. Absent unless the business switched them on.
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const projectRef = String(formData.get("project_ref") ?? "").trim() || null;
 
   const lines = accountIds
     .map((accountId, i) => ({
@@ -43,6 +46,8 @@ export async function createJournalEntryAction(
       debit: Number(debits[i] ?? 0) || 0,
       credit: Number(credits[i] ?? 0) || 0,
       memo: (memos[i] ?? "").trim() || null,
+      location,
+      projectRef,
     }))
     .filter((line) => line.accountId);
 

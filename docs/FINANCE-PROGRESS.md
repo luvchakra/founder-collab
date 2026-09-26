@@ -22,6 +22,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-6 | Done | `pending` | Operational reports: sales by customer/product/service, purchases and expenses, inventory valuation (via Inventory's contract), COGS and gross margin |
 | FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
 | FIN-8 | Done | `pending` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
+| FIN-9 | Done | `pending` | Dimensions: per-business on/off and naming for party, item, location, project; P&L by any of them; never mandatory |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
@@ -376,6 +377,32 @@ thing to get silently wrong. Capitals and repeated spaces are ignored.
 **Permission:** `gst.bank_rules.manage` (owner, admin, accountant) to manage rules; applying
 one needs `gst.banking.manage` (it matches a line) and `gst.journal.create` (it posts).
 
+### Dimensions (FIN-9) — built 2026-09-27
+
+`/finance/dimensions` (Accounting nav). `gst.journal_lines` has carried `party_id`,
+`item_id`, `location` and `project_ref` since F1; `gst.dimension_settings` now records
+which of the four a business uses and what it calls them ("Branch", "Job"), and
+`gst.dimension_totals` aggregates posted activity by any one of them. The page shows a tab
+per enabled dimension with income, costs and profit per value, over the reports' period
+presets; party and item values are ids into `core.parties`/`core.items`, named at read
+time, never copied.
+
+**Never mandatory, structurally.** There is no `required` column and nothing constrains
+`gst.journal_lines`: switching a dimension on adds an optional field to the manual journal
+form (location and project; party is filled in automatically from every invoice, bill,
+payment and bank-rule posting) and a report tab. Lines without it report as
+**Unassigned**, listed last, so every tab adds up to the whole profit and loss rather than
+silently dropping untagged lines.
+
+**Reversals keep their dimensions.** `reverseJournalEntry` now copies `location` and
+`project_ref` (it already copied party and item), so a reversed entry nets to nothing
+under its own location/project instead of leaving the reversal "Unassigned".
+
+**Profit and loss accounts only.** A receivable carries its customer too, but "profit by
+customer" is a P&L question; balance-sheet lines are excluded from the report.
+
+Permission `gst.dimensions.manage` (owner, admin, accountant); reading needs only Finance.
+
 ### Explainable accounting in reverse (FIN-12) — built 2026-09-27
 
 `/finance/documents/[documentId]`: the document's own facts, then every entry it caused in
@@ -396,7 +423,6 @@ journal entry with a source document links here, and so does the invoices list (
 
 | § | Item | Note |
 |---|---|---|
-| 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
 | 42 | Activation wizard | The ten-step first-run flow. Every step exists as its own screen; nothing sequences them. |
@@ -439,3 +465,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260927100000_gst_statement_totals_cash_flow` | FIN-5: `gst.account_statement_totals` (period + as-at totals, cash accounts flagged) and `gst.cash_flow_totals`; fixes the period-only balance sheet |
 | `20260927110000_gst_operational_report_totals` | FIN-6: `gst.sales_by_party`, `gst.sales_by_item`, `gst.purchases_by_party` (licence-gated aggregates over `core.documents`) |
 | `20260927120000_gst_bank_rules` | FIN-8: `gst.bank_rules`, `gst.bank_transactions.rule_id`, `gst.bank_rules.manage` permission (owner/admin/accountant) |
+| `20260927130000_gst_dimensions` | FIN-9: `gst.dimension_settings`, `gst.dimension_totals`, `gst.dimensions.manage` permission (owner/admin/accountant) |

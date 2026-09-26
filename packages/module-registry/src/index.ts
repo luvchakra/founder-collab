@@ -246,6 +246,8 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Financial Reports", slug: "reports", icon: "BarChart3" },
           // FIN-6: sales, purchases, expenses, inventory valuation, COGS and gross margin.
           { label: "Operational Reports", slug: "operational-reports", icon: "ClipboardList" },
+          // FIN-9: optional reporting dimensions over journal lines.
+          { label: "Dimensions", slug: "dimensions", icon: "LayoutGrid" },
           { label: "Budget", slug: "budget", icon: "Target" },
           { label: "Recurring Entries", slug: "recurring", icon: "Repeat" },
           { label: "Accounting Periods", slug: "periods", icon: "CalendarRange" },

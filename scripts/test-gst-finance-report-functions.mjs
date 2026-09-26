@@ -85,7 +85,7 @@ async function main() {
             .map(
               ([acc, dr, cr, dims = {}], i) =>
                 `(${i + 1}, '${acc}', ${dr}::numeric, ${cr}::numeric${cols
-                  .map((c) => `, ${dims[c] === undefined || dims[c] === null ? "null" : `'${dims[c]}'`}`)
+                  .map((c) => `, ${dims[c] === undefined || dims[c] === null ? "null" : `'${dims[c]}'`}::${c === "party_id" ? "uuid" : "text"}`)
                   .join("")})`,
             )
             .join(", ")}) as v(n, account_id, debit, credit${cols.map((c) => `, ${c}`).join("")});
@@ -193,8 +193,27 @@ async function main() {
       assertEqual(asBob(`select count(*) from gst.purchases_by_party(${P})`), "0", "purchases_by_party across tenants");
       assertEqual(asBob(`select string_agg(party_name, ',') from gst.sales_by_party('${bob}', null, null)`), "Bob Customer", "Bob's own sales");
 
-      globalThis.__finReportCtx = { psql, asAlice, asBob, alice, bob, a, post, P, assertEqual, acme, widget };
-      await runLaterSections(globalThis.__finReportCtx);
+      console.log("FIN-9: dimension_totals groups P&L activity by party, location or project, untagged lines included...");
+      post(alice, "2026-09-15", [[a.ar, 3000, 0, { party_id: acme, location: "Pune" }], [a.sales, 0, 3000, { party_id: acme, location: "Pune", project_ref: "Fitout" }]], "posted", { party_id: null, location: null, project_ref: null });
+      post(alice, "2026-09-16", [[a.rent, 800, 0, { location: " Pune " }], [a.ar, 0, 800]], "posted", { party_id: null, location: null, project_ref: null });
+      post(alice, "2026-09-17", [[a.rent, 999, 0, { location: "Draftville" }], [a.ar, 0, 999]], "draft", { party_id: null, location: null, project_ref: null });
+      assertEqual(
+        asAlice(`select string_agg(coalesce(dimension_value, '(none)') || ':' || account_type || '=' || debit || '/' || credit, ',') from gst.dimension_totals('${alice}', 'location', '2026-09-15', '2026-09-30')`),
+        "Pune:asset=3000.00/0.00,Pune:expense=800.00/0.00,Pune:income=0.00/3000.00,(none):asset=0.00/800.00",
+        "trimmed location groups, untagged lines as their own group, drafts ignored",
+      );
+      assertEqual(
+        asAlice(`select string_agg(coalesce(dimension_value, '(none)') || ':' || account_type, ',') from gst.dimension_totals('${alice}', 'project', '2026-09-15', '2026-09-30') where dimension_value is not null`),
+        "Fitout:income",
+        "project on the one line that carries it",
+      );
+      assertEqual(
+        asAlice(`select count(*) from gst.dimension_totals('${alice}', 'party', '2026-09-15', '2026-09-30') where dimension_value = '${acme}'`),
+        "2",
+        "party dimension groups by the canonical core.parties id",
+      );
+      assertEqual(asAlice(`select count(*) from gst.dimension_totals('${alice}', 'colour', null, null)`), "0", "an unknown dimension returns nothing rather than erroring");
+      assertEqual(asBob(`select count(*) from gst.dimension_totals('${alice}', 'location', null, null)`), "0", "dimension_totals across tenants");
 
       console.log("Licence gating: once Alice's Finance licence has expired, every aggregate returns nothing...");
       psql(`update core.licenses set status = 'expired' where business_id = '${alice}' and module_key = 'gst';`);
@@ -203,17 +222,13 @@ async function main() {
       assertEqual(asAlice(`select count(*) from gst.sales_by_party(${P})`), "0", "sales_by_party gated by the Finance licence, though core.documents itself is not");
       assertEqual(asAlice(`select count(*) from gst.sales_by_item(${P})`), "0", "sales_by_item gated by licence");
       assertEqual(asAlice(`select count(*) from gst.purchases_by_party(${P})`), "0", "purchases_by_party gated by licence");
-      await runGatedChecks(globalThis.__finReportCtx);
-      assertEqual(psql(`select count(*) from gst.journal_entries where business_id = '${alice}'`), "5", "the ledger itself is retained (ADR-9)");
+      assertEqual(asAlice(`select count(*) from gst.dimension_totals('${alice}', 'location', null, null)`), "0", "dimension_totals gated by licence");
+      assertEqual(psql(`select count(*) from gst.journal_entries where business_id = '${alice}'`), "8", "the ledger itself is retained (ADR-9)");
 
       console.log("All Finance report-function assertions passed.");
     },
   });
 }
-
-/** FIN-9's section is appended here when its function lands. */
-async function runLaterSections() {}
-async function runGatedChecks() {}
 
 main().catch((err) => {
   console.error(err);

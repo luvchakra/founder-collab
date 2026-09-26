@@ -40,10 +40,14 @@ export function JournalEntryForm({
   accounts,
   action,
   cancelHref,
+  dimensions = {},
 }: {
   accounts: AccountWithBalance[];
   action: (prevState: JournalEntryFormState, formData: FormData) => Promise<JournalEntryFormState>;
   cancelHref: string;
+  /** FIN-9: the free-text dimensions this business switched on, by its own name for them.
+   * Shown only when on, never required; applied to every line of the entry. */
+  dimensions?: { location?: string; project?: string };
 }) {
   const [state, formAction] = useActionState<JournalEntryFormState, FormData>(action, null);
   const [lines, setLines] = useState<LineDraft[]>([emptyLine(0), emptyLine(1)]);
@@ -81,6 +85,18 @@ export function JournalEntryForm({
           <Label htmlFor="memo">Description</Label>
           <Input id="memo" name="memo" placeholder="Depreciation for September" />
         </div>
+        {dimensions.location ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="location">{dimensions.location} (optional)</Label>
+            <Input id="location" name="location" maxLength={120} />
+          </div>
+        ) : null}
+        {dimensions.project ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="project_ref">{dimensions.project} (optional)</Label>
+            <Input id="project_ref" name="project_ref" maxLength={120} />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-3">

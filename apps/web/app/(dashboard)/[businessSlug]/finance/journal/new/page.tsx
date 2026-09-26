@@ -5,6 +5,7 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { PageHeader } from "@cofounderai/core/ui/page-header";
 import { BookOpen } from "lucide-react";
 import { listAccounts } from "@cofounderai/module-gst/lib/accounting/queries";
+import { getDimensionSettings } from "@cofounderai/module-gst/lib/dimensions/queries";
 import { JournalEntryForm } from "@cofounderai/module-gst/components/accounting/journal-entry-form";
 import { createJournalEntryAction } from "../actions";
 
@@ -22,7 +23,9 @@ export default async function NewJournalEntryPage({
   const canCreate = await hasPermission(businessId, "gst.journal.create");
   if (!canCreate) notFound();
 
-  const accounts = await listAccounts(businessId);
+  const [accounts, dimensionSettings] = await Promise.all([listAccounts(businessId), getDimensionSettings(businessId)]);
+  // FIN-9: only the free-text dimensions the business switched on get a field.
+  const dimension = (key: "location" | "project") => dimensionSettings.find((d) => d.key === key && d.enabled)?.label;
   const basePath = `/${businessSlug}/finance`;
 
   return (
@@ -43,6 +46,7 @@ export default async function NewJournalEntryPage({
           accounts={accounts}
           action={createJournalEntryAction.bind(null, businessId)}
           cancelHref={`${basePath}/journal`}
+          dimensions={{ location: dimension("location"), project: dimension("project") }}
         />
       )}
     </div>
