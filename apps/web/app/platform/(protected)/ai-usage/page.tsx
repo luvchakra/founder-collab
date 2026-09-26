@@ -1,6 +1,8 @@
 import { listAiUsage, type AiUsageRun } from "@cofounderai/core/admin/platform-ai-usage";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-09.5 ("AI Usage", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §13) -- a
@@ -20,12 +22,15 @@ export default async function PlatformAiUsagePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">AI Usage</h1>
         <p className="text-sm text-zinc-400">
           The most recent {runs.length} AI runs across the platform, newest first. Read-only -- no secret
           credential is ever shown here.
         </p>
+        </div>
+        <ExportMenu exportId="platform.ai-usage" paginated className={PLATFORM_EXPORT_BUTTON_CLASS} />
       </div>
 
       <div className="rounded-2xl border border-zinc-800">

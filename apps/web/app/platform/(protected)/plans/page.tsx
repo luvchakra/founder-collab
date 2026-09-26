@@ -4,6 +4,8 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { PlatformImpactBanner } from "../../impact-banner";
 import { PlanDialog } from "./plan-dialog";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-04.1 ("Plan Management", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §8):
@@ -40,7 +42,10 @@ export default async function PlatformPlansPage() {
             The platform-wide pricing catalog every WonderArk business subscribes from.
           </p>
         </div>
-        <PlanDialog />
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="platform.plans" className={PLATFORM_EXPORT_BUTTON_CLASS} />
+          <PlanDialog />
+        </div>
       </div>
 
       <PlatformImpactBanner />

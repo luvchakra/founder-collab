@@ -1,6 +1,8 @@
 import { listIntegrationRegistry } from "@cofounderai/core/admin/platform-integrations";
 import { PlatformImpactBanner } from "../../impact-banner";
 import { IntegrationRegistryTable } from "./integration-registry-table";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-12.1 ("Integration Registry", docs/plan/09-PLATFORM-ADMIN-BACKLOG.md §16):
@@ -20,11 +22,14 @@ export default async function PlatformIntegrationsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Global Integrations</h1>
         <p className="text-sm text-zinc-400">
           Every external integration category the platform offers, and its platform-wide operational status.
         </p>
+        </div>
+        <ExportMenu exportId="platform.integrations" className={PLATFORM_EXPORT_BUTTON_CLASS} />
       </div>
 
       <PlatformImpactBanner />

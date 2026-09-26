@@ -15,6 +15,8 @@ import {
   type AuditSeverity,
 } from "@cofounderai/core/admin/platform-audit-log-types";
 import { searchAuditLogAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 const FIELD_CLASS = "border-zinc-700 bg-zinc-950/60 text-zinc-50 placeholder:text-zinc-500";
 
@@ -46,6 +48,16 @@ export function AuditSearchExplorer({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* EXP-ADMIN-01: exports exactly the filters set below -- they live in this
+       * component's state, so the Export control lives here rather than in the page header. */}
+      <div className="flex justify-end">
+        <ExportMenu
+          exportId="platform.audit"
+          paginated
+          params={filters as Record<string, string | undefined>}
+          className={PLATFORM_EXPORT_BUTTON_CLASS}
+        />
+      </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <div className="flex flex-col gap-1.5">
           <Label className="text-zinc-300">From</Label>

@@ -2,6 +2,8 @@ import { listComplianceCountries, listCompliancePacks } from "@cofounderai/core/
 import { PlatformImpactBanner } from "../../impact-banner";
 import { CountryRegistryTable } from "./country-registry-table";
 import { CompliancePackTable } from "./compliance-pack-table";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-13.1/13.2/13.4 ("Country / Compliance Pack Administration",
@@ -22,12 +24,15 @@ export default async function PlatformCompliancePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Country / Compliance Pack Administration</h1>
         <p className="text-sm text-zinc-400">
           Which countries and country/regime compliance packs WonderArk administratively offers, platform-wide, and
           which of each pack&apos;s named capabilities are turned on.
         </p>
+        </div>
+        <ExportMenu exportId="platform.compliance" className={PLATFORM_EXPORT_BUTTON_CLASS} />
       </div>
 
       <PlatformImpactBanner />

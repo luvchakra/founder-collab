@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PlatformImpactBanner } from "../../impact-banner";
 import { DeleteFlagDialog } from "./delete-flag-dialog";
 import { FeatureFlagDialog } from "./feature-flag-dialog";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-08.1/08.2/08.3/08.4 ("Feature Flags", docs/plan/09-PLATFORM-ADMIN-PORTAL-
@@ -38,7 +40,10 @@ export default async function PlatformFeatureFlagsPage() {
             from a plan&apos;s own commercial entitlements.
           </p>
         </div>
-        <FeatureFlagDialog scopeOptions={scopeOptions} />
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="platform.feature-flags" className={PLATFORM_EXPORT_BUTTON_CLASS} />
+          <FeatureFlagDialog scopeOptions={scopeOptions} />
+        </div>
       </div>
 
       <PlatformImpactBanner />

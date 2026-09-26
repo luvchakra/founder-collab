@@ -35,8 +35,9 @@ import type { ExportFormat, ExportScope } from "../../exports/types";
 export type ExportMenuProps = {
   /** Adapter id, e.g. `crm.leads`. */
   exportId: string;
-  /** The business this page belongs to -- the URL's own slug. */
-  businessSlug: string;
+  /** The business this page belongs to -- the URL's own slug. Omitted only on platform-
+   * administration pages, whose exports belong to no business. */
+  businessSlug?: string;
   /** The page's current filters, exactly as its own search params carry them. */
   params?: Record<string, string | string[] | undefined>;
   kind?: "list" | "report" | "dashboard";
@@ -56,7 +57,7 @@ function filenameFrom(disposition: string | null, fallback: string): string {
 
 export function buildExportUrl(
   exportId: string,
-  businessSlug: string,
+  businessSlug: string | undefined,
   format: ExportFormat,
   scope: ExportScope,
   params: ExportMenuProps["params"] = {},
@@ -66,7 +67,7 @@ export function buildExportUrl(
     if (value == null || ["business", "format", "scope"].includes(key)) continue;
     for (const item of Array.isArray(value) ? value : [value]) if (item !== "") query.append(key, item);
   }
-  query.set("business", businessSlug);
+  if (businessSlug) query.set("business", businessSlug);
   query.set("format", format);
   query.set("scope", scope);
   return `/api/exports/${encodeURIComponent(exportId)}?${query.toString()}`;

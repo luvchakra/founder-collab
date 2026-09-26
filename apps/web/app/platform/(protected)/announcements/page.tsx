@@ -8,6 +8,8 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { AnnouncementDialog } from "./announcement-dialog";
 import { DeleteAnnouncementDialog } from "./delete-announcement-dialog";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-15.1/15.2/15.3/15.4 ("Global Announcements / Maintenance",
@@ -36,7 +38,10 @@ export default async function PlatformAnnouncementsPage() {
             catalog.
           </p>
         </div>
-        <AnnouncementDialog options={options} />
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="platform.announcements" className={PLATFORM_EXPORT_BUTTON_CLASS} />
+          <AnnouncementDialog options={options} />
+        </div>
       </div>
 
       <div className="rounded-2xl border border-zinc-800">

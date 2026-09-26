@@ -20,4 +20,10 @@ describe("buildExportUrl", () => {
     expect(url.searchParams.getAll("format")).toEqual(["csv"]);
     expect(url.searchParams.getAll("scope")).toEqual(["view"]);
   });
+
+  it("omits the business for a platform-administration export", () => {
+    expect(buildExportUrl("platform.audit", undefined, "csv", "view", { severity: "high" })).toBe(
+      "/api/exports/platform.audit?severity=high&format=csv&scope=view",
+    );
+  });
 });

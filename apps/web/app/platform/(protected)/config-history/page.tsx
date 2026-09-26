@@ -5,6 +5,8 @@ import {
 } from "@cofounderai/core/admin/config-history";
 import { PlatformImpactBanner } from "../../impact-banner";
 import { ConfigHistoryExplorer } from "./config-history-explorer";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-17.1/17.2/17.3 ("Configuration Versioning", docs/plan/09-PLATFORM-ADMIN-
@@ -35,12 +37,15 @@ export default async function PlatformConfigHistoryPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Configuration History</h1>
         <p className="text-sm text-zinc-400">
           Every recorded version of an audited platform configuration, oldest first. Restore is available for Plans,
           Feature Flags, Announcements, and Platform Policies; every other configuration below is history-only for now.
         </p>
+        </div>
+        <ExportMenu exportId="platform.config-history" className={PLATFORM_EXPORT_BUTTON_CLASS} />
       </div>
       <PlatformImpactBanner description="Restoring a prior version replaces the live configuration for every business using it right now." />
       <ConfigHistoryExplorer

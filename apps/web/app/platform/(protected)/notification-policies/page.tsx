@@ -1,5 +1,7 @@
 import { getNotificationPolicies } from "@cofounderai/core/admin/platform-notification-policies";
 import { NotificationPoliciesForm } from "./notification-policies-form";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
+import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
 /**
  * PLATFORM-P0-11.3 ("Notification Policies", docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md
@@ -17,12 +19,15 @@ export default async function PlatformNotificationPoliciesPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Notification Policies</h1>
         <p className="text-sm text-zinc-400">
           Platform-wide default channels -- configuration only. No in-app or push notification delivery exists yet in
           this codebase, and email is not wired to these toggles.
         </p>
+        </div>
+        <ExportMenu exportId="platform.notification-policies" className={PLATFORM_EXPORT_BUTTON_CLASS} />
       </div>
 
       <NotificationPoliciesForm policies={policies} />
