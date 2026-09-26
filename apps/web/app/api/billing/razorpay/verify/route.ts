@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { verifyRazorpayPaymentSignature } from "@cofounderai/core/billing/razorpay";
-import { markCreditPurchasePaid } from "@cofounderai/core/billing/mutations";
+import { getCreditPurchaseByOrderId, markCreditPurchasePaid } from "@cofounderai/core/billing/mutations";
 
 /**
  * Client-reported payment success (Checkout.js's own `handler` callback, right after the
@@ -29,6 +29,15 @@ export async function POST(request: Request) {
   const valid = verifyRazorpayPaymentSignature(body.razorpayOrderId, body.razorpayPaymentId, body.razorpaySignature);
   if (!valid) return NextResponse.json({ error: "Invalid payment signature" }, { status: 400 });
 
-  await markCreditPurchasePaid(body.purchaseId, body.razorpayPaymentId, body.razorpaySignature);
+  // The signature proves a payment against *this order* -- so the purchase credited is
+  // the one that order belongs to, and only if it is the caller's own. The client's
+  // purchaseId is a cross-check, never the thing credited: trusting it let one small
+  // paid order mark a different, larger purchase paid.
+  const purchase = await getCreditPurchaseByOrderId(body.razorpayOrderId);
+  if (!purchase || purchase.account_id !== account.id || purchase.id !== body.purchaseId) {
+    return NextResponse.json({ error: "Payment does not match this purchase" }, { status: 400 });
+  }
+
+  await markCreditPurchasePaid(purchase.id, body.razorpayPaymentId, body.razorpaySignature);
   return NextResponse.json({ ok: true });
 }

@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 404 |
+| ✅ Done | 405 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 5 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 83 |
-| **Total** | **525** |
+| ⬜ Not started | 122 |
+| **Total** | **565** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -37,10 +37,11 @@ file is stale, so it cannot quietly drift out of date.
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
+| [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 1 | 0 | 39 | 40 |
 
 ## What is left
 
-88 stories are neither built nor deliberately set aside:
+127 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -132,6 +133,45 @@ file is stale, so it cannot quietly drift out of date.
 | `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
 | `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
 | `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
+| `BILL-02` | Create provider abstraction | ⬜ Not started | — |
+| `BILL-03` | Create platform billing tables/migrations | ⬜ Not started | — |
+| `BILL-04` | Create Razorpay adapter | ⬜ Not started | — |
+| `BILL-05` | Create Stripe adapter | ⬜ Not started | — |
+| `BILL-06` | Create provider configuration | ⬜ Not started | — |
+| `BILL-07` | Create plan pricing/provider mapping | ⬜ Not started | — |
+| `BILL-08` | Create checkout session service | ⬜ Not started | — |
+| `BILL-09` | Create customer-facing pricing page | ⬜ Not started | — |
+| `BILL-10` | Create checkout confirmation page | ⬜ Not started | — |
+| `BILL-11` | Create success/failure pages | ⬜ Not started | — |
+| `BILL-12` | Razorpay webhook | ⬜ Not started | — |
+| `BILL-13` | Stripe webhook | ⬜ Not started | — |
+| `BILL-14` | Event idempotency | ⬜ Not started | — |
+| `BILL-15` | Subscription synchronization | ⬜ Not started | — |
+| `BILL-16` | Payment synchronization | ⬜ Not started | — |
+| `BILL-17` | License provisioning | ⬜ Not started | — |
+| `BILL-18` | License reconciliation | ⬜ Not started | — |
+| `BILL-19` | Billing page | ⬜ Not started | — |
+| `BILL-20` | Payment history | ⬜ Not started | — |
+| `BILL-21` | Manage billing | ⬜ Not started | — |
+| `BILL-22` | Upgrade | ⬜ Not started | — |
+| `BILL-23` | Downgrade | ⬜ Not started | — |
+| `BILL-24` | Cancellation | ⬜ Not started | — |
+| `BILL-25` | Failed payment recovery | ⬜ Not started | — |
+| `BILL-26` | Billing Overview | ⬜ Not started | — |
+| `BILL-27` | Subscriptions | ⬜ Not started | — |
+| `BILL-28` | Payments | ⬜ Not started | — |
+| `BILL-29` | Providers | ⬜ Not started | — |
+| `BILL-30` | Billing Events | ⬜ Not started | — |
+| `BILL-31` | Plan provider mappings | ⬜ Not started | — |
+| `BILL-32` | Subscription reconciliation | ⬜ Not started | — |
+| `BILL-33` | Audit | ⬜ Not started | — |
+| `BILL-34` | Notifications | ⬜ Not started | — |
+| `BILL-35` | Email templates | ⬜ Not started | — |
+| `BILL-36` | Observability | ⬜ Not started | — |
+| `BILL-37` | Security tests | ⬜ Not started | — |
+| `BILL-38` | Tenant/RBAC/license tests | ⬜ Not started | — |
+| `BILL-39` | E2E provider sandbox tests | ⬜ Not started | — |
+| `BILL-40` | Production readiness review | ⬜ Not started | — |
 
 ## Platform build-out
 
@@ -1145,3 +1185,52 @@ Source: [`docs/plan/13-DATA-EXPORT-BACKLOG.md`](./plan/13-DATA-EXPORT-BACKLOG.md
 | `EXP-ADMIN-05` | Compliance Registry Export | ✅ Done | `apps/web/lib/exports/platform/compliance.ts` +4 |
 | `EXP-ADMIN-06` | Config History Export | ✅ Done | `apps/web/lib/exports/platform/config-history.ts` +4 |
 | `EXP-ADMIN-07` | Announcements / Feature Flags / Notification Policies Export | ✅ Done | `apps/web/lib/exports/platform/index.ts` +4 |
+
+## Subscriptions & billing (Razorpay + Stripe)
+
+Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md)
+
+### 102a. Story index
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `BILL-01` | Inspect existing plans, licenses, payments, platform schema and background jobs | ✅ Done | `packages/core/src/licensing/event-handlers.test.ts` +2 |
+| `BILL-02` | Create provider abstraction | ⬜ Not started | — |
+| `BILL-03` | Create platform billing tables/migrations | ⬜ Not started | — |
+| `BILL-04` | Create Razorpay adapter | ⬜ Not started | — |
+| `BILL-05` | Create Stripe adapter | ⬜ Not started | — |
+| `BILL-06` | Create provider configuration | ⬜ Not started | — |
+| `BILL-07` | Create plan pricing/provider mapping | ⬜ Not started | — |
+| `BILL-08` | Create checkout session service | ⬜ Not started | — |
+| `BILL-09` | Create customer-facing pricing page | ⬜ Not started | — |
+| `BILL-10` | Create checkout confirmation page | ⬜ Not started | — |
+| `BILL-11` | Create success/failure pages | ⬜ Not started | — |
+| `BILL-12` | Razorpay webhook | ⬜ Not started | — |
+| `BILL-13` | Stripe webhook | ⬜ Not started | — |
+| `BILL-14` | Event idempotency | ⬜ Not started | — |
+| `BILL-15` | Subscription synchronization | ⬜ Not started | — |
+| `BILL-16` | Payment synchronization | ⬜ Not started | — |
+| `BILL-17` | License provisioning | ⬜ Not started | — |
+| `BILL-18` | License reconciliation | ⬜ Not started | — |
+| `BILL-19` | Billing page | ⬜ Not started | — |
+| `BILL-20` | Payment history | ⬜ Not started | — |
+| `BILL-21` | Manage billing | ⬜ Not started | — |
+| `BILL-22` | Upgrade | ⬜ Not started | — |
+| `BILL-23` | Downgrade | ⬜ Not started | — |
+| `BILL-24` | Cancellation | ⬜ Not started | — |
+| `BILL-25` | Failed payment recovery | ⬜ Not started | — |
+| `BILL-26` | Billing Overview | ⬜ Not started | — |
+| `BILL-27` | Subscriptions | ⬜ Not started | — |
+| `BILL-28` | Payments | ⬜ Not started | — |
+| `BILL-29` | Providers | ⬜ Not started | — |
+| `BILL-30` | Billing Events | ⬜ Not started | — |
+| `BILL-31` | Plan provider mappings | ⬜ Not started | — |
+| `BILL-32` | Subscription reconciliation | ⬜ Not started | — |
+| `BILL-33` | Audit | ⬜ Not started | — |
+| `BILL-34` | Notifications | ⬜ Not started | — |
+| `BILL-35` | Email templates | ⬜ Not started | — |
+| `BILL-36` | Observability | ⬜ Not started | — |
+| `BILL-37` | Security tests | ⬜ Not started | — |
+| `BILL-38` | Tenant/RBAC/license tests | ⬜ Not started | — |
+| `BILL-39` | E2E provider sandbox tests | ⬜ Not started | — |
+| `BILL-40` | Production readiness review | ⬜ Not started | — |

@@ -94,11 +94,13 @@ export async function markCreditPurchasePaid(purchaseId: string, paymentId: stri
 
 /** Looks up a purchase by its Razorpay order id -- what both the webhook payload and the
  * client-reported payment success carry, not our own purchase id. */
-export async function getCreditPurchaseByOrderId(razorpayOrderId: string): Promise<{ id: string } | null> {
+export async function getCreditPurchaseByOrderId(
+  razorpayOrderId: string,
+): Promise<{ id: string; account_id: string } | null> {
   const supabase = adminCoreClient();
   const { data, error } = await supabase
     .from("ai_credit_purchases")
-    .select("id")
+    .select("id, account_id")
     .eq("razorpay_order_id", razorpayOrderId)
     .maybeSingle();
   if (error) throw error;
