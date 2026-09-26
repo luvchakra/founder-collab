@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   applicationName: BRAND_NAME,
   icons: BRAND_METADATA_ICONS,
   openGraph: { type: "website", siteName: BRAND_NAME, title: BRAND_TITLE, description: BRAND_DESCRIPTION },
-  twitter: { card: "summary_large_image", title: BRAND_TITLE, description: BRAND_DESCRIPTION },
+  twitter: { card: "summary", title: BRAND_TITLE, description: BRAND_DESCRIPTION },
 };
 
 export const viewport: Viewport = { themeColor: BRAND_THEME_COLOR };

@@ -9,7 +9,7 @@ import {
 } from "@cofounderai/core/brand/identity";
 
 /** BRAND-06 -- the web app manifest (/manifest.webmanifest): install name, icons
- * (the W + wedge on white, "any" and maskable) and the brand navy theme colour. */
+ * (the brand board's light app icon) and the brand navy theme colour. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: BRAND_TITLE,

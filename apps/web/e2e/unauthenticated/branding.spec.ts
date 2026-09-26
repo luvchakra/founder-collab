@@ -12,7 +12,7 @@ test.describe("WonderArk branding (public)", () => {
 
   test("the landing page uses the canonical logo and brand theme colour", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator('header img[data-logo-variant="inline"]')).toBeVisible();
+    await expect(page.locator('header img[data-logo-variant="horizontal"]')).toBeVisible();
     await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute("content", "#0B1F3B");
     for (const size of ["16x16", "32x32", "48x48", "64x64"]) {
       await expect(page.locator(`link[rel="icon"][sizes="${size}"]`)).toHaveCount(1);

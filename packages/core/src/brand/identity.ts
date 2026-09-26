@@ -45,10 +45,10 @@ export const BRAND_METADATA_ICONS = {
   apple: [{ url: BRAND_ICON.appleIcon, sizes: "180x180", type: "image/png" }],
 };
 
-/** The web app manifest's icons (§16): "any" and maskable, 192 and 512. */
+/** The web app manifest's icons (§16): the brand board's light app icon at 192 and 512.
+ * No maskable variant: the board's icon is a finished rounded tile, and a maskable icon
+ * would need artwork the board does not include (a full-bleed ground). */
 export const BRAND_MANIFEST_ICONS = [
   { src: BRAND_ICON.icon192, sizes: "192x192", type: "image/png", purpose: "any" },
   { src: BRAND_ICON.icon512, sizes: "512x512", type: "image/png", purpose: "any" },
-  { src: BRAND_ICON.iconMaskable192, sizes: "192x192", type: "image/png", purpose: "maskable" },
-  { src: BRAND_ICON.iconMaskable512, sizes: "512x512", type: "image/png", purpose: "maskable" },
 ] as const;

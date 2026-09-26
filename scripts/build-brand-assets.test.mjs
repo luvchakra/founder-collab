@@ -3,7 +3,7 @@ import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { buildBrandAssets, findBands, findColumns, FIXED_FILES, MANIFEST_FILE, OUT_DIR } from "./build-brand-assets.mjs";
+import { BOARD_FILE, buildBrandAssets, findBands, findColumns, FIXED_FILES, MANIFEST_FILE, OUT_DIR, TILES } from "./build-brand-assets.mjs";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const APP_DIR = join(ROOT, "apps", "web", "app");
@@ -44,8 +44,6 @@ test("the manifest matches the files, and every render site goes through WonderA
 test("twins share one box, so the theme swap cannot shift the layout", async () => {
   for (const [a, b] of [
     ["primary", "primaryDark"],
-    ["horizontal", "horizontalDark"],
-    ["inline", "inlineDark"],
     ["mark", "markOnDark"],
   ]) {
     const [x, y] = await Promise.all([meta(logo(a)), meta(logo(b))]);
@@ -67,37 +65,37 @@ test("lockups have the shape of what they claim to be", async () => {
     const { width, height } = await meta(logo(key));
     return width / height;
   };
-  // The mark is about twice as wide as tall (the W), the stacked lockup is squarish, the
-  // horizontal lockups are long.
+  // The mark is about twice as wide as tall (the W), the stacked lockups are squarish,
+  // the horizontal lockup is long.
   assert.ok((await ratio("mark")) > 1.6 && (await ratio("mark")) < 2.5);
   assert.ok((await ratio("primary")) > 1.2 && (await ratio("primary")) < 2);
   assert.ok((await ratio("horizontal")) > 4);
-  assert.ok((await ratio("inline")) > 4);
+  for (const key of ["mono", "gray"]) assert.ok((await ratio(key)) > 1.1 && (await ratio(key)) < 1.8, key);
 });
 
-test("the wedge survives in the mark and at 16px (§15)", async () => {
+test("the wedge is present in the mark (§1)", async () => {
   // The wedge sits in the W's lower central opening: ink at the bottom-centre of the mark,
   // with clear space directly above it before the W's centre peak. Probe that column.
-  const probe = async (file) => {
-    const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-    const x = Math.floor(info.width / 2);
-    const alphaAt = (y) => data[(y * info.width + x) * 4 + 3];
-    const column = Array.from({ length: info.height }, (_, y) => alphaAt(y));
-    const inkRows = column.map((a, y) => (a > 96 ? y : -1)).filter((y) => y >= 0);
-    return { column, inkRows, height: info.height };
-  };
-  const mark = await probe(logo("mark"));
-  const bottom = mark.inkRows.at(-1);
-  assert.ok(bottom > mark.height * 0.8, "no ink at the bottom-centre of the mark: the wedge is missing");
-  // Walking up from the wedge, the column clears before it meets the W's peak.
-  const gap = mark.column.slice(0, bottom).findLastIndex((a) => a < 32);
-  assert.ok(gap > 0, "the wedge is not separate from the W");
-
-  const favicon16 = await probe(join(OUT_DIR, FIXED_FILES.favicon16));
-  assert.ok(favicon16.column.some((a) => a > 64), "the 16px favicon lost its wedge");
+  const { data, info } = await sharp(logo("mark")).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const x = Math.floor(info.width / 2);
+  const column = Array.from({ length: info.height }, (_, y) => data[(y * info.width + x) * 4 + 3]);
+  const bottom = column.findLastIndex((a) => a > 96);
+  assert.ok(bottom > info.height * 0.8, "no ink at the bottom-centre of the mark: the wedge is missing");
+  assert.ok(column.slice(0, bottom).findLastIndex((a) => a < 32) > 0, "the wedge is not separate from the W");
 });
 
-test("icons are the sizes each platform asks for, opaque where they must be", async () => {
+test("every tile crop still lands on the board's artwork", async () => {
+  // A brand-blue pixel near the middle of each crop: the rectangle holds the W, not the
+  // board's background or a neighbouring panel.
+  for (const [key, rect] of Object.entries(TILES)) {
+    const { data, info } = await sharp(BOARD_FILE).extract(rect).raw().toBuffer({ resolveWithObject: true });
+    let blue = 0;
+    for (let i = 0; i < data.length; i += info.channels) if (data[i + 2] > 180 && data[i] < 90) blue += 1;
+    assert.ok(blue > (info.width * info.height) / 50, `${key} holds no brand blue`);
+  }
+});
+
+test("icons are the sizes each platform asks for, and opaque", async () => {
   for (const [key, size] of [
     ["favicon16", 16],
     ["favicon32", 32],
@@ -106,32 +104,15 @@ test("icons are the sizes each platform asks for, opaque where they must be", as
     ["appleIcon", 180],
     ["icon192", 192],
     ["icon512", 512],
-    ["iconMaskable192", 192],
-    ["iconMaskable512", 512],
   ]) {
-    const { width, height } = await meta(join(OUT_DIR, FIXED_FILES[key]));
+    const file = join(OUT_DIR, FIXED_FILES[key]);
+    const { width, height } = await meta(file);
     assert.deepEqual([width, height], [size, size], key);
-  }
-  // Maskable and Apple icons are full-bleed: an OS mask over transparency shows black.
-  for (const key of ["appleIcon", "iconMaskable192", "iconMaskable512", "emailHeader"]) {
-    const { isOpaque } = await sharp(join(OUT_DIR, FIXED_FILES[key])).stats();
+    const { isOpaque } = await sharp(file).stats();
     assert.equal(isOpaque, true, `${key} must not be transparent`);
   }
   const og = await meta(join(APP_DIR, "opengraph-image.png"));
-  assert.deepEqual([og.width, og.height], [1200, 630]);
-});
-
-test("maskable icons keep the whole mark inside the 80% safe circle (§16)", async () => {
-  const { data, info } = await sharp(join(OUT_DIR, FIXED_FILES.iconMaskable512)).raw().toBuffer({ resolveWithObject: true });
-  const c = info.width / 2;
-  const radius = info.width * 0.4;
-  for (let y = 0; y < info.height; y++) {
-    for (let x = 0; x < info.width; x++) {
-      const i = (y * info.width + x) * info.channels;
-      const ink = 255 - Math.min(data[i], data[i + 1], data[i + 2]) > 40; // not white ground
-      if (ink) assert.ok(Math.hypot(x - c, y - c) <= radius, `ink outside the safe zone at ${x},${y}`);
-    }
-  }
+  assert.deepEqual([og.width, og.height], [TILES.darkPanel.width, TILES.darkPanel.height]);
 });
 
 test("findBands separates stacked pieces by clear rows", () => {

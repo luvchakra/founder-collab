@@ -34,7 +34,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-landing-surface-border bg-landing-bg/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" aria-label={BRAND_NAME} className="shrink-0">
-          <WonderArkLogo variant="inline" size="md" alt={BRAND_NAME} priority />
+          <WonderArkLogo variant="horizontal" size="md" alt={BRAND_NAME} priority />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Primary">

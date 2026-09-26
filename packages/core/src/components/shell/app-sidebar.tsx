@@ -484,9 +484,12 @@ export function AppSidebar({
           aria-label={BRAND_NAME}
           className="flex shrink-0 items-center gap-2.5 px-5 py-5"
         >
-          {/* The rail is brand navy in both themes, so the logo is pinned to the artwork
-              drawn for navy rather than following the theme. The link carries the name. */}
-          <WonderArkLogo variant="inline-dark" size="md" decorative priority />
+          {/* The rail is brand navy in both themes, so the mark is the one from the board's
+              "Logo on dark" panel rather than following the theme. */}
+          <WonderArkLogo variant="mark-dark" size="md" decorative priority />
+          <span className="min-w-0 truncate text-base font-semibold text-sidebar-foreground">
+            {BRAND_NAME}
+          </span>
         </Link>
 
         {/* The account-wide view, above the per-business modules and deliberately not

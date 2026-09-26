@@ -35,11 +35,9 @@ describe("WonderArk browser metadata", () => {
     }
   });
 
-  it("gives the manifest 192/512 icons in both any and maskable, all served", () => {
+  it("gives the manifest 192/512 icons, all served", () => {
     const icons = manifest().icons ?? [];
-    for (const purpose of ["any", "maskable"]) {
-      expect(icons.filter((i) => i.purpose === purpose).map((i) => i.sizes)).toEqual(["192x192", "512x512"]);
-    }
+    expect(icons.map((i) => i.sizes)).toEqual(["192x192", "512x512"]);
     for (const icon of icons) expect(served(icon.src), icon.src).toBe(true);
     expect(manifest().name).toBe(BRAND_TITLE);
   });

@@ -1,38 +1,24 @@
 #!/usr/bin/env node
 /**
- * Derives every WonderArk logo, icon and card the platform serves from ONE master: the
- * approved brand board, `brand/wonderark-brand-board.png`
- * (docs/plan/16-BRANDING-BACKLOG.md, BRAND-03).
+ * Serves the approved WonderArk brand board, `brand/wonderark-brand-board.png`, as the
+ * platform's logo and icon files (docs/plan/16-BRANDING-BACKLOG.md, BRAND-03).
+ *
+ * Every file is a crop of the board. Nothing is drawn, recoloured, composed or placed on a
+ * generated background: the lockups, marks, app icon and favicons are the board's own
+ * artwork, cut out of the panel that shows them. The only processing is:
+ *
+ * - removing the panel's flat background from the lockups and marks (so they sit on the
+ *   app's own surfaces), keeping every artwork pixel as drawn;
+ * - resizing to the pixel sizes browsers ask for;
+ * - padding a light/navy twin with transparency to its partner's size, so the theme swap
+ *   in `WonderArkLogo adaptive` cannot shift the layout.
  *
  * BRAND-01's audit found the previous identity (a swoosh-and-sparkle W, "Accelerate.
- * Revenue. Knowledge.") served from two raster masters through this script; both masters
- * are gone and this one board replaces them (docs/plan/16-BRANDING-BACKLOG.md §36).
+ * Revenue. Knowledge.") served from two older masters through this script; both are gone.
  *
- * Nothing here draws a logo. Every pixel of every mark, wordmark and tagline is cut from
- * the board's own artwork, so the W, its wedge and its gradient are the approved ones
- * everywhere by construction — the spec's "one canonical geometry" rule (§1, §6) holds
- * because there is only one source. Only colour (for the monochrome marks), background,
- * arrangement and scale change between variants, which is exactly what §6 allows.
- *
- * Three panels of the board are used:
- *
- * - **Primary logo** (light ground) and **Logo on dark** (navy ground). Each is a stacked
- *   lockup — mark, then wordmark, then tagline — in three bands separated by clear space,
- *   so `findBands` splits each into its three pieces without any hardcoded coordinates
- *   inside the panel.
- * - **Horizontal logo**, which is measured rather than copied: its mark height, the gap to
- *   the wordmark and the wordmark and tagline sizes become ratios that the horizontal and
- *   inline lockups are composed with, from the larger stacked pieces. So both horizontal
- *   variants (light and dark) share the board's proportions and the sharper artwork.
- *
- * The board is a raster image, so the assets are PNGs rather than the SVGs the spec lists:
- * an SVG wrapping a bitmap would be a vector file in name only, and redrawing the mark as a
- * vector would be exactly the "separately drawn W" the spec forbids.
- *
- * `npm test` checks the committed assets against the properties that matter (transparent
- * corners, opaque icons, the sizes each platform asks for, the manifest agreeing with the
- * files and every render site reading it) rather than byte-for-byte: PNG palette encoding
- * is not guaranteed identical across sharp builds.
+ * The board is a raster image, so the files are PNGs rather than the SVGs the spec lists,
+ * and the large app icons are enlarged from the board's ~108px tiles (they will sharpen
+ * if a higher-resolution board replaces this one — rerun `npm run build:brand`).
  *
  * Usage: `npm run build:brand` after replacing the board.
  */
@@ -50,19 +36,34 @@ export const OUT_DIR = join(PUBLIC_DIR, "brand");
 const APP_DIR = join(ROOT, "apps", "web", "app");
 export const MANIFEST_FILE = join(ROOT, "packages", "core", "src", "brand", "generated", "assets.ts");
 
-/** The board's panels, inside their frames and below their captions. The artwork inside
- * each is located by measurement, so these only need to contain it with room to spare. */
+/** Board panels holding a lockup on a flat ground, inside their frames and below their
+ * captions. The artwork inside each is located by measurement. */
 const PANELS = {
+  /** "Primary logo": stacked, light ground. */
   light: { left: 25, top: 60, width: 476, height: 350 },
+  /** "Logo on dark": stacked, navy ground. */
   dark: { left: 535, top: 60, width: 413, height: 350 },
+  /** "Horizontal logo". */
   horizontal: { left: 975, top: 50, width: 545, height: 160 },
+  /** "Logo variations": full-colour, dark and grey lockups side by side. */
+  variations: { left: 955, top: 480, width: 565, height: 125 },
 };
 
-/** The canonical palette (§3), for the generated grounds and the monochrome marks. */
-const NAVY = { r: 0x0b, g: 0x1f, b: 0x3b };
-const DARK = { r: 0x0f, g: 0x17, b: 0x2a };
-const SLATE = { r: 0x64, g: 0x74, b: 0x8b };
-const WHITE = { r: 255, g: 255, b: 255 };
+/**
+ * Pieces of the board used exactly as drawn, background and all: the light app icon from
+ * the "Logomark" panel, the favicon tiles from the "Favicon" panel, the "Logo on dark"
+ * panel for link previews, and the horizontal lockup on its white ground for email.
+ * Measured on the approved board; `npm test` checks each still holds the artwork.
+ */
+export const TILES = {
+  appIconLight: { left: 1142, top: 282, width: 107, height: 107 },
+  favicon256: { left: 602, top: 825, width: 108, height: 108 },
+  favicon64: { left: 743, top: 849, width: 64, height: 64 },
+  favicon32: { left: 845, top: 869, width: 45, height: 45 },
+  favicon16: { left: 929, top: 877, width: 30, height: 30 },
+  darkPanel: { left: 530, top: 70, width: 420, height: 340 },
+  horizontalOnWhite: { left: 1000, top: 75, width: 495, height: 105 },
+};
 
 /**
  * Below this distance from the panel background a pixel is background. The board is a
@@ -74,9 +75,10 @@ const BACKGROUND_FLOOR = 0.03;
 const MAX_INK_THRESHOLD = 0.6;
 
 const PNG = { compressionLevel: 9, palette: true };
+const CLEAR = { r: 255, g: 255, b: 255, alpha: 0 };
 
-async function loadPanel(board, rect) {
-  const { data, info } = await sharp(board).extract(rect).raw().toBuffer({ resolveWithObject: true });
+async function loadPanel(rect) {
+  const { data, info } = await sharp(BOARD_FILE).extract(rect).raw().toBuffer({ resolveWithObject: true });
   const bg = [data[0], data[1], data[2]];
   const distance = (x, y) => {
     const i = (y * info.width + x) * info.channels;
@@ -138,20 +140,17 @@ export function findColumns(distance, width, top, bottom, threshold = 0.12) {
 }
 
 /**
- * One piece of the board (a band, padded by two pixels) keyed onto transparency.
- *
- * RGB is kept exactly as drawn and only alpha is computed: un-premultiplying the soft
- * edges needs the ink colour behind each pixel, which a rendered board does not carry.
- * Each piece is only ever shown on the kind of ground it was drawn on (light pieces on
- * light surfaces, dark on navy), so the edge blend already matches its destination.
- * `recolor` replaces RGB with one flat colour (the monochrome marks) and keeps the alpha.
+ * One region of a panel (padded by two pixels) with the panel's flat background made
+ * transparent. RGB is kept exactly as drawn; only alpha is computed, from each pixel's
+ * distance to the background. Each piece is shown on the kind of ground it was drawn on
+ * (light pieces on light surfaces, navy on navy), so the soft edges already match.
  */
-async function cutPiece(panel, band, recolor) {
+async function cutOut(panel, box) {
   const pad = 2;
-  const left = Math.max(0, band.left - pad);
-  const top = Math.max(0, band.top - pad);
-  const width = Math.min(panel.width, band.right + pad + 1) - left;
-  const height = Math.min(panel.height, band.bottom + pad + 1) - top;
+  const left = Math.max(0, box.left - pad);
+  const top = Math.max(0, box.top - pad);
+  const width = Math.min(panel.width, box.right + pad + 1) - left;
+  const height = Math.min(panel.height, box.bottom + pad + 1) - top;
 
   const levels = [];
   for (let y = top; y < top + height; y++) for (let x = left; x < left + width; x++) levels.push(panel.distance(x, y));
@@ -164,143 +163,70 @@ async function cutPiece(panel, band, recolor) {
       const from = ((top + y) * panel.width + left + x) * panel.channels;
       const to = (y * width + x) * 4;
       const d = panel.distance(left + x, top + y);
-      const alpha = Math.max(0, Math.min(1, (d - BACKGROUND_FLOOR) / (threshold - BACKGROUND_FLOOR)));
-      out[to] = recolor ? recolor.r : panel.data[from];
-      out[to + 1] = recolor ? recolor.g : panel.data[from + 1];
-      out[to + 2] = recolor ? recolor.b : panel.data[from + 2];
-      out[to + 3] = Math.round(255 * alpha);
+      out[to] = panel.data[from];
+      out[to + 1] = panel.data[from + 1];
+      out[to + 2] = panel.data[from + 2];
+      out[to + 3] = Math.round(255 * Math.max(0, Math.min(1, (d - BACKGROUND_FLOOR) / (threshold - BACKGROUND_FLOOR))));
     }
   }
   const buffer = await sharp(out, { raw: { width, height, channels: 4 } }).png().toBuffer();
   return { buffer, width, height };
 }
 
-/** The three pieces of a stacked lockup panel, plus the lockup itself. */
-async function readStackedPanel(board, rect, name) {
-  const panel = await loadPanel(board, rect);
+/** A stacked panel: the whole lockup, and the mark (its first band) on its own. */
+async function readStacked(rect, name) {
+  const panel = await loadPanel(rect);
   const bands = findBands(panel.distance, panel.width, panel.height);
-  if (bands.length !== 3) {
-    throw new Error(`${name} panel: expected mark, wordmark and tagline bands, found ${bands.length}`);
-  }
-  const [markBand, wordmarkBand, taglineBand] = bands;
+  if (bands.length !== 3) throw new Error(`${name} panel: expected mark, wordmark and tagline bands, found ${bands.length}`);
   const whole = {
-    top: markBand.top,
-    bottom: taglineBand.bottom,
+    top: bands[0].top,
+    bottom: bands[2].bottom,
     left: Math.min(...bands.map((b) => b.left)),
     right: Math.max(...bands.map((b) => b.right)),
   };
-  return {
-    mark: await cutPiece(panel, markBand),
-    wordmark: await cutPiece(panel, wordmarkBand),
-    tagline: await cutPiece(panel, taglineBand),
-    stacked: await cutPiece(panel, whole),
-    markIn: (color) => cutPiece(panel, markBand, color),
-  };
+  return { lockup: await cutOut(panel, whole), mark: await cutOut(panel, bands[0]) };
 }
 
-/**
- * The board's horizontal lockup as ratios of its mark height: the gap to the text, and
- * the wordmark's and tagline's heights and offsets.
- */
-export async function measureHorizontal(board = BOARD_FILE) {
-  const panel = await loadPanel(board, PANELS.horizontal);
-  const [lockup] = findBands(panel.distance, panel.width, panel.height);
-  if (!lockup) throw new Error("horizontal panel: no artwork found");
-  const columns = findColumns(panel.distance, panel.width, lockup.top, lockup.bottom);
-  const mark = columns[0];
-  const text = { left: columns[1].left, right: columns.at(-1).right };
-  const textBands = findBands(
-    (x, y) => panel.distance(x + text.left, y + lockup.top),
-    text.right - text.left + 1,
-    lockup.bottom - lockup.top + 1,
+/** A panel holding one lockup. */
+async function readSingle(rect, name) {
+  const panel = await loadPanel(rect);
+  const bands = findBands(panel.distance, panel.width, panel.height);
+  if (bands.length !== 1) throw new Error(`${name} panel: expected one lockup, found ${bands.length}`);
+  return cutOut(panel, bands[0]);
+}
+
+/** The variations panel's lockups, left to right (the thin divider rules are skipped). */
+async function readVariations() {
+  const panel = await loadPanel(PANELS.variations);
+  const columns = findColumns(panel.distance, panel.width, 0, panel.height - 1).filter((c) => c.right - c.left > 20);
+  if (columns.length !== 3) throw new Error(`variations panel: expected three lockups, found ${columns.length}`);
+  return Promise.all(
+    columns.map((c) => {
+      const width = c.right - c.left + 1;
+      const [band] = findBands((x, y) => panel.distance(x + c.left, y), width, panel.height);
+      const rows = findBands((x, y) => panel.distance(x + c.left, y), width, panel.height);
+      return cutOut(panel, { left: c.left, right: c.right, top: band.top, bottom: rows.at(-1).bottom });
+    }),
   );
-  if (textBands.length !== 2) throw new Error(`horizontal panel: expected wordmark and tagline, found ${textBands.length}`);
-  const [wordmark, tagline] = textBands;
-  const h = lockup.bottom - lockup.top + 1;
-  return {
-    gap: (text.left - mark.right - 1) / h,
-    wordmarkHeight: (wordmark.bottom - wordmark.top + 1) / h,
-    wordmarkTop: wordmark.top / h,
-    taglineHeight: (tagline.bottom - tagline.top + 1) / h,
-    taglineTop: tagline.top / h,
-    /** The tagline's left edge relative to the wordmark's, as a share of the wordmark's width. */
-    taglineIndent: (tagline.left - wordmark.left) / (wordmark.right - wordmark.left + 1),
-  };
 }
 
-const scaledTo = async (piece, height) => {
-  const buffer = await sharp(piece.buffer).resize({ height, kernel: "lanczos3" }).png().toBuffer();
-  const { width } = await sharp(buffer).metadata();
-  return { buffer, width, height };
-};
-
-/**
- * Mark on the left, text on the right, in the board's horizontal proportions. The mark
- * is sized so the wordmark renders at its native resolution, never upscaled.
- */
-async function composeHorizontal(pieces, ratios, withTagline) {
-  const markHeight = Math.round(pieces.wordmark.height / ratios.wordmarkHeight);
-  const mark = await scaledTo(pieces.mark, markHeight);
-  const wordmark = await scaledTo(pieces.wordmark, Math.round(markHeight * ratios.wordmarkHeight));
-  const gap = Math.round(markHeight * ratios.gap);
-  const textLeft = mark.width + gap;
-
-  const layers = [{ input: mark.buffer, left: 0, top: 0 }];
-  let width = textLeft + wordmark.width;
-  if (withTagline) {
-    const tagline = await scaledTo(pieces.tagline, Math.max(1, Math.round(markHeight * ratios.taglineHeight)));
-    const taglineLeft = textLeft + Math.round(wordmark.width * ratios.taglineIndent);
-    layers.push({ input: wordmark.buffer, left: textLeft, top: Math.round(markHeight * ratios.wordmarkTop) });
-    layers.push({ input: tagline.buffer, left: taglineLeft, top: Math.round(markHeight * ratios.taglineTop) });
-    width = Math.max(width, taglineLeft + tagline.width);
-  } else {
-    // No tagline: the wordmark sits on the mark's vertical centre.
-    layers.push({ input: wordmark.buffer, left: textLeft, top: Math.round((markHeight - wordmark.height) / 2) });
-  }
-  const buffer = await sharp({ create: { width, height: markHeight, channels: 4, background: { ...WHITE, alpha: 0 } } })
-    .composite(layers)
-    .png()
-    .toBuffer();
-  return { buffer, width, height: markHeight };
-}
-
-/** Both pieces at the larger one's height, then contained in one shared box. */
-async function sameBox(a, b, position) {
+/** A light/navy twin padded with transparency to one shared size (never scaled). */
+async function sameBox(a, b) {
+  const width = Math.max(a.width, b.width);
   const height = Math.max(a.height, b.height);
-  const [x, y] = await Promise.all([a, b].map((piece) => (piece.height === height ? piece : scaledTo(piece, height))));
-  const width = Math.max(x.width, y.width);
-  const fit = async (piece) => {
-    const left = position === "left" ? 0 : Math.floor((width - piece.width) / 2);
-    const buffer = await sharp({ create: { width, height, channels: 4, background: { ...WHITE, alpha: 0 } } })
-      .composite([{ input: piece.buffer, left, top: 0 }])
+  const fit = async (piece) => ({
+    buffer: await sharp({ create: { width, height, channels: 4, background: CLEAR } })
+      .composite([{ input: piece.buffer, left: Math.floor((width - piece.width) / 2), top: Math.floor((height - piece.height) / 2) }])
       .png()
-      .toBuffer();
-    return { buffer, width, height };
-  };
-  return Promise.all([fit(x), fit(y)]);
+      .toBuffer(),
+    width,
+    height,
+  });
+  return Promise.all([fit(a), fit(b)]);
 }
 
-/** A square icon: the mark centred on a solid ground, `share` of the width wide. */
-async function squareIcon(mark, size, share, background, radius = 0) {
-  const inner = await sharp(mark.buffer).resize({ width: Math.round(size * share), kernel: "lanczos3" }).png().toBuffer();
-  const fill = `rgb(${background.r},${background.g},${background.b})`;
-  const ground = await sharp(
-    Buffer.from(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}"><rect width="${size}" height="${size}" rx="${radius}" fill="${fill}"/></svg>`,
-    ),
-  )
-    .png()
-    .toBuffer();
-  return sharp(ground).composite([{ input: inner, gravity: "center" }]).png(PNG).toBuffer();
-}
-
-/** The mark alone on transparency, contained in a square — the browser tab. */
-async function transparentSquare(mark, size) {
-  return sharp(mark.buffer)
-    .resize({ width: size, height: size, fit: "contain", background: { ...WHITE, alpha: 0 }, kernel: "lanczos3" })
-    .png()
-    .toBuffer();
-}
+const tile = (rect, size) =>
+  sharp(BOARD_FILE).extract(rect).resize({ width: size, height: size, kernel: "lanczos3" }).png(PNG).toBuffer();
 
 /** Content-addressed: new artwork is a new URL, so no image-optimizer cache can keep
  * serving the old one (Next keys its optimizer cache on the URL). */
@@ -321,49 +247,31 @@ export const FIXED_FILES = {
   appleIcon: "apple-icon.png",
   icon192: "icon-192.png",
   icon512: "icon-512.png",
-  iconMaskable192: "icon-maskable-192.png",
-  iconMaskable512: "icon-maskable-512.png",
   emailHeader: "email-header.png",
 };
 
 export async function buildBrandAssets() {
-  const light = await readStackedPanel(BOARD_FILE, PANELS.light, "light");
-  const dark = await readStackedPanel(BOARD_FILE, PANELS.dark, "dark");
-  const ratios = await measureHorizontal(BOARD_FILE);
+  const light = await readStacked(PANELS.light, "light");
+  const dark = await readStacked(PANELS.dark, "dark");
+  const [, variationDark, variationGray] = await readVariations();
 
+  const [primary, primaryDark] = await sameBox(light.lockup, dark.lockup);
+  const [mark, markOnDark] = await sameBox(light.mark, dark.mark);
   const logos = {
-    /** Stacked: mark, wordmark, tagline — for light surfaces. */
-    primary: light.stacked,
-    /** Stacked, for navy surfaces. */
-    primaryDark: dark.stacked,
-    /** Mark beside wordmark and tagline. */
-    horizontal: await composeHorizontal(light, ratios, true),
-    horizontalDark: await composeHorizontal(dark, ratios, true),
-    /** Mark beside wordmark, no tagline — the shell and navbar, where a tagline would be
-     * a few unreadable pixels. */
-    inline: await composeHorizontal(light, ratios, false),
-    inlineDark: await composeHorizontal(dark, ratios, false),
-    /** The mark alone, as drawn for light surfaces. */
-    mark: light.mark,
-    /** The mark alone, as drawn for navy surfaces. */
-    markOnDark: dark.mark,
-    /** Monochrome (§25): the same mark, one colour. */
-    markWhite: await light.markIn(WHITE),
-    markMono: await light.markIn(DARK),
-    markGray: await light.markIn(SLATE),
+    /** "Primary logo": stacked, for light surfaces. */
+    primary,
+    /** "Logo on dark": stacked, for navy surfaces. */
+    primaryDark,
+    /** "Horizontal logo". */
+    horizontal: await readSingle(PANELS.horizontal, "horizontal"),
+    /** The mark from "Primary logo", for light surfaces. */
+    mark,
+    /** The mark from "Logo on dark", for navy surfaces. */
+    markOnDark,
+    /** "Logo variations": the dark and grey lockups. */
+    mono: variationDark,
+    gray: variationGray,
   };
-
-  // The light and navy twins of each lockup are separate artwork, so their natural crops
-  // differ by a few percent -- and `WonderArkLogo adaptive` swaps between them on the
-  // theme, where a few percent is a logo that visibly jumps. One box per pair removes it.
-  for (const [lightKey, darkKey, position] of [
-    ["primary", "primaryDark", "centre"],
-    ["horizontal", "horizontalDark", "left"],
-    ["inline", "inlineDark", "left"],
-    ["mark", "markOnDark", "centre"],
-  ]) {
-    [logos[lightKey], logos[darkKey]] = await sameBox(logos[lightKey], logos[darkKey], position);
-  }
 
   rmSync(OUT_DIR, { recursive: true, force: true });
   mkdirSync(OUT_DIR, { recursive: true });
@@ -378,55 +286,31 @@ export async function buildBrandAssets() {
     written[key] = { file, width, height };
   }
 
-  // Browser tab: the mark on transparency, as the board's own tab mockup shows it.
-  for (const size of [16, 32, 48, 64]) {
-    writeFileSync(join(OUT_DIR, FIXED_FILES[`favicon${size}`]), await transparentSquare(light.mark, size));
-  }
-  // Home-screen and install icons: the board's light app icon — the mark on white. "any"
-  // icons fill 72% of the width; maskable ones keep the whole mark (wedge included) well
-  // inside the 80% safe circle every OS mask preserves.
-  writeFileSync(join(OUT_DIR, FIXED_FILES.appleIcon), await squareIcon(light.mark, 180, 0.72, WHITE));
-  writeFileSync(join(OUT_DIR, FIXED_FILES.icon192), await squareIcon(light.mark, 192, 0.72, WHITE, 40));
-  writeFileSync(join(OUT_DIR, FIXED_FILES.icon512), await squareIcon(light.mark, 512, 0.72, WHITE, 108));
-  writeFileSync(join(OUT_DIR, FIXED_FILES.iconMaskable192), await squareIcon(light.mark, 192, 0.6, WHITE));
-  writeFileSync(join(OUT_DIR, FIXED_FILES.iconMaskable512), await squareIcon(light.mark, 512, 0.6, WHITE));
+  // The board's own favicon tiles, each at the size it is labelled on the board (48px,
+  // not on the board, from its 256px tile), and its light app icon for the home screen.
+  writeFileSync(join(OUT_DIR, FIXED_FILES.favicon16), await tile(TILES.favicon16, 16));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.favicon32), await tile(TILES.favicon32, 32));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.favicon48), await tile(TILES.favicon256, 48));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.favicon64), await tile(TILES.favicon64, 64));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.appleIcon), await tile(TILES.appIconLight, 180));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.icon192), await tile(TILES.appIconLight, 192));
+  writeFileSync(join(OUT_DIR, FIXED_FILES.icon512), await tile(TILES.appIconLight, 512));
 
-  // Transactional email header (§18): the horizontal lockup on white — opaque, because
-  // several mail clients render transparent PNGs on their own dark grounds.
-  const pad = 12;
-  const email = await sharp({
-    create: {
-      width: logos.horizontal.width + pad * 2,
-      height: logos.horizontal.height + pad * 2,
-      channels: 4,
-      background: { ...WHITE, alpha: 1 },
-    },
-  })
-    .composite([{ input: logos.horizontal.buffer, left: pad, top: pad }])
-    .png(PNG)
-    .toBuffer();
+  // Transactional email header (§18): the board's horizontal lockup on its own white.
+  const email = await sharp(BOARD_FILE).extract(TILES.horizontalOnWhite).png(PNG).toBuffer();
   writeFileSync(join(OUT_DIR, FIXED_FILES.emailHeader), email);
-  const emailSize = await sharp(email).metadata();
 
-  // Link-preview card: the dark stacked lockup on navy. Next serves
-  // app/opengraph-image.png as both the Open Graph and the Twitter card.
-  const ogLockup = await sharp(dark.stacked.buffer).resize({ height: 360, kernel: "lanczos3" }).png().toBuffer();
-  writeFileSync(
-    join(APP_DIR, "opengraph-image.png"),
-    await sharp({ create: { width: 1200, height: 630, channels: 4, background: { ...NAVY, alpha: 1 } } })
-      .composite([{ input: ogLockup, gravity: "center" }])
-      .png(PNG)
-      .toBuffer(),
-  );
-  // Superseded by the explicit icon metadata in apps/web/app/layout.tsx, which lists every
-  // favicon size and the Apple icon from here.
+  // Link previews: the board's "Logo on dark" panel. Next serves app/opengraph-image.png as
+  // both the Open Graph and the Twitter image.
+  writeFileSync(join(APP_DIR, "opengraph-image.png"), await sharp(BOARD_FILE).extract(TILES.darkPanel).png(PNG).toBuffer());
+  // Superseded by the explicit icon metadata in apps/web/app/layout.tsx.
   for (const stale of ["icon.png", "apple-icon.png"]) rmSync(join(APP_DIR, stale), { force: true });
 
   mkdirSync(dirname(MANIFEST_FILE), { recursive: true });
-  const manifest = renderManifest(written, { width: emailSize.width, height: emailSize.height });
+  const manifest = renderManifest(written, TILES.horizontalOnWhite);
   writeFileSync(MANIFEST_FILE, manifest);
 
-  return { logos: written, ratios, manifest, served: readdirSync(OUT_DIR) };
+  return { logos: written, manifest, served: readdirSync(OUT_DIR) };
 }
 
 /**
@@ -447,7 +331,7 @@ function renderManifest(written, email) {
 
 export type BrandAsset = { src: string; width: number; height: number };
 
-/** Every WonderArk logo, cut from the approved brand board. */
+/** Every WonderArk logo, cropped from the approved brand board. */
 export const BRAND_LOGO = {
 ${logoLines}
 } as const satisfies Record<string, BrandAsset>;
@@ -465,7 +349,7 @@ export const BRAND_EMAIL_HEADER_SIZE = { width: ${email.width}, height: ${email.
 async function main() {
   const { logos, served } = await buildBrandAssets();
   for (const [key, entry] of Object.entries(logos)) console.log(`build:brand — ${key}: ${entry.file} ${entry.width}x${entry.height}`);
-  console.log(`build:brand — ${served.length} files in apps/web/public/brand, plus app/opengraph-image.png 1200x630`);
+  console.log(`build:brand — ${served.length} files in apps/web/public/brand, plus app/opengraph-image.png`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

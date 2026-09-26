@@ -15,12 +15,12 @@ const imgs = (html: string) => html.match(/<img\b[^>]*>/g) ?? [];
 
 describe("WonderArkLogo", () => {
   it("offers every variant the spec names (§7)", () => {
-    for (const v of ["primary", "dark", "horizontal", "mark", "mark-dark", "white", "mono"]) {
+    for (const v of ["primary", "dark", "horizontal", "mark", "mark-dark", "mono"]) {
       expect(VARIANTS).toContain(v);
     }
   });
 
-  it("renders every variant from a canonical asset cut from the brand board, never an inline drawing", () => {
+  it("renders every variant from a crop of the brand board, never an inline drawing", () => {
     const canonical = new Set<string>(Object.values(BRAND_LOGO).map((a) => a.src));
     for (const variant of VARIANTS) {
       const html = renderToStaticMarkup(<WonderArkLogo variant={variant} />);
@@ -36,8 +36,8 @@ describe("WonderArkLogo", () => {
   });
 
   it("sizes by height per family and never distorts (width follows the artwork)", () => {
-    const html = renderToStaticMarkup(<WonderArkLogo variant="inline-dark" size="md" />);
-    expect(html).toContain(WONDERARK_LOGO_HEIGHT.inline.md);
+    const html = renderToStaticMarkup(<WonderArkLogo variant="horizontal" size="md" />);
+    expect(html).toContain(WONDERARK_LOGO_HEIGHT.horizontal.md);
     expect(html).toContain("w-auto");
     for (const family of Object.values(WONDERARK_LOGO_HEIGHT)) {
       expect(Object.keys(family)).toEqual(["xs", "sm", "md", "lg", "xl"]);
@@ -52,11 +52,11 @@ describe("WonderArkLogo", () => {
   });
 
   it("adaptive renders the navy twin for the dark theme, hidden from assistive tech", () => {
-    const html = renderToStaticMarkup(<WonderArkLogo variant="inline" adaptive />);
+    const html = renderToStaticMarkup(<WonderArkLogo variant="primary" adaptive />);
     const [light, dark] = imgs(html);
-    expect(light).toContain('data-logo-variant="inline"');
+    expect(light).toContain('data-logo-variant="primary"');
     expect(light).toContain("dark:hidden");
-    expect(dark).toContain('data-logo-variant="inline-dark"');
+    expect(dark).toContain('data-logo-variant="dark"');
     expect(dark).toContain("dark:block");
     expect(dark).toContain('alt=""');
   });
@@ -64,8 +64,6 @@ describe("WonderArkLogo", () => {
   it("twins share intrinsic dimensions, so the theme swap cannot shift layout", () => {
     for (const [a, b] of [
       ["primary", "dark"],
-      ["horizontal", "horizontal-dark"],
-      ["inline", "inline-dark"],
       ["mark", "mark-dark"],
     ] as const) {
       expect([WONDERARK_LOGO_ASSETS[a].width, WONDERARK_LOGO_ASSETS[a].height]).toEqual([

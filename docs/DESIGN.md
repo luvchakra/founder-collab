@@ -130,39 +130,36 @@ nothing is worse than no search box.
 ## The logo, and which file goes where
 
 The one brand master is the approved WonderArk brand board, `brand/wonderark-brand-board.png`
-(docs/plan/16-BRANDING-BACKLOG.md): the W with its triangular wedge, the "WonderArk"
-wordmark and the "BUSINESS IN ONE PLACE" tagline, on light and on navy. Nothing in the
-repo draws a logo. `npm run build:brand` (`scripts/build-brand-assets.mjs`) cuts every
-asset out of the board — the stacked lockups whole, the mark, wordmark and tagline as
-pieces — and composes the horizontal lockups in the board's own horizontal proportions,
-so the W and wedge are identical everywhere by construction. Nothing under
+(docs/plan/16-BRANDING-BACKLOG.md). Every logo and icon file the app serves is a crop of
+that board, cut by `npm run build:brand` (`scripts/build-brand-assets.mjs`). Nothing is
+drawn, recoloured or composed; the only processing is removing a lockup's flat panel
+background, resizing, and padding a light/navy twin to its partner's size. Nothing under
 `apps/web/public/brand/` or `apps/web/app/opengraph-image.png` is edited by hand —
 replace the board and rebuild.
 
 Components never name a file. They render `WonderArkLogo`
 (`@cofounderai/core/shell/wonderark-logo`) with a variant and a size; it reads the
-generated manifest (`@cofounderai/core/brand/generated/assets`), which carries each path
-and the intrinsic dimensions `next/image` needs.
+generated manifest (`@cofounderai/core/brand/generated/assets`).
 
-| Variant | What it is | Where it belongs |
+| Variant / file | Cropped from the board's… | Where it belongs |
 |---|---|---|
-| `primary` / `dark` | Stacked: mark, wordmark, tagline — light / navy ground | Auth screens, the invitation page |
-| `horizontal` / `horizontal-dark` | Mark beside wordmark and tagline | Marketing footer; the email header (as `email-header.png`) |
-| `inline` / `inline-dark` | Mark beside wordmark, no tagline | Marketing navbar; the navigation rail (`inline-dark`) |
-| `mark` / `mark-dark` | The mark alone | Loading state; the platform admin header (`mark-dark`) |
-| `white` / `mono` / `gray` | The mark in one colour | Blue grounds, print, disabled states |
-| `favicon-16/32/48/64.png` | The mark on transparency | The browser tab (`metadata.icons` in app/layout.tsx) |
-| `apple-icon.png`, `icon-192/512.png`, `icon-maskable-192/512.png` | The mark on white | Home screen and install (app/manifest.ts) |
-| `app/opengraph-image.png` | The dark stacked lockup on brand navy, 1200×630 | Every link preview |
+| `primary` / `dark` | "Primary logo" / "Logo on dark" panels | Auth screens, the invitation page |
+| `horizontal` | "Horizontal logo" panel | Marketing navbar and footer |
+| `mark` / `mark-dark` | The W + wedge of those two panels | Loading state; the rail and platform admin header (`mark-dark`, beside the product name) |
+| `mono` / `gray` | "Logo variations" panel | Print, disabled or low-emphasis surfaces |
+| `favicon-16/32/64.png` | "Favicon" panel's 16, 32 and 64 tiles (48 from its 256 tile) | The browser tab |
+| `apple-icon.png`, `icon-192/512.png` | "Logomark" panel's light app icon | Home screen and install (app/manifest.ts) |
+| `email-header.png` | "Horizontal logo" panel, on its white | Platform transactional email |
+| `app/opengraph-image.png` | "Logo on dark" panel | Every link preview |
 
 Decisions worth not re-litigating:
 
-- **The assets are PNGs, not SVGs.** The board is a raster image. An SVG wrapping a
-  bitmap is a vector file in name only, and redrawing the mark as a vector would be the
-  "separately drawn W" the branding spec forbids.
-- **The shell uses the inline lockup, without the tagline.** At 28px tall the tagline
-  would be a few unreadable pixels. The stacked and horizontal lockups carry it where
-  there is room.
+- **The assets are PNGs, not SVGs**, because the board is a raster image; and the large
+  app icons are enlarged from the board's ~108px tiles, so they are soft. A
+  higher-resolution board sharpens everything on the next `npm run build:brand`.
+- **The rail shows the mark beside the product name as text.** The board has no
+  mark-and-wordmark lockup on navy short enough for a 28px row, and composing one would
+  be drawing a logo the board does not contain.
 - **Light and navy twins share one box**, so `WonderArkLogo adaptive` swapping between
   them on the theme cannot shift the layout.
 - **Logo filenames carry a content hash.** Next's image optimizer keys on the URL, so
@@ -172,6 +169,6 @@ Decisions worth not re-litigating:
 
 The brand colours are the `--brand-*` tokens in `packages/core/src/ui-theme.css` (hex
 equivalents in `@cofounderai/core/brand/identity` for metadata, email and hosted
-checkout). The lockups are the platform's *default*: a superadmin can override the login
-logo from the Platform portal's Branding page, and each business can set its own logo for
-the business switcher — neither replaces the platform identity in the shell.
+checkout). The board's lockups are the platform's *default*: a superadmin can override the
+login logo from the Platform portal's Branding page, and each business can set its own
+logo for the business switcher — neither replaces the platform identity in the shell.

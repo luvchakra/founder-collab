@@ -27,9 +27,9 @@ test.describe("WonderArk identity across modules", () => {
       await expectNoAppCrash(page);
       await expect(page).toHaveTitle(new RegExp(`\\| WonderArk$`));
       await openSidebar(page);
-      // The rail's home link, named for the platform, holding the navy-ground inline lockup.
+      // The rail's home link, named for the platform, holding the board's navy-ground mark.
       const home = page.getByRole("link", { name: "WonderArk" }).first();
-      await expect(home.locator('img[data-logo-variant="inline-dark"]')).toBeVisible();
+      await expect(home.locator('img[data-logo-variant="mark-dark"]')).toBeVisible();
       await expect(page.locator('link[rel="icon"][sizes="16x16"]')).toHaveAttribute("href", /\/brand\/favicon-16\.png/);
     });
   }

@@ -4,34 +4,19 @@ import { cn } from "../../lib/utils";
 
 /**
  * BRAND-04 (docs/plan/16-BRANDING-BACKLOG.md §7) -- the one way the platform renders its
- * logo. Every variant is a file cut from the approved brand board by
- * scripts/build-brand-assets.mjs, so the W, its wedge and its gradient are identical
- * everywhere; nothing here draws a logo, and no page should either.
+ * logo. Every variant is a crop of the approved brand board (brand/wonderark-brand-board.png,
+ * cut by scripts/build-brand-assets.mjs); nothing here or anywhere else draws a logo.
  *
- * - `primary` / `dark` -- the stacked lockup (mark, wordmark, tagline) for light / navy
- *   grounds.
- * - `horizontal` / `horizontal-dark` -- mark beside wordmark and tagline.
- * - `inline` / `inline-dark` -- mark beside wordmark, no tagline: the shell and navbar,
- *   where the tagline would be a few unreadable pixels.
- * - `mark` / `mark-dark` -- the mark alone, drawn for light / navy grounds.
- * - `white`, `mono`, `gray` -- the monochrome marks (§25).
+ * - `primary` / `dark` -- the board's "Primary logo" and "Logo on dark" stacked lockups.
+ * - `horizontal` -- the board's "Horizontal logo".
+ * - `mark` / `mark-dark` -- the W + wedge from those two panels, for light / navy grounds.
+ * - `mono` / `gray` -- the board's dark and grey "Logo variations".
  *
  * `adaptive` renders a light-ground variant with its navy-ground twin swapped in by the
  * `dark:` variant -- pure CSS, so it works in Server Components and follows the
  * Appearance toggle. Leave it off on surfaces that are dark in both themes (the rail).
  */
-export type WonderArkLogoVariant =
-  | "primary"
-  | "dark"
-  | "horizontal"
-  | "horizontal-dark"
-  | "inline"
-  | "inline-dark"
-  | "mark"
-  | "mark-dark"
-  | "white"
-  | "mono"
-  | "gray";
+export type WonderArkLogoVariant = "primary" | "dark" | "horizontal" | "mark" | "mark-dark" | "mono" | "gray";
 
 export type WonderArkLogoSize = "xs" | "sm" | "md" | "lg" | "xl";
 
@@ -39,37 +24,27 @@ export const WONDERARK_LOGO_ASSETS: Record<WonderArkLogoVariant, BrandAsset> = {
   primary: BRAND_LOGO.primary,
   dark: BRAND_LOGO.primaryDark,
   horizontal: BRAND_LOGO.horizontal,
-  "horizontal-dark": BRAND_LOGO.horizontalDark,
-  inline: BRAND_LOGO.inline,
-  "inline-dark": BRAND_LOGO.inlineDark,
   mark: BRAND_LOGO.mark,
   "mark-dark": BRAND_LOGO.markOnDark,
-  white: BRAND_LOGO.markWhite,
-  mono: BRAND_LOGO.markMono,
-  gray: BRAND_LOGO.markGray,
+  mono: BRAND_LOGO.mono,
+  gray: BRAND_LOGO.gray,
 };
 
 const DARK_TWIN: Partial<Record<WonderArkLogoVariant, WonderArkLogoVariant>> = {
   primary: "dark",
-  horizontal: "horizontal-dark",
-  inline: "inline-dark",
   mark: "mark-dark",
 };
 
-type Family = "stacked" | "horizontal" | "inline" | "mark";
+type Family = "stacked" | "horizontal" | "mark";
 
 const FAMILY: Record<WonderArkLogoVariant, Family> = {
   primary: "stacked",
   dark: "stacked",
+  mono: "stacked",
+  gray: "stacked",
   horizontal: "horizontal",
-  "horizontal-dark": "horizontal",
-  inline: "inline",
-  "inline-dark": "inline",
   mark: "mark",
   "mark-dark": "mark",
-  white: "mark",
-  mono: "mark",
-  gray: "mark",
 };
 
 /**
@@ -80,7 +55,6 @@ const FAMILY: Record<WonderArkLogoVariant, Family> = {
 export const WONDERARK_LOGO_HEIGHT: Record<Family, Record<WonderArkLogoSize, string>> = {
   stacked: { xs: "h-20", sm: "h-24", md: "h-32", lg: "h-40", xl: "h-52" },
   horizontal: { xs: "h-6", sm: "h-8", md: "h-10", lg: "h-12", xl: "h-16" },
-  inline: { xs: "h-5", sm: "h-6", md: "h-7", lg: "h-9", xl: "h-12" },
   mark: { xs: "h-3", sm: "h-4", md: "h-6", lg: "h-10", xl: "h-16" },
 };
 

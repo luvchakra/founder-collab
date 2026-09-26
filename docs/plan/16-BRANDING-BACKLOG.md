@@ -1144,20 +1144,23 @@ Where the implementation deliberately departs from, or had to interpret, the tex
   `app/icon.png` / `app/apple-icon.png` were the tab and home-screen icons; titles read
   "WonderArk Platform" / "{Page} — WonderArk"; the font was Geist. All of it is replaced;
   `LogoMark` is deleted, so there is one logo component.
-- **Assets are cut from the approved board, not redrawn** (product owner's direction:
-  "use the attached images that I provided"). The board is raster, so the canonical
-  assets are PNGs (`apps/web/public/brand/logo-*.png`), not the SVG filenames §6 lists;
-  an SVG wrapping a bitmap is not a vector, and redrawing the W would break §1's "one
-  canonical geometry". `favicon.svg` is therefore not provided; favicons are PNG at
-  16/32/48/64.
+- **Every asset is a crop of the approved board** (product owner's direction: "just use
+  the attached images that I provided" / "remove any logo you have drawn"). No logo is
+  drawn, recoloured or composed — an earlier iteration that composed horizontal/inline
+  lockups and recoloured monochrome marks was replaced the same day. The board is raster,
+  so the assets are PNGs (`apps/web/public/brand/`), not the SVG filenames §6 lists;
+  `favicon.svg` is not provided.
 - **Asset location.** §6 prefers `public/branding/wonderark/`; the existing brand directory
   `public/brand/` is reused instead, as §6 allows.
-- **Extra variants.** Besides §7's list, `horizontal-dark`, `inline` / `inline-dark` (mark +
-  wordmark, no tagline, for the 28px shell where a tagline is unreadable) and `gray`
-  (§25's grey monochrome) exist. `mark-dark` means "the mark drawn for navy grounds".
-- **Horizontal lockups are composed**, from the stacked panels' mark and wordmark, in the
-  proportions measured from the board's own horizontal lockup: the stacked panels'
-  artwork is roughly twice the resolution, and the board has no dark horizontal lockup.
+- **Variants** follow what the board contains: `primary`, `dark`, `horizontal`, `mark`,
+  `mark-dark`, `mono`, `gray`. §7's `white` (a white mark alone) is not on the board — its
+  white W exists only inside the blue app-icon tile — so it is not offered.
+- **Rail and mobile drawer** show the board's navy-ground mark beside the product name as
+  text: the board has no mark-and-wordmark lockup on navy that fits a 28px row.
+- **Icons** are the board's own tiles: favicons from its Favicon panel (16/32 white, 64
+  navy; 48 from the 256 tile), app icons from its light app-icon tile. They are enlarged
+  from ~108px, so the 512px icon is soft; a higher-resolution board fixes that on the next
+  `npm run build:brand`. No maskable icon: the board's icon is a finished rounded tile.
 - **Primary blue #007BFF on white is 3.98:1**, below WCAG AA's 4.5:1 for normal-size
   text. §11 specifies it for primary buttons and it is used as specified; blue *text* on
   light tints uses one darker step (#0062CC, 5.8:1) via `--primary-subtle` /
@@ -1165,7 +1168,9 @@ Where the implementation deliberately departs from, or had to interpret, the tex
 - **Auth screens** show the stacked lockup above the form (§13); the header carries only
   navigation, so no screen shows the logo twice. A superadmin's login-logo override
   (Platform portal → Branding) still wins, as before.
-- **Emails.** Platform mail (invitations, access changes, billing) carries the email
-  header image; a business's own mail to its customers is unchanged (§19).
-- **Dark theme.** The rail, platform header and OG card use the navy-ground artwork; the
-  logo component's `adaptive` mode swaps light/navy twins with the theme.
+- **Emails.** Platform mail (invitations, access changes, billing) carries the board's
+  horizontal lockup as its header image; a business's own mail to its customers is
+  unchanged (§19).
+- **Dark theme.** The rail, platform header and link-preview card use the board's
+  navy-ground artwork; the logo component's `adaptive` mode swaps light/navy twins with
+  the theme.
