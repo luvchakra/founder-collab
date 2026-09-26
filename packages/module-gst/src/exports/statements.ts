@@ -2,7 +2,7 @@
 import type { ExportAdapter } from "@cofounderai/core/exports/server";
 import type { ExportSheet } from "@cofounderai/core/exports/types";
 import { getFinancialStatements } from "../lib/accounting/report-queries";
-import type { BalanceSheet, ProfitAndLoss, StatementLine, TrialBalance } from "../lib/accounting/reports";
+import type { BalanceSheet, CashFlowStatement, ProfitAndLoss, StatementLine, TrialBalance } from "../lib/accounting/reports";
 import { ACCOUNT_TYPE_LABEL } from "../components/accounting/labels";
 import { isReportKey, type ReportKey } from "../components/accounting/financial-statements";
 import { resolveReportRange } from "./periods";
@@ -16,6 +16,7 @@ export const STATEMENT_SHEET: Record<ReportKey, string> = {
   "profit-and-loss": "Profit & Loss",
   "balance-sheet": "Balance Sheet",
   "trial-balance": "Trial Balance",
+  "cash-flow": "Cash Flow",
 };
 
 type StatementRow = {
@@ -46,14 +47,14 @@ function profitAndLossRows(pl: ProfitAndLoss): StatementRow[] {
   ];
 }
 
-/** The balance sheet as the page lays it out, including its "Profit for the period"
- * equity line (what makes an unclosed year balance). */
+/** The balance sheet as the page lays it out, including its "Profit to date" equity line
+ * (what makes an unclosed year balance). */
 function balanceSheetRows(bs: BalanceSheet): StatementRow[] {
   const profitLine: StatementRow = {
     section: "Equity",
     lineType: "Account",
     accountNumber: null,
-    name: "Profit for the period",
+    name: "Profit to date",
     amount: bs.profitForPeriod,
   };
   return [
@@ -67,6 +68,20 @@ function balanceSheetRows(bs: BalanceSheet): StatementRow[] {
       name: "Equity and liabilities",
       amount: bs.totalEquityAndLiabilities,
     },
+  ];
+}
+
+/** FIN-5: the cash flow as the page lays it out -- three activities, the net change, then
+ * opening and closing cash from the ledger. */
+function cashFlowRows(cf: CashFlowStatement): StatementRow[] {
+  const result = (name: string, amount: number): StatementRow => ({ section: "Cash", lineType: "Result", accountNumber: null, name, amount });
+  return [
+    ...section("Operating activities", cf.operating, cf.netOperating),
+    ...section("Investing activities", cf.investing, cf.netInvesting),
+    ...section("Financing activities", cf.financing, cf.netFinancing),
+    result("Net change in cash", cf.netChange),
+    result("Cash and bank at the start", cf.openingCash),
+    result("Cash and bank at the end", cf.closingCash),
   ];
 }
 
@@ -116,9 +131,9 @@ function trialBalanceSheet(tb: TrialBalance, currency: string): ExportSheet<Tria
  * The page's own params: `report` (checked with the page's `isReportKey`, defaulting to
  * profit and loss) and `from`/`to` (plain ISO dates, defaulting to fiscal year to date,
  * via the page's own derivation in `resolveReportRange`). One `getFinancialStatements`
- * read gives all three statements for that period, exactly as the page renders them.
+ * read gives all four statements for that period, exactly as the page renders them.
  *
- * CSV is the report currently selected; Excel is a workbook of all three for the same
+ * CSV is the report currently selected; Excel is a workbook of all four for the same
  * period, the selected one first. The page reads with no permission check.
  */
 export const financeStatementsExport: ExportAdapter<Filters> = {
@@ -145,14 +160,16 @@ export const financeStatementsExport: ExportAdapter<Filters> = {
       "profit-and-loss": statementSheet(STATEMENT_SHEET["profit-and-loss"], profitAndLossRows(statements.profitAndLoss), currency),
       "balance-sheet": statementSheet(STATEMENT_SHEET["balance-sheet"], balanceSheetRows(statements.balanceSheet), currency),
       "trial-balance": trialBalanceSheet(statements.trialBalance, currency),
+      "cash-flow": statementSheet(STATEMENT_SHEET["cash-flow"], cashFlowRows(statements.cashFlow), currency),
     };
-    const order: ReportKey[] = ["profit-and-loss", "balance-sheet", "trial-balance"];
+    const order: ReportKey[] = ["profit-and-loss", "balance-sheet", "cash-flow", "trial-balance"];
     const selectedFirst = [filters.report, ...order.filter((k) => k !== filters.report)];
 
     const notes: Record<string, string> = {};
     if (!statements.hasActivity) notes.Note = "Nothing has been posted in this period yet.";
     if (!statements.trialBalance.balanced) notes["Trial balance"] = "Out of balance -- check the ledger before relying on it.";
     if (!statements.balanceSheet.balanced) notes["Balance sheet"] = "Out of balance -- check the ledger before relying on it.";
+    if (!statements.cashFlow.reconciles) notes["Cash flow"] = "Does not reconcile to the cash accounts -- check the ledger before relying on it.";
 
     return {
       module: FINANCE_FILE_MODULE,

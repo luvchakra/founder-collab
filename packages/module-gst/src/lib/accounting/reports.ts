@@ -215,3 +215,104 @@ export function balanceSheet(accounts: AccountBalanceInput[]): BalanceSheet {
     balanced: totalAssets === totalEquityAndLiabilities,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Cash flow (FIN-5)
+// ---------------------------------------------------------------------------
+
+export type CashFlowActivity = "operating" | "investing" | "financing";
+
+/** One counter account's share of the period's cash movement, from
+ * `gst.cash_flow_totals`: positive is cash in, negative cash out. */
+export interface CashFlowInput {
+  accountId: string;
+  accountNumber: string;
+  name: string;
+  type: AccountType;
+  subtype: string | null;
+  amount: number;
+}
+
+const INVESTING_SUBTYPE = /fixed|non[\s_-]?current[\s_-]?asset|investment|capital/i;
+const FINANCING_SUBTYPE = /loan|borrow|debt|non[\s_-]?current[\s_-]?liab|long[\s_-]?term/i;
+
+/**
+ * Which activity a counter account's cash belongs to.
+ *
+ * Equity is financing (capital in, drawings out). An asset is investing when it is a
+ * long-lived one — a sub-type that says so, or the default chart's Fixed Assets block
+ * (15xx) — and operating otherwise (receivables, stock, input GST: working capital). A
+ * liability is financing when it is borrowing — a sub-type that says so, or the default
+ * chart's Loans block (24xx) — and operating otherwise (payables, GST, TDS). Income and
+ * costs are always operating. Deterministic, so the same ledger always gives the same
+ * statement; an account landing in the wrong section is fixed by giving it a sub-type,
+ * not by editing the report.
+ */
+export function cashFlowActivity(account: Pick<CashFlowInput, "type" | "subtype" | "accountNumber">): CashFlowActivity {
+  const subtype = account.subtype ?? "";
+  if (account.type === "equity") return "financing";
+  if (account.type === "asset") {
+    return INVESTING_SUBTYPE.test(subtype) || account.accountNumber.startsWith("15") ? "investing" : "operating";
+  }
+  if (account.type === "liability") {
+    return FINANCING_SUBTYPE.test(subtype) || account.accountNumber.startsWith("24") ? "financing" : "operating";
+  }
+  return "operating";
+}
+
+export interface CashFlowStatement {
+  operating: StatementLine[];
+  investing: StatementLine[];
+  financing: StatementLine[];
+  netOperating: number;
+  netInvesting: number;
+  netFinancing: number;
+  netChange: number;
+  /** Cash and bank at the start of the period, straight from the ledger. */
+  openingCash: number;
+  /** Cash and bank at the end of the period, straight from the ledger — computed
+   * independently of the flows above, which is what makes `reconciles` a real check. */
+  closingCash: number;
+  /** Opening plus net change equals closing. False means a cash account moved in a way
+   * no flow explains — a ledger problem, said plainly rather than hidden. */
+  reconciles: boolean;
+}
+
+/**
+ * The cash flow statement, direct method: what cash came in and went out, grouped by what
+ * it was for.
+ *
+ * `openingCash`/`closingCash` come from the cash accounts' own balances rather than being
+ * derived from the flows, so the statement proves itself against the balance sheet.
+ */
+export function cashFlowStatement(flows: CashFlowInput[], openingCash: number, closingCash: number): CashFlowStatement {
+  const section = (activity: CashFlowActivity): StatementLine[] =>
+    flows
+      .filter((f) => cashFlowActivity(f) === activity)
+      .map((f) => ({ accountId: f.accountId, accountNumber: f.accountNumber, name: f.name, amount: round2(f.amount) }))
+      .filter((line) => line.amount !== 0)
+      .sort((a, b) => a.accountNumber.localeCompare(b.accountNumber));
+
+  const operating = section("operating");
+  const investing = section("investing");
+  const financing = section("financing");
+  const netOperating = sum(operating);
+  const netInvesting = sum(investing);
+  const netFinancing = sum(financing);
+  const netChange = round2(netOperating + netInvesting + netFinancing);
+  const opening = round2(openingCash);
+  const closing = round2(closingCash);
+
+  return {
+    operating,
+    investing,
+    financing,
+    netOperating,
+    netInvesting,
+    netFinancing,
+    netChange,
+    openingCash: opening,
+    closingCash: closing,
+    reconciles: round2(opening + netChange) === closing,
+  };
+}

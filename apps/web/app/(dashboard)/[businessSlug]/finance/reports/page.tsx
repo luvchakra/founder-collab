@@ -10,6 +10,7 @@ import { fiscalYearLabel, fiscalYearOf, monthlyPeriodsForFiscalYear } from "@cof
 import { getActivationSettings } from "@cofounderai/module-gst/lib/activation/queries";
 import {
   BalanceSheetReport,
+  CashFlowReport,
   ProfitAndLossReport,
   ReportPeriodCaption,
   ReportTabs,
@@ -20,7 +21,9 @@ import {
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 /**
- * Finance — the three statements, all from one read of the ledger.
+ * Finance — the four statements, all from one read of the ledger (FIN-5 added the cash
+ * flow), each line drilling into the account's own transactions for the same period
+ * (FIN-7).
  *
  * Which report and which period are both in the URL rather than in client state: a
  * financial report is something people send each other, and a link that opens on a
@@ -52,6 +55,9 @@ export default async function FinanceReportsPage({
 
   const statements = await getFinancialStatements(businessId, { from, to });
   const basePath = `/${businessSlug}/finance/reports`;
+  // FIN-7: a statement line opens the account's transactions for the report's own period,
+  // so the figure clicked is the figure the drill-down totals to.
+  const accountHref = (accountId: string) => `/${businessSlug}/finance/accounts/${accountId}?from=${from}&to=${to}`;
   const href = (next: { report?: ReportKey; from?: string; to?: string }) =>
     `${basePath}?report=${next.report ?? report}&from=${next.from ?? from}&to=${next.to ?? to}`;
 
@@ -65,7 +71,7 @@ export default async function FinanceReportsPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Financial reports"
-        description="Your profit and loss, balance sheet and trial balance, straight from the ledger."
+        description="Your profit and loss, balance sheet, cash flow and trial balance, straight from the ledger. Click any account to see the transactions behind it."
         actions={<ExportMenu exportId="finance.statements" businessSlug={businessSlug} params={{ report, from, to }} kind="report" />}
       />
 
@@ -99,11 +105,13 @@ export default async function FinanceReportsPage({
           message="Nothing has been posted in this period yet. Once invoices, bills and payments start landing in the ledger, these reports fill in on their own."
         />
       ) : report === "trial-balance" ? (
-        <TrialBalanceReport report={statements.trialBalance} />
+        <TrialBalanceReport report={statements.trialBalance} accountHref={accountHref} />
       ) : report === "balance-sheet" ? (
-        <BalanceSheetReport report={statements.balanceSheet} />
+        <BalanceSheetReport report={statements.balanceSheet} accountHref={accountHref} />
+      ) : report === "cash-flow" ? (
+        <CashFlowReport report={statements.cashFlow} accountHref={accountHref} />
       ) : (
-        <ProfitAndLossReport report={statements.profitAndLoss} />
+        <ProfitAndLossReport report={statements.profitAndLoss} accountHref={accountHref} />
       )}
     </div>
   );

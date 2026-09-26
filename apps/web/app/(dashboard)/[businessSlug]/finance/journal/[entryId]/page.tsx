@@ -39,6 +39,7 @@ export default async function JournalEntryPage({
       <JournalEntryDetailView
         entry={entry}
         accountsPath={`${basePath}/accounts`}
+        sourceDocumentHref={entry.source_document_id ? `${basePath}/documents/${entry.source_document_id}` : null}
         canPost={canPost}
         postAction={postJournalEntryAction.bind(null, businessId, entryId)}
         reverseAction={reverseJournalEntryAction.bind(null, businessId, entryId)}

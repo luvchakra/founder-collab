@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { balanceSheet, profitAndLoss, trialBalance, type AccountBalanceInput } from "./reports";
+import {
+  balanceSheet,
+  cashFlowActivity,
+  cashFlowStatement,
+  profitAndLoss,
+  trialBalance,
+  type AccountBalanceInput,
+  type CashFlowInput,
+} from "./reports";
+import { cashPosition, type StatementTotals } from "./report-queries";
 import type { AccountType } from "./types";
 
 function acc(
@@ -179,5 +188,113 @@ describe("the statements agree with each other", () => {
     expect(trialBalance(fiddly).balanced).toBe(true);
     expect(balanceSheet(fiddly).balanced).toBe(true);
     expect(profitAndLoss(fiddly).netProfit).toBe(0.3);
+  });
+});
+
+// FIN-5 — the cash flow statement.
+describe("cashFlowActivity", () => {
+  const a = (accountNumber: string, type: CashFlowInput["type"], subtype: string | null = null) => ({ accountNumber, type, subtype });
+
+  it("puts trading and working capital under operating", () => {
+    expect(cashFlowActivity(a("4100", "income"))).toBe("operating");
+    expect(cashFlowActivity(a("6200", "expense"))).toBe("operating");
+    expect(cashFlowActivity(a("1300", "asset"))).toBe("operating");
+    expect(cashFlowActivity(a("2100", "liability"))).toBe("operating");
+    expect(cashFlowActivity(a("2200", "liability"))).toBe("operating");
+  });
+
+  it("puts fixed assets under investing, by the default block or a sub-type", () => {
+    expect(cashFlowActivity(a("1500", "asset"))).toBe("investing");
+    expect(cashFlowActivity(a("1510", "asset"))).toBe("investing");
+    expect(cashFlowActivity(a("1800", "asset", "fixed_asset"))).toBe("investing");
+  });
+
+  it("puts equity and borrowing under financing", () => {
+    expect(cashFlowActivity(a("3100", "equity"))).toBe("financing");
+    expect(cashFlowActivity(a("2400", "liability"))).toBe("financing");
+    expect(cashFlowActivity(a("2900", "liability", "Long-term loan"))).toBe("financing");
+  });
+});
+
+describe("cashFlowStatement", () => {
+  const flow = (accountNumber: string, type: CashFlowInput["type"], amount: number): CashFlowInput => ({
+    accountId: accountNumber,
+    accountNumber,
+    name: `Account ${accountNumber}`,
+    type,
+    subtype: null,
+    amount,
+  });
+  const flows = [
+    flow("1300", "asset", 50000), // customers paid
+    flow("2100", "liability", -20000), // suppliers paid
+    flow("6200", "expense", -5000), // rent paid on the spot
+    flow("1500", "asset", -30000), // a laptop
+    flow("3100", "equity", 100000), // capital in
+    flow("2400", "liability", -10000), // loan repaid
+  ];
+
+  it("groups each flow into its activity and totals them", () => {
+    const cf = cashFlowStatement(flows, 1000, 86000);
+    expect(cf.netOperating).toBe(25000);
+    expect(cf.netInvesting).toBe(-30000);
+    expect(cf.netFinancing).toBe(90000);
+    expect(cf.netChange).toBe(85000);
+  });
+
+  it("reconciles when opening plus the flows is the closing cash the ledger holds", () => {
+    expect(cashFlowStatement(flows, 1000, 86000).reconciles).toBe(true);
+  });
+
+  it("says so when the cash accounts moved in a way the flows don't explain", () => {
+    expect(cashFlowStatement(flows, 1000, 86000.5).reconciles).toBe(false);
+  });
+
+  it("drops a flow that nets to nothing", () => {
+    const cf = cashFlowStatement([flow("1300", "asset", 0)], 0, 0);
+    expect(cf.operating).toEqual([]);
+    expect(cf.reconciles).toBe(true);
+  });
+});
+
+describe("cashPosition", () => {
+  const totals = (
+    accountNumber: string,
+    isCash: boolean,
+    period: [number, number],
+    toDate: [number, number],
+    openingBalance = 0,
+  ): StatementTotals => ({
+    accountId: accountNumber,
+    accountNumber,
+    name: accountNumber,
+    type: "asset",
+    subtype: null,
+    debit: period[0],
+    credit: period[1],
+    debitToDate: toDate[0],
+    creditToDate: toDate[1],
+    openingBalance,
+    isCash,
+  });
+
+  it("reads opening cash as everything before the period and closing as everything to its end", () => {
+    // Bank: opening balance 500, 2000 in before the period, then +700/-200 in it.
+    const position = cashPosition([
+      totals("1100", true, [700, 200], [2700, 200], 500),
+      totals("1300", false, [9999, 0], [9999, 0]),
+    ]);
+    expect(position).toEqual({ opening: 2500, closing: 3000 });
+  });
+});
+
+describe("the balance sheet is a position as at the period's end (FIN-5)", () => {
+  it("counts every earlier month's movement, not just the period's", () => {
+    // Bank received 1000 in April (before the period) and 200 in September (in it).
+    const asAt = [acc("1100", "asset", 1200, 0), acc("3100", "equity", 0, 1000), acc("4100", "income", 0, 200)];
+    const bs = balanceSheet(asAt);
+    expect(bs.totalAssets).toBe(1200);
+    expect(bs.profitForPeriod).toBe(200);
+    expect(bs.balanced).toBe(true);
   });
 });

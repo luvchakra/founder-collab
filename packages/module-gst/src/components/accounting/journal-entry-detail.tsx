@@ -29,13 +29,16 @@ import type { JournalEntryDetail } from "../../lib/accounting/journal-queries";
 export function JournalEntryDetailView({
   entry,
   accountsPath,
+  sourceDocumentHref,
   canPost,
   postAction,
   reverseAction,
 }: {
   entry: JournalEntryDetail;
-  /** Where an account name links to. */
+  /** Where an account name links to: that account's drill-down (FIN-7). */
   accountsPath: string;
+  /** FIN-12: the source document's own page, listing every entry it caused. */
+  sourceDocumentHref?: string | null;
   canPost: boolean;
   postAction: () => Promise<void>;
   reverseAction: () => Promise<void>;
@@ -67,6 +70,16 @@ export function JournalEntryDetailView({
               <dd className="font-mono text-xs">
                 {entry.posting_rule_key}
                 {entry.posting_rule_version ? ` v${entry.posting_rule_version}` : ""}
+              </dd>
+            </div>
+          ) : null}
+          {sourceDocumentHref ? (
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Source document</dt>
+              <dd>
+                <Link href={sourceDocumentHref} className="text-primary hover:underline">
+                  See every entry this document caused
+                </Link>
               </dd>
             </div>
           ) : null}
@@ -158,7 +171,7 @@ export function JournalEntryDetailView({
               <TableRow key={line.id}>
                 <TableCell className="text-muted-foreground tabular-nums">{line.line_number}</TableCell>
                 <TableCell>
-                  <Link href={accountsPath} className="hover:underline">
+                  <Link href={`${accountsPath}/${line.account_id}`} className="hover:underline">
                     <span className="text-muted-foreground tabular-nums">{line.account_number}</span>{" "}
                     {line.account_name}
                   </Link>

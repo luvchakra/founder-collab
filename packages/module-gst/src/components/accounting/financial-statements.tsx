@@ -11,21 +11,33 @@ import {
   TableRow,
 } from "@cofounderai/core/ui/table";
 import { ACCOUNT_TYPE_LABEL, ledgerAmount } from "./labels";
-import type { BalanceSheet, ProfitAndLoss, StatementLine, TrialBalance } from "../../lib/accounting/reports";
+import type {
+  BalanceSheet,
+  CashFlowStatement,
+  ProfitAndLoss,
+  StatementLine,
+  TrialBalance,
+} from "../../lib/accounting/reports";
 
-export type ReportKey = "trial-balance" | "profit-and-loss" | "balance-sheet";
+export type ReportKey = "trial-balance" | "profit-and-loss" | "balance-sheet" | "cash-flow";
 
 export const REPORT_LABEL: Record<ReportKey, string> = {
   "trial-balance": "Trial balance",
   "profit-and-loss": "Profit & loss",
   "balance-sheet": "Balance sheet",
+  "cash-flow": "Cash flow",
 };
+
+/** FIN-7: where a statement line drills to — the account's own transactions for the
+ * report's period. Undefined renders plain text (a pseudo-line such as the balance
+ * sheet's profit to date has no account to open). */
+export type AccountHref = (accountId: string) => string;
 
 export function isReportKey(value: string): value is ReportKey {
   return value in REPORT_LABEL;
 }
 
-/** The three reports share one period and one switcher; picking one is a link, not
+/** The reports share one period and one switcher; picking one is a link, not
  * client state, so a report can be bookmarked and shared as it was read. */
 export function ReportTabs({ active, hrefFor }: { active: ReportKey; hrefFor: (key: ReportKey) => string }) {
   return (
@@ -64,6 +76,23 @@ function OutOfBalanceNotice({ by }: { by: number }) {
   );
 }
 
+/** An account's number and name, as a link into its transactions when the report can
+ * drill (FIN-7: "every report must drill into underlying transactions"). */
+function AccountName({ line, accountHref }: { line: StatementLine; accountHref?: AccountHref }) {
+  const label = (
+    <>
+      <span className="text-muted-foreground tabular-nums">{line.accountNumber}</span> {line.name}
+    </>
+  );
+  // Pseudo-lines (the balance sheet's profit to date) carry an id that is not an account.
+  if (!accountHref || line.accountNumber === "—") return <span className="min-w-0">{label}</span>;
+  return (
+    <Link href={accountHref(line.accountId)} className="min-w-0 hover:underline">
+      {label}
+    </Link>
+  );
+}
+
 /** One statement section: its lines, then its total. Below `md` the lines stack as
  * name-over-amount rows rather than a two-column table squeezed to nothing. */
 function StatementSection({
@@ -71,11 +100,15 @@ function StatementSection({
   lines,
   total,
   emphasis,
+  accountHref,
+  totalLabel,
 }: {
   heading: string;
   lines: StatementLine[];
   total: number;
   emphasis?: boolean;
+  accountHref?: AccountHref;
+  totalLabel?: string;
 }) {
   return (
     <section className="rounded-2xl border border-border">
@@ -86,10 +119,7 @@ function StatementSection({
         <ul className="divide-y">
           {lines.map((line) => (
             <li key={line.accountId} className="flex items-baseline justify-between gap-4 px-4 py-2 text-sm">
-              <span className="min-w-0">
-                <span className="text-muted-foreground tabular-nums">{line.accountNumber}</span>{" "}
-                {line.name}
-              </span>
+              <AccountName line={line} accountHref={accountHref} />
               <span className="shrink-0 tabular-nums">{ledgerAmount.format(line.amount)}</span>
             </li>
           ))}
@@ -101,14 +131,14 @@ function StatementSection({
           emphasis && "bg-muted/40",
         )}
       >
-        <span>Total {heading.toLowerCase()}</span>
+        <span>{totalLabel ?? `Total ${heading.toLowerCase()}`}</span>
         <span className="tabular-nums">{ledgerAmount.format(total)}</span>
       </div>
     </section>
   );
 }
 
-export function TrialBalanceReport({ report }: { report: TrialBalance }) {
+export function TrialBalanceReport({ report, accountHref }: { report: TrialBalance; accountHref?: AccountHref }) {
   return (
     <div className="flex flex-col gap-3">
       {report.balanced ? null : <OutOfBalanceNotice by={report.totalDebit - report.totalCredit} />}
@@ -119,7 +149,7 @@ export function TrialBalanceReport({ report }: { report: TrialBalance }) {
           {report.rows.map((row) => (
             <li key={row.accountId} className="flex items-baseline justify-between gap-3 p-3 text-sm">
               <span className="min-w-0">
-                <span className="text-muted-foreground tabular-nums">{row.accountNumber}</span> {row.name}
+                <AccountName line={{ ...row, amount: 0 }} accountHref={accountHref} />
                 <span className="block text-xs text-muted-foreground">{ACCOUNT_TYPE_LABEL[row.type]}</span>
               </span>
               <span className="shrink-0 text-right tabular-nums">
@@ -150,7 +180,15 @@ export function TrialBalanceReport({ report }: { report: TrialBalance }) {
             {report.rows.map((row) => (
               <TableRow key={row.accountId}>
                 <TableCell className="text-muted-foreground tabular-nums">{row.accountNumber}</TableCell>
-                <TableCell>{row.name}</TableCell>
+                <TableCell>
+                  {accountHref ? (
+                    <Link href={accountHref(row.accountId)} className="hover:underline">
+                      {row.name}
+                    </Link>
+                  ) : (
+                    row.name
+                  )}
+                </TableCell>
                 <TableCell className="text-muted-foreground">{ACCOUNT_TYPE_LABEL[row.type]}</TableCell>
                 <TableCell className="text-right tabular-nums">
                   {row.debit > 0 ? ledgerAmount.format(row.debit) : "—"}
@@ -172,47 +210,102 @@ export function TrialBalanceReport({ report }: { report: TrialBalance }) {
   );
 }
 
-export function ProfitAndLossReport({ report }: { report: ProfitAndLoss }) {
+export function ProfitAndLossReport({ report, accountHref }: { report: ProfitAndLoss; accountHref?: AccountHref }) {
   return (
     <div className="flex flex-col gap-4">
-      <StatementSection heading="Income" lines={report.income} total={report.totalIncome} />
-      <StatementSection heading="Cost of sales" lines={report.cogs} total={report.totalCogs} />
+      <StatementSection heading="Income" lines={report.income} total={report.totalIncome} accountHref={accountHref} />
+      <StatementSection heading="Cost of sales" lines={report.cogs} total={report.totalCogs} accountHref={accountHref} />
 
       {/* Gross profit gets its own row rather than living inside a section: it is the
           number a founder reads first, and burying it under cost of sales hides it. */}
       <Summary label="Gross profit" amount={report.grossProfit} />
 
-      <StatementSection heading="Expenses" lines={report.expenses} total={report.totalExpenses} />
+      <StatementSection heading="Expenses" lines={report.expenses} total={report.totalExpenses} accountHref={accountHref} />
       <Summary label="Net profit" amount={report.netProfit} emphasis />
     </div>
   );
 }
 
-export function BalanceSheetReport({ report }: { report: BalanceSheet }) {
+export function BalanceSheetReport({ report, accountHref }: { report: BalanceSheet; accountHref?: AccountHref }) {
   return (
     <div className="flex flex-col gap-4">
       {report.balanced ? null : (
         <OutOfBalanceNotice by={report.totalAssets - report.totalEquityAndLiabilities} />
       )}
 
-      <StatementSection heading="Assets" lines={report.assets} total={report.totalAssets} emphasis />
-      <StatementSection heading="Liabilities" lines={report.liabilities} total={report.totalLiabilities} />
+      <StatementSection heading="Assets" lines={report.assets} total={report.totalAssets} emphasis accountHref={accountHref} />
+      <StatementSection heading="Liabilities" lines={report.liabilities} total={report.totalLiabilities} accountHref={accountHref} />
       <StatementSection
         heading="Equity"
         lines={[
           ...report.equity,
           // Until the year is closed nothing has moved trading results into retained
-          // earnings, so this line is what makes the sheet balance.
+          // earnings, so this line is what makes the sheet balance. It is the profit to
+          // date, not the period's: the balance sheet is a position as at its end date.
           {
-            accountId: "profit-for-period",
+            accountId: "profit-to-date",
             accountNumber: "—",
-            name: "Profit for the period",
+            name: "Profit to date",
             amount: report.profitForPeriod,
           },
         ]}
         total={report.totalEquity + report.profitForPeriod}
+        accountHref={accountHref}
       />
       <Summary label="Equity and liabilities" amount={report.totalEquityAndLiabilities} emphasis />
+    </div>
+  );
+}
+
+/**
+ * FIN-5 — where the cash went: operating, investing and financing, each line the account
+ * on the other side of the cash movement, then the movement reconciled from opening cash
+ * to closing cash. The reconciliation is shown rather than assumed: opening and closing
+ * come from the cash accounts' own balances, so if the flows ever failed to explain the
+ * change the page says so.
+ */
+export function CashFlowReport({ report, accountHref }: { report: CashFlowStatement; accountHref?: AccountHref }) {
+  return (
+    <div className="flex flex-col gap-4">
+      {report.reconciles ? null : (
+        <OutOfBalanceNotice by={report.closingCash - report.openingCash - report.netChange} />
+      )}
+      <StatementSection
+        heading="Operating activities"
+        lines={report.operating}
+        total={report.netOperating}
+        totalLabel="Net cash from operating activities"
+        accountHref={accountHref}
+      />
+      <StatementSection
+        heading="Investing activities"
+        lines={report.investing}
+        total={report.netInvesting}
+        totalLabel="Net cash from investing activities"
+        accountHref={accountHref}
+      />
+      <StatementSection
+        heading="Financing activities"
+        lines={report.financing}
+        total={report.netFinancing}
+        totalLabel="Net cash from financing activities"
+        accountHref={accountHref}
+      />
+      <Summary label="Net change in cash" amount={report.netChange} />
+      <div className="rounded-2xl border border-border text-sm">
+        <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
+          <span>Cash and bank at the start</span>
+          <span className="tabular-nums">{ledgerAmount.format(report.openingCash)}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-4 border-t border-border px-4 py-2.5">
+          <span>Net change in cash</span>
+          <span className="tabular-nums">{ledgerAmount.format(report.netChange)}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-4 border-t border-border bg-primary/5 px-4 py-3 text-base font-semibold">
+          <span>Cash and bank at the end</span>
+          <span className="tabular-nums">{ledgerAmount.format(report.closingCash)}</span>
+        </div>
+      </div>
     </div>
   );
 }

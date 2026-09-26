@@ -17,6 +17,9 @@ the same way `fsm` is displayed as "Service".
 | FIN-1 | Done | `e7138b2` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
 | FIN-2 | Done | `9b0e055` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
 | FIN-3 | Done | `pending` | Activation wizard: an 8-step checklist plus the accounting-method/fiscal-year settings and the activation record §42 was actually missing -- see below, this turned out bigger than "every step already exists as its own screen" |
+| FIN-5 | Done | `pending` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
+| FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
+| FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
 | F2 | Done | `ed1ef3d` `0d13019` `f6b7f4b` `d9cf354` | Chart of accounts + provisioning, accounting periods, journal, automatic posting |
@@ -60,6 +63,8 @@ Each was caught by building the thing that depends on it, not by a separate audi
 | **Bank CSV import read `Date,Description,Amount` as having a credit column.** The two-letter aliases `cr`/`dr` substring-matched inside "des-cr-iption", so no amount could be read off any row. | The importer's own tests | Header matching on whole words (`1ac2539`) |
 | Five lucide icon names used by the crm/fsm/gst manifests were missing from the shell's resolver and silently rendered the fallback. | Adding a nav icon | Added to `module-icon.tsx` (`ed1ef3d`) |
 | **A bill or supplier credit that failed to post never showed up as unposted anywhere.** `listUnpostedDocuments`'s own `POSTABLE_DOC_TYPES` list (`invoice`/`credit_note`/`debit_note`/`sales_return`) was a second, silently drifted copy of `document-events.ts`'s `EVENT_BY_DOC_TYPE`, which had grown to include `supplier_bill`/`supplier_credit` when Payables shipped without the dashboard's own list being updated alongside it. | Scoping FIN-2's backfill to "invoices, bills, payments and expenses" and finding bills fell out of the scan entirely | `POSTABLE_DOC_TYPES` is now exported from `document-events.ts` (the one place that already had to stay correct) and imported everywhere else needs it, so there is one list, not two (`9b0e055`) |
+
+| **A balance sheet for any period but "since the beginning" was wrong.** It was built from the same period totals as the profit and loss, so "This month" showed each account's opening balance plus only this month's movement — the bank balance silently dropped every earlier month, and the profit line was the month's rather than the year's. It still balanced (both sides dropped the same history), which is why nothing flagged it. | FIN-5's cash flow, whose closing cash has to agree with the balance sheet's cash | `gst.account_statement_totals` returns period *and* as-at totals in one read; the balance sheet uses the as-at ones and its equity line is now "Profit to date" (`20260927100000`) |
 
 ## Decisions worth not re-litigating
 
@@ -244,15 +249,70 @@ permission-gated RLS every other consequential write in this schema already has 
 permission `gst.activation.manage`), and `activated_at` stays set once written -- re-running
 the wizard reruns the (idempotent) backfill scan but never un-marks a business as activated.
 
+### Cash flow statement (FIN-5) — built 2026-09-27
+
+The fourth tab on `/finance/reports`, following the other three: same period, same URL
+parameters, same export (a "Cash Flow" sheet in the statements workbook).
+
+**Direct method, read straight off the ledger.** `gst.cash_flow_totals` takes every entry in
+the period that touches a cash account and attributes the cash to each of its *non-cash*
+lines (credit − debit on that line). For a balanced entry those amounts always add up to
+exactly the entry's net cash movement, whatever its shape — a sale paid on the spot, a bill
+part-paid, an expense with input GST, a transfer between two bank accounts (which has no
+non-cash line and contributes nothing) — so the statement reconciles by construction, not
+with a plug figure. The indirect method would have needed working-capital classification
+of every balance-sheet account up front; this needs it only for the lines cash actually
+touched.
+
+**Cash is derived, not flagged.** A cash account is whatever the business maps to the
+`bank`/`cash` posting roles plus any ledger account a bank account links to — the two
+places the rest of Finance already reads. A stored "is cash" flag would drift from them.
+
+**Operating/investing/financing is decided in code** (`reports.ts#cashFlowActivity`), where
+it is tested: equity and borrowing (the default chart's 24xx Loans block, or a sub-type
+saying loan/borrowing/long-term) are financing; long-lived assets (15xx Fixed Assets, or a
+sub-type saying fixed/non-current/investment) are investing; everything else is
+operating. An account in the wrong section is fixed by giving it a sub-type, not by
+editing the report.
+
+**It proves itself.** Opening and closing cash come from the cash accounts' own balances,
+independently of the flows, and the page shows the same out-of-balance notice the other
+statements use if opening + net change ≠ closing.
+
+### Report drill-down (FIN-7) — built 2026-09-27
+
+Every account line on all four statements links to `/finance/accounts/[accountId]` for the
+report's own period: brought forward, each posting with its running balance, carried
+forward, ending on the figure that was clicked (labelled "On the balance sheet" or "On the
+profit and loss"). The totals come from the same `gst.account_statement_totals` read the
+statement made — not from summing the listed lines — so the drill-down cannot disagree with
+the statement even when the list is capped (500 entries; the page says when it is). Rows
+open their journal entry, and their source document where there is one (FIN-12). Journal
+entry lines now link to their account's drill-down instead of the chart of accounts.
+
+### Explainable accounting in reverse (FIN-12) — built 2026-09-27
+
+`/finance/documents/[documentId]`: the document's own facts, then every entry it caused in
+order — its posting, the separate cost-of-sale entry for goods, each payment allocated
+against it, and any reversal of those — each with its rule, version and plain-language
+reason, then the **net effect per account** once they are all added up (a paid invoice
+leaves nothing in receivables; a reversed one nets to nothing, and says so).
+
+Reversals are found through `reversal_of_entry_id`, not `source_document_id`: a reversal
+does not carry the document id, so a query on that column alone would have shown a
+reversed invoice as still in the ledger. When nothing has posted, the page says why using
+`financeEventFromDocument` — the same function the posting path uses — so the reason
+("still a draft", "a purchase order is a commitment, not a transaction", "should be in the
+ledger: run the backfill") cannot disagree with what the ledger would actually do. Every
+journal entry with a source document links here, and so does the invoices list (FIN-4).
+
 ### Not built
 
 | § | Item | Note |
 |---|---|---|
 | 18 | Finance invoice view | Invoices list with accounting / payment / GST / e-invoice status kept independent. The data all exists; this is a screen. |
 | 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
-| 28 | Cash flow statement | The other three statements are done. |
 | 28 | Operational reports | Sales by customer/product/service, purchase and expense summaries, inventory valuation, COGS, gross margin. |
-| 28 | Drill-down from reports | "Every report must drill into underlying transactions" — the journal has drill-down, the statements do not yet. |
 | 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
@@ -261,9 +321,6 @@ the wizard reruns the (idempotent) backfill scan but never un-marks a business a
 
 ### Partly built
 
-- **§40 Explainable accounting** — every automatic entry records the rule and version that
-  produced it and explains itself in plain language on the entry page. What is missing is
-  the reverse direction: from a source document to the entries it caused.
 - **§53 Edge cases** — most are covered as unit tests (duplicate event, partial payment,
   overpayment, refund, credit note after payment, closed period, invalid journal, duplicate
   bank transaction, purchase/sales return). Not covered end-to-end: licence cancellation
@@ -296,3 +353,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260919110000_gst_finance_exceptions_unposted_payment` | FIN-2: widened `exception_type` to add `unposted_payment` |
 | `20260919120000_core_business_settings_accounting_method` | FIN-3: `core.business_settings.accounting_method` (accrual/cash) |
 | `20260919130000_gst_finance_activation` | FIN-3: `gst.finance_activation`, `gst.activation.manage` permission |
+| `20260927100000_gst_statement_totals_cash_flow` | FIN-5: `gst.account_statement_totals` (period + as-at totals, cash accounts flagged) and `gst.cash_flow_totals`; fixes the period-only balance sheet |

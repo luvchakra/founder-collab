@@ -17,6 +17,15 @@ vi.mock("../lib/accounting/report-queries", async (importOriginal) => {
         trialBalance: reports.trialBalance(totals),
         profitAndLoss: reports.profitAndLoss(totals),
         balanceSheet: reports.balanceSheet(totals),
+        cashFlow: reports.cashFlowStatement(
+          [
+            { accountId: "a2", accountNumber: "3000", name: "Capital", type: "equity", subtype: null, amount: 10000 },
+            { accountId: "a3", accountNumber: "4000", name: "Sales", type: "income", subtype: null, amount: 40000 },
+            { accountId: "a4", accountNumber: "6100", name: "Rent", type: "expense", subtype: null, amount: -20000 },
+          ],
+          0,
+          30000,
+        ),
         hasActivity: true,
       };
     },
@@ -59,7 +68,8 @@ describe("EXP-FIN-11 finance.statements", () => {
       from: "2026-04-01",
       to: "2026-06-30",
     });
-    expect(financeStatementsExport.parseFilters!(params({ report: "cash-flow" })).report).toBe("profit-and-loss");
+    expect(financeStatementsExport.parseFilters!(params({ report: "cash-flow" })).report).toBe("cash-flow");
+    expect(financeStatementsExport.parseFilters!(params({ report: "equity-changes" })).report).toBe("profit-and-loss");
   });
 
   it("sends the selected from/to to the ledger read for the context tenant; bad dates fall back to fiscal YTD", async () => {
@@ -79,10 +89,10 @@ describe("EXP-FIN-11 finance.statements", () => {
     expect(lines.at(-1)).toBe("Total,,Total,,50000,50000");
   });
 
-  it("Excel is all three statements for the period, the selected one first", async () => {
+  it("Excel is all four statements for the period, the selected one first", async () => {
     const { workbook } = await runAdapter(financeStatementsExport, { report: "balance-sheet", from: "2026-04-01", to: "2026-09-30" });
     expect(workbook.resource).toBe("financial-statements");
-    expect(workbook.sheets.map((s) => s.sheetName)).toEqual(["Balance Sheet", "Profit & Loss", "Trial Balance"]);
+    expect(workbook.sheets.map((s) => s.sheetName)).toEqual(["Balance Sheet", "Profit & Loss", "Cash Flow", "Trial Balance"]);
     expect(workbook.metadata).toMatchObject({ Report: "Balance Sheet", From: "2026-04-01", To: "2026-09-30" });
     expect(headers(workbook, "Profit & Loss")).toEqual(["Section", "Line type", "Account code", "Account", "Amount"]);
     const pl = workbook.sheets.find((s) => s.sheetName === "Profit & Loss")!;
@@ -91,9 +101,14 @@ describe("EXP-FIN-11 finance.statements", () => {
       Section: "Net profit", "Line type": "Result", "Account code": null, Account: "Net profit", Amount: 20000,
     });
     const bs = workbook.sheets.find((s) => s.sheetName === "Balance Sheet")!;
-    const profit = bs.rows.findIndex((r) => (r as { name: string }).name === "Profit for the period");
+    const profit = bs.rows.findIndex((r) => (r as { name: string }).name === "Profit to date");
     expect(rowValues(workbook, "Balance Sheet", profit)).toMatchObject({ Section: "Equity", Amount: 20000 });
     expect(rowValues(workbook, "Balance Sheet", profit + 1)).toMatchObject({ Account: "Total equity", Amount: 30000 });
+    // FIN-5: the cash flow sheet, reconciled from opening to closing cash.
+    const cf = workbook.sheets.find((s) => s.sheetName === "Cash Flow")!;
+    const cfNet = cf.rows.findIndex((r) => (r as { name: string }).name === "Net change in cash");
+    expect(rowValues(workbook, "Cash Flow", cfNet)).toMatchObject({ Amount: 30000 });
+    expect(rowValues(workbook, "Cash Flow", cfNet + 2)).toMatchObject({ Account: "Cash and bank at the end", Amount: 30000 });
     expect(exportContext().businessId).toBe(TENANT);
   });
 });
