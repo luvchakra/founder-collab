@@ -229,40 +229,40 @@
       "note": "`docs/FINANCE-PROGRESS.md` — activation wizard, built 2026-09-19"
     },
     "FIN-4": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — invoice view with four independent statuses, built 2026-09-27"
     },
     "FIN-5": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — cash flow statement (and as-at balance sheet fix), built 2026-09-27"
     },
     "FIN-6": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — operational reports, built 2026-09-27"
     },
     "FIN-7": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — report drill-down, built 2026-09-27"
     },
     "FIN-8": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — bank rules, built 2026-09-27"
     },
     "FIN-9": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — dimensions, built 2026-09-27"
     },
     "FIN-10": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — deterministic fixture set for local databases, built 2026-09-27"
     },
     "FIN-11": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — end-to-end edge cases (DB + TypeScript), built 2026-09-27"
     },
     "FIN-12": {
-      "status": "Not started",
-      "note": "`docs/FINANCE-PROGRESS.md` — surveyed 2026-09-18, not yet built"
+      "status": "Done",
+      "note": "`docs/FINANCE-PROGRESS.md` — document-to-entries view, built 2026-09-27"
     },
     "FIN-13": {
       "status": "Deferred",

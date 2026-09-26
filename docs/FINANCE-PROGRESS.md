@@ -17,15 +17,15 @@ the same way `fsm` is displayed as "Service".
 | FIN-1 | Done | `e7138b2` | Exceptions queue: unposted documents, ITC at risk, filing blockers, one triage queue |
 | FIN-2 | Done | `9b0e055` | Backfill: scans documents + payment allocations, posts the eligible ones, routes the rest to FIN-1 |
 | FIN-3 | Done | `pending` | Activation wizard: an 8-step checklist plus the accounting-method/fiscal-year settings and the activation record §42 was actually missing -- see below, this turned out bigger than "every step already exists as its own screen" |
-| FIN-4 | Done | `pending` | Invoice view: every issued invoice from `core.documents` with accounting, payment, GST and e-invoice status as four independent columns |
-| FIN-5 | Done | `pending` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
-| FIN-6 | Done | `pending` | Operational reports: sales by customer/product/service, purchases and expenses, inventory valuation (via Inventory's contract), COGS and gross margin |
-| FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
-| FIN-8 | Done | `pending` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
-| FIN-9 | Done | `pending` | Dimensions: per-business on/off and naming for party, item, location, project; P&L by any of them; never mandatory |
-| FIN-10 | Done | `pending` | Seed data: the deterministic fixture set (2 businesses, 30 invoices, 20 bills, 20 expenses, 25 payments, notes, bank lines, rules, recurring entries, 2B matched/mismatched/missing, locked period, failed e-invoice, duplicates) for local databases only |
-| FIN-11 | Done | `pending` | End-to-end edge cases: licence cancellation/reactivation, historical and duplicate backfill, negative inventory — DB and TypeScript tests; found and fixed a backfill that aborted on the first locked-period document |
-| FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
+| FIN-4 | Done | `312ac40` | Invoice view: every issued invoice from `core.documents` with accounting, payment, GST and e-invoice status as four independent columns |
+| FIN-5 | Done | `9bdf20f` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
+| FIN-6 | Done | `2f7cead` | Operational reports: sales by customer/product/service, purchases and expenses, inventory valuation (via Inventory's contract), COGS and gross margin |
+| FIN-7 | Done | `9bdf20f` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
+| FIN-8 | Done | `a29bce4` `65e87c6` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
+| FIN-9 | Done | `d958ce5` | Dimensions: per-business on/off and naming for party, item, location, project; P&L by any of them; never mandatory |
+| FIN-10 | Done | `13814c9` | Seed data: the deterministic fixture set (2 businesses, 30 invoices, 20 bills, 20 expenses, 25 payments, notes, bank lines, rules, recurring entries, 2B matched/mismatched/missing, locked period, failed e-invoice, duplicates) for local databases only |
+| FIN-11 | Done | `dd6c71e` | End-to-end edge cases: licence cancellation/reactivation, historical and duplicate backfill, negative inventory — DB and TypeScript tests; found and fixed a backfill that aborted on the first locked-period document |
+| FIN-12 | Done | `9bdf20f` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
 | F2 | Done | `ed1ef3d` `0d13019` `f6b7f4b` `d9cf354` | Chart of accounts + provisioning, accounting periods, journal, automatic posting |
@@ -108,6 +108,15 @@ reads both (`lib/accounting/receivables.ts#creditedInvoiceId`) because reading o
 silently overstate receivables for the other module. Unifying the key is a change to two
 other modules' data, not Finance's to make. Also recorded in
 `docs/plan/00-MASTER-PLAN.md` §5.
+
+**The GSTR-2B purchase register reads purchase orders, not supplier bills.**
+`lib/filing/queries.ts#getPurchaseRegister` builds the books side of 2B reconciliation from
+`doc_type = 'purchase_order'` — a StockPilot carry-over from before supplier bills were
+canonical documents. Input tax credit is claimed on the supplier's *invoice*, i.e. the
+`supplier_bill`, so a bill typed into Finance with no matching purchase order never reaches
+2B matching. Found while building FIN-10's 2B fixture (which seeds mirroring purchase orders
+so the existing matcher has something to match). Not changed here: it alters what the GST
+filing screens report, which is its own story.
 
 ## What remains, against the spec's own 54 sections
 

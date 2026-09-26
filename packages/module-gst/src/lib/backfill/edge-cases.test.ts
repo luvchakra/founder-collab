@@ -32,7 +32,7 @@ function makeClient() {
       order: () => api,
       limit: () => api,
       insert: (rows: Row | Row[]) => {
-        const list = (Array.isArray(rows) ? rows : [rows]).map((r) => ({ id: `${table}-${++db.seq}`, ...r }));
+        const list: Row[] = (Array.isArray(rows) ? rows : [rows]).map((r) => ({ id: `${table}-${++db.seq}`, ...r }));
         if (table === "journal_entries") {
           for (const r of list) {
             const clash = (db.tables.journal_entries ?? []).some(
