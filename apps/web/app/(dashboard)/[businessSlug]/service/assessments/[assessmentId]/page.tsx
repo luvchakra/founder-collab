@@ -16,6 +16,7 @@ import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import type { AssessmentOutcome } from "@cofounderai/module-fsm/lib/assessments/types";
 import { recordAssessmentOutcomeAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const KIND_LABEL: Record<string, string> = { remote: "Remote", on_site: "On-site", technical: "Technical" };
 const STATUS_LABEL: Record<string, string> = {
@@ -46,12 +47,17 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{party?.name ?? "Assessment"}</h1>
-          <Badge variant={assessment.status === "not_feasible" ? "destructive" : assessment.status === "completed" ? "secondary" : "outline"} className="capitalize">
-            {STATUS_LABEL[assessment.status] ?? assessment.status}
-          </Badge>
-          <Badge variant="outline">{KIND_LABEL[assessment.kind] ?? assessment.kind}</Badge>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{party?.name ?? "Assessment"}</h1>
+            <Badge variant={assessment.status === "not_feasible" ? "destructive" : assessment.status === "completed" ? "secondary" : "outline"} className="capitalize">
+              {STATUS_LABEL[assessment.status] ?? assessment.status}
+            </Badge>
+            <Badge variant="outline">{KIND_LABEL[assessment.kind] ?? assessment.kind}</Badge>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <ExportMenu exportId="fsm.assessment" businessSlug={businessSlug} params={{ assessmentId }} />
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">Requested {formatDateTime(assessment.created_at)}</p>
         {/* INT-08.3's "Context-Preserving Navigation" -- this assessment is only ever

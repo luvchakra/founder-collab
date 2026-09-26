@@ -15,6 +15,7 @@ import {
 } from "@cofounderai/module-fsm/lib/reports/queries";
 import { ReportsView } from "@cofounderai/module-fsm/components/reports/reports-view";
 import { DateRangeControl, resolveReportRange, type ReportRangePreset } from "@cofounderai/module-fsm/components/reports/date-range-control";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 const VALID_PRESETS = new Set<ReportRangePreset>(["7d", "30d", "90d", "month", "year", "all"]);
 
@@ -56,7 +57,10 @@ export default async function ReportsPage({
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">Reports</h1>
           <p className="mt-1 text-sm text-muted-foreground">{business.name}</p>
         </div>
-        <DateRangeControl basePath={`/${businessSlug}/service/reports`} active={activePreset} />
+        <div className="flex shrink-0 items-center gap-2">
+          <DateRangeControl basePath={`/${businessSlug}/service/reports`} active={activePreset} />
+          <ExportMenu exportId="fsm.reports" businessSlug={businessSlug} params={{ range: rangeParam }} kind="report" />
+        </div>
       </div>
 
       <ReportsView

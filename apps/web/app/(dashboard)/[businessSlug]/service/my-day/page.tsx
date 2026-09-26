@@ -7,6 +7,7 @@ import { listMyEventsForRange } from "@cofounderai/module-fsm/lib/events/queries
 import { getOpenTimeEntry } from "@cofounderai/module-fsm/lib/time-entries/queries";
 import { MyDayList } from "@cofounderai/module-fsm/components/field/my-day-list";
 import { clockInAction, clockOutAction, markEventArrivedAction, markEventDoneAction, notifyOnTheWayAction } from "./actions";
+import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 
 export default async function MyDayPage({ params }: { params: Promise<{ businessSlug: string }> }) {
   const { businessSlug } = await params;
@@ -40,9 +41,14 @@ export default async function MyDayPage({ params }: { params: Promise<{ business
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">My Day</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Today&apos;s schedule for {business.name}.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">My Day</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Today&apos;s schedule for {business.name}.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ExportMenu exportId="fsm.my-day" businessSlug={businessSlug} />
+        </div>
       </div>
 
       <MyDayList
