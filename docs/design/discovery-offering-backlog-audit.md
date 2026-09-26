@@ -24,7 +24,7 @@ only genuine architectural/key decisions are raised.
 | | 02.1 | Offering Setup | Done |
 | | 02.2 | Offering ICP | Done |
 | | 02.3 | Buyer Personas | Done |
-| B | 03.1 | Offering Context Selector | Done |
+| B | 03.1 | Offering Context Selector | Done (rebuilt 2026-09-26 -- see below) |
 | | 03.2 | Offering Overview | Done |
 | | 03.3 | Offering Navigation | Done |
 | | 04.1 | Discovery Definition | Done |
@@ -4852,3 +4852,27 @@ this entire platform uses the two-tier convention, is a real design-system decis
 platform-wide convention change, not this one story's to make alone) rather than a
 same-page polish task. Deferred pending that decision; the two breakpoints the platform
 already has are confirmed adequate in the meantime.
+
+---
+
+### DISC-OFFER-P0-03.1 -- Offering Context Selector, rebuilt (2026-09-26)
+
+Branch `feat/discovery-offer-p1` (P0 only, by product-owner decision; P1 work on the
+branch was reverted). The 2026-09-11 dropdown was removed on 2026-09-13 as redundant
+with the rail and broken (it hard-coded the pre-slug `/dashboard/businesses/...` path),
+which left the story's acceptance criteria unmet again: switching from the rail always
+lands on an offering's overview, and from Overview/Marketing/Funding the rail's Customer
+Acquisition section fell back to the first offering.
+
+Rebuilt so neither removal reason holds, inside the DISC-NAV IA (unchanged):
+- `OfferingContextSelector` in the offering header, only when a business has more than
+  one offering. Its target comes from the current URL (`lib/offerings/context.ts`,
+  unit-tested): the section is kept (ICP, Prospects, Watchlist, ...), a record from the
+  old offering is dropped for that section's list, anything else lands on the overview.
+- The rail remembers, per business, the offering last worked in
+  (`core/lib/offering-focus.ts`, localStorage, per-viewer convenience only) and
+  `buildDiscoveryNav` uses it when the URL names no offering; the URL always wins and a
+  deleted offering is ignored.
+- No data access changed: every page under an offering still reads by that offering's
+  own workspace, server-side and RLS-scoped, so nothing leaks across a switch.
+

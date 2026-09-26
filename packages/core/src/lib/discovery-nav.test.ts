@@ -4,7 +4,8 @@
  * Customer Acquisition points at the existing offering routes without moving them.
  */
 import { describe, expect, it } from "vitest";
-import { buildDiscoveryNav, CUSTOMER_ACQUISITION_ROUTES } from "./discovery-nav";
+import { buildDiscoveryNav, CUSTOMER_ACQUISITION_ROUTES, offeringIdFromPath } from "./discovery-nav";
+import { parseOfferingFocus } from "./offering-focus";
 
 const BASE = "/acme";
 const PRODUCTS = [
@@ -96,5 +97,35 @@ describe("buildDiscoveryNav", () => {
     const tree = buildDiscoveryNav(BASE, [], "/acme/discovery/dashboard");
     expect(group(tree, "customer-acquisition").items).toEqual([]);
     expect(group(tree, "offerings").items).toEqual([]);
+  });
+});
+
+// DISC-OFFER-P0-03.1 "Offering Context Selector": context persists through navigation.
+describe("remembered offering focus", () => {
+  it("keeps Customer Acquisition on the offering last worked in when the URL names none", () => {
+    const tree = buildDiscoveryNav(BASE, PRODUCTS, "/acme/discovery/marketing", "p2");
+    expect(group(tree, "customer-acquisition").heading).toBe("Customer Acquisition · Cameras");
+    expect(group(tree, "customer-acquisition").items[0]!.href).toBe("/acme/discovery/offerings/p2");
+  });
+
+  it("lets the URL win over the remembered offering, and ignores one that no longer exists", () => {
+    expect(group(buildDiscoveryNav(BASE, PRODUCTS, "/acme/discovery/offerings/p1/icp", "p2"), "customer-acquisition").heading).toBe(
+      "Customer Acquisition · Alarms",
+    );
+    expect(group(buildDiscoveryNav(BASE, PRODUCTS, "/acme/discovery/dashboard", "deleted"), "customer-acquisition").heading).toBe(
+      "Customer Acquisition · Alarms",
+    );
+  });
+
+  it("reads the offering id out of a path", () => {
+    expect(offeringIdFromPath(BASE, "/acme/discovery/offerings/p2/prospects/x")).toBe("p2");
+    expect(offeringIdFromPath(BASE, "/acme/discovery/offerings")).toBeNull();
+    expect(offeringIdFromPath(BASE, "/other/discovery/offerings/p2")).toBeNull();
+  });
+
+  it("parses stored focus defensively", () => {
+    expect(parseOfferingFocus({ b1: "p1", b2: 3, b3: "" })).toEqual({ b1: "p1" });
+    expect(parseOfferingFocus(["p1"])).toEqual({});
+    expect(parseOfferingFocus(null)).toEqual({});
   });
 });

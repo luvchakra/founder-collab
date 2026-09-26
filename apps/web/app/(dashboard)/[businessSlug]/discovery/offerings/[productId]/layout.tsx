@@ -5,6 +5,7 @@ import {
   getBusiness,
   getProduct,
   getWorkspaceForProduct,
+  listProducts,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getIcpProfile } from "@cofounderai/module-discovery/lib/icp/queries";
 import { getProspectCounts } from "@cofounderai/module-discovery/lib/prospects/queries";
@@ -12,6 +13,7 @@ import { ProductNav } from "@cofounderai/module-discovery/components/tenancy/pro
 import { AutoPopulateProgressProvider } from "@cofounderai/module-discovery/components/tenancy/auto-populate-progress";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { Breadcrumbs } from "@cofounderai/module-discovery/components/tenancy/breadcrumbs";
+import { OfferingContextSelector } from "@cofounderai/module-discovery/components/offerings/offering-context-selector";
 import { renameProductAction } from "./actions";
 
 export default async function ProductLayout({
@@ -26,7 +28,7 @@ export default async function ProductLayout({
   if (!businessId) notFound();
   // Independent lookups (neither depends on the other's result) -- fetched in parallel
   // rather than as two sequential round trips, same pattern as the dashboard layout.
-  const [product, business] = await Promise.all([getProduct(productId), getBusiness(businessId)]);
+  const [product, business, offerings] = await Promise.all([getProduct(productId), getBusiness(businessId), listProducts(businessId)]);
   if (!product || product.business_id !== businessId) notFound();
   if (!business) notFound();
 
@@ -64,11 +66,20 @@ export default async function ProductLayout({
           same race the fieldset in product-overview-shell.tsx already guards against
           for every other control on the Overview step. */}
       <AutoPopulateProgressProvider>
-        <EditableName
-          name={product.name}
-          action={renameProductAction.bind(null, businessId, productId)}
-          headingClassName="text-xl font-semibold"
-        />
+        {/* DISC-OFFER-P0-03.1: the offering this page is about, switchable in place
+            (keeping the section) when the business has more than one. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <EditableName
+            name={product.name}
+            action={renameProductAction.bind(null, businessId, productId)}
+            headingClassName="text-xl font-semibold"
+          />
+          <OfferingContextSelector
+            offeringsBasePath={`/${businessSlug}/discovery/offerings`}
+            currentOfferingId={productId}
+            offerings={offerings.map((o) => ({ id: o.id, name: o.name }))}
+          />
+        </div>
         <ProductNav basePath={basePath} completed={completed} />
         {children}
       </AutoPopulateProgressProvider>

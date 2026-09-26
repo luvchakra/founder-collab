@@ -62,7 +62,7 @@ export function renderEmailHtml(input: {
   const header = platform
     ? `<img src="${escapeHtml(`${SITE_URL}${BRAND_ICON.emailHeader}`)}" width="${Math.round(BRAND_EMAIL_HEADER_SIZE.width / 2)}" height="${Math.round(BRAND_EMAIL_HEADER_SIZE.height / 2)}" alt="${escapeHtml(`${brandName} — ${BRAND_TAGLINE}`)}" style="display:block;border:0;outline:none;text-decoration:none;" />`
     : `<span style="font-size:18px;font-weight:700;color:#18181b;">${escapeHtml(brandName)}</span>`;
-  const buttonColor = platform ? BRAND_HEX.blue : "#18181b";
+  const buttonColor = platform ? BRAND_HEX.blueAction : "#18181b";
   const footerColor = platform ? BRAND_HEX.slate : "#71717a";
   const footerLink = websiteUrl
     ? ` · <a href="${escapeHtml(websiteUrl)}" style="color:${footerColor};text-decoration:none;">${escapeHtml(

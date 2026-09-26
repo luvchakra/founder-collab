@@ -19,20 +19,20 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 498 |
+| ✅ Done | 499 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 83 |
+| ⬜ Not started | 82 |
 | **Total** | **615** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 55 | 1 | 9 | 65 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
-| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 51 | 0 | 7 | 58 |
+| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-84 stories are neither built nor deliberately set aside:
+83 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -82,7 +82,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-09.1` | Terms & Privacy Version | ⬜ Not started | — |
 | `PLATFORM-P1-09.2` | Cookie / Consent Configuration | ⬜ Not started | — |
 | `PLATFORM-P1-09.4` | Policy Acceptance Tracking | ⬜ Not started | — |
-| `DISC-OFFER-P0-03.1` | Offering Context Selector | ⬜ Not started | — |
 | `DISC-OFFER-P1-01.3` | Account Watchlist | ⬜ Not started | — |
 | `DISC-OFFER-P1-01.4` | Grouped Opportunity Alerts | ⬜ Not started | — |
 | `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ⬜ Not started | — |
@@ -519,7 +518,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `DISC-OFFER-P0-03.1` | Offering Context Selector | ⬜ Not started | — |
+| `DISC-OFFER-P0-03.1` | Offering Context Selector | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/layout.tsx` +7 |
 | `DISC-OFFER-P0-03.2` | Offering Discovery Overview | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/page.tsx` +1 |
 | `DISC-OFFER-P0-03.3` | Offering Navigation | ✅ Done | `packages/module-discovery/src/components/tenancy/product-nav.tsx` |
 

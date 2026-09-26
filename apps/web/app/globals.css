@@ -27,7 +27,10 @@
   --landing-surface-border: oklch(0.906 0.012 255);
   --landing-fg: var(--brand-dark);
   --landing-muted: oklch(0.46 0.02 258);
-  --landing-accent: var(--brand-blue);
+  /* Action blue: the landing accent fills buttons and pills with white text and colours
+     small accent text, so it takes the accessible fill (branding QA §7). */
+  --landing-accent: var(--brand-blue-action);
+  --landing-accent-hover: var(--brand-blue-action-hover);
   --landing-accent-foreground: var(--brand-white);
   --landing-accent-glow: oklch(0.605 0.217 257.2 / 16%);
 
@@ -36,6 +39,7 @@
      product, not a second brand. Scoped to .landing-theme only. */
   --primary: var(--landing-accent);
   --primary-foreground: var(--landing-accent-foreground);
+  --primary-hover: var(--landing-accent-hover);
   --ring: oklch(0.605 0.217 257.2 / 50%);
 }
 
@@ -48,6 +52,7 @@
   --color-landing-muted: var(--landing-muted);
   --color-landing-accent: var(--landing-accent);
   --color-landing-accent-foreground: var(--landing-accent-foreground);
+  --color-landing-accent-hover: var(--landing-accent-hover);
 }
 
 @layer utilities {
