@@ -21,6 +21,7 @@ the same way `fsm` is displayed as "Service".
 | FIN-5 | Done | `pending` | Cash flow statement (direct method, straight off the ledger) — and the balance sheet now reads as at the period's end, see the bug below |
 | FIN-6 | Done | `pending` | Operational reports: sales by customer/product/service, purchases and expenses, inventory valuation (via Inventory's contract), COGS and gross margin |
 | FIN-7 | Done | `pending` | Report drill-down: every statement line opens the account's transactions for the same period, totalling to the figure clicked |
+| FIN-8 | Done | `pending` | Bank rules: saved "description contains X → account Y" rules, suggested on unmatched lines; one click posts the entry and matches the line |
 | FIN-12 | Done | `pending` | Explainable accounting in reverse: a source document's page lists every entry it caused, why, and the net effect |
 | F0 | Done | — | Compliance → Finance rename, nav, routes, `/gst` + `/compliance` redirects |
 | F1 | Done | — | Accounting foundation: accounts, periods, journal entries/lines, mappings, balances view |
@@ -352,6 +353,29 @@ the statement even when the list is capped (500 entries; the page says when it i
 open their journal entry, and their source document where there is one (FIN-12). Journal
 entry lines now link to their account's drill-down instead of the chart of accounts.
 
+### Bank rules (FIN-8) — built 2026-09-27
+
+`gst.bank_rules` (`/finance/banking/rules`, linked from Banking): a rule is "a line whose
+description contains X, money in/out/either, optionally within an amount range → account Y,
+optionally for party Z", tried in priority order (ties by name, never by insertion order).
+
+**Rules suggest; a person applies.** The same principle as matching: an unmatched line on
+a bank account's page shows the rule that fits ("Rule 'Cloud hosting' says this belongs in
+6500 Software") with a *Post and match* button. Applying it posts a two-line entry dated
+the day the bank reported the line — bank vs the rule's account, the rule's party on the
+counter line (so FIN-9's party dimension picks it up) — and matches the line to it. The
+server re-derives the rule from the stored line rather than trusting the request, and
+keys the entry `bank_txn:<id>` on the existing unique idempotency index, so a double-click
+cannot post twice. The entry records `bank.rule` v1 and its source line, and
+`gst.bank_transactions.rule_id` records which rule categorised the line — deleting the rule
+later clears only that reference; the entry and the match stand.
+
+**"Contains", not regex.** A founder writes "AWS" or "RENT"; a pattern language is one more
+thing to get silently wrong. Capitals and repeated spaces are ignored.
+
+**Permission:** `gst.bank_rules.manage` (owner, admin, accountant) to manage rules; applying
+one needs `gst.banking.manage` (it matches a line) and `gst.journal.create` (it posts).
+
 ### Explainable accounting in reverse (FIN-12) — built 2026-09-27
 
 `/finance/documents/[documentId]`: the document's own facts, then every entry it caused in
@@ -372,7 +396,6 @@ journal entry with a source document links here, and so does the invoices list (
 
 | § | Item | Note |
 |---|---|---|
-| 24 | Bank rules | Saved categorisation rules. Matching is built and suggests per transaction; rules would make the suggestions persistent. |
 | 29 | Dimensions | `gst.journal_lines` already carries `party_id`, `item_id`, `location`, `project_ref`; nothing configures or reports on them. |
 | 39 | AI finance assistant | Deliberately not built — see below. |
 | 41 | Backfill | Scan and post existing history when Finance is activated. Idempotency is already solved (every posting is keyed), so this is the scan, the preview and the exception routing. |
@@ -415,3 +438,4 @@ Applied to the dev project (`jazdtomcgqjxjueedmck`) as each story landed:
 | `20260919130000_gst_finance_activation` | FIN-3: `gst.finance_activation`, `gst.activation.manage` permission |
 | `20260927100000_gst_statement_totals_cash_flow` | FIN-5: `gst.account_statement_totals` (period + as-at totals, cash accounts flagged) and `gst.cash_flow_totals`; fixes the period-only balance sheet |
 | `20260927110000_gst_operational_report_totals` | FIN-6: `gst.sales_by_party`, `gst.sales_by_item`, `gst.purchases_by_party` (licence-gated aggregates over `core.documents`) |
+| `20260927120000_gst_bank_rules` | FIN-8: `gst.bank_rules`, `gst.bank_transactions.rule_id`, `gst.bank_rules.manage` permission (owner/admin/accountant) |

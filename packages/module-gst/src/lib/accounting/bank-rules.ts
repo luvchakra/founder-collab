@@ -52,7 +52,7 @@ export function ruleMatches(rule: BankRule, line: Pick<BankLine, "description" |
 
 /** The rule that applies to a line: the first match by priority (lowest first), ties
  * broken by name, so which rule wins is never an accident of insertion order. */
-export function findMatchingRule(rules: BankRule[], line: Pick<BankLine, "description" | "amount">): BankRule | null {
+export function findMatchingRule<R extends BankRule>(rules: R[], line: Pick<BankLine, "description" | "amount">): R | null {
   return (
     [...rules]
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
