@@ -54,6 +54,8 @@ export default async function ProductPage({
   const workspace = await getWorkspaceForProduct(product.id);
   if (!workspace) notFound();
 
+  const sources = await listProductKnowledge(workspace.id);
+
   // DISC-OFFER-P0-03.2's "Offering Discovery Overview" -- only shown once the offering
   // has a profile: before that, the setup wizard below (generate a profile from a
   // website/description) already answers "what should I do today," so a dashboard
@@ -61,26 +63,19 @@ export default async function ProductPage({
   // help. Once a profile exists, this becomes the "primary offering workspace" surface
   // the setup shell (still useful for revisiting sources/regenerating the profile) sits
   // below.
-  //
-  // DISC-OFFER-P1-05.4: every read below is independent of the others, so they run as one
-  // parallel batch instead of four sequential round trips -- the loading state is on
-  // screen for the slowest query, not the sum of them.
-  const [[icp, personas, prospectCounts, outcomeFunnel], sources, pipelineStages, lastRun] = await Promise.all([
-    product.product_profile
-      ? Promise.all([
-          getIcpProfile(workspace.id),
-          listBuyerPersonas(workspace.id),
-          getProspectCounts(workspace.id),
-          // DISC-OFFER-P1-04.2: "Learn From Outcomes" -- same profile-gated condition as
-          // the rest of this summary; a fresh offering with no opportunities yet has
-          // nothing to measure (the card itself additionally hides on a zero count).
-          getOpportunityOutcomeFunnel(workspace.id),
-        ])
-      : Promise.resolve([null, [], null, null] as const),
-    listProductKnowledge(workspace.id),
-    listPipelineStages(workspace.id),
-    getLastCompletedPipelineRun(workspace.id),
-  ]);
+  const [icp, personas, prospectCounts, outcomeFunnel] = product.product_profile
+    ? await Promise.all([
+        getIcpProfile(workspace.id),
+        listBuyerPersonas(workspace.id),
+        getProspectCounts(workspace.id),
+        // DISC-OFFER-P1-04.2: "Learn From Outcomes" -- same profile-gated condition as
+        // the rest of this summary; a fresh offering with no opportunities yet has
+        // nothing to measure (the card itself additionally hides on a zero count).
+        getOpportunityOutcomeFunnel(workspace.id),
+      ])
+    : [null, [], null, null];
+  const pipelineStages = await listPipelineStages(workspace.id);
+  const lastRun = await getLastCompletedPipelineRun(workspace.id);
 
   // DISC-OFFER-P0-15.1: "Final Human Action Gate" -- only fetched once there's real
   // opportunity data to gate on at all (same profile-gated condition as the summary
@@ -108,7 +103,7 @@ export default async function ProductPage({
     : null;
 
   return (
-    // DISC-OFFER-P1-05.4 "Offering Overview UX Polish" -- hierarchy planned per
+    // DISC-OFFER-P1 §7-05.4 "Offering Overview UX Polish" -- hierarchy planned per
     // docs/design/claude-ui-design-rules.md before touching markup: the most urgent,
     // decision-shaped content (the one opportunity a founder should act on right now,
     // then this offering's own overall health) leads the page; the discovery pipeline's
@@ -119,8 +114,7 @@ export default async function ProductPage({
     // being real or editable, it just stops being the first thing an established
     // offering's own founder has to scroll past every visit. Nothing here changes what
     // renders for a brand-new offering (no profile yet): the gated Top Opportunity/
-    // Overview cards are still both null then, the one-click "Run AI Discovery" panel
-    // (which builds the profile itself) leads, and the setup card below it defaults open.
+    // Overview cards are still both null then, and the setup card still defaults open.
     <div className="flex flex-col gap-8">
       {topGateRow && topGateContext ? (
         <TopOpportunityGate

@@ -45,8 +45,6 @@ export const discoveryPerformanceExport: ExportAdapter<{ productId: string }> = 
       ...section("Which locations convert?", "Won", analysis.locationConversionRates),
       ...section("Which buyer roles respond?", "Replied", analysis.buyerRolesThatRespond),
       ...section("Does a higher fit score mean better outcomes?", "Won", analysis.scoreVsOutcome),
-      // DISC-OFFER-P1-02.3
-      ...section("Which Discovery Plays perform best?", "Opportunities whose account has a conversation", analysis.discoveryPlayPerformance),
     ];
 
     const companyById = new Map(raw.prospects.map((p) => [p.id, p.company_name] as const));
@@ -67,7 +65,7 @@ export const discoveryPerformanceExport: ExportAdapter<{ productId: string }> = 
       module: "discovery",
       resource: "performance",
       title: "Offering performance analysis",
-      metadata: { Offering: product.name, "Discovery Plays": DISCOVERY_PLAYS_NOTE },
+      metadata: { Offering: product.name, "Not answered": DISCOVERY_PLAYS_NOTE },
       sheets: [
         {
           sheetName: "Analysis",

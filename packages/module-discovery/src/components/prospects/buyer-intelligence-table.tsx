@@ -2,9 +2,6 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { cn } from "@cofounderai/core/lib/utils";
 import { PERSONA_ROLE_LABEL } from "../../lib/personas/types";
-import { BUYING_ROLE_LABEL } from "../../lib/contacts/types";
-import type { OtherOfferingRole } from "../../lib/contacts/cross-offering";
-import { OtherOfferingRoles } from "./other-offering-roles";
 import { RELEVANCE_LABEL, SENIORITY_LABEL } from "../../lib/buyer-intelligence/types";
 import type { BuyerIntelligenceConfidence, BuyerPersonIntelligence } from "../../lib/buyer-intelligence/types";
 
@@ -24,41 +21,11 @@ const CONFIDENCE_BADGE_CLASS: Record<BuyerIntelligenceConfidence, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-/** DISC-OFFER-P1-03.3: the email check from the configured data provider, when it found
- * something worth knowing. "Unverified" (well-formed, delivery not tested) is not shown:
- * it would sit on every row and say nothing. */
-function EmailCheck({ person }: { person: BuyerPersonIntelligence }) {
-  const check = person.emailVerification;
-  if (!check || check.status === "unverified") return null;
-  const tone = check.status === "deliverable" ? "text-success-subtle" : check.status === "risky" ? "text-warning-subtle" : "text-destructive-subtle";
-  const label = check.status === "deliverable" ? "Email verified" : check.status === "risky" ? "Email risky" : "Email undeliverable";
-  return (
-    <p className={cn("text-xs", tone)} title={check.reason}>
-      {label}: <span className="text-muted-foreground">{check.reason}</span>
-    </p>
-  );
-}
-
 function ConfidenceBadge({ confidence }: { confidence: BuyerIntelligenceConfidence }) {
   return <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", CONFIDENCE_BADGE_CLASS[confidence])}>{confidence} confidence</span>;
 }
 
-/** DISC-OFFER-P1-04.3: the role shown for a person is the one the founder set for this
- * offering when there is one, otherwise the buyer persona their title matched. */
-function roleLabelFor(person: BuyerPersonIntelligence): { label: string; set: boolean } | null {
-  if (person.contact.buying_role) return { label: BUYING_ROLE_LABEL[person.contact.buying_role], set: true };
-  if (person.persona) return { label: PERSONA_ROLE_LABEL[person.persona.role_in_committee], set: false };
-  return null;
-}
-
-export function BuyerIntelligenceTable({
-  buyerIntelligence,
-  otherOfferingRoles,
-}: {
-  buyerIntelligence: BuyerPersonIntelligence[];
-  /** DISC-OFFER-P1-04.3: the same person's role under the business's other offerings. */
-  otherOfferingRoles?: Map<string, OtherOfferingRole[]>;
-}) {
+export function BuyerIntelligenceTable({ buyerIntelligence }: { buyerIntelligence: BuyerPersonIntelligence[] }) {
   if (buyerIntelligence.length === 0) {
     return <p className="text-sm text-muted-foreground">No contacts recorded yet -- add a contact to see buyer intelligence.</p>;
   }
@@ -74,8 +41,8 @@ export function BuyerIntelligenceTable({
               <span className="font-medium">{person.name}</span>
               {person.title ? <span className="text-muted-foreground">— {person.title}</span> : null}
               <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{SENIORITY_LABEL[person.seniority]}</span>
-              {roleLabelFor(person) ? (
-                <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{roleLabelFor(person)?.label}</span>
+              {person.persona ? (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</span>
               ) : (
                 <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">Unassigned role</span>
               )}
@@ -85,12 +52,10 @@ export function BuyerIntelligenceTable({
               <span className="font-medium text-foreground">Fit: </span>
               {RELEVANCE_LABEL[person.relevance]} — {person.relevanceReason}
             </p>
-            <EmailCheck person={person} />
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Evidence: </span>
               {person.supportingEvidence[0]?.statement ?? "None found yet."}
             </p>
-            <OtherOfferingRoles roles={otherOfferingRoles?.get(person.contact.id)} />
           </li>
         ))}
       </ul>
@@ -112,18 +77,13 @@ export function BuyerIntelligenceTable({
               <TableCell className="max-w-48">
                 <p className="truncate font-medium">{person.name}</p>
                 <p className="truncate text-xs text-muted-foreground">{person.title ?? SENIORITY_LABEL[person.seniority]}</p>
-                <EmailCheck person={person} />
               </TableCell>
-              <TableCell className="max-w-56">
-                {roleLabelFor(person) ? (
-                  <Badge variant="secondary">
-                    {roleLabelFor(person)?.label}
-                    {roleLabelFor(person)?.set ? <span className="sr-only"> (set for this offering)</span> : null}
-                  </Badge>
+              <TableCell>
+                {person.persona ? (
+                  <Badge variant="secondary">{PERSONA_ROLE_LABEL[person.persona.role_in_committee]}</Badge>
                 ) : (
                   <span className="text-muted-foreground">Unassigned</span>
                 )}
-                <OtherOfferingRoles roles={otherOfferingRoles?.get(person.contact.id)} className="mt-1" />
               </TableCell>
               <TableCell className="max-w-64 text-muted-foreground">
                 <span className="font-medium text-foreground">{RELEVANCE_LABEL[person.relevance]}</span> — {person.relevanceReason}

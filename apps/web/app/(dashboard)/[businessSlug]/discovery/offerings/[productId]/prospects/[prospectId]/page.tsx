@@ -7,7 +7,7 @@ import {
   getWorkspaceForProduct,
 } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { getProspect } from "@cofounderai/module-discovery/lib/prospects/queries";
-import { getSamePersonInOtherOfferings, listContacts } from "@cofounderai/module-discovery/lib/contacts/queries";
+import { listContacts } from "@cofounderai/module-discovery/lib/contacts/queries";
 import { getProspectResearch } from "@cofounderai/module-discovery/lib/research/queries";
 import { EVIDENCE_TYPE_LABEL } from "@cofounderai/module-discovery/lib/research/types";
 import { getResearchBrief } from "@cofounderai/module-discovery/lib/research-briefs/queries";
@@ -44,8 +44,6 @@ import { listProspectFeedback } from "@cofounderai/module-discovery/lib/prospect
 import { DiscoveryOutcomeBadge } from "@cofounderai/module-discovery/components/prospects/discovery-outcome-badge";
 import { computeDiscoveryOutcomeStage } from "@cofounderai/module-discovery/lib/prospects/outcome";
 import { ResearchCacheStatusLine } from "@cofounderai/module-discovery/components/prospects/research-cache-status";
-import { DetectedTechnologies } from "@cofounderai/module-discovery/components/prospects/detected-technologies";
-import { detectProspectTechnologies } from "@cofounderai/module-discovery/lib/data-providers/prospect-data";
 import { computeResearchCacheStatus } from "@cofounderai/module-discovery/lib/research/cache-status";
 import { getAiRun } from "@cofounderai/module-discovery/lib/ai/queries";
 import { getHandoffStatusForProspect } from "@cofounderai/module-fsm/contract/index";
@@ -365,15 +363,6 @@ export default async function ProspectDetailPage({
     listProspectFeedback(prospect.id),
   ]);
 
-  // DISC-OFFER-P1-04.3: the same people under this business's other offerings, with the
-  // role each has there -- one person can matter differently per offering.
-  // DISC-OFFER-P1-03.3: technology detection through the provider-agnostic data contract,
-  // over the research already on file.
-  const [samePersonElsewhere, technologies] = await Promise.all([
-    getSamePersonInOtherOfferings(businessId, workspace.id, prospect, contacts),
-    detectProspectTechnologies(prospect, research),
-  ]);
-
   // DISC-OFFER-P1 §7-03.2 "Research Cache" -- the exact ai_runs row this cached research
   // came from, if one is on file (null for research written before ai_run_id existed).
   const researchAiRun = research?.ai_run_id ? await getAiRun(research.ai_run_id) : null;
@@ -598,7 +587,6 @@ export default async function ProspectDetailPage({
               <ContactRow
                 key={c.id}
                 contact={c}
-                otherOfferingRoles={samePersonElsewhere.get(c.id)}
                 updateAction={updateContactAction.bind(null, businessId, productId, prospect.id, c.id)}
                 deleteAction={deleteContactAction.bind(null, businessId, productId, prospect.id, c.id)}
               />
@@ -722,7 +710,7 @@ export default async function ProspectDetailPage({
          * the mobile card list this section already had; nothing about `contactability`
          * moved with it (see that component's own comment for exactly which columns the
          * doc's own "Person | Role | Fit | Evidence | Confidence" set maps onto). */}
-        <BuyerIntelligenceTable buyerIntelligence={buyerIntelligence} otherOfferingRoles={samePersonElsewhere} />
+        <BuyerIntelligenceTable buyerIntelligence={buyerIntelligence} />
       </section>
 
       <DependencyArrow />
@@ -771,7 +759,6 @@ export default async function ProspectDetailPage({
                 <p className="text-muted-foreground">{research.recommended_angle}</p>
               </div>
             ) : null}
-            <DetectedTechnologies result={technologies} />
             {research.evidence.length > 0 ? (
               <div>
                 <p className="font-medium">Evidence</p>

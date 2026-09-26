@@ -20,7 +20,6 @@ import { Switch } from "@cofounderai/core/ui/switch";
 import { toast } from "@cofounderai/core/ui/sonner";
 import { DefinitionFormDialog } from "./definition-form-dialog";
 import { PlayPicker } from "./play-picker";
-import { findDiscoveryPlay } from "../../lib/discovery-definitions/plays";
 import { MONITORING_FREQUENCY_LABEL } from "../../lib/discovery-definitions/types";
 import type { DiscoveryDefinition } from "../../lib/discovery-definitions/types";
 
@@ -98,9 +97,6 @@ export function DefinitionList({
                   <Badge variant="secondary">{MONITORING_FREQUENCY_LABEL[definition.monitoring_frequency]}</Badge>
                   {!definition.is_enabled ? <Badge variant="outline">Disabled</Badge> : null}
                 </div>
-                {findDiscoveryPlay(definition.play_key) ? (
-                  <p className="text-xs text-muted-foreground">From play: {findDiscoveryPlay(definition.play_key)?.label}</p>
-                ) : null}
                 <p className="text-xs text-muted-foreground">
                   {definition.desired_signals.length > 0 ? definition.desired_signals.join(", ") : "No signals defined yet"}
                 </p>

@@ -12,7 +12,6 @@ import {
 } from "@cofounderai/module-discovery/lib/dashboard/queries";
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
 import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
-import { getGroupedOpportunityAlerts } from "@cofounderai/module-discovery/lib/alerts/opportunity-alerts";
 import { getExportAlerts } from "@/lib/exports/alerts";
 import { getMyBusinessAccess, modulesVisibleTo, type BusinessAccess } from "@cofounderai/core/rbac/effective";
 import { getBillingAlerts } from "@/lib/billing-alerts";
@@ -80,13 +79,12 @@ async function loadAlerts(
       getAccountWorkspaceEntries(accountId),
       getAccountUsageAndProspects(accountId),
       getOtherModuleAlerts(businesses, licensedModuleKeysByBusiness),
-      // MKT-15/FND-17 and DISC-OFFER-P1-01.4 (one grouped "heating up" alert per account
-      // and offering, never one per raw signal): for each business with a Discovery
-      // licence. One business failing never empties the whole bell.
+      // MKT-15/FND-17: Discovery's Marketing and Funding items, for each business with a
+      // Discovery licence. One business failing never empties the whole bell.
       Promise.all(
         businesses
           .filter((b) => (licensedModuleKeysByBusiness[b.id] ?? []).includes("discovery"))
-          .flatMap((b) => [getMarketingFundingAlerts(b.id).catch(() => []), getGroupedOpportunityAlerts(b.id).catch(() => [])]),
+          .map((b) => getMarketingFundingAlerts(b.id).catch(() => [])),
       ).then((lists) => lists.flat()),
       // EXP-PLAT-06: this user's finished background exports.
       getExportAlerts().catch(() => []),

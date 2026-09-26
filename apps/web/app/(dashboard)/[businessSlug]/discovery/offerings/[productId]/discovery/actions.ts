@@ -38,9 +38,7 @@ export async function createDefinitionAction(businessId: string, productId: stri
   if (!workspace) return { error: "Workspace not found for this offering." };
 
   try {
-    // DISC-OFFER-P1-02.3: the play preset (if any) this definition was started from.
-    const playKey = String(formData.get("playKey") ?? "").trim() || null;
-    await createDiscoveryDefinition(workspace.id, { ...definitionFieldsFromFormData(formData), playKey });
+    await createDiscoveryDefinition(workspace.id, definitionFieldsFromFormData(formData));
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Could not create this discovery definition." };
   }

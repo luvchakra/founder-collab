@@ -28,10 +28,6 @@ export type DiscoveryDefinition = {
   minimum_score: number | null;
   monitoring_frequency: MonitoringFrequency;
   is_enabled: boolean;
-  /** DISC-OFFER-P1-02.3: the `DISCOVERY_PLAYS` preset this definition was started from,
-   * null when it was written from scratch, seeded by the pipeline, or predates the
-   * column. What "which Discovery Plays perform best" groups outcomes by. */
-  play_key: string | null;
   created_at: string;
   updated_at: string;
 };

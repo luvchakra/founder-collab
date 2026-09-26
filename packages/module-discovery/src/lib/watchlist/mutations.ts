@@ -7,7 +7,7 @@ export type WatchlistEntryInput = {
 };
 
 /**
- * DISC-OFFER-P1-01.3 "Account Watchlist". Upsert on `(workspace_id, prospect_id)` -- re-watching an already-watched account
+ * Upsert on `(workspace_id, prospect_id)` -- re-watching an already-watched account
  * edits the existing entry's reason/next-review rather than erroring or duplicating
  * (the migration's own unique constraint is what this relies on).
  */

@@ -2,7 +2,6 @@ import { matchBuyingCommittee } from "../research-briefs/match-committee";
 import type { Contact } from "../contacts/types";
 import type { BuyerPersona } from "../personas/types";
 import type { EvidenceItem } from "../research/types";
-import type { ContactVerification } from "../data-providers/contracts";
 import { deriveContactability } from "./contactability";
 import { deriveRelevance } from "./relevance";
 import { deriveSeniority } from "./seniority";
@@ -23,15 +22,13 @@ export function buildBuyerPersonIntelligence(input: {
   persona: BuyerPersona | null;
   icpRoles: string[];
   evidence: EvidenceItem[];
-  emailVerification?: ContactVerification | null;
 }): BuyerPersonIntelligence {
   const { contact, persona, icpRoles, evidence } = input;
-  const emailVerification = input.emailVerification ?? null;
 
   const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ").trim() || "Unnamed contact";
   const seniority = deriveSeniority(contact.job_title);
-  const relevance = deriveRelevance({ persona, jobTitle: contact.job_title, icpRoles, buyingRole: contact.buying_role ?? null });
-  const contactability = deriveContactability(contact, emailVerification);
+  const relevance = deriveRelevance({ persona, jobTitle: contact.job_title, icpRoles });
+  const contactability = deriveContactability(contact);
   const supportingEvidence = findSupportingEvidence(contact, evidence);
 
   const knownSignals = [
@@ -53,7 +50,6 @@ export function buildBuyerPersonIntelligence(input: {
     relevanceReason: relevance.reason,
     contactability: contactability.level,
     contactabilityReason: contactability.reason,
-    emailVerification,
     supportingEvidence,
     confidence,
   };
@@ -69,10 +65,8 @@ export function computeBuyerIntelligence(
   personas: BuyerPersona[],
   icpRoles: string[],
   evidence: EvidenceItem[],
-  /** DISC-OFFER-P1-03.3: email checks from the configured data provider, by contact id. */
-  emailVerifications?: Map<string, ContactVerification>,
 ): BuyerPersonIntelligence[] {
   return matchBuyingCommittee(contacts, personas).map(({ contact, persona }) =>
-    buildBuyerPersonIntelligence({ contact, persona, icpRoles, evidence, emailVerification: emailVerifications?.get(contact.id) ?? null }),
+    buildBuyerPersonIntelligence({ contact, persona, icpRoles, evidence }),
   );
 }

@@ -159,21 +159,12 @@ describe("getPerformanceAnalysisRawDataForExport (EXP-DISC-11)", () => {
     db.tables.signals = [{ id: "s1", workspace_id: WS }, { id: "s2", workspace_id: "other" }];
     db.tables.conversations = [];
     db.tables.contacts = [];
-    db.tables.discovery_definitions = [];
-    db.tables.opportunities = [];
     const raw = await getPerformanceAnalysisRawDataForExport(WS);
     expect(raw.prospects).toHaveLength(1001);
     expect(raw.signals.map((s) => s.id)).toEqual(["s1"]);
     const tables = new Set(db.calls.filter((c) => c.op === "eq").map((c) => `${c.table}:${String(c.args[0])}=${String(c.args[1])}`));
     expect(tables).toEqual(
-      new Set([
-        `prospects:workspace_id=${WS}`,
-        `signals:workspace_id=${WS}`,
-        `conversations:workspace_id=${WS}`,
-        `contacts:workspace_id=${WS}`,
-        `discovery_definitions:workspace_id=${WS}`,
-        `opportunities:workspace_id=${WS}`,
-      ]),
+      new Set([`prospects:workspace_id=${WS}`, `signals:workspace_id=${WS}`, `conversations:workspace_id=${WS}`, `contacts:workspace_id=${WS}`]),
     );
   });
 });

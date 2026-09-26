@@ -3,7 +3,7 @@ import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import type { WatchlistEntry } from "../../lib/watchlist/types";
 
-/** DISC-OFFER-P1-01.3 "Account Watchlist" -- placed in the prospect header, next to
+/** DISC-OFFER-P1 §7-01.3 "Account Watchlist" -- placed in the prospect header, next to
  * the status form: watching is a per-account decision a founder makes right where
  * they're already looking at the account, not a separate workflow. Not-watched shows a
  * one-line "why + optional next review date" form; watched shows the same two fields

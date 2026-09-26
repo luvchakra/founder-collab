@@ -1,7 +1,6 @@
 import type { Contact } from "../contacts/types";
 import type { BuyerPersona } from "../personas/types";
 import type { EvidenceItem } from "../research/types";
-import type { ContactVerification } from "../data-providers/contracts";
 
 /** DISC-OFFER-P0-06.3: "Buyer/Person Intelligence" -- a per-contact enrichment layer
  * over 06.2's own `BuyingCommitteeMatch` (contact + matched persona), adding the
@@ -29,14 +28,20 @@ export const SENIORITY_LABEL: Record<Seniority, string> = {
  * irrelevant" (the same "absence of evidence isn't evidence of absence" precision
  * 05.2/05.5 already established for missing score components/insufficient_evidence).
  *
- * DISC-OFFER-P1-04.3 "Offering-Specific Contact Relevance" ("the same person can have
- * different roles for different offerings; the relevance model must be
- * offering-specific"): `discovery.contacts` is workspace_id + prospect_id scoped, so the
- * same real person tracked under two offerings is two rows, each scored against its own
- * offering's buyer personas and ICP roles (`deriveRelevance` takes them as parameters).
- * Each row also carries its own founder-set `buying_role`, which outranks the derived
- * match -- so one person, one title, can be the decision maker for one offering and "not
- * involved" in another. `lib/contacts/cross-offering.ts` shows those other roles. */
+ * DISC-OFFER-P1 §7-04.3 "Offering-Specific Contact Relevance" ("the same person can
+ * have different roles for different offerings; the relevance model must be
+ * offering-specific") -- already true by construction, verified rather than built:
+ * this type is named `RelevanceToOffering`, not `Relevance`, for exactly this reason.
+ * `discovery.contacts` is workspace_id + prospect_id scoped with no identity shared
+ * across workspaces (no `core.parties` link, no dedup table) -- the same real company's
+ * same real person tracked under two different offerings is already two separate
+ * `contacts` rows (the identical "different for different offerings required no extra
+ * column" finding DISC-OFFER-P1 §7-01.3 "Account Watchlist" made for `prospects`, one
+ * level down the same chain). `deriveRelevance` (relevance.ts) takes that workspace's
+ * own `persona`/`icpRoles` as plain parameters, so the same person's two rows are always
+ * scored against that specific offering's own buyer personas and ICP roles -- never a
+ * shared, offering-agnostic relevance value. No schema change, no new code: the doc's
+ * own requirement was satisfied the moment 06.3 was built this way. */
 export type RelevanceToOffering = "high" | "medium" | "low" | "unknown";
 
 export const RELEVANCE_LABEL: Record<RelevanceToOffering, string> = {
@@ -72,9 +77,6 @@ export type BuyerPersonIntelligence = {
   relevanceReason: string;
   contactability: Contactability;
   contactabilityReason: string;
-  /** DISC-OFFER-P1-03.3: the configured data provider's check of this contact's email, in
-   * the normalized contract shape; null when there is no email or no check was made. */
-  emailVerification: ContactVerification | null;
   supportingEvidence: EvidenceItem[];
   confidence: BuyerIntelligenceConfidence;
 };
