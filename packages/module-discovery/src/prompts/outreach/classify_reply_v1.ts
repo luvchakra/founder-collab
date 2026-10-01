@@ -1,12 +1,14 @@
-export const CLASSIFY_REPLY_PROMPT_VERSION = "classify_reply_v1";
+import { untrusted, UNTRUSTED_RULES } from "../shared/untrusted";
+// E2E-DEF-005: the reply is fenced as untrusted data (CLAUDE.md AI rule 1).
+export const CLASSIFY_REPLY_PROMPT_VERSION = "classify_reply_v2";
 
 export function classifyReplyPrompt(input: { productName: string; replyContent: string }): string {
   return `A prospect replied to an outreach message from "${input.productName}". Classify the reply and recommend a next step.
 
 Reply:
-"""
-${input.replyContent}
-"""
+${UNTRUSTED_RULES}
+
+${untrusted("prospect_reply", input.replyContent)}
 
 Classification options:
 - interested: wants to learn more / take a next step

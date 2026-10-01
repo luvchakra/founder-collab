@@ -1,9 +1,11 @@
+import { untrusted, UNTRUSTED_RULES } from "../shared/untrusted";
 import type { ProductProfile } from "../../lib/ai/schemas";
 import type { Prospect } from "../../lib/prospects/types";
 import type { Contact } from "../../lib/contacts/types";
 import type { MessageChannel, MessageClassification } from "../../lib/messages/types";
 
-export const GENERATE_REPLY_PROMPT_VERSION = "generate_reply_v2";
+// E2E-DEF-005: the reply is fenced as untrusted data (CLAUDE.md AI rule 1).
+export const GENERATE_REPLY_PROMPT_VERSION = "generate_reply_v3";
 
 const CHANNEL_GUIDANCE: Record<MessageChannel, string> = {
   email:
@@ -37,9 +39,9 @@ ${CHANNEL_GUIDANCE[input.channel]}
 ${contactLine}
 
 Their reply (classified as "${input.classification}"):
-"""
-${input.replyContent}
-"""
+${UNTRUSTED_RULES}
+
+${untrusted("prospect_reply", input.replyContent)}
 
 Recommended next step: ${input.recommendedAction}
 

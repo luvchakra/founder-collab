@@ -1,4 +1,7 @@
-export const RESTRUCTURE_IMPORT_PROMPT_VERSION = "v1";
+import { untrusted, UNTRUSTED_RULES } from "../shared/untrusted";
+
+// v2 (E2E-DEF-005): the uploaded file is fenced as untrusted data (CLAUDE.md AI rule 1).
+export const RESTRUCTURE_IMPORT_PROMPT_VERSION = "v2";
 
 /**
  * The import feature's AI-restructuring step (prospects/import page): a founder can
@@ -24,6 +27,8 @@ For each company, extract:
 Only extract companies actually present in the source below -- never invent one, and
 never fill in a field with a guess the source doesn't support (leave it null instead).
 
+${UNTRUSTED_RULES}
+
 SOURCE:
-${rawContent}`;
+${untrusted("uploaded_file", rawContent, Number.POSITIVE_INFINITY)}`;
 }

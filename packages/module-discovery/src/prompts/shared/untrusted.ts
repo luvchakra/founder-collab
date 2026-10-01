@@ -5,8 +5,8 @@
  * like the fence's own closing tag is neutralised, so the text cannot end the block
  * early and continue as instructions.
  */
-export function untrusted(label: string, text: string | null | undefined): string {
-  const body = (text ?? "").replace(/<\/?\s*untrusted[^>]*>/gi, "[removed tag]").slice(0, 12_000);
+export function untrusted(label: string, text: string | null | undefined, maxLength = 12_000): string {
+  const body = (text ?? "").replace(/<\/?\s*untrusted[^>]*>/gi, "[removed tag]").slice(0, maxLength);
   return `<untrusted label="${label.replace(/"/g, "'")}">\n${body || "(none)"}\n</untrusted>`;
 }
 
