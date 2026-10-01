@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 import { LandingButton } from "./landing-button";
 import { ShowInterestCta } from "./show-interest";
 import { FadeIn } from "./fade-in";
@@ -36,6 +36,22 @@ export function Hero() {
             You stay in control. AI does the heavy lifting.
           </p>
           <ShowInterestCta className="mt-4" />
+          <ul
+            aria-label="Platform highlights"
+            className="mt-8 flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-landing-muted"
+          >
+            {[
+              "Payments via Razorpay & Stripe",
+              "GDPR & DPDP-ready",
+              "Audit-grade financial controls",
+              "Two-factor security",
+            ].map((item) => (
+              <li key={item} className="flex items-center gap-1.5">
+                <ShieldCheck className="size-3.5 text-landing-accent" aria-hidden="true" />
+                {item}
+              </li>
+            ))}
+          </ul>
         </FadeIn>
       </div>
 

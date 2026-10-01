@@ -9,6 +9,7 @@ import { Benefits } from "@/components/marketing/benefits";
 import { Differentiation } from "@/components/marketing/differentiation";
 import { ProspectIntelligence } from "@/components/marketing/prospect-intelligence";
 import { Trust } from "@/components/marketing/trust";
+import { Compliance } from "@/components/marketing/compliance";
 import { Pricing } from "@/components/marketing/pricing";
 import { SocialProof } from "@/components/marketing/social-proof";
 import { Faq } from "@/components/marketing/faq";
@@ -36,6 +37,7 @@ export default async function Home() {
         <Differentiation />
         <ProspectIntelligence />
         <Trust />
+        <Compliance />
         <Pricing />
         <SocialProof />
         <Faq />

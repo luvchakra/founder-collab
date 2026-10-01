@@ -33,6 +33,22 @@ const FAQS: [string, string][] = [
     "Is my product data isolated from other businesses?",
     "Yes. Product/GTM workspaces are isolated through the application's tenancy and database security model.",
   ],
+  [
+    "Which payment methods are supported?",
+    "Razorpay (UPI, UPI Autopay, cards, netbanking) and Stripe (cards worldwide), both for paying for CoFounderAI and for collecting from your own customers through payment links. Money goes straight to your own gateway account, and card and bank details are only ever entered on Razorpay's or Stripe's own pages.",
+  ],
+  [
+    "Is CoFounderAI GDPR and DPDP compliant?",
+    "CoFounderAI gives you what both laws require of a platform: a clear privacy notice, recorded and withdrawable consent, self-service data download and deletion, a register for your customers' privacy requests with 30-day deadlines, erasure across every module, one-click unsubscribe and automatic data retention. Your organization still owns its own obligations, such as appointing a grievance officer.",
+  ],
+  [
+    "Can my auditors rely on the books?",
+    "The platform enforces SOX-style controls: a tamper-evident audit trail, locked invoices once issued, period close, void-instead-of-delete payments and segregation of duties. These are the technical controls an audit looks for. The audit and any attestation itself is done by your auditors.",
+  ],
+  [
+    "How is my account secured?",
+    "Two-factor authentication, database-level isolation between businesses, encrypted credentials, strict browser security headers, signed payment webhooks and continuous dependency patching.",
+  ],
 ];
 
 export function Faq() {

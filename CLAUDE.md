@@ -107,6 +107,90 @@ pattern ADR-5 requires here).
 11. Development must use Supabase MCP (or the project's own credentials) against the
     **dev** project only — never production.
 
+## Security, payments & compliance — key findings and best practices
+
+Epic 7 (2026-10-01) audited the codebase for payments, GDPR/DPDP, SOX-style financial
+controls and IT security. Control matrices, runbooks and what code can't certify are in
+`docs/compliance/`. The tests that enforce all of it are `test-core-{security,
+financial-controls,payment-gateways,privacy}.mjs` plus `packages/core/src/{security,
+billing,privacy}/*.test.ts`.
+
+### Key findings (real bugs, now fixed — don't reintroduce them)
+
+- **Open redirect**: `auth/callback` built `${origin}${next}` from the query string;
+  `next=@evil.com` became `https://app@evil.com`. Every redirect target taken from input
+  goes through `safeRedirectPath()`.
+- **Audit-log forgery**: `core.write_audit_log()` was `SECURITY DEFINER`, granted to
+  `authenticated`, and checked nothing, so any user could write into any tenant's log as
+  any actor. A `SECURITY DEFINER` function granted to `authenticated` must authorize its
+  own inputs (membership plus `auth.uid()`). Internal-only helpers are granted to
+  `service_role` only.
+- **Licensing bypass**: any member could activate any module for free from the Licenses
+  page. Paid entitlements change only from verified payment webhooks, and license
+  actions need `billing.manage`.
+- **Timing-unsafe secret checks**: webhook and cron secrets were compared with `!==`. Use
+  `secretsEqual()` / `bearerTokenMatches()` / HMAC + `timingSafeEqual`.
+- **Critical dependency advisory** (Next.js RCE, GHSA-vcvr-r3jv-pc5j) sat unpatched. CI now
+  runs `npm audit --omit=dev --audit-level=high`, and Dependabot is on.
+- **Scheduled work that was never scheduled**: `expireGracePeriods()` existed with no
+  caller. Anything time-based must be wired into `/api/cron/maintenance` (daily) or
+  `/api/cron/drain-events`, and documented in `.env.example`.
+
+### Non-obvious platform gotchas
+
+- **Nonce CSP needs dynamic rendering.** The proxy issues a per-request nonce; the root
+  layout reads `headers()` so every page renders dynamically. Never add an inline
+  `<script>` without `nonce`, and never make the root layout static. Payment providers are
+  full-page redirects to hosted pages, not embedded scripts or iframes.
+- **Server actions can be POSTed to any URL.** Path-based checks alone don't protect them:
+  the proxy's MFA gate also matches the `Next-Action` header, and every action authorizes
+  its own inputs.
+- **RLS with no matching policy silently no-ops UPDATE/DELETE.** For a hard control,
+  also `revoke` the privilege so the attempt errors loudly, and back it with a trigger,
+  which applies even to `service_role` (BYPASSRLS skips policies, not triggers).
+- **Packages declare `"sideEffects": false`.** A bare side-effect import (e.g. registering
+  event handlers) can be tree-shaken away. Export an explicit `registerXxx()` and call it.
+- **Webhooks are at-least-once and unordered.** Verify the signature over the *raw* body,
+  dedupe in `core.payment_gateway_events`, ignore events older than the last one applied,
+  return 500 on failure so the provider retries, and never let payload metadata choose the
+  tenant (the per-business webhook URL does).
+- **Supabase `signUp()` on an existing email** returns an obfuscated user with
+  `identities: []` and no real row. Don't write FK'd data for it.
+- **Emails can contain `%` and `_`.** Escape LIKE wildcards, or match on `core.email_hash()`.
+- **A hash chain can't detect deletion of its newest entries** by a superuser. Anchor the
+  chain heads externally (see `docs/compliance/sox-financial-controls.md`).
+- **Exact-count assertions in tests** (audit entries, permission catalogue) must change
+  when a story adds audited events or permissions. Update the number *and* say why.
+
+### Best practices for every new story
+
+- **Authorize before privilege.** Any call into the admin client with a client-supplied
+  id is preceded by a server-side `has_permission()` / membership check. New permissions
+  are split so no single non-owner role can both do and undo a financial action.
+- **Money**: `numeric(14,2)` in SQL, integer minor units at provider boundaries
+  (`toMinorUnits()`). Documents are posted (`post_document()`) when issued; correct them
+  with credit/debit notes, never edits. Payments are voided, never edited or deleted.
+  Gateway money enters only through `core.record_gateway_payment()`. Never store card,
+  UPI or bank details.
+- **Personal data**: a story that adds a table holding personal data must also (1)
+  include it in `buildPersonalDataExport()` if it's the user's own data, (2) erase it in a
+  `privacy.subject_erased` handler if it's a third party's, and (3) give it a retention rule
+  in `core.run_retention()`. Never put raw emails/IPs/payloads in the audit log, domain
+  events, rate-limit keys or logs; store `core.email_hash()` instead. A new processing
+  purpose or recipient means updating `/privacy` and bumping `PRIVACY_NOTICE_VERSION`.
+- **Email**: check `isEmailSuppressed()` before sending, and include the signed
+  unsubscribe link plus the RFC 8058 `List-Unsubscribe` headers.
+- **Anonymous endpoints** are rate-limited with `checkRateLimit()` (hashed identity), cap
+  the body size, and reveal nothing in error responses.
+- **Secrets** live in env vars or AES-256-GCM-encrypted columns (`crypto/api-key.ts`)
+  whose ciphertext isn't `SELECT`-able by `authenticated` (column grants). They never go to
+  the browser and never appear in logs or audit entries (store a fingerprint instead).
+- **Passwords** go through `validatePassword()`; MFA is enforced by the proxy, so
+  don't build a second check.
+- **Marketing claims match the code.** The landing page says "GDPR & DPDP-ready" and
+  "SOX-style controls", never "certified" or "compliant": certification and audit
+  attestation are the organization's to obtain.
+
 ## Repository structure
 
 ```
@@ -118,6 +202,13 @@ packages/core/
   src/components/ui/               vendored shadcn primitives
   src/lib/, src/hooks/             framework-agnostic helpers the ui components need
   src/ui-theme.css                 Tailwind 4 theme (colors, radii) — imported by apps/web
+  src/security/                    CSP/headers, safe redirect, timing-safe compare,
+                                    password policy, MFA, rate limit
+  src/billing/                     Razorpay + Stripe adapters, webhook handler,
+                                    subscriptions (licenses), collections
+  src/finance/                     posting, void, period close (wrappers over SQL)
+  src/privacy/                     consent, data-subject requests, export, erasure,
+                                    suppression, unsubscribe tokens
 packages/module-registry/          static manifest of licensable modules; nav/routes are
                                     built from this, never hardcoded (populated in P-3)
 packages/module-<key>/             one per licensed module, created as its epic starts
@@ -127,6 +218,7 @@ supabase/migrations/               ONE ordered migration timeline for the whole 
 scripts/                           lint-import-boundaries.mjs, lint-migration-schema.mjs
 docs/plan/                         the planning package this repo was built from
 docs/PORT-PROVENANCE.md            source commit SHA per ported directory
+docs/compliance/                   payments, GDPR/DPDP, SOX controls, security
 ```
 
 Directories are created as stories require them — don't pre-create empty module packages.
