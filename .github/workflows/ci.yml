@@ -91,6 +91,9 @@ jobs:
       E2E_SELF_PROVISION: "1"
       E2E_TEST_BUSINESS_SLUG: acme-home-security-qa
       PLAYWRIGHT_BASE_URL: http://localhost:3100
+      # GitHub runners are far from the dev project's region: allow for a server action's
+      # round trips (a wait on UI state, not a sleep). See E2E_DEFECTS.md "Environment finding".
+      E2E_EXPECT_TIMEOUT: "30000"
     steps:
       - name: Check E2E configuration
         id: config
@@ -135,7 +138,7 @@ jobs:
       - name: Security + multi-user + critical-path E2E
         if: steps.config.outputs.enabled == 'true'
         working-directory: apps/web
-        run: npx playwright test --project=security --project=multi-user --project=unauthenticated --project=desktop --project=mobile
+        run: npx playwright test --project=security --project=multi-user --project=unauthenticated --project=desktop --project=mobile --timeout=90000
 
       - name: Upload failure evidence (traces, screenshots, videos)
         if: failure() && steps.config.outputs.enabled == 'true'

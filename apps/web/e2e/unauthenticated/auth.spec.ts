@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
+import { loadTenants } from "../support/tenants";
 
 /**
  * The email/password form specifically -- `/login` also carries a second form for the
@@ -98,7 +99,8 @@ test.describe("Signup", () => {
   // pins that behavior: a "this email is taken" error here would be an account-enumeration
   // regression, not an improvement.
   test("an already-registered email does not leak that the account exists", async ({ page }) => {
-    const existing = process.env.E2E_TEST_EMAIL;
+    // Self-provisioned runs have no hand-made account; any seeded user is just as registered.
+    const existing = process.env.E2E_TEST_EMAIL ?? (process.env.E2E_SELF_PROVISION === "1" ? loadTenants().users.ownerA.email : undefined);
     test.skip(!existing, "Set E2E_TEST_EMAIL to a real registered account for this check");
 
     await page.goto("/signup");

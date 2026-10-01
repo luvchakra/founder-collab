@@ -117,6 +117,8 @@ export default defineConfig({
     {
       name: "unauthenticated",
       testMatch: /(^|\/)unauthenticated\/.*\.spec\.ts/,
+      // Self-provisioned runs read a seeded (registered) email in auth.spec.ts.
+      dependencies: selfProvision ? ["tenants"] : [],
       use: { ...devices["Desktop Chrome"] },
     },
 

@@ -19,6 +19,7 @@ bounded, the entry says why.
 | E2E-DEF-009 | P2 | Shell | Sidebar hydration failure on Service/CRM/admin/billing pages; Service & CRM sections never opened from the URL | **Fixed** |
 | E2E-DEF-010 | P3 | Core data | Database accepts blank party (customer/supplier) names | **Open** |
 | E2E-DEF-011 | P2 | Discovery / Funding | "Open round" once rendered the error boundary during the full parallel run | **Open -- not reproduced** |
+| E2E-DEF-012 | P2 | CRM | Two simultaneous first visits to Opportunities crashed one of them (duplicate default stages) | **Fixed** |
 | E2E-OBS-01 | P3 | All | Not-found pages are served with HTTP 200 (soft 404) | Open (observation) |
 | E2E-OBS-02 | P3 | Service | `/service/dashboard` 404s; every other module has `/<module>/dashboard` | Open (observation) |
 | E2E-OBS-03 | P3 | Storage | No bucket sets a size limit or MIME allow-list; attachment reads are membership-scoped, not module/permission-scoped | Open (observation) |
@@ -149,6 +150,29 @@ bounded, the entry says why.
   contention/transient upstream error rather than a deterministic bug, **but unproven** --
   left open, not counted as fixed. Next step: re-run under load with server-side logging of
   the action's error digest.
+
+### E2E-DEF-012 -- concurrent first visit to CRM Opportunities crashed (P2)
+- **Steps:** a business that has never opened CRM Opportunities; open
+  `/<slug>/crm/opportunities` in two tabs (or desktop + phone) at the same moment.
+- **Expected:** both show the default pipeline. **Actual:** one renders "Something went
+  wrong"; server log `23505 duplicate key value violates unique constraint
+  "opportunity_stage_business_id_key_key"`. Caught by the full run, where the desktop and
+  mobile projects hit the page together.
+- **Root cause:** `ensureDefaultStages()` is check-then-insert with no handling for losing the
+  race.
+- **Fix:** on `23505` the loser reads back the winner's rows; other errors still throw.
+- **Regression:** `packages/module-crm/src/lib/opportunities/default-stages.test.ts` (4 tests;
+  the race case fails on the old code).
+
+### Environment finding -- latency-driven timeouts (not a product defect)
+The cloud sandbox reaches the dev project (ap-south-1) over the public internet; a server
+action making several round trips sometimes exceeded the suite's 10 s assertion window
+(e.g. a data-room "Mark ready" still showing "Working…"), and page loads exceeded the 30 s
+test timeout while the security sweeps loaded the same database. Every such failure passed
+on re-run; with `E2E_EXPECT_TIMEOUT=30000` and `--timeout=90000` the full Discovery flow file
+(26 tests) passed. These are recorded as environment flakiness, **not** as passes of the
+original runs. Recommendation: run CI in (or near) the database's region, and keep the
+security sweeps in their own job so they don't compete with UI timing.
 
 ### Observations (P3, not changed)
 - **OBS-01** soft 404s: `notFound()` inside streamed pages returns HTTP 200 with the 404 UI.
