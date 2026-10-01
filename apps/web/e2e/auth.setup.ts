@@ -1,4 +1,5 @@
 import { expect, test as setup } from "@playwright/test";
+import { loadTenants } from "./support/tenants";
 
 const AUTH_FILE = "playwright/.auth/user.json";
 
@@ -12,8 +13,11 @@ const AUTH_FILE = "playwright/.auth/user.json";
  * the whole point of using real login here.
  */
 setup("authenticate", async ({ page }) => {
-  const email = process.env.E2E_TEST_EMAIL;
-  const password = process.env.E2E_TEST_PASSWORD;
+  // E2E_SELF_PROVISION=1 signs in as the seeded tenant-A owner (support/tenants.ts) --
+  // still through the real login form below, never a minted session.
+  const seeded = process.env.E2E_SELF_PROVISION === "1" ? loadTenants() : null;
+  const email = seeded?.users.ownerA.email ?? process.env.E2E_TEST_EMAIL;
+  const password = seeded?.password ?? process.env.E2E_TEST_PASSWORD;
   if (!email || !password) {
     throw new Error(
       "E2E_TEST_EMAIL and E2E_TEST_PASSWORD must be set to a real account on the " +

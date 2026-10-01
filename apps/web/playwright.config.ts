@@ -1,4 +1,10 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+// The test runner (not just `next dev`) needs the Supabase URL/keys for the two-tenant
+// fixtures (e2e/support/tenants.ts) and the API-level security specs. Values already in
+// the environment win, so CI can inject them as secrets instead.
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 /**
  * Critical-path smoke suite (docs/testing/e2e-playwright.md has the full rationale and
@@ -17,6 +23,12 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 const isCI = Boolean(process.env.CI);
+/** E2E_SELF_PROVISION=1: the suite seeds its own e2e-qa tenants (e2e/tenants.setup.ts)
+ * and signs in as the seeded owner instead of a hand-made E2E_TEST_EMAIL account. */
+const selfProvision = process.env.E2E_SELF_PROVISION === "1";
+/** Comma-separated extra engines for the cross-browser smoke ("firefox,webkit"). Only
+ * Chromium is installed by default; the others need `npx playwright install`. */
+const extraBrowsers = (process.env.E2E_BROWSERS ?? "").split(",").map((b) => b.trim()).filter(Boolean);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -30,7 +42,7 @@ export default defineConfig({
 
   use: {
     baseURL,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
     // Escape hatch for a sandboxed/offline environment that already has a Chromium
@@ -55,6 +67,46 @@ export default defineConfig({
       },
 
   projects: [
+    // Two-tenant fixtures (support/tenants.ts): seeded once, removed after every
+    // dependent project has finished, pass or fail.
+    {
+      name: "tenants",
+      testMatch: /tenants\.setup\.ts/,
+      teardown: "tenants-teardown",
+    },
+    { name: "tenants-teardown", testMatch: /tenants\.teardown\.ts/ },
+
+    // API/HTTP-level security suite: direct PostgREST calls with real user JWTs, and
+    // direct requests to route handlers -- the "bypass the UI" half of every
+    // authorization/tenant-isolation/licensing check (e2e/security/).
+    {
+      name: "security",
+      testMatch: /(^|\/)security\/.*\.spec\.ts/,
+      dependencies: ["tenants"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+
+    // Browser half of the multi-user suite: signs in as each seeded role through the
+    // real login form (e2e/multi-user/).
+    {
+      name: "multi-user",
+      testMatch: /(^|\/)multi-user\/.*\.spec\.ts/,
+      testIgnore: /\.mobile\.spec\.ts/,
+      dependencies: ["tenants"],
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "multi-user-mobile",
+      testMatch: /(^|\/)multi-user\/.*\.mobile\.spec\.ts/,
+      dependencies: ["tenants"],
+      use: { ...devices["Pixel 7"] },
+    },
+    ...extraBrowsers.map((engine) => ({
+      name: `smoke-${engine}`,
+      testMatch: /(^|\/)unauthenticated\/.*\.spec\.ts/,
+      use: { ...(engine === "webkit" ? devices["Desktop Safari"] : devices["Desktop Firefox"]) },
+    })),
+
     // Unauthenticated flows -- must run with a clean, signed-out context, so they
     // never load the shared storageState the other projects depend on. Anchored with
     // (^|\/) so this never accidentally matches "un" + "authenticated/..." too (a plain
@@ -70,6 +122,7 @@ export default defineConfig({
     {
       name: "setup",
       testMatch: /auth\.setup\.ts/,
+      dependencies: selfProvision ? ["tenants"] : [],
       use: { ...devices["Desktop Chrome"] },
     },
 

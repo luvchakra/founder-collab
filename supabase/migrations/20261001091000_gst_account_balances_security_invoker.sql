@@ -1,0 +1,22 @@
+-- E2E-DEF-002 (docs/testing/E2E_DEFECTS.md), P0: gst.account_balances exposed every
+-- business's chart of accounts and balances to every signed-in user.
+--
+-- The view was created (20260917200000) and re-created (20260917210000) without
+-- `security_invoker`. Its own comment assumed security invoker was "the default" -- in
+-- Postgres it is not: a view without the option runs with its OWNER's privileges, and
+-- this one is owned by `postgres`, so the RLS on gst.accounts / journal_lines /
+-- journal_entries (tenant AND licensed, ADR-4/ADR-8) never applied to it. With the
+-- `grant select ... to authenticated` that migration added, any authenticated user --
+-- including one who belongs to no business at all, or whose business has no Finance
+-- licence -- could `select * from gst.account_balances` and read other tenants' account
+-- names, numbers and balances. Found by the cross-tenant sweep in
+-- apps/web/e2e/security/tenant-isolation.spec.ts (SEC-TI-01), which queries every
+-- relation PostgREST exposes as five different users.
+--
+-- security_invoker makes the querying user's own RLS on the three underlying tables
+-- decide what the view returns, exactly as the original comment intended. Service-role
+-- callers are unaffected (they bypass RLS either way). Regression:
+-- scripts/test-views-security-invoker.mjs fails the build if any view in a tenant
+-- schema is ever created without the option again.
+
+alter view gst.account_balances set (security_invoker = true);
