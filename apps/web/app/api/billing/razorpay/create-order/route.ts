@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@cofounderai/core/db/server";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { createPendingCreditPurchase } from "@cofounderai/core/billing/mutations";
 import { getCreditPlan } from "@cofounderai/core/billing/plans";
@@ -12,6 +13,11 @@ import { RazorpayNotConfiguredError } from "@cofounderai/core/billing/razorpay";
  * happens later, from the webhook (or the client-reported payment signature), never here.
  */
 export async function POST(request: Request) {
+  // E2E-DEF-003: authenticate before touching `core` -- the anonymous role has no usage
+  // on that schema, so an unauthenticated call used to crash with a 500 (42501) here
+  // instead of being refused with a 401.
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   const account = await getCurrentAccount();
   if (!account) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 

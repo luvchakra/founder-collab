@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  legacyModuleRedirectPath,
   activeBusinessSlugFromPath,
   findPlatformDisabledModuleForRoute,
   findUnlicensedModuleForRoute,
@@ -142,5 +143,30 @@ describe("findPlatformDisabledModuleForRoute (PLATFORM-P0-07.2)", () => {
 
   it("does not false-positive on a path that merely contains a prefix as a substring", () => {
     expect(findPlatformDisabledModuleForRoute("/acme-hvac/servicexyz", new Set(["fsm"]))).toBeNull();
+  });
+});
+
+describe("legacyModuleRedirectPath (E2E-DEF-004)", () => {
+  it("rewrites each renamed module prefix under a business slug", () => {
+    expect(legacyModuleRedirectPath("/acme/products/abc/icp")).toBe("/acme/discovery/offerings/abc/icp");
+    expect(legacyModuleRedirectPath("/acme/fsm/jobs")).toBe("/acme/service/jobs");
+    expect(legacyModuleRedirectPath("/acme/gst/filing")).toBe("/acme/finance/filing");
+    expect(legacyModuleRedirectPath("/acme/compliance")).toBe("/acme/finance");
+  });
+
+  it("never rewrites the platform admin's own compliance registry", () => {
+    expect(legacyModuleRedirectPath("/platform/compliance")).toBeNull();
+    expect(legacyModuleRedirectPath("/platform/compliance/packs/123")).toBeNull();
+  });
+
+  it("never rewrites any other reserved top-level route", () => {
+    for (const path of ["/dashboard/products", "/help/compliance", "/api/fsm", "/p/gst"]) {
+      expect(legacyModuleRedirectPath(path), path).toBeNull();
+    }
+  });
+
+  it("leaves current module URLs alone", () => {
+    expect(legacyModuleRedirectPath("/acme/finance/accounts")).toBeNull();
+    expect(legacyModuleRedirectPath("/acme/discovery/offerings/abc")).toBeNull();
   });
 });

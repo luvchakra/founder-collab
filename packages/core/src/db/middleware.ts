@@ -112,6 +112,27 @@ export function activeBusinessSlugFromPath(pathname: string): string | null {
   return firstSegment;
 }
 
+/**
+ * The current URL for a pre-rename module path -- `/<slug>/products/...` (now
+ * discovery/offerings), `/<slug>/fsm/...` (now service), `/<slug>/gst/...` and
+ * `/<slug>/compliance/...` (now finance) -- or null when `pathname` isn't one.
+ *
+ * E2E-DEF-004: only a business-scoped path qualifies. The patterns used to be matched
+ * against any first segment, so `/platform/compliance` (the Platform Admin compliance
+ * registry, PLATFORM-P0-12) was 308'd to a nonexistent `/platform/finance` and 404'd for
+ * every superadmin -- "platform" read as if it were a business slug.
+ */
+export function legacyModuleRedirectPath(pathname: string): string | null {
+  if (!activeBusinessSlugFromPath(pathname)) return null;
+  const products = pathname.match(LEGACY_PRODUCTS_PATH);
+  if (products) return `/${products[1]}/discovery/offerings${products[2] ?? ""}`;
+  const fsm = pathname.match(LEGACY_FSM_PATH);
+  if (fsm) return `/${fsm[1]}/service${fsm[2] ?? ""}`;
+  const gst = pathname.match(LEGACY_GST_PATH) ?? pathname.match(LEGACY_COMPLIANCE_PATH);
+  if (gst) return `/${gst[1]}/finance${gst[2] ?? ""}`;
+  return null;
+}
+
 function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -281,37 +302,13 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  // Same idea for the discovery module's own offering routes, which moved from
-  // /[businessSlug]/products/... to /[businessSlug]/discovery/offerings/... -- a pure
-  // path rewrite (the business slug segment itself doesn't change), so no DB lookup is
-  // needed here the way the legacy business-id redirect above requires one.
-  const productsMatch = pathname.match(LEGACY_PRODUCTS_PATH);
-  if (productsMatch) {
-    const [, businessSlugSegment, rest] = productsMatch;
+  // Same idea for the module route prefixes that have since been renamed (offerings,
+  // service, finance) -- pure path rewrites, so no DB lookup is needed here the way the
+  // legacy business-id redirect above requires one. See legacyModuleRedirectPath().
+  const legacyModulePath = legacyModuleRedirectPath(pathname);
+  if (legacyModulePath) {
     const url = request.nextUrl.clone();
-    url.pathname = `/${businessSlugSegment}/discovery/offerings${rest ?? ""}`;
-    return NextResponse.redirect(url, 308);
-  }
-
-  // Same idea for FSM's own route prefix, which moved from /[businessSlug]/fsm/... to
-  // /[businessSlug]/service/... -- another pure segment rewrite, no DB lookup needed.
-  const fsmMatch = pathname.match(LEGACY_FSM_PATH);
-  if (fsmMatch) {
-    const [, businessSlugSegment, rest] = fsmMatch;
-    const url = request.nextUrl.clone();
-    url.pathname = `/${businessSlugSegment}/service${rest ?? ""}`;
-    return NextResponse.redirect(url, 308);
-  }
-
-  // Same idea for this module's own route prefix, which has now moved twice:
-  // /[businessSlug]/gst/... -> /compliance/... -> /finance/... Both historical spellings
-  // redirect straight to the current one (not in a chain), so an old bookmark costs one
-  // redirect rather than two.
-  const gstMatch = pathname.match(LEGACY_GST_PATH) ?? pathname.match(LEGACY_COMPLIANCE_PATH);
-  if (gstMatch) {
-    const [, businessSlugSegment, rest] = gstMatch;
-    const url = request.nextUrl.clone();
-    url.pathname = `/${businessSlugSegment}/finance${rest ?? ""}`;
+    url.pathname = legacyModulePath;
     return NextResponse.redirect(url, 308);
   }
 

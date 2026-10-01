@@ -78,9 +78,10 @@ export function anonClient(): SupabaseClient {
   });
 }
 
-function must<T>(result: { data: T | null; error: { message: string } | null }, what: string): T {
-  if (result.error || result.data === null) throw new Error(`Fixture step failed (${what}): ${result.error?.message ?? "no data"}`);
-  return result.data;
+/** The one row a fixture step must produce. Fixtures only ever read ids/slugs back. */
+function must(result: { data: unknown; error: { message: string } | null }, what: string): Record<string, string> {
+  if (result.error || result.data === null || result.data === undefined) throw new Error(`Fixture step failed (${what}): ${result.error?.message ?? "no data"}`);
+  return result.data as Record<string, string>;
 }
 
 /** Removes every fixture account this suite has ever created on the project. Found by
@@ -173,7 +174,7 @@ export async function seedTenants(): Promise<QaTenants> {
     must(
       await adminClient("core").from("business_members").insert({ business_id: businesses.A.id, user_id: users[key].id, role }).select("id").single(),
       `member ${key}`,
-    ).id;
+    );
   }
 
   // Tenant B's records -- created by ownerB through RLS.
