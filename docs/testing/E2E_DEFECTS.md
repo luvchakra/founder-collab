@@ -18,13 +18,14 @@ bounded, the entry says why.
 | E2E-DEF-008 | P2 | Business / env | Business logo upload unusable on dev: migration never applied; file input unlabelled | **Fixed** (migration applied to dev; label added) |
 | E2E-DEF-009 | P2 | Shell | Sidebar hydration failure on Service/CRM/admin/billing pages; Service & CRM sections never opened from the URL | **Fixed** |
 | E2E-DEF-010 | P3 | Core data | Database accepts blank party (customer/supplier) names | **Open** |
-| E2E-DEF-011 | P2 | Discovery / Funding | "Open round" once rendered the error boundary during the full parallel run | **Open -- not reproduced** |
+| E2E-DEF-011 | P2 | Session / server actions | A revoked session makes server actions fail with a raw `42501` → "Something went wrong" instead of "please sign in again"; the test-suite trigger (shared identity signed out globally) is fixed | **Test cause fixed; product follow-up open** |
 | E2E-DEF-012 | P2 | CRM | Two simultaneous first visits to Opportunities crashed one of them (duplicate default stages) | **Fixed** |
+| E2E-DEF-013 | **P0** | Core / env | Audit-log forgery (any user could write into any business's audit log as anyone) was still live on the dev database: its fix was merged to `main` but the migration was never applied | **Fixed** (migration applied to dev; regression in SEC-RPC) |
 | E2E-OBS-01 | P3 | All | Not-found pages are served with HTTP 200 (soft 404) | Open (observation) |
 | E2E-OBS-02 | P3 | Service | `/service/dashboard` 404s; every other module has `/<module>/dashboard` | Open (observation) |
 | E2E-OBS-03 | P3 | Storage | No bucket sets a size limit or MIME allow-list; attachment reads are membership-scoped, not module/permission-scoped | Open (observation) |
 | E2E-OBS-04 | P3 | Exports | A foreign business slug answers 403 `MODULE_NOT_LICENSED` vs 403 `forbidden` depending on the *other* tenant's licence -- a 1-bit oracle about another business | Open (observation) |
-| E2E-OBS-05 | P3 | Cron / webhooks | Shared secrets compared with `!==` (not constant-time) | Open (observation) |
+| E2E-OBS-05 | P3 | Cron / webhooks | Shared secrets compared with `!==` (not constant-time) | Resolved on `main` (SEC-3) |
 
 ---
 
@@ -39,7 +40,7 @@ bounded, the entry says why.
   had been red on `main` for at least the last five pushes (runs #602-#606).
 - **Root cause:** documented "known limitation" in `20260911004500_gst_tax_rules.sql`
   contradicted by its own test.
-- **Fix:** `supabase/migrations/20261001090000_gst_tax_rules_unique_nulls_not_distinct.sql`
+- **Fix:** `supabase/migrations/20261001093000_gst_tax_rules_unique_nulls_not_distinct.sql`
   (`UNIQUE NULLS NOT DISTINCT`; dev data checked first: 0 duplicate groups). Applied to dev.
 - **Regression test:** the existing assertion in `test-gst-tax-rules-rls.mjs` now passes;
   full `test:db` chain green.
@@ -56,7 +57,7 @@ bounded, the entry says why.
   bypassed the RLS on `gst.accounts` / `journal_lines` / `journal_entries`, and
   `grant select ... to authenticated` exposed it. It was the only such view in any tenant
   schema.
-- **Fix:** `20261001091000_gst_account_balances_security_invoker.sql`
+- **Fix:** `20261001094000_gst_account_balances_security_invoker.sql`
   (`alter view ... set (security_invoker = true)`), **applied to the dev project** and
   re-verified live (SEC-TI-01 green for all users).
 - **Regression tests:** `scripts/test-views-security-invoker.mjs` (in `test:db`): every view
@@ -141,15 +142,26 @@ bounded, the entry says why.
 - **Test:** `quality.spec.ts` "blank and whitespace-only names…" is `test.fixme` (reported as
   skipped).
 
-### E2E-DEF-011 -- Funding "Open round" crash, once (P2, open)
-- **Steps:** full parallel run (desktop + mobile, 6 workers) → `discovery-flows.spec.ts`
-  "round: amounts need a currency; opening sets the round live".
-- **Actual (once):** after "Open round", `h1` read "Something went wrong".
-- **Investigation:** not reproduced in two reruns (the single test; its whole serial file of
-  26 tests, all green). The production server log held no matching error. Suspected
-  contention/transient upstream error rather than a deterministic bug, **but unproven** --
-  left open, not counted as fixed. Next step: re-run under load with server-side logging of
-  the action's error digest.
+### E2E-DEF-011 -- revoked session surfaces as a raw error page (P2; test cause fixed, product follow-up open)
+- **Seen:** in full runs #1-#3, `discovery-flows.spec.ts` "round: amounts need a currency;
+  opening sets the round live" ended on "Something went wrong" after "Open round"; it always
+  passed alone. Server log at that moment: `42501 permission denied for schema core` (the
+  request ran as `anon`), plus `@supabase/ssr: chunked cookie decoded to invalid JSON`.
+- **Root cause (proven):** `authenticated/session.spec.ts` logs out through the UI *as the
+  shared test account*. The app's `signOut()` (`apps/web/app/(auth)/actions.ts`) uses Supabase's
+  default **global** scope, which revokes every session that user holds -- including the one
+  the desktop project's Funding flows were using. Their next server action could no longer
+  authenticate, ran anonymously and failed. It was always the same test because it is the
+  first mutation scheduled after the logout.
+- **Fix (test):** a dedicated `logoutA` fixture identity signs out in its own context.
+  Verified: final run #4 ran the whole flow file, Funding round included, with 0 "did not run".
+- **Still open (product, P2):** when a user's session is revoked (signed out on another device,
+  password reset elsewhere, admin removal), server actions surface the raw Postgres error via
+  the generic error boundary instead of "your session ended -- please sign in again"
+  (CLAUDE.md rule 5). Recommendation: check `auth.getUser()` at the start of mutating server
+  actions (as E2E-DEF-003 did for two routes) and redirect to `/login`.
+- **Product decision for the owner:** logging out of one browser logs the user out of
+  *every* device (global scope). If that isn't intended, use `signOut({ scope: "local" })`.
 
 ### E2E-DEF-012 -- concurrent first visit to CRM Opportunities crashed (P2)
 - **Steps:** a business that has never opened CRM Opportunities; open
@@ -174,13 +186,28 @@ on re-run; with `E2E_EXPECT_TIMEOUT=30000` and `--timeout=90000` the full Discov
 original runs. Recommendation: run CI in (or near) the database's region, and keep the
 security sweeps in their own job so they don't compete with UI timing.
 
+### E2E-DEF-013 -- audit-log forgery live on dev despite the fix being on `main` (P0)
+- **Steps:** as owner A, `rpc('write_audit_log', { p_business_id: <B>, p_actor_id: <owner B>,
+  ... })`. **Actual (before):** the row was written into tenant B's audit log, attributed to
+  owner B. Found by the new SEC-RPC sweep (`e2e/security/rpc-abuse.spec.ts`).
+- **Root cause:** a parallel session fixed this on `main` (SEC-2,
+  `20261001090000_core_audit_log_write_authorization.sql`) but the migration had not been
+  applied to the dev project -- the same deploy gap as E2E-DEF-008.
+- **Fix:** migration applied to dev verbatim from `main`; SEC-RPC now passes (8/8).
+- **Systemic recommendation:** nothing in the pipeline applies migrations or checks that the
+  database matches the repo. Two of this pass's defects (008, 013) were "fixed in git, live in
+  the database". Add a CI/deploy step that diffs `supabase/migrations/` against
+  `supabase_migrations.schema_migrations` (the comparison done by hand for this report) and
+  fails on drift -- and check production the same way.
+
 ### Observations (P3, not changed)
 - **OBS-01** soft 404s: `notFound()` inside streamed pages returns HTTP 200 with the 404 UI.
 - **OBS-02** `/service/dashboard` 404s (Service's dashboard is the module root).
 - **OBS-03** storage: no size/MIME limits on any bucket (the logo action enforces its own);
   `attachments` read access is any member of the business regardless of module permission.
 - **OBS-04** export response codes differ by the *other* business's licence state.
-- **OBS-05** non-constant-time secret comparison in cron/inbound-email handlers.
+- **OBS-05** non-constant-time secret comparison in cron/inbound-email handlers -- **resolved
+  on `main`** by SEC-3 (merged into this branch).
 
 ### Test-side defects fixed along the way (not product bugs)
 - `branding.spec.ts` visited `/service/dashboard` (never a route) → `/service`.

@@ -194,7 +194,7 @@ const PLATFORM_PAGES = [
 
 test.describe("SEC-PLAT platform administration", () => {
   test("a tenant owner is turned away from every /platform page", async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(480_000); // 23 full page loads, each waiting out a client-side redirect
     await loginAs(page, "ownerA");
     const leaked: string[] = [];
     for (const path of PLATFORM_PAGES) {
@@ -210,7 +210,7 @@ test.describe("SEC-PLAT platform administration", () => {
   });
 
   test("enrolling a second factor does not make a tenant owner a platform admin", async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(480_000); // 23 full page loads, each waiting out a client-side redirect
     const t = loadTenants();
     // Enroll + verify a TOTP factor for ownerB exactly as an authenticator app would,
     // then sign in with both factors -- an aal2 session that is still not a superadmin.

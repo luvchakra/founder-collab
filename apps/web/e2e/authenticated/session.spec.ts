@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectNoAppCrash } from "../support/assertions";
+import { loadTenants } from "../support/tenants";
 
 /**
  * The other half of the auth contract, which the unauthenticated specs can't reach: what
@@ -41,7 +42,21 @@ test.describe("Signed-in session", () => {
     await expectNoAppCrash(page);
   });
 
-  test("logging out returns to the login page and re-protects the dashboard", async ({ page }) => {
+  test("logging out returns to the login page and re-protects the dashboard", async ({ page: sharedPage, browser }) => {
+    // Logout is a global sign-out (every session of that user). With the shared test account
+    // it revoked the session every other spec was using mid-run (E2E-DEF-011), so a
+    // self-provisioned run signs out a dedicated identity in its own context instead.
+    let page = sharedPage;
+    if (process.env.E2E_SELF_PROVISION === "1") {
+      const t = loadTenants();
+      const context = await browser.newContext({ viewport: sharedPage.viewportSize(), storageState: { cookies: [], origins: [] } });
+      page = await context.newPage();
+      await page.goto("/login");
+      await page.getByLabel("Email").fill(t.users.logoutA.email);
+      await page.getByLabel("Password", { exact: true }).fill(t.password);
+      await page.getByRole("button", { name: "Log In" }).click();
+      await page.waitForURL(/\/dashboard/, { timeout: 30_000 });
+    }
     await page.goto("/dashboard");
 
     // The account menu lives at the bottom of the nav rail, which is a drawer below `lg`

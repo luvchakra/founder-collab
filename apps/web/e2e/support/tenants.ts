@@ -18,6 +18,7 @@ import { dirname } from "node:path";
  *   Tenant B  "e2e-qa Tenant B"        all five modules licensed, separate account
  *     ownerB      owner
  *   outsider    signed up, belongs to no business at all
+ *   logoutA     viewer in A, used only by the logout test (global sign-out revokes all its sessions)
  *
  * Users are created with the service-role admin API (email pre-confirmed -- no mail is
  * sent); businesses, memberships and tenant B's records are created through each user's
@@ -33,7 +34,7 @@ export const QA_PREFIX = "e2e-qa";
 const EMAIL_DOMAIN = "e2e.wonderark.test";
 export const STATE_FILE = "playwright/.auth/tenants.json";
 
-export type QaUserKey = "ownerA" | "adminA" | "viewerA" | "invMgrA" | "ownerB" | "outsider";
+export type QaUserKey = "ownerA" | "adminA" | "viewerA" | "invMgrA" | "ownerB" | "outsider" | "logoutA";
 export type QaBusinessKey = "A" | "A2" | "B";
 
 export type QaTenants = {
@@ -151,7 +152,7 @@ export async function seedTenants(): Promise<QaTenants> {
   await teardownTenants(); // idempotent: a previous interrupted run never leaks into this one
 
   const password = `Qa-${randomBytes(12).toString("hex")}!`;
-  const keys: QaUserKey[] = ["ownerA", "adminA", "viewerA", "invMgrA", "ownerB", "outsider"];
+  const keys: QaUserKey[] = ["ownerA", "adminA", "viewerA", "invMgrA", "ownerB", "outsider", "logoutA"];
   const users = {} as QaTenants["users"];
   for (const key of keys) users[key] = await createQaUser(key, password);
 
@@ -170,7 +171,10 @@ export async function seedTenants(): Promise<QaTenants> {
   // service role: RLS deliberately refuses even the owner a direct insert of somebody
   // else's membership (it only arrives through invitation acceptance), which the
   // security suite asserts separately.
-  for (const [key, role] of [["adminA", "admin"], ["viewerA", "viewer"], ["invMgrA", "inventory_manager"]] as const) {
+  // logoutA exists only to be signed out: the app's logout is Supabase's global scope, which
+  // revokes every session that user holds -- done as a shared identity it pulled the session
+  // out from under every other spec running in parallel (E2E-DEF-011).
+  for (const [key, role] of [["adminA", "admin"], ["viewerA", "viewer"], ["invMgrA", "inventory_manager"], ["logoutA", "viewer"]] as const) {
     must(
       await adminClient("core").from("business_members").insert({ business_id: businesses.A.id, user_id: users[key].id, role }).select("id").single(),
       `member ${key}`,
