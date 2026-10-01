@@ -415,6 +415,14 @@
     "SEC-3": {
       "status": "Done",
       "note": "Epic 8 -- `packages/core/src/lib/timing-safe.ts` used by every `/api/cron/*` route and `/api/webhooks/email-inbound`, built 2026-10-01"
+    },
+    "SEC-4": {
+      "status": "Done",
+      "note": "Epic 8 -- `apps/web/lib/security-headers.ts` applied in `next.config.ts`, built 2026-10-01"
+    },
+    "SEC-5": {
+      "status": "Done",
+      "note": "Epic 8 -- `.github/dependabot.yml`, built 2026-10-01"
     }
   }
 }
