@@ -10,6 +10,8 @@ import {
   Globe2,
   Sparkles,
   Users,
+  ScanText,
+  CreditCard,
 } from "lucide-react";
 import { BRAND_NAME } from "@cofounderai/core/lib/brand";
 import { FadeIn } from "./fade-in";
@@ -35,6 +37,8 @@ const SECURITY_POINTS = [
   { icon: Users, label: "Role-based access for every team member, enforced in the database" },
   { icon: ShieldAlert, label: "Data encrypted in transit and at rest" },
   { icon: Globe2, label: "Built for multi-jurisdiction tax regulation" },
+  { icon: ScanText, label: "AI reads imported files, web pages and customer replies as data, never as instructions" },
+  { icon: CreditCard, label: "Payments taken by Razorpay and Stripe -- card details never reach our servers" },
 ];
 
 /** Practices, not third-party certifications this platform doesn't hold -- every phrase
