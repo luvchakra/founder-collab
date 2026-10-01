@@ -38,7 +38,10 @@ export default defineConfig({
   workers: isCI ? 2 : undefined,
   reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
   timeout: 30_000,
-  expect: { timeout: 10_000 },
+  // E2E_EXPECT_TIMEOUT raises the per-assertion wait (still a wait on real UI state, never a
+  // sleep) for environments far from the database region, where a server action's several
+  // round trips can exceed 10 s.
+  expect: { timeout: Number(process.env.E2E_EXPECT_TIMEOUT ?? 10_000) },
 
   use: {
     baseURL,

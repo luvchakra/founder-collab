@@ -741,7 +741,7 @@ Source: [`docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md`](./plan/11-COMPLIANCE-G
 |---|---|---|---|
 | `COMPLY-P0-02.1` | Tax Registration | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/finance/registrations/actions.ts` +14 |
 | `COMPLY-P0-02.2` | Tax Jurisdiction | ✅ Done | `packages/module-gst/src/lib/compliance/jurisdictions.ts` +7 |
-| `COMPLY-P0-02.3` | Versioned Tax Rules | ✅ Done | `packages/module-gst/src/lib/canada-gst-hst/rules.ts` +21 |
+| `COMPLY-P0-02.3` | Versioned Tax Rules | ✅ Done | `packages/module-gst/src/lib/canada-gst-hst/rules.ts` +22 |
 | `COMPLY-P0-02.4` | Tax Treatments | ✅ Done | `packages/module-gst/src/lib/compliance/treatments.ts` +9 |
 | `COMPLY-P0-02.5` | Tax Determination Snapshot | ✅ Done | `packages/module-gst/src/lib/gst-tax-determination/mutations.ts` +8 |
 

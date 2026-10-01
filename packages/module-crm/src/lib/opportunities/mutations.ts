@@ -44,7 +44,19 @@ export async function ensureDefaultStages(businessId: string): Promise<Opportuni
     is_lost: stage.isLost ?? false,
   }));
   const { data: created, error: createError } = await supabase.from("opportunity_stage").insert(rows).select("*");
-  if (createError) throw createError;
+  if (createError) {
+    // E2E-DEF-012: two first visits at once (two tabs, a prefetch, desktop + phone) both
+    // see no stages and both insert; the loser hits the (business_id, key) unique key.
+    // The defaults exist either way, so read back the winner's rows instead of crashing.
+    if (createError.code !== "23505") throw createError;
+    const { data: raced, error: racedError } = await supabase
+      .from("opportunity_stage")
+      .select("*")
+      .eq("business_id", businessId)
+      .order("sort_order", { ascending: true });
+    if (racedError) throw racedError;
+    return raced as OpportunityStage[];
+  }
   return created as OpportunityStage[];
 }
 

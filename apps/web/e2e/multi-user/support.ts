@@ -23,6 +23,10 @@ export function watchForErrors(page: Page, testInfo: TestInfo) {
     // Expected noise: the browser logs every intentionally-refused request (the 4xx this
     // suite provokes on purpose) as a console error.
     if (/status of 4\d\d|Failed to load resource: the server responded with a status of 4/.test(text)) return;
+    // Sandboxes that re-terminate TLS through a proxy the browser doesn't trust (the cloud
+    // environment this suite was built in) fail third-party asset loads this way. Opt-in
+    // only: in a normal environment a certificate error is a real finding.
+    if (process.env.E2E_IGNORE_CERT_ERRORS === "1" && /ERR_CERT_AUTHORITY_INVALID/.test(text)) return;
     problems.push(`console: ${text.slice(0, 2500)}`);
   });
   page.on("response", (res) => {

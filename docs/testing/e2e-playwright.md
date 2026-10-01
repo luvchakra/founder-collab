@@ -33,6 +33,18 @@ It deliberately does **not** attempt full coverage of every screen listed in
 `docs/plan/`. Extend it the same way you'd extend any other test file — see "Adding a
 spec" below — rather than treating this doc as the ceiling.
 
+## Security & multi-user projects (2026-10-01)
+
+Beyond this smoke suite, `playwright.config.ts` now has a self-provisioning two-tenant
+fixture (`e2e/support/tenants.ts`, projects `tenants` / `tenants-teardown`) and three more
+projects: `security` (API-level cross-tenant, RBAC, licensing and storage attacks with real
+JWTs), `multi-user` (real login per role, URL/ID tampering, route-handler attacks, a11y,
+responsive, hostile input) and `multi-user-mobile`. `E2E_SELF_PROVISION=1` also runs this
+smoke suite as the seeded tenant-A owner, so no hand-made account is needed. Scope, fixtures,
+scenario ids and how to run everything: [E2E_TEST_PLAN.md](E2E_TEST_PLAN.md). The "this suite
+never proves cross-tenant isolation" caveat at the end of this file applies to the smoke
+specs only -- the `security` project exists to prove exactly that.
+
 ## Requirements
 
 - A **real, reachable Supabase project** — the same one already configured via
