@@ -55,6 +55,7 @@ export function BusinessLogoField({
           <input
             type="file"
             name="logo"
+            aria-label="Business logo image"
             accept="image/png,image/jpeg,image/webp,image/svg+xml"
             onChange={(e) => {
               const file = e.target.files?.[0];

@@ -39,13 +39,17 @@ import type { ShellBusiness, ShellNavModule, ShellProduct, ShellUser } from "./t
  * segment[0]="dashboard" with no section, which the empty-section branch below would
  * misread as "discovery" (the same shape a bare business page like "/acme-hvac" has).
  */
-function inferModuleFromPath(pathname: string | null): string | null {
+export function inferModuleFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return null;
   const match = pathname.match(/^\/[^/]+(?:\/([^/]+))?/);
   if (!match) return null;
   const section = match[1];
   if (section === "inventory") return "inventory";
+  // E2E-DEF-009: Service and CRM were missing here, so their pages never opened their
+  // own section from the URL. "fsm" is Service's historical URL segment.
+  if (section === "service" || section === "fsm") return "fsm";
+  if (section === "crm") return "crm";
   // "finance" is the current URL segment; "compliance" and "gst" are the two historical
   // spellings the proxy still redirects from, recognised here so the rail highlights the
   // right module during that redirect rather than flickering to the default.
@@ -374,13 +378,24 @@ export function AppSidebar({
   // URL itself indicates (most reliable, since it's exactly where the founder ended up),
   // then the last section they opened by hand, stashed in localStorage for pages whose
   // URL doesn't indicate a module (bare /dashboard, settings, etc).
+  //
+  // E2E-DEF-009: the initializer must not read localStorage -- the server can't, so a
+  // stored choice made the first client render differ from the server HTML and React
+  // threw the whole dashboard tree away (hydration error #418) on every page whose URL
+  // doesn't name a module. The stored choice is applied on mount instead, below, the same
+  // way groupFolds already is.
   const [expandedModule, setExpandedModule] = useState<string | null>(() => {
     const fromUrl = inferModuleFromPath(pathname);
     if (fromUrl && modules.some((m) => m.key === fromUrl && m.licensed)) return fromUrl;
-    const stored = readStoredModule();
-    if (stored && modules.some((m) => m.key === stored && m.licensed)) return stored;
     return modules.find((m) => m.licensed)?.key ?? null;
   });
+  useEffect(() => {
+    if (inferModuleFromPath(pathname)) return; // the URL already decided
+    const stored = readStoredModule();
+    if (stored && modules.some((m) => m.key === stored && m.licensed)) setExpandedModule(stored);
+    // Mount only: later navigations are handled by the pathname effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Client-side navigations (e.g. a <Link> elsewhere on the page) don't remount this
   // component, so re-derive from the URL whenever it changes too -- keeps the open

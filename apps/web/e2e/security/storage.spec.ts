@@ -81,4 +81,15 @@ test.describe("SEC-STO cross-tenant file access", () => {
     const res = await a.storage.from("attachments").upload(`not-a-uuid/e2e-qa.txt`, BODY);
     expect(res.error).not.toBeNull();
   });
+
+  test("business logos: a tenant can only write into its own folder", async () => {
+    const t = loadTenants();
+    const a = await as("ownerA");
+    const png = new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
+    const foreign = await a.storage.from("business-logos").upload(`${t.businesses.B.id}/logo-e2e-qa.png`, png);
+    expect(foreign.error, "upload into tenant B's logo folder").not.toBeNull();
+    const own = await a.storage.from("business-logos").upload(`${t.businesses.A.id}/logo-e2e-qa-${Date.now()}.png`, png);
+    expect(own.error, "upload into its own folder (positive control)").toBeNull();
+    if (own.data) await adminClient().storage.from("business-logos").remove([own.data.path]);
+  });
 });

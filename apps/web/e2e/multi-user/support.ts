@@ -23,7 +23,7 @@ export function watchForErrors(page: Page, testInfo: TestInfo) {
     // Expected noise: the browser logs every intentionally-refused request (the 4xx this
     // suite provokes on purpose) as a console error.
     if (/status of 4\d\d|Failed to load resource: the server responded with a status of 4/.test(text)) return;
-    problems.push(`console: ${text.slice(0, 300)}`);
+    problems.push(`console: ${text.slice(0, 2500)}`);
   });
   page.on("response", (res) => {
     if (res.status() >= 500) problems.push(`HTTP ${res.status()} ${res.request().method()} ${res.url()}`);
