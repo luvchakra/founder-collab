@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { expireCheckoutSessions } from "@cofounderai/core/billing/checkout";
 import { retryBillingEvents } from "@cofounderai/core/billing/webhooks";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * BILL-14 -- the billing sweep (§52, §96): retries webhook events whose processing
@@ -8,9 +9,7 @@ import { retryBillingEvents } from "@cofounderai/core/billing/webhooks";
  * shared-secret auth as every other cron route.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const events = await retryBillingEvents();

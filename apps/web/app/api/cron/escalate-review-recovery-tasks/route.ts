@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { escalateOverdueNegativeReviewFollowUps } from "@cofounderai/module-crm/lib/reviews/recovery-rules";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * CRM-08.7's third rule, "unresolved negative review -> escalation": sweeps every
@@ -9,9 +10,7 @@ import { escalateOverdueNegativeReviewFollowUps } from "@cofounderai/module-crm/
  * user.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

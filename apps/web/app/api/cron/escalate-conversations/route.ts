@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runEscalationSweep } from "@cofounderai/module-crm/lib/escalation/mutations";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * CRM-09.8's timed ladder: sweeps every actively-`crm`-licensed business's still-open
@@ -8,9 +9,7 @@ import { runEscalationSweep } from "@cofounderai/module-crm/lib/escalation/mutat
  * cron route in this app.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

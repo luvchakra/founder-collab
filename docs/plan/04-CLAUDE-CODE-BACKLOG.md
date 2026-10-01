@@ -152,6 +152,21 @@ backfill.
 
 ---
 
+## Epic 8 — Security hardening
+
+Found by a security review on 2026-10-01; each was live on `main`. Small and independent
+of every other epic, so they shipped ahead of the larger compliance work (GDPR/DPDP
+tooling, tamper-evident audit chain, CSP) still to be ported from
+`ccr-f797db15-owhokp`.
+
+| ID | Story | Size |
+|---|---|---|
+| `SEC-1` | **Patch the critical Next.js advisory and gate CI on advisories.** `next@16.3.4` carried GHSA-vcvr-r3jv-pc5j (RCE in `next/og`); upgrade to 16.3.8 (plus the non-breaking `brace-expansion` fix) and fail CI on any high/critical advisory in production dependencies. | S |
+| `SEC-2` | **Audit-log forgery.** `core.write_audit_log()` (SECURITY DEFINER, granted to `authenticated`) checked nothing, and `core.rbac_audit()` was executable by `PUBLIC` -- any signed-in user could write entries into any business's audit log as any actor. Direct calls now require membership and record the caller as actor; triggers and service-role paths unchanged. | S |
+| `SEC-3` | **Constant-time secret comparison.** Ten `/api/cron/*` routes and the inbound-email webhook compared secrets with `!==`, leaking how much of a guess was right through timing. Shared `secretsEqual()`/`bearerTokenMatches()` in `@cofounderai/core/lib/timing-safe`. | S |
+
+---
+
 ## Definition of done (per story)
 
 1. Migration files are in the single platform timeline and are reversible or explicitly documented as irreversible.

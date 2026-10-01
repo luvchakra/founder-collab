@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { expireExportJobs } from "@cofounderai/core/exports/jobs";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * EXP-PLAT-06 -- the daily sweep of background exports: deletes every file past its
@@ -8,9 +9,7 @@ import { expireExportJobs } from "@cofounderai/core/exports/jobs";
  * other cron route here, since the caller is a scheduler, not a signed-in user.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const expiredCount = await expireExportJobs();
