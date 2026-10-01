@@ -58,7 +58,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "peerDependencies": {
-    "next": "16.3.4"
+    "next": "16.3.8"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",

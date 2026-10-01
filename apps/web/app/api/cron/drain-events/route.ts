@@ -11,6 +11,7 @@ import "@cofounderai/module-inventory/events/handlers";
 import "@cofounderai/module-fsm/events/handlers";
 import "@cofounderai/module-gst/events/handlers";
 import "@cofounderai/module-crm/events/handlers";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * Drains due core.domain_events (D-9) -- point a Vercel Cron job (or any scheduler) at
@@ -19,9 +20,7 @@ import "@cofounderai/module-crm/events/handlers";
  * own convention is `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

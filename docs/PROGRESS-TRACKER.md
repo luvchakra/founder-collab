@@ -19,18 +19,18 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 509 |
+| ✅ Done | 512 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 73 |
-| **Total** | **616** |
+| **Total** | **619** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
-| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 64 | 1 | 0 | 65 |
+| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 67 | 1 | 0 | 68 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
@@ -230,6 +230,14 @@ Source: [`docs/plan/04-CLAUDE-CODE-BACKLOG.md`](./plan/04-CLAUDE-CODE-BACKLOG.md
 | `FIN-11` | End-to-end edge cases | ✅ Done | `docs/FINANCE-PROGRESS.md` — end-to-end edge cases (DB + TypeScript), built 2026-09-27 |
 | `FIN-12` | Explainable accounting, in reverse | ✅ Done | `docs/FINANCE-PROGRESS.md` — document-to-entries view, built 2026-09-27 |
 | `FIN-13` | AI categorisation for unmatched bank lines | ⏸️ Deferred | Deliberate: Finance is deterministic arithmetic (CLAUDE.md principle 4). Only if wanted. |
+
+### Epic 8 — Security hardening
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `SEC-1` | Patch the critical Next.js advisory and gate CI on advisories | ✅ Done | Epic 8 -- next 16.3.4 -> 16.3.8 and CI `npm audit --omit=dev --audit-level=high`, built 2026-10-01 |
+| `SEC-2` | Audit-log forgery | ✅ Done | Epic 8 -- `20261001090000_core_audit_log_write_authorization.sql` + `scripts/test-core-audit-log-authorization.mjs`, built 2026-10-01 |
+| `SEC-3` | Constant-time secret comparison | ✅ Done | Epic 8 -- `packages/core/src/lib/timing-safe.ts` used by every `/api/cron/*` route and `/api/webhooks/email-inbound`, built 2026-10-01 |
 
 ## Platform Administration Portal
 

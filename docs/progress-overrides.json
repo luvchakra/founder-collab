@@ -403,6 +403,18 @@
     "EXP-FIN-14": {
       "status": "Deferred",
       "note": "No e-invoice or e-way bill transaction list exists yet -- /finance/einvoicing and /finance/eway-bill are credential forms only, which §31 excludes. Export arrives with the first transaction list."
+    },
+    "SEC-1": {
+      "status": "Done",
+      "note": "Epic 8 -- next 16.3.4 -> 16.3.8 and CI `npm audit --omit=dev --audit-level=high`, built 2026-10-01"
+    },
+    "SEC-2": {
+      "status": "Done",
+      "note": "Epic 8 -- `20261001090000_core_audit_log_write_authorization.sql` + `scripts/test-core-audit-log-authorization.mjs`, built 2026-10-01"
+    },
+    "SEC-3": {
+      "status": "Done",
+      "note": "Epic 8 -- `packages/core/src/lib/timing-safe.ts` used by every `/api/cron/*` route and `/api/webhooks/email-inbound`, built 2026-10-01"
     }
   }
 }

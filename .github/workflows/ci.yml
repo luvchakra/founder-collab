@@ -38,6 +38,12 @@ jobs:
 
       - run: npm install
 
+      # SEC-1: fail on a known high/critical advisory in anything that ships to production
+      # (dev-only tooling never reaches a deployed bundle). This is what would have caught
+      # next@16.3.4's critical RCE advisory (GHSA-vcvr-r3jv-pc5j) before it sat on main.
+      - name: Dependency vulnerability audit
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 

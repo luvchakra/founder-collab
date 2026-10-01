@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { expireGracePeriods, processDueCancellations } from "@cofounderai/core/licensing/lifecycle";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * The daily license-lifecycle sweep, both halves of it: first moves every license whose
@@ -16,9 +17,7 @@ import { expireGracePeriods, processDueCancellations } from "@cofounderai/core/l
  * logged-in user.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

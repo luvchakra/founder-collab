@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runDueRecurringEntries } from "@cofounderai/module-gst/lib/accounting/recurring-mutations";
+import { bearerTokenMatches } from "@cofounderai/core/lib/timing-safe";
 
 /**
  * Posts every business's due recurring journal entries — rent, depreciation,
@@ -14,9 +15,7 @@ import { runDueRecurringEntries } from "@cofounderai/module-gst/lib/accounting/r
  * backlog rather than only the most recent occurrence.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
