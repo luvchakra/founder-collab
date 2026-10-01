@@ -14,7 +14,9 @@ const MODULE_PAGES = [
   ["discovery/marketing", "Marketing"],
   ["discovery/funding", "Funding"],
   ["inventory/dashboard", "Inventory"],
-  ["service/dashboard", "Service"],
+  // Service's dashboard is the module root (module-registry: { label: "Dashboard", slug: "" });
+  // there is no /service/dashboard route.
+  ["service", "Service"],
   ["crm/dashboard", "CRM"],
   ["finance/dashboard", "Finance"],
 ] as const;

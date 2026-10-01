@@ -75,7 +75,10 @@ export function JobsList({
       {jobs.length === 0 ? (
         <EmptyState variant="inline" message="No jobs yet." />
       ) : view === "board" ? (
-        <div className="grid grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-2 lg:grid-cols-5">
+        // E2E-DEF-006: the tracks carry the columns' own 220px minimum, so a narrow
+        // desktop content area scrolls (overflow-x-auto) instead of letting each column's
+        // count overflow onto the next column's label.
+        <div className="grid grid-cols-1 gap-4 overflow-x-auto sm:grid-cols-2 lg:grid-cols-[repeat(5,minmax(220px,1fr))]">
           {COLUMNS.map((col) => {
             const items = jobs.filter((j) => j.status === col.status);
             return (
@@ -98,8 +101,27 @@ export function JobsList({
           })}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <Table>
+        <>
+        {/* E2E-DEF-007: CLAUDE.md rule 12 -- compact cards below md, never a raw table on a phone. */}
+        <ul className="divide-y rounded-2xl border border-border md:hidden">
+          {jobs.map((j) => (
+            <li key={j.id}>
+              <a href={jobHref(j)} className="flex min-w-0 flex-col gap-1 p-3 text-sm">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <span className="font-medium break-words">{j.party_name}</span>
+                  <Badge variant={STATUS_VARIANT[j.status]}>{STATUS_LABEL[j.status]}</Badge>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>{j.number ?? "-"}</span>
+                  {j.service_type_name ? <span>{j.service_type_name}</span> : null}
+                  <span>{formatDate(j.created_at)}</span>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-2xl border border-border md:block">
+          <Table className="md:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Job #</TableHead>
@@ -128,6 +150,7 @@ export function JobsList({
             </TableBody>
           </Table>
         </div>
+        </>
       )}
     </div>
   );

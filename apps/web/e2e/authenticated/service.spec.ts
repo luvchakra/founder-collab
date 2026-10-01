@@ -14,6 +14,8 @@ test.describe("Service (FSM)", () => {
     const slug = await getTestBusinessSlug(page);
     await page.goto(`/${slug}/service/jobs`);
     await expectNoAppCrash(page);
+    // The list opens on its Board view; the table/card pair is the Table view.
+    await page.getByRole("button", { name: "Table" }).click();
     await expectResponsiveTableOrCards(page);
   });
 

@@ -196,6 +196,8 @@ export async function seedTenants(): Promise<QaTenants> {
 
   const aParty = must(await a.schema("core").from("parties").insert({ business_id: businesses.A.id, name: `${QA_PREFIX} A Customer` }).select("id").single(), "A party");
   const aProduct = must(await a.schema("discovery").from("products").insert({ business_id: businesses.A.id, name: `${QA_PREFIX} A Offering` }).select("id").single(), "A product");
+  // One Service job so list pages have a row to render as a table (desktop) / card (mobile).
+  must(await a.schema("fsm").from("jobs").insert({ business_id: businesses.A.id, party_id: aParty.id, description: `${QA_PREFIX} A Job` }).select("id").single(), "A job");
 
   const state: QaTenants = {
     password,
