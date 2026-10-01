@@ -27,6 +27,10 @@
     "./attachments/*": "./src/attachments/*.ts",
     "./events/*": "./src/events/*.ts",
     "./audit/*": "./src/audit/*.ts",
+    "./security/*": "./src/security/*.ts",
+    "./finance/*": "./src/finance/*.ts",
+    "./billing/*": "./src/billing/*.ts",
+    "./privacy/*": "./src/privacy/*.ts",
     "./email/*": "./src/email/*.ts",
     "./actions/*": "./src/actions/*.ts",
     "./site": "./src/site.ts",
@@ -40,7 +44,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "peerDependencies": {
-    "next": "16.3.4"
+    "next": "16.3.8"
   },
   "dependencies": {
     "@cofounderai/module-registry": "*",

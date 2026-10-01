@@ -40,6 +40,15 @@ pattern ADR-5 requires here).
    vendored theme, not `co-founder-ai`'s current dark-violet one. Every module's screens
    share this one design system; a module never brings its own look.
 
+8. **Financial and privacy controls are database-enforced (Epic 7, `docs/compliance/`).**
+   Never weaken them to make a story easier: `core.audit_log` is append-only and
+   hash-chained; posted documents and closed periods are immutable (correct with
+   credit/debit notes); payments are voided, never edited or deleted; licenses for paid
+   modules change only from verified payment webhooks. Any new module that stores personal
+   data handles the `privacy.subject_erased` event, and any module that sends email checks
+   `core.communication_suppressions` first. No card/UPI/bank data ever touches our
+   servers -- use the provider-hosted pages.
+
 ## Architecture (locked — do not change without explicit user approval)
 
 - **Monorepo, npm workspaces**: `apps/web` (thin Next.js 16 App Router host) +

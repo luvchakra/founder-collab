@@ -3,6 +3,9 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@cofounderai/core/db/server";
+import { validatePassword } from "@cofounderai/core/security/password-policy";
+import { MFA_CHALLENGE_PATH, needsMfaStepUp } from "@cofounderai/core/security/mfa";
+import { recordSignupConsents } from "@cofounderai/core/privacy/consent";
 
 export type AuthActionState = { error: string } | null;
 
@@ -27,6 +30,33 @@ export async function login(
     return { error: error.message };
   }
 
+  if (await needsMfaStepUp(supabase)) {
+    redirect(MFA_CHALLENGE_PATH);
+  }
+  redirect("/dashboard");
+}
+
+/** Completes the TOTP step-up for a session that signed in with a password but has a
+ * verified MFA factor (security/mfa.ts). Supabase rate-limits verify attempts itself. */
+export async function verifyMfaChallenge(
+  _prevState: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const code = String(formData.get("code") ?? "").replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(code)) {
+    return { error: "Enter the 6-digit code from your authenticator app." };
+  }
+
+  const supabase = await createClient();
+  const { data: factors, error: listError } = await supabase.auth.mfa.listFactors();
+  if (listError) return { error: listError.message };
+  const factor = factors.totp.find((f) => f.status === "verified");
+  if (!factor) redirect("/dashboard");
+
+  const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code });
+  if (error) {
+    return { error: "That code didn't match. Check your authenticator app and try again." };
+  }
   redirect("/dashboard");
 }
 
@@ -39,9 +69,16 @@ export async function signup(
   if (!email || !password) {
     return { error: "Email and password are required." };
   }
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+  const passwordError = validatePassword(password, { email });
+  if (passwordError) {
+    return { error: passwordError };
   }
+  // Consent must be an affirmative act (GDPR Art. 4(11)/7; DPDP s.6(1)) -- enforced here,
+  // not just by the checkbox's `required`, which a crafted request can omit.
+  if (formData.get("acceptPrivacy") !== "on") {
+    return { error: "Please confirm you've read the privacy notice and are 18 or older." };
+  }
+  const marketingConsent = formData.get("marketingConsent") === "on";
 
   // Supabase's confirmation link redirects to the project's dashboard-configured Site
   // URL unless we tell it otherwise -- without this, that link always points wherever
@@ -61,6 +98,13 @@ export async function signup(
   });
   if (error) {
     return { error: error.message };
+  }
+
+  // Record what was agreed to against the id Supabase just created. An address that's
+  // already registered comes back as an obfuscated user with no identities (Supabase
+  // hides account existence) -- there's no real user row to attach consent to then.
+  if (data.user && (data.user.identities?.length ?? 0) > 0) {
+    await recordSignupConsents(data.user.id, marketingConsent);
   }
 
   // If email confirmation is required, Supabase returns a user but no session.
@@ -101,14 +145,18 @@ export async function updatePassword(
 ): Promise<AuthActionState> {
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
-  }
   if (password !== confirmPassword) {
     return { error: "Passwords do not match." };
   }
 
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const passwordError = validatePassword(password, { email: user?.email });
+  if (passwordError) {
+    return { error: passwordError };
+  }
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
     return { error: error.message };

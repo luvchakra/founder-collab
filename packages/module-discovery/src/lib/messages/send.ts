@@ -5,6 +5,9 @@ import { getProspect } from "../prospects/queries";
 import { getBusiness, getProduct, getWorkspace } from "../tenancy/queries";
 import { getOrCreateConversation, markConversationAwaitingReply } from "../conversations/mutations";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
+import { emailHash, isEmailSuppressed } from "@cofounderai/core/privacy/suppression";
+import { createUnsubscribeToken } from "@cofounderai/core/privacy/unsubscribe-token";
+import { SITE_URL } from "@cofounderai/core/site";
 import type { Message } from "./types";
 
 /** Sends an approved outbound email via Resend and records the real outcome on the
@@ -53,18 +56,32 @@ export async function sendMessage(messageId: string): Promise<Message> {
   const brandName = product?.name ?? business?.name ?? prospect.company_name;
   const websiteUrl = product?.website ?? business?.website ?? null;
 
+  // Never email someone who opted out, complained, hard-bounced or asked to be erased
+  // (core.communication_suppressions -- GDPR Art. 21(3), DPDP s.6(4)).
+  if (business && (await isEmailSuppressed(business.id, toEmail))) {
+    throw new Error("This contact has opted out of email from this business -- it can't be sent.");
+  }
+  const unsubscribeUrl = business
+    ? `${SITE_URL}/api/unsubscribe?t=${encodeURIComponent(createUnsubscribeToken(business.id, emailHash(toEmail)))}`
+    : null;
+
   const resend = new Resend(apiKey);
   const result = await resend.emails.send({
     from: fromAddress,
     to: toEmail,
     subject: message.subject ?? `Quick note for ${prospect.company_name}`,
-    text: renderEmailText(message.content),
+    text: renderEmailText(message.content, unsubscribeUrl),
     html: renderEmailHtml({
       brandName,
       body: message.content,
       websiteUrl,
       replyToEmail: fromAddress,
+      unsubscribeUrl,
     }),
+    // RFC 8058 one-click unsubscribe -- also required by Gmail/Yahoo for bulk senders.
+    headers: unsubscribeUrl
+      ? { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
+      : undefined,
   });
 
   if (result.error) {

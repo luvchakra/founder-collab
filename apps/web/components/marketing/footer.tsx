@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 /** Real, working destinations only. Product links jump to sections already on this page;
- * Company/Legal pages (About, Contact, Blog, Privacy, Terms, Security) don't exist yet --
+ * Company pages (About, Contact, Blog) and Terms don't exist yet --
  * rather than ship dead "#" links (CoFounderAI UI & CTA Enhancement doc §4: "remove or
  * clearly mark any CTA whose destination isn't implemented"), they're rendered as
  * non-interactive, clearly-muted "coming soon" text below instead of a clickable anchor. */
@@ -16,11 +16,14 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["FAQ", "#faq"],
     ],
   },
+  {
+    title: "Legal",
+    links: [["Privacy notice", "/privacy"]],
+  },
 ];
 
 const COMING_SOON_COLUMNS: { title: string; items: string[] }[] = [
   { title: "Company", items: ["About", "Contact", "Blog"] },
-  { title: "Legal", items: ["Privacy", "Terms", "Security"] },
 ];
 
 export function Footer() {

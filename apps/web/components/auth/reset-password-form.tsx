@@ -21,7 +21,7 @@ export function ResetPasswordForm() {
           name="password"
           type="password"
           autoComplete="new-password"
-          minLength={8}
+          minLength={12}
           required
         />
       </div>
@@ -32,7 +32,7 @@ export function ResetPasswordForm() {
           name="confirmPassword"
           type="password"
           autoComplete="new-password"
-          minLength={8}
+          minLength={12}
           required
         />
       </div>

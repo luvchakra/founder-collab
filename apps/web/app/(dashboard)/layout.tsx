@@ -10,6 +10,7 @@ import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/de
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { DashboardChrome } from "@/components/dashboard/dashboard-chrome";
 import { createBusinessAction } from "@/app/(dashboard)/dashboard/actions";
+import { hasAcceptedCurrentNotice } from "@cofounderai/core/privacy/consent";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -20,6 +21,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     getCurrentAccount(),
   ]);
   if (!user) redirect("/login");
+  // No processing of a user's business data before they've seen the current privacy
+  // notice (DPDP s.5; GDPR Art. 13) -- see apps/web/app/consent/page.tsx.
+  if (!(await hasAcceptedCurrentNotice(user.id))) redirect("/consent");
 
   // cache()-wrapped by accountId, so the /dashboard page below reuses this exact result
   // instead of re-running its own full account scan in the same request.

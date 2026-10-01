@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@cofounderai/core/site";
 import { ThemeProvider } from "@cofounderai/core/theme/theme-provider";
@@ -24,7 +25,12 @@ export const metadata: Metadata = {
   description: DESCRIPTION,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The proxy's per-request CSP nonce (packages/core/src/security/headers.ts). Reading
+  // headers() here also opts every page into dynamic rendering, which nonce-based CSP
+  // requires: a statically prerendered page has no request to take a nonce from, and its
+  // framework scripts would be blocked by script-src's 'strict-dynamic'.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -32,7 +38,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
-        <ThemeScript />
+        <ThemeScript nonce={nonce} />
       </head>
       <body className="min-h-full flex flex-col">
         <Suspense fallback={null}>

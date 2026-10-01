@@ -46,8 +46,15 @@ export function renderEmailHtml(input: {
   body: string;
   websiteUrl: string | null;
   replyToEmail: string;
+  /** One-click opt-out link (privacy/unsubscribe-token.ts) -- shown in the footer of
+   * every outreach email (GDPR Art. 21(4): the right to object must be presented
+   * clearly; DPDP s.6(4): withdrawal as easy as consent). */
+  unsubscribeUrl?: string | null;
 }): string {
-  const { brandName, body, websiteUrl, replyToEmail } = input;
+  const { brandName, body, websiteUrl, replyToEmail, unsubscribeUrl } = input;
+  const unsubscribeLink = unsubscribeUrl
+    ? ` · <a href="${escapeHtml(unsubscribeUrl)}" style="color:#71717a;">Unsubscribe</a>`
+    : "";
   const footerLink = websiteUrl
     ? ` · <a href="${escapeHtml(websiteUrl)}" style="color:#71717a;text-decoration:none;">${escapeHtml(
         websiteUrl.replace(/^https?:\/\//, ""),
@@ -80,7 +87,7 @@ export function renderEmailHtml(input: {
             </tr>
             <tr>
               <td style="padding:20px 32px;border-top:1px solid #e4e4e7;">
-                <p style="margin:0;font-size:12px;color:#71717a;">${escapeHtml(brandName)}${footerLink}</p>
+                <p style="margin:0;font-size:12px;color:#71717a;">${escapeHtml(brandName)}${footerLink}${unsubscribeLink}</p>
               </td>
             </tr>
           </table>
@@ -93,6 +100,7 @@ export function renderEmailHtml(input: {
 
 /** Plain-text fallback for clients that don't render HTML -- same content, ** markers
  * stripped rather than converted. */
-export function renderEmailText(body: string): string {
-  return body.replace(/\*\*(.+?)\*\*/g, "$1");
+export function renderEmailText(body: string, unsubscribeUrl?: string | null): string {
+  const text = body.replace(/\*\*(.+?)\*\*/g, "$1");
+  return unsubscribeUrl ? `${text}\n\n--\nUnsubscribe: ${unsubscribeUrl}` : text;
 }

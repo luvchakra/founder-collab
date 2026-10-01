@@ -15,6 +15,8 @@ const THEME_SCRIPT = `
 })();
 `;
 
-export function ThemeScript() {
-  return <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />;
+/** `nonce` is the per-request CSP nonce (security/headers.ts) -- an inline script
+ * without it is blocked by the strict-dynamic script-src. */
+export function ThemeScript({ nonce }: { nonce?: string }) {
+  return <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />;
 }

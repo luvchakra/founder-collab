@@ -118,6 +118,26 @@ Notation: `[BLOCKER]` must finish before anything downstream. Sizes are rough: S
 
 ---
 
+## Epic 7 — Payments, compliance and security hardening (done 2026-10-01)
+
+Requested directly by the product owner: Razorpay + Stripe, GDPR + DPDP, SOX-style
+financial controls, IT security best practices. Details and control matrices are in
+`docs/compliance/`. Everything is in `core` (no new module), with no new dependencies.
+
+| ID | Story | Schema | Status |
+|---|---|---|---|
+| `X-1` | Security hardening: nonce CSP + security headers, open-redirect fix, timing-safe secrets, password policy, TOTP MFA enforced in the proxy (incl. server actions), DB rate limiter, Next.js critical-advisory patch, CI audit + Dependabot, `SECURITY.md` | core | done |
+| `X-2` | Financial controls: hash-chained append-only audit log + forgery fix, document posting/immutability, no deletion of numbered tax docs, period close/reopen, void-only payments with maker-checker, SoD permissions, access-change auditing | core | done |
+| `X-3` | Razorpay + Stripe: platform module subscriptions driving licenses; per-business collections via payment links into `core.payments`; idempotent webhook inbox; Billing UI; Licenses page no longer grants paid modules for free | core | done |
+| `X-4` | GDPR + DPDP: privacy notice + versioned consent, data-subject request register, self-service export and account erasure, third-party erasure across modules via `privacy.subject_erased`, suppressions + one-click unsubscribe, retention job | core + discovery | done |
+
+Follow-ups for later stories: SP-7/F-8 invoice screens call `post_document()` on send and
+offer `createPaymentRequestForDocument()` as "Pay online"; every new module that stores
+personal data registers a `privacy.subject_erased` handler; every module that sends
+email checks `isEmailSuppressed()`.
+
+---
+
 ## Definition of done (per story)
 
 1. Migration files are in the single platform timeline and are reversible or explicitly documented as irreversible.

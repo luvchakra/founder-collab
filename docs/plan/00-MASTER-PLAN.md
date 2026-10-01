@@ -149,6 +149,11 @@ This table is the single source of truth for "who owns what". If Claude Code is 
 | Permission catalogue | `core.permissions` (`key`, `module`, `description`) + `core.role_permissions` | all | StockPilot's 36 permissions × 196 role rows are the seed; `module` column already anticipates this |
 | License / entitlement | `core.modules`, `core.licenses`, `core.license_events` | all | §7 |
 | AI run, cost, credentials | `core.ai_runs`, `core.ai_provider_credentials`, `core.usage_events` | all | promote existing `public.ai_runs` etc. in Phase 3 |
+| Platform subscription / price | `core.subscriptions` + `core.billing_prices` | all (via licensing) | Epic 7. Mirrors Stripe/Razorpay subscriptions from signed webhooks; drives `core.licenses` through the C-4 lifecycle. A subscription is billing, a license is entitlement -- two tables, one owner |
+| Payment-gateway webhook inbox | `core.payment_gateway_events` | core | Epic 7. Idempotency + replay for both providers; payloads purged after 90 days |
+| Payment-gateway credentials / online payment request | `core.payment_gateway_accounts` + `core.payment_requests` | fsm, inventory, gst | Epic 7. A business's own Stripe/Razorpay account (encrypted) and hosted payment links for a `core.documents` invoice; the money itself lands in `core.payments` (methods `stripe`/`razorpay`), never a parallel table |
+| Period close | `core.financial_close` | all money-writing modules | Epic 7. "Books closed through" date per business; enforced by triggers on documents/lines/payments |
+| Consent, data-subject requests, suppressions | `core.consent_records`, `core.data_subject_requests`, `core.communication_suppressions` | all | Epic 7 (GDPR + DPDP). Every module that emails people checks suppressions; every module holding personal data handles `privacy.subject_erased` |
 
 **Deliberate non-duplications worth naming out loud:**
 - A discovery *prospect* and an FSM *customer* are the same `core.parties` row with two `party_roles`. Winning a prospect adds the `customer` role; it does not copy a record.

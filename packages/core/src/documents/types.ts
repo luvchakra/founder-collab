@@ -31,6 +31,10 @@ export interface Document {
   shipping_amount: number;
   total_amount: number;
   created_by: string;
+  /** Set once the document is posted (core.post_document): its amounts, party, number,
+   * dates and lines are locked from then on. */
+  posted_at: string | null;
+  posted_by: string | null;
   created_at: string;
   updated_at: string;
 }

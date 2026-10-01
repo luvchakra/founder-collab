@@ -38,6 +38,11 @@ jobs:
 
       - run: npm install
 
+      # Fails on a known high/critical advisory in anything that ships to production
+      # (dev-only tooling is excluded -- it never reaches a deployed bundle).
+      - name: Dependency vulnerability audit
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Typecheck
         run: npm run typecheck
 

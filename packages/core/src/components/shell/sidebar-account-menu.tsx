@@ -2,11 +2,33 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { BarChart3, ChevronsUpDown, CreditCard, LogOut, Settings, SunMoon, User } from "lucide-react";
+import {
+  BarChart3,
+  ChevronsUpDown,
+  CreditCard,
+  FileLock,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  SunMoon,
+  User,
+  UserLock,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { SubmitButton } from "../ui/submit-button";
 import { useDismiss } from "../../hooks/use-dismiss";
 import type { ShellUser } from "./types";
+
+const MENU_ITEMS = [
+  { href: "/dashboard/settings/profile", label: "Profile", icon: User },
+  { href: "/dashboard/settings/security", label: "Security", icon: ShieldCheck },
+  { href: "/dashboard/settings/privacy", label: "Privacy & data", icon: UserLock },
+  { href: "/dashboard/settings/usage", label: "Usage", icon: BarChart3 },
+  { href: "/dashboard/settings/billing", label: "Billing", icon: CreditCard },
+  { href: "/dashboard/settings/audit", label: "Audit & controls", icon: FileLock },
+  { href: "/dashboard/settings/appearance", label: "Appearance", icon: SunMoon },
+  { href: "/dashboard/settings/ai-provider", label: "Settings", icon: Settings },
+] as const;
 
 function initials(name: string): string {
   return name
@@ -53,70 +75,21 @@ export function SidebarAccountMenu({
 
           <div className="my-1 border-t" />
 
-          <Link
-            href="/dashboard/settings/profile"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <User className="size-4 text-muted-foreground" aria-hidden="true" />
-            Profile
-          </Link>
-
-          <Link
-            href="/dashboard/settings/usage"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <BarChart3 className="size-4 text-muted-foreground" aria-hidden="true" />
-            Usage
-          </Link>
-
-          <Link
-            href="/dashboard/settings/billing"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <CreditCard className="size-4 text-muted-foreground" aria-hidden="true" />
-            Billing
-          </Link>
-
-          <Link
-            href="/dashboard/settings/appearance"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <SunMoon className="size-4 text-muted-foreground" aria-hidden="true" />
-            Appearance
-          </Link>
-
-          <Link
-            href="/dashboard/settings/ai-provider"
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onNavigate();
-            }}
-            className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
-          >
-            <Settings className="size-4 text-muted-foreground" aria-hidden="true" />
-            Settings
-          </Link>
+          {MENU_ITEMS.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                onNavigate();
+              }}
+              className="flex items-center gap-2 rounded-sm px-3 py-2 text-sm hover:bg-accent"
+            >
+              <Icon className="size-4 text-muted-foreground" aria-hidden="true" />
+              {label}
+            </Link>
+          ))}
 
           <div className="my-1 border-t" />
 

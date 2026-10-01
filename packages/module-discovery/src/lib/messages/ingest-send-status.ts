@@ -1,4 +1,5 @@
 import { createAdminClient } from "../../db/admin";
+import { addSuppression, emailHash } from "@cofounderai/core/privacy/suppression";
 import type { Message } from "./types";
 
 export type SendStatusEvent = {
@@ -50,5 +51,25 @@ export async function ingestSendStatus(event: SendStatusEvent): Promise<IngestRe
     .single();
   if (error) throw error;
 
+  // A spam complaint is an objection to further contact; a hard bounce means the address
+  // is dead. Either way, stop emailing it from this business (core.communication_
+  // suppressions -- also protects sender reputation).
+  if (event.status === "complained" || event.status === "bounced") {
+    await suppressRecipient(data as Message, event.status === "complained" ? "complaint" : "bounce");
+  }
+
   return { matched: true, message: data };
+}
+
+async function suppressRecipient(message: Message, reason: "complaint" | "bounce"): Promise<void> {
+  const admin = createAdminClient();
+  const [{ data: contact }, { data: workspace }] = await Promise.all([
+    message.contact_id
+      ? admin.from("contacts").select("email").eq("id", message.contact_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    admin.from("workspaces").select("products(business_id)").eq("id", message.workspace_id).maybeSingle(),
+  ]);
+  const email = (contact as { email?: string | null } | null)?.email;
+  const businessId = (workspace as { products?: { business_id?: string } | null } | null)?.products?.business_id;
+  if (email && businessId) await addSuppression(businessId, emailHash(email), reason);
 }

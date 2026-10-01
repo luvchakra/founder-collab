@@ -41,6 +41,14 @@ async function main() {
         select account_id, 'Bob Co' from core.account_members where user_id = '${BOB}'
         returning id;
       `);
+      // Recording payments needs payments.record (20260908100000_core_financial_controls.sql),
+      // resolved through core.business_members -- createBusiness() makes the creator an
+      // owner; seeded directly here since this test inserts businesses by hand.
+      psql(`
+        insert into core.business_members (business_id, user_id, role) values
+          ('${aliceBusiness}', '${ALICE}', 'owner'),
+          ('${bobBusiness}', '${BOB}', 'owner');
+      `);
       const aliceCustomer = psqlAsAlice(`
         insert into core.parties (business_id, name) values ('${aliceBusiness}', 'Alice Customer') returning id;
       `);

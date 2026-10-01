@@ -131,7 +131,7 @@ async function main() {
       `);
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.view')`), "t", "warehouse_operator has inventory.view");
       assertEqual(psqlAsBob(`select core.has_permission('${bobBusiness}', 'inventory.delete')`), "f", "warehouse_operator lacks inventory.delete");
-      assertEqual(psqlAsBob("select count(*) from core.permissions"), "28", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b)");
+      assertEqual(psqlAsBob("select count(*) from core.permissions"), "36", "the permission catalogue is readable by any authenticated user (23 from C-7 + 5 stock_transfers.* from SP-3b + 8 financial-control/billing/privacy keys)");
 
       console.log("Verifying tenant isolation on licenses (C-3)...");
       assertEqual(psqlAsAlice("select count(*) from core.licenses"), "2", "Alice sees only her own business's licenses");

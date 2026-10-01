@@ -9,9 +9,13 @@ export interface Payment {
   reference: string | null;
   payment_date: string;
   notes: string | null;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
+  /** Payments are never edited or deleted, only voided (core.void_payment). */
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
 }
 
 export interface PaymentAllocation {

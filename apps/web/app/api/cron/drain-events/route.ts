@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { drainDomainEvents } from "@cofounderai/core/events/drain";
+import { bearerTokenMatches } from "@cofounderai/core/security/timing-safe";
+import { registerDiscoveryEventHandlers } from "@cofounderai/module-discovery/events/handlers";
+
+registerDiscoveryEventHandlers();
 
 /**
  * Drains due core.domain_events (D-9) -- point a Vercel Cron job (or any scheduler) at
@@ -8,9 +12,7 @@ import { drainDomainEvents } from "@cofounderai/core/events/drain";
  * own convention is `Authorization: Bearer <CRON_SECRET>`.
  */
 export async function GET(request: Request) {
-  const expectedSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get("authorization");
-  if (!expectedSecret || authHeader !== `Bearer ${expectedSecret}`) {
+  if (!bearerTokenMatches(request.headers.get("authorization"), process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

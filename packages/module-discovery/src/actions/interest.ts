@@ -1,6 +1,8 @@
 "use server";
 
+import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
+import { checkRateLimit, clientIp } from "@cofounderai/core/security/rate-limit";
 import { recordInterestSignup } from "../lib/interest/mutations";
 import { notifyInterestSignup } from "../lib/interest/notify";
 
@@ -27,6 +29,16 @@ export async function submitInterestAction(
   }
 
   try {
+    // Anonymous endpoint that writes a row and emails the founder -- throttle per client
+    // IP so it can't be used to flood either.
+    const allowed = await checkRateLimit("interest-signup", clientIp(await headers()), {
+      windowSeconds: 3600,
+      max: 5,
+    });
+    if (!allowed) {
+      return { error: "Too many attempts -- please try again later." };
+    }
+
     const { isNew } = await recordInterestSignup(email);
     if (isNew) await notifyInterestSignup(email);
     return { success: true };

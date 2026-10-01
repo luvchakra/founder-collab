@@ -9,7 +9,8 @@
     "./prompts/*": "./src/prompts/*.ts",
     "./db/*": "./src/db/*.ts",
     "./components/*": "./src/components/*.tsx",
-    "./actions/*": "./src/actions/*.ts"
+    "./actions/*": "./src/actions/*.ts",
+    "./events/*": "./src/events/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -25,7 +26,7 @@
     "zod": "^4.5.4"
   },
   "peerDependencies": {
-    "next": "16.3.4"
+    "next": "16.3.8"
   },
   "devDependencies": {
     "@types/pdf-parse": "^1.1.5",

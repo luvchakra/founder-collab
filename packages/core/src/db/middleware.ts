@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { moduleRegistry } from "@cofounderai/module-registry";
+import { buildContentSecurityPolicy, generateNonce } from "../security/headers";
+import { MFA_CHALLENGE_PATH, needsMfaStepUp } from "../security/mfa";
 
 const PROTECTED_PREFIX = "/dashboard";
 const AUTH_PATHS = new Set(["/login", "/signup"]);
@@ -45,8 +47,26 @@ export function isUnlicensedModuleRoute(pathname: string, licensedModules: Set<s
 /**
  * Refreshes the Supabase auth session cookie on every request and enforces the
  * authenticated/unauthenticated route boundary. Called from apps/web/proxy.ts.
+ *
+ * Also issues the per-request CSP nonce (security/headers.ts): set on the *request*
+ * headers so Next.js's renderer can read it back and attach it to its own scripts (and
+ * so the root layout can read `x-nonce` for the inline theme script), and on every
+ * response this function returns -- including redirects and 404s.
  */
 export async function updateSession(request: NextRequest) {
+  const nonce = generateNonce();
+  const csp = buildContentSecurityPolicy({
+    nonce,
+    isDev: process.env.NODE_ENV === "development",
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  });
+  request.headers.set("x-nonce", nonce);
+  request.headers.set("Content-Security-Policy", csp);
+  const withCsp = <T extends NextResponse>(response: T): T => {
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  };
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -82,13 +102,34 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return withCsp(NextResponse.redirect(url));
+  }
+
+  // MFA enforcement: a user with a verified factor whose session is still AAL1 can't
+  // reach any protected route until they complete the challenge (security/mfa.ts).
+  // Server actions are checked regardless of path: Next.js accepts an action invocation
+  // (a POST carrying a Next-Action header) at any page URL, so a path-only check could
+  // be sidestepped by POSTing a dashboard action's id to "/". The challenge page's own
+  // verify/sign-out actions are the one exemption.
+  const isServerAction = request.headers.has("next-action");
+  if (
+    user &&
+    (isProtected || (isServerAction && pathname !== MFA_CHALLENGE_PATH)) &&
+    (await needsMfaStepUp(supabase))
+  ) {
+    if (isServerAction) {
+      return withCsp(NextResponse.json({ error: "MFA verification required" }, { status: 401 }));
+    }
+    const url = request.nextUrl.clone();
+    url.pathname = MFA_CHALLENGE_PATH;
+    url.search = "";
+    return withCsp(NextResponse.redirect(url));
   }
 
   if (user && isAuthPath) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return withCsp(NextResponse.redirect(url));
   }
 
   // Business/entitlement resolution: only meaningful once there's a signed-in user on a
@@ -120,10 +161,10 @@ export async function updateSession(request: NextRequest) {
       const licensedModules = new Set((licenses ?? []).map((license) => license.module_key as string));
 
       if (isUnlicensedModuleRoute(pathname, licensedModules)) {
-        return new NextResponse(null, { status: 404 });
+        return withCsp(new NextResponse(null, { status: 404 }));
       }
     }
   }
 
-  return supabaseResponse;
+  return withCsp(supabaseResponse);
 }

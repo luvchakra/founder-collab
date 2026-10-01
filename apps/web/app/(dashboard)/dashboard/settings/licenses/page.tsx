@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
@@ -6,6 +7,8 @@ import { moduleRegistry } from "@cofounderai/module-registry";
 import { ModuleIcon } from "@cofounderai/core/shell/module-icon";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { hasPermission } from "@cofounderai/core/finance/controls";
+import { listActivePrices } from "@cofounderai/core/billing/subscriptions";
 import { activateModuleAction, deactivateModuleAction } from "./actions";
 
 function graceDaysLeft(graceEndsAt: string | null): number {
@@ -29,9 +32,12 @@ export default async function LicensesSettingsPage() {
   if (!account) redirect("/login");
 
   const businesses = await listBusinesses(account.id);
-  const licensesByBusiness = await Promise.all(
-    businesses.map((business) => listLicensesForBusiness(business.id)),
-  );
+  const [licensesByBusiness, canManageByBusiness, prices] = await Promise.all([
+    Promise.all(businesses.map((business) => listLicensesForBusiness(business.id))),
+    Promise.all(businesses.map((business) => hasPermission(business.id, "billing.manage"))),
+    listActivePrices(),
+  ]);
+  const paidModules = new Set(prices.map((p) => p.module_key));
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 p-8">
@@ -51,6 +57,7 @@ export default async function LicensesSettingsPage() {
       ) : (
         businesses.map((business, i) => {
           const licenses = licensesByBusiness[i] ?? [];
+          const canManage = canManageByBusiness[i] ?? false;
           const licenseByModule = new Map<string, License>(licenses.map((l) => [l.module_key, l]));
 
           return (
@@ -74,7 +81,16 @@ export default async function LicensesSettingsPage() {
                         <StatusBadge status={license?.status ?? null} graceEndsAt={license?.grace_ends_at ?? null} />
                       </div>
 
-                      {isActiveOrGrace ? (
+                      {!canManage ? (
+                        <p className="text-xs text-muted-foreground">Only owners and admins can change licenses.</p>
+                      ) : paidModules.has(module.key) ? (
+                        <Link
+                          href="/dashboard/settings/billing"
+                          className="self-start text-sm font-medium text-primary hover:underline"
+                        >
+                          Manage in Billing →
+                        </Link>
+                      ) : isActiveOrGrace ? (
                         <form action={deactivateModuleAction.bind(null, business.id, module.key)}>
                           <SubmitButton variant="outline" size="sm" pendingText="Cancelling...">
                             Cancel

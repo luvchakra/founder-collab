@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@cofounderai/core/db/server";
+import { hasAcceptedCurrentNotice } from "@cofounderai/core/privacy/consent";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { OnboardingWizard } from "@cofounderai/module-discovery/components/onboarding/wizard";
 
@@ -9,6 +10,7 @@ export default async function OnboardingPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  if (!(await hasAcceptedCurrentNotice(user.id))) redirect("/consent?next=/onboarding");
 
   const account = await getCurrentAccount();
   if (!account) redirect("/dashboard");

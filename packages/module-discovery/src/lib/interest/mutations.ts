@@ -24,3 +24,14 @@ export async function recordInterestSignup(email: string): Promise<{ isNew: bool
   }
   return { isNew: data !== null };
 }
+
+/** Erasure (GDPR Art. 17 / DPDP s.12): removes an address from the landing-page interest
+ * list. Called when a user deletes their account; idempotent. */
+export async function deleteInterestSignup(email: string): Promise<void> {
+  const supabase = createAdminClient();
+  // Case-insensitive exact match: escape LIKE wildcards, which are legal in addresses
+  // ("a_b@x.com" must not also match "axb@x.com").
+  const pattern = email.trim().replace(/[\\%_]/g, "\\$&");
+  const { error } = await supabase.from("interest_signups").delete().ilike("email", pattern);
+  if (error) throw error;
+}

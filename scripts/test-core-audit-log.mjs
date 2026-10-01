@@ -42,6 +42,15 @@ async function main() {
         select account_id, 'Bob Co' from core.account_members where user_id = '${BOB}'
         returning id;
       `);
+      // Reading the audit log needs audit.view (20260908100000_core_financial_controls.sql),
+      // resolved through core.business_members. Each insert below is itself audited
+      // ('business_member.added' -- access changes are ITGC evidence), so every business
+      // starts with one entry.
+      psql(`
+        insert into core.business_members (business_id, user_id, role) values
+          ('${aliceBusiness}', '${ALICE}', 'owner'),
+          ('${bobBusiness}', '${BOB}', 'owner');
+      `);
       const aliceParty = psqlAsAlice(`insert into core.parties (business_id, name) values ('${aliceBusiness}', 'Acme Inc') returning id;`);
       // source_module is deliberately NOT 'inventory' -- SP-3b added a status-transition
       // permission trigger scoped to source_module='inventory' rows only, and this test is
@@ -76,8 +85,9 @@ async function main() {
       assertEqual(psqlAsAlice(`select count(*) from core.audit_log where entity_type = 'business_settings'`), "1", "changing slug (not a tracked field) doesn't add another entry");
 
       console.log("Verifying tenant isolation...");
-      assertEqual(psqlAsBob("select count(*) from core.audit_log"), "0", "Bob sees none of Alice's audit log entries");
-      assertEqual(psqlAsAlice("select count(*) from core.audit_log"), "3", "Alice sees all three of her own entries (manual write + status change + settings change)");
+      assertEqual(psqlAsBob(`select count(*) from core.audit_log where business_id = '${aliceBusiness}'`), "0", "Bob sees none of Alice's audit log entries");
+      assertEqual(psqlAsBob("select count(*) from core.audit_log"), "1", "Bob sees only his own business's entry (his membership being added)");
+      assertEqual(psqlAsAlice("select count(*) from core.audit_log"), "4", "Alice sees all four of her own entries (membership added + manual write + status change + settings change)");
 
       console.log("Verifying there is no client-facing write policy...");
       assertThrows(

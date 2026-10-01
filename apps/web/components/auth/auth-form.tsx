@@ -54,10 +54,28 @@ export function AuthForm({
             name="password"
             type="password"
             autoComplete={isLogin ? "current-password" : "new-password"}
-            minLength={isLogin ? undefined : 8}
+            minLength={isLogin ? undefined : 12}
             required
           />
         </div>
+        {!isLogin ? (
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+            <label className="flex items-start gap-2">
+              <input type="checkbox" name="acceptPrivacy" required className="mt-0.5" />
+              <span>
+                I&apos;m 18 or older and I&apos;ve read the{" "}
+                <Link href="/privacy" target="_blank" className="underline underline-offset-4">
+                  privacy notice
+                </Link>
+                , which explains how my data is used.
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="checkbox" name="marketingConsent" className="mt-0.5" />
+              <span>Send me occasional product updates (optional -- you can opt out any time).</span>
+            </label>
+          </div>
+        ) : null}
         {state?.error ? (
           <p role="alert" className="text-sm text-destructive">
             {state.error}

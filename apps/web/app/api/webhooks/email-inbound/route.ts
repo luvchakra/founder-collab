@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { secretsEqual } from "@cofounderai/core/security/timing-safe";
 import { ingestInboundEmail } from "@cofounderai/module-discovery/lib/conversations/ingest-inbound-email";
 
 /**
@@ -13,7 +14,7 @@ import { ingestInboundEmail } from "@cofounderai/module-discovery/lib/conversati
 export async function POST(request: Request) {
   const expectedSecret = process.env.EMAIL_INBOUND_WEBHOOK_SECRET;
   const providedSecret = request.headers.get("x-webhook-secret");
-  if (!expectedSecret || providedSecret !== expectedSecret) {
+  if (!secretsEqual(providedSecret, expectedSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
