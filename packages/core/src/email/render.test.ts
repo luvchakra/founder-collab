@@ -127,3 +127,22 @@ describe("renderEmailText", () => {
     expect(renderEmailText("**unclosed")).toBe("**unclosed");
   });
 });
+
+describe("unsubscribe link (PRIV-1)", () => {
+  const url = "https://app.example/api/unsubscribe?t=abc&x=1";
+
+  it("adds an escaped Unsubscribe link to the HTML footer when given one", () => {
+    const html = renderEmailHtml({ brandName: "Acme", body: "Hi", websiteUrl: null, replyToEmail: "a@b.c", unsubscribeUrl: url });
+    expect(html).toContain(`href="https://app.example/api/unsubscribe?t=abc&amp;x=1"`);
+    expect(html).toContain(">Unsubscribe</a>");
+  });
+
+  it("leaves mail without one unchanged", () => {
+    expect(renderEmailHtml({ brandName: "Acme", body: "Hi", websiteUrl: null, replyToEmail: "a@b.c" })).not.toContain("Unsubscribe");
+    expect(renderEmailText("Hi")).toBe("Hi");
+  });
+
+  it("appends the link to the plain-text version", () => {
+    expect(renderEmailText("Hi **there**", url)).toBe(`Hi there\n\n--\nUnsubscribe: ${url}`);
+  });
+});

@@ -423,6 +423,10 @@
     "SEC-5": {
       "status": "Done",
       "note": "Epic 8 -- `.github/dependabot.yml`, built 2026-10-01"
+    },
+    "PRIV-1": {
+      "status": "Done",
+      "note": "Epic 9 -- `20261002100000_core_communication_suppressions.sql`, `packages/core/src/privacy/*`, `/api/unsubscribe`, built 2026-10-02"
     }
   }
 }

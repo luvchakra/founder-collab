@@ -161,7 +161,8 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
     id: "roles",
     title: "Who is responsible for your data",
     body: `- **Your account information** — your name, email address and how you use ${BRAND_NAME} — is handled by us, and we decide how it is used. This policy covers it.
-- **Customer Data** — the records a business puts into the Service, such as its prospects, customers, contacts, employees and investors — belongs to that business. We process it on the business's behalf and only under its instructions. If your details are held in a business's ${BRAND_NAME} account and you want to access, correct or delete them, please contact that business; we will help them respond.`,
+- **Customer Data** — the records a business puts into the Service, such as its prospects, customers, contacts, employees and investors — belongs to that business. We process it on the business's behalf and only under its instructions. If your details are held in a business's ${BRAND_NAME} account and you want to access, correct or delete them, please contact that business; we will help them respond.
+- **Emails a business sends you through ${BRAND_NAME}** — such as outreach to prospects or investors — carry an unsubscribe link. One click stops further emails from that business through the Service; we keep only a one-way fingerprint of your address so the opt-out is honoured, not the address itself.`,
   },
   {
     id: "collect",

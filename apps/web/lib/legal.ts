@@ -9,4 +9,4 @@
 export const CONTACT_EMAIL = "connect@wonderapps.biz";
 export const WEBSITE_HOST = "ark.WonderApps.biz";
 export const WEBSITE_URL = "https://ark.wonderapps.biz";
-export const LEGAL_LAST_UPDATED = "25 September 2026";
+export const LEGAL_LAST_UPDATED = "2 October 2026";
