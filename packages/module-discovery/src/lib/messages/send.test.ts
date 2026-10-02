@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
   // type, and the assertions below read the payload it was called with.
   send: vi.fn((_payload: { to: string; subject: string; text: string; html: string }) => undefined as unknown),
   Resend: vi.fn(),
+  prepareOutreachEmail: vi.fn(),
 }));
 
 vi.mock("resend", () => ({ Resend: h.Resend }));
@@ -41,6 +42,7 @@ vi.mock("../conversations/mutations", () => ({
   getOrCreateConversation: h.getOrCreateConversation,
   markConversationAwaitingReply: h.markConversationAwaitingReply,
 }));
+vi.mock("@cofounderai/core/privacy/suppression", () => ({ prepareOutreachEmail: h.prepareOutreachEmail }));
 vi.mock("@cofounderai/core/email/render", () => ({
   renderEmailHtml: h.renderEmailHtml,
   renderEmailText: h.renderEmailText,
@@ -57,6 +59,12 @@ const MESSAGE = {
   contact_id: null,
   subject: null,
   content: "Hello there",
+};
+
+const UNSUBSCRIBE_URL = "https://app.example/api/unsubscribe?t=tok";
+const UNSUBSCRIBE_HEADERS = {
+  "List-Unsubscribe": `<${UNSUBSCRIBE_URL}>`,
+  "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
 };
 
 function mock(message: unknown = MESSAGE, error: unknown = null) {
@@ -76,6 +84,7 @@ beforeEach(() => {
   h.getProduct.mockResolvedValue({ id: "prod-1", name: "Widgets", business_id: "b1", website: "https://widgets.example" });
   h.getBusiness.mockResolvedValue({ id: "b1", name: "Acme Co", website: null });
   h.getOrCreateConversation.mockResolvedValue({ id: "conv-1" });
+  h.prepareOutreachEmail.mockResolvedValue({ suppressed: false, unsubscribeUrl: UNSUBSCRIBE_URL, headers: UNSUBSCRIBE_HEADERS });
   h.send.mockResolvedValue({ data: { id: "resend-1" }, error: null });
   h.Resend.mockImplementation(
     class {
@@ -175,16 +184,19 @@ describe("sendMessage — recipient selection", () => {
 });
 
 describe("sendMessage — composition", () => {
-  it("brands the email with the product, falling back to business then prospect", async () => {
+  it("brands the email with the product", async () => {
     mock();
     await sendMessage("m1");
     expect(h.renderEmailHtml.mock.calls[0]![0]).toMatchObject({ brandName: "Widgets" });
+  });
 
-    h.renderEmailHtml.mockClear();
+  // PRIV-1: opt-outs are kept per business, so a send with no business to check against
+  // is refused rather than sent unchecked.
+  it("refuses to send when the workspace resolves to no business", async () => {
     h.getProduct.mockResolvedValue(null);
     mock();
-    await sendMessage("m1");
-    expect(h.renderEmailHtml.mock.calls[0]![0]).toMatchObject({ brandName: "Acme" });
+    await expect(sendMessage("m1")).rejects.toThrow("isn't linked to a business");
+    expect(h.send).not.toHaveBeenCalled();
   });
 
   it("defaults the subject when the message has none", async () => {
@@ -303,16 +315,49 @@ describe("sendMessage — status write failures", () => {
     await expect(sendMessage("m1")).rejects.toThrow("status write denied");
   });
 
-  it("brands from the prospect when the workspace behind the message is gone", async () => {
+  // PRIV-1: without the workspace there's no business whose opt-outs to check, so the
+  // send is refused (it used to go out branded with the prospect's name).
+  it("refuses to send when the workspace behind the message is gone", async () => {
     mock();
     h.getWorkspace.mockResolvedValue(null);
 
-    await sendMessage("m1");
+    await expect(sendMessage("m1")).rejects.toThrow("isn't linked to a business");
 
     expect(h.getProduct).not.toHaveBeenCalled();
-    expect(h.renderEmailHtml.mock.calls[0]![0]).toMatchObject({
-      brandName: "Acme",
-      websiteUrl: null,
-    });
+    expect(h.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("sendMessage — opt-outs (PRIV-1)", () => {
+  it("checks the recipient against the business's opt-outs", async () => {
+    mock();
+    await sendMessage("m1");
+    expect(h.prepareOutreachEmail).toHaveBeenCalledWith("b1", "buyer@acme.com");
+  });
+
+  it("does not send to someone who unsubscribed, and records why", async () => {
+    h.prepareOutreachEmail.mockResolvedValue({ suppressed: true });
+    const supabase = mock();
+
+    await sendMessage("m1");
+
+    expect(h.send).not.toHaveBeenCalled();
+    const update = supabase.queries("messages").find((q) => usedOp(q, "update"))!;
+    expect(writtenRow(update)).toMatchObject({ status: "failed", failure_reason: expect.stringContaining("unsubscribed") });
+    expect(h.getOrCreateConversation).not.toHaveBeenCalled();
+  });
+
+  it("sends with one-click unsubscribe headers and a footer link", async () => {
+    mock();
+    await sendMessage("m1");
+    expect((h.send.mock.calls[0]![0] as unknown as { headers: unknown }).headers).toEqual(UNSUBSCRIBE_HEADERS);
+    expect(h.renderEmailHtml.mock.calls[0]![0]).toMatchObject({ unsubscribeUrl: UNSUBSCRIBE_URL });
+    expect(h.renderEmailText).toHaveBeenCalledWith("Hello there", UNSUBSCRIBE_URL);
+  });
+
+  it("carries the headers on template sends too", async () => {
+    mock({ ...MESSAGE, resend_template_id: "tmpl_1", template_variables: { name: "Ravi" } });
+    await sendMessage("m1");
+    expect((h.send.mock.calls[0]![0] as unknown as { headers: unknown }).headers).toEqual(UNSUBSCRIBE_HEADERS);
   });
 });

@@ -432,6 +432,10 @@
       "status": "Done",
       "note": "Epic 8 -- `20261002090000_core_payments_void_only.sql` + `scripts/test-core-payments-void-only.mjs`, `voidPayment()`, Finance `payment.voided` reversal, built 2026-10-02"
     },
+    "PRIV-1": {
+      "status": "Done",
+      "note": "Epic 9 -- `20261002100000_core_communication_suppressions.sql`, `packages/core/src/privacy/*`, `/api/unsubscribe`, built 2026-10-02"
+    },
     "SEC-8": {
       "status": "Done",
       "note": "Epic 8 -- `apps/web/lib/safe-redirect.ts`, `signInWithOAuthProvider()`, `core/auth/oauth-providers.ts`, built 2026-10-02"
