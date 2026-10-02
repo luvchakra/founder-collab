@@ -12,6 +12,18 @@ export interface Payment {
   created_by: string;
   created_at: string;
   updated_at: string;
+  /** SEC-7: a payment is never edited or deleted, only voided -- see `voidPayment`. */
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
+  /** What the payment had settled when it was voided; its live allocations are released. */
+  voided_allocations: VoidedAllocation[] | null;
+}
+
+export interface VoidedAllocation {
+  allocation_id: string;
+  document_id: string;
+  amount: number;
 }
 
 export interface PaymentAllocation {
