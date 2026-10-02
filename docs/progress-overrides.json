@@ -423,6 +423,10 @@
     "SEC-5": {
       "status": "Done",
       "note": "Epic 8 -- `.github/dependabot.yml`, built 2026-10-01"
+    },
+    "SEC-7": {
+      "status": "Done",
+      "note": "Epic 8 -- `20261002090000_core_payments_void_only.sql` + `scripts/test-core-payments-void-only.mjs`, `voidPayment()`, Finance `payment.voided` reversal, built 2026-10-02"
     }
   }
 }

@@ -4,7 +4,7 @@ import { createFakeSupabase, eqFilters, opArgs } from "../test-support/fake-supa
 const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock("../db/server", () => ({ createClient }));
 
-const { getDocumentBalance, listAgingForBusiness, listAllocationsForPayment, listPaymentsForBusiness } =
+const { getDocumentBalance, listAgingForBusiness, listAllocationsForPayment, listPaymentsForBusiness, listPaymentsForDocument } =
   await import("./queries");
 
 const BUSINESS = "b0000000-0000-0000-0000-000000000001";
@@ -62,5 +62,37 @@ describe("payment queries", () => {
   ])("%s propagates a failure", async (_label, run) => {
     mock(null, new Error("denied"));
     await expect(run()).rejects.toThrow("denied");
+  });
+});
+
+describe("listPaymentsForDocument (SEC-7)", () => {
+  it("keeps a voided payment in the document's history, with what it had paid on this document", async () => {
+    const live = { id: "pay-live", payment_date: "2026-09-01", voided_allocations: null };
+    const voided = {
+      id: "pay-void",
+      payment_date: "2026-09-20",
+      voided_at: "2026-09-21T00:00:00Z",
+      voided_allocations: [
+        { allocation_id: "a1", document_id: "doc-1", amount: "250.00" },
+        { allocation_id: "a2", document_id: "doc-other", amount: "100.00" },
+      ],
+    };
+    const supabase = createFakeSupabase({
+      query: (call) => {
+        if (call.table === "payment_allocations") return { data: [{ payment_id: "pay-live", amount: "400.00" }], error: null };
+        const isVoidedLookup = call.ops.some((op) => op.method === "contains");
+        return { data: isVoidedLookup ? [voided] : [live], error: null };
+      },
+    });
+    createClient.mockResolvedValue(supabase);
+
+    const rows = await listPaymentsForDocument("doc-1");
+
+    expect(rows.map((r) => [r.id, r.allocated_amount])).toEqual([
+      ["pay-void", 250],
+      ["pay-live", 400],
+    ]);
+    const lookup = supabase.queries("payments").find((c) => c.ops.some((op) => op.method === "contains"))!;
+    expect(opArgs(lookup, "contains")).toEqual(["voided_allocations", JSON.stringify([{ document_id: "doc-1" }])]);
   });
 });

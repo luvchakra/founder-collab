@@ -12,6 +12,7 @@ import {
   markInvoiceUnpaid,
   recordManualPayment,
   sendInvoice,
+  voidInvoicePayment,
   voidInvoiceViaCreditNote,
 } from "@cofounderai/module-fsm/lib/invoices/mutations";
 import {
@@ -80,6 +81,19 @@ export async function markInvoicePaidAction(businessId: string, invoiceId: strin
 export async function markInvoiceUnpaidAction(businessId: string, invoiceId: string): Promise<void> {
   await requirePermission(businessId, "invoices.edit");
   await markInvoiceUnpaid(businessId, invoiceId);
+  revalidatePath(await detailPath(businessId, invoiceId));
+}
+
+/** SEC-7. `payments.void` and maker-checker are enforced by `core.void_payment()` itself;
+ * checked here too so a member without it gets a plain refusal before any work. */
+export async function voidInvoicePaymentAction(
+  businessId: string,
+  invoiceId: string,
+  paymentId: string,
+  reason: string,
+): Promise<void> {
+  await requirePermission(businessId, "payments.void");
+  await voidInvoicePayment(businessId, invoiceId, paymentId, reason);
   revalidatePath(await detailPath(businessId, invoiceId));
 }
 
