@@ -423,6 +423,10 @@
     "SEC-5": {
       "status": "Done",
       "note": "Epic 8 -- `.github/dependabot.yml`, built 2026-10-01"
+    },
+    "SEC-6": {
+      "status": "Done",
+      "note": "Epic 8 -- `20261001150000_core_audit_log_tamper_evident.sql` + `scripts/test-core-audit-log-tamper-evident.mjs`, built 2026-10-01"
     }
   }
 }

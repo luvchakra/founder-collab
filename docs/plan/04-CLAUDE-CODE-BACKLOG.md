@@ -166,6 +166,7 @@ tooling, tamper-evident audit chain, CSP) still to be ported from
 | `SEC-3` | **Constant-time secret comparison.** Ten `/api/cron/*` routes and the inbound-email webhook compared secrets with `!==`, leaking how much of a guess was right through timing. Shared `secretsEqual()`/`bearerTokenMatches()` in `@cofounderai/core/lib/timing-safe`. | S |
 | `SEC-4` | **Security headers + baseline Content-Security-Policy** on every response: HSTS, `nosniff`, `X-Frame-Options`/`frame-ancestors 'none'`, Referrer-Policy, COOP, Permissions-Policy; CSP limits scripts to this origin plus Razorpay Checkout, frames/connections to Razorpay and Supabase, `object-src 'none'`, `base-uri`, `form-action`. No nonce: public pages stay static (`proxy.ts`), and a nonce policy needs every page rendered on request -- moving to one is a separate decision. | S |
 | `SEC-5` | **Dependabot** for npm and GitHub Actions (weekly, minor/patch grouped). SEC-1's CI audit blocks a vulnerable production dependency; this proposes the fix. | S |
+| `SEC-6` | **Tamper-evident, append-only audit log.** Per-business `seq` + SHA-256 hash chain on `core.audit_log` (every write path, via trigger), `core.verify_audit_chain()`; UPDATE/DELETE/TRUNCATE refused for every role including service_role; 8-year retention purge is the only sanctioned delete; the trail outlives a deleted business (FK dropped, `business.deleted` recorded). | S |
 
 ---
 
