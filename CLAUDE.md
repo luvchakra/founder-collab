@@ -172,6 +172,45 @@ and feeds most of it to a model, across the couple of dozen call sites under
    data — cross-tenant leakage through an AI response, on top of the tenant-isolation and
    license-gating tests principle 9 already requires.
 
+## Security, payments & compliance -- findings and rules
+
+Epic 8 (`SEC-*`) and Epic 9 (`PRIV-*`) in `docs/plan/04-CLAUDE-CODE-BACKLOG.md` came out of a
+security and compliance review (2026-10-01). Each finding was live on `main`; don't
+reintroduce them.
+
+- **A `SECURITY DEFINER` function granted to `authenticated` authorizes its own inputs**
+  (membership via `core.user_business_ids()`, actor forced to `auth.uid()`). Internal
+  helpers such as `core.append_audit_log()` are granted to `service_role` only (SEC-2).
+- **Compare secrets in constant time**: `secretsEqual()` / `bearerTokenMatches()` from
+  `@cofounderai/core/lib/timing-safe`, never `!==` (SEC-3).
+- **CI fails on high/critical production advisories**; Dependabot proposes the fix (SEC-1,
+  SEC-5).
+- **The CSP is a baseline without nonces** (SEC-4): public pages are static, and a nonce
+  policy would make every page render per request. A new third-party script, frame or
+  connection origin needs an entry in `apps/web/lib/security-headers.ts`.
+- **RLS with no matching policy silently matches zero rows on UPDATE/DELETE.** For a hard
+  control also `revoke` the privilege (default privileges grant it) so the attempt errors,
+  and back it with a trigger: `service_role` has BYPASSRLS, which skips policies, not
+  triggers.
+- **The audit log is append-only and hash-chained** (SEC-6). Write entries through
+  `write_audit_log()` / `append_audit_log()`, never edit or delete them, and expect
+  `core.verify_audit_chain()` to catch anyone who does. It can't detect removal of the
+  newest entries; anchor chain heads outside the database for that.
+- **Money records are corrected, never edited.** Recorded payments are immutable and
+  are undone only by `core.void_payment()` (SEC-7: permission, maker-checker, reason, audit,
+  `payment.voided` -> Finance reversal). Ledger entries are reversed, not deleted. A
+  "privileged flag" GUC is not authorization on its own: a client role can `set` it too,
+  so pair it with a check of who is really running (`core.is_voiding_payment()`).
+- **Outreach email checks opt-outs and carries one-click unsubscribe** (PRIV-1): call
+  `prepareOutreachEmail()` before any send to a prospect, investor or other third party,
+  refuse when suppressed, and pass its headers and link through. Store
+  `core.email_hash()`, never the address, wherever only matching is needed.
+- **Personal data about our own users is exportable** (PRIV-2): a new table holding a
+  user's own personal data belongs in `buildPersonalDataExport()`. Business-held data
+  about third parties belongs to that business and is exported by its module.
+- **Marketing claims match the code**: "GDPR & DPDP-ready", "SOX-style controls" --
+  never "certified" or "compliant"; certification is the organization's to obtain.
+
 ## Repository structure
 
 ```
