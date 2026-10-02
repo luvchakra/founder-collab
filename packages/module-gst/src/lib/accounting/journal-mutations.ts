@@ -196,6 +196,24 @@ export async function reverseJournalEntry(
   await requirePermission(businessId, "gst.journal.create");
 
   const supabase = await createClient();
+  return writeReversal(supabase, businessId, entryId, {
+    postingDate,
+    mintNumber: () => nextNumber(businessId, ENTRY_NUMBER_SCOPE, ENTRY_NUMBER_PREFIX),
+  });
+}
+
+/**
+ * The reversal itself, shared by the person-driven path above and the automatic one below
+ * (SEC-7). The caller has already decided who may do this and supplies the client to do
+ * it with, and how to mint the entry number (the session's `next_number` or the drain's
+ * service-role twin -- one counter either way).
+ */
+async function writeReversal(
+  supabase: Supabase,
+  businessId: string,
+  entryId: string,
+  options: { postingDate?: string; mintNumber: () => Promise<string>; idempotencyKey?: string },
+): Promise<string> {
   const [{ data: entryRow, error: entryError }, { data: lineRows, error: lineError }] = await Promise.all([
     supabase
       .from("journal_entries")
@@ -229,9 +247,9 @@ export async function reverseJournalEntry(
     );
   }
 
-  const date = postingDate ?? new Date().toISOString().slice(0, 10);
+  const date = options.postingDate ?? new Date().toISOString().slice(0, 10);
   const periodId = await resolvePeriod(supabase, businessId, date);
-  const entryNumber = await nextNumber(businessId, ENTRY_NUMBER_SCOPE, ENTRY_NUMBER_PREFIX);
+  const entryNumber = await options.mintNumber();
 
   const lines = reverseLines(
     (lineRows ?? []).map((line: Record<string, unknown>) => ({
@@ -265,19 +283,115 @@ export async function reverseJournalEntry(
       source_module: entry.source_module,
       source_entity_type: entry.source_entity_type,
       source_entity_id: entry.source_entity_id,
+      ...(options.idempotencyKey ? { idempotency_key: options.idempotencyKey } : {}),
       posted_at: new Date().toISOString(),
     },
     lines,
   );
 
+  await markReversed(supabase, businessId, entryId);
+  return reversalId;
+}
+
+async function markReversed(supabase: Supabase, businessId: string, entryId: string): Promise<void> {
   const { error } = await supabase
     .from("journal_entries")
     .update({ status: "reversed" })
     .eq("business_id", businessId)
     .eq("id", entryId);
   if (error) throw error;
+}
 
-  return reversalId;
+export type ReverseVoidedPaymentResult =
+  | { reversed: string[]; refused: { entryId: string; reason: string }[] }
+  | { reversed: []; refused: []; skipped: string };
+
+/**
+ * SEC-7: a voided payment takes its settlements out of the ledger.
+ *
+ * `core.void_payment()` releases the payment's allocations and publishes
+ * `payment.voided` with their ids; every settlement Finance posted for one of them
+ * (`source_entity_type = 'payment_allocation'`, keyed on the allocation id by
+ * `postPaymentAllocation`) is reversed here, dated today -- the original's period may well
+ * be closed, which is what a reversal is for.
+ *
+ * Service-role, from the domain-event drain (no session). The business comes from the
+ * event row and scopes every statement. Safe to redeliver: each reversal carries an
+ * idempotency key on the original entry, a redelivery finds the original already
+ * `reversed`, and a half-finished earlier attempt (reversal written, original not yet
+ * marked) is completed rather than repeated.
+ *
+ * A settlement whose allocation hadn't been posted yet needs nothing: its own
+ * `payment.allocated` event now finds no allocation and posts nothing.
+ */
+export async function reverseVoidedPaymentSettlements(
+  businessId: string,
+  allocationIds: string[],
+): Promise<ReverseVoidedPaymentResult> {
+  if (allocationIds.length === 0) return { reversed: [], refused: [] };
+
+  const supabase = createAdminClient();
+  const core = createCoreAdminClient({ schema: "core" });
+
+  // Same gate as postFinanceEvent: no new postings during ADR-9's read-only grace period.
+  const { data: licensed, error: licenseError } = await core.rpc("has_module_write", {
+    p_business_id: businessId,
+    p_key: "gst",
+  });
+  if (licenseError) throw licenseError;
+  if (!licensed) {
+    return { reversed: [], refused: [], skipped: "Finance isn't licensed for this business (or is in its read-only grace period)." };
+  }
+
+  const { data, error } = await supabase
+    .from("journal_entries")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("source_entity_type", "payment_allocation")
+    .in("source_entity_id", allocationIds)
+    .eq("status", "posted")
+    .is("reversal_of_entry_id", null);
+  if (error) throw error;
+
+  const reversed: string[] = [];
+  const refused: { entryId: string; reason: string }[] = [];
+  for (const { id: entryId } of (data ?? []) as { id: string }[]) {
+    const idempotencyKey = `reversal:${entryId}`;
+    const { data: existing, error: existingError } = await supabase
+      .from("journal_entries")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("idempotency_key", idempotencyKey)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) {
+      await markReversed(supabase, businessId, entryId);
+      reversed.push((existing as { id: string }).id);
+      continue;
+    }
+
+    try {
+      reversed.push(
+        await writeReversal(supabase, businessId, entryId, {
+          idempotencyKey,
+          mintNumber: async () => {
+            const { data: number, error: numberError } = await core.rpc("next_number_for_api", {
+              p_business_id: businessId,
+              p_scope: ENTRY_NUMBER_SCOPE,
+              p_prefix: ENTRY_NUMBER_PREFIX,
+            });
+            if (numberError) throw numberError;
+            return number as string;
+          },
+        }),
+      );
+    } catch (err) {
+      // Today's period locked is a refusal no retry fixes -- report it, keep going.
+      if (err instanceof PeriodClosedError) refused.push({ entryId, reason: err.message });
+      else throw err;
+    }
+  }
+  return { reversed, refused };
 }
 
 /** Account ids for the roles a posting plan asks for, from this business's own mappings. */
