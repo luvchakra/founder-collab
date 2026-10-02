@@ -3,7 +3,12 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@cofounderai/core/db/server";
-import { readableOAuthError } from "@cofounderai/core/auth/oauth-providers";
+import {
+  OAUTH_PROVIDER_LABELS,
+  isOAuthProvider,
+  readableOAuthError,
+  type OAuthProvider,
+} from "@cofounderai/core/auth/oauth-providers";
 
 export type AuthActionState = { error: string } | null;
 
@@ -124,25 +129,37 @@ export async function updatePassword(
   redirect("/dashboard");
 }
 
-/** Optional OAuth (landing-page-requirements.md's auth sections) -- works once Google is
- * enabled as a provider in the Supabase project's Auth settings; until then Supabase
- * itself returns a clean "provider not enabled" error rather than this failing silently. */
-export async function signInWithGoogle(next: "/dashboard" | "/onboarding" = "/dashboard") {
+/** Optional OAuth (landing-page-requirements.md's auth sections): Google, Microsoft
+ * (`azure`) and LinkedIn (`linkedin_oidc`). Each works once enabled as a provider in the
+ * Supabase project's Auth settings; until then the button is hidden
+ * (core/auth/oauth-providers.ts) and Supabase itself returns a clean "provider not
+ * enabled" error rather than this failing silently.
+ *
+ * A server action's arguments arrive from the client, so the provider is checked against
+ * the allowlist and `next` is one of two fixed paths -- neither can steer the redirect. */
+export async function signInWithOAuthProvider(provider: OAuthProvider, next: "/dashboard" | "/onboarding" = "/dashboard") {
+  if (!isOAuthProvider(provider)) redirect(`/login?error=${encodeURIComponent("That sign-in method isn't available.")}`);
+  const destination = next === "/onboarding" ? "/onboarding" : "/dashboard";
   const origin = (await headers()).get("origin") ?? "http://localhost:3000";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${origin}/auth/callback?next=${next}` },
+    provider,
+    options: {
+      redirectTo: `${origin}/auth/callback?next=${destination}`,
+      // Microsoft only returns the address when asked for the `email` scope; without it
+      // Supabase can't create the user (Supabase's Azure guide).
+      ...(provider === "azure" ? { scopes: "email" } : {}),
+    },
   });
   if (error || !data.url) {
-    // The most common failure here is that nobody has switched Google on in the Supabase
-    // dashboard yet, and Supabase says so in its own API vocabulary -- readableOAuthError
-    // turns that into an instruction. The button is normally hidden in that case
-    // (core/auth/oauth-providers.ts), so this is the path for a provider disabled between
-    // the page render and the click, or a probe that failed open.
+    // The most common failure here is that nobody has switched the provider on in the
+    // Supabase dashboard yet, and Supabase says so in its own API vocabulary --
+    // readableOAuthError turns that into an instruction. The button is normally hidden in
+    // that case, so this is the path for a provider disabled between the page render and
+    // the click, or a probe that failed open.
     const reason = error?.message
-      ? readableOAuthError(error.message, "google")
-      : "Google sign-in is not available yet.";
+      ? readableOAuthError(error.message, provider)
+      : `${OAUTH_PROVIDER_LABELS[provider]} sign-in is not available yet.`;
     redirect(`/login?error=${encodeURIComponent(reason)}`);
   }
   redirect(data.url);

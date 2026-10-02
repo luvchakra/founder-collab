@@ -15,7 +15,7 @@ export default async function SignupPage() {
         Create your {branding.platformName} account and start building your customer pipeline.
       </p>
       <div className="mt-8">
-        <AuthForm mode="signup" action={signup} googleEnabled={providers.google} />
+        <AuthForm mode="signup" action={signup} providers={providers} />
       </div>
       <p className="mt-6 text-center text-xs text-landing-muted">
         By creating an account, you agree to the{" "}

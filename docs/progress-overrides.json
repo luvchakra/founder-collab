@@ -427,6 +427,10 @@
     "SEC-6": {
       "status": "Done",
       "note": "Epic 8 -- `20261001150000_core_audit_log_tamper_evident.sql` + `scripts/test-core-audit-log-tamper-evident.mjs`, built 2026-10-01"
+    },
+    "SEC-8": {
+      "status": "Done",
+      "note": "Epic 8 -- `apps/web/lib/safe-redirect.ts`, `signInWithOAuthProvider()`, `core/auth/oauth-providers.ts`, built 2026-10-02"
     }
   }
 }
