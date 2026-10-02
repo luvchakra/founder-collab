@@ -4,7 +4,7 @@ import { createFakeSupabase, writtenRow } from "../test-support/fake-supabase";
 const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock("../db/server", () => ({ createClient }));
 
-const { allocatePayment, recordPayment } = await import("./mutations");
+const { allocatePayment, recordPayment, voidPayment } = await import("./mutations");
 
 const BUSINESS = "b0000000-0000-0000-0000-000000000001";
 
@@ -99,5 +99,50 @@ describe("allocatePayment", () => {
     mock();
     await allocatePayment({ businessId: BUSINESS, paymentId: "p", documentId: "d", amount: 1 });
     expect(createClient).toHaveBeenCalledWith({ schema: "core" });
+  });
+});
+
+describe("voidPayment (SEC-7)", () => {
+  function mockVoid(found: boolean, rpcResult: { data: unknown; error: unknown } = { data: [], error: null }) {
+    const supabase = createFakeSupabase({
+      query: () => ({ data: found ? { id: "pay-1" } : null, error: null }),
+      rpc: () => rpcResult,
+    });
+    createClient.mockResolvedValue(supabase);
+    return supabase;
+  }
+
+  it("voids through core.void_payment as the signed-in user, with the trimmed reason", async () => {
+    const supabase = mockVoid(true, {
+      data: [{ allocation_id: "a-1", document_id: "doc-1", amount: "600.00" }],
+      error: null,
+    });
+
+    const released = await voidPayment({ businessId: BUSINESS, paymentId: "pay-1", reason: "  cheque bounced " });
+
+    expect(supabase.rpcs("void_payment")[0]!.args).toEqual({ p_payment_id: "pay-1", p_reason: "cheque bounced" });
+    expect(released).toEqual([{ allocation_id: "a-1", document_id: "doc-1", amount: 600 }]);
+    expect(createClient).toHaveBeenCalledWith({ schema: "core" });
+  });
+
+  it("refuses without a real reason, before touching the database", async () => {
+    const supabase = mockVoid(true);
+    await expect(voidPayment({ businessId: BUSINESS, paymentId: "pay-1", reason: " no " })).rejects.toThrow("reason");
+    expect(supabase.rpcs()).toHaveLength(0);
+  });
+
+  it("refuses a payment outside the given business", async () => {
+    const supabase = mockVoid(false);
+    await expect(voidPayment({ businessId: BUSINESS, paymentId: "pay-1", reason: "duplicate entry" })).rejects.toThrow(
+      "Payment not found.",
+    );
+    expect(supabase.rpcs()).toHaveLength(0);
+  });
+
+  it("surfaces the database's refusal (permission, maker-checker, already voided)", async () => {
+    mockVoid(true, { data: null, error: new Error("A payment has to be voided by someone other than the person who recorded it.") });
+    await expect(voidPayment({ businessId: BUSINESS, paymentId: "pay-1", reason: "duplicate entry" })).rejects.toThrow(
+      "someone other than",
+    );
   });
 });

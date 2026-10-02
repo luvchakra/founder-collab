@@ -38,17 +38,31 @@ export async function listPaymentsForDocument(documentId: string): Promise<(Paym
     .select("payment_id, amount")
     .eq("document_id", documentId);
   if (allocError) throw allocError;
-  if (allocations.length === 0) return [];
 
-  const { data: payments, error: paymentsError } = await supabase
-    .from("payments")
-    .select("*")
-    .in("id", allocations.map((a) => a.payment_id))
-    .order("payment_date", { ascending: false });
+  // SEC-7: a voided payment's allocations are released, so it no longer shows up through
+  // `payment_allocations` -- it's found through the snapshot it keeps of what it settled,
+  // and stays in the history marked voided rather than silently disappearing.
+  const [{ data: payments, error: paymentsError }, { data: voided, error: voidedError }] = await Promise.all([
+    allocations.length === 0
+      ? Promise.resolve({ data: [] as Payment[], error: null })
+      : supabase.from("payments").select("*").in("id", allocations.map((a) => a.payment_id)),
+    // A string, so PostgREST reads it as jsonb containment -- an array argument would be
+    // sent as a Postgres array literal.
+    supabase.from("payments").select("*").contains("voided_allocations", JSON.stringify([{ document_id: documentId }])),
+  ]);
   if (paymentsError) throw paymentsError;
+  if (voidedError) throw voidedError;
 
   const allocatedByPaymentId = new Map(allocations.map((a) => [a.payment_id, Number(a.amount)]));
-  return payments.map((p) => ({ ...p, allocated_amount: allocatedByPaymentId.get(p.id) ?? 0 }));
+  return [
+    ...(payments ?? []).map((p: Payment) => ({ ...p, allocated_amount: allocatedByPaymentId.get(p.id) ?? 0 })),
+    ...(voided ?? []).map((p: Payment) => ({
+      ...p,
+      allocated_amount: (p.voided_allocations ?? [])
+        .filter((a) => a.document_id === documentId)
+        .reduce((sum, a) => sum + Number(a.amount), 0),
+    })),
+  ].sort((a, b) => b.payment_date.localeCompare(a.payment_date));
 }
 
 export async function getDocumentBalance(documentId: string): Promise<DocumentBalance | null> {

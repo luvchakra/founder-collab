@@ -86,6 +86,8 @@ export function InvoiceEditor({
   markPaidAction,
   markUnpaidAction,
   voidAction,
+  canVoidPayment = false,
+  voidPaymentAction,
 }: {
   invoice: Invoice;
   businessName: string;
@@ -107,6 +109,9 @@ export function InvoiceEditor({
   markPaidAction: () => Promise<void>;
   markUnpaidAction: () => Promise<void>;
   voidAction: (reason: string) => Promise<void>;
+  /** SEC-7: payments are corrected by voiding, never edited or deleted. */
+  canVoidPayment?: boolean;
+  voidPaymentAction?: (paymentId: string, reason: string) => Promise<void>;
 }) {
   const [pending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
@@ -114,6 +119,8 @@ export function InvoiceEditor({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [voidOpen, setVoidOpen] = useState(false);
   const [voidReason, setVoidReason] = useState("");
+  const [voidingPayment, setVoidingPayment] = useState<(Payment & { allocated_amount: number }) | null>(null);
+  const [paymentVoidReason, setPaymentVoidReason] = useState("");
   const [editingLine, setEditingLine] = useState<InvoiceLine | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -145,6 +152,11 @@ export function InvoiceEditor({
   const canSend = canEdit && !isVoided && lines.length > 0;
   const canMarkPaid = canRecordPayment && !isVoided && !isPaid;
   const canMarkUnpaid = canRecordPayment && isPaid;
+  const showPaymentActions = canVoidPayment && Boolean(voidPaymentAction);
+  const openVoidPayment = (p: Payment & { allocated_amount: number }) => {
+    setPaymentVoidReason("");
+    setVoidingPayment(p);
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -425,13 +437,26 @@ export function InvoiceEditor({
               {payments.map((p) => (
                 <li key={p.id} className="flex flex-col gap-1 p-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium">{formatDate(p.payment_date)}</span>
-                    <span className="font-semibold">{inr.format(p.allocated_amount)}</span>
+                    <span className="flex items-center gap-2 font-medium">
+                      {formatDate(p.payment_date)}
+                      {p.voided_at ? <Badge variant="secondary">Voided</Badge> : null}
+                    </span>
+                    <span className={p.voided_at ? "font-semibold text-muted-foreground line-through" : "font-semibold"}>
+                      {inr.format(p.allocated_amount)}
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>{METHOD_LABEL[p.method]}</span>
                     {p.reference ? <span className="break-all">{p.reference}</span> : null}
                   </div>
+                  {p.void_reason ? <p className="text-xs text-muted-foreground break-words">Voided: {p.void_reason}</p> : null}
+                  {showPaymentActions && !p.voided_at ? (
+                    <div className="flex justify-end">
+                      <Button variant="ghost" size="sm" disabled={pending} onClick={() => openVoidPayment(p)}>
+                        Void payment
+                      </Button>
+                    </div>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -442,15 +467,33 @@ export function InvoiceEditor({
                   <TableHead>Method</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  {showPaymentActions ? <TableHead className="w-0"><span className="sr-only">Actions</span></TableHead> : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {payments.map((p) => (
                   <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.payment_date)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {formatDate(p.payment_date)}
+                        {p.voided_at ? <Badge variant="secondary">Voided</Badge> : null}
+                      </div>
+                      {p.void_reason ? <p className="text-xs text-muted-foreground">{p.void_reason}</p> : null}
+                    </TableCell>
                     <TableCell>{METHOD_LABEL[p.method]}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">{p.reference ?? "-"}</TableCell>
-                    <TableCell className="text-right">{inr.format(p.allocated_amount)}</TableCell>
+                    <TableCell className={p.voided_at ? "text-right text-muted-foreground line-through" : "text-right"}>
+                      {inr.format(p.allocated_amount)}
+                    </TableCell>
+                    {showPaymentActions ? (
+                      <TableCell className="text-right">
+                        {!p.voided_at ? (
+                          <Button variant="ghost" size="sm" disabled={pending} onClick={() => openVoidPayment(p)}>
+                            Void
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
               </TableBody>
@@ -610,6 +653,50 @@ export function InvoiceEditor({
               <SubmitButton pendingText="Recording...">Record payment</SubmitButton>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={voidingPayment !== null} onOpenChange={(open) => { if (!open) setVoidingPayment(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Void this payment?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {voidingPayment
+              ? `${inr.format(Number(voidingPayment.amount))} received ${formatDate(voidingPayment.payment_date)} by ${METHOD_LABEL[voidingPayment.method]}. `
+              : null}
+            Everything it paid becomes owed again and the accounts are reversed. The payment stays on record, marked voided.
+            This can&apos;t be undone.
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="payment-void-reason">Reason</Label>
+            <Textarea
+              id="payment-void-reason"
+              value={paymentVoidReason}
+              onChange={(e) => setPaymentVoidReason(e.target.value)}
+              rows={2}
+              placeholder="e.g. Cheque bounced"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setVoidingPayment(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={pending || paymentVoidReason.trim().length < 5}
+              onClick={() => {
+                const target = voidingPayment;
+                if (!target || !voidPaymentAction) return;
+                run(async () => {
+                  await voidPaymentAction(target.id, paymentVoidReason);
+                  setVoidingPayment(null);
+                }, "Payment voided.");
+              }}
+            >
+              {pending ? "Voiding..." : "Void payment"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
