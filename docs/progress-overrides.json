@@ -435,6 +435,10 @@
     "PRIV-1": {
       "status": "Done",
       "note": "Epic 9 -- `20261002100000_core_communication_suppressions.sql`, `packages/core/src/privacy/*`, `/api/unsubscribe`, built 2026-10-02"
+    },
+    "PRIV-2": {
+      "status": "Done",
+      "note": "Epic 9 -- `packages/core/src/privacy/export.ts` + `/dashboard/settings/profile/export`, built 2026-10-02"
     }
   }
 }

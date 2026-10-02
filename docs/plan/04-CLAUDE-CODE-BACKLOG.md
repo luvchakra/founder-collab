@@ -179,6 +179,7 @@ platform. Personal data is stored in Supabase `ap-south-1` (Mumbai).
 | ID | Story | Size |
 |---|---|---|
 | `PRIV-1` | **Outreach opt-out, one click.** Discovery's prospect and investor email had no way to say "stop" and nothing stopped the next send. `core.communication_suppressions` (per business, SHA-256 of the address only, insert-only); every outreach send checks it and refuses with a recorded reason; mail carries RFC 8058 `List-Unsubscribe`/`List-Unsubscribe-Post` headers and a footer link to `/api/unsubscribe` (signed token: business + address hash; GET confirms, POST records). | S |
+| `PRIV-2` | **Download my data.** Self-service personal-data export (DPDP s.11; GDPR Art. 15/20) on Settings → Profile: sign-in identity, profile, memberships, employee records and audit actions attributed to the user, as JSON, for the session user only. Business records stay with each module's own export. Privacy policy points to it; other rights stay by email to the grievance officer. | S |
 
 ---
 
