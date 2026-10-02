@@ -415,6 +415,10 @@
     "SEC-3": {
       "status": "Done",
       "note": "Epic 8 -- `packages/core/src/lib/timing-safe.ts` used by every `/api/cron/*` route and `/api/webhooks/email-inbound`, built 2026-10-01"
+    },
+    "SEC-6": {
+      "status": "Done",
+      "note": "Epic 8 -- `20261001150000_core_audit_log_tamper_evident.sql` + `scripts/test-core-audit-log-tamper-evident.mjs`, built 2026-10-01"
     }
   }
 }
