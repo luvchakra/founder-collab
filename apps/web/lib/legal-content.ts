@@ -245,7 +245,7 @@ No system is perfectly secure. If we become aware of a personal data breach that
 - nominate another person to exercise your rights if you die or become incapacitated;
 - have a grievance about our handling of your data addressed.
 
-To exercise any of these rights, email ${email} from the address on your account. We will respond within 30 days. If you are not satisfied with our response, you may complain to the Data Protection Board of India.`,
+You can download a copy of the personal data we hold about you at any time from **Settings → Profile → Download my data**. To exercise any other right, email ${email} from the address on your account. We will respond within 30 days. If you are not satisfied with our response, you may complain to the Data Protection Board of India.`,
   },
   {
     id: "cookies",

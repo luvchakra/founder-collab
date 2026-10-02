@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@cofounderai/core/db/server";
+import Link from "next/link";
+import { buttonVariants } from "@cofounderai/core/ui/button";
 import { ProfileCard } from "@/components/settings/profile-card";
+import { CONTACT_EMAIL } from "@/lib/legal";
 import { updateAvatarAction, updateProfileAction } from "./actions";
 
 export default async function ProfilePage() {
@@ -35,6 +38,29 @@ export default async function ProfilePage() {
         updateProfileAction={updateProfileAction}
         updateAvatarAction={updateAvatarAction}
       />
+
+      {/* PRIV-2: the user's own data rights, next to the details they describe. */}
+      <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 sm:p-6">
+        <div>
+          <h2 className="text-base font-semibold">Your data</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Download a copy of the personal data we hold about you: your sign-in details, profile, memberships and the
+            actions recorded under your name. Business records are exported from each module.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <a href="/dashboard/settings/profile/export" download className={buttonVariants({ variant: "outline", size: "sm" })}>
+            Download my data
+          </a>
+          <p className="text-xs text-muted-foreground">
+            To correct or delete your data or close your account, email{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+              {CONTACT_EMAIL}
+            </a>{" "}
+            (<Link href="/privacy#rights" className="underline">your rights</Link>).
+          </p>
+        </div>
+      </section>
     </main>
   );
 }

@@ -19,18 +19,18 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 515 |
+| ✅ Done | 516 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 73 |
-| **Total** | **622** |
+| **Total** | **623** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
-| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 70 | 1 | 0 | 71 |
+| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 71 | 1 | 0 | 72 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
@@ -246,6 +246,7 @@ Source: [`docs/plan/04-CLAUDE-CODE-BACKLOG.md`](./plan/04-CLAUDE-CODE-BACKLOG.md
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PRIV-1` | Outreach opt-out, one click | ✅ Done | Epic 9 -- `20261002100000_core_communication_suppressions.sql`, `packages/core/src/privacy/*`, `/api/unsubscribe`, built 2026-10-02 |
+| `PRIV-2` | Download my data | ✅ Done | Epic 9 -- `packages/core/src/privacy/export.ts` + `/dashboard/settings/profile/export`, built 2026-10-02 |
 
 ## Platform Administration Portal
 
