@@ -682,6 +682,7 @@ export async function sendApprovedOutreach(businessId: string, outreachId: strin
 
   const business = await getBusiness(businessId);
   const result = await deliverInvestorEmail({
+    businessId,
     to,
     subject: draft.subject as string,
     body: draft.body as string,

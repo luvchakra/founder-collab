@@ -171,6 +171,17 @@ tooling, tamper-evident audit chain, CSP) still to be ported from
 
 ---
 
+## Epic 9 — Privacy (GDPR / DPDP)
+
+Data-principal rights and opt-outs, ported from `ccr-f797db15-owhokp` onto the current
+platform. Personal data is stored in Supabase `ap-south-1` (Mumbai).
+
+| ID | Story | Size |
+|---|---|---|
+| `PRIV-1` | **Outreach opt-out, one click.** Discovery's prospect and investor email had no way to say "stop" and nothing stopped the next send. `core.communication_suppressions` (per business, SHA-256 of the address only, insert-only); every outreach send checks it and refuses with a recorded reason; mail carries RFC 8058 `List-Unsubscribe`/`List-Unsubscribe-Post` headers and a footer link to `/api/unsubscribe` (signed token: business + address hash; GET confirms, POST records). | S |
+
+---
+
 ## Definition of done (per story)
 
 1. Migration files are in the single platform timeline and are reversible or explicitly documented as irreversible.

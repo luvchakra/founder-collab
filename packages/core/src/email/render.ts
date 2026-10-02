@@ -57,8 +57,11 @@ export function renderEmailHtml(input: {
    * a business's mail to its own customers keeps the business's name, not ours (§19).
    */
   platform?: boolean;
+  /** PRIV-1: outreach email carries a visible one-click unsubscribe link in the footer,
+   * alongside the List-Unsubscribe header (privacy/suppression.ts#prepareOutreachEmail). */
+  unsubscribeUrl?: string | null;
 }): string {
-  const { brandName, body, websiteUrl, replyToEmail, platform = false } = input;
+  const { brandName, body, websiteUrl, replyToEmail, platform = false, unsubscribeUrl = null } = input;
   const header = platform
     ? `<img src="${escapeHtml(`${SITE_URL}${BRAND_ICON.emailHeader}`)}" width="${Math.round(BRAND_EMAIL_HEADER_SIZE.width / 2)}" height="${Math.round(BRAND_EMAIL_HEADER_SIZE.height / 2)}" alt="${escapeHtml(`${brandName} — ${BRAND_TAGLINE}`)}" style="display:block;border:0;outline:none;text-decoration:none;" />`
     : `<span style="font-size:18px;font-weight:700;color:#18181b;">${escapeHtml(brandName)}</span>`;
@@ -68,6 +71,9 @@ export function renderEmailHtml(input: {
     ? ` · <a href="${escapeHtml(websiteUrl)}" style="color:${footerColor};text-decoration:none;">${escapeHtml(
         websiteUrl.replace(/^https?:\/\//, ""),
       )}</a>`
+    : "";
+  const unsubscribeLink = unsubscribeUrl
+    ? ` · <a href="${escapeHtml(unsubscribeUrl)}" style="color:${footerColor};text-decoration:underline;">Unsubscribe</a>`
     : "";
 
   return `<!doctype html>
@@ -96,7 +102,7 @@ export function renderEmailHtml(input: {
             </tr>
             <tr>
               <td style="padding:20px 32px;border-top:1px solid #e4e4e7;">
-                <p style="margin:0;font-size:12px;color:${footerColor};">${escapeHtml(brandName)}${footerLink}</p>
+                <p style="margin:0;font-size:12px;color:${footerColor};">${escapeHtml(brandName)}${footerLink}${unsubscribeLink}</p>
               </td>
             </tr>
           </table>
@@ -108,7 +114,8 @@ export function renderEmailHtml(input: {
 }
 
 /** Plain-text fallback for clients that don't render HTML -- same content, ** markers
- * stripped rather than converted. */
-export function renderEmailText(body: string): string {
-  return body.replace(/\*\*(.+?)\*\*/g, "$1");
+ * stripped rather than converted, plus the unsubscribe link when there is one (PRIV-1). */
+export function renderEmailText(body: string, unsubscribeUrl?: string | null): string {
+  const text = body.replace(/\*\*(.+?)\*\*/g, "$1");
+  return unsubscribeUrl ? `${text}\n\n--\nUnsubscribe: ${unsubscribeUrl}` : text;
 }

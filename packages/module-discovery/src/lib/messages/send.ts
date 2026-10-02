@@ -5,6 +5,7 @@ import { getProspect } from "../prospects/queries";
 import { getBusiness, getProduct, getWorkspace } from "../tenancy/queries";
 import { getOrCreateConversation, markConversationAwaitingReply } from "../conversations/mutations";
 import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render";
+import { prepareOutreachEmail } from "@cofounderai/core/privacy/suppression";
 import type { Message } from "./types";
 
 /** Sends an approved outbound email via Resend and records the real outcome on the
@@ -58,12 +59,28 @@ export async function sendMessage(messageId: string): Promise<Message> {
   const business = product ? await getBusiness(product.business_id) : null;
   const brandName = product?.name ?? business?.name ?? prospect.company_name;
   const websiteUrl = product?.website ?? business?.website ?? null;
+  if (!business) throw new Error("This workspace isn't linked to a business, so it can't send email.");
+
+  // PRIV-1: never email someone who opted out of this business's mail -- recorded as a
+  // failure with the real reason, not skipped silently or reported as sent.
+  const compliance = await prepareOutreachEmail(business.id, toEmail);
+  if (compliance.suppressed) {
+    const { data, error } = await supabase
+      .from("messages")
+      .update({ status: "failed", failure_reason: "This contact unsubscribed from your emails, so it wasn't sent." })
+      .eq("id", messageId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
 
   const resend = new Resend(apiKey);
   const result = message.resend_template_id
     ? await resend.emails.send({
         from: fromAddress,
         to: toEmail,
+        headers: compliance.headers,
         template: {
           id: message.resend_template_id,
           variables: message.template_variables ?? undefined,
@@ -73,12 +90,14 @@ export async function sendMessage(messageId: string): Promise<Message> {
         from: fromAddress,
         to: toEmail,
         subject: message.subject ?? `Quick note for ${prospect.company_name}`,
-        text: renderEmailText(message.content),
+        headers: compliance.headers,
+        text: renderEmailText(message.content, compliance.unsubscribeUrl),
         html: renderEmailHtml({
           brandName,
           body: message.content,
           websiteUrl,
           replyToEmail: fromAddress,
+          unsubscribeUrl: compliance.unsubscribeUrl,
         }),
       });
 

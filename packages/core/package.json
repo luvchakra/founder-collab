@@ -29,6 +29,7 @@
     "./numbering/*": "./src/numbering/*.ts",
     "./documents/*": "./src/documents/*.ts",
     "./payments/*": "./src/payments/*.ts",
+    "./privacy/*": "./src/privacy/*.ts",
     "./tags/*": "./src/tags/*.ts",
     "./custom-fields/*": "./src/custom-fields/*.ts",
     "./attachments/*": "./src/attachments/*.ts",
