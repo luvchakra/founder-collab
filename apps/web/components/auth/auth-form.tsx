@@ -6,21 +6,22 @@ import { Input } from "@cofounderai/core/ui/input";
 import { PasswordInput } from "@cofounderai/core/ui/password-input";
 import { Label } from "@cofounderai/core/ui/label";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
-import { signInWithGoogle, type AuthActionState } from "@/app/(auth)/actions";
+import { signInWithOAuthProvider, type AuthActionState } from "@/app/(auth)/actions";
+import { OAUTH_PROVIDERS, OAUTH_PROVIDER_LABELS, type OAuthProvider } from "@cofounderai/core/auth/oauth-providers";
 
 export function AuthForm({
   mode,
   action,
-  googleEnabled,
+  providers,
 }: {
   mode: "login" | "signup";
   action: (
     prevState: AuthActionState,
     formData: FormData,
   ) => Promise<AuthActionState>;
-  /** Whether this deployment's Supabase project actually has Google turned on. A button
-   * that cannot work is worse than no button -- see core/auth/oauth-providers.ts. */
-  googleEnabled: boolean;
+  /** Which sign-in providers this deployment's Supabase project actually has turned on.
+   * A button that cannot work is worse than no button -- see core/auth/oauth-providers.ts. */
+  providers: Record<OAuthProvider, boolean>;
 }) {
   const [state, formAction] = useActionState<AuthActionState, FormData>(
     action,
@@ -28,6 +29,7 @@ export function AuthForm({
   );
 
   const isLogin = mode === "login";
+  const enabledProviders = OAUTH_PROVIDERS.filter((provider) => providers[provider]);
 
   return (
     <div className="flex w-full max-w-sm flex-col gap-6">
@@ -72,7 +74,7 @@ export function AuthForm({
         </SubmitButton>
       </form>
 
-      {googleEnabled ? (
+      {enabledProviders.length > 0 ? (
         <>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="h-px flex-1 bg-border" />
@@ -80,12 +82,16 @@ export function AuthForm({
             <span className="h-px flex-1 bg-border" />
           </div>
 
-          <form action={signInWithGoogle.bind(null, isLogin ? "/dashboard" : "/onboarding")}>
-            <SubmitButton variant="outline" className="w-full" pendingText="Redirecting…">
-              <GoogleMark />
-              Continue with Google
-            </SubmitButton>
-          </form>
+          <div className="flex flex-col gap-2">
+            {enabledProviders.map((provider) => (
+              <form key={provider} action={signInWithOAuthProvider.bind(null, provider, isLogin ? "/dashboard" : "/onboarding")}>
+                <SubmitButton variant="outline" className="w-full" pendingText="Redirecting…">
+                  <ProviderMark provider={provider} />
+                  Continue with {OAUTH_PROVIDER_LABELS[provider]}
+                </SubmitButton>
+              </form>
+            ))}
+          </div>
         </>
       ) : null}
 
@@ -107,6 +113,36 @@ export function AuthForm({
         )}
       </p>
     </div>
+  );
+}
+
+function ProviderMark({ provider }: { provider: OAuthProvider }) {
+  if (provider === "azure") return <MicrosoftMark />;
+  if (provider === "linkedin_oidc") return <LinkedInMark />;
+  return <GoogleMark />;
+}
+
+/** Microsoft's four-square logo, as its sign-in branding guidance asks for. */
+function MicrosoftMark() {
+  return (
+    <svg className="size-4" viewBox="0 0 23 23" aria-hidden="true">
+      <path fill="#f25022" d="M1 1h10v10H1z" />
+      <path fill="#7fba00" d="M12 1h10v10H12z" />
+      <path fill="#00a4ef" d="M1 12h10v10H1z" />
+      <path fill="#ffb900" d="M12 12h10v10H12z" />
+    </svg>
+  );
+}
+
+/** LinkedIn's "in" mark. */
+function LinkedInMark() {
+  return (
+    <svg className="size-4" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#0A66C2"
+        d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"
+      />
+    </svg>
   );
 }
 

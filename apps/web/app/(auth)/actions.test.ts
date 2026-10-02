@@ -26,7 +26,7 @@ vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
 const {
   login,
   requestPasswordReset,
-  signInWithGoogle,
+  signInWithOAuthProvider,
   signOut,
   signup,
   updatePassword,
@@ -318,22 +318,22 @@ describe("updatePassword", () => {
   });
 });
 
-describe("signInWithGoogle", () => {
+describe("signInWithOAuthProvider", () => {
   it("redirects to the provider URL Supabase returns", async () => {
     mockAuth();
 
-    expect(await captureRedirect(() => signInWithGoogle())).toBe("https://google.example/oauth");
+    expect(await captureRedirect(() => signInWithOAuthProvider("google"))).toBe("https://google.example/oauth");
   });
 
   it("defaults the post-auth destination to the dashboard and honours an override", async () => {
     const auth = mockAuth();
 
-    await captureRedirect(() => signInWithGoogle());
+    await captureRedirect(() => signInWithOAuthProvider("google"));
     expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(
       `${ORIGIN}/auth/callback?next=/dashboard`,
     );
 
-    await captureRedirect(() => signInWithGoogle("/onboarding"));
+    await captureRedirect(() => signInWithOAuthProvider("google", "/onboarding"));
     expect(auth.signInWithOAuth.mock.calls[1]![0].options.redirectTo).toBe(
       `${ORIGIN}/auth/callback?next=/onboarding`,
     );
@@ -343,7 +343,7 @@ describe("signInWithGoogle", () => {
     headers.mockResolvedValue(new Headers());
     const auth = mockAuth();
 
-    await captureRedirect(() => signInWithGoogle());
+    await captureRedirect(() => signInWithOAuthProvider("google"));
 
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
@@ -356,7 +356,7 @@ describe("signInWithGoogle", () => {
       signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: { message: "Provider not enabled" } }),
     });
 
-    const target = await captureRedirect(() => signInWithGoogle());
+    const target = await captureRedirect(() => signInWithOAuthProvider("google"));
 
     expect(target).toBe(`/login?error=${encodeURIComponent("Provider not enabled")}`);
   });
@@ -364,7 +364,60 @@ describe("signInWithGoogle", () => {
   it("falls back to a generic reason when Supabase returns neither URL nor error", async () => {
     mockAuth({ signInWithOAuth: vi.fn().mockResolvedValue({ data: { url: null }, error: null }) });
 
-    expect(await captureRedirect(() => signInWithGoogle())).toContain("not%20available%20yet");
+    expect(await captureRedirect(() => signInWithOAuthProvider("google"))).toContain("not%20available%20yet");
+  });
+});
+
+describe("signInWithOAuthProvider — Microsoft and LinkedIn", () => {
+  it("asks Microsoft for the email scope, which Supabase needs to create the user", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithOAuthProvider("azure", "/onboarding"));
+
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "azure",
+      options: { redirectTo: `${ORIGIN}/auth/callback?next=/onboarding`, scopes: "email" },
+    });
+  });
+
+  it("uses LinkedIn's OpenID Connect provider", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithOAuthProvider("linkedin_oidc"));
+
+    expect(auth.signInWithOAuth).toHaveBeenCalledWith({
+      provider: "linkedin_oidc",
+      options: { redirectTo: `${ORIGIN}/auth/callback?next=/dashboard` },
+    });
+  });
+
+  it("names the provider when it isn't switched on", async () => {
+    mockAuth({
+      signInWithOAuth: vi.fn().mockResolvedValue({ data: {}, error: { message: "Unsupported provider: provider is not enabled" } }),
+    });
+
+    const target = decodeURIComponent(await captureRedirect(() => signInWithOAuthProvider("linkedin_oidc")));
+
+    expect(target).toContain("LinkedIn sign-in isn't switched on");
+    expect(target).toContain("LinkedIn (OIDC)");
+  });
+
+  // Server-action arguments come from the client, so neither may be trusted as given.
+  it("refuses a provider outside the allowlist without calling Supabase", async () => {
+    const auth = mockAuth();
+
+    const target = await captureRedirect(() => signInWithOAuthProvider("github" as never));
+
+    expect(target).toContain("/login?error=");
+    expect(auth.signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it("never lets a forged `next` steer the callback", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithOAuthProvider("google", "https://evil.example" as never));
+
+    expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(`${ORIGIN}/auth/callback?next=/dashboard`);
   });
 });
 

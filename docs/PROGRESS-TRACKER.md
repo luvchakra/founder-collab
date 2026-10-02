@@ -19,18 +19,18 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 518 |
+| ✅ Done | 519 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 73 |
-| **Total** | **625** |
+| **Total** | **626** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
-| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 73 | 1 | 0 | 74 |
+| [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
@@ -242,6 +242,7 @@ Source: [`docs/plan/04-CLAUDE-CODE-BACKLOG.md`](./plan/04-CLAUDE-CODE-BACKLOG.md
 | `SEC-5` | Dependabot for npm and GitHub Actions | ✅ Done | Epic 8 -- `.github/dependabot.yml`, built 2026-10-01 |
 | `SEC-6` | Tamper-evident, append-only audit log | ✅ Done | Epic 8 -- `20261001150000_core_audit_log_tamper_evident.sql` + `scripts/test-core-audit-log-tamper-evident.mjs`, built 2026-10-01 |
 | `SEC-7` | Void-only payments | ✅ Done | Epic 8 -- `20261002090000_core_payments_void_only.sql` + `scripts/test-core-payments-void-only.mjs`, `voidPayment()`, Finance `payment.voided` reversal, built 2026-10-02 |
+| `SEC-8` | Social sign-in, and an open redirect after it | ✅ Done | Epic 8 -- `apps/web/lib/safe-redirect.ts`, `signInWithOAuthProvider()`, `core/auth/oauth-providers.ts`, built 2026-10-02 |
 
 ### Epic 9 — Privacy (GDPR / DPDP)
 

@@ -181,6 +181,9 @@ reintroduce them.
 - **A `SECURITY DEFINER` function granted to `authenticated` authorizes its own inputs**
   (membership via `core.user_business_ids()`, actor forced to `auth.uid()`). Internal
   helpers such as `core.append_audit_log()` are granted to `service_role` only (SEC-2).
+- **A redirect target taken from input is a path, never a URL** (SEC-8): pass `?next=` and
+  similar through `safeRedirectPath()` (`apps/web/lib/safe-redirect.ts`). Gluing input onto
+  the origin is not safe on its own -- `@evil.example` becomes the host.
 - **Compare secrets in constant time**: `secretsEqual()` / `bearerTokenMatches()` from
   `@cofounderai/core/lib/timing-safe`, never `!==` (SEC-3).
 - **CI fails on high/critical production advisories**; Dependabot proposes the fix (SEC-1,

@@ -8,18 +8,27 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
+const { createClient, cookieStore } = vi.hoisted(() => ({
+  createClient: vi.fn(),
+  cookieStore: { get: vi.fn() },
+}));
 vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
+vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
 
 const { GET } = await import("./route");
 
 const ORIGIN = "https://app.example.com";
 
-function mockAuth(results: { exchange?: { error: unknown }; verify?: { error: unknown } } = {}) {
+function mockAuth(
+  results: { exchange?: { error: unknown }; verify?: { error: unknown }; businesses?: { data: unknown; error: unknown } } = {},
+) {
   const exchangeCodeForSession = vi.fn().mockResolvedValue(results.exchange ?? { error: null });
   const verifyOtp = vi.fn().mockResolvedValue(results.verify ?? { error: null });
-  createClient.mockResolvedValue({ auth: { exchangeCodeForSession, verifyOtp } });
-  return { exchangeCodeForSession, verifyOtp };
+  // An existing user with a business, unless a test says otherwise.
+  const businesses = results.businesses ?? { data: [{ id: "b1" }], error: null };
+  const schema = vi.fn(() => ({ from: () => ({ select: () => ({ limit: async () => businesses }) }) }));
+  createClient.mockResolvedValue({ auth: { exchangeCodeForSession, verifyOtp }, schema });
+  return { exchangeCodeForSession, verifyOtp, schema };
 }
 
 function request(query: string) {
@@ -35,7 +44,10 @@ function path(response: Response): string {
   return new URL(response.headers.get("location")!).pathname;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  cookieStore.get.mockReturnValue(undefined);
+});
 
 describe("GET /auth/callback — PKCE code links", () => {
   it("exchanges the code and redirects to the default destination", async () => {
@@ -183,28 +195,22 @@ describe("GET /auth/callback — open redirect", () => {
     expect(new URL(response.headers.get("location")!).origin).toBe(ORIGIN);
   });
 
-  // `next` is attacker-controllable and is concatenated onto the origin without an
-  // allowlist, so this pins the property that makes that safe: the result is parsed as a
-  // URL relative to the app's own origin, which collapses an absolute "https://evil..."
-  // into an on-origin path rather than honouring it as a host. This is the open-redirect
-  // regression test — if the concatenation is ever replaced by something that treats
-  // `next` as a full URL, this fails.
+  // `next` is attacker-controllable. Gluing it onto the origin was never safe on its own:
+  // "@evil.example" turns "https://app.example.com" into a URL whose *host* is
+  // evil.example. Anything that isn't a plain on-site path now falls back to the dashboard.
   it.each([
     ["an absolute URL", "https://evil.example/steal"],
     ["a protocol-relative host", "//evil.example/steal"],
+    ["the userinfo trick", "@evil.example/steal"],
+    ["a backslash host", "/\\evil.example"],
   ])("cannot be steered to an attacker's host by %s in `next`", async (_label, next) => {
     mockAuth();
 
-    const response = await GET(request(`?code=valid&next=${next}`));
+    const response = await GET(request(`?code=valid&next=${encodeURIComponent(next)}`));
     const location = new URL(response.headers.get("location")!);
 
-    // The concatenation glues `next` onto the origin string, so an absolute URL comes out
-    // mangled ("https://app.example.comhttps//evil.example/steal") rather than honoured:
-    // the host is never the attacker's. That mangling is what makes the missing `next`
-    // allowlist safe, so it is the property pinned here — if the concatenation is ever
-    // replaced by something that parses `next` as a full URL, this test fails.
-    expect(location.hostname).not.toBe("evil.example");
-    expect(location.hostname.startsWith("app.example.com")).toBe(true);
+    expect(location.origin).toBe(ORIGIN);
+    expect(location.pathname).toBe("/dashboard");
   });
 
   it("keeps the same guarantee for a token-hash link", async () => {
@@ -215,5 +221,38 @@ describe("GET /auth/callback — open redirect", () => {
     );
 
     expect(new URL(response.headers.get("location")!).hostname).not.toBe("evil.example");
+  });
+});
+
+describe("GET /auth/callback — first sign-in through Google, Microsoft or LinkedIn", () => {
+  it("sends a brand-new account (no business yet) to onboarding rather than an empty dashboard", async () => {
+    mockAuth({ businesses: { data: [], error: null } });
+
+    expect(path(await GET(request("?code=valid")))).toBe("/onboarding");
+  });
+
+  it("sends a returning user to the dashboard", async () => {
+    mockAuth();
+
+    expect(path(await GET(request("?code=valid")))).toBe("/dashboard");
+  });
+
+  it("leaves an invitee on their way to the invitation", async () => {
+    mockAuth({ businesses: { data: [], error: null } });
+    cookieStore.get.mockReturnValue({ value: "invite-token" });
+
+    expect(path(await GET(request("?code=valid")))).toBe("/dashboard");
+  });
+
+  it("keeps the original destination if it can't tell", async () => {
+    mockAuth({ businesses: { data: null, error: { message: "boom" } } });
+
+    expect(path(await GET(request("?code=valid")))).toBe("/dashboard");
+  });
+
+  it("never overrides an explicit destination such as a password reset", async () => {
+    mockAuth({ businesses: { data: [], error: null } });
+
+    expect(path(await GET(request("?code=valid&next=/reset-password")))).toBe("/reset-password");
   });
 });

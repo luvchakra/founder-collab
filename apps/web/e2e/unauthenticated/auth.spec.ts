@@ -230,21 +230,27 @@ test.describe("Forgot password", () => {
 });
 
 /**
- * Google sign-in is only offered when the Supabase project actually has the provider
- * turned on -- a "Continue with Google" button on a project where Google is disabled
- * comes back with "Unsupported provider", which reads as a broken app rather than an
- * unfinished setup step.
+ * Google, Microsoft and LinkedIn sign-in are only offered when the Supabase project
+ * actually has each provider turned on -- a "Continue with Google" button on a project
+ * where Google is disabled comes back with "Unsupported provider", which reads as a broken
+ * app rather than an unfinished setup step.
  *
- * So this asserts the button against the project's own answer rather than against a
+ * So this asserts the buttons against the project's own answer rather than against a
  * hardcoded expectation: whichever way the deployment is configured, the page has to
  * agree with it.
  */
-test.describe("Google sign-in", () => {
+const SOCIAL_PROVIDERS = [
+  { key: "google", label: /continue with google/i },
+  { key: "azure", label: /continue with microsoft/i },
+  { key: "linkedin_oidc", label: /continue with linkedin/i },
+] as const;
+
+test.describe("Social sign-in", () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   for (const path of ["/login", "/signup"]) {
-    test(`${path} offers Google exactly when the project enables it`, async ({ page, request }) => {
+    test(`${path} offers each provider exactly when the project enables it`, async ({ page, request }) => {
       test.skip(
         !supabaseUrl || !supabaseKey,
         "Needs NEXT_PUBLIC_SUPABASE_URL/PUBLISHABLE_KEY in the test runner's own environment",
@@ -254,14 +260,16 @@ test.describe("Google sign-in", () => {
         headers: { apikey: supabaseKey! },
       });
       expect(settings.ok(), "the project's auth settings must be readable").toBe(true);
-      const enabled = Boolean((await settings.json()).external?.google);
+      const external = ((await settings.json()).external ?? {}) as Record<string, boolean>;
 
       await page.goto(path);
-      const button = page.getByRole("button", { name: /continue with google/i });
-      await expect(button).toHaveCount(enabled ? 1 : 0);
+      for (const provider of SOCIAL_PROVIDERS) {
+        await expect(page.getByRole("button", { name: provider.label })).toHaveCount(external[provider.key] ? 1 : 0);
+      }
 
-      // The "OR" divider belongs to that button -- it must not be left behind on its own.
-      await expect(page.getByText("OR", { exact: true })).toHaveCount(enabled ? 1 : 0);
+      // The "OR" divider belongs to those buttons -- it must not be left behind on its own.
+      const anyEnabled = SOCIAL_PROVIDERS.some((provider) => external[provider.key]);
+      await expect(page.getByText("OR", { exact: true })).toHaveCount(anyEnabled ? 1 : 0);
     });
   }
 });

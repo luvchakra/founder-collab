@@ -43,7 +43,7 @@ export function buildContentSecurityPolicy({ isDev }: { isDev: boolean }): strin
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    `form-action 'self' https://*.supabase.co ${RAZORPAY_ORIGINS} https://checkout.stripe.com https://accounts.google.com`,
+    `form-action 'self' https://*.supabase.co ${RAZORPAY_ORIGINS} https://checkout.stripe.com https://accounts.google.com https://login.microsoftonline.com https://www.linkedin.com`,
     "frame-ancestors 'none'",
     // Not in development: it would rewrite http://localhost requests to https.
     ...(isDev ? [] : ["upgrade-insecure-requests"]),

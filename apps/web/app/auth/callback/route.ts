@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@cofounderai/core/db/server";
+import { safeRedirectPath } from "../../../lib/safe-redirect";
 
 /**
  * Landing point for every Supabase Auth email link — signup confirmation, magic link and
@@ -40,12 +42,36 @@ function readableReason(message: string): string {
   return message;
 }
 
+/**
+ * "Continue with Google/Microsoft/LinkedIn" on the *login* page also creates the account
+ * when the person is new -- there is no separate sign-up step for OAuth. A brand-new
+ * account has no business yet, and the dashboard has nothing to show it, so it goes to
+ * onboarding instead. An invitee (pending-invite cookie) is left alone: the dashboard
+ * forwards them to their invitation, which is where their business comes from.
+ */
+async function firstRunDestination(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  next: string,
+): Promise<string> {
+  if (next !== "/dashboard") return next;
+  if ((await cookies()).get("wa_pending_invite")) return next;
+  // Best-effort: any failure to tell keeps the original destination, which still works.
+  try {
+    const { data, error } = await supabase.schema("core").from("businesses").select("id").limit(1);
+    if (error || (data ?? []).length > 0) return next;
+    return "/onboarding";
+  } catch {
+    return next;
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/dashboard";
+  // Only ever a path on this site: `next` arrives on the URL (see lib/safe-redirect.ts).
+  const next = safeRedirectPath(searchParams.get("next"));
   const providerError = searchParams.get("error_description") ?? searchParams.get("error");
 
   const isRecovery = type === "recovery" || next === "/reset-password";
@@ -69,7 +95,7 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return fail(error.message);
-    return NextResponse.redirect(`${origin}${next}`);
+    return NextResponse.redirect(`${origin}${await firstRunDestination(supabase, next)}`);
   }
 
   return fail("That link is missing its confirmation code. Request a new one.");

@@ -31,7 +31,7 @@ export default async function LoginPage() {
         <AuthError />
       </Suspense>
       <div className="mt-8">
-        <AuthForm mode="login" action={login} googleEnabled={providers.google} />
+        <AuthForm mode="login" action={login} providers={providers} />
       </div>
       <p className="mt-6 text-center text-xs text-landing-muted">
         <a href={termsUrl} className="underline hover:text-landing-fg">
