@@ -144,8 +144,9 @@ screen in one pass). Run it from any environment that can actually reach the
 target Supabase project with a real signed-in account -- a fully
 network-isolated sandbox can't produce real captures here any more than it can
 run the rest of this suite. Drop the resulting PNGs into the user guides (or
-hand them to whoever is assembling a Word/PDF version) to replace the
-placeholder mockups under `apps/web/public/screens/`.
+hand them to whoever is assembling a Word/PDF version). The landing page's product
+images under `apps/web/public/screens/` are separate: drawn mock-ups of the real
+pages, regenerated with `npm run build:screens` (`scripts/build-landing-screens.mjs`).
 
 ## What this suite is not a substitute for
 

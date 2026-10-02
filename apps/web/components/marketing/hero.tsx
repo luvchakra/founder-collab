@@ -51,7 +51,7 @@ export function Hero() {
           <div className="landing-glow landing-glow-pulse rounded-[10%]">
             <Image
               src="/screens/business-overview.png"
-              alt={`${BRAND_NAME}'s mobile dashboard showing active jobs, open opportunities, low stock alerts and open support tickets in one view`}
+              alt={`${BRAND_NAME}'s Executive Dashboard on a phone: businesses, offerings, prospects and AI credits, and what each module needs today -- open jobs, low-stock alerts, open tickets and e-invoices`}
               width={752}
               height={1624}
               priority

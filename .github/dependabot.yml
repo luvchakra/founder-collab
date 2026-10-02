@@ -1,0 +1,18 @@
+# SEC-5: automated dependency updates. GitHub opens security-advisory PRs immediately
+# regardless of this schedule; the weekly run keeps routine version drift reviewable.
+# CI's `npm audit --omit=dev --audit-level=high` (SEC-1) is what blocks a vulnerable
+# production dependency from merging; this is what proposes the fix.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

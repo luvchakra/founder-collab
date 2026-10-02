@@ -22,7 +22,7 @@ const MODULES: {
       "One-click handoff into CRM and Service",
     ],
     image: "/screens/discovery-pipeline.png",
-    imageAlt: "Discovery pipeline showing scored accounts with fit score, priority and status",
+    imageAlt: "An offering's Prospects tab: scored accounts grouped by stage, with fit score, status and the next action",
     frame: "desktop",
   },
   {
@@ -36,7 +36,7 @@ const MODULES: {
       "The same item record a job or invoice reserves against",
     ],
     image: "/screens/inventory-dashboard.png",
-    imageAlt: "Inventory dashboard showing stock levels and status badges for HVAC parts",
+    imageAlt: "Inventory dashboard on a phone: inventory value, stock counts, the daily brief and the reorder watchlist",
     frame: "mobile",
   },
   {
@@ -50,13 +50,13 @@ const MODULES: {
       "Job invoicing tied straight to inventory",
     ],
     image: "/screens/fsm-schedule.png",
-    imageAlt: "Field service schedule showing jobs, customers and statuses for the week",
+    imageAlt: "Service schedule for the week, by technician, with work, estimate and reminder events",
     frame: "desktop",
   },
   {
     name: "CRM",
     tagline: "One inbox, whichever channel they used",
-    body: "WhatsApp, email and every other channel land in a single shared inbox, tied to the same customer record that Inventory and Service already know about.",
+    body: "Conversations from WhatsApp, email and your other channels become tickets in one shared inbox, tied to the same customer record that Inventory and Service already know about.",
     features: [
       "Unified inbox across channels",
       "Automated routing rules",
@@ -64,7 +64,7 @@ const MODULES: {
       "Follow-up queue so nothing goes quiet",
     ],
     image: "/screens/crm-inbox.png",
-    imageAlt: "Shared CRM inbox showing a WhatsApp conversation thread with a customer",
+    imageAlt: "CRM inbox on a phone: customer tickets by channel, with status, assignee and Customer 360",
     frame: "mobile",
   },
   {
@@ -77,8 +77,8 @@ const MODULES: {
       "Bank reconciliation with saved categorisation rules",
       "GSTINs, e-invoicing, e-way bills and return filing",
     ],
-    image: "/screens/gst-dashboard.png",
-    imageAlt: "GST dashboard showing an active GSTIN registration and recent return filings",
+    image: "/screens/finance-dashboard.png",
+    imageAlt: "Finance dashboard: cash, receivables, payables, profit and GST position, with compliance risks and upcoming filings",
     frame: "desktop",
   },
 ];
