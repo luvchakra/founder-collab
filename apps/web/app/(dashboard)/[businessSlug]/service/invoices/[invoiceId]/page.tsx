@@ -23,6 +23,7 @@ import {
   sendInvoiceAction,
   updateInvoiceChargeLineAction,
   voidInvoiceAction,
+  voidInvoicePaymentAction,
 } from "./actions";
 
 export default async function InvoiceDetailPage({ params }: { params: Promise<{ businessSlug: string; invoiceId: string }> }) {
@@ -32,7 +33,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const [business, invoice] = await Promise.all([getBusiness(businessId), getInvoice(businessId, invoiceId)]);
   if (!business || !invoice) notFound();
 
-  const [lines, items, jobChargeTypes, balance, payments, canEdit, canVoid, gstStatus, canGenerateGst] = await Promise.all([
+  const [lines, items, jobChargeTypes, balance, payments, canEdit, canVoid, gstStatus, canGenerateGst, canVoidPayment] = await Promise.all([
     listInvoiceLines(businessId, invoiceId),
     listChargeableItemOptions(businessId),
     listActiveJobChargeTypeOptions(businessId),
@@ -42,6 +43,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     hasPermission(businessId, "invoices.cancel"),
     getGstDocumentStatus(businessId, invoiceId),
     hasPermission(businessId, "gst.generate"),
+    hasPermission(businessId, "payments.void"),
   ]);
 
   return (
@@ -67,6 +69,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         markPaidAction={markInvoicePaidAction.bind(null, businessId, invoiceId)}
         markUnpaidAction={markInvoiceUnpaidAction.bind(null, businessId, invoiceId)}
         voidAction={voidInvoiceAction.bind(null, businessId, invoiceId)}
+        canVoidPayment={canVoidPayment}
+        voidPaymentAction={voidInvoicePaymentAction.bind(null, businessId, invoiceId)}
       />
 
       {gstStatus.ok ? (

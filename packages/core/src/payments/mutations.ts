@@ -1,6 +1,6 @@
 import { createClient } from "../db/server";
 import { publish } from "../events/mutations";
-import type { Payment, PaymentAllocation, PaymentMethod } from "./types";
+import type { Payment, PaymentAllocation, PaymentMethod, VoidedAllocation } from "./types";
 
 function coreClient() {
   return createClient({ schema: "core" });
@@ -80,4 +80,39 @@ export async function allocatePayment(input: {
   });
 
   return data;
+}
+
+/**
+ * SEC-7: voids a recorded payment -- the only way to undo one, since payments and their
+ * allocations can't be edited or deleted (`20261002090000_core_payments_void_only.sql`).
+ *
+ * Everything is decided and done by `core.void_payment()` in one transaction: the
+ * `payments.void` permission, maker-checker (whoever recorded it can't void it unless
+ * they're an owner/admin), the reason, releasing its allocations so the documents it
+ * settled are owed again, the audit entry, and the `payment.voided` event Finance reverses
+ * its settlement entries from. Runs as the signed-in user so those checks apply to them.
+ *
+ * Returns what the payment had settled, so the caller can refresh any status it keeps on
+ * those documents (e.g. an invoice marked paid).
+ */
+export async function voidPayment(input: {
+  businessId: string;
+  paymentId: string;
+  reason: string;
+}): Promise<VoidedAllocation[]> {
+  const reason = input.reason.trim();
+  if (reason.length < 5) throw new Error("Give a reason for voiding this payment (at least 5 characters).");
+  const supabase = await coreClient();
+  const { data: payment, error: lookupError } = await supabase
+    .from("payments")
+    .select("id")
+    .eq("business_id", input.businessId)
+    .eq("id", input.paymentId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!payment) throw new Error("Payment not found.");
+
+  const { data, error } = await supabase.rpc("void_payment", { p_payment_id: input.paymentId, p_reason: reason });
+  if (error) throw error;
+  return ((data ?? []) as VoidedAllocation[]).map((a) => ({ ...a, amount: Number(a.amount) }));
 }

@@ -41,7 +41,8 @@ export async function getVendorPaymentTotals(businessId: string, calendarYear: n
   if (vendorPartyIds.length === 0) return [];
 
   const [paymentsRes, partiesRes] = await Promise.all([
-    core.from("payments").select("party_id, amount").eq("business_id", businessId).in("party_id", vendorPartyIds).gte("payment_date", yearStart).lte("payment_date", yearEnd),
+    // SEC-7: a voided payment was never paid -- it doesn't count toward the threshold.
+    core.from("payments").select("party_id, amount").eq("business_id", businessId).in("party_id", vendorPartyIds).is("voided_at", null).gte("payment_date", yearStart).lte("payment_date", yearEnd),
     core.from("parties").select("id, name, kind").in("id", vendorPartyIds),
   ]);
   if (paymentsRes.error) throw paymentsRes.error;

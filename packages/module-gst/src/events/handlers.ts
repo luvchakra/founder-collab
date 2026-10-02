@@ -2,6 +2,7 @@ import { registerEventHandler } from "@cofounderai/core/events/registry";
 import type { DomainEvent } from "@cofounderai/core/events/types";
 import { generateEinvoice } from "../lib/einvoicing/mutations";
 import { postIssuedDocument, postPaymentAllocation } from "../lib/accounting/event-posting";
+import { reverseVoidedPaymentSettlements } from "../lib/accounting/journal-mutations";
 
 /**
  * module-gst's own event subscription (00-MASTER-PLAN.md's module contract layout;
@@ -94,4 +95,28 @@ registerEventHandler("payment.allocated", async (event: DomainEvent) => {
   const payload = event.payload as { allocationId?: string };
   if (!payload.allocationId) return;
   await postPaymentAllocation(event.business_id, payload.allocationId, event.id);
+});
+
+/**
+ * SEC-7: a voided payment's settlements leave the ledger.
+ *
+ * Published by `core.void_payment()` itself, in the same transaction as the void, with
+ * the ids of the allocations it released. Each settlement Finance posted for one of them
+ * is reversed (never deleted), so the receivable or payable it had cleared is open again
+ * in the books exactly as it is on the Receivables/Payables screens.
+ *
+ * Idempotent (see `reverseVoidedPaymentSettlements`), so the drain's retries are safe. A
+ * reversal refused because today's period is locked is thrown rather than dropped: the
+ * event then records the reason and ends `failed` where someone can see it, instead of
+ * the ledger quietly still showing a payment that no longer exists.
+ */
+registerEventHandler("payment.voided", async (event: DomainEvent) => {
+  const payload = event.payload as { allocationIds?: string[] };
+  const allocationIds = (payload.allocationIds ?? []).filter((id) => typeof id === "string");
+  const result = await reverseVoidedPaymentSettlements(event.business_id, allocationIds);
+  if (result.refused.length > 0) {
+    throw new Error(
+      `Couldn't reverse ${result.refused.length} settlement(s) of a voided payment: ${result.refused[0]!.reason}`,
+    );
+  }
 });

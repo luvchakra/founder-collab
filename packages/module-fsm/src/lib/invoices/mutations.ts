@@ -5,7 +5,7 @@ import { renderEmailHtml, renderEmailText } from "@cofounderai/core/email/render
 import { SITE_URL } from "@cofounderai/core/site";
 import { publish } from "@cofounderai/core/events/mutations";
 import { requireModule } from "@cofounderai/core/licensing/queries";
-import { recordPayment, allocatePayment } from "@cofounderai/core/payments/mutations";
+import { recordPayment, allocatePayment, voidPayment } from "@cofounderai/core/payments/mutations";
 import { getDocumentBalance } from "@cofounderai/core/payments/queries";
 import type { PaymentMethod } from "@cofounderai/core/payments/types";
 import { createClient as createFsmClient } from "../../db/server";
@@ -188,8 +188,9 @@ export async function markInvoiceViewed(rawToken: string): Promise<void> {
 
 /** Recomputes `status` from the live balance after a payment lands (PRD §1.4: "Manual
  * ... payments must be logged as a payment on the job before marking paid, or the
- * balance won't zero out" -- this is that exact wiring). Only ever advances toward
- * `paid`, never away from `voided`. */
+ * balance won't zero out" -- this is that exact wiring) or is voided (SEC-7). Never
+ * moves away from `voided`. A void that leaves nothing paid sends a paid/partially-paid
+ * invoice back to `issued` -- the same simplification `markInvoiceUnpaid` documents. */
 async function syncInvoiceStatusFromBalance(businessId: string, invoiceId: string): Promise<void> {
   const balance = await getDocumentBalance(invoiceId);
   if (!balance) return;
@@ -197,7 +198,14 @@ async function syncInvoiceStatusFromBalance(businessId: string, invoiceId: strin
   const { data: doc } = await core.from("documents").select("status").eq("id", invoiceId).maybeSingle();
   if (doc?.status === "voided") return;
 
-  const status = balance.balance_amount <= 0 ? "paid" : balance.paid_amount > 0 ? "partially_paid" : null;
+  const status =
+    balance.balance_amount <= 0
+      ? "paid"
+      : balance.paid_amount > 0
+        ? "partially_paid"
+        : doc?.status === "paid" || doc?.status === "partially_paid"
+          ? "issued"
+          : null;
   if (!status) return;
   const { error } = await core.from("documents").update({ status }).eq("id", invoiceId).eq("business_id", businessId);
   if (error) throw error;
@@ -221,6 +229,35 @@ export async function recordManualPayment(
 
   const payment = await recordPayment({ businessId, partyId: invoice.party_id, method, amount, reference: reference || null, notes: notes || null });
   await allocatePayment({ businessId, paymentId: payment.id, documentId: invoiceId, amount });
+  await syncInvoiceStatusFromBalance(businessId, invoiceId);
+}
+
+/** SEC-7: a recorded payment is corrected by voiding it, never by editing or deleting it.
+ * `voidPayment` (core) decides who may and does the void -- `payments.void`, maker-checker,
+ * a reason, the audit entry and Finance's reversal; this only scopes it to an invoice it
+ * actually paid and brings the invoice's status back in line with its balance. */
+export async function voidInvoicePayment(
+  businessId: string,
+  invoiceId: string,
+  paymentId: string,
+  reason: string,
+): Promise<void> {
+  await requireModule(businessId, "fsm");
+  const invoice = await getInvoice(businessId, invoiceId);
+  if (!invoice) throw new Error("Invoice not found.");
+  const core = await coreClient();
+  const { data: allocation, error } = await core
+    .from("payment_allocations")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("payment_id", paymentId)
+    .eq("document_id", invoiceId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!allocation) throw new Error("That payment isn't applied to this invoice.");
+
+  await voidPayment({ businessId, paymentId, reason });
   await syncInvoiceStatusFromBalance(businessId, invoiceId);
 }
 
