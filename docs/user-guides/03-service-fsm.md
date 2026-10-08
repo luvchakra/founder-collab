@@ -5,6 +5,16 @@ runs your field-service business: turning a lead into a scheduled job, a
 completed visit, and an invoice — with crew dispatch and inventory
 parts-tracking built in.
 
+## The Service dashboard
+
+Service opens on the **Service Dashboard**, the dispatcher's view of the day:
+tiles for **Open jobs** (and how many are in progress), **Revenue (month)**,
+**Outstanding** (and how many invoices are overdue) and **Win rate** (won ÷
+won + lost opportunities); an **Invoiced (30 days)** trend and **Jobs by
+status**; and working lists for **Today's schedule** (or this week's), the
+**Unassigned queue**, **Jobs in progress**, **Overdue invoices** and
+**Estimates awaiting response**.
+
 ## Setup before you start
 
 All under **Service → Settings**:
@@ -43,7 +53,8 @@ service-area/zone concept in this module today.
 4. **Invoice** — generate an invoice from a completed job (or let it
    auto-generate, if you turned that setting on). Send it, record payments,
    mark paid/void, and reorder line items. If Finance is licensed, an
-   e-invoice/e-way-bill panel appears here too.
+   e-invoice/e-way-bill panel appears here too. The customer gets a link to
+   a read-only page showing the invoice, the total and what is still owing.
 
 ### Working a job
 
@@ -69,6 +80,58 @@ to each other.
   see supply problems before they send a crew out.
 - **My Day** — the technician's own mobile agenda for today: mark "on the
   way," "arrived," or "done" on each event, and clock in/out.
+
+## Correcting a payment: void, never edit
+
+A recorded payment can't be edited or deleted. If one was entered wrongly
+(a cheque that bounced, the wrong invoice), open the invoice and use **Void
+payment** on that payment's row (**Void** in the table on a wide screen). You
+must give a reason, and:
+
+- you need the permission to void payments — by default the Owner, Admin and
+  Accountant roles have it;
+- the person who recorded the payment can't void it themselves unless they
+  are an Owner or Admin, so a second person checks the correction;
+- everything the payment settled becomes owed again, the invoice's status is
+  recalculated (back to *issued*, or *partially paid* if other payments
+  remain), and — if Finance is licensed — the ledger entries the payment
+  created are reversed automatically;
+- the payment stays in the history, marked **Voided** with its reason, and the
+  action is recorded in the audit log. A voided payment can't be un-voided: if
+  the money really arrived, record a new payment.
+
+## Customer-facing pages
+
+Customers don't need an account for any of these — each is reached through a
+link:
+
+- **Estimates** — the link in the estimate email opens a page where the
+  customer can **Approve** or **Decline**.
+- **Invoices** — a read-only invoice page showing the total and balance.
+- **Customer center** — if you switched it on in Service Settings, a customer
+  who has been given access sees their **Upcoming work**, **My estimates**
+  (with Approve / Decline) and **My invoices** in one place. You grant access
+  from the job.
+- **Service request form** — if you switched the contact form on, your
+  business has a public form at `/p/request/<your-business-slug>`. A
+  visitor enters their name, email, phone, service address and what they
+  need; each submission arrives as a new **Opportunity** (attributed to the
+  business owner) for you to follow up.
+
+## Customers
+
+**Customers** lists the people and companies you do work for — the same list
+Inventory sees, when both are licensed — and lets anyone with edit permission
+update their details. It can be exported.
+
+## Reports
+
+**Reports** has a date range at the top (7 days, 30 days, 90 days, this month,
+this year, all time) and a tab per report: **Jobs completed**, **Revenue by
+service**, **Revenue by tag**, **Revenue by charge type**, **Marketing
+sources**, **Customer balances**, **Account aging**, **Payments**,
+**Timecards** and **Productivity**. **Export** gives you the report as CSV or
+a full Excel workbook.
 
 ## Parts reservation (if Inventory is licensed)
 
