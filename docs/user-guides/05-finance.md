@@ -22,6 +22,16 @@ Dimensions, Budget, Recurring Entries, Accounting Periods, Backfill
 GST Filing, GSTR-2B Reconciliation, e-Invoicing, e-Way Bill
 **Records**: Evidence, Audit Log
 
+## The Finance dashboard
+
+Finance opens on a dashboard that puts the money first: **Cash and bank**,
+**Owed to you**, **You owe**, **Profit this month** and **Net GST position**.
+Underneath are a notice of any **unposted documents** (see below), the
+month's GST snapshot, a **Compliance risk** list — each risk rated high,
+medium or low — and **Upcoming filings**. Until Finance is activated, a banner
+at the top walks you into **Activate Finance**. The whole dashboard exports to
+Excel or CSV.
+
 ## Activating Finance
 
 The first time you open Finance, **Activate Finance** walks you through the
@@ -79,7 +89,9 @@ a credit note — or a payment is allocated against one, Finance posts the
 matching journal entry by itself, using the account each role maps to.
 
 **Journal** shows every entry, automatic and manual, with its lines,
-its source document, and a **Reverse** action. To record something the
+its source document, and a **Reverse** action. When a recorded payment is
+voided (see "Payments are corrected by voiding" below), the journal gets the
+reversing entries for it automatically. To record something the
 platform cannot know about (a director's loan, a depreciation charge, an
 opening balance), use **New entry** and enter the lines yourself. Debits
 must equal credits before it will save.
@@ -121,6 +133,17 @@ reconciliations.
   entry and matches the line in one step. Rules only suggest: nothing is
   posted until you click, and a double-click can't post twice. Managing rules
   needs `gst.bank_rules.manage`.
+
+## Payments are corrected by voiding
+
+A recorded payment can't be edited or deleted, so the books can't be changed
+quietly after the fact. A payment entered wrongly is **voided** with a reason
+(today from the payment list on a Service invoice, by someone allowed to void
+payments — see the Service guide). The documents it paid become owed again in
+**Receivables**, and Finance reverses the settlement entries
+it had posted — as new entries, with the originals kept, exactly like any
+other correction. Voided payments stay visible, marked as voided, and are left
+out of 1099 totals.
 
 ## Money in: Receivables
 
@@ -272,8 +295,11 @@ frequency, e-invoice eligibility).
   is claimable and what is at risk.
 - **e-Invoicing** and **e-Way Bill** — see GSP credentials below; each has its
   own screen to issue and cancel documents.
-- **Evidence** and **Audit Log** — supporting records and a change history for
-  accountability.
+- **Evidence** — return acknowledgments, government notices and payment
+  challans kept on file for the business.
+- **Audit Log** — a read-only, chronological record of who changed what and
+  when, which you can filter by type, person and date and export. Entries
+  can't be edited or deleted, so it stays a record you can rely on.
 
 A GST return covers the supplies of the **business**, not of whichever module
 raised the paperwork — Service invoices, Inventory invoices and bills entered

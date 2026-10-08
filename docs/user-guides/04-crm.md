@@ -13,9 +13,11 @@ Reviews, Analytics, Reactivation
 **Administration**: Channels, WhatsApp, Routing Rules
 
 > **Inbox vs. Conversations**: you'll notice two inbox-shaped screens.
-> **Inbox** is an older, ticket-based model being phased out; **Conversations**
-> is the current unified-inbox experience described below. Use Conversations
-> day to day.
+> **Inbox** is a simple ticket list — one ticket per enquiry, with a status
+> (open, pending, closed), an assignee, and a **New ticket** form for logging
+> one by hand. **Conversations** is the unified inbox described below, where
+> you read the message thread and reply. Use Conversations day to day for
+> WhatsApp, Instagram and Facebook messages.
 
 ## Daily workflows
 
@@ -55,6 +57,24 @@ Reviews, Analytics, Reactivation
 - **Reviews** — connect your Google Business Profile location(s), sync
   reviews on demand, and draft + publish AI-assisted responses (publishing
   requires the review-publishing permission).
+- **Analytics** — response performance over the last 30 days: median first
+  response time, SLA compliance, unresolved interactions by age, response
+  time per channel and per owner/team member, and a channel-by-channel
+  comparison of leads and opportunities. If Discovery is licensed you also
+  get the Discovery → CRM funnel, and if Service is licensed the CRM →
+  Service funnel; without those modules the sections are simply left out.
+  It can be exported as a report.
+- **Reactivation** — customers worth reaching out to again, found by simple
+  rules each time you open the page: a previously active customer who has
+  gone quiet, an old lead with a fresh signal, an item someone was waiting on
+  that is back in stock, and a completed service that is plausibly due
+  again. Each row names the reason and a suggested action and links to the
+  customer. Nothing is sent automatically — you decide and act from the
+  customer's page.
+- **Exceptions** — open cross-module problems that need a decision: a
+  Service job with a parts shortage (choose how to resolve it, with an
+  optional note) and an opportunity that needs an assessment (**Request
+  assessment** in one click, or open it in Service once it exists).
 - **Customer 360** (open from any contact) — one screen combining an AI
   customer summary, a calculated Buying Intent score (0–100, with each
   contributing signal and its evidence shown), contacts, relationship
@@ -63,6 +83,23 @@ Reviews, Analytics, Reactivation
   in Discovery's prospect/signal data, Inventory's order history and
   Finance's e-invoice status, and Service's job history — sections just
   don't appear if that module isn't licensed for you.
+
+## Working a sales opportunity
+
+Open a sales opportunity for its detail page: its **Journey**, **Linked
+records**, the **Next action**, **Follow-ups**, the **Products** the customer
+wants, **Contacts** (add one, or make one primary) and a **History**. With
+other modules licensed it also offers hand-offs, each optional:
+
+- **Inventory fulfillment** — **Request inventory fulfillment** turns the
+  products into a sales order without leaving CRM; if only part of the
+  quantity is in stock you choose **Fulfill available quantity** or **Wait for
+  complete quantity**.
+- **Assessment** — when an opportunity needs a site or remote assessment,
+  **Request FSM assessment** sends it to Service and the status and outcome
+  show back here.
+- **FSM quote** — **Create job in FSM** starts the Service quote or job for
+  the opportunity.
 
 ## Connecting a channel (WhatsApp / Instagram / Facebook)
 
@@ -96,29 +133,40 @@ connects to it.
 5. **Set the environment variables before connecting anything** — the
    webhook will reject incoming events with "not configured" until both the
    app secret and verify token are set.
-6. **Back inside WonderArk**, go to **CRM → Channels** (or **CRM →
-   WhatsApp** for the WhatsApp-specific screen). Create a channel if you
-   don't have one, then under "Connected accounts" pick the provider and
-   paste in the Page ID / phone number ID / location ID and an access token
-   obtained from Meta's dashboard (or WhatsApp's Embedded Signup flow).
-   WonderArk verifies the token against the real Meta API immediately — a
-   bad token fails right away instead of silently breaking on your first
-   customer message. Choose an **instant-reply mode** per connected account:
-   off, AI drafts + human approves, or instant acknowledgement + human
-   follow-up.
-7. **WhatsApp templates**: register any templates you've already had
-   approved in Meta's dashboard (name, language, variable count) so the
-   reply composer can use them once the 24-hour free window closes.
-   WonderArk doesn't submit templates to Meta for you — only Meta's own
-   dashboard does that.
-8. **Google Business Profile (Reviews)** uses the same manual-paste pattern
-   but no webhook: enter an Account ID, Location ID, and access token, then
-   use **Sync now** to pull reviews on demand.
-9. **Monitoring**: WhatsApp connections show a live status badge
-   (connected / degraded / reauthorization required / disconnected /
-   provider error) with plain-language next steps, and are also rechecked
-   automatically on a schedule — you don't have to notice a problem
-   yourself.
+6. **Back inside WonderArk**, connect the channel where it lives:
+   - **WhatsApp:** **CRM → WhatsApp**. Paste the **Phone number ID** and an
+     **Access token** from Meta (or from WhatsApp's Embedded Signup flow).
+     WonderArk checks them against Meta immediately — a bad token fails right
+     away instead of silently breaking on your first customer message — and
+     never shows the token again. **Disconnect** removes the connection.
+   - **Instagram and Facebook Messenger:** **CRM → Channels**. Create a channel
+     if you don't have one, then under "Connected accounts" pick the provider
+     and paste in the Page ID (the "Page/number/location ID" field) and an access
+     token from Meta's dashboard.
+7. **WhatsApp templates**: on the WhatsApp screen, register any templates
+   you've already had approved in Meta's dashboard (name, language, variable
+   count) so the reply composer can use them once the 24-hour free window
+   closes. WonderArk doesn't submit templates to Meta for you — only Meta's
+   own dashboard does that.
+8. **Click-to-chat links** (also on the WhatsApp screen): create a link with
+   a label, your WhatsApp number (country code, no +), a pre-filled message and
+   an optional product/source/campaign. Share it on a bio, a flyer or an ad;
+   each link counts the conversations it brought in. **Deactivate** retires a
+   link.
+9. **Google Business Profile (Reviews)** has no webhook and is connected on
+   the **Reviews** screen: enter an Account ID, Location ID and access token,
+   then use **Sync now** to pull reviews on demand.
+10. **Monitoring**: WhatsApp connections show a live status badge
+    (connected / degraded / reauthorization required / disconnected /
+    provider error) with plain-language next steps — **Check now** when Meta
+    is rate-limiting or not responding, a reconnect form with a fresh token
+    when authorization has expired — and are also rechecked automatically on
+    a schedule, so you don't have to notice a problem yourself.
+
+If a message doesn't arrive: check the connection badge first, then that the
+two environment variables above are set on the deployment (the webhook rejects
+events with "not configured" until they are) and that Meta's webhook shows the
+same verify token and callback URL.
 
 ## Routing rules & escalation
 
@@ -135,7 +183,9 @@ person unresolved messages ultimately land on.
 
 ## Who can configure what
 
-CRM access is controlled by the shared **Admin → Team** page. Notably:
+CRM access is controlled by the business's shared **Users & access** pages
+(avatar menu → **Admin** → the business's **Users & access** chip; see Getting
+Started §8). Notably:
 **Owner** and **Admin** are the only roles that can manage channel
 connections and routing/escalation settings. **Sales Manager** can work the
 full day-to-day pipeline (leads, opportunities, follow-ups, messaging,

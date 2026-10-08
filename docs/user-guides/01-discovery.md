@@ -24,6 +24,11 @@ The Discovery sidebar is always the same shape:
 | **Customer Acquisition** | Products, ICP, Prospects, Research, Signals, Outreach, Pipeline, Conversion, Knowledge — for one offering at a time |
 | **Funding** | Dashboard, Funding Profile, Investor Readiness, Fundraising, Investors, Investor Outreach, Data Room, Due Diligence, Analytics |
 
+Inside Customer Acquisition, a few sidebar items open a tab with a different
+name: **Research** opens the offering's *Discovery* tab, **Signals** opens its
+*Watchlist*, **Outreach** opens its *Opportunities*, and **Pipeline** opens its
+run *History*. Each is described under "Working an offering" below.
+
 **Switching offering.** When a business has more than one offering, the
 header of every offering page has an **Offering** selector. Switching keeps
 you on the same section — from ICP to the other offering's ICP, from
@@ -48,7 +53,7 @@ from the Discovery sidebar):
 ## Connecting an AI provider
 
 Discovery's AI features (ICP generation, prospecting, scoring, research
-briefs) need an AI provider. Go to **Settings → Billing → AI**:
+briefs) need an AI provider. Go to avatar menu → **Billing → AI**:
 
 - Pick **OpenAI**, **Anthropic**, or **Google Gemini** and paste your API
   key, or
@@ -59,7 +64,10 @@ WonderArk tests the connection live before saving. Your key is encrypted at
 rest; only a fingerprint and connection status are ever shown back to you.
 If you don't connect a key and the deployment has a platform-owned key
 configured, you'll automatically fall back to it (still counted against your
-own free-tier usage limits).
+own free-tier usage limits). On included credits each offering has a free
+monthly allowance; when it is used up, AI features pause until next month
+unless you have bought credits or connected your own key — see Getting
+Started §7. A notification in the bell warns you at 80% and again at 100%.
 
 ## The Discovery Dashboard
 
@@ -73,15 +81,46 @@ of your offerings.
 
 ## Working an offering
 
-Each offering has its own hub page with:
+Once an offering has a profile, its pages are a row of tabs along the top —
+**Overview, ICP, Discovery, Opportunities, Prospects, Watchlist, Performance,
+Conversions, History**. They aren't a checklist: use them in any order. (Before
+a profile exists you instead get a short step-by-step bar for setting the
+offering up.)
 
+### Overview
+
+The offering's hub page:
+
+- **What should I do today?** — the single next step WonderArk suggests
+  (define your ICP, approve it, add buyer personas, discover prospects, or
+  review them).
 - **Top Opportunity Gate** — one AI-recommended opportunity to act on right
   now, with watch/dismiss/send-to-CRM actions.
+- **Offering definition quality** — a score out of 100 for how completely the
+  offering, its ICP and its buyer personas are defined, and a "We are less
+  certain about" callout with a **Research Further** button that regenerates
+  the ICP.
+- Cards for the offering's profile, ICP health, prospects and buyer personas,
+  and **Discovery effectiveness** — opportunities, how many led to a
+  conversation, how many were sent to CRM, how many were won, and the win rate.
+- **Discovery pipeline** — rediscovery schedule, saved discovery criteria
+  (minimum score, geography, industries, buyer roles, exclusions), and a **Run
+  AI Discovery** panel with live progress.
 - **Offering setup & sources** — website/description, knowledge-source
   uploads, and a **Generate profile** action. Expanded by default until a
   profile exists.
-- **Discovery Pipeline** — rediscovery schedule, saved discovery criteria,
-  and a **Run AI Discovery** panel with live progress.
+
+### Discovery (definitions)
+
+The **Discovery** tab holds your *discovery definitions*: what to watch for and
+how often, for this offering. A definition has a name, a monitoring frequency
+(**Daily, Weekly, Monthly** or **Manual only**), a minimum score, target
+geographies and industries, buyer roles, **desired signals**, **excluded
+signals** and **disqualifiers**. Switch a definition on or off without
+deleting it. **Start from a play** gives you ready-made starting points —
+Recently Funded, Rapid Growth, Hiring Relevant Roles, New Executive,
+Technology Migration, Competitor Customers, Regulatory Pressure, Negative
+Reviews, Expansion and Multiple Buying Signals — which you can then edit.
 
 ### ICP & Buyer Personas
 
@@ -100,6 +139,17 @@ independently of whether an ICP exists yet.
   suggestion cards — each with a match reason and source link — for you to
   review before approving into your pipeline.
 - **Import** lets you bulk-load a prospect list from a CSV or other file.
+
+### Opportunities (Today's Opportunities)
+
+The **Opportunities** tab sorts the offering's active opportunities into bins,
+and shows a bin only when it has something in it: **Hot**, **Needs Review**,
+**New**, **Watching** and **Insufficient Evidence**. Each row shows the
+company, score, priority, why the offering fits, why now, the primary contact,
+confidence, the top signal and the recommended action. Open an opportunity
+for its full detail, or use the row's menu: **Edit**, **Research Again**,
+**Watch** (moves it to *Watching*), **Exclude** (dismisses it) and **Send to
+CRM**.
 
 ### Opportunity Intelligence
 
@@ -129,6 +179,70 @@ licensed, a won customer can be handed straight to field service: **create a
 service opportunity** from the conversion, and its status (quoted, job
 scheduled, completed, invoiced) shows back here. If Service isn't licensed,
 the option isn't shown.
+
+## Outreach, replies and unsubscribes
+
+Outreach is human-in-the-loop all the way: the AI drafts, a person approves,
+and nothing is sent on its own.
+
+On a prospect's page you generate an **Outreach strategy** (why, channel, key
+message, call to action), edit it and **Approve strategy**; only then can you
+**Generate message**. A message is a draft until you **Approve** it and then
+**Send email** (or **Approve & send email** in one step), or **Mark sent** if
+you sent it yourself outside WonderArk. Sending needs a contact with an email
+address. If a send fails, the message shows "Send failed" with the reason, and
+you can **Retry send**.
+
+Sending a message (or marking it sent) starts a **Conversation** thread. Use
+**Log reply** to record what the prospect said, **Generate reply** for an AI
+draft of your response, and **Won** or **Lost** to close the conversation.
+
+The **Feedback** box on a prospect lets you record how it went — Good
+prospect, Bad prospect, Wrong person, Wrong timing, Good message, Bad message,
+Interested, Not interested, Already customer, Not relevant or Spam — with an
+optional note. Feedback is kept as a history, newest first.
+
+**Unsubscribe and opt-outs.** Every outreach email to a prospect or investor
+is sent with a one-click unsubscribe option that mail apps can offer, and
+emails written in WonderArk also carry an **Unsubscribe** link in the footer.
+When a recipient unsubscribes, WonderArk records the opt-out for your
+business — it keeps only a one-way fingerprint of the address, not the address
+itself — and will not email that address again from your business. If you try,
+the message is not sent and shows as failed with the reason "This contact
+unsubscribed from your emails, so it wasn't sent" (for an investor: "This
+investor unsubscribed from your emails, so it wasn't sent"). Opt-outs apply to
+all of the business's outreach, including Funding.
+
+## Watchlist
+
+Watching an *opportunity* (the **Watch** action on the Opportunities tab) just
+changes that opportunity's status. The **Watchlist** tab is a separate,
+deliberate list of *accounts* you want to keep an eye on.
+
+1. Open an account from **Prospects**.
+2. Use **Watch this account**, giving a **Watch reason** (for example "Close
+   to budget approval") and, optionally, a **Next review** date.
+3. Come back to the **Watchlist** tab: each watched account shows its watch
+   reason, current score, latest signal and next review date. The score and
+   signal are read live from the account, so they are never out of date.
+
+On the account, **Update watch** changes the reason or review date and **Stop
+watching** removes it. The list can be exported. A watch belongs to the
+offering you set it in.
+
+## Performance analysis and run history
+
+The **Performance** tab answers "what's actually working for this offering?"
+from everything discovered so far: which signals produce conversations, which
+ICP attributes produce conversions, which buyer roles respond, and whether a
+higher score really correlates with better outcomes. It can be exported as a
+report.
+
+The **History** tab is the audit list of every AI Discovery run for the
+offering — what started it (Run AI Discovery, Retry failed stage, or Save &
+Run Downstream), its status (Running, Completed or Failed) and how long it
+took. Open a run for the stages it executed and the full error text if it
+failed.
 
 ## Marketing
 
@@ -177,7 +291,9 @@ Funding helps you get ready for and run a raise.
   Invested** (or **Passed**). Forward moves can skip stages; amounts are
   required once an investor commits.
 - **Investor Outreach** — draft outreach (the AI can help) and log replies.
-  Outreach can only be sent once it's approved.
+  Outreach can only be sent once it's approved. Emails carry an unsubscribe
+  option, and an investor who unsubscribes is not emailed again — the send
+  shows as failed with that reason (see "Outreach, replies and unsubscribes").
 - **Data Room** — upload documents (pitch deck, financials, legal) by
   category; uploading a new version keeps the old one. Share with an investor
   through a link that expires and can be revoked at any time. Uploading needs
@@ -199,7 +315,7 @@ Funding helps you get ready for and run a raise.
 | `discovery.export`, `marketing.export`, `funding.export` | Export lists to CSV or Excel |
 
 A **Viewer** can read all of Discovery but change nothing. See Getting
-Started §7 for roles and invitations.
+Started §8 for roles and invitations.
 
 ## Licensing
 

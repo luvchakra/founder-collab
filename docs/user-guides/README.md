@@ -7,24 +7,28 @@ for developers working on the codebase (that's `docs/plan/` and `docs/design/`).
 
 Start here if you're new to the platform:
 
-- **[00 — Getting Started](./00-getting-started.md)** — signing up, creating
-  your first business, understanding businesses vs. offerings, licensing
-  modules, plans and billing, users, roles and invitations, API keys,
-  exporting your data, and the environment variables an operator needs to
-  configure before go-live.
+- **[00 — Getting Started](./00-getting-started.md)** — signing up (email, or
+  Google, Microsoft or LinkedIn), creating your first business, understanding
+  businesses vs. offerings, the Executive Dashboard, licensing modules, plans,
+  billing and AI credits, users, roles and invitations, API keys, exporting
+  your data, downloading your own data, and the setup an operator needs to
+  do before go-live.
 
 Then the module guides, each covering the screens a user works in day to day
 and the configuration a business admin must complete before the module is
 usable:
 
 - **[01 — Discovery](./01-discovery.md)** — customer acquisition (ICPs,
-  AI-powered prospecting, opportunity intelligence), Marketing, and Funding.
+  AI-powered prospecting, opportunities, watchlist, performance analysis,
+  outreach with opt-outs), Marketing, and Funding.
 - **[02 — Inventory](./02-inventory.md)** — product catalog, purchasing,
-  sales orders, warehouses, and stock control.
+  sales orders and invoices, warehouses, stock control, and the dashboard.
 - **[03 — Service (FSM)](./03-service-fsm.md)** — field service jobs,
-  scheduling, crew dispatch, and invoicing.
-- **[04 — CRM](./04-crm.md)** — leads, opportunities, the unified inbox,
-  WhatsApp/Instagram/Facebook/Google Business channels, and reputation.
+  scheduling, crew dispatch, invoicing (including voiding a payment),
+  customer-facing pages, and reports.
+- **[04 — CRM](./04-crm.md)** — leads, opportunities, the shared inbox,
+  WhatsApp/Instagram/Facebook/Google Business channels, analytics,
+  reactivation, and reputation.
 - **[05 — Finance](./05-finance.md)** — activation and backfill, the
   double-entry ledger, banking with reconciliation and bank rules, invoices,
   receivables and payables, financial statements with drill-down (including

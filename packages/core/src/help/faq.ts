@@ -36,11 +36,27 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "Account & access",
-    question: "Why can't I see the \"Continue with Google\" button?",
+    question: "Can I sign in with Google, Microsoft or LinkedIn instead of a password?",
     answer:
-      "Because this deployment's Supabase project doesn't have Google sign-in switched on. The button is hidden rather than shown-and-broken. Whoever operates the deployment can enable it with a Google Cloud OAuth client and the provider toggle in Supabase — no redeploy needed, the button appears within a few minutes of it being turned on.",
+      "Yes, when the deployment you're using has them switched on: the login and sign-up pages then show Continue with Google, Continue with Microsoft and Continue with LinkedIn. There is no separate sign-up step — your first sign-in creates the account and takes you to the onboarding wizard (or back to your invitation, if you came from one). You can add a password later with \"Forgot password?\".",
+    guideSlug: "getting-started",
+    sectionId: "creating-an-account",
+  },
+  {
+    category: "Account & access",
+    question: "Why can't I see the \"Continue with Google\", \"Microsoft\" or \"LinkedIn\" button?",
+    answer:
+      "A button only appears when that sign-in method has been switched on for this deployment, so you are never shown one that can't work. Use your email and password in the meantime. Whoever operates the deployment can switch each one on with a configuration change — no redeploy needed, and the button appears within a few minutes.",
     guideSlug: "getting-started",
     sectionId: "enabling-google-sign-in-for-whoever-deploys-wonderark",
+  },
+  {
+    category: "Account & access",
+    question: "How do I download a copy of my own personal data?",
+    answer:
+      "Open the avatar menu → Profile and choose Download my data at the bottom. You get a JSON file with your sign-in details, profile, memberships and the actions recorded under your name. Records you created for a business, such as its customers or invoices, belong to that business and are exported from each module with its Export button.",
+    guideSlug: "getting-started",
+    sectionId: "your-profile-your-data-and-appearance",
   },
   {
     category: "Account & access",
@@ -54,7 +70,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Someone on my team can't see a page I can see. Why?",
     answer:
-      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. An unlicensed module shows \"not in your plan\"; a page their role doesn't allow shows \"you don't have permission\". Check the member's role under Admin → Users & Access.",
+      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. An unlicensed module shows \"not in your plan\"; a page their role doesn't allow shows \"you don't have permission\". Check the member's role under avatar menu → Admin → your business → Users & access.",
     guideSlug: "getting-started",
     sectionId: "users-roles-and-invitations",
   },
@@ -62,7 +78,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "How do I invite someone to my business?",
     answer:
-      "Admin → Users & Access → Invite user. Enter their email and choose a role. The invitation link works for 7 days, only for that email address, and only once; someone without an account can sign up from the link and is brought straight back to accept it.",
+      "Avatar menu → Admin → your business → Users & access → Invite user. Enter their email and choose a role. The invitation link works for 7 days, only for that email address, and only once; someone without an account can sign up from the link and is brought straight back to accept it.",
     guideSlug: "getting-started",
     sectionId: "users-roles-and-invitations",
   },
@@ -70,7 +86,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Can I create a role that fits my team exactly?",
     answer:
-      "Yes. Under Users & Access, Create role starts a custom role from a template (Sales Manager, Finance Manager, Field Technician and others) that you then adjust. You can't grant permissions you don't hold yourself.",
+      "Yes. Under Users & access → Roles, Create role starts a custom role from a template (Sales Manager, Finance Manager, Field Technician and others) that you then adjust. You can't grant permissions you don't hold yourself.",
     guideSlug: "getting-started",
     sectionId: "users-roles-and-invitations",
   },
@@ -94,7 +110,7 @@ export const FAQ: FaqEntry[] = [
     category: "Businesses & modules",
     question: "How do I turn a module on or off for a business?",
     answer:
-      "Activate a module from the business's Licenses screen. Cancelling one never deletes data: you get 30 days of read-only grace, after which access stops but every row is kept. Reactivating restores everything, including events that were parked while it was off.",
+      "Open avatar menu → Admin (or Licenses on the Executive Dashboard) and use Activate, Cancel or Reactivate on the module. You need permission to manage billing, and once online checkout is available a module can only be switched on if your plan includes it — otherwise choose a plan that does. Cancelling never deletes data: you get 30 days of read-only grace, after which access stops but every row is kept. Reactivating restores everything, including events that were parked while it was off.",
     guideSlug: "getting-started",
     sectionId: "licensing-a-module",
   },
@@ -110,7 +126,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "Do I need my own AI API key?",
     answer:
-      "Only if you want your AI usage billed to your own provider account. Otherwise the platform's included credit is used automatically. Connect your own key from Settings → Billing if you'd rather use it; your own key always wins when one is connected.",
+      "Only if you want your AI usage billed to your own provider account, with no monthly cap from WonderArk. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected.",
     guideSlug: "discovery",
     sectionId: "connecting-an-ai-provider",
   },
@@ -118,7 +134,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "Where do I see what AI has cost me?",
     answer:
-      "Settings → Usage breaks down AI runs and credit consumption. Repeatable AI operations are cached, so asking for the same thing twice doesn't bill twice.",
+      "Avatar menu → Usage breaks down AI runs and credit consumption per business and offering (each business's Business page also has an AI usage button). Repeatable AI operations are cached, so asking for the same thing twice doesn't bill twice.",
     guideSlug: "getting-started",
     sectionId: "plans-billing-and-ai-credits",
   },
@@ -127,6 +143,22 @@ export const FAQ: FaqEntry[] = [
     question: "How do I change or cancel my plan?",
     answer:
       "Open your business's Billing page. Change plan takes you through choosing a plan, reviewing it and paying securely; Cancel subscription keeps full access until the end of the paid period, then the modules become read-only for 30 days. Your data is never deleted.",
+    guideSlug: "getting-started",
+    sectionId: "plans-billing-and-ai-credits",
+  },
+  {
+    category: "Billing & AI",
+    question: "What happens when I use up the free AI allowance, and how do I buy more?",
+    answer:
+      "On the included credits, each workspace has a modest free allowance every month (the Billing page shows the limits). When it is used up, credits you have bought are spent automatically, one run at a time; with none left, AI features pause until next month. To buy more, open avatar menu → Billing and choose a credit pack — Starter, Growth or Scale. Credits are shared by every business and offering on your account. If you connect your own provider key there is no cap from WonderArk.",
+    guideSlug: "getting-started",
+    sectionId: "plans-billing-and-ai-credits",
+  },
+  {
+    category: "Billing & AI",
+    question: "My payment didn't go through. Was I charged?",
+    answer:
+      "No. A checkout that is cancelled or fails changes nothing: you stay on your current plan and the page says \"Checkout cancelled\" or \"Payment didn't go through\", with a Try again button. If your plan renewal is what failed, the Billing page shows a \"Payment needs attention\" banner and Update payment method. Your subscription only shows as active once the payment is confirmed.",
     guideSlug: "getting-started",
     sectionId: "plans-billing-and-ai-credits",
   },
@@ -180,6 +212,46 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "Day to day",
+    question: "A payment was recorded by mistake. Can I edit or delete it?",
+    answer:
+      "No — recorded payments are never edited or deleted. Void it instead: on the Service invoice, choose Void payment on that payment, give a reason, and confirm. What it paid becomes owed again, Finance reverses the entries it posted, and the payment stays in the history marked Voided. You need the permission to void payments (Owner, Admin and Accountant by default), and the person who recorded the payment can't void it themselves unless they are an Owner or Admin.",
+    guideSlug: "service-fsm",
+    sectionId: "correcting-a-payment-void-never-edit",
+  },
+  {
+    category: "Day to day",
+    question: "Why did my outreach email fail with \"unsubscribed\"?",
+    answer:
+      "The recipient used the unsubscribe link (or their mail app's one-click unsubscribe) in an earlier email from your business, so WonderArk will not email that address again. The message is not sent and shows as failed with that reason. Opt-outs apply to all of the business's outreach, prospects and investors alike.",
+    guideSlug: "discovery",
+    sectionId: "outreach-replies-and-unsubscribes",
+  },
+  {
+    category: "Day to day",
+    question: "How do I keep an eye on one particular account?",
+    answer:
+      "Open the account from Prospects and use Watch this account, with a reason and, if you like, a next review date. The offering's Watchlist tab then lists it with its watch reason, current score, latest signal and next review date. This is separate from the Watch action on an opportunity, which only changes that opportunity's status.",
+    guideSlug: "discovery",
+    sectionId: "watchlist",
+  },
+  {
+    category: "Day to day",
+    question: "How can customers request service or approve an estimate without an account?",
+    answer:
+      "Through links. Estimates and invoices are sent as links to a page where the customer can approve or decline (estimates) or see what they owe (invoices). If you switch on the customer center in Service Settings, a customer you grant access can see their upcoming work, estimates and invoices in one place. Switch on the contact form and your business gets a public request form; each submission arrives as a new Service opportunity.",
+    guideSlug: "service-fsm",
+    sectionId: "customer-facing-pages",
+  },
+  {
+    category: "Day to day",
+    question: "How do I see how quickly we respond to customers?",
+    answer:
+      "CRM → Analytics shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
+    guideSlug: "crm",
+    sectionId: "daily-workflows",
+  },
+  {
+    category: "Day to day",
     question: "A page shows a table on my laptop but cards on my phone. Is that a bug?",
     answer:
       "No, that's the intended behaviour platform-wide. Below the tablet breakpoint every table becomes one card per row with labelled fields, rather than a table you'd have to scroll sideways through or squint at.",
@@ -190,7 +262,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How do I export a list to Excel?",
     answer:
-      "Use the Export button on the list and choose CSV or Excel. You get exactly what you're looking at, with your filters applied. Large exports run in the background and you get a download link when they're ready.",
+      "Use the Export button in the page header and choose CSV or Excel. A list gives you exactly what you're looking at, with your filters applied (long lists also let you export all matching records); a report gives the main table as CSV or the full workbook as Excel. Large exports run in the background: you'll see \"Export queued\", and the bell shows \"Export ready\" with a download link when the file is done.",
     guideSlug: "getting-started",
     sectionId: "exporting-your-data",
   },
@@ -246,7 +318,7 @@ export const FAQ: FaqEntry[] = [
     category: "For administrators",
     question: "How do I connect WhatsApp or Instagram to the shared inbox?",
     answer:
-      "CRM → Channels. You'll need a Meta app with the relevant webhook secrets set as environment variables on the deployment before the connection can verify.",
+      "WhatsApp connects on CRM → WhatsApp (phone number ID and access token); Instagram and Facebook Messenger connect on CRM → Channels. You'll need a Meta app with the relevant webhook secrets set as environment variables on the deployment before the connection can verify. The WhatsApp screen also holds your message templates and click-to-chat links, which count the conversations each link brings in.",
     guideSlug: "crm",
     sectionId: "connecting-a-channel-whatsapp-instagram-facebook",
   },
