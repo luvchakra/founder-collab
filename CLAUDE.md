@@ -116,6 +116,46 @@ pattern ADR-5 requires here).
     covers borders, editable-row affordances, and desktop table design that rule 12
     doesn't.
 
+## Real data only
+
+The product earns trust by never showing a user anything it did not actually find, compute
+or receive.
+
+- **Signed-in users see only real data.** Values come from the business's own rows and
+  real integrations, and are computed from them. Nothing is seeded, generated, sampled or
+  hardcoded for a real account. The one exception is demo data a user explicitly chose to
+  load, which is tracked row by row (`core.demo_seed_batches` / `demo_seed_records`,
+  `packages/core/src/admin/demo-seed-tracking.ts`) so it can be deleted exactly. Never
+  widen that.
+- **Never substitute a default for the user's intent.** Queries, thresholds and goals come
+  from what the user typed or from their saved profile. When nothing can be derived, ask;
+  don't fall back to a placeholder.
+- **When a real value is unavailable, say so.** A missing credential shows "Needs setup", a
+  failed fetch shows "Unavailable", and an empty result is an empty state with the reason.
+  Don't fill the gap.
+- **Show provenance.** If a number appears in the UI, the user must be able to see where it
+  came from.
+- **Verify before claiming.** Before saying data is real or a source works, check the actual
+  code path and the production logs, or reproduce the call. Don't answer from the docs.
+
+## Minimal UI
+
+Every page stays minimal. Before adding a control, look for one to remove. (This sits
+alongside `docs/design/claude-ui-design-rules.md` and `docs/DESIGN.md`, which govern how a
+page looks.)
+
+- **Fewest buttons and options possible.** One primary action per screen. A list item
+  carries at most one action; the rest live on the item's own page.
+- **Fold, don't show.** Settings, rarely used options, explanations and advanced controls
+  go behind a collapsed row (`Collapsible` / `Accordion` from
+  `packages/core/src/components/ui/`).
+- **Default instead of asking.** Pick a sensible default from the user's data rather than
+  adding a selector.
+- **Short copy.** At most one line of help. No repeated explanations, badges or "why"
+  blocks on list items.
+- When changing a page, count its visible controls before and after. The number should go
+  down, not up.
+
 ## AI, untrusted input and governed actions
 
 This platform reads a great deal of text nobody here wrote — inbound customer email
@@ -166,7 +206,15 @@ and feeds most of it to a model, across the couple of dozen call sites under
    `core.audit_log` records what happened to the business's data. Extend those rather than
    inventing a parallel trace — and keep secrets, access tokens and whole customer
    documents out of both, and out of logs and error messages.
-7. **Test AI paths for the ways they go wrong**, not just the happy path: injected
+7. **UI copy must match what the code does.** A confirmation dialog is a contract. Never
+   say "sent", "submitted" or "can't be undone" unless that is literally true.
+8. **Irreversible actions are opt-in.** Anything that can't be undone (sending,
+   submitting, paying, deleting) runs only when the user turned it on, and is idempotent,
+   audited (`core.audit_log`) and visible to the user afterwards. A retry or rerun never
+   repeats a completed external action.
+9. **Label provenance on AI artifacts.** Mark each value as AI-generated, user-provided,
+   user-modified or system-derived, and keep that visible in the UI.
+10. **Test AI paths for the ways they go wrong**, not just the happy path: injected
    instructions in ingested content, malformed or schema-violating model output, missing or
    contradictory context, the provider being down, and — because these paths read tenant
    data — cross-tenant leakage through an AI response, on top of the tenant-isolation and
@@ -248,27 +296,56 @@ Directories are created as stories require them — don't pre-create empty modul
 repo at once and `main` moves under you: run `git fetch origin main` and look at what
 landed (`git log --oneline HEAD..origin/main`) before reading code, planning, or editing
 -- then base new work on the current `origin/main` (or bring it into the branch you were
-told to use). Two sessions have already built the same change in parallel because one
+told to use). Do it again before every push: `git fetch origin main && git merge origin/main`
+(or rebase, when the branch is yours alone), resolving conflicts first. Never build on a
+stale base. Two sessions have already built the same change in parallel because one
 skipped this; the wasted work is the cheap outcome, the expensive one is a fix written
 against code that no longer exists.
 
-**Merge finished work into `main` without asking** (standing instruction, 2026-09-18).
-Once the checks below are green -- typecheck, lint, `lint:boundaries`,
-`lint:migrations`, `lint:migration-grants`, `lint:gst-no-duplicate-masters` and the
-tests -- merge and push rather than parking the branch and asking for permission. Run
-those checks on the *merged* result, not just on the branch: a clean merge of two
-branches that each passed can still fail together. This replaces asking per branch; it
-does not replace verifying, and it does not extend to deleting branches or to force-
-pushing over someone else's work.
+**One branch and one PR per task; never push directly to `main`** (replaces the
+2026-09-18 "merge into `main` without asking" instruction, 2026-10-09). Create the branch
+from the latest `main`, push it, open a PR, and share the Vercel preview URL so the owner
+can try it. Squash-merge as soon as CI is green, then confirm the production deploy is
+ready. This does not extend to deleting branches or to force-pushing over someone else's
+work.
+
+**Ship fast (pre-launch; revisit after launch).** The owner tests changes themselves, so
+getting a change in front of them quickly beats exhaustive local verification.
+
+- **Before pushing, run only fast, relevant checks:** `npm run typecheck`, lint on the
+  files you changed, and the unit tests for the areas you touched (`npx vitest run <paths>`
+  inside the package). CI (`.github/workflows/ci.yml`) runs the full suite -- lint,
+  `lint:boundaries`, `lint:migrations`, `lint:migration-grants`,
+  `lint:gst-no-duplicate-masters`, `test`, `test:db`, `build` -- on every PR; let it.
+- **Don't run** end-to-end, accessibility or full-app walkthroughs unless asked or the
+  change is genuinely risky. A quick look at the one screen you changed is enough.
+- **Still required, because they're cheap and protect trust:** every rule in this file,
+  plus a unit test for any change to a permission gate (`requirePermission()`,
+  `requireModule()`), any workflow that gates AI-touching or external-effect actions,
+  billing, or any database query or migration -- tenant-isolation and license-gating
+  tests per development principle 9.
+- **Tell the owner when a task is done** (merged, or blocked on something only they can
+  do), with a one-line outcome. One message per finished task, not one per step.
+- **CI red:** root-cause it; "flake" is not a cause. Never skip or disable a test to get
+  green. A failure caused by infrastructure (e.g. a hosting rate limit) gets one PR
+  comment saying so; it isn't fixed in code.
 
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read
 only the files it touches, plus the entity-ownership map if the story creates any table.
-After finishing: typecheck, lint, `lint:boundaries`, `lint:migrations`, and tests all
-green; focused commit; tenant isolation and license gating preserved; no unapproved
-dependencies or architecture changes; if the story revealed the plan was wrong, update the
+After finishing: the fast checks above green; focused commit; tenant isolation and license
+gating preserved; no unapproved dependencies or architecture changes; if the story revealed the plan was wrong, update the
 plan doc in the same commit; and run `npm run build:progress` so `docs/PROGRESS-TRACKER.md`
 reflects the story you just finished (the tests fail if you don't).
+
+**Commits and PRs** say what changed and why in plain words, including the user-facing
+effect. No model names in commit messages or PR bodies.
+
+**Docs to keep current:** `docs/PROGRESS-TRACKER.md` (regenerate with
+`npm run build:progress`, never hand-edit; on a merge conflict, take either side and
+regenerate) and the relevant `docs/plan/` doc when a story shows the plan was wrong.
+**Don't update the user-facing help guide** (`docs/user-guides/`, and the in-app Get Help
+pages `npm run build:help` generates from it) unless asked.
 
 **Cite the story id** in the code, migration or test that implements it — a comment naming
 `COMPLY-P0-04.1` or `FIN-2` is what `docs/PROGRESS-TRACKER.md` reads to know the story is
@@ -292,3 +369,7 @@ script, do not build `auth.users` mapping.
 - `.env.local` under `apps/web/` (gitignored) holds real dev Supabase keys — never commit
   it, never log its contents, never put secrets in code comments or commit messages.
 - `apps/web/.env.example` documents required variable names with placeholder values only.
+- Stored secrets (AI provider keys, billing and GSP credentials) are encrypted at rest
+  (`packages/core/src/crypto/api-key.ts`) and masked on read. Never log a decrypted secret,
+  send one to the client, or add a secret type that bypasses that path.
+- If a secret appears in chat, a log or a commit, recommend rotating it.
