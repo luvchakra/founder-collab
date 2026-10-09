@@ -92,11 +92,11 @@ jobs:
 
       - name: Unit tests (all)
         if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'all'
-        run: npm run test --workspaces --if-present -- --passWithNoTests
+        run: npm run test --workspaces --if-present
 
       - name: Unit tests (affected by this change)
         if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'changed'
-        run: npm run test --workspaces --if-present -- --passWithNoTests --changed ${{ needs.changes.outputs.base }}
+        run: npm run test --workspaces --if-present -- --changed ${{ needs.changes.outputs.base }}
 
   db:
     needs: changes
