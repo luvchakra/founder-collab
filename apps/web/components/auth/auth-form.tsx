@@ -84,7 +84,7 @@ export function AuthForm({
 
           <div className="flex flex-col gap-2">
             {enabledProviders.map((provider) => (
-              <form key={provider} action={signInWithOAuthProvider.bind(null, provider, isLogin ? "/dashboard" : "/onboarding")}>
+              <form key={provider} action={signInWithOAuthProvider.bind(null, provider)}>
                 <SubmitButton variant="outline" className="w-full" pendingText="Redirecting…">
                   <ProviderMark provider={provider} />
                   Continue with {OAUTH_PROVIDER_LABELS[provider]}

@@ -110,12 +110,12 @@ describe("login", () => {
 });
 
 describe("signup", () => {
-  it("creates the account and goes to onboarding when a session comes back", async () => {
+  it("creates the account and goes to the dashboard when a session comes back", async () => {
     mockAuth();
 
     expect(
       await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" }))),
-    ).toBe("/onboarding");
+    ).toBe("/dashboard");
   });
 
   it("goes to the check-email page when confirmation is required (no session)", async () => {
@@ -134,7 +134,7 @@ describe("signup", () => {
     expect(auth.signUp).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({
-          emailRedirectTo: `${ORIGIN}/auth/callback?next=/onboarding`,
+          emailRedirectTo: `${ORIGIN}/auth/callback?next=/dashboard`,
         }),
       }),
     );
@@ -325,17 +325,12 @@ describe("signInWithOAuthProvider", () => {
     expect(await captureRedirect(() => signInWithOAuthProvider("google"))).toBe("https://google.example/oauth");
   });
 
-  it("defaults the post-auth destination to the dashboard and honours an override", async () => {
+  it("always sends the founder to the dashboard after auth", async () => {
     const auth = mockAuth();
 
     await captureRedirect(() => signInWithOAuthProvider("google"));
     expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(
       `${ORIGIN}/auth/callback?next=/dashboard`,
-    );
-
-    await captureRedirect(() => signInWithOAuthProvider("google", "/onboarding"));
-    expect(auth.signInWithOAuth.mock.calls[1]![0].options.redirectTo).toBe(
-      `${ORIGIN}/auth/callback?next=/onboarding`,
     );
   });
 
@@ -372,11 +367,11 @@ describe("signInWithOAuthProvider — Microsoft and LinkedIn", () => {
   it("asks Microsoft for the email scope, which Supabase needs to create the user", async () => {
     const auth = mockAuth();
 
-    await captureRedirect(() => signInWithOAuthProvider("azure", "/onboarding"));
+    await captureRedirect(() => signInWithOAuthProvider("azure"));
 
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({
       provider: "azure",
-      options: { redirectTo: `${ORIGIN}/auth/callback?next=/onboarding`, scopes: "email" },
+      options: { redirectTo: `${ORIGIN}/auth/callback?next=/dashboard`, scopes: "email" },
     });
   });
 
@@ -415,7 +410,10 @@ describe("signInWithOAuthProvider — Microsoft and LinkedIn", () => {
   it("never lets a forged `next` steer the callback", async () => {
     const auth = mockAuth();
 
-    await captureRedirect(() => signInWithOAuthProvider("google", "https://evil.example" as never));
+    // A server action's arguments come from the client, which can send extras it was
+    // never bound with.
+    const forged = signInWithOAuthProvider as (...args: unknown[]) => Promise<void>;
+    await captureRedirect(() => forged("google", "https://evil.example"));
 
     expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(`${ORIGIN}/auth/callback?next=/dashboard`);
   });

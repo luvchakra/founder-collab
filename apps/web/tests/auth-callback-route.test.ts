@@ -225,10 +225,10 @@ describe("GET /auth/callback — open redirect", () => {
 });
 
 describe("GET /auth/callback — first sign-in through Google, Microsoft or LinkedIn", () => {
-  it("sends a brand-new account (no business yet) to onboarding rather than an empty dashboard", async () => {
+  it("sends a brand-new account (no business yet) to the dashboard, not an onboarding wizard", async () => {
     mockAuth({ businesses: { data: [], error: null } });
 
-    expect(path(await GET(request("?code=valid")))).toBe("/onboarding");
+    expect(path(await GET(request("?code=valid")))).toBe("/dashboard");
   });
 
   it("sends a returning user to the dashboard", async () => {

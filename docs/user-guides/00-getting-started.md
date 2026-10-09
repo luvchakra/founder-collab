@@ -22,9 +22,8 @@ see one, use your email and password. (§14 and §15 explain how whoever
 operates the deployment switches them on.)
 
 There is no separate sign-up step for these buttons: signing in with one for
-the first time creates your account. If you have no business yet you're taken
-straight into the onboarding wizard (§2); if you came from an invitation,
-you're taken back to it instead (§8).
+the first time creates your account and takes you to your dashboard (§2); if
+you came from an invitation, you're taken back to it instead (§8).
 
 After signing up with email/password, check your inbox and confirm your
 email address before you can log in — the signup page shows a "check your
@@ -42,26 +41,12 @@ same browser.
 
 ## 2. Onboarding: your first business
 
-New accounts land in a short onboarding wizard rather than a bare "create
-business" form. You'll be asked for:
-
-1. A short **description of what your business sells or does**.
-2. Your **website URL** — WonderArk visits it and researches your business
-   automatically (products, positioning, audience) to save you re-typing
-   things you've already published.
-3. A short description of your **target audience**.
-
-WonderArk uses this to create your business, create your first offering, and
-run an initial AI analysis (ideal customer profile, etc.) so your Discovery
-dashboard isn't empty on day one. You don't need to name your business
-yourself in this step — a name is derived from your description and can be
-changed later, on the **Business** page.
-
-When the analysis finishes you get a summary to check — **Offering**,
-**Problem**, **Target customer**, **Value proposition** and a **Potential
-ICP**. Choose **Edit** to go back and change your answers, or **Looks Good**
-to accept it; the last screen then takes you to your new offering ("Build My
-Customer Pipeline").
+New accounts go straight to the dashboard. Until you have a business it
+shows a short prompt to create one: open the **business switcher** and choose
+**+ Create New Business** (§4). You can name the business yourself, or give
+its website and let WonderArk research it for you (products, positioning,
+audience) so you don't re-type what you've already published. Either way the
+name can be changed later, on the **Business** page.
 
 ## 3. Businesses, offerings, and why there are two concepts
 
@@ -456,7 +441,7 @@ login page itself asks, so if it says `true`, the button is showing.
 
 ### What happens to someone who signs in with Google
 
-They land on the same onboarding wizard an email signup does, with their
+They land on the same dashboard an email signup does, with their
 Google display name and profile picture already filled in, and no password
 on the account. If they later want to sign in with a password instead, they
 can set one through **Forgot password?** on the login page — the reset email
@@ -488,6 +473,6 @@ sign-in isn't switched on for this deployment yet and to use email and
 password or ask an administrator, rather than a technical error.
 
 People who sign in with Microsoft or LinkedIn are treated like those who use
-Google: a first sign-in creates the account and lands on the onboarding
-wizard (an invitee goes back to their invitation), and there is no password
+Google: a first sign-in creates the account and lands on the dashboard
+(an invitee goes back to their invitation), and there is no password
 on the account until they set one through **Forgot password?**.

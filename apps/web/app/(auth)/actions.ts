@@ -61,7 +61,7 @@ export async function signup(
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
       data: name ? { full_name: name } : undefined,
     },
   });
@@ -74,7 +74,9 @@ export async function signup(
     redirect("/signup/check-email");
   }
 
-  redirect("/onboarding");
+  // A new account lands on the dashboard, whose empty state points to the business
+  // switcher for creating the first business -- there is no separate onboarding wizard.
+  redirect("/dashboard");
 }
 
 export async function requestPasswordReset(
@@ -136,16 +138,16 @@ export async function updatePassword(
  * enabled" error rather than this failing silently.
  *
  * A server action's arguments arrive from the client, so the provider is checked against
- * the allowlist and `next` is one of two fixed paths -- neither can steer the redirect. */
-export async function signInWithOAuthProvider(provider: OAuthProvider, next: "/dashboard" | "/onboarding" = "/dashboard") {
+ * the allowlist, and the post-auth destination is always the dashboard -- nothing the
+ * client sends can steer the redirect. */
+export async function signInWithOAuthProvider(provider: OAuthProvider) {
   if (!isOAuthProvider(provider)) redirect(`/login?error=${encodeURIComponent("That sign-in method isn't available.")}`);
-  const destination = next === "/onboarding" ? "/onboarding" : "/dashboard";
   const origin = (await headers()).get("origin") ?? "http://localhost:3000";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${origin}/auth/callback?next=${destination}`,
+      redirectTo: `${origin}/auth/callback?next=/dashboard`,
       // Microsoft only returns the address when asked for the `email` scope; without it
       // Supabase can't create the user (Supabase's Azure guide).
       ...(provider === "azure" ? { scopes: "email" } : {}),
