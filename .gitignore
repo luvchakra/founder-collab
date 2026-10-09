@@ -3,6 +3,8 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# tsc/eslint caches (scripts/typecheck-all.mjs, apps/web lint); CI restores them between runs
+.cache/
 .env
 .env.local
 .env.*.local

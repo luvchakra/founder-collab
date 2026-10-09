@@ -79,8 +79,8 @@ npx playwright test --project=security --project=multi-user \
 - `PLAYWRIGHT_CHROMIUM_PATH` points at a pre-installed Chromium when the pinned revision
   can't be downloaded (as in the cloud sandbox this suite was built in).
 
-CI: the `e2e` job in `.github/workflows/ci.yml` runs the same command after the `ci` job,
-only when the `E2E_SUPABASE_*` secrets and the `E2E_ALLOW_FIXTURES=1` repository variable are
+CI: the `e2e` job in `.github/workflows/nightly.yml` runs the same command nightly (and on
+manual dispatch) after a full CI run, never per pull request, only when the `E2E_SUPABASE_*` secrets and the `E2E_ALLOW_FIXTURES=1` repository variable are
 set (dev project only), one run at a time (`concurrency: e2e-fixtures`), uploading traces,
 screenshots and videos on failure.
 

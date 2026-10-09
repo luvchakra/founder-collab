@@ -1,54 +1,61 @@
 name: CI
 
+# Pull requests and pushes to main run only what the change touches
+# (scripts/ci-affected.mjs): typecheck and lint with caches restored from the last run,
+# `vitest --changed` for unit tests, the DB/RLS scripts for the migrated area, and the
+# build only when app code changed -- as parallel jobs. The nightly workflow
+# (nightly.yml) calls this with a full run, then e2e.
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  # A new push to a PR makes its previous run worthless.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  ci:
+  changes:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      PGHOST: localhost
-      PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: postgres
+    outputs:
+      base: ${{ steps.base.outputs.base }}
+      code: ${{ steps.affected.outputs.code }}
+      unit: ${{ steps.affected.outputs.unit }}
+      build: ${{ steps.affected.outputs.build }}
+      db: ${{ steps.affected.outputs.db }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: base
+        # PR: its base commit. Push to main: the previous head. Nightly/manual: none -> full run.
+        run: echo "base=${{ github.event.pull_request.base.sha || (github.event_name == 'push' && github.event.before) || '' }}" >> "$GITHUB_OUTPUT"
+      - id: affected
+        run: node scripts/ci-affected.mjs "${{ steps.base.outputs.base }}"
+
+  checks:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - run: npm install
+      - run: npm ci
 
       # SEC-1: fail on a known high/critical advisory in anything that ships to production
       # (dev-only tooling never reaches a deployed bundle). This is what would have caught
       # next@16.3.4's critical RCE advisory (GHSA-vcvr-r3jv-pc5j) before it sat on main.
       - name: Dependency vulnerability audit
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
 
       - name: Import boundary lint
         run: npm run lint:boundaries
@@ -62,96 +69,104 @@ jobs:
       - name: Compliance (gst) no-duplicate-masters lint
         run: npm run lint:gst-no-duplicate-masters
 
-      - name: Test
-        run: npm run test
+      - name: Script tests (help content, progress tracker, linters, CI selection)
+        run: npm run test:scripts
 
-      - name: Discovery schema + RLS tenant-isolation test
-        run: npm run test:db
+      # tsc build info and the eslint cache, from the latest run on any branch: both key on
+      # file contents, so they only skip work whose inputs are unchanged.
+      - name: Restore typecheck + lint caches
+        if: needs.changes.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: tsc-eslint-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: tsc-eslint-${{ hashFiles('package-lock.json') }}-
 
-      - name: Build
-        run: npm run build
+      - name: Typecheck
+        if: needs.changes.outputs.code == 'true'
+        run: npm run typecheck
 
-  # End-to-end + security suite (docs/testing/E2E_TEST_PLAN.md). Runs against the DEV
-  # Supabase project only, with its own self-provisioned e2e-qa tenants
-  # (apps/web/e2e/support/tenants.ts) that are torn down afterwards. Opt-in: it needs the
-  # repository secrets below plus the repository variable E2E_ALLOW_FIXTURES=1, which is
-  # the explicit "this project is safe to seed" switch -- without them the job reports
-  # itself as skipped instead of failing. Never configure these with production keys.
-  e2e:
-    needs: ci
+      - name: Lint
+        if: needs.changes.outputs.code == 'true'
+        run: npm run lint
+
+      - name: Unit tests (all)
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'all'
+        run: npm run test --workspaces --if-present -- --passWithNoTests
+
+      - name: Unit tests (affected by this change)
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'changed'
+        run: npm run test --workspaces --if-present -- --passWithNoTests --changed ${{ needs.changes.outputs.base }}
+
+  db:
+    needs: changes
+    if: needs.changes.outputs.db != ''
     runs-on: ubuntu-latest
-    # Forks never receive secrets; don't start a job that cannot authenticate.
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
-    # The fixtures use stable identities, so two runs at once would tear each other's
-    # tenants down mid-test.
-    concurrency:
-      group: e2e-fixtures
-      cancel-in-progress: false
-    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
-      CRON_SECRET: ${{ secrets.E2E_CRON_SECRET }}
-      E2E_ALLOW_FIXTURES: ${{ vars.E2E_ALLOW_FIXTURES }}
-      E2E_SELF_PROVISION: "1"
-      E2E_TEST_BUSINESS_SLUG: acme-home-security-qa
-      PLAYWRIGHT_BASE_URL: http://localhost:3100
-      # GitHub runners are far from the dev project's region: allow for a server action's
-      # round trips (a wait on UI state, not a sleep). See E2E_DEFECTS.md "Environment finding".
-      E2E_EXPECT_TIMEOUT: "30000"
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
     steps:
-      - name: Check E2E configuration
-        id: config
-        run: |
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ "$E2E_ALLOW_FIXTURES" != "1" ]; then
-            echo "::notice::E2E skipped: set the E2E_SUPABASE_* secrets and the E2E_ALLOW_FIXTURES=1 variable to enable it (dev project only)."
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v4
-        if: steps.config.outputs.enabled == 'true'
 
       - uses: actions/setup-node@v4
-        if: steps.config.outputs.enabled == 'true'
+        with:
+          node-version: 22
+
+      # Node built-ins and psql only: no npm install needed.
+      - name: DB schema + RLS tenant-isolation tests
+        run: node scripts/run-db-tests.mjs ${{ needs.changes.outputs.db != 'all' && needs.changes.outputs.db || '' }}
+
+  build:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
-      - name: Install
-        if: steps.config.outputs.enabled == 'true'
-        run: npm install
+      - run: npm ci
 
-      - name: Install Chromium
-        if: steps.config.outputs.enabled == 'true'
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-${{ hashFiles('package-lock.json') }}-
 
       - name: Build
-        if: steps.config.outputs.enabled == 'true'
         run: npm run build
 
-      - name: Start the app
-        if: steps.config.outputs.enabled == 'true'
-        working-directory: apps/web
+  # The one check branch protection and the PR page look at: green only when every job
+  # this change needed passed (a job skipped because the change didn't need it is fine).
+  ci:
+    needs: [changes, checks, db, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Result
         run: |
-          nohup npx next start -p 3100 > next.log 2>&1 &
-          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3100/login && exit 0; sleep 1; done
-          echo "app did not start"; tail -50 next.log; exit 1
-
-      - name: Security + multi-user + critical-path E2E
-        if: steps.config.outputs.enabled == 'true'
-        working-directory: apps/web
-        run: npx playwright test --project=security --project=multi-user --project=unauthenticated --project=desktop --project=mobile --timeout=90000
-
-      - name: Upload failure evidence (traces, screenshots, videos)
-        if: failure() && steps.config.outputs.enabled == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-evidence
-          path: |
-            apps/web/playwright-report/
-            apps/web/test-results/
-          retention-days: 14
+          echo "changes=${{ needs.changes.result }} checks=${{ needs.checks.result }} db=${{ needs.db.result }} build=${{ needs.build.result }}"
+          for r in "${{ needs.changes.result }}" "${{ needs.checks.result }}" "${{ needs.db.result }}" "${{ needs.build.result }}"; do
+            case "$r" in success|skipped) ;; *) exit 1 ;; esac
+          done
