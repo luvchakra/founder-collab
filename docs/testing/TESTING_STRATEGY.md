@@ -8,9 +8,12 @@ constitution; this doc is the concrete mechanism for following it, not a new rul
 
 ## 0. Running one module's tests on demand
 
-`npm run test:db` runs every module's DB/RLS scripts in one long chain — useful for CI,
-too slow to reach for while working on a single module. `scripts/test-module.mjs`
-scopes that down:
+`npm run test:db` (`scripts/run-db-tests.mjs`) runs every module's DB/RLS scripts in
+parallel, each against a copy of one migrated template database (about a minute and a
+half on 4 cores; `node scripts/run-db-tests.mjs test-fsm-rls.mjs …` runs a chosen few).
+CI picks the scripts for the area a pull request's migrations touch
+(`scripts/ci-affected.mjs`); the nightly workflow runs them all. `scripts/test-module.mjs`
+scopes a run to one module, package tests included:
 
 ```
 node scripts/test-module.mjs <core|discovery|inventory|fsm|crm|gst|all>

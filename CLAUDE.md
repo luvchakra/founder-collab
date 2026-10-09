@@ -314,9 +314,10 @@ getting a change in front of them quickly beats exhaustive local verification.
 
 - **Before pushing, run only fast, relevant checks:** `npm run typecheck`, lint on the
   files you changed, and the unit tests for the areas you touched (`npx vitest run <paths>`
-  inside the package). CI (`.github/workflows/ci.yml`) runs the full suite -- lint,
-  `lint:boundaries`, `lint:migrations`, `lint:migration-grants`,
-  `lint:gst-no-duplicate-masters`, `test`, `test:db`, `build` -- on every PR; let it.
+  inside the package). CI (`.github/workflows/ci.yml`) runs what the PR touches
+  (`scripts/ci-affected.mjs`): every lint, cached typecheck, `vitest --changed`, the DB
+  tests for the migrated area, and the build only when app code changed.
+  `.github/workflows/nightly.yml` runs the full suite plus e2e every night; let them.
 - **Don't run** end-to-end, accessibility or full-app walkthroughs unless asked or the
   change is genuinely risky. A quick look at the one screen you changed is enough.
 - **Still required, because they're cheap and protect trust:** every rule in this file,
