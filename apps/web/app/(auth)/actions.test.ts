@@ -22,6 +22,8 @@ const { createClient } = vi.hoisted(() => ({ createClient: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("next/headers", () => ({ headers }));
 vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
+const { recordSignupAcceptance } = vi.hoisted(() => ({ recordSignupAcceptance: vi.fn() }));
+vi.mock("@cofounderai/core/privacy/legal-acceptance", () => ({ recordSignupAcceptance }));
 
 const {
   login,
@@ -129,6 +131,33 @@ describe("signup", () => {
     expect(
       await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" }))),
     ).toBe("/dashboard");
+  });
+
+  // PLATFORM-P1-09.4: creating an account accepts the active Terms and Privacy Policy.
+  it("records the policy acceptance for a genuinely new user", async () => {
+    recordSignupAcceptance.mockResolvedValue(undefined);
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: { user: { id: "new-user", identities: [{ id: "i" }] }, session: null }, error: null }) });
+
+    await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" })));
+
+    expect(recordSignupAcceptance).toHaveBeenCalledWith("new-user");
+  });
+
+  it("records nothing for an address that already had an account (no identities)", async () => {
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: { user: { id: "existing-user", identities: [] }, session: null }, error: null }) });
+
+    expect(await captureRedirect(() => signup(null, form({ email: "taken@b.com", password: "longenough" })))).toBe("/signup/check-email");
+    expect(recordSignupAcceptance).not.toHaveBeenCalled();
+  });
+
+  it("still completes the signup when the acceptance can't be recorded", async () => {
+    recordSignupAcceptance.mockRejectedValue(new Error("db down"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: { user: { id: "new-user", identities: [{ id: "i" }] }, session: null }, error: null }) });
+
+    expect(await captureRedirect(() => signup(null, form({ email: "a@b.com", password: "longenough" })))).toBe("/signup/check-email");
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("goes to the check-email page when confirmation is required (no session)", async () => {

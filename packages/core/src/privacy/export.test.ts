@@ -27,6 +27,7 @@ describe("buildPersonalDataExport (PRIV-2)", () => {
       business_members: [{ business_id: "b1" }],
       employees: [{ business_id: "b1", job_title: "Founder" }],
       audit_log: [{ action: "invoice.issued" }],
+      policy_acceptances: [{ method: "signup", accepted_at: "2026-10-10" }],
     });
 
     const data = await buildPersonalDataExport(USER);
@@ -39,6 +40,7 @@ describe("buildPersonalDataExport (PRIV-2)", () => {
       business_memberships: [{ business_id: "b1" }],
       employee_records: [{ job_title: "Founder" }],
       actions_attributed_to_you: [{ action: "invoice.issued" }],
+      policy_acceptances: [{ method: "signup" }],
     });
     expect((data.about as { storage_location: string }).storage_location).toContain("Mumbai");
 
@@ -50,6 +52,7 @@ describe("buildPersonalDataExport (PRIV-2)", () => {
       business_members: { user_id: USER },
       employees: { user_id: USER },
       audit_log: { actor_id: USER },
+      policy_acceptances: { user_id: USER },
     });
     const audit = supabase.queries("audit_log")[0]!;
     expect(audit.ops.find((op) => op.method === "limit")!.args).toEqual([EXPORT_AUDIT_LIMIT]);

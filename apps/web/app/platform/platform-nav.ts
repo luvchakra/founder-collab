@@ -109,7 +109,11 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
   },
   {
     label: "Policies",
-    links: [{ href: "/platform/system-policies", label: "Platform Policies" }],
+    links: [
+      { href: "/platform/system-policies", label: "Platform Policies" },
+      // PLATFORM-P1-09.1/09.2/09.4: Terms and Privacy versions, acceptance, cookies.
+      { href: "/platform/legal", label: "Legal" },
+    ],
   },
   {
     label: "Operations",

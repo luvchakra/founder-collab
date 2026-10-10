@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@cofounderai/core/db/server";
+import { recordSignupAcceptance } from "@cofounderai/core/privacy/legal-acceptance";
 import {
   OAUTH_PROVIDER_LABELS,
   isOAuthProvider,
@@ -74,6 +75,17 @@ export async function signup(
   }
   if (error) {
     return { error: error.message };
+  }
+
+  // PLATFORM-P1-09.4: the form says creating an account accepts the Terms and Privacy
+  // Policy, so record that against the active versions. Only for a genuinely new user: an
+  // address that already had an account comes back with no identities, and must not get an
+  // acceptance recorded by whoever typed it in. Failing to record doesn't fail the signup --
+  // the user is simply asked to accept on first sign-in.
+  if (data.user && (data.user.identities?.length ?? 0) > 0) {
+    await recordSignupAcceptance(data.user.id).catch((e: unknown) => {
+      console.error("Signup policy acceptance not recorded:", e instanceof Error ? e.message : "unknown error");
+    });
   }
 
   // If email confirmation is required, Supabase returns a user but no session.

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
+import { getPendingLegalAcceptances } from "@cofounderai/core/privacy/legal-acceptance";
 import { isPlatformAdminEmail } from "@cofounderai/core/rbac/platform-admin";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
@@ -156,9 +157,17 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const user = claims?.claims;
   if (!user) redirect("/login");
 
-  const { businesses, productsByBusiness } = account
-    ? await getAccountBusinesses(account.id)
-    : { businesses: [], productsByBusiness: {} };
+  const [{ businesses, productsByBusiness }, pendingLegal] = await Promise.all([
+    account ? getAccountBusinesses(account.id) : Promise.resolve({ businesses: [], productsByBusiness: {} }),
+    // PLATFORM-P1-09.4: a user who hasn't accepted the active Terms / Privacy Policy is asked
+    // first. A failed lookup doesn't lock everyone out of the app; it's logged and retried on
+    // the next page load.
+    getPendingLegalAcceptances().catch((e: unknown) => {
+      console.error("Legal acceptance status unavailable:", e instanceof Error ? e.message : "unknown error");
+      return [];
+    }),
+  ]);
+  if (pendingLegal.length > 0) redirect("/legal/accept");
 
   // CLAUDE.md's 4th licensing-enforcement layer ("UI built from module-registry
   // filtered by entitlements") -- previously missing entirely here: this used to pass
