@@ -15,6 +15,8 @@ import { ThemeProvider } from "@cofounderai/core/theme/theme-provider";
 import { ThemeScript } from "@cofounderai/core/theme/theme-script";
 import { TopProgressBar } from "@cofounderai/core/navigation/top-progress-bar";
 import { Toaster } from "@cofounderai/core/ui/sonner";
+import { InstallBanner } from "@/components/install-banner/install-banner";
+import { InstallPromptCaptureScript } from "@/components/install-banner/install-prompt-capture-script";
 import "./globals.css";
 
 // Inter, the WonderArk brand typeface (docs/plan/16-BRANDING-BACKLOG.md §4): a single
@@ -32,6 +34,10 @@ export const metadata: Metadata = {
   icons: BRAND_METADATA_ICONS,
   openGraph: { type: "website", siteName: BRAND_NAME, title: BRAND_TITLE, description: BRAND_DESCRIPTION },
   twitter: { card: "summary", title: BRAND_TITLE, description: BRAND_DESCRIPTION },
+  // BRAND-13: Add to Home Screen on iOS/iPadOS -- the home-screen name, a light status bar
+  // over the app, and the legacy capable flag (Next emits only `mobile-web-app-capable`).
+  appleWebApp: { capable: true, title: BRAND_NAME, statusBarStyle: "default" },
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = { themeColor: BRAND_THEME_COLOR };
@@ -45,12 +51,15 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <head>
         <ThemeScript />
+        <InstallPromptCaptureScript />
       </head>
       <body className="min-h-full flex flex-col">
         <Suspense fallback={null}>
           <TopProgressBar />
         </Suspense>
         <ThemeProvider>
+          {/* BRAND-13: first in the body, so it sits above every header and pushes it down. */}
+          <InstallBanner />
           {children}
           <Toaster />
         </ThemeProvider>

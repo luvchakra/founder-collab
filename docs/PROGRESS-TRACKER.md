@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 519 |
+| ✅ Done | 520 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 1 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 73 |
-| **Total** | **626** |
+| **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -39,7 +39,7 @@ file is stale, so it cannot quietly drift out of date.
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
 | [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 39 | 0 | 0 | 39 |
-| [WonderArk branding](./plan/16-BRANDING-BACKLOG.md) | 12 | 0 | 0 | 12 |
+| [WonderArk branding](./plan/16-BRANDING-BACKLOG.md) | 13 | 0 | 0 | 13 |
 
 ## What is left
 
@@ -1272,3 +1272,4 @@ Source: [`docs/plan/16-BRANDING-BACKLOG.md`](./plan/16-BRANDING-BACKLOG.md)
 | `BRAND-10` | Module validation | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` |
 | `BRAND-11` | Email/documents | ✅ Done | `packages/core/src/email/render.test.ts` +1 |
 | `BRAND-12` | Visual QA | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` +1 |
+| `BRAND-13` | Install banner | ✅ Done | `apps/web/app/layout.tsx` +3 |
