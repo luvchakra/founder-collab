@@ -79,10 +79,20 @@ npx playwright test --project=security --project=multi-user \
 - `PLAYWRIGHT_CHROMIUM_PATH` points at a pre-installed Chromium when the pinned revision
   can't be downloaded (as in the cloud sandbox this suite was built in).
 
-CI: the `e2e` job in `.github/workflows/nightly.yml` runs the same command nightly (and on
-manual dispatch) after a full CI run, never per pull request, only when the `E2E_SUPABASE_*` secrets and the `E2E_ALLOW_FIXTURES=1` repository variable are
-set (dev project only), one run at a time (`concurrency: e2e-fixtures`), uploading traces,
-screenshots and videos on failure.
+CI: the `e2e` job in `.github/workflows/ci.yml` runs nightly (02:00 IST), on manual dispatch,
+on a pull request labelled `e2e`, and whenever CI itself changes -- otherwise off the merge
+gate, the way WonderJobs runs its own suite. Its backend is the one wonder-creator uses: a
+throwaway local Supabase stack started on the runner with the whole migration timeline
+(`scripts/start-local-supabase.sh`) -- real Auth, PostgREST and Storage, no secrets, never
+the hosted project. Because that database is disposable, the job sets `E2E_ALLOW_FIXTURES=1`
+itself. Traces, screenshots and videos are uploaded on failure, and a failed nightly opens
+(or comments on) one issue.
+
+The same stack works locally (Docker required): move any `apps/web/.env.local` aside, run
+`bash scripts/start-local-supabase.sh`, build and start the app, then run the command in §4
+with `E2E_ALLOW_FIXTURES=1`; `npx supabase stop --no-backup` removes the stack. Anything the
+environment can't support (no service-role key, or the switch unset) reports BLOCKED --
+listed, not run -- instead of failing (`apps/web/playwright.config.ts`).
 
 ## 5. Evidence and flake policy
 

@@ -317,7 +317,8 @@ getting a change in front of them quickly beats exhaustive local verification.
   inside the package). CI (`.github/workflows/ci.yml`) runs what the PR touches
   (`scripts/ci-affected.mjs`): every lint, cached typecheck, `vitest --changed`, the DB
   tests for the migrated area, and the build only when app code changed.
-  `.github/workflows/nightly.yml` runs the full suite plus e2e every night; let them.
+  The same workflow's nightly run does everything plus e2e, which also runs on a PR
+  labelled `e2e`; a failed nightly opens an issue. Let them.
 - **Don't run** end-to-end, accessibility or full-app walkthroughs unless asked or the
   change is genuinely risky. A quick look at the one screen you changed is enough.
 - **Still required, because they're cheap and protect trust:** every rule in this file,

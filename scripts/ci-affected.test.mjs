@@ -12,7 +12,7 @@ const DB = [
   "test-sales-returns-workflow.mjs",
   "test-views-security-invoker.mjs",
 ];
-const select = (files) => selectAffected(files, DB);
+const select = (files, labels = []) => selectAffected(files, DB, labels);
 
 test("docs-only changes skip typecheck, lint, unit tests, build and DB tests", () => {
   assert.deepEqual(select(["docs/plan/04-CLAUDE-CODE-BACKLOG.md", "CLAUDE.md"]), {
@@ -20,6 +20,7 @@ test("docs-only changes skip typecheck, lint, unit tests, build and DB tests", (
     unit: "changed",
     build: false,
     db: "",
+    e2e: false,
   });
 });
 
@@ -29,6 +30,7 @@ test("app code runs affected unit tests and the build, but no DB tests", () => {
     unit: "changed",
     build: true,
     db: "",
+    e2e: false,
   });
 });
 
@@ -64,8 +66,14 @@ test("dependency and tooling changes run every unit test", () => {
 });
 
 test("changing CI itself runs everything", () => {
-  const full = { code: true, unit: "all", build: true, db: "all" };
+  const full = { code: true, unit: "all", build: true, db: "all", e2e: true };
   assert.deepEqual(select([".github/workflows/ci.yml"]), full);
   assert.deepEqual(select(["scripts/lib/rls-test-harness.mjs"]), full);
   assert.deepEqual(select(["supabase/tests/local-stub.sql"]), full);
+});
+
+test("e2e stays off the merge gate unless the pull request is labelled `e2e`", () => {
+  assert.equal(select(["packages/module-fsm/src/lib/jobs.ts"]).e2e, false);
+  assert.equal(select(["packages/module-fsm/src/lib/jobs.ts"], ["bug", "e2e"]).e2e, true);
+  assert.equal(select(["docs/plan/x.md"], ["e2e"]).e2e, true);
 });

@@ -23,9 +23,28 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 const isCI = Boolean(process.env.CI);
+/** Seeding the e2e-qa fixtures needs the service-role key AND the explicit
+ * E2E_ALLOW_FIXTURES=1 "this project is safe to seed" switch (support/tenants.ts). Without
+ * both, every spec that needs a seeded account reports BLOCKED (its project isn't run)
+ * instead of failing or faking a pass -- the WonderJobs approach; the signed-out specs
+ * still run. */
+const adminAvailable = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.E2E_ALLOW_FIXTURES === "1",
+);
 /** E2E_SELF_PROVISION=1: the suite seeds its own e2e-qa tenants (e2e/tenants.setup.ts)
  * and signs in as the seeded owner instead of a hand-made E2E_TEST_EMAIL account. */
-const selfProvision = process.env.E2E_SELF_PROVISION === "1";
+const selfProvision = process.env.E2E_SELF_PROVISION === "1" && adminAvailable;
+/** The signed-in desktop/mobile specs need either the seeded owner or a hand-made account. */
+const signInAvailable = selfProvision || Boolean(process.env.E2E_TEST_EMAIL && process.env.E2E_TEST_PASSWORD);
+/** Projects that can't run in this environment, reported once rather than silently dropped. */
+const ACCOUNT_PROJECTS = ["tenants", "tenants-teardown", "security", "multi-user", "multi-user-mobile"];
+const SIGNED_IN_PROJECTS = ["setup", "desktop", "mobile"];
+const blocked = [...(adminAvailable ? [] : ACCOUNT_PROJECTS), ...(signInAvailable ? [] : SIGNED_IN_PROJECTS)];
+if (blocked.length > 0) {
+  console.log(
+    `BLOCKED (not run): ${blocked.join(", ")} -- ${adminAvailable ? "" : "seeding the e2e-qa accounts needs SUPABASE_SERVICE_ROLE_KEY and E2E_ALLOW_FIXTURES=1; "}${signInAvailable ? "" : "no account to sign in as (E2E_SELF_PROVISION=1 with the service-role key, or E2E_TEST_EMAIL/E2E_TEST_PASSWORD)"}`,
+  );
+}
 /** Comma-separated extra engines for the cross-browser smoke ("firefox,webkit"). Only
  * Chromium is installed by default; the others need `npx playwright install`. */
 const extraBrowsers = (process.env.E2E_BROWSERS ?? "").split(",").map((b) => b.trim()).filter(Boolean);
@@ -69,7 +88,7 @@ export default defineConfig({
         timeout: 120_000,
       },
 
-  projects: [
+  projects: ([
     // Two-tenant fixtures (support/tenants.ts): seeded once, removed after every
     // dependent project has finished, pass or fail.
     {
@@ -156,5 +175,5 @@ export default defineConfig({
         storageState: "playwright/.auth/user.json",
       },
     },
-  ],
+  ]).filter((project) => !blocked.includes(project.name)),
 });

@@ -65,6 +65,13 @@ export async function signup(
       data: name ? { full_name: name } : undefined,
     },
   });
+  // An address that already has an account gets exactly what a new signup gets: "check
+  // your email". Saying "User already registered" would tell anyone which addresses have
+  // an account here (account enumeration). Hosted Supabase usually hides this itself
+  // when confirmations are on, but not every Auth version does, so it isn't left to it.
+  if (error && (error.code === "user_already_exists" || /already registered/i.test(error.message))) {
+    redirect("/signup/check-email");
+  }
   if (error) {
     return { error: error.message };
   }

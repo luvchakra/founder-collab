@@ -12,7 +12,7 @@ constitution; this doc is the concrete mechanism for following it, not a new rul
 parallel, each against a copy of one migrated template database (about a minute and a
 half on 4 cores; `node scripts/run-db-tests.mjs test-fsm-rls.mjs …` runs a chosen few).
 CI picks the scripts for the area a pull request's migrations touch
-(`scripts/ci-affected.mjs`); the nightly workflow runs them all. `scripts/test-module.mjs`
+(`scripts/ci-affected.mjs`); CI's nightly run does them all. `scripts/test-module.mjs`
 scopes a run to one module, package tests included:
 
 ```
