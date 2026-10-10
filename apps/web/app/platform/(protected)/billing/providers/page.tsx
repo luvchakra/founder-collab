@@ -3,6 +3,7 @@ import {
   getBillingProviderStatus,
   getBillingSettings,
   getSubscriptionLifecycleSettings,
+  getSubscriptionTaxSettings,
   type BillingProviderStatus,
 } from "@cofounderai/core/admin/platform-billing";
 import { listPlatformPlans } from "@cofounderai/core/admin/platform-plans";
@@ -12,6 +13,7 @@ import { PlatformImpactBanner } from "../../../impact-banner";
 import { EnvironmentBadge, Panel, formatWhen } from "../billing-ui";
 import { BillingSettingsDialog } from "./billing-settings-dialog";
 import { LifecycleSettingsDialog } from "./lifecycle-settings-dialog";
+import { TaxSettingsDialog } from "./tax-settings-dialog";
 import { CopyButton } from "./copy-button";
 import { ProviderSecretsDialog } from "./provider-secrets-dialog";
 import { ProviderSettingsDialog } from "./provider-settings-dialog";
@@ -27,10 +29,11 @@ const PROVIDER_META: Record<string, { name: string; publicKeyLabel: string; acco
 };
 
 export default async function PlatformBillingProvidersPage() {
-  const [providers, settings, lifecycle, allPlans] = await Promise.all([
+  const [providers, settings, lifecycle, tax, allPlans] = await Promise.all([
     getBillingProviderStatus(),
     getBillingSettings(),
     getSubscriptionLifecycleSettings(),
+    getSubscriptionTaxSettings(),
     listPlatformPlans(),
   ]);
   const plans = allPlans.filter((plan) => plan.status !== "archived" && plan.price > 0).map((plan) => ({ key: plan.key, name: plan.name }));
@@ -68,6 +71,17 @@ export default async function PlatformBillingProvidersPage() {
           <Fact label="Proration">{settings.prorationEnabled ? "On" : "Off"}</Fact>
         </dl>
         <p className="text-xs text-zinc-500">Last updated {formatWhen(settings.updatedAt)}</p>
+      </Panel>
+
+      {/* PLATFORM-P1-05.3 */}
+      <Panel
+        title="Subscription tax"
+        description="WonderArk's own tax on subscriptions -- separate from any business's tax compliance."
+        action={<TaxSettingsDialog settings={tax} />}
+      >
+        <p className="text-sm text-zinc-200">
+          {tax.rate > 0 ? `${tax.label} ${tax.rate}%, ${tax.pricesIncludeTax ? "included in prices" : "added to prices"}` : "None shown to customers"}
+        </p>
       </Panel>
 
       {/* PLATFORM-P1-04.2 / PLATFORM-P1-04.3 / PLATFORM-P1-04.4 */}

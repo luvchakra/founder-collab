@@ -179,7 +179,19 @@ export async function listPlatformSubscriptions(filters: { status?: string; prov
   return search ? mapped.filter((s) => s.businessName.toLowerCase().includes(search) || (s.providerSubscriptionId ?? "").toLowerCase().includes(search)) : mapped;
 }
 
+/** PLATFORM-P1-05.4: the price row this subscription is billed on -- kept after the plan's
+ * price changes (the row is then inactive, never deleted). */
+export type SubscriptionPriceVersion = {
+  amount: number;
+  currency: string;
+  billingInterval: string;
+  providerPriceId: string;
+  current: boolean;
+  createdAt: string;
+};
+
 export type PlatformSubscriptionDetail = PlatformSubscriptionRow & {
+  priceVersion: SubscriptionPriceVersion | null;
   payments: PlatformPaymentRow[];
   events: PlatformBillingEventRow[];
   licenses: { moduleKey: string; status: string; source: string; ownedByThisSubscription: boolean }[];
@@ -189,14 +201,16 @@ export async function getPlatformSubscription(id: string): Promise<PlatformSubsc
   await requireSuperadmin();
   const list = await listPlatformSubscriptionsById(id);
   if (!list) return null;
-  const [payments, events, { data: licenses, error }] = await Promise.all([
+  const [payments, events, { data: licenses, error }, priceVersion] = await Promise.all([
     listPlatformPayments({ subscriptionId: id }),
     listPlatformBillingEvents({ subscriptionId: id }),
     coreAdmin().from("licenses").select("module_key, status, source, subscription_id").eq("business_id", list.businessId),
+    getSubscriptionPriceVersion(id),
   ]);
   if (error) throw error;
   return {
     ...list,
+    priceVersion,
     payments,
     events,
     licenses: ((licenses ?? []) as { module_key: string; status: string; source: string; subscription_id: string | null }[]).map((l) => ({
@@ -205,6 +219,28 @@ export async function getPlatformSubscription(id: string): Promise<PlatformSubsc
       source: l.source,
       ownedByThisSubscription: l.subscription_id === id,
     })),
+  };
+}
+
+async function getSubscriptionPriceVersion(subscriptionId: string): Promise<SubscriptionPriceVersion | null> {
+  const { data: sub, error } = await platformAdmin().from("subscriptions").select("plan_price_id").eq("id", subscriptionId).maybeSingle();
+  if (error) throw error;
+  const priceId = (sub?.plan_price_id as string | null | undefined) ?? null;
+  if (!priceId) return null;
+  const { data: price, error: priceError } = await platformAdmin()
+    .from("plan_prices")
+    .select("amount, currency, billing_interval, provider_price_id, active, created_at")
+    .eq("id", priceId)
+    .maybeSingle();
+  if (priceError) throw priceError;
+  if (!price) return null;
+  return {
+    amount: Number(price.amount),
+    currency: price.currency as string,
+    billingInterval: price.billing_interval as string,
+    providerPriceId: price.provider_price_id as string,
+    current: Boolean(price.active),
+    createdAt: price.created_at as string,
   };
 }
 

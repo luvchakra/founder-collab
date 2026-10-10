@@ -71,6 +71,19 @@ export default async function PlatformBillingSubscriptionPage({ params }: { para
             {formatMoney(sub.amount, sub.currency)}
             {sub.billingInterval ? <span className="text-zinc-500"> / {sub.billingInterval}</span> : null}
           </Fact>
+          {/* PLATFORM-P1-05.4 */}
+          <Fact label="Price version">
+            {sub.priceVersion ? (
+              <>
+                {formatMoney(sub.priceVersion.amount, sub.priceVersion.currency)} / {sub.priceVersion.billingInterval}, set {formatWhen(sub.priceVersion.createdAt)}
+                <span className="block text-xs text-zinc-500">
+                  {sub.priceVersion.current ? "The plan's current price" : "Kept from before the plan's price changed"} · {sub.priceVersion.providerPriceId}
+                </span>
+              </>
+            ) : (
+              "—"
+            )}
+          </Fact>
           <Fact label="Current period ends">{formatWhen(sub.currentPeriodEnd)}</Fact>
           <Fact label="Cancel at period end">{sub.cancelAtPeriodEnd ? "Yes" : "No"}</Fact>
           <Fact label="Created">{formatWhen(sub.createdAt)}</Fact>

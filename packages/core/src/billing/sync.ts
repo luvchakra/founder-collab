@@ -159,6 +159,10 @@ export async function syncSubscription(
     billing_interval: billedPrice?.billingInterval ?? null,
     currency: billedPrice?.currency ?? null,
     amount: billedPrice?.amount ?? null,
+    // PLATFORM-P1-05.4: the exact price row billed. Price rows are never deleted, and the
+    // provider keeps billing the old price after the plan's price changes, so the version
+    // a customer signed up for stays pinned.
+    plan_price_id: billedPrice?.id ?? null,
     current_period_start: incoming.currentPeriodStart,
     current_period_end: incoming.currentPeriodEnd,
     cancel_at_period_end: cancelAtPeriodEnd,
@@ -177,6 +181,7 @@ export async function syncSubscription(
     delete (fields as Partial<typeof fields>).billing_interval;
     delete (fields as Partial<typeof fields>).currency;
     delete (fields as Partial<typeof fields>).amount;
+    delete (fields as Partial<typeof fields>).plan_price_id;
   }
 
   let id: string;

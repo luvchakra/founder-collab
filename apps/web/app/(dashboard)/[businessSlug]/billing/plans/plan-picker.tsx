@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import type { PlanOption } from "@cofounderai/core/billing/overview";
+import type { PlanOption, SubscriptionTax } from "@cofounderai/core/billing/overview";
 import { Button } from "@cofounderai/core/ui/button";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { moduleRegistry } from "@cofounderai/module-registry";
@@ -20,6 +20,7 @@ function money(amount: number, currency: string) {
 export function PlanPicker({
   businessSlug,
   plans,
+  tax,
   currentPlanId,
   currentInterval,
   hasPaidSubscription,
@@ -27,6 +28,8 @@ export function PlanPicker({
 }: {
   businessSlug: string;
   plans: PlanOption[];
+  /** PLATFORM-P1-05.3 */
+  tax: SubscriptionTax | null;
   currentPlanId: string | null;
   currentInterval: "month" | "year" | null;
   hasPaidSubscription: boolean;
@@ -77,6 +80,11 @@ export function PlanPicker({
               <p className="text-2xl font-semibold">
                 {free ? money(0, plan.currency) : price ? money(price.amount, price.currency) : "—"}
                 <span className="text-sm font-normal text-muted-foreground"> / {interval === "year" && !free ? "year" : "month"}</span>
+                {tax && !free && price ? (
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    {tax.pricesIncludeTax ? "incl." : "+"} {tax.rate}% {tax.label}
+                  </span>
+                ) : null}
               </p>
               {plan.description ? <p className="text-sm text-muted-foreground">{plan.description}</p> : null}
               <ul className="flex flex-1 flex-col gap-1.5 text-sm">

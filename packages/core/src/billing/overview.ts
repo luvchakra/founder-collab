@@ -120,14 +120,31 @@ export async function listBusinessPayments(businessId: string, limit = 50): Prom
 
 /** The plan picker: every purchasable plan, the modules it licenses, and -- for paid
  * plans -- the price this business would actually be charged in its currency. */
-export async function listPlanOptions(businessId: string): Promise<{ plans: PlanOption[]; currency: string; checkoutAvailable: boolean }> {
+/** PLATFORM-P1-05.3: WonderArk's tax on its own subscription prices, shown next to them.
+ * null when no tax is configured. */
+export type SubscriptionTax = { label: string; rate: number; pricesIncludeTax: boolean };
+
+export async function listPlanOptions(
+  businessId: string,
+): Promise<{ plans: PlanOption[]; currency: string; checkoutAvailable: boolean; tax: SubscriptionTax | null }> {
   const core = await createClient({ schema: "core" });
   const platform = await createClient({ schema: "platform" });
-  const [{ data: settings }, plans, configs] = await Promise.all([
+  const [{ data: settings }, plans, configs, { data: billingSettings, error: billingSettingsError }] = await Promise.all([
     core.from("business_settings").select("currency").eq("business_id", businessId).maybeSingle(),
     listPurchasablePlans(),
     loadProviderConfigs(),
+    platform.from("billing_settings").select("subscription_tax_label, subscription_tax_rate, subscription_prices_include_tax").eq("id", true).maybeSingle(),
   ]);
+  if (billingSettingsError) throw billingSettingsError;
+  const taxRate = Number(billingSettings?.subscription_tax_rate ?? 0);
+  const tax: SubscriptionTax | null =
+    taxRate > 0
+      ? {
+          label: billingSettings?.subscription_tax_label as string,
+          rate: taxRate,
+          pricesIncludeTax: Boolean(billingSettings?.subscription_prices_include_tax),
+        }
+      : null;
   const { data: moduleRows, error: moduleError } = await platform
     .from("plan_modules")
     .select("plan_id, module_key")
@@ -160,7 +177,7 @@ export async function listPlanOptions(businessId: string): Promise<{ plans: Plan
       prices: optionPrices,
     };
   });
-  return { plans: options, currency, checkoutAvailable: options.some((o) => Object.keys(o.prices).length > 0) };
+  return { plans: options, currency, checkoutAvailable: options.some((o) => Object.keys(o.prices).length > 0), tax };
 }
 
 export async function canManageBilling(businessId: string): Promise<boolean> {

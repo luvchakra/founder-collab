@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 528 |
+| ✅ Done | 532 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 44 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 25 |
+| ⬜ Not started | 21 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 91 | 0 | 19 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 95 | 0 | 15 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-25 stories are neither built nor deliberately set aside:
+21 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -52,10 +52,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-01.3` | Secret Exclusion | ⬜ Not started | — |
 | `PLATFORM-P1-02.2` | Temporary Entitlement | ⬜ Not started | — |
 | `PLATFORM-P1-02.3` | Override Audit | ⬜ Not started | — |
-| `PLATFORM-P1-05.1` | Currency | ⬜ Not started | — |
-| `PLATFORM-P1-05.2` | Billing Provider | ⬜ Not started | — |
-| `PLATFORM-P1-05.3` | Tax on Subscription Billing | ⬜ Not started | — |
-| `PLATFORM-P1-05.4` | Price Versioning | ⬜ Not started | — |
 | `PLATFORM-P1-06.1` | API Policy | ⬜ Not started | — |
 | `PLATFORM-P1-06.2` | API Key Management | ⬜ Not started | — |
 | `PLATFORM-P1-06.3` | Webhook Policies | ⬜ Not started | — |
@@ -397,10 +393,10 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-05.1` | Currency | ⬜ Not started | — |
-| `PLATFORM-P1-05.2` | Billing Provider | ⬜ Not started | — |
-| `PLATFORM-P1-05.3` | Tax on Subscription Billing | ⬜ Not started | — |
-| `PLATFORM-P1-05.4` | Price Versioning | ⬜ Not started | — |
+| `PLATFORM-P1-05.1` | Currency | ✅ Done | `apps/web/app/platform/(protected)/billing/providers/provider-settings-dialog.tsx` |
+| `PLATFORM-P1-05.2` | Billing Provider | ✅ Done | `apps/web/app/platform/(protected)/billing/providers/provider-settings-dialog.tsx` |
+| `PLATFORM-P1-05.3` | Tax on Subscription Billing | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/billing/plans/plan-picker.tsx` +8 |
+| `PLATFORM-P1-05.4` | Price Versioning | ✅ Done | `apps/web/app/platform/(protected)/billing/subscriptions/[id]/page.tsx` +4 |
 
 ### Platform API Administration
 
@@ -1145,7 +1141,7 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 | `BILL-29` | Providers | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +9 |
 | `BILL-30` | Billing Events | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
 | `BILL-31` | Plan provider mappings | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
-| `BILL-32` | Subscription reconciliation | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +9 |
+| `BILL-32` | Subscription reconciliation | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +10 |
 | `BILL-33` | Audit | ✅ Done | `packages/core/src/billing/observability.ts` |
 | `BILL-34` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +4 |
 | `BILL-35` | Email templates | ✅ Done | `packages/core/src/billing/event-handlers.test.ts` +3 |
