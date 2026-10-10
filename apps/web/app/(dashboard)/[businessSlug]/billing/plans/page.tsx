@@ -19,7 +19,7 @@ export default async function PlansPage({ params }: { params: Promise<{ business
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [{ plans, currency, checkoutAvailable }, subscription, manager] = await Promise.all([
+  const [{ plans, currency, checkoutAvailable, tax }, subscription, manager] = await Promise.all([
     listPlanOptions(businessId),
     getBusinessSubscription(businessId),
     canManageBilling(businessId),
@@ -42,6 +42,7 @@ export default async function PlansPage({ params }: { params: Promise<{ business
       <PlanPicker
         businessSlug={businessSlug}
         plans={plans}
+        tax={tax}
         currentPlanId={live?.planId ?? null}
         currentInterval={live?.billingInterval ?? null}
         hasPaidSubscription={Boolean(live && live.provider !== "internal")}
