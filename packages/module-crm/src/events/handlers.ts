@@ -223,3 +223,16 @@ registerEventHandler("fsm.job.parts_recommended", async (event: DomainEvent) => 
   });
   if (insertError) throw insertError;
 });
+
+/**
+ * Ticket lifecycle events (crm-module-design.md's "Emits" list) have no subscriber yet,
+ * and core/events/drain.ts fails an event with no handler *permanently*. The ticket row
+ * already records each change, so they are acknowledged here, the way
+ * core/licensing/event-handlers.ts acknowledges license events; a consumer that needs
+ * them registers its own handler alongside this one.
+ */
+export const ACKNOWLEDGED_TICKET_EVENTS = ["ticket.created", "ticket.resolved", "ticket.converted_to_prospect"] as const;
+
+for (const type of ACKNOWLEDGED_TICKET_EVENTS) {
+  registerEventHandler(type, async () => undefined);
+}
