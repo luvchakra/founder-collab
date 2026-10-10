@@ -348,8 +348,14 @@ only one build runs at a time. Running out blocks production. The general rules 
   Vercel deployment, even when the ignore step then cancels it. So do it only when the
   owner's message contains the phrase "merge now" or "build now". The same goes for a
   Redeploy or any other deployment you start. Until then, get the PR green and mergeable,
-  tell the owner it's ready, and leave it open. A green PR is not permission, and neither is
-  an earlier "merge now" for a different PR.
+  tell the owner it's ready, and leave it open. A green PR is not permission.
+  - **The phrase covers every PR waiting at that moment**, not just the one under
+    discussion. That means every open PR, from any session, that is green and mergeable when
+    the message arrives. A PR opened, or still red, after that waits for the next "merge now".
+  - **Spend one deployment on the batch, not one per PR.** Merge the waiting branches into
+    one of them, resolving conflicts, and let CI pass there. Squash-merge that single PR,
+    then close the others with a comment naming the PR that carried them. If that isn't
+    possible, merge them back to back, and still never more than once per PR.
 - **One request, one PR, one production deployment.** Several stories from one request go in
   one PR. Docs, tracker and test updates ride in the code PR they describe. No docs-only PR
   while a code PR is open or about to open.
