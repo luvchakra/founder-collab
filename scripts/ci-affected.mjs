@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Decides which CI jobs a change actually needs, so a pull request runs the tests for the
- * feature it touches rather than the whole suite (the nightly workflow still runs
+ * feature it touches rather than the whole suite (the nightly run still does
  * everything, plus e2e). Prints `key=value` lines -- and appends them to $GITHUB_OUTPUT
  * when set:
  *
@@ -10,14 +10,17 @@
  *          packages/core still runs the apps/web tests that depend on it
  *   build  `next build` is needed (something the deployed app is built from changed)
  *   db     DB/RLS test scripts to run: "all", a space-separated list, or empty
+ *   e2e    the Playwright suite -- off the merge gate, as in WonderJobs: a full run (nightly,
+ *          manual, no usable base, a CI change) or a pull request labelled `e2e`
  *
  * Usage: node scripts/ci-affected.mjs <base-ref>   (no base, or an unknown one -> full run)
+ * PR_LABELS (comma or newline separated) is read from the environment.
  */
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { allDbTestScripts } from "./run-db-tests.mjs";
 
-const FULL = { code: true, unit: "all", build: true, db: "all" };
+const FULL = { code: true, unit: "all", build: true, db: "all", e2e: true };
 
 /** Changing any of these changes how everything else is tested, so it re-runs everything. */
 const FULL_RUN_TRIGGERS = [
@@ -53,7 +56,7 @@ const MIGRATION_AREAS = {
   platform: ["platform"],
 };
 
-export function selectAffected(changedFiles, dbScripts = allDbTestScripts()) {
+export function selectAffected(changedFiles, dbScripts = allDbTestScripts(), labels = []) {
   const files = changedFiles.filter(Boolean);
   if (files.some((file) => FULL_RUN_TRIGGERS.some((re) => re.test(file)))) return { ...FULL };
 
@@ -84,6 +87,7 @@ export function selectAffected(changedFiles, dbScripts = allDbTestScripts()) {
     unit: codeFiles.some((file) => UNIT_FULL_TRIGGERS.some((re) => re.test(file))) ? "all" : "changed",
     build: files.some(affectsBuild),
     db: allDb ? "all" : [...db].sort().join(" "),
+    e2e: labels.includes("e2e"),
   };
 }
 
@@ -99,7 +103,8 @@ function changedFilesSince(base) {
 function main() {
   const base = process.argv[2];
   const changed = base && !/^0+$/.test(base) ? changedFilesSince(base) : null;
-  const result = changed ? selectAffected(changed) : { ...FULL };
+  const labels = (process.env.PR_LABELS ?? "").split(/[,\n]/).map((label) => label.trim()).filter(Boolean);
+  const result = changed ? selectAffected(changed, allDbTestScripts(), labels) : { ...FULL };
   const lines = Object.entries(result).map(([key, value]) => `${key}=${value}`);
   console.log(changed ? `${changed.filter(Boolean).length} file(s) changed since ${base}` : "No usable base: full run");
   console.log(lines.join("\n"));

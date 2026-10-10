@@ -1,16 +1,25 @@
 name: CI
 
-# Pull requests and pushes to main run only what the change touches
-# (scripts/ci-affected.mjs): typecheck and lint with caches restored from the last run,
-# `vitest --changed` for unit tests, the DB/RLS scripts for the migrated area, and the
-# build only when app code changed -- as parallel jobs. The nightly workflow
-# (nightly.yml) calls this with a full run, then e2e.
+# What runs when (scripts/ci-affected.mjs decides; same shape as WonderJobs' CI):
+#
+#   pull request   only what the change touches: lints and cached typecheck, `vitest --changed`,
+#                  the DB/RLS scripts for the migrated area, the build when app code changed --
+#                  as parallel jobs. The `e2e` label, or any CI change, adds E2E.
+#   push to main   the same, for the merged commit.
+#   nightly        everything, E2E included. A failure opens (or comments on) one issue.
+#   manual         Actions -> CI -> Run workflow: everything, E2E included.
 on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "30 20 * * *" # 02:00 IST
   workflow_dispatch:
-  workflow_call:
+
+# Least privilege: jobs only read the repository (the alert job asks for issues: write itself).
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
@@ -26,6 +35,7 @@ jobs:
       unit: ${{ steps.affected.outputs.unit }}
       build: ${{ steps.affected.outputs.build }}
       db: ${{ steps.affected.outputs.db }}
+      e2e: ${{ steps.affected.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,6 +45,8 @@ jobs:
         run: echo "base=${{ github.event.pull_request.base.sha || (github.event_name == 'push' && github.event.before) || '' }}" >> "$GITHUB_OUTPUT"
       - id: affected
         run: node scripts/ci-affected.mjs "${{ steps.base.outputs.base }}"
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
 
   checks:
     needs: changes
@@ -157,16 +169,144 @@ jobs:
       - name: Build
         run: npm run build
 
+  # End-to-end + security suite (docs/testing/E2E_TEST_PLAN.md), off the merge gate like
+  # WonderJobs': nightly, manual, PRs labelled `e2e`, CI changes. Account specs use
+  # self-provisioned e2e-qa accounts (apps/web/e2e/support/tenants.ts), pre-confirmed so no
+  # mail is sent, and removed afterwards. What the repository settings don't enable reports
+  # BLOCKED instead of failing (apps/web/playwright.config.ts):
+  #   secrets E2E_SUPABASE_URL + E2E_SUPABASE_PUBLISHABLE_KEY   the signed-out specs
+  #   + secret E2E_SUPABASE_SERVICE_ROLE_KEY and variable
+  #     E2E_ALLOW_FIXTURES=1 ("this project is safe to seed")   everything
+  e2e:
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    # The fixtures use stable identities, so two runs at once would tear each other's
+    # tenants down mid-test.
+    concurrency:
+      group: e2e-fixtures
+      cancel-in-progress: false
+    timeout-minutes: 60
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      CRON_SECRET: ${{ secrets.E2E_CRON_SECRET }}
+      E2E_ALLOW_FIXTURES: ${{ vars.E2E_ALLOW_FIXTURES }}
+      E2E_SELF_PROVISION: "1"
+      E2E_TEST_BUSINESS_SLUG: acme-home-security-qa
+      PLAYWRIGHT_BASE_URL: http://localhost:3100
+      # GitHub runners are far from the project's region: allow for a server action's
+      # round trips (a wait on UI state, not a sleep). See E2E_DEFECTS.md "Environment finding".
+      E2E_EXPECT_TIMEOUT: "30000"
+    steps:
+      - name: Check E2E configuration
+        id: config
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "::notice::E2E BLOCKED: no E2E_SUPABASE_URL / E2E_SUPABASE_PUBLISHABLE_KEY secrets -- the app can't start without a backend."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.enabled == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.config.outputs.enabled == 'true'
+        run: npm ci
+
+      - id: pw
+        if: steps.config.outputs.enabled == 'true'
+        working-directory: apps/web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+
+      - name: Install Chromium
+        if: steps.config.outputs.enabled == 'true'
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Restore Next.js build cache
+        if: steps.config.outputs.enabled == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: apps/web/.next/cache
+          key: next-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-${{ hashFiles('package-lock.json') }}-
+
+      - name: Build
+        if: steps.config.outputs.enabled == 'true'
+        run: npm run build
+
+      - name: Start the app
+        if: steps.config.outputs.enabled == 'true'
+        working-directory: apps/web
+        run: |
+          nohup npx next start -p 3100 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3100/login && exit 0; sleep 1; done
+          echo "app did not start"; tail -50 next.log; exit 1
+
+      - name: E2E (security, multi-user, signed-out, desktop, mobile)
+        if: steps.config.outputs.enabled == 'true'
+        working-directory: apps/web
+        run: npx playwright test --timeout=90000
+
+      - name: Upload failure evidence (traces, screenshots, videos)
+        if: failure() && steps.config.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            apps/web/next.log
+          retention-days: 14
+
   # The one check branch protection and the PR page look at: green only when every job
   # this change needed passed (a job skipped because the change didn't need it is fine).
   ci:
-    needs: [changes, checks, db, build]
+    needs: [changes, checks, db, build, e2e]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Result
         run: |
-          echo "changes=${{ needs.changes.result }} checks=${{ needs.checks.result }} db=${{ needs.db.result }} build=${{ needs.build.result }}"
-          for r in "${{ needs.changes.result }}" "${{ needs.checks.result }}" "${{ needs.db.result }}" "${{ needs.build.result }}"; do
+          echo "changes=${{ needs.changes.result }} checks=${{ needs.checks.result }} db=${{ needs.db.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
+          for r in "${{ needs.changes.result }}" "${{ needs.checks.result }}" "${{ needs.db.result }}" "${{ needs.build.result }}" "${{ needs.e2e.result }}"; do
             case "$r" in success|skipped) ;; *) exit 1 ;; esac
           done
+
+  # Nightly and manual runs have nobody watching them: a failure opens one issue, or
+  # comments on the one already open, with the run link (as WonderJobs does).
+  alert:
+    name: Alert on failure
+    if: always() && needs.ci.result == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    needs: [changes, checks, db, build, e2e, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NEEDS: ${{ toJSON(needs) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          title="CI failing on main (nightly / manual run)"
+          failed=$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key) (\(.value.result))"] | join(", ")')
+          body=$(printf '%s run on `%s` failed: %s\n\n%s' "$EVENT" "${GITHUB_SHA:0:7}" "$failed" "$RUN_URL")
+          n=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"; else gh issue create --title "$title" --body "$body"; fi

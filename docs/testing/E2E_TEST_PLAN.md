@@ -79,10 +79,15 @@ npx playwright test --project=security --project=multi-user \
 - `PLAYWRIGHT_CHROMIUM_PATH` points at a pre-installed Chromium when the pinned revision
   can't be downloaded (as in the cloud sandbox this suite was built in).
 
-CI: the `e2e` job in `.github/workflows/nightly.yml` runs the same command nightly (and on
-manual dispatch) after a full CI run, never per pull request, only when the `E2E_SUPABASE_*` secrets and the `E2E_ALLOW_FIXTURES=1` repository variable are
-set (dev project only), one run at a time (`concurrency: e2e-fixtures`), uploading traces,
-screenshots and videos on failure.
+CI: the `e2e` job in `.github/workflows/ci.yml` runs nightly (02:00 IST), on manual dispatch,
+on a pull request labelled `e2e`, and whenever CI itself changes -- otherwise off the merge
+gate, the way WonderJobs runs its own suite. The `E2E_SUPABASE_URL` and
+`E2E_SUPABASE_PUBLISHABLE_KEY` secrets enable the signed-out specs; the account-dependent
+projects also need `E2E_SUPABASE_SERVICE_ROLE_KEY` and the `E2E_ALLOW_FIXTURES=1` repository
+variable (dev project only), and report BLOCKED -- listed, not run -- until both are set
+(`apps/web/playwright.config.ts`). One run at a time (`concurrency: e2e-fixtures`); traces,
+screenshots and videos are uploaded on failure, and a failed nightly opens (or comments on)
+one issue.
 
 ## 5. Evidence and flake policy
 
