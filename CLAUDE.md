@@ -351,7 +351,7 @@ only one build runs at a time. Running out blocks production. The general rules 
   tell the owner it's ready, and leave it open. A green PR is not permission.
   - **The phrase covers every PR waiting at that moment**, not just the one under
     discussion. That means every open PR, from any session, that is green and mergeable when
-    the message arrives. A PR opened, or still red, after that waits for the next "merge now".
+    the message arrives. A PR that is opened later, or is still red at that moment, waits for the next "merge now".
   - **Spend one deployment on the batch, not one per PR.** Merge the waiting branches into
     one of them, resolving conflicts, and let CI pass there. Squash-merge that single PR,
     then close the others with a comment naming the PR that carried them. If that isn't
