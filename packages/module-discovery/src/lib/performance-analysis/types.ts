@@ -1,4 +1,4 @@
-/** DISC-OFFER-P1 §7-02.3 "Offering Performance Analysis" -- one bucket in a rate
+/** DISC-OFFER-P1-02.3 "Offering Performance Analysis" -- one bucket in a rate
  * breakdown (e.g. one signal description, one industry, one job title). `label` is the
  * raw free-text value being grouped by -- these are all free-text fields in this schema
  * (industry/location/job_title/signal description), so there is no fixed catalog to
@@ -31,16 +31,9 @@ export type OfferingPerformanceAnalysis = {
   /** "Does a higher score correlate with better outcomes?" -- fixed score-range
    * buckets, `matched` = `outcome = 'won'` within that range. */
   scoreVsOutcome: RateBucket[];
+  /** "Which Discovery Plays perform best?" -- one bucket per Discovery Definition (each play
+   * the founder set up for this offering), `matched` = its opportunities sent to CRM.
+   * Grouped by definition, not by the preset it started from: a definition doesn't record
+   * its preset, and the definition is what actually ran. */
+  playsPerformance: RateBucket[];
 };
-
-/** "Which Discovery Plays perform best?" -- the doc's own fifth question, deliberately
- * NOT answered here. `discovery_definitions` (04.1) carries no reference back to which
- * `DiscoveryPlay` preset (04.2, `discovery-definitions/plays.ts`) it was started from --
- * a play only pre-fills the create-definition dialog once, at creation time, and the
- * resulting definition is then indistinguishable from one written from scratch. Answering
- * this honestly needs a new `play_key` column on `discovery_definitions` (a real schema
- * change, and one that couldn't back-fill history for definitions already created without
- * it) -- a genuine data-model gap, not a display-only one, so it's named here rather than
- * silently produced with fabricated or misleading data. */
-export const DISCOVERY_PLAYS_NOTE =
-  "Not shown: which Discovery Plays perform best. Discovery Definitions don't currently record which play (if any) they were started from, so this can't be answered from existing data yet.";

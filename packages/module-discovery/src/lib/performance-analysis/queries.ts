@@ -11,21 +11,27 @@ import type { PerformanceAnalysisRawData } from "./analysis";
  */
 export async function getPerformanceAnalysisRawData(workspaceId: string): Promise<PerformanceAnalysisRawData> {
   const supabase = await createClient();
-  const [prospectsRes, signalsRes, conversationsRes, contactsRes] = await Promise.all([
+  const [prospectsRes, signalsRes, conversationsRes, contactsRes, opportunitiesRes, definitionsRes] = await Promise.all([
     supabase.from("prospects").select("id, industry, location, fit_score, outcome").eq("workspace_id", workspaceId),
     supabase.from("signals").select("prospect_id, description").eq("workspace_id", workspaceId),
     supabase.from("conversations").select("prospect_id, contact_id, status").eq("workspace_id", workspaceId),
     supabase.from("contacts").select("id, job_title").eq("workspace_id", workspaceId),
+    supabase.from("opportunities").select("discovery_definition_id, status").eq("workspace_id", workspaceId),
+    supabase.from("discovery_definitions").select("id, name").eq("workspace_id", workspaceId),
   ]);
   if (prospectsRes.error) throw prospectsRes.error;
   if (signalsRes.error) throw signalsRes.error;
   if (conversationsRes.error) throw conversationsRes.error;
   if (contactsRes.error) throw contactsRes.error;
+  if (opportunitiesRes.error) throw opportunitiesRes.error;
+  if (definitionsRes.error) throw definitionsRes.error;
 
   return {
     prospects: prospectsRes.data,
     signals: signalsRes.data,
     conversations: conversationsRes.data,
     contacts: contactsRes.data,
+    opportunities: opportunitiesRes.data,
+    definitions: definitionsRes.data,
   };
 }

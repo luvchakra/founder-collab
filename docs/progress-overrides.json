@@ -611,6 +611,10 @@
     "COMPLY-P1-12.5": {
       "status": "Deferred",
       "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "DISC-OFFER-P1-03.3": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10: no external enrichment provider exists to abstract -- company/person enrichment and signals all run as AI web search through lib/ai/router.ts, already provider-agnostic across OpenAI/Anthropic/Google, and technology detection / contact verification don't exist at all. Contracts for providers that don't exist would be speculative (CLAUDE.md principle 7); build them with the first real enrichment provider. See docs/design/discovery-offering-backlog-audit.md."
     }
   }
 }

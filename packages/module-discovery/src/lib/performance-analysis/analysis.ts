@@ -50,6 +50,9 @@ export type PerformanceAnalysisRawData = {
   signals: { prospect_id: string; description: string }[];
   conversations: { prospect_id: string; contact_id: string | null; status: string }[];
   contacts: { id: string; job_title: string | null }[];
+  /** For "which plays perform best" -- opportunities with the definition that found them. */
+  opportunities: { discovery_definition_id: string | null; status: string }[];
+  definitions: { id: string; name: string }[];
 };
 
 /**
@@ -97,5 +100,12 @@ export function computeOfferingPerformanceAnalysis(raw: PerformanceAnalysisRawDa
 
   const scoreVsOutcome = computeScoreOutcomeBuckets(raw.prospects.map((p) => ({ score: p.fit_score, won: p.outcome === "won" })));
 
-  return { signalsProducingConversations, industryConversionRates, locationConversionRates, buyerRolesThatRespond, scoreVsOutcome };
+  const definitionName = new Map(raw.definitions.map((d) => [d.id, d.name]));
+  const playsPerformance = computeRateBuckets(
+    raw.opportunities,
+    (o) => (o.discovery_definition_id ? (definitionName.get(o.discovery_definition_id) ?? null) : null),
+    (o) => o.status === "sent_to_crm",
+  );
+
+  return { signalsProducingConversations, industryConversionRates, locationConversionRates, buyerRolesThatRespond, scoreVsOutcome, playsPerformance };
 }

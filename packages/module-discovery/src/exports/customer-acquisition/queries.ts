@@ -167,6 +167,8 @@ export type PerformanceExportRawData = {
   })[];
   conversations: (PerformanceAnalysisRawData["conversations"][number] & { id: string; channel: string })[];
   contacts: PerformanceAnalysisRawData["contacts"];
+  opportunities: PerformanceAnalysisRawData["opportunities"];
+  definitions: PerformanceAnalysisRawData["definitions"];
 };
 
 /** EXP-DISC-11 -- lib/performance-analysis/queries.ts#getPerformanceAnalysisRawData
@@ -190,5 +192,9 @@ export async function getPerformanceAnalysisRawDataForExport(workspaceId: string
     all<PerformanceExportRawData["conversations"][number]>("conversations", "id, prospect_id, contact_id, channel, status"),
     all<PerformanceExportRawData["contacts"][number]>("contacts", "id, job_title"),
   ]);
-  return { prospects, signals, conversations, contacts };
+  const [opportunities, definitions] = await Promise.all([
+    all<PerformanceExportRawData["opportunities"][number] & { id: string }>("opportunities", "id, discovery_definition_id, status"),
+    all<PerformanceExportRawData["definitions"][number]>("discovery_definitions", "id, name"),
+  ]);
+  return { prospects, signals, conversations, contacts, opportunities, definitions };
 }

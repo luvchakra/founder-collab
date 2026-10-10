@@ -63,7 +63,7 @@ function icpFieldsDefined(icp: IcpProfile): number {
  * those stories land, each adding its own real section rather than a stub.
  */
 export function OfferingOverviewSummary({
-  businessId,
+  businessSlug,
   offering,
   icp,
   personas,
@@ -71,7 +71,9 @@ export function OfferingOverviewSummary({
   outcomeFunnel,
   researchFurtherAction,
 }: {
-  businessId: string;
+  /** DISC-OFFER-P1-05.4: links use the slug route -- the old /dashboard/businesses/<id>
+   * path had no route and every link here 404'd. */
+  businessSlug: string;
   offering: Offering;
   icp: IcpProfile | null;
   personas: BuyerPersona[];
@@ -84,7 +86,7 @@ export function OfferingOverviewSummary({
    * a forced ICP regeneration, identical to the ICP page's own "Regenerate" button. */
   researchFurtherAction: (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
 }) {
-  const basePath = `/dashboard/businesses/${businessId}/discovery/offerings/${offering.id}`;
+  const basePath = `/${businessSlug}/discovery/offerings/${offering.id}`;
   const icpFieldsCount = icp ? icpFieldsDefined(icp) : 0;
   // DISC-OFFER-P1-03.1: "Offering Definition Quality" -- shown right here rather than a
   // new section elsewhere, since this component already only renders once
