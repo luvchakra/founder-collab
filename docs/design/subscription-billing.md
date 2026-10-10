@@ -123,7 +123,7 @@ but **not yet live**, and these block switching it on:
 
 | # | Finding | Runbook step | Owner action |
 |---|---|---|---|
-| 1 | **`CRON_SECRET` is not set in Vercel.** Every `/api/cron/*` route answers 401, so no scheduled job has ever run: 26 `core.domain_events` sit `pending` since 2026-09-07 with none ever processed, and the billing retry sweep, licence expiry, reminders and export expiry don't run either. Not billing-only -- it affects every module. | 1 | Set it (Production), redeploy. The first drain will process the month-old backlog. |
+| 1 | ~~**`CRON_SECRET` is not set in Vercel.**~~ **Done 2026-10-10:** set in Production and live; the first drains processed the whole 26-event backlog (#20 makes a same-commit redeploy build, #22 fixed core's event handlers being dropped from the production bundle). The pasted credentials were rotated afterwards. | 1 | -- |
 | 2 | Both providers (Razorpay `test`, Stripe `test`) are **disabled, with no secret or webhook secret** set; no webhook has ever arrived. | 2-3 | Enter test keys, register webhooks, enable. |
 | 3 | **No provider prices** (`platform.plan_prices` is empty), so checkout has nothing to sell. | 4 | Create Plans/Prices at the provider and record them per plan. |
 | 4 | **Free, Pro and Max all include all five modules**, so a paid plan unlocks nothing Free doesn't. | 5 | Decide what Free (and Pro) include before enabling checkout. |
