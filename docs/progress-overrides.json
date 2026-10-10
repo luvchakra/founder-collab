@@ -447,6 +447,170 @@
     "BILL-40": {
       "status": "Done",
       "note": "Review: `docs/design/subscription-billing.md` (security review §101 + readiness check against production 2026-10-10). Going live is owner configuration listed there, not code."
+    },
+    "COMPLY-P1-05.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-05.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-05.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-05.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-05.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-05.6": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-06.6": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-07.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-07.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-07.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-07.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-07.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-08.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-08.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-08.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-08.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-08.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-09.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-09.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-09.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-09.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-09.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-10.6": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-11.1": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-11.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-11.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-11.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-12.2": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-12.3": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-12.4": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
+    },
+    "COMPLY-P1-12.5": {
+      "status": "Deferred",
+      "note": "Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then."
     }
   }
 }

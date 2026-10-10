@@ -21,11 +21,11 @@ file is stale, so it cannot quietly drift out of date.
 |---|---|
 | ✅ Done | 521 |
 | 🟡 In progress | 0 |
-| ⏸️ Deferred | 3 |
+| ⏸️ Deferred | 44 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 73 |
+| ⬜ Not started | 32 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
@@ -34,7 +34,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
-| [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
+| [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 40 | 0 | 0 | 40 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-73 stories are neither built nor deliberately set aside:
+32 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -79,47 +79,6 @@ file is stale, so it cannot quietly drift out of date.
 | `DISC-OFFER-P1-03.3` | Provider-Agnostic Data Contracts | ⬜ Not started | — |
 | `DISC-OFFER-P1-04.3` | Offering-Specific Contact Relevance | ⬜ Not started | — |
 | `DISC-OFFER-P1-05.4` | Offering Overview UX Polish | ⬜ Not started | — |
-| `COMPLY-P1-05.1` | VAT Registration | ⬜ Not started | — |
-| `COMPLY-P1-05.2` | VAT Return | ⬜ Not started | — |
-| `COMPLY-P1-05.3` | EmaraTax Adapter | ⬜ Not started | — |
-| `COMPLY-P1-05.4` | VAT Mismatch Review | ⬜ Not started | — |
-| `COMPLY-P1-05.5` | Voluntary Disclosure | ⬜ Not started | — |
-| `COMPLY-P1-05.6` | UAE E-Invoicing Readiness | ⬜ Not started | — |
-| `COMPLY-P1-06.1` | ZATCA Registration Context | ⬜ Not started | — |
-| `COMPLY-P1-06.2` | Fatoora Adapter | ⬜ Not started | — |
-| `COMPLY-P1-06.3` | Structured Invoice Validation | ⬜ Not started | — |
-| `COMPLY-P1-06.4` | Clearance/Reporting | ⬜ Not started | — |
-| `COMPLY-P1-06.5` | QR/Security Evidence | ⬜ Not started | — |
-| `COMPLY-P1-06.6` | Integration-Wave Tracking | ⬜ Not started | — |
-| `COMPLY-P1-07.1` | Australia GST | ⬜ Not started | — |
-| `COMPLY-P1-07.2` | BAS | ⬜ Not started | — |
-| `COMPLY-P1-07.3` | Peppol eInvoicing | ⬜ Not started | — |
-| `COMPLY-P1-07.4` | New Zealand GST | ⬜ Not started | — |
-| `COMPLY-P1-07.5` | NZ Filing Frequency | ⬜ Not started | — |
-| `COMPLY-P1-08.1` | Malaysia SST | ⬜ Not started | — |
-| `COMPLY-P1-08.2` | Thailand VAT | ⬜ Not started | — |
-| `COMPLY-P1-08.3` | Indonesia VAT/e-Faktur | ⬜ Not started | — |
-| `COMPLY-P1-08.4` | Japan Consumption Tax/Qualified Invoice | ⬜ Not started | — |
-| `COMPLY-P1-08.5` | South Korea VAT/e-Tax Invoice | ⬜ Not started | — |
-| `COMPLY-P1-09.1` | Common Adapter Contract | ⬜ Not started | — |
-| `COMPLY-P1-09.2` | Secure Credential Store | ⬜ Not started | — |
-| `COMPLY-P1-09.3` | Submission Idempotency | ⬜ Not started | — |
-| `COMPLY-P1-09.4` | Retry Handling | ⬜ Not started | — |
-| `COMPLY-P1-09.5` | Integration Health | ⬜ Not started | — |
-| `COMPLY-P1-10.1` | "What do I need to file?" | ⬜ Not started | — |
-| `COMPLY-P1-10.2` | Explain My Tax | ⬜ Not started | — |
-| `COMPLY-P1-10.3` | Explain a Mismatch | ⬜ Not started | — |
-| `COMPLY-P1-10.4` | Filing Readiness Summary | ⬜ Not started | — |
-| `COMPLY-P1-10.5` | Anomaly Detection | ⬜ Not started | — |
-| `COMPLY-P1-10.6` | Compliance Research Assistant | ⬜ Not started | — |
-| `COMPLY-P1-11.1` | Risk Register | ⬜ Not started | — |
-| `COMPLY-P1-11.2` | Risk Severity | ⬜ Not started | — |
-| `COMPLY-P1-11.3` | Risk Owner | ⬜ Not started | — |
-| `COMPLY-P1-11.4` | Remediation Workflow | ⬜ Not started | — |
-| `COMPLY-P1-12.2` | FSM Tax Readiness | ⬜ Not started | — |
-| `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
-| `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
-| `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
 
 ## Platform build-out
 
@@ -909,83 +868,83 @@ Source: [`docs/plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md`](./plan/11-COMPLIANCE-G
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-05.1` | VAT Registration | ⬜ Not started | — |
-| `COMPLY-P1-05.2` | VAT Return | ⬜ Not started | — |
-| `COMPLY-P1-05.3` | EmaraTax Adapter | ⬜ Not started | — |
-| `COMPLY-P1-05.4` | VAT Mismatch Review | ⬜ Not started | — |
-| `COMPLY-P1-05.5` | Voluntary Disclosure | ⬜ Not started | — |
-| `COMPLY-P1-05.6` | UAE E-Invoicing Readiness | ⬜ Not started | — |
+| `COMPLY-P1-05.1` | VAT Registration | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-05.2` | VAT Return | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-05.3` | EmaraTax Adapter | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-05.4` | VAT Mismatch Review | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-05.5` | Voluntary Disclosure | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-05.6` | UAE E-Invoicing Readiness | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-06 — Saudi Arabia
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-06.1` | ZATCA Registration Context | ⬜ Not started | — |
-| `COMPLY-P1-06.2` | Fatoora Adapter | ⬜ Not started | — |
-| `COMPLY-P1-06.3` | Structured Invoice Validation | ⬜ Not started | — |
-| `COMPLY-P1-06.4` | Clearance/Reporting | ⬜ Not started | — |
-| `COMPLY-P1-06.5` | QR/Security Evidence | ⬜ Not started | — |
-| `COMPLY-P1-06.6` | Integration-Wave Tracking | ⬜ Not started | — |
+| `COMPLY-P1-06.1` | ZATCA Registration Context | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-06.2` | Fatoora Adapter | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-06.3` | Structured Invoice Validation | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-06.4` | Clearance/Reporting | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-06.5` | QR/Security Evidence | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-06.6` | Integration-Wave Tracking | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-07 — Australia / New Zealand
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-07.1` | Australia GST | ⬜ Not started | — |
-| `COMPLY-P1-07.2` | BAS | ⬜ Not started | — |
-| `COMPLY-P1-07.3` | Peppol eInvoicing | ⬜ Not started | — |
-| `COMPLY-P1-07.4` | New Zealand GST | ⬜ Not started | — |
-| `COMPLY-P1-07.5` | NZ Filing Frequency | ⬜ Not started | — |
+| `COMPLY-P1-07.1` | Australia GST | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-07.2` | BAS | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-07.3` | Peppol eInvoicing | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-07.4` | New Zealand GST | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-07.5` | NZ Filing Frequency | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-08 — Asia
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-08.1` | Malaysia SST | ⬜ Not started | — |
-| `COMPLY-P1-08.2` | Thailand VAT | ⬜ Not started | — |
-| `COMPLY-P1-08.3` | Indonesia VAT/e-Faktur | ⬜ Not started | — |
-| `COMPLY-P1-08.4` | Japan Consumption Tax/Qualified Invoice | ⬜ Not started | — |
-| `COMPLY-P1-08.5` | South Korea VAT/e-Tax Invoice | ⬜ Not started | — |
+| `COMPLY-P1-08.1` | Malaysia SST | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-08.2` | Thailand VAT | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-08.3` | Indonesia VAT/e-Faktur | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-08.4` | Japan Consumption Tax/Qualified Invoice | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-08.5` | South Korea VAT/e-Tax Invoice | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-09 — Government Integration Framework
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-09.1` | Common Adapter Contract | ⬜ Not started | — |
-| `COMPLY-P1-09.2` | Secure Credential Store | ⬜ Not started | — |
-| `COMPLY-P1-09.3` | Submission Idempotency | ⬜ Not started | — |
-| `COMPLY-P1-09.4` | Retry Handling | ⬜ Not started | — |
-| `COMPLY-P1-09.5` | Integration Health | ⬜ Not started | — |
+| `COMPLY-P1-09.1` | Common Adapter Contract | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-09.2` | Secure Credential Store | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-09.3` | Submission Idempotency | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-09.4` | Retry Handling | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-09.5` | Integration Health | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-10 — AI Compliance Assistant
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-10.1` | "What do I need to file?" | ⬜ Not started | — |
-| `COMPLY-P1-10.2` | Explain My Tax | ⬜ Not started | — |
-| `COMPLY-P1-10.3` | Explain a Mismatch | ⬜ Not started | — |
-| `COMPLY-P1-10.4` | Filing Readiness Summary | ⬜ Not started | — |
-| `COMPLY-P1-10.5` | Anomaly Detection | ⬜ Not started | — |
-| `COMPLY-P1-10.6` | Compliance Research Assistant | ⬜ Not started | — |
+| `COMPLY-P1-10.1` | "What do I need to file?" | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-10.2` | Explain My Tax | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-10.3` | Explain a Mismatch | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-10.4` | Filing Readiness Summary | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-10.5` | Anomaly Detection | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-10.6` | Compliance Research Assistant | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-11 — Compliance Risk Center
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `COMPLY-P1-11.1` | Risk Register | ⬜ Not started | — |
-| `COMPLY-P1-11.2` | Risk Severity | ⬜ Not started | — |
-| `COMPLY-P1-11.3` | Risk Owner | ⬜ Not started | — |
-| `COMPLY-P1-11.4` | Remediation Workflow | ⬜ Not started | — |
+| `COMPLY-P1-11.1` | Risk Register | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-11.2` | Risk Severity | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-11.3` | Risk Owner | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-11.4` | Remediation Workflow | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ### COMPLY-P1-12 — Cross-Module Compliance Intelligence
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `COMPLY-P1-12.1` | Inventory Tax Readiness | ✅ Done | `packages/module-gst/src/lib/inventory-tax-context/queries.ts` |
-| `COMPLY-P1-12.2` | FSM Tax Readiness | ⬜ Not started | — |
-| `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
-| `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
-| `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
+| `COMPLY-P1-12.2` | FSM Tax Readiness | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-12.3` | CRM Customer Tax Context | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
+| `COMPLY-P1-12.5` | Core Domain Events | ⏸️ Deferred | Deferred by the owner 2026-10-10: global tax (UAE, KSA, AU/NZ, SE Asia, shared filing plumbing, AI tax help, risk register) waits until WonderArk targets those markets; India-only until then. |
 
 ## Discovery — Marketing, Customer Acquisition & Funding
 
