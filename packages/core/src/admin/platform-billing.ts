@@ -239,3 +239,63 @@ export async function updateBillingSettings(input: UpdateBillingSettingsInput): 
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------------------
+// PLATFORM-P1-04.2 / PLATFORM-P1-04.3 / PLATFORM-P1-04.4 -- subscription lifecycle settings
+// (billing/lifecycle-policy.ts reads them where they take effect).
+// ---------------------------------------------------------------------------------------
+
+export type SubscriptionLifecycleSettings = {
+  trialDays: number;
+  trialPlanKeys: string[];
+  trialEntitlements: "plan" | "all_modules";
+  paymentGraceDays: number | null;
+  featureGraceDays: number;
+};
+
+export async function getSubscriptionLifecycleSettings(): Promise<SubscriptionLifecycleSettings> {
+  await requireSuperadmin();
+  const supabase = await createClient({ schema: "platform" });
+  const { data, error } = await supabase
+    .from("billing_settings")
+    .select("trial_days, trial_plan_keys, trial_entitlements, payment_grace_days, feature_grace_days")
+    .eq("id", true)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    trialDays: (data?.trial_days as number | undefined) ?? 0,
+    trialPlanKeys: (data?.trial_plan_keys as string[] | undefined) ?? [],
+    trialEntitlements: (data?.trial_entitlements as SubscriptionLifecycleSettings["trialEntitlements"] | undefined) ?? "plan",
+    paymentGraceDays: (data?.payment_grace_days as number | null | undefined) ?? null,
+    featureGraceDays: (data?.feature_grace_days as number | undefined) ?? 30,
+  };
+}
+
+export const updateSubscriptionLifecycleSchema = z.object({
+  trialDays: z.coerce.number().int("Whole days only.").min(0).max(90, "At most 90 days."),
+  trialPlanKeys: z.array(z.string().trim().min(1)).max(20),
+  trialEntitlements: z.enum(["plan", "all_modules"]),
+  paymentGraceDays: z.coerce.number().int("Whole days only.").min(0).max(60, "At most 60 days.").nullable(),
+  // The public site promises a 30-day read-only grace, so it can only be made longer.
+  featureGraceDays: z.coerce.number().int("Whole days only.").min(30, "At least 30 days -- the public site promises 30.").max(180),
+  reason,
+});
+export type UpdateSubscriptionLifecycleInput = z.input<typeof updateSubscriptionLifecycleSchema>;
+
+export async function updateSubscriptionLifecycleSettings(input: UpdateSubscriptionLifecycleInput): Promise<Result> {
+  await requireSuperadmin();
+  const parsed = updateSubscriptionLifecycleSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const d = parsed.data;
+  const supabase = await createClient({ schema: "platform" });
+  const { error } = await supabase.rpc("update_subscription_lifecycle_settings", {
+    p_trial_days: d.trialDays,
+    p_trial_plan_keys: d.trialPlanKeys,
+    p_trial_entitlements: d.trialEntitlements,
+    p_payment_grace_days: d.paymentGraceDays,
+    p_feature_grace_days: d.featureGraceDays,
+    p_reason: d.reason,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}

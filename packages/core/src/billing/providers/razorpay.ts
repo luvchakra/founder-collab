@@ -64,11 +64,15 @@ function notesOf(notes: RazorpaySubscription["notes"]): Record<string, string> {
   return notes && !Array.isArray(notes) ? (notes as Record<string, string>) : {};
 }
 
-export function toProviderSubscription(sub: RazorpaySubscription, cancelAtPeriodEnd = false): ProviderSubscription {
+export function toProviderSubscription(sub: RazorpaySubscription, cancelAtPeriodEnd = false, now: number = Date.now()): ProviderSubscription {
+  // Mandate authorised but the first charge is still in the future: that is a trial
+  // (PLATFORM-P1-04.2, created with start_at). Without a future start_at, authenticated
+  // stays incomplete -- it grants nothing until the first charge.
+  const trialing = sub.status === "authenticated" && typeof sub.start_at === "number" && sub.start_at * 1000 > now;
   return {
     id: sub.id,
     customerId: sub.customer_id ?? null,
-    status: mapRazorpayStatus(sub.status, cancelAtPeriodEnd),
+    status: trialing ? "trialing" : mapRazorpayStatus(sub.status, cancelAtPeriodEnd),
     providerStatus: sub.status,
     providerPriceId: sub.plan_id,
     currentPeriodStart: isoFromUnix(sub.current_start),
@@ -76,7 +80,7 @@ export function toProviderSubscription(sub: RazorpaySubscription, cancelAtPeriod
     cancelAtPeriodEnd,
     cancelledAt: sub.status === "cancelled" ? isoFromUnix(sub.ended_at) : null,
     trialStart: null,
-    trialEnd: null,
+    trialEnd: trialing ? isoFromUnix(sub.start_at) : null,
     metadata: notesOf(sub.notes),
   };
 }
@@ -199,6 +203,9 @@ export function createRazorpayProvider(config: ProviderConfig): BillingProvider 
         customer_id: input.customerId,
         total_count: TOTAL_COUNT[input.billingInterval],
         customer_notify: 1,
+        // A trial on Razorpay is a delayed first charge: the customer authorises the mandate
+        // now and is billed at start_at (PLATFORM-P1-04.2).
+        ...(input.trialDays > 0 ? { start_at: Math.floor(Date.now() / 1000) + input.trialDays * 24 * 60 * 60 } : {}),
         notes: { business_id: input.businessId, checkout_session_id: input.sessionId, plan_key: input.planKey },
       });
       return { checkoutId: sub.id, subscriptionId: sub.id, redirectUrl: sub.short_url ?? null };

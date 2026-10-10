@@ -136,6 +136,7 @@ describe("BILL-05 Stripe adapter", () => {
       businessId: "biz-1",
       planKey: "pro",
       billingInterval: "month",
+      trialDays: 0,
       customerEmail: null,
       successUrl: "https://app/success",
       cancelUrl: "https://app/cancel",
@@ -149,6 +150,26 @@ describe("BILL-05 Stripe adapter", () => {
     expect(body).toContain("mode=subscription");
     expect(body).toContain("client_reference_id=sess-1");
     expect(body).toContain("subscription_data[metadata][business_id]=biz-1");
+    expect(body).not.toContain("trial_period_days");
+  });
+
+  it("PLATFORM-P1-04.2: a trial is passed as subscription_data.trial_period_days", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "cs_1", url: "u" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await createStripeProvider(config).createCheckout({
+      customerId: "cus_1",
+      providerPriceId: "price_1",
+      sessionId: "sess-1",
+      businessId: "biz-1",
+      planKey: "pro",
+      billingInterval: "month",
+      trialDays: 14,
+      customerEmail: null,
+      successUrl: "s",
+      cancelUrl: "c",
+      idempotencyKey: "idem-1",
+    });
+    expect(decodeURIComponent(fetchMock.mock.calls[0]![1].body as string)).toContain("subscription_data[trial_period_days]=14");
   });
 
   it("changes price without proration for a next-renewal change", async () => {

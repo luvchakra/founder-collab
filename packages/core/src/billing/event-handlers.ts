@@ -5,6 +5,7 @@ import type { DomainEvent } from "../events/types";
 import { SITE_URL } from "../site";
 import { BRAND_NAME } from "../lib/brand";
 import { BILLING_NOTIFICATION_TYPES, type BillingNotificationType } from "./notifications";
+import { getLifecyclePolicy } from "./lifecycle-policy";
 import { logBilling } from "./observability";
 
 /**
@@ -18,14 +19,14 @@ import { logBilling } from "./observability";
 
 type Payload = { plan?: string; amount?: string; date?: string };
 
-const COPY: Record<BillingNotificationType, (p: Payload, business: string) => { subject: string; body: string }> = {
+const COPY: Record<BillingNotificationType, (p: Payload, business: string, graceDays: number) => { subject: string; body: string }> = {
   "billing.subscription_activated": (p, b) => ({
     subject: `Your ${p.plan ?? ""} plan is active`,
     body: `Your **${p.plan ?? "new"}** plan for ${b} is now active, and the modules it includes are ready to use.`,
   }),
-  "billing.subscription_cancelled": (p, b) => ({
+  "billing.subscription_cancelled": (p, b, graceDays) => ({
     subject: `Your ${p.plan ?? ""} plan has ended`,
-    body: `The ${p.plan ?? ""} plan for ${b} has ended. Its modules stay readable for 30 days, and your data is never deleted -- choose a plan anytime to restore full access.`,
+    body: `The ${p.plan ?? ""} plan for ${b} has ended. Its modules stay readable for ${graceDays} days, and your data is never deleted -- choose a plan anytime to restore full access.`,
   }),
   "billing.cancellation_scheduled": (p, b) => ({
     subject: "Your plan won't renew",
@@ -79,7 +80,8 @@ export async function sendBillingEmail(event: DomainEvent): Promise<"sent" | "sk
   const { emails, businessName, slug } = await recipients(event.business_id);
   if (emails.length === 0) return "skipped";
 
-  const { subject, body } = COPY[type](event.payload as Payload, businessName);
+  const { featureGraceDays } = await getLifecyclePolicy();
+  const { subject, body } = COPY[type](event.payload as Payload, businessName, featureGraceDays);
   const link = slug ? `${SITE_URL}/${slug}/billing` : `${SITE_URL}/dashboard/settings/billing`;
   const fullBody = `${body}\n\nManage your plan: ${link}`;
   const response = await fetch("https://api.resend.com/emails", {

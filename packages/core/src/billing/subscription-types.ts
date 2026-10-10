@@ -137,6 +137,8 @@ export type CreateCheckoutInput = {
   businessId: string;
   planKey: string;
   billingInterval: "month" | "year";
+  /** PLATFORM-P1-04.2: free days before the first charge (0 = no trial). */
+  trialDays: number;
   customerEmail: string | null;
   successUrl: string;
   cancelUrl: string;

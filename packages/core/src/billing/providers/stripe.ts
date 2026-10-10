@@ -278,7 +278,7 @@ export function createStripeProvider(config: ProviderConfig): BillingProvider {
           success_url: input.successUrl,
           cancel_url: input.cancelUrl,
           metadata,
-          subscription_data: { metadata },
+          subscription_data: input.trialDays > 0 ? { metadata, trial_period_days: input.trialDays } : { metadata },
         },
         input.idempotencyKey,
       );

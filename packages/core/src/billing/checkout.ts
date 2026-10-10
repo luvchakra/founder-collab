@@ -1,3 +1,4 @@
+import { getLifecyclePolicy, trialDaysFor } from "./lifecycle-policy";
 import { createAdminClient } from "../db/admin";
 import { SITE_URL } from "../site";
 import { BRAND_NAME } from "../lib/brand";
@@ -175,6 +176,7 @@ export async function startCheckout(input: StartCheckoutInput): Promise<Checkout
 
   const provider = createProvider(config);
   try {
+    const trialDays = trialDaysFor(await getLifecyclePolicy(), plan.key, await hadPaidSubscription(manager.businessId));
     const customerId = await ensureBillingCustomer(manager, config, provider, currency);
     const returnBase = `${SITE_URL}/${encodeURIComponent(input.businessSlug)}/billing`;
     const checkout = await provider.createCheckout({
@@ -184,6 +186,7 @@ export async function startCheckout(input: StartCheckoutInput): Promise<Checkout
       businessId: manager.businessId,
       planKey: plan.key,
       billingInterval: input.billingInterval,
+      trialDays,
       customerEmail: manager.email,
       successUrl: `${returnBase}/success?session=${session.id}`,
       cancelUrl: `${returnBase}/failed?session=${session.id}&reason=cancelled`,
@@ -371,4 +374,16 @@ export async function expireCheckoutSessions(): Promise<number> {
     .select("id");
   if (error) throw error;
   return data?.length ?? 0;
+}
+
+/** One trial per business (PLATFORM-P1-04.2): any earlier provider subscription -- paid,
+ * trialled or cancelled -- rules out another. The internal free plan doesn't count. */
+async function hadPaidSubscription(businessId: string): Promise<boolean> {
+  const { count, error } = await platformAdmin()
+    .from("subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("business_id", businessId)
+    .neq("provider", "internal");
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }

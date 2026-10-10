@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRazorpayProvider, parseRazorpayEvent, toProviderPayment, verifyRazorpaySignature } from "./razorpay";
+import { createRazorpayProvider, parseRazorpayEvent, toProviderPayment, toProviderSubscription, verifyRazorpaySignature } from "./razorpay";
 import { BillingProviderError, WebhookVerificationError, type ProviderConfig } from "../subscription-types";
 
 const SECRET = "rzp_webhook_secret";
@@ -108,6 +108,7 @@ describe("BILL-04 Razorpay adapter", () => {
       businessId: "biz-1",
       planKey: "pro",
       billingInterval: "year",
+      trialDays: 0,
       customerEmail: null,
       successUrl: "",
       cancelUrl: "",
@@ -119,6 +120,40 @@ describe("BILL-04 Razorpay adapter", () => {
     expect(init.headers.Authorization).toBe(`Basic ${Buffer.from("rzp_test_key:rzp_secret").toString("base64")}`);
     const body = JSON.parse(init.body as string);
     expect(body).toMatchObject({ plan_id: "plan_1", customer_id: "cust_1", total_count: 10, notes: { business_id: "biz-1", checkout_session_id: "sess-1" } });
+    expect(body.start_at).toBeUndefined();
+  });
+
+  it("PLATFORM-P1-04.2: a trial delays the first charge with start_at", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: "sub_1", plan_id: "plan_1", status: "created" })));
+    vi.stubGlobal("fetch", fetchMock);
+    const before = Math.floor(Date.now() / 1000);
+    await createRazorpayProvider(config).createCheckout({
+      customerId: "cust_1",
+      providerPriceId: "plan_1",
+      sessionId: "sess-1",
+      businessId: "biz-1",
+      planKey: "pro",
+      billingInterval: "month",
+      trialDays: 14,
+      customerEmail: null,
+      successUrl: "",
+      cancelUrl: "",
+      idempotencyKey: "k",
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
+    expect(body.start_at).toBeGreaterThanOrEqual(before + 14 * 86400);
+    expect(body.start_at).toBeLessThan(before + 14 * 86400 + 60);
+  });
+
+  it("PLATFORM-P1-04.2: an authenticated subscription whose first charge is in the future is trialing", () => {
+    const now = Date.parse("2026-10-10T00:00:00Z");
+    const startAt = now / 1000 + 7 * 86400;
+    const trial = toProviderSubscription({ id: "s", plan_id: "p", status: "authenticated", start_at: startAt }, false, now);
+    expect(trial.status).toBe("trialing");
+    expect(trial.trialEnd).toBe("2026-10-17T00:00:00.000Z");
+    // No future start_at: still incomplete -- nothing is granted before the first charge.
+    expect(toProviderSubscription({ id: "s", plan_id: "p", status: "authenticated", start_at: now / 1000 - 60 }, false, now).status).toBe("incomplete");
+    expect(toProviderSubscription({ id: "s", plan_id: "p", status: "authenticated" }, false, now).status).toBe("incomplete");
   });
 
   it("cancels at cycle end and reports cancel_scheduled", async () => {
