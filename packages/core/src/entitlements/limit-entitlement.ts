@@ -207,12 +207,11 @@ export function buildLimitEntitlementDecision(
 type ConsumeAttempt = {
   state: "limited" | "unlimited" | "disabled" | "unrestricted";
   limit_value: number | null;
-  limit_type?: "soft" | "hard" | null;
+  /** "override": PLATFORM-P1-02.1 -- a business override, not the plan, set state/limit_value. */
+  limit_type?: "soft" | "hard" | "override" | null;
   usage_before: number;
   usage_after: number;
   granted: boolean;
-  /** PLATFORM-P1-02.1: a business override, not the plan, set state/limit_value. */
-  overridden?: boolean;
 };
 
 /**
@@ -315,11 +314,12 @@ export function buildConsumeEntitlementDecision(
       remaining: null,
     };
   }
+  const overridden = attempt.limit_type === "override";
   if (attempt.state === "unlimited") {
     return {
       allowed: true,
-      reason: attempt.overridden ? `${resourceKey} is unlimited for this business (business override).` : `${resourceKey} is unlimited on the ${planKey} plan.`,
-      source: attempt.overridden ? "business_override" : "plan",
+      reason: overridden ? `${resourceKey} is unlimited for this business (business override).` : `${resourceKey} is unlimited on the ${planKey} plan.`,
+      source: overridden ? "business_override" : "plan",
       limit: null,
       usage: attempt.usage_after,
       remaining: null,
@@ -329,7 +329,7 @@ export function buildConsumeEntitlementDecision(
   const limit = attempt.limit_value as number;
   const limitType = attempt.limit_type ?? "hard";
 
-  if (attempt.overridden) {
+  if (overridden) {
     // PLATFORM-P1-02.1: the business override is a hard limit (core.try_consume_usage_counter).
     return {
       allowed: attempt.granted,

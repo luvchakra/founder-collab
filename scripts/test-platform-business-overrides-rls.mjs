@@ -21,7 +21,7 @@ const BOB = "88888888-8888-8888-8888-888888888896"; // another tenant
 const ZOE = "88888888-8888-8888-8888-888888888897"; // superadmin
 
 const create = (biz, args) => `select platform.create_business_limit_override('${biz}', ${args})`;
-const consume = (biz) => `select state, limit_value, granted, overridden from core.try_consume_usage_counter('${biz}', 'prospects', 1, 'current')`;
+const consume = (biz) => `select state, limit_value, granted, coalesce(limit_type, '') = 'override' from core.try_consume_usage_counter('${biz}', 'prospects', 1, 'current')`;
 
 async function main() {
   await withTestDatabase({

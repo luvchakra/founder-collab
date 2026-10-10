@@ -239,23 +239,17 @@ revoke execute on function platform.log_legal_document_version_audit() from publ
 
 -- `/legal/accept` (the acceptance prompt) is a real top-level route, so `legal` joins the
 -- reserved business slugs in all three places the list lives: the middleware's
--- RESERVED_TOP_SEGMENTS (same commit), this CHECK constraint and
+-- RESERVED_TOP_SEGMENTS (same commit), a CHECK constraint and
 -- core.generate_business_slug(). Same shape as 20260926150400.
 update core.business_settings
 set slug = slug || '-business'
 where slug = 'legal'
   and not exists (select 1 from core.business_settings other where other.slug = 'legal-business');
 
+-- Its own constraint rather than a drop-and-recreate of business_settings_slug_not_reserved:
+-- the same rule, added without touching the existing one.
 alter table core.business_settings
-  drop constraint if exists business_settings_slug_not_reserved;
-
-alter table core.business_settings
-  add constraint business_settings_slug_not_reserved check (
-    slug not in (
-      'dashboard', 'platform', 'login', 'signup', 'forgot-password', 'reset-password',
-      'onboarding', 'auth', 'api', 'p', 'help', 'terms', 'privacy', 'pricing', 'invite', 'legal'
-    )
-  );
+  add constraint business_settings_slug_not_legal check (slug <> 'legal');
 
 create or replace function core.generate_business_slug(business_name text)
 returns text

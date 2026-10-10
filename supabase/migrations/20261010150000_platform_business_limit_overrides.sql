@@ -224,12 +224,10 @@ revoke execute on function platform.guard_business_limit_override_update() from 
 revoke execute on function platform.log_business_limit_override_audit() from public, anon, authenticated;
 
 -- 02.1: enforcement. Same function as 20260912120000 with one step added: an active
--- override replaces the plan's (state, limit) for this business and resource -- a limited
--- override is a hard limit -- and the result says so in a new `overridden` column. The
--- return shape changes, so the function is dropped and recreated with the same grants.
-drop function core.try_consume_usage_counter(uuid, text, integer, text);
-
-create function core.try_consume_usage_counter(
+-- override replaces the plan's (state, limit) for this business and resource, and is
+-- reported as limit_type 'override' (it behaves as a hard limit). The result shape is
+-- unchanged, so this is a plain create-or-replace and existing grants stay.
+create or replace function core.try_consume_usage_counter(
   p_business_id uuid,
   p_resource_key text,
   p_quantity integer default 1,
@@ -241,8 +239,7 @@ returns table (
   limit_type text,
   usage_before integer,
   usage_after integer,
-  granted boolean,
-  overridden boolean
+  granted boolean
 )
 language plpgsql
 security definer
@@ -255,7 +252,6 @@ declare
   v_limit_type text;
   v_override_state text;
   v_override_limit integer;
-  v_overridden boolean := false;
   v_before integer;
   v_after integer;
   v_granted boolean;
@@ -289,10 +285,9 @@ begin
   order by o.created_at desc
   limit 1;
   if v_override_state is not null then
-    v_overridden := true;
     v_state := v_override_state;
     v_limit := v_override_limit;
-    v_limit_type := case when v_override_state = 'limited' then 'hard' end;
+    v_limit_type := 'override';
   end if;
 
   if v_state is null then
@@ -333,9 +328,7 @@ begin
     end if;
   end if;
 
-  return query select v_state, v_limit, v_limit_type, v_before, v_after, v_granted, v_overridden;
+  return query select v_state, v_limit, v_limit_type, v_before, v_after, v_granted;
 end;
 $$;
 
-revoke execute on function core.try_consume_usage_counter(uuid, text, integer, text) from public, anon;
-grant execute on function core.try_consume_usage_counter(uuid, text, integer, text) to authenticated;

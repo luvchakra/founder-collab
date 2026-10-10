@@ -258,14 +258,14 @@ describe("business overrides (PLATFORM-P1-02.1/02.2)", () => {
     const granted = buildConsumeEntitlementDecision(
       "prospects",
       "free",
-      { state: "limited", limit_value: 500, limit_type: "hard", usage_before: 10, usage_after: 11, granted: true, overridden: true },
+      { state: "limited", limit_value: 500, limit_type: "override", usage_before: 10, usage_after: 11, granted: true },
       1,
     );
     expect(granted).toMatchObject({ allowed: true, source: "business_override", limit: 500, usage: 11, remaining: 489 });
     const denied = buildConsumeEntitlementDecision(
       "prospects",
       "free",
-      { state: "limited", limit_value: 500, limit_type: "hard", usage_before: 500, usage_after: 500, granted: false, overridden: true },
+      { state: "limited", limit_value: 500, limit_type: "override", usage_before: 500, usage_after: 500, granted: false },
       1,
     );
     expect(denied).toMatchObject({ allowed: false, source: "business_override", usage: 500, remaining: 0 });
@@ -273,7 +273,7 @@ describe("business overrides (PLATFORM-P1-02.1/02.2)", () => {
     const unlimited = buildConsumeEntitlementDecision(
       "prospects",
       "free",
-      { state: "unlimited", limit_value: null, limit_type: null, usage_before: 10, usage_after: 11, granted: true, overridden: true },
+      { state: "unlimited", limit_value: null, limit_type: "override", usage_before: 10, usage_after: 11, granted: true },
       1,
     );
     expect(unlimited).toMatchObject({ allowed: true, source: "business_override", reason: "prospects is unlimited for this business (business override)." });
