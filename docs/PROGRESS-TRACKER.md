@@ -244,9 +244,9 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P0-04.1` | Plan Management | ✅ Done | `apps/web/app/platform/(protected)/plans/[id]/entitlements/page.tsx` +15 |
+| `PLATFORM-P0-04.1` | Plan Management | ✅ Done | `apps/web/app/platform/(protected)/plans/[id]/entitlements/page.tsx` +16 |
 | `PLATFORM-P0-04.2` | Plan Entitlements | ✅ Done | `apps/web/app/platform/(protected)/plans/[id]/entitlements/feature-entitlements-section.tsx` +3 |
-| `PLATFORM-P0-04.3` | Module Entitlements | ✅ Done | `apps/web/app/platform/(protected)/modules/module-registry-table.tsx` +12 |
+| `PLATFORM-P0-04.3` | Module Entitlements | ✅ Done | `apps/web/app/platform/(protected)/modules/module-registry-table.tsx` +14 |
 | `PLATFORM-P0-04.4` | Feature-Level Entitlements | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/page.tsx` +10 |
 | `PLATFORM-P0-04.5` | Quantity Limits | ✅ Done | `apps/web/app/platform/(protected)/plans/[id]/entitlements/quantity-limits-section.tsx` +13 |
 | `PLATFORM-P0-04.6` | Unlimited Support | ✅ Done | `apps/web/app/platform/(protected)/plans/[id]/entitlements/quantity-limits-section.tsx` +11 |
@@ -1152,7 +1152,7 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 | `BILL-29` | Providers | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +9 |
 | `BILL-30` | Billing Events | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
 | `BILL-31` | Plan provider mappings | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +6 |
-| `BILL-32` | Subscription reconciliation | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +8 |
+| `BILL-32` | Subscription reconciliation | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +9 |
 | `BILL-33` | Audit | ✅ Done | `packages/core/src/billing/observability.ts` |
 | `BILL-34` | Notifications | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +4 |
 | `BILL-35` | Email templates | ✅ Done | `packages/core/src/billing/event-handlers.test.ts` +3 |

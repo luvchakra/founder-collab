@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listPlatformPlans } from "@cofounderai/core/admin/platform-plans";
 import { Badge } from "@cofounderai/core/ui/badge";
+import { Button } from "@cofounderai/core/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { PlatformImpactBanner } from "../../impact-banner";
 import { PlanDialog } from "./plan-dialog";
@@ -51,6 +52,9 @@ export default async function PlatformPlansPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <Button asChild variant="outline" size="sm" className={PLATFORM_EXPORT_BUTTON_CLASS}>
+            <Link href="/platform/plans/compare">Compare plans</Link>
+          </Button>
           <ExportMenu exportId="platform.plans" className={PLATFORM_EXPORT_BUTTON_CLASS} />
           <PlanDialog />
         </div>

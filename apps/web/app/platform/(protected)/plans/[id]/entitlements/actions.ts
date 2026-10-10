@@ -24,7 +24,10 @@ export async function setModuleEnabledAction(
   enabled: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await setPlanModuleEnabled(planId, moduleKey, enabled);
-  if (result.ok) revalidatePath(`/platform/plans/${planId}/entitlements`);
+  if (result.ok) {
+    revalidatePath(`/platform/plans/${planId}/entitlements`);
+    revalidatePath("/platform/plans/compare");
+  }
   return result;
 }
 
