@@ -504,7 +504,9 @@ export function AppSidebar({
           // accessibility tree, so a keyboard or screen-reader user would traverse a
           // whole navigation they can't see. The `lg:` variants win over both, so from
           // `lg` up the rail is simply always on screen.
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 lg:visible lg:translate-x-0 print:hidden",
+          // `lg:top-…`: the install banner (apps/web, BRAND-13) sets --install-banner-offset
+          // while it is on screen, so the permanent rail starts below it, never over it.
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200 lg:visible lg:top-[var(--install-banner-offset,0px)] lg:translate-x-0 print:hidden",
           open ? "visible translate-x-0" : "invisible -translate-x-full",
         )}
       >

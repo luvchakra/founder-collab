@@ -1132,6 +1132,7 @@ these ids (e.g. `BRAND-04`) as evidence of implementation. Brand board:
 | `BRAND-10` | Module validation |
 | `BRAND-11` | Email/documents |
 | `BRAND-12` | Visual QA |
+| `BRAND-13` | Install banner (phones and tablets) |
 
 ---
 
@@ -1186,3 +1187,32 @@ Source: "WonderArk — Branding QA Corrections for Claude Code", supplied 2026-0
 | §7-§8 Button contrast: `--brand-blue-action` #0067D9 (5.33:1) for primary buttons and white-text fills, hover #005CBF; #007BFF kept as the brand accent (logo, charts, focus ring, gradient) | Done — `ui-theme.css` (`--primary`, `--primary-hover`, `--sidebar-primary`), `globals.css` (`--landing-accent`), `BRAND_HEX.blueAction` for email, hosted checkout and the root error page |
 | §3, §9 Sidebar: canonical mark + live "WonderArk" text, "Wonder" white, "Ark" brand blue | Done — `app-sidebar.tsx` (desktop rail and mobile drawer share it) |
 | §1, §2, §4, §5, §10-§12 Vector/high-resolution assets (`wonderark-mark*.svg`, `wonderark-horizontal*.svg`, `wonderark-icon-light-*.png`, `wonderark-maskable-*-1024.png`), white/navy mark variants, maskable manifest icons | **Waiting on new files** — the first asset pack (2026-09-26) was checked and not applied: its W is a different shape from the board (narrower, straight arms, a spike wedge) and the SVG paths are stair-stepped traces. The product owner is supplying new assets; until then the platform keeps serving crops of the approved board, and nothing is redrawn or upscaled |
+
+---
+
+# 38. Install banner (BRAND-13, 2026-10-10)
+
+Field crews run Service from their phones, so phones and tablets get a banner at the very
+top of the app inviting them to install it. Rules, all in
+`apps/web/lib/install-banner/eligibility.ts` (unit-tested):
+
+- **Only phones and tablets** (Client Hints / user agent, iPadOS-as-Mac, and a coarse
+  pointer); never desktops, touchscreen laptops included.
+- **Only when the browser can install and the app is not installed**: Chromium shows a
+  one-tap Install button only after `beforeinstallprompt` (captured by an inline script in
+  `<head>` so it is not missed before React mounts); iOS/iPadOS Safari, and Chrome/Firefox/
+  Edge/Opera on iOS 16.4+, get the two-step Share -> Add to Home Screen instructions.
+  Hidden when running installed (display mode or `navigator.standalone`), when
+  `getInstalledRelatedApps()` finds the app (the manifest lists itself in
+  `related_applications`), in in-app browsers and WebViews, and in Firefox on Android.
+- **Remembered per browser** (`wonderark:install-banner`): installed or "I've added it" ->
+  never again; closed or install prompt declined -> 14 days.
+- **Where**: public pages and the signed-in app, pushing the page down (the `lg` rail starts
+  below it). Never on customer pages (`/p/...`), auth/invite hand-offs, the Platform portal,
+  or a Service job/assessment being worked on site.
+- **Manifest**: explicit `id` (`/dashboard`, what browsers already derived), `scope`,
+  `related_applications`; iOS gets `apple-mobile-web-app-capable`/title/status-bar meta.
+  Still **no maskable icon** (§37: waiting on the owner's new files) and no manifest
+  screenshots (the landing mock-ups are device-framed marketing images, not app captures).
+  No service worker: none is needed to install, so the banner claims no offline use.
+
