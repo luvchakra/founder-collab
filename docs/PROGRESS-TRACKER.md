@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 521 |
+| ✅ Done | 525 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 44 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 32 |
+| ⬜ Not started | 28 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 88 | 0 | 22 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-32 stories are neither built nor deliberately set aside:
+28 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -63,10 +63,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-06.2` | API Key Management | ⬜ Not started | — |
 | `PLATFORM-P1-06.3` | Webhook Policies | ⬜ Not started | — |
 | `PLATFORM-P1-06.4` | API Usage Dashboard | ⬜ Not started | — |
-| `PLATFORM-P1-07.1` | System Health | ⬜ Not started | — |
-| `PLATFORM-P1-07.2` | Error Rate | ⬜ Not started | — |
-| `PLATFORM-P1-07.3` | Queue Health | ⬜ Not started | — |
-| `PLATFORM-P1-07.4` | Operational Alerts | ⬜ Not started | — |
 | `PLATFORM-P1-08.1` | Platform Version | ⬜ Not started | — |
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
@@ -422,10 +418,10 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-07.1` | System Health | ⬜ Not started | — |
-| `PLATFORM-P1-07.2` | Error Rate | ⬜ Not started | — |
-| `PLATFORM-P1-07.3` | Queue Health | ⬜ Not started | — |
-| `PLATFORM-P1-07.4` | Operational Alerts | ⬜ Not started | — |
+| `PLATFORM-P1-07.1` | System Health | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +2 |
+| `PLATFORM-P1-07.2` | Error Rate | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +1 |
+| `PLATFORM-P1-07.3` | Queue Health | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +1 |
+| `PLATFORM-P1-07.4` | Operational Alerts | ✅ Done | `apps/web/app/api/cron/ops-alerts/route.ts` +6 |
 
 ### Release Management
 
