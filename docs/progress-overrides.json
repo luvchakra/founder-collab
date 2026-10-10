@@ -615,6 +615,34 @@
     "DISC-OFFER-P1-03.3": {
       "status": "Deferred",
       "note": "Deferred 2026-10-10: no external enrichment provider exists to abstract -- company/person enrichment and signals all run as AI web search through lib/ai/router.ts, already provider-agnostic across OpenAI/Anthropic/Google, and technology detection / contact verification don't exist at all. Contracts for providers that don't exist would be speculative (CLAUDE.md principle 7); build them with the first real enrichment provider. See docs/design/discovery-offering-backlog-audit.md."
+    },
+    "PLATFORM-P1-06.1": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API."
+    },
+    "PLATFORM-P1-06.2": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API."
+    },
+    "PLATFORM-P1-06.3": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API."
+    },
+    "PLATFORM-P1-06.4": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API."
+    },
+    "PLATFORM-P1-01.1": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists."
+    },
+    "PLATFORM-P1-01.2": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists."
+    },
+    "PLATFORM-P1-01.3": {
+      "status": "Deferred",
+      "note": "Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists."
     }
   }
 }
