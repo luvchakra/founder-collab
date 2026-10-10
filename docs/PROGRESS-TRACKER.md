@@ -21,17 +21,17 @@ file is stale, so it cannot quietly drift out of date.
 |---|---|
 | ✅ Done | 537 |
 | 🟡 In progress | 0 |
-| ⏸️ Deferred | 45 |
+| ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 15 |
+| ⬜ Not started | 8 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 95 | 0 | 15 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 95 | 7 | 8 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,19 +43,12 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-15 stories are neither built nor deliberately set aside:
+8 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
-| `PLATFORM-P1-01.1` | Configuration Export | ⬜ Not started | — |
-| `PLATFORM-P1-01.2` | Configuration Import | ⬜ Not started | — |
-| `PLATFORM-P1-01.3` | Secret Exclusion | ⬜ Not started | — |
 | `PLATFORM-P1-02.2` | Temporary Entitlement | ⬜ Not started | — |
 | `PLATFORM-P1-02.3` | Override Audit | ⬜ Not started | — |
-| `PLATFORM-P1-06.1` | API Policy | ⬜ Not started | — |
-| `PLATFORM-P1-06.2` | API Key Management | ⬜ Not started | — |
-| `PLATFORM-P1-06.3` | Webhook Policies | ⬜ Not started | — |
-| `PLATFORM-P1-06.4` | API Usage Dashboard | ⬜ Not started | — |
 | `PLATFORM-P1-08.1` | Platform Version | ⬜ Not started | — |
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
@@ -354,9 +347,9 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-01.1` | Configuration Export | ⬜ Not started | — |
-| `PLATFORM-P1-01.2` | Configuration Import | ⬜ Not started | — |
-| `PLATFORM-P1-01.3` | Secret Exclusion | ⬜ Not started | — |
+| `PLATFORM-P1-01.1` | Configuration Export | ⏸️ Deferred | Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists. |
+| `PLATFORM-P1-01.2` | Configuration Import | ⏸️ Deferred | Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists. |
+| `PLATFORM-P1-01.3` | Secret Exclusion | ⏸️ Deferred | Deferred 2026-10-10 by the owner: there is one Supabase project serving both dev and production, so there is no second environment to export configuration to or import it from. Build export/import (with secrets excluded) when a separate staging or production environment exists. |
 
 ### Business-Level Exceptions
 
@@ -396,10 +389,10 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-06.1` | API Policy | ⬜ Not started | — |
-| `PLATFORM-P1-06.2` | API Key Management | ⬜ Not started | — |
-| `PLATFORM-P1-06.3` | Webhook Policies | ⬜ Not started | — |
-| `PLATFORM-P1-06.4` | API Usage Dashboard | ⬜ Not started | — |
+| `PLATFORM-P1-06.1` | API Policy | ⏸️ Deferred | Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API. |
+| `PLATFORM-P1-06.2` | API Key Management | ⏸️ Deferred | Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API. |
+| `PLATFORM-P1-06.3` | Webhook Policies | ⏸️ Deferred | Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API. |
+| `PLATFORM-P1-06.4` | API Usage Dashboard | ⏸️ Deferred | Deferred 2026-10-10 by the owner: WonderArk has no public API or customer API keys yet, and webhook delivery policies already live in code per provider (signature checks, idempotent drains). Admin controls for an API that doesn't exist would be speculative (CLAUDE.md principle 7); build them with the first public API. |
 
 ### Observability & Operations
 
