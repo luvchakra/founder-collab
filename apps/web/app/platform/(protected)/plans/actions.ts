@@ -40,6 +40,7 @@ export async function createPlanAction(_prevState: PlanFormState, formData: Form
   if (!result.ok) return { status: "error", fieldErrors: result.fieldErrors };
 
   revalidatePath("/platform/plans");
+  revalidatePath("/platform/plans/compare");
   return { status: "success" };
 }
 
@@ -53,5 +54,6 @@ export async function updatePlanAction(id: string, _prevState: PlanFormState, fo
   }
 
   revalidatePath("/platform/plans");
+  revalidatePath("/platform/plans/compare");
   return { status: "success" };
 }
