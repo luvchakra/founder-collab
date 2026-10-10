@@ -1272,4 +1272,4 @@ Source: [`docs/plan/16-BRANDING-BACKLOG.md`](./plan/16-BRANDING-BACKLOG.md)
 | `BRAND-10` | Module validation | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` |
 | `BRAND-11` | Email/documents | ✅ Done | `packages/core/src/email/render.test.ts` +1 |
 | `BRAND-12` | Visual QA | ✅ Done | `apps/web/e2e/authenticated/branding.spec.ts` +1 |
-| `BRAND-13` | Install banner | ✅ Done | `apps/web/app/layout.tsx` +3 |
+| `BRAND-13` | Install banner | ✅ Done | `apps/web/app/layout.tsx` +8 |
