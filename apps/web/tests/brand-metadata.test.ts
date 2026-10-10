@@ -42,6 +42,27 @@ describe("WonderArk browser metadata", () => {
     expect(manifest().name).toBe(BRAND_TITLE);
   });
 
+  it("BRAND-13: the manifest is complete for install and lists itself as a related app", () => {
+    const m = manifest();
+    expect(m).toMatchObject({ id: "/dashboard", start_url: "/dashboard", scope: "/", display: "standalone" });
+    expect(m.short_name).toBeTruthy();
+    expect(m.description).toBeTruthy();
+    expect(m.background_color).toBeTruthy();
+    expect(m.prefer_related_applications).toBe(false);
+    const [related] = m.related_applications ?? [];
+    expect(related.platform).toBe("webapp");
+    // Absolute, and the manifest's own URL: what getInstalledRelatedApps() matches against.
+    expect(new URL(related.url ?? "").pathname).toBe("/manifest.webmanifest");
+  });
+
+  it("BRAND-13: iOS Add to Home Screen metadata and the early install-prompt capture are in the root layout", () => {
+    const layout = readFileSync(join(__dirname, "..", "app", "layout.tsx"), "utf8");
+    expect(layout).toContain('appleWebApp: { capable: true, title: BRAND_NAME, statusBarStyle: "default" }');
+    expect(layout).toContain('"apple-mobile-web-app-capable": "yes"');
+    expect(layout).toMatch(/<head>[\s\S]*<InstallPromptCaptureScript \/>[\s\S]*<\/head>/);
+    expect(layout).toMatch(/<ThemeProvider>[\s\S]*?<InstallBanner \/>\s*\{children\}/);
+  });
+
   it("module layouts name their page for the title template", () => {
     const base = join(__dirname, "..", "app", "(dashboard)", "[businessSlug]");
     for (const [dir, title] of [
