@@ -332,6 +332,23 @@ getting a change in front of them quickly beats exhaustive local verification.
   green. A failure caused by infrastructure (e.g. a hosting rate limit) gets one PR
   comment saying so; it isn't fixed in code.
 
+**Save Vercel build slots** (2026-10-10). The team has one build slot, shared with
+every other project on it. While another project builds, our production deploy waits in
+`QUEUED`. Each merge to `main` that touches app code costs one production build. Previews
+are off, and `apps/web/vercel-ignore-build.sh` skips any commit whose app inputs didn't
+change. The general rules are in `docs/ops/vercel-build-slots.md`. In this repo:
+
+- **Keep the ignore step honest.** Don't turn previews back on. When the app starts
+  building from a new directory, add it to the script's `git diff` path list.
+- **Verify in GitHub Actions, never on Vercel.** Don't push to see whether Vercel builds,
+  and don't Redeploy except to pick up a changed environment variable.
+- **Push when the branch is ready, not after every commit.**
+- **Batch app-code changes.** Several stories from one request that touch
+  `apps/web`/`packages` go in one PR, so they cost one build. Split only where review needs
+  it. Docs-, migration- and test-only PRs are free.
+- **A deploy stuck in `QUEUED`:** list the team's `BUILDING` deployments before assuming
+  our build is broken. Usually another project holds the slot.
+
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read
 only the files it touches, plus the entity-ownership map if the story creates any table.
