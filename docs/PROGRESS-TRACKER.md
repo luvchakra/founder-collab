@@ -19,11 +19,11 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 520 |
+| ✅ Done | 521 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 3 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 1 |
+| ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 73 |
 | **Total** | **627** |
@@ -37,13 +37,13 @@ file is stale, so it cannot quietly drift out of date.
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 0 | 41 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
-| [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 39 | 0 | 1 | 40 |
+| [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 40 | 0 | 0 | 40 |
 | [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 39 | 0 | 0 | 39 |
 | [WonderArk branding](./plan/16-BRANDING-BACKLOG.md) | 13 | 0 | 0 | 13 |
 
 ## What is left
 
-74 stories are neither built nor deliberately set aside:
+73 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -120,7 +120,6 @@ file is stale, so it cannot quietly drift out of date.
 | `COMPLY-P1-12.3` | CRM Customer Tax Context | ⬜ Not started | — |
 | `COMPLY-P1-12.4` | Payment-to-Tax Reconciliation | ⬜ Not started | — |
 | `COMPLY-P1-12.5` | Core Domain Events | ⬜ Not started | — |
-| `BILL-40` | Production readiness review | ❔ Unverified | Discussed in `docs/design/subscription-billing.md`, but no code cites it — confirm before relying on this |
 
 ## Platform build-out
 
@@ -1202,7 +1201,7 @@ Source: [`docs/plan/14-SUBSCRIPTION-BILLING-BACKLOG.md`](./plan/14-SUBSCRIPTION-
 | `BILL-37` | Security tests | ✅ Done | `apps/web/app/api/billing/checkout/route.test.ts` +2 |
 | `BILL-38` | Tenant/RBAC/license tests | ✅ Done | `packages/core/src/billing/access.ts` +1 |
 | `BILL-39` | E2E provider sandbox tests | ✅ Done | `apps/web/e2e/authenticated/billing.spec.ts` |
-| `BILL-40` | Production readiness review | ❔ Unverified | Discussed in `docs/design/subscription-billing.md`, but no code cites it — confirm before relying on this |
+| `BILL-40` | Production readiness review | ✅ Done | Review: `docs/design/subscription-billing.md` (security review §101 + readiness check against production 2026-10-10). Going live is owner configuration listed there, not code. |
 
 ## Multi-user / multi-business RBAC
 

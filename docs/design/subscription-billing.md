@@ -114,3 +114,22 @@ Customer (owner/admin)                   Provider                      WonderArk
 - Admin: no event-detail view, revenue chart or subscriber counts on the Plans list yet.
 - Email copy lives in `billing/event-handlers.ts`; `platform.email_templates` only knows
   its seven system templates today.
+
+## Readiness check against production -- 2026-10-10
+
+The review above holds for the code. Checked against the live project (`wonder-ark`,
+Vercel `wonderark`) -- configuration names only, no secret values read -- billing is built
+but **not yet live**, and these block switching it on:
+
+| # | Finding | Runbook step | Owner action |
+|---|---|---|---|
+| 1 | **`CRON_SECRET` is not set in Vercel.** Every `/api/cron/*` route answers 401, so no scheduled job has ever run: 26 `core.domain_events` sit `pending` since 2026-09-07 with none ever processed, and the billing retry sweep, licence expiry, reminders and export expiry don't run either. Not billing-only -- it affects every module. | 1 | Set it (Production), redeploy. The first drain will process the month-old backlog. |
+| 2 | Both providers (Razorpay `test`, Stripe `test`) are **disabled, with no secret or webhook secret** set; no webhook has ever arrived. | 2-3 | Enter test keys, register webhooks, enable. |
+| 3 | **No provider prices** (`platform.plan_prices` is empty), so checkout has nothing to sell. | 4 | Create Plans/Prices at the provider and record them per plan. |
+| 4 | **Free, Pro and Max all include all five modules**, so a paid plan unlocks nothing Free doesn't. | 5 | Decide what Free (and Pro) include before enabling checkout. |
+| 5 | No subscriptions exist, so none of §90-§94's end-to-end scenarios has run against a provider sandbox. | 7 | Run them in test mode once 1-4 are done. |
+
+Present and fine: `RESEND_API_KEY` / `RESEND_FROM_EMAIL` (billing email), `API_KEY_ENCRYPTION_SECRET`,
+the Supabase keys; billing settings at their defaults (upgrades now, downgrades at renewal,
+proration on).
+
