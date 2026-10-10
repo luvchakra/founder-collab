@@ -534,7 +534,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 |---|---|---|---|
 | `DISC-OFFER-P1-02.1` | Prospect Feedback | ✅ Done | `packages/module-discovery/src/lib/offerings/definition-quality.ts` +7 |
 | `DISC-OFFER-P1-02.2` | Discovery Outcome Tracking | ✅ Done | `packages/module-discovery/src/components/pipeline/save-and-run-downstream-button.tsx` |
-| `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ✅ Done | `packages/module-discovery/src/components/pipeline/offering-performance-analysis.tsx` +4 |
+| `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ✅ Done | `packages/module-discovery/src/components/pipeline/offering-performance-analysis.tsx` +5 |
 
 ### DISC-OFFER-P1-03 — AI Efficiency
 
