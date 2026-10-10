@@ -5,9 +5,11 @@ import {
   setBillingProviderSecrets,
   updateBillingProvider,
   updateBillingSettings,
+  updateSubscriptionLifecycleSettings,
   type SetBillingProviderSecretsInput,
   type UpdateBillingProviderInput,
   type UpdateBillingSettingsInput,
+  type UpdateSubscriptionLifecycleInput,
 } from "@cofounderai/core/admin/platform-billing";
 import {
   adminCancelSubscription,
@@ -87,6 +89,13 @@ export async function setBillingProviderSecretsAction(input: SetBillingProviderS
 
 export async function updateBillingSettingsAction(input: UpdateBillingSettingsInput): Promise<Result> {
   const result = await updateBillingSettings(input);
+  if (result.ok) revalidateBilling();
+  return result;
+}
+
+/** PLATFORM-P1-04.2 / PLATFORM-P1-04.3 -- trial and grace settings. */
+export async function updateSubscriptionLifecycleAction(input: UpdateSubscriptionLifecycleInput): Promise<Result> {
+  const result = await updateSubscriptionLifecycleSettings(input);
   if (result.ok) revalidateBilling();
   return result;
 }

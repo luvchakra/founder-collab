@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 521 |
+| ✅ Done | 524 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 44 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 32 |
+| ⬜ Not started | 29 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 84 | 0 | 26 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 87 | 0 | 23 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-32 stories are neither built nor deliberately set aside:
+29 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -52,9 +52,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-01.3` | Secret Exclusion | ⬜ Not started | — |
 | `PLATFORM-P1-02.2` | Temporary Entitlement | ⬜ Not started | — |
 | `PLATFORM-P1-02.3` | Override Audit | ⬜ Not started | — |
-| `PLATFORM-P1-04.2` | Trial Configuration | ⬜ Not started | — |
-| `PLATFORM-P1-04.3` | Grace Period | ⬜ Not started | — |
-| `PLATFORM-P1-04.4` | Cancellation Behavior | ⬜ Not started | — |
 | `PLATFORM-P1-05.1` | Currency | ⬜ Not started | — |
 | `PLATFORM-P1-05.2` | Billing Provider | ⬜ Not started | — |
 | `PLATFORM-P1-05.3` | Tax on Subscription Billing | ⬜ Not started | — |
@@ -396,9 +393,9 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P1-04.1` | Plan Change Rules | ✅ Done | `packages/core/src/components/limits/limit-reached-notice.tsx` |
-| `PLATFORM-P1-04.2` | Trial Configuration | ⬜ Not started | — |
-| `PLATFORM-P1-04.3` | Grace Period | ⬜ Not started | — |
-| `PLATFORM-P1-04.4` | Cancellation Behavior | ⬜ Not started | — |
+| `PLATFORM-P1-04.2` | Trial Configuration | ✅ Done | `apps/web/app/platform/(protected)/billing/actions.ts` +13 |
+| `PLATFORM-P1-04.3` | Grace Period | ✅ Done | `apps/web/app/api/cron/billing/route.ts` +12 |
+| `PLATFORM-P1-04.4` | Cancellation Behavior | ✅ Done | `apps/web/app/platform/(protected)/billing/providers/page.tsx` +4 |
 
 ### Platform Billing Configuration
 

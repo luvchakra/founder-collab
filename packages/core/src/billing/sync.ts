@@ -40,6 +40,7 @@ type SubscriptionRow = {
   pending_plan_id: string | null;
   pending_change_at: string | null;
   provider_subscription_id: string | null;
+  past_due_since?: string | null;
 };
 
 type CheckoutSessionRow = {
@@ -94,7 +95,7 @@ export async function syncSubscription(
   const platform = platformAdmin();
   const { data: existingData, error: existingError } = await platform
     .from("subscriptions")
-    .select("id, business_id, plan_id, status, cancel_at_period_end, pending_plan_id, pending_change_at, provider_subscription_id")
+    .select("id, business_id, plan_id, status, cancel_at_period_end, pending_plan_id, pending_change_at, provider_subscription_id, past_due_since")
     .eq("provider", provider)
     .eq("environment", environment)
     .eq("provider_subscription_id", incoming.id)
@@ -164,6 +165,9 @@ export async function syncSubscription(
     cancelled_at: incoming.cancelledAt,
     trial_start: incoming.trialStart,
     trial_end: incoming.trialEnd,
+    // PLATFORM-P1-04.3: when it entered past_due, kept across repeat deliveries, so payment
+    // grace is measured from the first failed charge.
+    past_due_since: status === "past_due" ? (existing?.past_due_since ?? new Date().toISOString()) : null,
     provider_updated_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...(clearPending ? { pending_plan_id: null, pending_change_at: null } : {}),

@@ -1,10 +1,17 @@
 import type { ReactNode } from "react";
-import { getBillingProviderStatus, getBillingSettings, type BillingProviderStatus } from "@cofounderai/core/admin/platform-billing";
+import {
+  getBillingProviderStatus,
+  getBillingSettings,
+  getSubscriptionLifecycleSettings,
+  type BillingProviderStatus,
+} from "@cofounderai/core/admin/platform-billing";
+import { listPlatformPlans } from "@cofounderai/core/admin/platform-plans";
 import { SITE_URL } from "@cofounderai/core/site";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { PlatformImpactBanner } from "../../../impact-banner";
 import { EnvironmentBadge, Panel, formatWhen } from "../billing-ui";
 import { BillingSettingsDialog } from "./billing-settings-dialog";
+import { LifecycleSettingsDialog } from "./lifecycle-settings-dialog";
 import { CopyButton } from "./copy-button";
 import { ProviderSecretsDialog } from "./provider-secrets-dialog";
 import { ProviderSettingsDialog } from "./provider-settings-dialog";
@@ -20,7 +27,14 @@ const PROVIDER_META: Record<string, { name: string; publicKeyLabel: string; acco
 };
 
 export default async function PlatformBillingProvidersPage() {
-  const [providers, settings] = await Promise.all([getBillingProviderStatus(), getBillingSettings()]);
+  const [providers, settings, lifecycle, allPlans] = await Promise.all([
+    getBillingProviderStatus(),
+    getBillingSettings(),
+    getSubscriptionLifecycleSettings(),
+    listPlatformPlans(),
+  ]);
+  const plans = allPlans.filter((plan) => plan.status !== "archived" && plan.price > 0).map((plan) => ({ key: plan.key, name: plan.name }));
+  const trialPlans = plans.filter((plan) => lifecycle.trialPlanKeys.includes(plan.key)).map((plan) => plan.name);
   const base = SITE_URL.replace(/\/+$/, "");
 
   return (
@@ -54,6 +68,31 @@ export default async function PlatformBillingProvidersPage() {
           <Fact label="Proration">{settings.prorationEnabled ? "On" : "Off"}</Fact>
         </dl>
         <p className="text-xs text-zinc-500">Last updated {formatWhen(settings.updatedAt)}</p>
+      </Panel>
+
+      {/* PLATFORM-P1-04.2 / PLATFORM-P1-04.3 / PLATFORM-P1-04.4 */}
+      <Panel
+        title="Subscription lifecycle"
+        description="Trials, and what happens when a payment fails or a subscription ends."
+        action={<LifecycleSettingsDialog settings={lifecycle} plans={plans} />}
+      >
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+          <Fact label="Free trial">
+            {lifecycle.trialDays > 0 && trialPlans.length > 0
+              ? `${lifecycle.trialDays} days on ${trialPlans.join(", ")}, ${lifecycle.trialEntitlements === "all_modules" ? "every module" : "the plan's modules"}; one per business`
+              : "Off"}
+          </Fact>
+          <Fact label="Payment fails">
+            {lifecycle.paymentGraceDays === null
+              ? "Modules stay on while the provider retries"
+              : `Modules stay on for ${lifecycle.paymentGraceDays} days`}
+          </Fact>
+          <Fact label="Subscription ends">{`${lifecycle.featureGraceDays} days read-only, then locked`}</Fact>
+        </dl>
+        <p className="text-xs text-zinc-500">
+          Cancel → paid period runs out → {lifecycle.featureGraceDays} days read-only → locked. Data is never deleted, and choosing a plan again restores
+          everything.
+        </p>
       </Panel>
     </div>
   );

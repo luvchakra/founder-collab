@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Building2, KeyRound, Receipt, Users } from "lucide-react";
 import { getCurrentAccount, listBusinesses } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { listLicensesForBusiness } from "@cofounderai/core/licensing/queries";
+import { getLifecyclePolicy } from "@cofounderai/core/billing/lifecycle-policy";
 import { resolveBusinessSlugById } from "@cofounderai/core/businesses/resolve";
 import { BusinessStatusButton } from "@cofounderai/module-discovery/components/tenancy/business-status-button";
 import { BusinessLicensesExpander } from "@/components/settings/business-licenses-expander";
@@ -29,6 +30,7 @@ export default async function SettingsHubPage() {
   if (!account) redirect("/login");
 
   const businesses = await listBusinesses(account.id);
+  const { featureGraceDays } = await getLifecyclePolicy();
   const licensesByBusiness = await Promise.all(
     businesses.map((business) => listLicensesForBusiness(business.id)),
   );
@@ -114,6 +116,7 @@ export default async function SettingsHubPage() {
                       businessId={business.id}
                       businessName={business.name}
                       licenses={licenses}
+                      graceDays={featureGraceDays}
                       activateAction={activateModuleAction}
                       cancelAction={cancelModuleAction}
                     />

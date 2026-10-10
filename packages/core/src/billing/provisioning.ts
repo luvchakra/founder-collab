@@ -3,14 +3,14 @@ import { activateLicense, deactivateLicense } from "../licensing/lifecycle";
 import type { LicenseStatus, ModuleKey } from "../licensing/types";
 import { getPlan, resolvePlanEntitlements } from "./catalog";
 import { auditBilling, logBilling } from "./observability";
-import { isEntitledStatus } from "./state";
+import { getLifecyclePolicy, isSubscriptionEntitled } from "./lifecycle-policy";
 import type { SubscriptionStatus } from "./subscription-types";
 
 /**
  * BILL-17 / BILL-18 -- turns a WonderArk subscription into module licences (§5, §6, §47,
  * §48). core.licenses stays the only authorization mechanism and the existing lifecycle
  * functions are the only writers: activateLicense() creates or restores (and replays
- * parked events), deactivateLicense() starts the 30-day read-only grace (ADR-9). Nothing
+ * parked events), deactivateLicense() starts the read-only grace (ADR-9). Nothing
  * here deletes a licence or its data.
  *
  * Idempotent by construction: it compares the licences a business has with the licences
@@ -37,6 +37,7 @@ type SubscriptionRow = {
   business_id: string;
   plan_id: string;
   status: SubscriptionStatus;
+  past_due_since: string | null;
 };
 
 export type ReconcileResult = {
@@ -82,15 +83,19 @@ export async function reconcileSubscriptionLicenses(subscriptionId: string): Pro
 
   const { data: sub, error: subError } = await platform
     .from("subscriptions")
-    .select("id, business_id, plan_id, status")
+    .select("id, business_id, plan_id, status, past_due_since")
     .eq("id", subscriptionId)
     .single();
   if (subError) throw subError;
   const subscription = sub as SubscriptionRow;
-  const entitled = isEntitledStatus(subscription.status);
+  // PLATFORM-P1-04.3: past_due keeps the plan's modules only for the payment grace period.
+  const policy = await getLifecyclePolicy();
+  const entitled = isSubscriptionEntitled(subscription.status, subscription.past_due_since, policy);
+  // PLATFORM-P1-04.2: a trial can unlock every module instead of just the plan's.
+  const trialAllModules = subscription.status === "trialing" && policy.trialEntitlements === "all_modules";
 
   const [entitlements, plan, { data: licenseRows, error: licenseError }] = await Promise.all([
-    resolvePlanEntitlements(subscription.plan_id),
+    trialAllModules ? listAllModuleKeys() : resolvePlanEntitlements(subscription.plan_id),
     getPlan(subscription.plan_id),
     core.from("licenses").select("id, module_key, status, cancel_at, source, subscription_id").eq("business_id", subscription.business_id),
   ]);
@@ -182,4 +187,31 @@ async function freePlanKey(): Promise<string | null> {
   const { data, error } = await platform.from("plans").select("key").eq("price", 0).eq("status", "active").order("display_order").limit(1);
   if (error) throw error;
   return (data?.[0]?.key as string | undefined) ?? null;
+}
+
+async function listAllModuleKeys(): Promise<ModuleKey[]> {
+  const { data, error } = await createAdminClient({ schema: "core" }).from("modules").select("key");
+  if (error) throw error;
+  return ((data ?? []) as { key: ModuleKey }[]).map((m) => m.key);
+}
+
+/** PLATFORM-P1-04.3: payment grace runs out on its own clock, with no webhook to mark it, so
+ * the daily billing cron re-reconciles every past-due subscription whose grace has ended --
+ * its licences move into read-only grace like any other lost entitlement (never deleted). */
+export async function enforcePaymentGrace(): Promise<{ checked: number; reconciled: number }> {
+  const policy = await getLifecyclePolicy();
+  if (policy.paymentGraceDays === null) return { checked: 0, reconciled: 0 };
+  const cutoff = new Date(Date.now() - policy.paymentGraceDays * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await createAdminClient({ schema: "platform" })
+    .from("subscriptions")
+    .select("id")
+    .eq("status", "past_due")
+    .lte("past_due_since", cutoff);
+  if (error) throw error;
+  let reconciled = 0;
+  for (const row of (data ?? []) as { id: string }[]) {
+    const result = await reconcileSubscriptionLicenses(row.id);
+    if (result.deactivated.length > 0) reconciled++;
+  }
+  return { checked: (data ?? []).length, reconciled };
 }

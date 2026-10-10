@@ -66,12 +66,15 @@ export function BusinessLicensesExpander({
   businessId,
   businessName,
   licenses,
+  graceDays,
   activateAction,
   cancelAction,
 }: {
   businessId: string;
   businessName: string;
   licenses: License[];
+  /** The read-only period a cancelled licence gets (PLATFORM-P1-04.3), at least 30 days. */
+  graceDays: number;
   activateAction: (businessId: string, moduleKey: ModuleKey) => Promise<void>;
   cancelAction: (businessId: string, moduleKey: ModuleKey) => Promise<void>;
 }) {
@@ -144,7 +147,7 @@ export function BusinessLicensesExpander({
                             <AlertDialogTitle>Cancel {module.name} for {businessName}?</AlertDialogTitle>
                             <AlertDialogDescription>
                               You&apos;ll keep full access through the end of your current billing
-                              cycle. After that, a 30-day read-only grace period starts, then full
+                              cycle. After that, a {graceDays}-day read-only grace period starts, then full
                               access is denied. Your data is retained the whole time -- you can undo
                               this or reactivate at any point, before or after.
                             </AlertDialogDescription>

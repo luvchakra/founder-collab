@@ -1,8 +1,7 @@
 import { createAdminClient } from "../db/admin";
 import { replayParkedEvents } from "../events/drain";
+import { getLifecyclePolicy } from "../billing/lifecycle-policy";
 import type { LicenseEventType, LicenseStatus, ModuleKey } from "./types";
-
-const GRACE_PERIOD_DAYS = 30;
 
 function coreAdmin() {
   return createAdminClient({ schema: "core" });
@@ -132,7 +131,8 @@ export async function activateLicense(businessId: string, moduleKey: ModuleKey):
 
 /**
  * Starts the actual deactivation of a business's license for a module -- moves it to
- * 'grace' for 30 days (ADR-9, CLAUDE.md non-negotiable #4: never deletes data).
+ * 'grace' for the configured read-only period -- 30 days unless a platform operator made it
+ * longer (PLATFORM-P1-04.3; ADR-9, CLAUDE.md non-negotiable #4: never deletes data).
  * core.has_module() keeps returning true (read access continues) while
  * core.has_module_write() flips to false immediately. A scheduled call to
  * expireGracePeriods() later flips grace -> expired once the window elapses. A no-op if
@@ -147,7 +147,8 @@ export async function activateLicense(businessId: string, moduleKey: ModuleKey):
  */
 export async function deactivateLicense(businessId: string, moduleKey: ModuleKey): Promise<void> {
   const supabase = coreAdmin();
-  const graceEndsAt = new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { featureGraceDays } = await getLifecyclePolicy();
+  const graceEndsAt = new Date(Date.now() + featureGraceDays * 24 * 60 * 60 * 1000).toISOString();
 
   const { data, error } = await supabase
     .from("licenses")
