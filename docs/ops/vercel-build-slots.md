@@ -1,57 +1,60 @@
-# Using fewer Vercel build slots
+# Deployment budget: staying under a hosting plan's daily cap
 
-A Vercel team has a fixed number of concurrent builds, shared by **every project on the
-team**. With one slot, a build of app A queues behind a nightly test build of app B, and a
-production fix can wait most of an hour. Each rule below cuts the number of builds, or how
-long each one holds the slot. They apply to any app on the team.
+Hosting platforms count every deployment they **create**, including ones an "ignored build
+step" then cancels. Vercel's Hobby plan, for example, allows 100 deployments a day, shared
+by every project on the team, and one build runs at a time. Running out blocks production.
+Treat deployments as a scarce budget, and spend it on production first. These rules apply
+to any app.
 
-## 1. Build only what can change the deployed app
+## 1. Create no deployment you don't need
 
-- **Turn preview deployments off**, unless someone actually opens previews to review.
-  Verify in CI instead (rule 2).
-- **Add an Ignored Build Step** (`ignoreCommand` in `vercel.json`, a script that exits 0 to
-  skip). Production should build only when the app's inputs changed since the last
-  production deployment, for example:
-  `git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- <app dir> <shared packages> package.json <lockfile>`.
-  Docs, migrations, CI config and test-only changes then skip.
-- Still build when `VERCEL_GIT_PREVIOUS_SHA` is empty, or equals `VERCEL_GIT_COMMIT_SHA`. The
-  second case is a deliberate Redeploy, usually to pick up a changed environment variable.
-- **Skip bot branches** (Dependabot, Renovate, `e2e/*`, `wip/*`) in the same script, by
-  checking `VERCEL_GIT_COMMIT_REF`.
-- **One Vercel project per repo.** A second project linked to the same repository builds
-  every push again. Disconnect stray or duplicate projects.
+- **Turn automatic deployments off for working branches at the platform level.** On Vercel
+  that is `vercel.json` → `"git": {"deploymentEnabled": {"claude/**": false, "feature/**": false}}`.
+  The keys are minimatch globs; any branch you don't list still deploys. An ignore script that
+  cancels the build still uses a slot.
+- **Keep previews off** unless someone will actually open them.
+- **Disconnect any second project** linked to the same repository. It deploys every push
+  again.
 
-## 2. Verify in CI, not on Vercel
+## 2. One merge to main = one production deployment, so merge in bigger pieces
 
-- Run lint, typecheck, unit tests, `next build` and end-to-end tests in GitHub Actions.
-  For e2e, use `next build && next start` against a test database. Never push a commit
-  just to see whether Vercel builds it.
-- **Don't create a Vercel deployment to run e2e** (an `e2e/nightly` branch, a "deploy then
-  test" job). If you need a deployed target, test the production URL that already exists.
-- **Stagger scheduled jobs across apps.** Two apps' nightly builds at the same minute queue
-  behind each other every night.
+- **Squash-merge.** Put the docs, changelog, tracker and test updates in the same pull
+  request as the code they describe.
+- **Don't open docs-only pull requests** while a code pull request is open or about to open.
+  Fold them into it.
 
-## 3. Fewer, larger production deploys
+## 3. Tests that run on the hosting platform cost a slot per run
 
-- **Push when a branch is ready, not after every commit.** Squash-merge, so each merge
-  is one production build.
-- **Batch small app-code changes.** Several small stories from one request can share one
-  PR and one build. Docs-only, migration-only and test-only PRs cost nothing once rule 1 is
-  in place.
-- **Redeploy only for environment-variable changes.** Never redeploy to retry a build that
-  failed for a real reason: fix it, then push.
+- **Run end-to-end tests locally or on the CI runner** (e.g. GitHub Actions, with
+  `next build && next start`), not against a fresh hosted deployment.
+- **Run them before a merge only for security-sensitive changes:** auth, permissions,
+  database rules, integrations. Everything else waits for the scheduled suite.
+- **Keep scheduled suites few.** Use fewer shards, and skip a run when main hasn't changed
+  since the last green one. Stagger schedules across apps.
+- **Never re-run a failed run hoping it passes.** Find the cause first.
 
-## 4. Hold the slot for less time
+## 4. Verify before pushing, so there are no fix-up pushes
 
-- Leave the build cache on (`.next/cache`). Don't add `--force` or clear the cache by
-  default.
-- Don't repeat CI's work in the Vercel build: no lint or test steps inside `build`.
-- Keep `vercel.json` `regions` and `installCommand` defaults simple. Use `npm ci` from the
-  lockfile, not a fresh resolve.
-- In the team settings, turn on **Prioritize Production Builds**, so a production deploy
-  jumps ahead of queued previews.
+- Run typecheck, lint, the unit tests for what you touched, and a local production build.
+- Push a branch once, when it's ready.
 
-## 5. Check before blaming the code
+## 5. Watch the budget
 
-When a deploy sits in `QUEUED`, list the team's builds in `BUILDING` state. Usually another
-project holds the slot, and the fix is one of the rules above in *that* project.
+- Before deployment-heavy work, count the team's deployments in the last 24 hours (all
+  projects, all states).
+- Above about 70% of the cap, stop test runs and docs-only merges. Keep what's left for
+  production and hotfixes.
+
+## 6. When the cap is hit
+
+- **Stop pushing to branches that deploy.** Refused deployments are not queued.
+- **Wait** until the oldest counted deployment is 24 hours old.
+- **Redeploy only the latest main, once.**
+- **Treat "rate limited" statuses as infrastructure**, not test failures.
+
+## Also: hold the single build slot for less time
+
+- Leave the build cache on. Don't repeat CI's lint or test work inside the hosted build.
+- Turn on **Prioritize Production Builds** in the team settings.
+- When a production deploy sits in `QUEUED`, list the team's `BUILDING` deployments. Usually
+  another project holds the slot.

@@ -1,6 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "bash vercel-ignore-build.sh",
+  "git": {
+    "deploymentEnabled": {
+      "claude/**": false,
+      "feat/**": false,
+      "feature/**": false,
+      "fix/**": false,
+      "perf/**": false,
+      "chore/**": false,
+      "docs/**": false,
+      "ci/**": false,
+      "e2e/**": false,
+      "dependabot/**": false,
+      "ccr-*": false,
+      "*-backlog": false
+    }
+  },
   "regions": [
     "bom1"
   ],
