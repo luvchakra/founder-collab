@@ -6,10 +6,12 @@ import {
   updateBillingProvider,
   updateBillingSettings,
   updateSubscriptionLifecycleSettings,
+  updateSubscriptionTaxSettings,
   type SetBillingProviderSecretsInput,
   type UpdateBillingProviderInput,
   type UpdateBillingSettingsInput,
   type UpdateSubscriptionLifecycleInput,
+  type UpdateSubscriptionTaxInput,
 } from "@cofounderai/core/admin/platform-billing";
 import {
   adminCancelSubscription,
@@ -89,6 +91,13 @@ export async function setBillingProviderSecretsAction(input: SetBillingProviderS
 
 export async function updateBillingSettingsAction(input: UpdateBillingSettingsInput): Promise<Result> {
   const result = await updateBillingSettings(input);
+  if (result.ok) revalidateBilling();
+  return result;
+}
+
+/** PLATFORM-P1-05.3 -- WonderArk's own subscription tax. */
+export async function updateSubscriptionTaxAction(input: UpdateSubscriptionTaxInput): Promise<Result> {
+  const result = await updateSubscriptionTaxSettings(input);
   if (result.ok) revalidateBilling();
   return result;
 }

@@ -34,7 +34,9 @@ const splitCodes = (value: string) =>
 /**
  * BILL-29 (§40-§42) -- a provider's non-secret settings. Secrets have their own dialog;
  * switching environment clears the stored secrets server-side (test and live keys are
- * never mixed), which this dialog warns about before saving.
+ * never mixed), which this dialog warns about before saving. Also PLATFORM-P1-05.1
+ * (Currency: the currencies each provider takes) and PLATFORM-P1-05.2 (Billing Provider:
+ * provider and environment), which this dialog already covered.
  */
 export function ProviderSettingsDialog({
   provider,

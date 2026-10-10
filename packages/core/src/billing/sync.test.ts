@@ -74,7 +74,7 @@ describe("BILL-15 syncSubscription", () => {
     const synced = await syncSubscription("stripe", "test", providerSub());
     expect(synced).toMatchObject({ id: "ws-sub", businessId: "biz-1", planId: "plan-pro", status: "active", previousStatus: null });
     const insert = fake.queries("subscriptions").find((q) => q.ops.some((o) => o.method === "insert"))!;
-    expect(writtenRow(insert)).toMatchObject({ business_id: "biz-1", plan_id: "plan-pro", provider: "stripe", status: "active", amount: 29 });
+    expect(writtenRow(insert)).toMatchObject({ business_id: "biz-1", plan_id: "plan-pro", provider: "stripe", status: "active", amount: 29, plan_price_id: "pp" });
     const completed = fake.queries("checkout_sessions").find((q) => q.ops.some((o) => o.method === "update"))!;
     expect(writtenRow(completed)).toMatchObject({ status: "completed", subscription_id: "ws-sub" });
   });

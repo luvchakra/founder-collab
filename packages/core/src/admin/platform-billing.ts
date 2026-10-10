@@ -299,3 +299,51 @@ export async function updateSubscriptionLifecycleSettings(input: UpdateSubscript
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------------------------
+// PLATFORM-P1-05.3 -- WonderArk's own tax on subscriptions (never a customer's compliance
+// data). Describes how provider prices are set up; customers see it next to prices.
+// ---------------------------------------------------------------------------------------
+
+export type SubscriptionTaxSettings = { label: string; rate: number; pricesIncludeTax: boolean };
+
+export async function getSubscriptionTaxSettings(): Promise<SubscriptionTaxSettings> {
+  await requireSuperadmin();
+  const supabase = await createClient({ schema: "platform" });
+  const { data, error } = await supabase
+    .from("billing_settings")
+    .select("subscription_tax_label, subscription_tax_rate, subscription_prices_include_tax")
+    .eq("id", true)
+    .maybeSingle();
+  if (error) throw error;
+  return {
+    label: (data?.subscription_tax_label as string | undefined) ?? "",
+    rate: Number(data?.subscription_tax_rate ?? 0),
+    pricesIncludeTax: (data?.subscription_prices_include_tax as boolean | undefined) ?? true,
+  };
+}
+
+export const updateSubscriptionTaxSchema = z
+  .object({
+    label: z.string().trim().max(20, "At most 20 characters."),
+    rate: z.coerce.number().min(0, "Can't be negative.").max(50, "At most 50%."),
+    pricesIncludeTax: z.boolean(),
+    reason,
+  })
+  .refine((d) => d.rate === 0 || d.label.length > 0, { message: "Name the tax, e.g. GST.", path: ["label"] });
+export type UpdateSubscriptionTaxInput = z.input<typeof updateSubscriptionTaxSchema>;
+
+export async function updateSubscriptionTaxSettings(input: UpdateSubscriptionTaxInput): Promise<Result> {
+  await requireSuperadmin();
+  const parsed = updateSubscriptionTaxSchema.safeParse(input);
+  if (!parsed.success) return invalid(parsed.error);
+  const supabase = await createClient({ schema: "platform" });
+  const { error } = await supabase.rpc("update_subscription_tax_settings", {
+    p_label: parsed.data.label,
+    p_rate: parsed.data.rate,
+    p_prices_include_tax: parsed.data.pricesIncludeTax,
+    p_reason: parsed.data.reason,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
