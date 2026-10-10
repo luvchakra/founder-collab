@@ -16,6 +16,12 @@ if [ -z "$VERCEL_GIT_PREVIOUS_SHA" ]; then
   echo "No previous deployment to compare with: building."
   exit 1
 fi
+# A redeploy of the commit already live is deliberate -- usually to pick up a changed
+# environment variable, which only reaches the app through a new build.
+if [ "$VERCEL_GIT_PREVIOUS_SHA" = "$VERCEL_GIT_COMMIT_SHA" ]; then
+  echo "Redeploy of $VERCEL_GIT_COMMIT_SHA: building."
+  exit 1
+fi
 git diff --quiet "$VERCEL_GIT_PREVIOUS_SHA" HEAD -- . ../../packages ../../package.json ../../package-lock.json
 status=$?
 if [ "$status" -eq 0 ]; then
