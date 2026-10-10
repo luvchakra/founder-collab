@@ -26,7 +26,34 @@ const RAZORPAY_CHECKOUT = "https://checkout.razorpay.com";
 const RAZORPAY_ORIGINS = "https://*.razorpay.com";
 const SUPABASE_ORIGINS = "https://*.supabase.co wss://*.supabase.co";
 
-export function buildContentSecurityPolicy({ isDev }: { isDev: boolean }): string {
+/**
+ * A Supabase URL that isn't a hosted *.supabase.co project -- the local stack e2e runs
+ * against (scripts/start-local-supabase.sh, http://127.0.0.1:54321) -- needs its own origin
+ * allowed, and, when it's plain http, no upgrade-insecure-requests (which would rewrite
+ * every call to it to https). Hosted projects get exactly the policy they always had.
+ */
+function selfHostedSupabase(supabaseUrl: string | undefined): { origins: string; insecure: boolean } | null {
+  if (!supabaseUrl) return null;
+  let url: URL;
+  try {
+    url = new URL(supabaseUrl);
+  } catch {
+    return null;
+  }
+  if (url.hostname.endsWith(".supabase.co")) return null;
+  const ws = url.protocol === "https:" ? "wss:" : "ws:";
+  return { origins: `${url.origin} ${ws}//${url.host}`, insecure: url.protocol === "http:" };
+}
+
+export function buildContentSecurityPolicy({
+  isDev,
+  supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL,
+}: {
+  isDev: boolean;
+  supabaseUrl?: string;
+}): string {
+  const selfHosted = selfHostedSupabase(supabaseUrl);
+  const extra = selfHosted ? ` ${selfHosted.origins}` : "";
   const directives = [
     "default-src 'self'",
     // 'unsafe-eval' only in development: React uses eval for its dev-mode error overlays.
@@ -34,19 +61,19 @@ export function buildContentSecurityPolicy({ isDev }: { isDev: boolean }): strin
     // Inline style attributes/tags (Radix positioning, the chart component's <style>).
     "style-src 'self' 'unsafe-inline'",
     // Logos, avatars and attachments come from Supabase Storage or OAuth provider CDNs.
-    "img-src 'self' data: blob: https:",
+    `img-src 'self' data: blob: https:${extra}`,
     "media-src 'self' blob: https:",
     "font-src 'self' data:",
-    `connect-src 'self' ${SUPABASE_ORIGINS} ${RAZORPAY_ORIGINS}`,
+    `connect-src 'self' ${SUPABASE_ORIGINS}${extra} ${RAZORPAY_ORIGINS}`,
     // Razorpay Checkout opens its payment form in an iframe it hosts.
     `frame-src ${RAZORPAY_ORIGINS}`,
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",
-    `form-action 'self' https://*.supabase.co ${RAZORPAY_ORIGINS} https://checkout.stripe.com https://accounts.google.com https://login.microsoftonline.com https://www.linkedin.com`,
+    `form-action 'self' https://*.supabase.co${extra} ${RAZORPAY_ORIGINS} https://checkout.stripe.com https://accounts.google.com https://login.microsoftonline.com https://www.linkedin.com`,
     "frame-ancestors 'none'",
     // Not in development: it would rewrite http://localhost requests to https.
-    ...(isDev ? [] : ["upgrade-insecure-requests"]),
+    ...(isDev || selfHosted?.insecure ? [] : ["upgrade-insecure-requests"]),
   ];
   return directives.join("; ");
 }

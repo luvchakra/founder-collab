@@ -110,6 +110,19 @@ describe("login", () => {
 });
 
 describe("signup", () => {
+  it("answers an already-registered email exactly like a new signup (no account enumeration)", async () => {
+    mockAuth({
+      signUp: vi.fn().mockResolvedValue({
+        data: { user: null, session: null },
+        error: { code: "user_already_exists", message: "User already registered" },
+      }),
+    });
+
+    expect(
+      await captureRedirect(() => signup(null, form({ email: "taken@b.com", password: "longenough" }))),
+    ).toBe("/signup/check-email");
+  });
+
   it("creates the account and goes to the dashboard when a session comes back", async () => {
     mockAuth();
 
@@ -190,10 +203,10 @@ describe("signup", () => {
   });
 
   it("returns a provider error as state", async () => {
-    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: {}, error: { message: "User already registered" } }) });
+    mockAuth({ signUp: vi.fn().mockResolvedValue({ data: {}, error: { message: "Signups not allowed for this instance" } }) });
 
     expect(await signup(null, form({ email: "a@b.com", password: "longenough" }))).toEqual({
-      error: "User already registered",
+      error: "Signups not allowed for this instance",
     });
   });
 });

@@ -202,6 +202,27 @@ export async function seedTenants(): Promise<QaTenants> {
   const aProduct = must(await a.schema("discovery").from("products").insert({ business_id: businesses.A.id, name: `${QA_PREFIX} A Offering` }).select("id").single(), "A product");
   // One Service job so list pages have a row to render as a table (desktop) / card (mobile).
   must(await a.schema("fsm").from("jobs").insert({ business_id: businesses.A.id, party_id: aParty.id, description: `${QA_PREFIX} A Job` }).select("id").single(), "A job");
+  // Likewise one Inventory product, through the same compatibility view the app writes to
+  // (module-inventory products/mutations.ts#createProduct).
+  must(
+    await a
+      .schema("inventory")
+      .from("products")
+      .insert({
+        org_id: businesses.A.id,
+        sku: "E2E-QA-A-1",
+        name: `${QA_PREFIX} A Product`,
+        unit: "pcs",
+        tax_rate: 18,
+        cost_price: 100,
+        selling_price: 150,
+        reorder_point: 5,
+        reorder_quantity: 10,
+      })
+      .select("id")
+      .single(),
+    "A inventory product",
+  );
 
   const state: QaTenants = {
     password,
