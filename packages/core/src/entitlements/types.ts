@@ -11,8 +11,8 @@
  * `platform_global` needs PLATFORM-P0-07.2 (module kill switch, "Not started"); `plan`
  * needs a business<->`platform.plans` assignment that no P0 story in this doc defines
  * (`core.business_settings.plan` is a free-text label with no such link, confirmed in
- * PLATFORM-P0-04.1's own audit entry); `business_override` is explicitly
- * PLATFORM-P1-02.1's own later scope. Declaring the full union now (rather than adding a
+ * PLATFORM-P0-04.1's own audit entry); `business_override` is produced by
+ * `getLimit()`/`canConsume()` while a PLATFORM-P1-02.1 limit override is active. Declaring the full union now (rather than adding a
  * member per future story) means every future caller's `switch (decision.source)` is
  * exhaustive from day one, and a future story only has to start *producing* a value this
  * type already accepted.

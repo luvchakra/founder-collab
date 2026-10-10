@@ -304,9 +304,9 @@ against code that no longer exists.
 
 **One branch and one PR per task; never push directly to `main`** (replaces the
 2026-09-18 "merge into `main` without asking" instruction, 2026-10-09). Create the branch
-from the latest `main`, push it, open a PR, and share the Vercel preview URL so the owner
-can try it. Squash-merge as soon as CI is green, then confirm the production deploy is
-ready. This does not extend to deleting branches or to force-pushing over someone else's
+from the latest `main`, push it and open a PR. Working branches don't deploy (see
+"Deployment budget" below), so the owner tries the change on production once it merges.
+Squash-merge as soon as CI is green, then confirm the production deploy is ready. This does not extend to deleting branches or to force-pushing over someone else's
 work.
 
 **Ship fast (pre-launch; revisit after launch).** The owner tests changes themselves, so
@@ -331,6 +331,32 @@ getting a change in front of them quickly beats exhaustive local verification.
 - **CI red:** root-cause it; "flake" is not a cause. Never skip or disable a test to get
   green. A failure caused by infrastructure (e.g. a hosting rate limit) gets one PR
   comment saying so; it isn't fixed in code.
+
+**Deployment budget** (2026-10-10). Vercel counts every deployment it *creates*, including
+ones the ignore step cancels. The cap is per team, shared with every other project on it, and
+only one build runs at a time. Running out blocks production. The general rules are in
+`docs/ops/vercel-build-slots.md`. In this repo:
+
+- **Working branches don't deploy.** `apps/web/vercel.json` `git.deploymentEnabled` turns
+  deployments off for `claude/**`, `feat/**`, `feature/**`, `fix/**` and the other working
+  prefixes. Name new branches under one of them, or add the prefix there. Only `main`
+  deploys. `apps/web/vercel-ignore-build.sh` then skips a `main` commit whose app inputs
+  didn't change; when the app starts building from a new directory, add it to the script's
+  `git diff` path list.
+- **One request, one PR, one production deployment.** Several stories from one request go in
+  one PR. Docs, tracker and test updates ride in the code PR they describe. No docs-only PR
+  while a code PR is open or about to open.
+- **Verify before pushing** (typecheck, lint, touched tests) and push a branch once, when
+  it's ready. Push to `main` only by merging a PR.
+- **e2e runs on the GitHub Actions runner,** never against a fresh Vercel deployment. Before
+  a merge it runs only for auth, permissions, database rules or integrations (label `e2e`);
+  otherwise it waits for the nightly. Never re-run a failure hoping it passes.
+- **Watch the budget.** Before deployment-heavy work, count the team's deployments in the last
+  24 hours. Above about 70% of the cap, merge only production work and hotfixes. At the cap,
+  stop, wait until the oldest counted deployment is 24 hours old, then redeploy the latest
+  `main` once. A "rate limited" status is infrastructure, not a failing check.
+- **A deploy stuck in `QUEUED`:** list the team's `BUILDING` deployments before assuming our
+  build is broken. Usually another project holds the slot.
 
 One story at a time, per `docs/plan/04-CLAUDE-CODE-BACKLOG.md` (apply
 `docs/plan/06-DECISIONS-LOCKED.md`'s trims to Epic 4 first). Before starting a story: read

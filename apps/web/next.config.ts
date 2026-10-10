@@ -4,6 +4,9 @@ import { securityHeaders } from "./lib/security-headers";
 const nextConfig: NextConfig = {
   transpilePackages: ["@cofounderai/core", "@cofounderai/module-registry"],
 
+  // PLATFORM-P1-08.1: when this build was made, shown on System Health. Inlined at build.
+  env: { WONDERARK_BUILT_AT: new Date().toISOString() },
+
   experimental: {
     // Server actions default to a 1 MB body, which refuses most real uploads (marketing
     // assets, data-room documents, job photos). Vercel itself caps request bodies at

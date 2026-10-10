@@ -32,7 +32,9 @@ export async function buildPersonalDataExport(userId: string): Promise<Record<st
     return data ?? [];
   };
 
-  const [profile, accountMemberships, businessMemberships, employment, actions] = await Promise.all([
+  // PLATFORM-P1-09.4: the user's acceptances of the Terms and Privacy Policy (platform schema).
+  const platform = createAdminClient({ schema: "platform" });
+  const [profile, accountMemberships, businessMemberships, employment, actions, policyAcceptances] = await Promise.all([
     rows(admin.from("user_profiles").select("full_name, email, phone, avatar_url, created_at, updated_at").eq("id", userId)),
     rows(admin.from("account_members").select("account_id, role, created_at, accounts(name)").eq("user_id", userId)),
     rows(admin.from("business_members").select("*, businesses(name)").eq("user_id", userId)),
@@ -49,6 +51,13 @@ export async function buildPersonalDataExport(userId: string): Promise<Record<st
         .eq("actor_id", userId)
         .order("created_at", { ascending: false })
         .limit(EXPORT_AUDIT_LIMIT),
+    ),
+    rows(
+      platform
+        .from("policy_acceptances")
+        .select("method, accepted_at, legal_document_versions(document, version)")
+        .eq("user_id", userId)
+        .order("accepted_at", { ascending: false }),
     ),
   ]);
 
@@ -76,5 +85,6 @@ export async function buildPersonalDataExport(userId: string): Promise<Record<st
     business_memberships: businessMemberships,
     employee_records: employment,
     actions_attributed_to_you: actions,
+    policy_acceptances: policyAcceptances,
   };
 }

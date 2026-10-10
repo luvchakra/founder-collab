@@ -35,6 +35,8 @@ const RESERVED_TOP_SEGMENTS = new Set([
   // RBAC-27: invitation acceptance (apps/web/app/invite/[token]) -- self-gated, since a
   // brand-new invitee arrives signed out.
   "invite",
+  // PLATFORM-P1-09.4: the policy acceptance prompt (apps/web/app/legal/accept) -- self-gated.
+  "legal",
   "robots.txt",
   "sitemap.xml",
   // BRAND-06: the web app manifest (apps/web/app/manifest.ts). Browsers fetch it without

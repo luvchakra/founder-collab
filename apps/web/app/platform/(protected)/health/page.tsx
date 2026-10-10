@@ -9,6 +9,7 @@ import {
   type WindowCount,
 } from "@cofounderai/core/admin/platform-health";
 import { listOpsAlerts, type OpsAlertRow } from "@cofounderai/core/admin/platform-ops-alerts";
+import { readReleaseInfo, type ReleaseInfo } from "@cofounderai/core/admin/platform-release";
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@cofounderai/core/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
@@ -16,7 +17,8 @@ import { EmptyState, Panel, formatWhen } from "../billing/billing-ui";
 
 /**
  * PLATFORM-P1-07.1 (System Health), PLATFORM-P1-07.2 (Error Rate), PLATFORM-P1-07.3 (Queue
- * Health) and PLATFORM-P1-07.4 (Operational Alerts), docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §29. Read-only: every
+ * Health) and PLATFORM-P1-07.4 (Operational Alerts), docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §29, plus
+ * PLATFORM-P1-08.1 (Platform Version, §30) in the Release panel. Read-only: every
  * figure comes from packages/core/src/admin/platform-health.ts, read live on each visit,
  * and anything the platform doesn't record says so instead of showing a number. Alerts come
  * from platform.ops_alerts, written by the daily /api/cron/ops-alerts run.
@@ -87,12 +89,70 @@ function AlertList({ alerts }: { alerts: OpsAlertRow[] }) {
   );
 }
 
+const ENVIRONMENT: Record<ReleaseInfo["environment"], string> = {
+  production: "Production",
+  preview: "Preview",
+  development: "Development",
+  local: "Local (not on Vercel)",
+};
+
+function ReleasePanel({ release }: { release: ReleaseInfo }) {
+  const missing = <span className="text-zinc-500">Not recorded</span>;
+  const rows: { label: string; value: ReactNode }[] = [
+    {
+      label: "Version",
+      value: release.version ? (
+        <span>
+          {release.commitUrl ? (
+            <a href={release.commitUrl} target="_blank" rel="noreferrer" className="font-mono text-zinc-100 underline-offset-2 hover:underline">
+              {release.version}
+            </a>
+          ) : (
+            <span className="font-mono text-zinc-100">{release.version}</span>
+          )}
+          {release.branch ? <span className="text-zinc-500"> on {release.branch}</span> : null}
+          {release.commitMessage ? <span className="block text-xs text-zinc-400">{release.commitMessage}</span> : null}
+        </span>
+      ) : (
+        missing
+      ),
+    },
+    {
+      label: "Build",
+      value: release.deploymentId || release.builtAt ? (
+        <span>
+          {release.deploymentId ? <span className="font-mono text-zinc-100">{release.deploymentId}</span> : null}
+          {release.builtAt ? <span className="block text-xs text-zinc-400">Built {formatWhen(release.builtAt)}</span> : null}
+        </span>
+      ) : (
+        missing
+      ),
+    },
+    { label: "Deployment", value: release.deploymentUrl ? <span className="break-all text-zinc-100">{release.deploymentUrl}</span> : missing },
+    { label: "Environment", value: <span className="text-zinc-100">{ENVIRONMENT[release.environment]}</span> },
+  ];
+  return (
+    <Panel title="Release">
+      <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.label} className="flex flex-col gap-0.5">
+            <dt className="text-xs text-zinc-500">{r.label}</dt>
+            <dd>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </Panel>
+  );
+}
+
 export default async function SystemHealthPage() {
   const [snapshot, alerts] = await Promise.all([collectHealthSnapshot(), listOpsAlerts()]);
   const components = deriveComponents(snapshot);
   const open = alerts.filter((a) => !a.resolvedAt);
   const resolved = alerts.filter((a) => a.resolvedAt);
   const errors = errorRows(snapshot);
+  // WONDERARK_BUILT_AT is inlined by next.config.ts only where it is read literally.
+  const release = readReleaseInfo({ ...process.env, WONDERARK_BUILT_AT: process.env.WONDERARK_BUILT_AT });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
@@ -230,6 +290,8 @@ export default async function SystemHealthPage() {
           </Panel>
         </>
       ) : null}
+
+      <ReleasePanel release={release} />
 
       <Collapsible>
         <CollapsibleTrigger className="text-xs text-zinc-400 hover:text-zinc-200">Alert rules</CollapsibleTrigger>

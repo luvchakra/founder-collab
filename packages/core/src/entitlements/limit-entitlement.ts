@@ -82,7 +82,48 @@ export async function getLimit(businessId: string, resourceKey: ResourceKey): Pr
   const counter = await getUsageCounter(businessId, resourceKey, period);
   const usage = counter?.count ?? 0;
 
+  // PLATFORM-P1-02.1: an active business override replaces the plan's limit.
+  const { data: overrides, error: overrideError } = await platform.rpc("active_limit_override", {
+    p_business_id: businessId,
+    p_resource_key: resourceKey,
+  });
+  if (overrideError) throw overrideError;
+  const override = (overrides as LimitOverride[] | null)?.[0] ?? null;
+  if (override) return buildOverrideLimitDecision(resourceKey, override, usage);
+
   return buildLimitEntitlementDecision(resourceKey, plan.planKey, row ?? null, usage);
+}
+
+export type LimitOverride = { state: "limited" | "unlimited"; limit_value: number | null; expires_at: string };
+
+/**
+ * PLATFORM-P1-02.1/02.2: the decision while a business override is active -- a limited
+ * override is a hard limit, and the reason names the override and when it ends.
+ */
+export function buildOverrideLimitDecision(resourceKey: ResourceKey, override: LimitOverride, usage = 0): EntitlementDecision {
+  const until = override.expires_at.slice(0, 10);
+  if (override.state === "unlimited") {
+    return {
+      allowed: true,
+      reason: `${resourceKey} is unlimited for this business until ${until} (business override).`,
+      source: "business_override",
+      limit: null,
+      usage,
+      remaining: null,
+    };
+  }
+  const limit = override.limit_value as number;
+  const allowed = usage < limit;
+  return {
+    allowed,
+    reason: allowed
+      ? `${resourceKey} usage (${usage}) is within this business's override limit of ${limit}, until ${until}.`
+      : `This business's override allows ${limit} ${resourceKey} until ${until}.`,
+    source: "business_override",
+    limit,
+    usage,
+    remaining: Math.max(limit - usage, 0),
+  };
 }
 
 /**
@@ -166,7 +207,8 @@ export function buildLimitEntitlementDecision(
 type ConsumeAttempt = {
   state: "limited" | "unlimited" | "disabled" | "unrestricted";
   limit_value: number | null;
-  limit_type?: "soft" | "hard" | null;
+  /** "override": PLATFORM-P1-02.1 -- a business override, not the plan, set state/limit_value. */
+  limit_type?: "soft" | "hard" | "override" | null;
   usage_before: number;
   usage_after: number;
   granted: boolean;
@@ -272,11 +314,12 @@ export function buildConsumeEntitlementDecision(
       remaining: null,
     };
   }
+  const overridden = attempt.limit_type === "override";
   if (attempt.state === "unlimited") {
     return {
       allowed: true,
-      reason: `${resourceKey} is unlimited on the ${planKey} plan.`,
-      source: "plan",
+      reason: overridden ? `${resourceKey} is unlimited for this business (business override).` : `${resourceKey} is unlimited on the ${planKey} plan.`,
+      source: overridden ? "business_override" : "plan",
       limit: null,
       usage: attempt.usage_after,
       remaining: null,
@@ -285,6 +328,20 @@ export function buildConsumeEntitlementDecision(
 
   const limit = attempt.limit_value as number;
   const limitType = attempt.limit_type ?? "hard";
+
+  if (overridden) {
+    // PLATFORM-P1-02.1: the business override is a hard limit (core.try_consume_usage_counter).
+    return {
+      allowed: attempt.granted,
+      reason: attempt.granted
+        ? `Consuming ${quantity} ${resourceKey} keeps usage (${attempt.usage_after}) within this business's override limit of ${limit}.`
+        : `This business's override allows ${limit} ${resourceKey}; consuming ${quantity} more would exceed it.`,
+      source: "business_override",
+      limit,
+      usage: attempt.granted ? attempt.usage_after : attempt.usage_before,
+      remaining: Math.max(limit - (attempt.granted ? attempt.usage_after : attempt.usage_before), 0),
+    };
+  }
 
   if (limitType === "soft") {
     // Decision #1: a soft limit never blocks -- `core.try_consume_usage_counter()` itself

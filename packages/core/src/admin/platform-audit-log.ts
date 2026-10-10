@@ -63,6 +63,10 @@ const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "plan_module",
   // PLATFORM-P0-10.4 -- AI feature kill switch changes.
   "ai_operation_switch",
+  // PLATFORM-P1-02.3 -- business limit overrides created and revoked.
+  "business_override",
+  // PLATFORM-P1-09.1 -- Terms / Privacy Policy versions published.
+  "legal_document",
 ];
 
 /** The eleven resource types PLATFORM-P0-17 already built history tables for. */

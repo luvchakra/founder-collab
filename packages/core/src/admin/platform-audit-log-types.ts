@@ -27,7 +27,11 @@ export type AuditResourceType =
   | "plan_module"
   | "plan_price"
   // PLATFORM-P0-10.4 -- written by platform.set_ai_operation_enabled().
-  | "ai_operation_switch";
+  | "ai_operation_switch"
+  // PLATFORM-P1-02.3 -- written by platform.business_limit_overrides' audit trigger.
+  | "business_override"
+  // PLATFORM-P1-09.1 -- written by platform.legal_document_versions' audit trigger.
+  | "legal_document";
 
 export type AuditLogEntry = {
   id: string;
@@ -64,6 +68,8 @@ export const AUDIT_RESOURCE_TYPE_OPTIONS: { key: AuditResourceType; label: strin
   { key: "plan", label: "Plan" },
   { key: "plan_price", label: "Plan Price Mapping" },
   { key: "ai_operation_switch", label: "AI Feature Kill Switch" },
+  { key: "business_override", label: "Business Override" },
+  { key: "legal_document", label: "Legal Document Version" },
   { key: "billing_provider", label: "Billing Provider" },
   { key: "billing_settings", label: "Billing Settings" },
   { key: "feature_flag", label: "Feature Flag" },
@@ -96,6 +102,8 @@ const RESOURCE_SEVERITY: Record<Exclude<AuditResourceType, "announcement">, Audi
   plan: "high",
   plan_price: "high",
   ai_operation_switch: "high",
+  business_override: "high",
+  legal_document: "high",
   billing_provider: "high",
   billing_settings: "high",
   feature_flag: "high",

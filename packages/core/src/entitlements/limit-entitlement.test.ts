@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConsumeEntitlementDecision, buildLimitEntitlementDecision } from "./limit-entitlement";
+import { buildConsumeEntitlementDecision, buildLimitEntitlementDecision, buildOverrideLimitDecision } from "./limit-entitlement";
 
 describe("buildLimitEntitlementDecision (PLATFORM-P0-05.2/05.3/06.1)", () => {
   it("treats an unconfigured (plan, resource) pair as unrestricted, not denied", () => {
@@ -225,5 +225,57 @@ describe("buildConsumeEntitlementDecision (PLATFORM-P0-06.3)", () => {
     expect(decision.allowed).toBe(false);
     expect(decision.usage).toBe(5);
     expect(decision.remaining).toBe(0);
+  });
+});
+
+describe("business overrides (PLATFORM-P1-02.1/02.2)", () => {
+  const until = "2026-11-09T00:00:00Z";
+
+  it("a limited override replaces the plan's limit and names when it ends", () => {
+    const decision = buildOverrideLimitDecision("prospects", { state: "limited", limit_value: 500, expires_at: until }, 120);
+    expect(decision).toEqual({
+      allowed: true,
+      reason: "prospects usage (120) is within this business's override limit of 500, until 2026-11-09.",
+      source: "business_override",
+      limit: 500,
+      usage: 120,
+      remaining: 380,
+    });
+  });
+
+  it("a limited override is a hard limit", () => {
+    const decision = buildOverrideLimitDecision("prospects", { state: "limited", limit_value: 500, expires_at: until }, 500);
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe("This business's override allows 500 prospects until 2026-11-09.");
+  });
+
+  it("an unlimited override allows with no limit", () => {
+    const decision = buildOverrideLimitDecision("ai_runs", { state: "unlimited", limit_value: null, expires_at: until }, 9);
+    expect(decision).toMatchObject({ allowed: true, source: "business_override", limit: null, usage: 9, remaining: null });
+  });
+
+  it("canConsume reports an overridden attempt as the override's decision, not the plan's", () => {
+    const granted = buildConsumeEntitlementDecision(
+      "prospects",
+      "free",
+      { state: "limited", limit_value: 500, limit_type: "override", usage_before: 10, usage_after: 11, granted: true },
+      1,
+    );
+    expect(granted).toMatchObject({ allowed: true, source: "business_override", limit: 500, usage: 11, remaining: 489 });
+    const denied = buildConsumeEntitlementDecision(
+      "prospects",
+      "free",
+      { state: "limited", limit_value: 500, limit_type: "override", usage_before: 500, usage_after: 500, granted: false },
+      1,
+    );
+    expect(denied).toMatchObject({ allowed: false, source: "business_override", usage: 500, remaining: 0 });
+    expect(denied.reason).toBe("This business's override allows 500 prospects; consuming 1 more would exceed it.");
+    const unlimited = buildConsumeEntitlementDecision(
+      "prospects",
+      "free",
+      { state: "unlimited", limit_value: null, limit_type: "override", usage_before: 10, usage_after: 11, granted: true },
+      1,
+    );
+    expect(unlimited).toMatchObject({ allowed: true, source: "business_override", reason: "prospects is unlimited for this business (business override)." });
   });
 });
