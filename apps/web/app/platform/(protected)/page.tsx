@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import Link from "next/link";
 import {
   getConfigurationHealth,
   getPlatformOverview,
@@ -16,7 +18,7 @@ import { formatDateTime } from "@cofounderai/core/lib/format";
  * contact details, documents, or conversation content.
  */
 
-function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
+function KpiCard({ label, value, detail }: { label: string; value: string | number; detail?: ReactNode }) {
   return (
     <div className="flex flex-col gap-1 rounded-md border border-zinc-800 bg-zinc-900 p-4">
       <span className="text-xs font-medium tracking-wide text-zinc-400 uppercase">{label}</span>
@@ -81,6 +83,11 @@ export default async function PlatformHomePage() {
           <KpiCard
             label="System health"
             value={overview.openPlatformIssues === 0 ? "Operational" : "Attention needed"}
+            detail={
+              <Link href="/platform/health" className="hover:text-zinc-200">
+                Failed events only · full checks →
+              </Link>
+            }
           />
           <KpiCard label="Open platform issues" value={overview.openPlatformIssues} detail="Failed events past retry" />
         </div>

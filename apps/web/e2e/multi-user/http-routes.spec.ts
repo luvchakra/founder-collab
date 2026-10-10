@@ -21,6 +21,7 @@ const CRON_ROUTES = [
   "escalate-review-recovery-tasks",
   "expire-exports",
   "expire-licenses",
+  "ops-alerts",
   "post-recurring-entries",
   "send-compliance-reminders",
   "send-reminders",
