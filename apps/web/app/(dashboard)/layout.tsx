@@ -11,6 +11,7 @@ import {
   getAccountWorkspaceEntries,
 } from "@cofounderai/module-discovery/lib/dashboard/queries";
 import { deriveAccountAlerts } from "@cofounderai/module-discovery/lib/alerts/derive";
+import { getGroupedSignalAlerts } from "@cofounderai/module-discovery/lib/alerts/grouped-signals";
 import { getMarketingFundingAlerts } from "@cofounderai/module-discovery/lib/alerts/marketing-funding";
 import { getExportAlerts } from "@/lib/exports/alerts";
 import { getMyBusinessAccess, modulesVisibleTo, type BusinessAccess } from "@cofounderai/core/rbac/effective";
@@ -92,7 +93,10 @@ async function loadAlerts(
       getBillingAlerts(businesses.map((b) => b.id)).catch(() => []),
     ]);
     const discoveryAlerts = deriveAccountAlerts({ entries, usageByWorkspace, prospects });
-    return [...billingAlerts, ...exportAlerts, ...discoveryAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
+    // DISC-OFFER-P1-01.4: one alert per account whose signals line up. A failure here
+    // never empties the rest of the bell.
+    const signalAlerts = await getGroupedSignalAlerts(entries).catch(() => []);
+    return [...billingAlerts, ...exportAlerts, ...discoveryAlerts, ...signalAlerts, ...marketingFundingAlerts, ...otherModuleAlerts].sort((a, b) =>
       a.severity === b.severity ? 0 : a.severity === "warning" ? -1 : 1,
     );
   } catch (error) {

@@ -3,7 +3,7 @@ import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import type { WatchlistEntryWithProspect } from "../../lib/watchlist/types";
 
 /**
- * DISC-OFFER-P1 §7-01.3 "Account Watchlist" -- one row per watched account, the doc's
+ * DISC-OFFER-P1-01.3 "Account Watchlist" -- one row per watched account, the doc's
  * own listed fields (account, watch reason, current score, last signal, next review).
  * "Offering" isn't a column -- this page already lives inside one offering's own
  * workspace, same as every other list in this section (Prospects, Opportunities).

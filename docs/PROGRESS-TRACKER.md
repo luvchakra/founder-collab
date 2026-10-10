@@ -19,20 +19,20 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 528 |
+| ✅ Done | 533 |
 | 🟡 In progress | 0 |
-| ⏸️ Deferred | 44 |
+| ⏸️ Deferred | 45 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 25 |
+| ⬜ Not started | 19 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
 | [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 91 | 0 | 19 | 110 |
-| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 52 | 0 | 6 | 58 |
+| [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
 | [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-25 stories are neither built nor deliberately set aside:
+19 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -66,12 +66,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-09.1` | Terms & Privacy Version | ⬜ Not started | — |
 | `PLATFORM-P1-09.2` | Cookie / Consent Configuration | ⬜ Not started | — |
 | `PLATFORM-P1-09.4` | Policy Acceptance Tracking | ⬜ Not started | — |
-| `DISC-OFFER-P1-01.3` | Account Watchlist | ⬜ Not started | — |
-| `DISC-OFFER-P1-01.4` | Grouped Opportunity Alerts | ⬜ Not started | — |
-| `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ⬜ Not started | — |
-| `DISC-OFFER-P1-03.3` | Provider-Agnostic Data Contracts | ⬜ Not started | — |
-| `DISC-OFFER-P1-04.3` | Offering-Specific Contact Relevance | ⬜ Not started | — |
-| `DISC-OFFER-P1-05.4` | Offering Overview UX Polish | ⬜ Not started | — |
 
 ## Platform build-out
 
@@ -531,8 +525,8 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 |---|---|---|---|
 | `DISC-OFFER-P1-01.1` | Saved Offering Discovery | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/actions.ts` +10 |
 | `DISC-OFFER-P1-01.2` | Continuous Monitoring | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/opportunities/actions.ts` +3 |
-| `DISC-OFFER-P1-01.3` | Account Watchlist | ⬜ Not started | — |
-| `DISC-OFFER-P1-01.4` | Grouped Opportunity Alerts | ⬜ Not started | — |
+| `DISC-OFFER-P1-01.3` | Account Watchlist | ✅ Done | `packages/module-discovery/src/components/prospects/watchlist-dashboard.tsx` +4 |
+| `DISC-OFFER-P1-01.4` | Grouped Opportunity Alerts | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +3 |
 
 ### DISC-OFFER-P1-02 — Discovery Quality & Learning
 
@@ -540,7 +534,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 |---|---|---|---|
 | `DISC-OFFER-P1-02.1` | Prospect Feedback | ✅ Done | `packages/module-discovery/src/lib/offerings/definition-quality.ts` +7 |
 | `DISC-OFFER-P1-02.2` | Discovery Outcome Tracking | ✅ Done | `packages/module-discovery/src/components/pipeline/save-and-run-downstream-button.tsx` |
-| `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ⬜ Not started | — |
+| `DISC-OFFER-P1-02.3` | Offering Performance Analysis | ✅ Done | `packages/module-discovery/src/components/pipeline/offering-performance-analysis.tsx` +4 |
 
 ### DISC-OFFER-P1-03 — AI Efficiency
 
@@ -548,7 +542,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 |---|---|---|---|
 | `DISC-OFFER-P1-03.1` | Progressive Intelligence | ✅ Done | `packages/module-discovery/src/components/offerings/offering-overview-summary.tsx` +2 |
 | `DISC-OFFER-P1-03.2` | Research Cache | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/actions.ts` +3 |
-| `DISC-OFFER-P1-03.3` | Provider-Agnostic Data Contracts | ⬜ Not started | — |
+| `DISC-OFFER-P1-03.3` | Provider-Agnostic Data Contracts | ⏸️ Deferred | Deferred 2026-10-10: no external enrichment provider exists to abstract -- company/person enrichment and signals all run as AI web search through lib/ai/router.ts, already provider-agnostic across OpenAI/Anthropic/Google, and technology detection / contact verification don't exist at all. Contracts for providers that don't exist would be speculative (CLAUDE.md principle 7); build them with the first real enrichment provider. See docs/design/discovery-offering-backlog-audit.md. |
 
 ### DISC-OFFER-P1-04 — Multi-Offering Intelligence
 
@@ -556,7 +550,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 |---|---|---|---|
 | `DISC-OFFER-P1-04.1` | Cross-Offering Account View | ✅ Done | `packages/module-discovery/src/components/opportunities/opportunity-detail.tsx` +4 |
 | `DISC-OFFER-P1-04.2` | Offering Portfolio Dashboard | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/page.tsx` +3 |
-| `DISC-OFFER-P1-04.3` | Offering-Specific Contact Relevance | ⬜ Not started | — |
+| `DISC-OFFER-P1-04.3` | Offering-Specific Contact Relevance | ✅ Done | `packages/module-discovery/src/lib/buyer-intelligence/types.ts` |
 
 ### DISC-OFFER-P1-05 — Search & Interaction UX
 
@@ -565,7 +559,7 @@ Source: [`docs/plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md`](./plan/10-DISCOVE
 | `DISC-OFFER-P1-05.1` | Offering-Scoped Search | ✅ Done | `packages/module-discovery/src/components/pipeline/run-ai-discovery-panel.tsx` |
 | `DISC-OFFER-P1-05.2` | Editable Opportunity Rows | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/opportunities/[opportunityId]/page.tsx` +5 |
 | `DISC-OFFER-P1-05.3` | Responsive Opportunity Workspace | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/opportunities/actions.ts` +2 |
-| `DISC-OFFER-P1-05.4` | Offering Overview UX Polish | ⬜ Not started | — |
+| `DISC-OFFER-P1-05.4` | Offering Overview UX Polish | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/discovery/offerings/[productId]/page.tsx` +2 |
 
 ### Product Decision
 

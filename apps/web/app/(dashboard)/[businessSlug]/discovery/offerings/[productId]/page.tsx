@@ -103,7 +103,7 @@ export default async function ProductPage({
     : null;
 
   return (
-    // DISC-OFFER-P1 §7-05.4 "Offering Overview UX Polish" -- hierarchy planned per
+    // DISC-OFFER-P1-05.4 "Offering Overview UX Polish" -- hierarchy planned per
     // docs/design/claude-ui-design-rules.md before touching markup: the most urgent,
     // decision-shaped content (the one opportunity a founder should act on right now,
     // then this offering's own overall health) leads the page; the discovery pipeline's
@@ -139,7 +139,7 @@ export default async function ProductPage({
       ) : null}
       {product.product_profile && prospectCounts ? (
         <OfferingOverviewSummary
-          businessId={businessId}
+          businessSlug={businessSlug}
           offering={product}
           icp={icp}
           personas={personas}

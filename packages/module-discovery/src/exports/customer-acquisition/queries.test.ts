@@ -154,17 +154,28 @@ describe("listPipelineRunsForExport (EXP-DISC-12)", () => {
 });
 
 describe("getPerformanceAnalysisRawDataForExport (EXP-DISC-11)", () => {
-  it("reads the page's four workspace-scoped tables, uncapped", async () => {
+  it("reads the page's six workspace-scoped tables, uncapped", async () => {
     db.tables.prospects = Array.from({ length: 1001 }, (_, i) => ({ id: `p${i}`, workspace_id: WS }));
     db.tables.signals = [{ id: "s1", workspace_id: WS }, { id: "s2", workspace_id: "other" }];
     db.tables.conversations = [];
     db.tables.contacts = [];
+    // DISC-OFFER-P1-02.3: the plays breakdown reads opportunities and their definitions.
+    db.tables.opportunities = [{ id: "o1", workspace_id: WS }, { id: "o2", workspace_id: "other" }];
+    db.tables.discovery_definitions = [];
     const raw = await getPerformanceAnalysisRawDataForExport(WS);
     expect(raw.prospects).toHaveLength(1001);
     expect(raw.signals.map((s) => s.id)).toEqual(["s1"]);
+    expect(raw.opportunities.map((o) => (o as unknown as { id: string }).id)).toEqual(["o1"]);
     const tables = new Set(db.calls.filter((c) => c.op === "eq").map((c) => `${c.table}:${String(c.args[0])}=${String(c.args[1])}`));
     expect(tables).toEqual(
-      new Set([`prospects:workspace_id=${WS}`, `signals:workspace_id=${WS}`, `conversations:workspace_id=${WS}`, `contacts:workspace_id=${WS}`]),
+      new Set([
+        `prospects:workspace_id=${WS}`,
+        `signals:workspace_id=${WS}`,
+        `conversations:workspace_id=${WS}`,
+        `contacts:workspace_id=${WS}`,
+        `opportunities:workspace_id=${WS}`,
+        `discovery_definitions:workspace_id=${WS}`,
+      ]),
     );
   });
 });

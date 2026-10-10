@@ -1,5 +1,5 @@
 /**
- * DISC-OFFER-P1 §7-01.3 "Account Watchlist" -- a founder's own deliberate "keep an eye
+ * DISC-OFFER-P1-01.3 "Account Watchlist" -- a founder's own deliberate "keep an eye
  * on this one" flag on a specific prospect, distinct from `opportunities.status =
  * 'watching'` (see the migration's own comment). "current score" and "last signal" are
  * NOT stored here -- see `WatchlistEntryWithProspect` below, which reads both live from

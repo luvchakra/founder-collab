@@ -59,7 +59,7 @@ describe("computeScoreOutcomeBuckets", () => {
 });
 
 describe("computeOfferingPerformanceAnalysis", () => {
-  it("assembles all four answerable questions from raw rows", () => {
+  it("assembles every question from raw rows", () => {
     const result = computeOfferingPerformanceAnalysis({
       prospects: [
         { id: "p1", industry: "Retail", location: "Toronto", fit_score: 80, outcome: "won" },
@@ -71,6 +71,16 @@ describe("computeOfferingPerformanceAnalysis", () => {
       ],
       conversations: [{ prospect_id: "p1", contact_id: "c1", status: "replied" }],
       contacts: [{ id: "c1", job_title: "VP Engineering" }],
+      opportunities: [
+        { discovery_definition_id: "d1", status: "sent_to_crm" },
+        { discovery_definition_id: "d1", status: "dismissed" },
+        { discovery_definition_id: "d2", status: "new" },
+        { discovery_definition_id: null, status: "sent_to_crm" },
+      ],
+      definitions: [
+        { id: "d1", name: "Recently funded" },
+        { id: "d2", name: "New executive" },
+      ],
     });
 
     expect(result.signalsProducingConversations).toEqual([{ label: "Recently funded", total: 2, matched: 1, rate: 50 }]);
@@ -81,6 +91,12 @@ describe("computeOfferingPerformanceAnalysis", () => {
     ]);
     expect(result.buyerRolesThatRespond).toEqual([{ label: "VP Engineering", total: 1, matched: 1, rate: 100 }]);
     expect(result.scoreVsOutcome.find((b) => b.label === "76-100")).toEqual({ label: "76-100", total: 1, matched: 1, rate: 100 });
+    // DISC-OFFER-P1-02.3's fifth question: per play, the share of its opportunities sent
+    // to CRM. An opportunity no play found isn't counted for any play.
+    expect(result.playsPerformance).toEqual([
+      { label: "Recently funded", total: 2, matched: 1, rate: 50 },
+      { label: "New executive", total: 1, matched: 0, rate: 0 },
+    ]);
   });
 
   it("excludes conversations with no linked contact from the buyer-role breakdown", () => {
@@ -89,6 +105,8 @@ describe("computeOfferingPerformanceAnalysis", () => {
       signals: [],
       conversations: [{ prospect_id: "p1", contact_id: null, status: "replied" }],
       contacts: [],
+      opportunities: [],
+      definitions: [],
     });
     expect(result.buyerRolesThatRespond).toEqual([]);
   });

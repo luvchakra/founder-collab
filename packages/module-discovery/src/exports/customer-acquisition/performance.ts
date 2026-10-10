@@ -1,7 +1,7 @@
 // EXP-DISC-11 -- Offering Performance export (/[businessSlug]/discovery/offerings/[productId]/performance).
 import type { ExportAdapter } from "@cofounderai/core/exports/server";
 import { computeOfferingPerformanceAnalysis } from "../../lib/performance-analysis/analysis";
-import { DISCOVERY_PLAYS_NOTE, type RateBucket } from "../../lib/performance-analysis/types";
+import type { RateBucket } from "../../lib/performance-analysis/types";
 import { SIGNAL_TYPE_LABEL } from "../../lib/signals/types";
 import { getPerformanceAnalysisRawDataForExport, type PerformanceExportRawData } from "./queries";
 import { BASIS, CHANNEL_LABEL, PROSPECT_OUTCOME_LABEL, labelOf, ratio, readProductId, resolveOffering } from "./shared";
@@ -45,6 +45,7 @@ export const discoveryPerformanceExport: ExportAdapter<{ productId: string }> = 
       ...section("Which locations convert?", "Won", analysis.locationConversionRates),
       ...section("Which buyer roles respond?", "Replied", analysis.buyerRolesThatRespond),
       ...section("Does a higher fit score mean better outcomes?", "Won", analysis.scoreVsOutcome),
+      ...section("Which Discovery Plays perform best?", "Opportunities sent to CRM", analysis.playsPerformance),
     ];
 
     const companyById = new Map(raw.prospects.map((p) => [p.id, p.company_name] as const));
@@ -65,7 +66,7 @@ export const discoveryPerformanceExport: ExportAdapter<{ productId: string }> = 
       module: "discovery",
       resource: "performance",
       title: "Offering performance analysis",
-      metadata: { Offering: product.name, "Not answered": DISCOVERY_PLAYS_NOTE },
+      metadata: { Offering: product.name },
       sheets: [
         {
           sheetName: "Analysis",
