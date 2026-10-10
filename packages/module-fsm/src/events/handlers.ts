@@ -125,3 +125,17 @@ registerEventHandler("prospect.won", async (event: DomainEvent) => {
     }
   }
 });
+
+/**
+ * Estimate lifecycle events have no subscriber yet (00-MASTER-PLAN.md §5 lists discovery's
+ * feedback loop and crm as future consumers), and core/events/drain.ts fails an event with
+ * no handler *permanently* -- every estimate sent showed up as a failed event. The change
+ * itself is already on the estimate's core.documents row and its opportunity, so these
+ * are acknowledged here, the way core/licensing/event-handlers.ts acknowledges license
+ * events; a consumer that needs them registers its own handler alongside this one.
+ */
+export const ACKNOWLEDGED_ESTIMATE_EVENTS = ["estimate.sent", "estimate.approved", "estimate.declined"] as const;
+
+for (const type of ACKNOWLEDGED_ESTIMATE_EVENTS) {
+  registerEventHandler(type, async () => undefined);
+}
