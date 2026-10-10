@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 537 |
+| ✅ Done | 538 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 45 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 15 |
+| ⬜ Not started | 14 |
 | **Total** | **627** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 95 | 0 | 15 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 96 | 0 | 14 | 110 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,7 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-15 stories are neither built nor deliberately set aside:
+14 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
@@ -56,7 +56,6 @@ file is stale, so it cannot quietly drift out of date.
 | `PLATFORM-P1-06.2` | API Key Management | ⬜ Not started | — |
 | `PLATFORM-P1-06.3` | Webhook Policies | ⬜ Not started | — |
 | `PLATFORM-P1-06.4` | API Usage Dashboard | ⬜ Not started | — |
-| `PLATFORM-P1-08.1` | Platform Version | ⬜ Not started | — |
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
 | `PLATFORM-P1-09.1` | Terms & Privacy Version | ⬜ Not started | — |
@@ -414,7 +413,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-08.1` | Platform Version | ⬜ Not started | — |
+| `PLATFORM-P1-08.1` | Platform Version | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +3 |
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
 
