@@ -443,6 +443,10 @@
     "SEC-8": {
       "status": "Done",
       "note": "Epic 8 -- `apps/web/lib/safe-redirect.ts`, `signInWithOAuthProvider()`, `core/auth/oauth-providers.ts`, built 2026-10-02"
+    },
+    "BILL-40": {
+      "status": "Done",
+      "note": "Review: `docs/design/subscription-billing.md` (security review §101 + readiness check against production 2026-10-10). Going live is owner configuration listed there, not code."
     }
   }
 }
