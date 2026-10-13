@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { OrgAddressProvider, useAppPathname } from "@cofounderai/core/shell/org-address-context";
+import { orgUrl } from "@cofounderai/core/lib/org-address";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
 import { readPinnedBusinessIds } from "@cofounderai/core/lib/pinned-businesses";
 import type {
@@ -36,6 +38,7 @@ export function DashboardChrome({
   alerts,
   createBusinessAction,
   createBusinessFromWebsiteAction,
+  orgAddress,
   children,
 }: {
   /** Straight from module-registry -- no `licensed` field yet, since that's a
@@ -61,10 +64,13 @@ export function DashboardChrome({
     prevState: CreateBusinessFromWebsiteState,
     formData: FormData,
   ) => Promise<CreateBusinessFromWebsiteState>;
+  /** PLATFORM-P1-10.1: the organization address this page is served on (null on the main
+   * address), and the base host other organizations' addresses are built from. */
+  orgAddress?: { hostSlug: string | null; base: string | null; protocol: string; port?: string };
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const { businessSlug: activeBusinessSlug } = getActiveIdsFromPath(pathname ?? "");
   const activeBusinessId = activeBusinessSlug ? (businesses.find((b) => b.slug === activeBusinessSlug)?.id ?? null) : null;
@@ -108,7 +114,7 @@ export function DashboardChrome({
   }, [modules, licensedModuleKeysByBusiness, effectiveBusinessId]);
 
   return (
-    <>
+    <OrgAddressProvider hostSlug={orgAddress?.hostSlug ?? null}>
       <DashboardShell
         modules={annotatedModules}
         businesses={businesses}
@@ -119,7 +125,15 @@ export function DashboardChrome({
           // this is the one place that turns it into the actual, slug-based URL, so
           // none of those five files need to know slugs exist at all.
           const business = businesses.find((b) => b.id === businessId);
-          return business ? `/${business.slug}` : "/dashboard";
+          if (!business) return "/dashboard";
+          // PLATFORM-P1-10.1: on an organization's address, another organization opens on its
+          // own address (sessions are per address). The current one keeps the path form,
+          // which the proxy serves from the address root.
+          if (orgAddress?.hostSlug && business.slug !== orgAddress.hostSlug) {
+            const url = orgUrl(business.slug, orgAddress.base, orgAddress.protocol, orgAddress.port);
+            if (url) return url;
+          }
+          return `/${business.slug}`;
         }}
         productsByBusiness={productsByBusiness}
         creditsUsedPercent={creditsUsedPercent}
@@ -140,6 +154,6 @@ export function DashboardChrome({
           onClose={() => setCreating(false)}
         />
       ) : null}
-    </>
+    </OrgAddressProvider>
   );
 }

@@ -14,6 +14,8 @@ const { createClient, cookieStore } = vi.hoisted(() => ({
 }));
 vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
 vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
+// PLATFORM-P1-10.2's address gate is covered in app/auth/callback/route.test.ts; here it admits.
+vi.mock("../lib/org-sign-in-gate", () => ({ refuseNonMemberOnOrgAddress: async () => null }));
 
 const { GET } = await import("../app/auth/callback/route");
 

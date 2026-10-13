@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAppPathname } from "@cofounderai/core/shell/org-address-context";
 import { NativeSelect } from "@cofounderai/core/ui/native-select";
 import { offeringSwitchHref } from "../../lib/offerings/context";
 
@@ -27,7 +28,7 @@ export function OfferingContextSelector({
   offerings: { id: string; name: string }[];
 }) {
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   if (offerings.length <= 1) return null;
 
   return (

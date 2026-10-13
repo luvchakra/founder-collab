@@ -44,6 +44,8 @@ export const getAccountBusinesses = cache(async (accountId: string) => {
     // invited into. RLS (core.user_business_ids()) is what scopes this, not the account id;
     // accountId stays the cache key.
     .is("disabled_at", null)
+    // PLATFORM-P1-10.2: suspended, owner-disabled and decommissioned businesses are hidden.
+    .eq("status", "active")
     .order("created_at", { ascending: true });
   if (businessesError) throw businessesError;
 

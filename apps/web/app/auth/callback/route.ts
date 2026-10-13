@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@cofounderai/core/db/server";
 import { safeRedirectPath } from "../../../lib/safe-redirect";
+import { refuseNonMemberOnOrgAddress } from "../../../lib/org-sign-in-gate";
 
 /**
  * Landing point for every Supabase Auth email link — signup confirmation, magic link and
@@ -64,6 +65,8 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (error) return fail(error.message);
+    const refused = await refuseNonMemberOnOrgAddress(supabase);
+    if (refused) return fail(refused);
     return NextResponse.redirect(`${origin}${next}`);
   }
 
@@ -71,6 +74,10 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return fail(error.message);
+    // PLATFORM-P1-10.2: on an organization's address (social sign-in returns there), only its
+    // members keep the new session.
+    const refused = await refuseNonMemberOnOrgAddress(supabase);
+    if (refused) return fail(refused);
     return NextResponse.redirect(`${origin}${next}`);
   }
 

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createClient } from "@cofounderai/core/db/server";
 import { recordSignupAcceptance } from "@cofounderai/core/privacy/legal-acceptance";
+import { orgAddressClosedReason, refuseNonMemberOnOrgAddress } from "@/lib/org-sign-in-gate";
+import { onOrgAddress } from "@/lib/org-host";
 import {
   OAUTH_PROVIDER_LABELS,
   isOAuthProvider,
@@ -28,13 +30,19 @@ export async function login(
     return { error: "Email and password are required." };
   }
 
+  // PLATFORM-P1-10.2: an organization's address admits only its own active members.
+  const closed = await orgAddressClosedReason();
+  if (closed) return { error: closed };
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     return { error: error.message };
   }
+  const refused = await refuseNonMemberOnOrgAddress(supabase);
+  if (refused) return { error: refused };
 
-  redirect("/dashboard");
+  redirect((await onOrgAddress()) ? "/" : "/dashboard");
 }
 
 export async function signup(
@@ -161,12 +169,16 @@ export async function updatePassword(
  * client sends can steer the redirect. */
 export async function signInWithOAuthProvider(provider: OAuthProvider) {
   if (!isOAuthProvider(provider)) redirect(`/login?error=${encodeURIComponent("That sign-in method isn't available.")}`);
+  const closed = await orgAddressClosedReason();
+  if (closed) redirect(`/login?error=${encodeURIComponent(closed)}`);
   const origin = (await headers()).get("origin") ?? "http://localhost:3000";
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {
-      redirectTo: `${origin}/auth/callback?next=/dashboard`,
+      // The request's own origin: on an organization's address, social sign-in returns there
+      // (needs the wildcard in Supabase's redirect allow-list) and lands on its home.
+      redirectTo: `${origin}/auth/callback?next=${(await onOrgAddress()) ? "/" : "/dashboard"}`,
       // Microsoft only returns the address when asked for the `email` scope; without it
       // Supabase can't create the user (Supabase's Azure guide).
       ...(provider === "azure" ? { scopes: "email" } : {}),

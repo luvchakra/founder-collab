@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
 import { getPendingLegalAcceptances } from "@cofounderai/core/privacy/legal-acceptance";
+import { getHostBusiness, getRequestHost } from "@/lib/org-host";
 import { isPlatformAdminEmail } from "@cofounderai/core/rbac/platform-admin";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
@@ -169,6 +170,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   ]);
   if (pendingLegal.length > 0) redirect("/legal/accept");
 
+  // PLATFORM-P1-10.1/10.2: on an organization's address, a paused organization (suspended, or
+  // disabled by its owner) is closed to everyone (owner decision 2026-10-13: hidden and
+  // closed, not RLS-enforced); the shell learns which address it is on.
+  const [requestHost, hostBusiness] = await Promise.all([getRequestHost(), getHostBusiness().catch(() => null)]);
+  if (hostBusiness && !("missing" in hostBusiness) && hostBusiness.status !== "active") redirect("/organization-paused");
+  const orgAddress = {
+    hostSlug: requestHost.target.kind === "organization" ? requestHost.target.label : null,
+    base: requestHost.base,
+    protocol: requestHost.protocol,
+    port: requestHost.port,
+  };
+
   // CLAUDE.md's 4th licensing-enforcement layer ("UI built from module-registry
   // filtered by entitlements") -- previously missing entirely here: this used to pass
   // the raw registry straight through with no license check (docs/testing/
@@ -216,6 +229,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       alerts={alerts}
       createBusinessAction={createBusinessAction}
       createBusinessFromWebsiteAction={createBusinessFromWebsiteAction}
+      orgAddress={orgAddress}
     >
       {children}
     </DashboardChrome>

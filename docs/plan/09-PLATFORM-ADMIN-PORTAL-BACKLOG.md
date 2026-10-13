@@ -1852,3 +1852,90 @@ The Platform Administration Portal should become WonderArk's **central control p
 The central principle is:
 
 > **One platform control plane, one source of truth for global configuration, strict SUPERADMIN governance, versioned changes, and zero leakage between platform administration and customer administration.**
+
+---
+
+# 40. Organization Addresses and Environments (added 2026-10-13)
+
+Brought over from WonderID (`luvchakra/wonder-agent`, 2026-10-13). Mapping and the owner's
+decisions: `docs/design/organization-addresses-environments.md`. In WonderArk the organization
+is the **business**; each environment is a sibling business with its own data.
+
+## PLATFORM-P1-10.1 — Organization Address
+
+Every business has a validated address prefix (its slug: 3–32 lowercase letters, digits and
+hyphens, reserved words refused) and is served at `<slug>.<BASE_APP_HOST>`. The host resolves
+to a business (cached briefly, existence only); unknown → 404, lookup failure → 503, never a
+fallback to another business. The host never authorizes: membership does.
+
+## PLATFORM-P1-10.2 — Address Sign-in
+
+On an organization's address only its active members sign in; a suspended or disabled
+organization refuses sign-in. Social sign-in returns to the same address.
+
+## PLATFORM-P1-10.3 — Main Address Landing
+
+With `ORG_ADDRESS_REQUIRED`, the main domain is the landing page only: a signed-in person goes to
+their last-used organization's address (else their first; none → create one; a vendor admin with
+none → the console). API, webhooks and cron stay on the main domain.
+
+## PLATFORM-P1-10.4 — Environments
+
+Production, development, test and staging, each its own business linked by a vendor-side
+`parent_business_id` (no FK). Addresses `<prefix>`, `-dev`, `-test`, `-staging`, never stacked;
+production can be added to an organization set up as another environment; one of each kind.
+
+## PLATFORM-P1-10.5 — Environment Colours and Switching
+
+Production green, Development blue, Test amber, Staging violet, Sandbox grey. The switcher shows
+the organization with a coloured dot and one-click chips for its other environments.
+
+## PLATFORM-P1-10.6 — One Plan per Organization
+
+Every environment shares its organization's plan; new environments inherit it; a provider-billed
+plan is never overwritten silently.
+
+## PLATFORM-P1-10.7 — Remove Environment
+
+Removing an environment decommissions it (data kept, nobody signs in) and frees its address and
+slot. Removing the organization's own environment removes the whole organization.
+
+## PLATFORM-P1-10.8 — Manage Organizations (Owner)
+
+Owners rename the organization (environments follow), disable or enable it or one environment,
+and add environments. Every check runs in the database as the caller; an owner lifts only their
+own disable, never a vendor suspension.
+
+## PLATFORM-P1-10.9 — Paid Environments
+
+An order row is written first (one open order per organization and environment), then the
+environment is set up; a failure marks the order failed and says so. Test payments
+(`payment_mode = 'test'`) until a payment provider is wired (owner decision 2026-10-13).
+
+## PLATFORM-P1-10.10 — Organizations Console
+
+Vendor-only list of organizations (name, owner, plan, status, Manage; test organizations apart;
+decommissioned hidden unless asked) and an organization page (environments, add/remove, owners,
+plan).
+
+## PLATFORM-P1-10.11 — Environment Console
+
+Environment page: badge and status, per-business counts and recent load ("Unavailable", never 0,
+when unreadable), address rename, environment type, plan (read-only), private notes, suspend /
+activate / remove.
+
+## PLATFORM-P1-10.12 — Organization Details
+
+Vendor-only details: description, contact (name, email, phone), company (name, email, phone),
+industry, user base size, country, website; validated in a tested pure function and by database
+checks.
+
+## PLATFORM-P1-10.13 — Organization Announcements
+
+Announcements for everyone or for one organization, with an optional end, and End now (record
+kept).
+
+## PLATFORM-P1-10.14 — Organization Onboarding
+
+Creating an organization asks for its name, an address prefix (follows the name until edited,
+with a live address preview) and its environment, with Back and Cancel.
