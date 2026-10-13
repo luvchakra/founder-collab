@@ -6,19 +6,42 @@ import { createBusiness, createProduct } from "@cofounderai/module-discovery/lib
 import { normalizeWebsiteUrl } from "@cofounderai/module-discovery/lib/website-onboarding/url";
 import { createWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/mutations";
 import { businessPath } from "@/lib/business-path";
+import { createBusinessWithAddress } from "@cofounderai/core/businesses/manage-organizations";
+import { orgUrl, type OrgEnvironment } from "@cofounderai/core/lib/org-address";
+import { getRequestHost } from "@/lib/org-host";
 
-export async function createBusinessAction(accountId: string, formData: FormData) {
-  const business = await createBusiness(accountId, {
+export type CreateBusinessFromWebsiteState = { error: string } | null;
+
+/** PLATFORM-P1-10.14: a new organization at the address prefix and environment chosen in the
+ * modal (the prefix follows the name unless edited). A refusal comes back in words. With
+ * addresses on, the new organization opens on its own address (sign in there). */
+export async function createBusinessAction(
+  accountId: string,
+  _prevState: CreateBusinessFromWebsiteState,
+  formData: FormData,
+): Promise<CreateBusinessFromWebsiteState> {
+  const slug = String(formData.get("slug") ?? "").trim();
+  const input = {
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
     website: String(formData.get("website") ?? ""),
-    industry: String(formData.get("industry") ?? ""),
+  };
+  if (!slug) {
+    const business = await createBusiness(accountId, { ...input, industry: String(formData.get("industry") ?? "") });
+    revalidatePath("/dashboard");
+    redirect(await businessPath(business.id));
+  }
+  const result = await createBusinessWithAddress(accountId, {
+    ...input,
+    slug,
+    environment: String(formData.get("environment") ?? "production") as OrgEnvironment,
   });
+  if (!result.ok) return { error: result.error };
   revalidatePath("/dashboard");
-  redirect(await businessPath(business.id));
+  const { base, protocol, port } = await getRequestHost();
+  const url = orgUrl(result.slug, base, protocol, port);
+  redirect(url ? `${url}/login` : `/${result.slug}`);
 }
-
-export type CreateBusinessFromWebsiteState = { error: string } | null;
 
 /**
  * "Create from website" tab of CreateBusinessModal -- DISC-OFFER-P0-09.1's own "Website

@@ -17,6 +17,7 @@ import type {
   ShellUser,
 } from "@cofounderai/core/shell/types";
 import { CreateBusinessModal } from "@cofounderai/module-discovery/components/tenancy/create-business-modal";
+import { CREATE_BUSINESS_EVENT } from "./create-business-event";
 import type { CreateBusinessFromWebsiteState } from "@/app/(dashboard)/dashboard/actions";
 import { AiChatWidget } from "@cofounderai/module-discovery/components/chat/ai-chat-widget";
 import { getActiveIdsFromPath } from "@cofounderai/module-discovery/lib/tenancy/active-path";
@@ -61,7 +62,11 @@ export function DashboardChrome({
   accountId: string;
   user: ShellUser;
   alerts?: ShellAlert[] | Promise<ShellAlert[]>;
-  createBusinessAction: (accountId: string, formData: FormData) => Promise<void>;
+  createBusinessAction: (
+    accountId: string,
+    prevState: CreateBusinessFromWebsiteState,
+    formData: FormData,
+  ) => Promise<CreateBusinessFromWebsiteState>;
   createBusinessFromWebsiteAction: (
     accountId: string,
     prevState: CreateBusinessFromWebsiteState,
@@ -100,6 +105,13 @@ export function DashboardChrome({
     const pinnedBusiness = businesses.find((b) => pinnedIds.includes(b.id));
     if (pinnedBusiness) router.replace(`/${pinnedBusiness.slug}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // PLATFORM-P1-10.14: "New organization" on Manage organizations opens this same modal.
+  useEffect(() => {
+    const open = () => setCreating(true);
+    window.addEventListener(CREATE_BUSINESS_EVENT, open);
+    return () => window.removeEventListener(CREATE_BUSINESS_EVENT, open);
   }, []);
 
   // Filtered per the *active* business, not the account as a whole -- switching
@@ -158,6 +170,7 @@ export function DashboardChrome({
           action={createBusinessAction.bind(null, accountId)}
           fromWebsiteAction={createBusinessFromWebsiteAction.bind(null, accountId)}
           onClose={() => setCreating(false)}
+          addressBase={orgAddress?.base ?? null}
         />
       ) : null}
     </OrgAddressProvider>

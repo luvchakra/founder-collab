@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Check, ChevronDown, Pin, Plus } from "lucide-react";
+import { Building2, Check, ChevronDown, Pin, Settings2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,8 @@ import {
 import { cn } from "../../lib/utils";
 import { readPinnedBusinessIds, writePinnedBusinessIds } from "../../lib/pinned-businesses";
 import type { ShellBusiness } from "./types";
+import { ENVIRONMENT_COLOR } from "./environment-badge";
+import { ENVIRONMENT_LABEL } from "../../lib/org-address";
 
 /**
  * Topbar business switcher -- ported from co-founder-ai's
@@ -56,14 +58,18 @@ export function BusinessSwitcher({
   businesses,
   activeBusinessId,
   businessHref,
-  onCreateBusiness,
 }: {
   businesses: ShellBusiness[];
   activeBusinessId?: string | null;
   businessHref: (businessId: string) => string;
-  onCreateBusiness?: () => void;
 }) {
   const activeBusiness = businesses.find((b) => b.id === activeBusinessId) ?? null;
+  // PLATFORM-P1-10.5: the active organization's environments the user belongs to, linked
+  // by organization (never guessed from the environment's rank).
+  const activeOrganizationId = activeBusiness ? (activeBusiness.organizationId ?? activeBusiness.id) : null;
+  const siblings = activeOrganizationId
+    ? businesses.filter((b) => (b.organizationId ?? b.id) === activeOrganizationId)
+    : [];
   const [pinnedIds, setPinnedIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -110,6 +116,13 @@ export function BusinessSwitcher({
           <span className="min-w-0 flex-1 truncate">
             {activeBusiness?.name ?? "Select a business"}
           </span>
+          {activeBusiness ? (
+            <span
+              className={cn("size-2 shrink-0 rounded-full", ENVIRONMENT_COLOR[activeBusiness.environment ?? "production"].dot)}
+              title={ENVIRONMENT_LABEL[activeBusiness.environment ?? "production"]}
+              aria-label={`${ENVIRONMENT_LABEL[activeBusiness.environment ?? "production"]} environment`}
+            />
+          ) : null}
           <ChevronDown
             className={cn("size-4 shrink-0", activeBusiness ? "text-muted-foreground" : "text-primary")}
             aria-hidden="true"
@@ -117,6 +130,29 @@ export function BusinessSwitcher({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
+        {siblings.length > 1 ? (
+          <>
+            <div className="flex flex-wrap gap-1.5 px-2 py-1.5">
+              {siblings.map((b) => {
+                const env = b.environment ?? "production";
+                return (
+                  <Link
+                    key={b.id}
+                    href={businessHref(b.id)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs",
+                      b.id === activeBusinessId ? "border-primary text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span className={cn("size-2 rounded-full", ENVIRONMENT_COLOR[env].dot)} aria-hidden="true" />
+                    {ENVIRONMENT_LABEL[env]}
+                  </Link>
+                );
+              })}
+            </div>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         {businesses.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">No businesses yet.</p>
         ) : (
@@ -164,9 +200,11 @@ export function BusinessSwitcher({
           })
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onCreateBusiness} className="text-primary">
-          <Plus className="size-4" aria-hidden="true" />
-          Create New Business
+        <DropdownMenuItem asChild className="text-primary">
+          <Link href="/dashboard/organizations">
+            <Settings2 className="size-4" aria-hidden="true" />
+            Manage organizations
+          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -66,7 +66,6 @@ export function DashboardShell({
             businesses={businesses}
             activeBusinessId={activeBusinessId}
             businessHref={hrefFor}
-            onCreateBusiness={onCreateBusiness}
             alerts={alerts}
             chatSlot={chatSlot}
           />
