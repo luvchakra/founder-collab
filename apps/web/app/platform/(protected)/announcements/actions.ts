@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import {
   createAnnouncement,
+  createBusinessAnnouncement,
   deleteAnnouncement,
+  endAnnouncement,
   updateAnnouncement,
   type CreateAnnouncementInput,
   type DeleteAnnouncementInput,
@@ -42,4 +44,25 @@ export async function deleteAnnouncementAction(
   if (!result.ok) return result;
   revalidatePath("/platform/announcements");
   return result;
+}
+
+// PLATFORM-P1-10.13: End now (record kept) and a notice for one organization.
+export async function endAnnouncementAction(id: string, formData: FormData) {
+  const result = await endAnnouncement(id, String(formData.get("reason") ?? ""));
+  if (result.ok) revalidatePath("/platform/announcements");
+  return result;
+}
+
+export async function createBusinessAnnouncementAction(businessId: string, formData: FormData) {
+  const get = (k: string) => String(formData.get(k) ?? "");
+  const result = await createBusinessAnnouncement({
+    type: get("type") as "information" | "warning" | "critical",
+    title: get("title"),
+    message: get("message"),
+    businessId,
+    expireAt: get("expireAt") || null,
+    reason: get("reason"),
+  });
+  if (result.ok) revalidatePath("/platform/announcements");
+  return result.ok ? { ok: true as const, message: "Notice published to this organization." } : result;
 }

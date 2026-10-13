@@ -17,7 +17,7 @@ import {
 
 describe("AUDIT_RESOURCE_TYPE_OPTIONS", () => {
   it("lists all six newly-audited resource types, all eleven pre-existing ones, the billing ones, business overrides and legal versions", () => {
-    expect(AUDIT_RESOURCE_TYPE_OPTIONS).toHaveLength(23);
+    expect(AUDIT_RESOURCE_TYPE_OPTIONS).toHaveLength(30);
     const keys = new Set(AUDIT_RESOURCE_TYPE_OPTIONS.map((o) => o.key));
     for (const k of [
       "compliance_country",
@@ -43,6 +43,13 @@ describe("AUDIT_RESOURCE_TYPE_OPTIONS", () => {
       "ai_operation_switch",
       "business_override",
       "legal_document",
+      "organization",
+      "business_environment",
+      "business_address",
+      "business_status",
+      "business_notes",
+      "organization_plan",
+      "organization_profile",
     ]) {
       expect(keys.has(k as never)).toBe(true);
     }

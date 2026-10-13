@@ -7,6 +7,7 @@ import {
 import { Badge } from "@cofounderai/core/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@cofounderai/core/ui/table";
 import { AnnouncementDialog } from "./announcement-dialog";
+import { EndAnnouncement } from "./end-announcement";
 import { DeleteAnnouncementDialog } from "./delete-announcement-dialog";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
@@ -65,6 +66,7 @@ export default async function PlatformAnnouncementsPage() {
                     <AnnouncementDialog announcement={a} options={options} />
                     <DeleteAnnouncementDialog id={a.id} title={a.title} />
                   </div>
+                  {a.enabled && !(a.expireAt && new Date(a.expireAt) <= new Date()) ? <EndAnnouncement id={a.id} /> : null}
                 </li>
               ))}
             </ul>
@@ -98,6 +100,7 @@ export default async function PlatformAnnouncementsPage() {
                         <AnnouncementDialog announcement={a} options={options} />
                         <DeleteAnnouncementDialog id={a.id} title={a.title} />
                       </div>
+                      {a.enabled && !(a.expireAt && new Date(a.expireAt) <= new Date()) ? <EndAnnouncement id={a.id} /> : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -117,6 +120,7 @@ function typeLabel(type: Announcement["type"]): string {
 function audienceLabel(a: Announcement): string {
   if (a.audienceType === "specific_plan") return `Plan -- ${a.audiencePlan?.name ?? "?"}`;
   if (a.audienceType === "specific_country") return `Country -- ${a.audienceCountryCode ?? "?"}`;
+  if (a.audienceType === "specific_business") return "One organization";
   return a.audienceType === "all_users" ? "All users" : "All customers";
 }
 

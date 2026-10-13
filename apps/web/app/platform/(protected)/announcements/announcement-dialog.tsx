@@ -44,6 +44,7 @@ const AUDIENCE_LABELS: Record<AnnouncementAudienceType, string> = {
   all_users: "All users",
   specific_plan: "Specific plan",
   specific_country: "Specific country",
+  specific_business: "One organization",
 };
 
 /** `<input type="datetime-local">` wants "YYYY-MM-DDTHH:mm", not a full ISO string --
@@ -120,7 +121,8 @@ export function AnnouncementDialog({
         ? await updateAnnouncementAction({ id: announcement!.id, ...shared })
         : await createAnnouncementAction({
             ...shared,
-            audienceType,
+            // One-organization notices are created from the organization's page, never here.
+            audienceType: audienceType as Exclude<AnnouncementAudienceType, "specific_business">,
             audiencePlanId: String(formData.get("audiencePlanId") ?? ""),
             audienceCountryCode: String(formData.get("audienceCountryCode") ?? ""),
           });
@@ -193,7 +195,7 @@ export function AnnouncementDialog({
                   onChange={(e) => setAudienceType(e.target.value as AnnouncementAudienceType)}
                   className={FIELD_CLASS}
                 >
-                  {(Object.keys(AUDIENCE_LABELS) as AnnouncementAudienceType[]).map((a) => (
+                  {(Object.keys(AUDIENCE_LABELS) as AnnouncementAudienceType[]).filter((a) => a !== "specific_business").map((a) => (
                     <option key={a} value={a}>
                       {AUDIENCE_LABELS[a]}
                     </option>

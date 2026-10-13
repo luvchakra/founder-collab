@@ -62,18 +62,32 @@ it changes WonderArk's tenancy, authorization or payments (CLAUDE.md: architectu
 - Only "a business exists at this label" is cached, never its data.
 - Counts that can't be read show "Unavailable", never 0.
 
-## 4. Decisions for the owner (asked 2026-10-13)
+## 4. Owner decisions (2026-10-13)
 
-1. What is the organization: the **business** (recommended) or the account?
-2. URL shape on an organization's address: keep today's path routes and gate them by host, or
-   serve the product at the address root.
-3. Business suspension/disable enforced in RLS (changes `core.user_business_ids()` for every
-   table) — yes/no.
-4. Paid environments: test payments until a provider is wired (WonderID's choice), free, or real
-   checkout now.
+1. **The organization is the business.** Each business gets an address; each environment is a
+   sibling business in the same account.
+2. **The product is served from the address root** (`acme.ark.wonderapps.biz/discovery`). The
+   proxy rewrites `/discovery` to the existing `/<slug>/discovery` route; links that still carry
+   the slug are redirected to the root form; components that match routes read
+   `useAppPathname()`.
+3. **Suspension is not enforced in RLS.** A suspended or owner-disabled business is hidden from
+   lists, its address answers "paused" and refuses sign-in; `core.user_business_ids()` is
+   unchanged.
+4. **Paid environments use test payments** until a provider is wired (`payment_mode = 'test'`).
 
-Defaults assumed unless the owner says otherwise: nothing shared between environments (WonderID's
-decision); base host `ark.wonderapps.biz`, so `acme.ark.wonderapps.biz`; prefix 3–32 characters.
+Defaults kept (not asked): nothing shared between environments except the plan; base host
+`ark.wonderapps.biz`; prefix 3–32 characters.
+
+Adaptations to WonderArk:
+
+- **Feature flags per environment:** WonderArk's flags are scoped globally, by plan, module or
+  country; there is no per-business flag. The environment page links to Feature Flags and to
+  Business Overrides (per-business limits) instead of inventing a second flag system.
+- **Announcements:** WonderArk had no customer banner at all; one is added to the dashboard
+  (notices for everyone, the business's plan, or that one business). Country-targeted notices
+  aren't shown in it: a business records no country to match.
+- **Host lookup** runs with the service role: clients have no access to the `core` schema
+  before sign-in.
 
 ## 5. Infrastructure the owner sets up (once built)
 

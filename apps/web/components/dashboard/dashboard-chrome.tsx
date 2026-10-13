@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { OrgAddressProvider, useAppPathname } from "@cofounderai/core/shell/org-address-context";
 import { orgUrl } from "@cofounderai/core/lib/org-address";
+import { AnnouncementBanner } from "@cofounderai/core/shell/announcement-banner";
+import type { CustomerAnnouncement } from "@cofounderai/core/announcements/active";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
 import { readPinnedBusinessIds } from "@cofounderai/core/lib/pinned-businesses";
 import type {
@@ -39,6 +41,7 @@ export function DashboardChrome({
   createBusinessAction,
   createBusinessFromWebsiteAction,
   orgAddress,
+  announcementsByBusiness,
   children,
 }: {
   /** Straight from module-registry -- no `licensed` field yet, since that's a
@@ -67,6 +70,8 @@ export function DashboardChrome({
   /** PLATFORM-P1-10.1: the organization address this page is served on (null on the main
    * address), and the base host other organizations' addresses are built from. */
   orgAddress?: { hostSlug: string | null; base: string | null; protocol: string; port?: string };
+  /** PLATFORM-P1-10.13: active platform notices per business (read under the user's RLS). */
+  announcementsByBusiness?: Record<string, CustomerAnnouncement[]>;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
@@ -145,6 +150,7 @@ export function DashboardChrome({
           void signOut();
         }}
       >
+        {activeBusinessId ? <AnnouncementBanner announcements={announcementsByBusiness?.[activeBusinessId] ?? []} /> : null}
         {children}
       </DashboardShell>
       {creating ? (

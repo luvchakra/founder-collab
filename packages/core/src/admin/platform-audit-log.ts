@@ -67,6 +67,14 @@ const NEW_RESOURCE_TYPES: AuditResourceType[] = [
   "business_override",
   // PLATFORM-P1-09.1 -- Terms / Privacy Policy versions published.
   "legal_document",
+  // PLATFORM-P1-10.x -- organizations and environments.
+  "organization",
+  "business_environment",
+  "business_address",
+  "business_status",
+  "business_notes",
+  "organization_plan",
+  "organization_profile",
 ];
 
 /** The eleven resource types PLATFORM-P0-17 already built history tables for. */

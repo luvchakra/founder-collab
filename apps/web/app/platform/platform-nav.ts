@@ -56,6 +56,11 @@ export const PLATFORM_NAV_GROUPS: PlatformNavGroup[] = [
     links: [{ href: "/platform/branding", label: "Platform Branding" }],
   },
   {
+    // PLATFORM-P1-10.10: every customer organization and its environments.
+    label: "Customers",
+    links: [{ href: "/platform/organizations", label: "Organizations" }],
+  },
+  {
     label: "Plans",
     links: [
       { href: "/platform/plans", label: "Plans" },

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
 import { getPendingLegalAcceptances } from "@cofounderai/core/privacy/legal-acceptance";
 import { getHostBusiness, getRequestHost } from "@/lib/org-host";
+import { getAnnouncementsByBusiness } from "@cofounderai/core/announcements/active";
 import { isPlatformAdminEmail } from "@cofounderai/core/rbac/platform-admin";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
@@ -187,11 +188,13 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   // the raw registry straight through with no license check (docs/testing/
   // EXECUTION-2026-09-08.md finding 5). One batched query for every business on the
   // account; DashboardChrome filters by whichever business is currently active.
-  const [licensedByBusiness, accessByBusiness] = await Promise.all([
+  const [licensedByBusiness, accessByBusiness, announcementsByBusiness] = await Promise.all([
     listLicensedModuleKeysByBusiness(businesses.map((b) => b.id)),
     // RBAC-30/31: the user's role in each business. Navigation shows a module only when it
     // is licensed AND the role may open it; the route guard and RLS enforce the same.
     getMyBusinessAccess().catch(() => new Map<string, BusinessAccess>()),
+    // PLATFORM-P1-10.13: the platform's notices for each business.
+    getAnnouncementsByBusiness(businesses.map((b) => b.id)),
   ]);
   const licensedModuleKeysByBusiness = Object.fromEntries(
     Object.entries(licensedByBusiness).map(([businessId, keys]) => [businessId, modulesVisibleTo(accessByBusiness.get(businessId), keys)]),
@@ -230,6 +233,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       createBusinessAction={createBusinessAction}
       createBusinessFromWebsiteAction={createBusinessFromWebsiteAction}
       orgAddress={orgAddress}
+      announcementsByBusiness={announcementsByBusiness}
     >
       {children}
     </DashboardChrome>
