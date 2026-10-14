@@ -44,14 +44,12 @@ export function AppTopbar({
   businesses,
   activeBusinessId,
   businessHref,
-  onCreateBusiness,
   alerts,
   chatSlot,
 }: {
   businesses?: ShellBusiness[];
   activeBusinessId?: string | null;
   businessHref?: (businessId: string) => string;
-  onCreateBusiness?: () => void;
   /** Either the alerts themselves or a promise of them. The dashboard layout streams
    * them: gathering every licensed module's dashboard summary is the slowest thing the
    * shell does, and nothing else in the bar depends on it. */
@@ -69,7 +67,6 @@ export function AppTopbar({
             businesses={businesses}
             activeBusinessId={activeBusinessId}
             businessHref={businessHref ?? (() => "#")}
-            onCreateBusiness={onCreateBusiness}
           />
         ) : null}
       </div>

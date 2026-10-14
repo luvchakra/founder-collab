@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { OrgAddressProvider, useAppPathname } from "@cofounderai/core/shell/org-address-context";
+import { orgUrl } from "@cofounderai/core/lib/org-address";
+import { AnnouncementBanner } from "@cofounderai/core/shell/announcement-banner";
+import type { CustomerAnnouncement } from "@cofounderai/core/announcements/active";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
 import { readPinnedBusinessIds } from "@cofounderai/core/lib/pinned-businesses";
 import type {
@@ -13,6 +17,7 @@ import type {
   ShellUser,
 } from "@cofounderai/core/shell/types";
 import { CreateBusinessModal } from "@cofounderai/module-discovery/components/tenancy/create-business-modal";
+import { CREATE_BUSINESS_EVENT } from "./create-business-event";
 import type { CreateBusinessFromWebsiteState } from "@/app/(dashboard)/dashboard/actions";
 import { AiChatWidget } from "@cofounderai/module-discovery/components/chat/ai-chat-widget";
 import { getActiveIdsFromPath } from "@cofounderai/module-discovery/lib/tenancy/active-path";
@@ -36,6 +41,8 @@ export function DashboardChrome({
   alerts,
   createBusinessAction,
   createBusinessFromWebsiteAction,
+  orgAddress,
+  announcementsByBusiness,
   children,
 }: {
   /** Straight from module-registry -- no `licensed` field yet, since that's a
@@ -55,16 +62,25 @@ export function DashboardChrome({
   accountId: string;
   user: ShellUser;
   alerts?: ShellAlert[] | Promise<ShellAlert[]>;
-  createBusinessAction: (accountId: string, formData: FormData) => Promise<void>;
+  createBusinessAction: (
+    accountId: string,
+    prevState: CreateBusinessFromWebsiteState,
+    formData: FormData,
+  ) => Promise<CreateBusinessFromWebsiteState>;
   createBusinessFromWebsiteAction: (
     accountId: string,
     prevState: CreateBusinessFromWebsiteState,
     formData: FormData,
   ) => Promise<CreateBusinessFromWebsiteState>;
+  /** PLATFORM-P1-10.1: the organization address this page is served on (null on the main
+   * address), and the base host other organizations' addresses are built from. */
+  orgAddress?: { hostSlug: string | null; base: string | null; protocol: string; port?: string };
+  /** PLATFORM-P1-10.13: active platform notices per business (read under the user's RLS). */
+  announcementsByBusiness?: Record<string, CustomerAnnouncement[]>;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const router = useRouter();
   const { businessSlug: activeBusinessSlug } = getActiveIdsFromPath(pathname ?? "");
   const activeBusinessId = activeBusinessSlug ? (businesses.find((b) => b.slug === activeBusinessSlug)?.id ?? null) : null;
@@ -91,6 +107,13 @@ export function DashboardChrome({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // PLATFORM-P1-10.14: "New organization" on Manage organizations opens this same modal.
+  useEffect(() => {
+    const open = () => setCreating(true);
+    window.addEventListener(CREATE_BUSINESS_EVENT, open);
+    return () => window.removeEventListener(CREATE_BUSINESS_EVENT, open);
+  }, []);
+
   // Filtered per the *active* business, not the account as a whole -- switching
   // businesses (same URL shape the business switcher already navigates to) recomputes
   // this without a full page reload, same as activeBusinessId itself already does.
@@ -108,7 +131,7 @@ export function DashboardChrome({
   }, [modules, licensedModuleKeysByBusiness, effectiveBusinessId]);
 
   return (
-    <>
+    <OrgAddressProvider hostSlug={orgAddress?.hostSlug ?? null}>
       <DashboardShell
         modules={annotatedModules}
         businesses={businesses}
@@ -119,7 +142,15 @@ export function DashboardChrome({
           // this is the one place that turns it into the actual, slug-based URL, so
           // none of those five files need to know slugs exist at all.
           const business = businesses.find((b) => b.id === businessId);
-          return business ? `/${business.slug}` : "/dashboard";
+          if (!business) return "/dashboard";
+          // PLATFORM-P1-10.1: on an organization's address, another organization opens on its
+          // own address (sessions are per address). The current one keeps the path form,
+          // which the proxy serves from the address root.
+          if (orgAddress?.hostSlug && business.slug !== orgAddress.hostSlug) {
+            const url = orgUrl(business.slug, orgAddress.base, orgAddress.protocol, orgAddress.port);
+            if (url) return url;
+          }
+          return `/${business.slug}`;
         }}
         productsByBusiness={productsByBusiness}
         creditsUsedPercent={creditsUsedPercent}
@@ -131,6 +162,7 @@ export function DashboardChrome({
           void signOut();
         }}
       >
+        {activeBusinessId ? <AnnouncementBanner announcements={announcementsByBusiness?.[activeBusinessId] ?? []} /> : null}
         {children}
       </DashboardShell>
       {creating ? (
@@ -138,8 +170,9 @@ export function DashboardChrome({
           action={createBusinessAction.bind(null, accountId)}
           fromWebsiteAction={createBusinessFromWebsiteAction.bind(null, accountId)}
           onClose={() => setCreating(false)}
+          addressBase={orgAddress?.base ?? null}
         />
       ) : null}
-    </>
+    </OrgAddressProvider>
   );
 }

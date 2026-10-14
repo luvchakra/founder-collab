@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@cofounderai/core/shell/org-address-context";
 import { MessageCircle, Send, X } from "lucide-react";
 import { useDismiss } from "@cofounderai/core/hooks/use-dismiss";
 import { readSelectedModuleKey } from "@cofounderai/core/lib/module-selection";
@@ -21,7 +21,7 @@ import { ChatMarkdown } from "./chat-markdown";
  * conversation instead of carrying over whatever was in view before.
  */
 export function AiChatWidget() {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const activeIds = getActiveIdsFromPath(pathname ?? "");
   const threadKey = activeIds.productId ?? activeIds.businessSlug ?? "__account__";
   // Read directly from the shell's own storage (module-selection.ts) -- this widget

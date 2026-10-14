@@ -24,6 +24,9 @@ vi.mock("next/headers", () => ({ headers }));
 vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
 const { recordSignupAcceptance } = vi.hoisted(() => ({ recordSignupAcceptance: vi.fn() }));
 vi.mock("@cofounderai/core/privacy/legal-acceptance", () => ({ recordSignupAcceptance }));
+const gate = vi.hoisted(() => ({ orgAddressClosedReason: vi.fn(), refuseNonMemberOnOrgAddress: vi.fn(), onOrgAddress: vi.fn() }));
+vi.mock("@/lib/org-sign-in-gate", () => ({ orgAddressClosedReason: gate.orgAddressClosedReason, refuseNonMemberOnOrgAddress: gate.refuseNonMemberOnOrgAddress }));
+vi.mock("@/lib/org-host", () => ({ onOrgAddress: gate.onOrgAddress }));
 
 const {
   login,
@@ -475,3 +478,26 @@ describe("signOut", () => {
     expect(await captureRedirect(() => signOut())).toBe("/login");
   });
 });
+
+// PLATFORM-P1-10.2: password sign-in on an organization's address.
+describe("login on an organization's address", () => {
+  it("refuses a paused or missing organization before checking credentials", async () => {
+    const auth = mockAuth();
+    gate.orgAddressClosedReason.mockResolvedValueOnce("Acme is paused, so sign-in is closed. Contact its owner.");
+    expect(await login(null, form({ email: "a@b.com", password: "pw" }))).toEqual({ error: "Acme is paused, so sign-in is closed. Contact its owner." });
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it("refuses a non-member after sign-in", async () => {
+    mockAuth();
+    gate.refuseNonMemberOnOrgAddress.mockResolvedValueOnce("This account isn't a member of Acme.");
+    expect(await login(null, form({ email: "a@b.com", password: "pw" }))).toEqual({ error: "This account isn't a member of Acme." });
+  });
+
+  it("sends a member to the organization's home", async () => {
+    mockAuth();
+    gate.onOrgAddress.mockResolvedValueOnce(true);
+    expect(await captureRedirect(() => login(null, form({ email: "a@b.com", password: "pw" })))).toBe("/");
+  });
+});
+

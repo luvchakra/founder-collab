@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@cofounderai/core/shell/org-address-context";
 import { cn } from "@cofounderai/core/lib/utils";
 
 /**
@@ -13,7 +13,7 @@ import { cn } from "@cofounderai/core/lib/utils";
  * their sub-pages, so a campaign detail page keeps "Campaigns" highlighted.
  */
 export function SectionTabs({ tabs }: { tabs: { href: string; label: string; exact?: boolean }[] }) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   return (
     <nav aria-label="Section" className="-mx-1 overflow-x-auto">
       <ul className="flex min-w-max gap-1 border-b px-1">

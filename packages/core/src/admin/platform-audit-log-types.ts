@@ -31,7 +31,16 @@ export type AuditResourceType =
   // PLATFORM-P1-02.3 -- written by platform.business_limit_overrides' audit trigger.
   | "business_override"
   // PLATFORM-P1-09.1 -- written by platform.legal_document_versions' audit trigger.
-  | "legal_document";
+  | "legal_document"
+  // PLATFORM-P1-10.x -- organizations and environments, written by the platform.* console
+  // functions (migrations 20261013100000/110000).
+  | "organization"
+  | "business_environment"
+  | "business_address"
+  | "business_status"
+  | "business_notes"
+  | "organization_plan"
+  | "organization_profile";
 
 export type AuditLogEntry = {
   id: string;
@@ -70,6 +79,13 @@ export const AUDIT_RESOURCE_TYPE_OPTIONS: { key: AuditResourceType; label: strin
   { key: "ai_operation_switch", label: "AI Feature Kill Switch" },
   { key: "business_override", label: "Business Override" },
   { key: "legal_document", label: "Legal Document Version" },
+  { key: "organization", label: "Organization" },
+  { key: "business_environment", label: "Environment" },
+  { key: "business_address", label: "Organization Address" },
+  { key: "business_status", label: "Organization Status" },
+  { key: "business_notes", label: "Environment Notes" },
+  { key: "organization_plan", label: "Organization Plan" },
+  { key: "organization_profile", label: "Organization Details" },
   { key: "billing_provider", label: "Billing Provider" },
   { key: "billing_settings", label: "Billing Settings" },
   { key: "feature_flag", label: "Feature Flag" },
@@ -104,6 +120,13 @@ const RESOURCE_SEVERITY: Record<Exclude<AuditResourceType, "announcement">, Audi
   ai_operation_switch: "high",
   business_override: "high",
   legal_document: "high",
+  organization: "high",
+  business_environment: "high",
+  business_address: "high",
+  business_status: "high",
+  business_notes: "normal",
+  organization_plan: "high",
+  organization_profile: "normal",
   billing_provider: "high",
   billing_settings: "high",
   feature_flag: "high",

@@ -8,6 +8,9 @@ import { Label } from "@cofounderai/core/ui/label";
 import { Textarea } from "@cofounderai/core/ui/textarea";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cofounderai/core/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@cofounderai/core/ui/collapsible";
+import { NativeSelect } from "@cofounderai/core/ui/native-select";
+import { ENVIRONMENT_LABEL, ORGANIZATION_ENVIRONMENTS, PREFIX_MAX, environmentSlug, slugProblem, suggestedPrefix, type OrgEnvironment } from "@cofounderai/core/lib/org-address";
 
 /** Structurally identical to apps/web's own `CreateBusinessFromWebsiteState` -- declared
  * locally rather than imported, the same "no cross-module/app internals import"
@@ -31,13 +34,17 @@ export function CreateBusinessModal({
   action,
   fromWebsiteAction,
   onClose,
+  addressBase,
 }: {
-  action: (formData: FormData) => Promise<void>;
+  /** Returns an error in words, or redirects to the new organization. */
+  action: (prevState: CreateBusinessFromWebsiteState, formData: FormData) => Promise<CreateBusinessFromWebsiteState>;
   fromWebsiteAction: (
     prevState: CreateBusinessFromWebsiteState,
     formData: FormData,
   ) => Promise<CreateBusinessFromWebsiteState>;
   onClose: () => void;
+  /** PLATFORM-P1-10.14: the base host organization addresses live under, for the preview. */
+  addressBase?: string | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [mounted, setMounted] = useState(false);
@@ -45,6 +52,15 @@ export function CreateBusinessModal({
     fromWebsiteAction,
     null,
   );
+  const [manualState, manualFormAction] = useActionState<CreateBusinessFromWebsiteState, FormData>(action, null);
+  // PLATFORM-P1-10.14: the address prefix follows the name until edited.
+  const [name, setName] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [prefixEdited, setPrefixEdited] = useState(false);
+  const [environment, setEnvironment] = useState<OrgEnvironment>("production");
+  const shownPrefix = prefixEdited ? prefix : suggestedPrefix(name);
+  const address = environmentSlug(shownPrefix, environment === "sandbox" ? "production" : environment);
+  const addressProblem = shownPrefix ? slugProblem(address) : null;
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setMounted(true));
@@ -135,11 +151,45 @@ export function CreateBusinessModal({
           </TabsContent>
 
           <TabsContent value="manual" className="mt-4">
-            <form action={action} className="flex flex-col gap-4">
+            <form action={manualFormAction} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="create-business-name">Business Name</Label>
-                <Input id="create-business-name" name="name" required />
+                <Input id="create-business-name" name="name" required value={name} onChange={(e) => setName(e.target.value)} />
+                <p className="font-mono text-xs text-muted-foreground">
+                  {address ? (addressBase ? `${address}.${addressBase}` : `/${address}`) : "Your address appears here"}
+                </p>
+                {addressProblem ? <p className="text-xs text-destructive">{addressProblem}</p> : null}
               </div>
+              <input type="hidden" name="slug" value={address} />
+              <input type="hidden" name="environment" value={environment} />
+              <Collapsible>
+                <CollapsibleTrigger className="text-xs text-muted-foreground hover:text-foreground">Address and environment</CollapsibleTrigger>
+                <CollapsibleContent className="flex flex-col gap-3 pt-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="create-business-prefix">Address prefix</Label>
+                    <Input
+                      id="create-business-prefix"
+                      value={shownPrefix}
+                      maxLength={PREFIX_MAX}
+                      onChange={(e) => {
+                        setPrefixEdited(true);
+                        setPrefix(e.target.value.toLowerCase());
+                      }}
+                      className="font-mono"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="create-business-environment">Environment</Label>
+                    <NativeSelect id="create-business-environment" value={environment} onChange={(e) => setEnvironment(e.target.value as OrgEnvironment)}>
+                      {ORGANIZATION_ENVIRONMENTS.map((env) => (
+                        <option key={env} value={env}>
+                          {ENVIRONMENT_LABEL[env]}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="create-business-website-manual">Website (optional)</Label>
                 <Input id="create-business-website-manual" name="website" type="text" placeholder="https://" />
@@ -154,6 +204,11 @@ export function CreateBusinessModal({
                 </Button>
                 <SubmitButton pendingText="Creating...">Create Business</SubmitButton>
               </div>
+              {manualState && "error" in manualState ? (
+                <p role="alert" className="text-sm text-destructive">
+                  {manualState.error}
+                </p>
+              ) : null}
             </form>
           </TabsContent>
         </Tabs>

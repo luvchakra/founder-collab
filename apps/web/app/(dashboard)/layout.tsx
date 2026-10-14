@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@cofounderai/core/db/server";
 import { getPendingLegalAcceptances } from "@cofounderai/core/privacy/legal-acceptance";
+import { getHostBusiness, getRequestHost } from "@/lib/org-host";
+import { getAnnouncementsByBusiness } from "@cofounderai/core/announcements/active";
 import { isPlatformAdminEmail } from "@cofounderai/core/rbac/platform-admin";
 import type { ShellAlert } from "@cofounderai/core/shell/types";
 import { getCurrentAccount } from "@cofounderai/module-discovery/lib/tenancy/queries";
@@ -34,6 +36,22 @@ const OTHER_MODULE_ALERTS: Record<"inventory" | "fsm" | "crm" | "gst", (business
   crm: getCrmAlerts,
   gst: getGstAlerts,
 };
+
+type BusinessEnvironment = { environment: "production" | "development" | "test" | "staging"; organizationId: string | null };
+
+async function loadEnvironments(supabase: Awaited<ReturnType<typeof createClient>>): Promise<Map<string, BusinessEnvironment>> {
+  const { data, error } = await supabase.schema("core").rpc("my_business_environments");
+  if (error) {
+    console.error("Business environments unavailable:", error.message);
+    return new Map();
+  }
+  return new Map(
+    ((data ?? []) as { business_id: string; environment: BusinessEnvironment["environment"]; parent_business_id: string | null }[]).map((r) => [
+      r.business_id,
+      { environment: r.environment, organizationId: r.parent_business_id },
+    ]),
+  );
+}
 
 /**
  * Item #13 of a UX pass: "expand the notification feature... to all modules" -- the
@@ -169,16 +187,33 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   ]);
   if (pendingLegal.length > 0) redirect("/legal/accept");
 
+  // PLATFORM-P1-10.1/10.2: on an organization's address, a paused organization (suspended, or
+  // disabled by its owner) is closed to everyone (owner decision 2026-10-13: hidden and
+  // closed, not RLS-enforced); the shell learns which address it is on.
+  const [requestHost, hostBusiness] = await Promise.all([getRequestHost(), getHostBusiness().catch(() => null)]);
+  if (hostBusiness && !("missing" in hostBusiness) && hostBusiness.status !== "active") redirect("/organization-paused");
+  const orgAddress = {
+    hostSlug: requestHost.target.kind === "organization" ? requestHost.target.label : null,
+    base: requestHost.base,
+    protocol: requestHost.protocol,
+    port: requestHost.port,
+  };
+
   // CLAUDE.md's 4th licensing-enforcement layer ("UI built from module-registry
   // filtered by entitlements") -- previously missing entirely here: this used to pass
   // the raw registry straight through with no license check (docs/testing/
   // EXECUTION-2026-09-08.md finding 5). One batched query for every business on the
   // account; DashboardChrome filters by whichever business is currently active.
-  const [licensedByBusiness, accessByBusiness] = await Promise.all([
+  const [licensedByBusiness, accessByBusiness, announcementsByBusiness, environmentByBusiness] = await Promise.all([
     listLicensedModuleKeysByBusiness(businesses.map((b) => b.id)),
     // RBAC-30/31: the user's role in each business. Navigation shows a module only when it
     // is licensed AND the role may open it; the route guard and RLS enforce the same.
     getMyBusinessAccess().catch(() => new Map<string, BusinessAccess>()),
+    // PLATFORM-P1-10.13: the platform's notices for each business.
+    getAnnouncementsByBusiness(businesses.map((b) => b.id)),
+    // PLATFORM-P1-10.5: which environment each business is, and its organization. Without it
+    // the switcher simply shows no environment chips.
+    loadEnvironments(supabase),
   ]);
   const licensedModuleKeysByBusiness = Object.fromEntries(
     Object.entries(licensedByBusiness).map(([businessId, keys]) => [businessId, modulesVisibleTo(accessByBusiness.get(businessId), keys)]),
@@ -203,7 +238,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       // `logo_url` is the column; `logoUrl` is what the shell's own (deliberately
       // framework-shaped, not row-shaped) ShellBusiness exposes, so it's mapped here
       // rather than leaking the DB's snake_case into packages/core.
-      businesses={businesses.map((b) => ({ ...b, logoUrl: b.logo_url, roleName: accessByBusiness.get(b.id)?.roleName ?? null }))}
+      businesses={businesses.map((b) => ({ ...b, logoUrl: b.logo_url, roleName: accessByBusiness.get(b.id)?.roleName ?? null, ...environmentByBusiness.get(b.id) }))}
       productsByBusiness={productsByBusiness}
       creditsUsedPercent={creditsPercent}
       accountId={account?.id ?? ""}
@@ -216,6 +251,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       alerts={alerts}
       createBusinessAction={createBusinessAction}
       createBusinessFromWebsiteAction={createBusinessFromWebsiteAction}
+      orgAddress={orgAddress}
+      announcementsByBusiness={announcementsByBusiness}
     >
       {children}
     </DashboardChrome>

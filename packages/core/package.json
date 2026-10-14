@@ -42,6 +42,7 @@
     "./billing/*": "./src/billing/*.ts",
     "./events/*": "./src/events/*.ts",
     "./audit/*": "./src/audit/*.ts",
+    "./announcements/*": "./src/announcements/*.ts",
     "./api-v1/*": "./src/api-v1/*.ts",
     "./audit-log/*": "./src/components/audit-log/*.tsx",
     "./admin/*": "./src/admin/*.ts",

@@ -10,6 +10,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
   all_users: "All users",
   specific_plan: "Specific plan",
   specific_country: "Specific country",
+  specific_business: "One organization",
 };
 const SCOPE_LABEL: Record<string, string> = { global: "Global", plan: "Plan", module: "Module", country: "Country" };
 

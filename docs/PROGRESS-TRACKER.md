@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 543 |
+| ✅ Done | 557 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 2 |
-| **Total** | **627** |
+| **Total** | **641** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 101 | 7 | 2 | 110 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 115 | 7 | 2 | 124 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -432,6 +432,25 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P0-19.3` | Desktop Tables | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/ai-feature-switches.tsx` +1 |
 | `PLATFORM-P0-19.4` | Responsive Mobile | ✅ Done | `apps/web/app/platform/(protected)/ai-feature-policies/ai-feature-switches.tsx` +1 |
 | `PLATFORM-P0-19.5` | Professional Layout Rule | ✅ Done | `apps/web/app/platform/platform-shell.tsx` |
+
+### Organization Addresses and Environments (added 2026-10-13)
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `PLATFORM-P1-10.1` | Organization Address | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +12 |
+| `PLATFORM-P1-10.2` | Address Sign-in | ✅ Done | `apps/web/app/(auth)/actions.test.ts` +9 |
+| `PLATFORM-P1-10.3` | Main Address Landing | ✅ Done | `apps/web/app/go/route.ts` +2 |
+| `PLATFORM-P1-10.4` | Environments | ✅ Done | `packages/core/src/lib/org-address.ts` +1 |
+| `PLATFORM-P1-10.5` | Environment Colours and Switching | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +3 |
+| `PLATFORM-P1-10.6` | One Plan per Organization | ✅ Done | `packages/core/src/admin/platform-organizations.ts` +3 |
+| `PLATFORM-P1-10.7` | Remove Environment | ✅ Done | `supabase/migrations/20261013100000_core_organization_addresses_environments.sql` |
+| `PLATFORM-P1-10.8` | Manage Organizations | ✅ Done | `apps/web/app/(dashboard)/dashboard/organizations/actions.ts` +5 |
+| `PLATFORM-P1-10.9` | Paid Environments | ✅ Done | `apps/web/app/(dashboard)/dashboard/organizations/actions.ts` +4 |
+| `PLATFORM-P1-10.10` | Organizations Console | ✅ Done | `apps/web/app/platform/(protected)/organizations/[id]/page.tsx` +5 |
+| `PLATFORM-P1-10.11` | Environment Console | ✅ Done | `apps/web/app/platform/(protected)/organizations/[id]/page.tsx` +4 |
+| `PLATFORM-P1-10.12` | Organization Details | ✅ Done | `apps/web/app/platform/(protected)/organizations/actions.ts` +4 |
+| `PLATFORM-P1-10.13` | Organization Announcements | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +8 |
+| `PLATFORM-P1-10.14` | Organization Onboarding | ✅ Done | `apps/web/app/(dashboard)/dashboard/actions.ts` +6 |
 
 ## Discovery — offering-centric upgrade
 

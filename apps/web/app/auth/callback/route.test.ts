@@ -14,6 +14,8 @@ const { createClient, cookieStore } = vi.hoisted(() => ({
 }));
 vi.mock("@cofounderai/core/db/server", () => ({ createClient }));
 vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
+const { refuseNonMemberOnOrgAddress } = vi.hoisted(() => ({ refuseNonMemberOnOrgAddress: vi.fn() }));
+vi.mock("../../../lib/org-sign-in-gate", () => ({ refuseNonMemberOnOrgAddress }));
 
 const { GET } = await import("./route");
 
@@ -256,3 +258,23 @@ describe("GET /auth/callback — first sign-in through Google, Microsoft or Link
     expect(path(await GET(request("?code=valid&next=/reset-password")))).toBe("/reset-password");
   });
 });
+
+// PLATFORM-P1-10.2: on an organization's address, social sign-in keeps the session only for
+// that organization's members.
+describe("on an organization's address", () => {
+  it("refuses a non-member after the code exchange and says why", async () => {
+    mockAuth();
+    refuseNonMemberOnOrgAddress.mockResolvedValueOnce("This account isn't a member of Acme.");
+    const response = await GET(request("?code=abc&next=/"));
+    expect(response.headers.get("location")).toContain("/login?error=");
+    expect(reason(response)).toBe("This account isn't a member of Acme.");
+  });
+
+  it("lets a member through to the destination", async () => {
+    mockAuth();
+    refuseNonMemberOnOrgAddress.mockResolvedValueOnce(null);
+    const response = await GET(request("?code=abc&next=/"));
+    expect(response.headers.get("location")).toBe(`${ORIGIN}/`);
+  });
+});
+

@@ -2,6 +2,20 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { MODULE_VIEW_PERMISSION } from "../rbac/module-permissions";
+import {
+  APP_TOP_SEGMENTS,
+  baseAppHost,
+  orgAddressRequired,
+  orgInternalPath,
+  orgUrl,
+  orgVisiblePath,
+  parseHost,
+} from "../lib/org-address";
+import { lookUpOrgHost } from "./org-host-lookup";
+
+/** PLATFORM-P1-10.3: the last organization address a signed-in person used, shared across
+ * the base domain (it holds only a slug) so the main address can send them back to it. */
+export const LAST_ORG_COOKIE_NAME = "wa_last_org";
 
 /** Every static path the app owns at the top level -- a business's own slug
  * (core.business_settings.slug) can never collide with one of these, since this is
@@ -42,6 +56,12 @@ const RESERVED_TOP_SEGMENTS = new Set([
   // BRAND-06: the web app manifest (apps/web/app/manifest.ts). Browsers fetch it without
   // credentials, so it must never bounce to /login.
   "manifest.webmanifest",
+  // PLATFORM-P1-10.1/10.3: the main address's hand-off to an organization's address, and the
+  // pages an address answers with when nothing (or nothing reachable) lives there.
+  "go",
+  "organization-not-found",
+  "organization-paused",
+  "service-unavailable",
 ]);
 const AUTH_PATHS = new Set(["/login", "/signup"]);
 
@@ -236,12 +256,92 @@ export async function updateSession(request: NextRequest) {
   // renders, for the anonymous marketing visitor too. The trade: a revoked session's
   // token stays valid until it expires (an hour at most) instead of dying on the next
   // request. Supabase's own guidance for server-side auth is this call, for this reason.
-  const { data: claims } = await supabase.auth.getClaims();
+  //
+  // PLATFORM-P1-10.1: on an organization's address, whether a business lives there is looked
+  // up alongside (cached per label, existence only -- see org-host-lookup.ts).
+  const base = baseAppHost();
+  const host = parseHost(request.headers.get("host"), base);
+  const [{ data: claims }, hostLookup] = await Promise.all([
+    supabase.auth.getClaims(),
+    host.kind === "organization" ? lookUpOrgHost(host.label) : Promise.resolve(null),
+  ]);
   const user = claims?.claims ?? null;
 
   const { pathname } = request.nextUrl;
-  const isProtected = isProtectedPath(pathname);
+
+  // PLATFORM-P1-10.1: an address with no business answers 404, a failed lookup 503 -- never a
+  // fallback to some other business. The host never authorizes: membership still does.
+  let orgSlug: string | null = null;
+  if (host.kind === "invalid" || host.kind === "organization") {
+    if (host.kind === "invalid" || hostLookup !== "found") {
+      const unavailable = hostLookup === "error";
+      const status = unavailable ? 503 : 404;
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json(
+          { error: unavailable ? "ORGANIZATION_LOOKUP_UNAVAILABLE" : "ORGANIZATION_NOT_FOUND" },
+          { status },
+        );
+      }
+      if (pathname.startsWith("/_next/") || pathname === "/organization-not-found" || pathname === "/service-unavailable") {
+        return supabaseResponse;
+      }
+      const url = request.nextUrl.clone();
+      url.pathname = unavailable ? "/service-unavailable" : "/organization-not-found";
+      url.search = "";
+      return NextResponse.rewrite(url, { status });
+    }
+    orgSlug = host.label;
+    // The vendor console lives on the main address only.
+    if (base && (pathname === "/platform" || pathname.startsWith("/platform/"))) {
+      return NextResponse.redirect(new URL(`${request.nextUrl.protocol}//${base}${portSuffix(request)}${pathname}${request.nextUrl.search}`));
+    }
+    // Links built the path way (/acme/discovery) lead to the address-root form (/discovery).
+    const visible = orgVisiblePath(pathname, orgSlug);
+    if (visible) {
+      const url = request.nextUrl.clone();
+      url.pathname = visible;
+      return NextResponse.redirect(url, 308);
+    }
+  }
+
+  // PLATFORM-P1-10.3: with ORG_ADDRESS_REQUIRED the main address is the landing page only. An
+  // organization's page asked for here goes to that organization's own address; a signed-in
+  // person arriving at the front door is handed to /go, which picks their organization.
+  const landingOnly = host.kind === "base" && orgAddressRequired();
+  if (landingOnly && base) {
+    const first = pathname.split("/")[1] ?? "";
+    if (first && !APP_TOP_SEGMENTS.has(first) && !first.includes(".")) {
+      const target = orgUrl(first, base, request.nextUrl.protocol.replace(":", ""), request.nextUrl.port || undefined);
+      if (target) return NextResponse.redirect(new URL(`${target}${pathname.slice(first.length + 1) || "/"}${request.nextUrl.search}`), 307);
+    }
+  }
+
+  const effectivePath = orgSlug ? (orgInternalPath(pathname, orgSlug) ?? pathname) : pathname;
+  const isProtected = isProtectedPath(effectivePath);
   const isAuthPath = AUTH_PATHS.has(pathname);
+
+  // Serve an organization's page from its internal route, keeping the refreshed session
+  // cookies, and remember the address for the main address's hand-off.
+  const respond = () => {
+    let response = supabaseResponse;
+    if (effectivePath !== pathname) {
+      const url = request.nextUrl.clone();
+      url.pathname = effectivePath;
+      response = NextResponse.rewrite(url, { request: { headers: request.headers } });
+      supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+    }
+    if (orgSlug && user && base) {
+      response.cookies.set(LAST_ORG_COOKIE_NAME, orgSlug, {
+        domain: `.${base}`,
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: request.nextUrl.protocol === "https:",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
+    return response;
+  };
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
@@ -253,14 +353,16 @@ export async function updateSession(request: NextRequest) {
   // auth pages. Decided here rather than in the page itself so "/" has nothing left to
   // read at request time and prerenders as a static page served from the CDN -- the
   // one URL every first-time visitor hits, and previously a 2-3 s cold render.
-  if (user && (isAuthPath || pathname === "/")) {
+  // On an organization's address its own home is the destination; on the landing-only main
+  // address, /go picks the organization.
+  if (user && (isAuthPath || (pathname === "/" && !orgSlug) || (landingOnly && pathname === "/dashboard"))) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    url.pathname = orgSlug ? "/" : landingOnly ? "/go" : "/dashboard";
     return NextResponse.redirect(url);
   }
 
   if (!user) {
-    return supabaseResponse;
+    return respond();
   }
 
   // A read-only client for the two lookups below -- session cookie refresh is already
@@ -288,7 +390,7 @@ export async function updateSession(request: NextRequest) {
   // because they're not a member) falls through unredirected -- Next.js 404s on it
   // naturally, same as it already does for a bogus id under the current page-level
   // notFound() checks.
-  const legacyMatch = pathname.match(LEGACY_BUSINESS_PATH);
+  const legacyMatch = effectivePath.match(LEGACY_BUSINESS_PATH);
   if (legacyMatch) {
     const [, legacyBusinessId, rest] = legacyMatch;
     const { data } = await coreClient
@@ -301,13 +403,13 @@ export async function updateSession(request: NextRequest) {
       url.pathname = `/${data.slug}${rest}`;
       return NextResponse.redirect(url, 308);
     }
-    return supabaseResponse;
+    return respond();
   }
 
   // Same idea for the module route prefixes that have since been renamed (offerings,
   // service, finance) -- pure path rewrites, so no DB lookup is needed here the way the
   // legacy business-id redirect above requires one. See legacyModuleRedirectPath().
-  const legacyModulePath = legacyModuleRedirectPath(pathname);
+  const legacyModulePath = legacyModuleRedirectPath(effectivePath);
   if (legacyModulePath) {
     const url = request.nextUrl.clone();
     url.pathname = legacyModulePath;
@@ -318,7 +420,7 @@ export async function updateSession(request: NextRequest) {
   // protected, business-scoped route. Loaded once here (a single query) rather than
   // leaving every module route to resolve its own licensed-module set.
   if (isProtected) {
-    const businessSlug = activeBusinessSlugFromPath(pathname);
+    const businessSlug = activeBusinessSlugFromPath(effectivePath);
     if (businessSlug) {
       const { data: settings } = await coreClient
         .from("business_settings")
@@ -371,7 +473,7 @@ export async function updateSession(request: NextRequest) {
         // Platform-wide full block checked first -- it blocks every business regardless of
         // that business's own license status, so it is the more universal fact when both
         // would otherwise apply.
-        const platformDisabledKey = findPlatformDisabledModuleForRoute(pathname, platformDisabledModules);
+        const platformDisabledKey = findPlatformDisabledModuleForRoute(effectivePath, platformDisabledModules);
         if (platformDisabledKey) {
           const info = platformStatusByKey.get(platformDisabledKey);
           const url = request.nextUrl.clone();
@@ -384,7 +486,7 @@ export async function updateSession(request: NextRequest) {
           return NextResponse.rewrite(url);
         }
 
-        const blockedModuleKey = findUnlicensedModuleForRoute(pathname, licensedModules);
+        const blockedModuleKey = findUnlicensedModuleForRoute(effectivePath, licensedModules);
         if (blockedModuleKey) {
           const license = (licenses ?? []).find((l) => l.module_key === blockedModuleKey);
           const url = request.nextUrl.clone();
@@ -401,7 +503,7 @@ export async function updateSession(request: NextRequest) {
         // RBAC-20 / §29-§31: licensed is not enough -- the user's role in this business
         // must also open the module. Checked after the licence so the two messages stay
         // distinct ("not in your plan" vs "no permission").
-        const routeModule = moduleForRoute(pathname);
+        const routeModule = moduleForRoute(effectivePath);
         const viewPermission = routeModule ? MODULE_VIEW_PERMISSION[routeModule.key] : undefined;
         if (routeModule && viewPermission) {
           const { data: allowed } = await coreClient.rpc("has_permission", { p_business_id: businessId, p_key: viewPermission });
@@ -418,5 +520,9 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  return supabaseResponse;
+  return respond();
+}
+
+function portSuffix(request: NextRequest): string {
+  return request.nextUrl.port ? `:${request.nextUrl.port}` : "";
 }

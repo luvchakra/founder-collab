@@ -27,7 +27,8 @@ import type { ModuleKey } from "../licensing/types";
  */
 
 export type AnnouncementType = "information" | "warning" | "maintenance" | "critical";
-export type AnnouncementAudienceType = "all_customers" | "all_users" | "specific_plan" | "specific_country";
+// "specific_business": PLATFORM-P1-10.13, one organization (migration 20261013110000).
+export type AnnouncementAudienceType = "all_customers" | "all_users" | "specific_plan" | "specific_country" | "specific_business";
 
 export type Announcement = {
   id: string;
@@ -37,6 +38,7 @@ export type Announcement = {
   audienceType: AnnouncementAudienceType;
   audiencePlan: { id: string; name: string } | null;
   audienceCountryCode: string | null;
+  audienceBusinessId: string | null;
   publishAt: string | null;
   expireAt: string | null;
   maintenanceStart: string | null;
@@ -56,6 +58,7 @@ type AnnouncementRow = {
   audience_type: AnnouncementAudienceType;
   audience_plan_id: string | null;
   audience_country_code: string | null;
+  audience_business_id?: string | null;
   publish_at: string | null;
   expire_at: string | null;
   maintenance_start: string | null;
@@ -100,6 +103,7 @@ function toAnnouncement(row: AnnouncementRow, plansById: Map<string, PlanRow>): 
     audienceType: row.audience_type,
     audiencePlan: row.audience_plan_id ? { id: row.audience_plan_id, name: plan?.name ?? row.audience_plan_id } : null,
     audienceCountryCode: row.audience_country_code,
+    audienceBusinessId: row.audience_business_id ?? null,
     publishAt: row.publish_at,
     expireAt: row.expire_at,
     maintenanceStart: row.maintenance_start,
@@ -376,3 +380,48 @@ export function isAnnouncementActive(
   if (announcement.expireAt && now > new Date(announcement.expireAt)) return false;
   return true;
 }
+
+// ---------------------------------------------------------------------------------------
+// PLATFORM-P1-10.13: a notice for one organization, and End now. Both re-check the
+// superadmin in the database (platform.create_business_announcement / end_announcement).
+// ---------------------------------------------------------------------------------------
+
+const businessAnnouncementSchema = z.object({
+  type: z.enum(["information", "warning", "critical"]),
+  title: z.string().trim().min(1, "Give it a title.").max(200, "Keep the title to 200 characters."),
+  message: z.string().trim().min(1, "Write the message.").max(5000, "Keep the message to 5000 characters."),
+  businessId: z.string().uuid(),
+  expireAt: z.string().trim().nullable(),
+  reason: z.string().trim().min(1, "A reason is required."),
+});
+
+export async function createBusinessAnnouncement(input: z.input<typeof businessAnnouncementSchema>): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireSuperadmin();
+  const parsed = businessAnnouncementSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const d = parsed.data;
+  const expireAt = d.expireAt ? new Date(d.expireAt) : null;
+  if (expireAt && (Number.isNaN(expireAt.getTime()) || expireAt.getTime() <= Date.now())) return { ok: false, error: "The end must be in the future." };
+  const supabase = await createClient({ schema: "platform" });
+  const { error } = await supabase.rpc("create_business_announcement", {
+    p_type: d.type,
+    p_title: d.title,
+    p_message: d.message,
+    p_business: d.businessId,
+    p_publish_at: null,
+    p_expire_at: expireAt ? expireAt.toISOString() : null,
+    p_reason: d.reason,
+  });
+  return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/** Ends a notice now, keeping its record. Says so when it had already ended. */
+export async function endAnnouncement(id: string, reason: string): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  await requireSuperadmin();
+  if (!reason.trim()) return { ok: false, error: "A reason is required." };
+  const supabase = await createClient({ schema: "platform" });
+  const { data, error } = await supabase.rpc("end_announcement", { p_id: id, p_reason: reason.trim() });
+  if (error) return { ok: false, error: error.message };
+  return data ? { ok: true, message: "Ended." } : { ok: true, message: "It had already ended." };
+}
+

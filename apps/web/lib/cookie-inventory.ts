@@ -20,6 +20,7 @@ export type StoredItem = {
 export const COOKIE_INVENTORY: StoredItem[] = [
   { name: "sb-…-auth-token", kind: "cookie", category: "essential", purpose: "Keeps you signed in (Supabase Auth).", lifetime: "Until you sign out" },
   { name: "wa_pending_invite", kind: "cookie", category: "essential", purpose: "Carries an invitation through sign-in or sign-up.", lifetime: "1 day" },
+  { name: "wa_last_org", kind: "cookie", category: "essential", purpose: "The organization address you last used, so the main site can take you back to it.", lifetime: "1 year" },
   { name: "sidebar_state", kind: "cookie", category: "preference", purpose: "Whether you left the sidebar open or collapsed.", lifetime: "7 days" },
   { name: "theme", kind: "local storage", category: "preference", purpose: "Your light, dark or system theme.", lifetime: "Until cleared" },
   { name: "wonderark:install-banner", kind: "local storage", category: "preference", purpose: "That you installed the app or dismissed the install banner.", lifetime: "Until cleared" },

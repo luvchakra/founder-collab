@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useAppPathname } from "@cofounderai/core/shell/org-address-context";
 import { Check, ChevronRight } from "lucide-react";
 import { cn } from "@cofounderai/core/lib/utils";
 import { useAutoPopulateProgress } from "./auto-populate-progress";
@@ -35,7 +35,7 @@ export function ProductNav({
    * unless it's the current step. */
   completed?: Partial<Record<StageId, boolean>>;
 }) {
-  const pathname = usePathname();
+  const pathname = useAppPathname();
   const { activeStage } = useAutoPopulateProgress();
   const tabs: { id: StageId; href: string; label: string }[] = [
     { id: "overview", href: basePath, label: "Overview" },

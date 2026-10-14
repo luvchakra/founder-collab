@@ -62,6 +62,10 @@ export interface ShellBusiness {
   logoUrl?: string | null;
   /** RBAC-31 -- the signed-in user's role in this business, shown in the switcher. */
   roleName?: string | null;
+  /** PLATFORM-P1-10.5: production, development, test or staging (production when unset). */
+  environment?: "production" | "development" | "test" | "staging";
+  /** PLATFORM-P1-10.5: the business this one is an environment of; null for an organization. */
+  organizationId?: string | null;
 }
 
 /** A discovery product/workspace belonging to a business -- shown under the sidebar's

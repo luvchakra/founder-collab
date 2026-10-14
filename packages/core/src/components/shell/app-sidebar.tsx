@@ -3,7 +3,8 @@
 import { Suspense, use, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAppPathname } from "./org-address-context";
 import { ChevronDown, Lock, Plus, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { BRAND_NAME } from "../../lib/brand";
@@ -369,7 +370,7 @@ export function AppSidebar({
 }) {
   const { open, setOpen } = useSidebar();
   const router = useRouter();
-  const pathname = usePathname();
+  const pathname = useAppPathname();
 
   // Navigations inside the rail are client-side transitions (<Link>): the shell stays
   // mounted and only the page segment is fetched, which is what makes a click feel
