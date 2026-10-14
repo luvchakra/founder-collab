@@ -457,7 +457,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P1-11.1` | Read-only MCP Server | ✅ Done | `apps/web/app/api/mcp/route.ts` +2 |
-| `PLATFORM-P1-11.2` | AI Agent over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +3 |
+| `PLATFORM-P1-11.2` | AI Agent over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +5 |
 
 ## Discovery — offering-centric upgrade
 
