@@ -1,11 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleMcpBody, MCP_RESOURCES, toApiRequest, type McpServerDeps } from "./server";
+import { handleMcpBody, MCP_RESOURCES, toApiRequest, toAssistantRequest, type McpServerDeps } from "./server";
 
 // PLATFORM-P1-11.1: the MCP server is a read-only adapter over the public API v1.
 
 function makeDeps(response: Response = Response.json({ data: [], meta: { limit: 25, offset: 0, count: 0 } })) {
-  const apiGet = vi.fn<McpServerDeps["apiGet"]>(async () => response);
-  return { deps: { apiGet, openApiSpec: () => ({ openapi: "3.0.0" }), version: "abc1234" } satisfies McpServerDeps, apiGet };
+  const apiGet = vi.fn<McpServerDeps["apiGet"]>(async () => response.clone());
+  const askAssistant = vi.fn<McpServerDeps["askAssistant"]>(async () => ({ answer: "Two customers.", answered: true, usedResources: ["customers"] }));
+  return {
+    deps: { apiGet, askAssistant, openApiSpec: () => ({ openapi: "3.0.0" }), version: "abc1234" } satisfies McpServerDeps,
+    apiGet,
+    askAssistant,
+  };
 }
 
 const AUTH = "Bearer sk_live_" + "a".repeat(32);
@@ -28,7 +33,7 @@ describe("MCP protocol", () => {
   it("lists only read-only tools", async () => {
     const { deps } = makeDeps();
     const reply = (await handleMcpBody(deps, { jsonrpc: "2.0", id: 3, method: "tools/list" }, AUTH)) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
-    expect(reply.result.tools.map((t) => t.name)).toEqual(["list_records", "get_record"]);
+    expect(reply.result.tools.map((t) => t.name)).toEqual(["list_records", "get_record", "ask_assistant"]);
     expect(reply.result.tools.every((t) => t.annotations.readOnlyHint)).toBe(true);
   });
 
@@ -91,5 +96,63 @@ describe("tools", () => {
       expect(list.id).toBeUndefined();
       expect(toApiRequest("get_record", { resource, id: "x1" })).toMatchObject({ resource, id: "x1" });
     }
+  });
+});
+
+// PLATFORM-P1-11.2: ask_assistant, WonderArk's AI agent over MCP.
+describe("ask_assistant", () => {
+  const ask = (args: Record<string, unknown>) => ({ jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "ask_assistant", arguments: args } });
+  const parse = (reply: unknown) => {
+    const r = reply as { result: { isError: boolean; content: { text: string }[] } };
+    return { isError: r.result.isError, body: JSON.parse(r.result.content[0]!.text) };
+  };
+
+  it("reads the chosen records with the caller's own key, then answers from exactly those", async () => {
+    const { deps, apiGet, askAssistant } = makeDeps(Response.json({ data: [{ id: "c1", name: "Asha" }] }));
+    const { isError, body } = parse(await handleMcpBody(deps, ask({ question: "How many customers?", resources: ["customers"] }), AUTH));
+    expect(apiGet).toHaveBeenCalledTimes(1);
+    const [resource, id, query, authorization] = apiGet.mock.calls[0]!;
+    expect([resource, id, query.toString(), authorization]).toEqual(["customers", undefined, "limit=25", AUTH]);
+    expect(askAssistant).toHaveBeenCalledWith("How many customers?", [{ resource: "customers", data: [{ id: "c1", name: "Asha" }] }]);
+    expect(isError).toBe(false);
+    expect(body).toEqual({ answer: "Two customers.", answered: true, sources: ["customers"], skipped: [], provenance: "ai-generated" });
+  });
+
+  it("defaults to every kind of record, and skips (and reports) what the key can't read", async () => {
+    const { deps, apiGet, askAssistant } = makeDeps();
+    apiGet.mockImplementation(async (resource) =>
+      resource === "jobs" ? Response.json({ error: { code: "MODULE_NOT_LICENSED" } }, { status: 403 }) : Response.json({ data: [] }),
+    );
+    const { body } = parse(await handleMcpBody(deps, ask({ question: "Anything overdue?" }), AUTH));
+    expect(apiGet.mock.calls.map((c) => c[0])).toEqual([...MCP_RESOURCES]);
+    expect(apiGet.mock.calls.every((c) => c[3] === AUTH)).toBe(true);
+    expect(body.skipped).toEqual([{ resource: "jobs", status: 403 }]);
+    expect(askAssistant.mock.calls[0]![1].map((r) => r.resource)).not.toContain("jobs");
+  });
+
+  it("never calls the model when the key can read nothing", async () => {
+    const { deps, askAssistant } = makeDeps(Response.json({ error: { code: "MODULE_NOT_LICENSED" } }, { status: 403 }));
+    const { isError, body } = parse(await handleMcpBody(deps, ask({ question: "Stock?", resources: ["products"] }), AUTH));
+    expect(isError).toBe(true);
+    expect(body.skipped).toEqual([{ resource: "products", status: 403 }]);
+    expect(askAssistant).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed answer (AI off, provider down) as a tool error, never an answer", async () => {
+    const { deps, askAssistant } = makeDeps();
+    askAssistant.mockRejectedValue(new Error("The AI assistant isn't configured on this deployment."));
+    const { isError, body } = parse(await handleMcpBody(deps, ask({ question: "Sales today?", resources: ["sales-orders"] }), AUTH));
+    expect(isError).toBe(true);
+    expect(body.error).toContain("isn't configured");
+    expect(body.answer).toBeUndefined();
+  });
+
+  it("validates the question and resources before any read", async () => {
+    const { deps, apiGet } = makeDeps();
+    for (const args of [{}, { question: "" }, { question: "x".repeat(501) }, { question: "q", resources: [] }, { question: "q", resources: ["users"] }, { question: "q", resources: "customers" }]) {
+      expect(await handleMcpBody(deps, ask(args), AUTH)).toMatchObject({ error: { code: -32602 } });
+    }
+    expect(apiGet).not.toHaveBeenCalled();
+    expect(toAssistantRequest({ question: " q ", resources: ["jobs", "jobs"] })).toEqual({ question: "q", resources: ["jobs"] });
   });
 });

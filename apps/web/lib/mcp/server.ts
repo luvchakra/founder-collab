@@ -8,6 +8,10 @@
  *
  * Arguments come from an external agent: they are validated here (resource from a fixed
  * list, id and paging bounded) and never reach anything but the API dispatcher.
+ *
+ * PLATFORM-P1-11.2 -- `ask_assistant` is WonderArk's AI agent: it reads records through
+ * that same API with the caller's own key, then has the assistant answer from them. The
+ * model only writes an answer; it chooses no records and calls nothing.
  */
 
 export const MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"] as const;
@@ -28,6 +32,9 @@ export const MCP_RESOURCES = [
 ] as const;
 
 const MAX_LIMIT = 100;
+/** Rows read per resource to ground one ask_assistant answer. */
+const ASSIST_ROWS_PER_RESOURCE = 25;
+const MAX_QUESTION_LENGTH = 500;
 
 /** Runs a read-only API v1 request (`GET /api/v1/<resource>[/<id>]?<query>`) with the
  * caller's own Authorization header and returns its Response. */
@@ -72,12 +79,41 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
+  {
+    name: "ask_assistant",
+    title: "Ask the WonderArk assistant",
+    description:
+      "Asks WonderArk's AI assistant a question about this business. It reads the latest records of the chosen kinds (all kinds this key can read when omitted) and answers only from them. Returns { answer, answered, sources, skipped, provenance: \"ai-generated\" }. Changes nothing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: { type: "string", minLength: 1, maxLength: MAX_QUESTION_LENGTH, description: "The question, in plain words." },
+        resources: {
+          type: "array",
+          items: { type: "string", enum: [...MCP_RESOURCES] },
+          uniqueItems: true,
+          description: "Which kinds of records to answer from (default: all).",
+        },
+      },
+      required: ["question"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  },
 ] as const;
 
 const OPENAPI_URI = "wonderark://api/openapi.json";
 
+/** What the assistant answers with; see @cofounderai/core/ai/business-assistant. */
+export type AssistantAnswer = { answer: string; answered: boolean; usedResources: string[] };
+
+/** Answers a question from records already read with the caller's key. Throws an Error
+ * whose message is safe to show when it can't (AI off, not configured, provider down). */
+export type AskAssistant = (question: string, records: { resource: string; data: unknown[] }[]) => Promise<AssistantAnswer>;
+
 export type McpServerDeps = {
   apiGet: ApiGet;
+  askAssistant: AskAssistant;
   /** The public API's OpenAPI document, offered as an MCP resource. */
   openApiSpec: () => unknown;
   version: string;
@@ -97,6 +133,19 @@ function toolArgs(params: unknown): { name: string; args: Record<string, unknown
 }
 
 /** Validates a tool call into the API request it maps to. Throws InvalidParams. */
+/** Validates ask_assistant's arguments. Throws InvalidParams. */
+export function toAssistantRequest(args: Record<string, unknown>): { question: string; resources: string[] } {
+  const question = typeof args.question === "string" ? args.question.trim() : "";
+  if (question.length === 0 || question.length > MAX_QUESTION_LENGTH) {
+    throw new InvalidParams(`question must be 1 to ${MAX_QUESTION_LENGTH} characters.`);
+  }
+  if (args.resources === undefined) return { question, resources: [...MCP_RESOURCES] };
+  if (!Array.isArray(args.resources) || args.resources.length === 0 || !args.resources.every(isResource)) {
+    throw new InvalidParams(`resources must be a non-empty list of: ${MCP_RESOURCES.join(", ")}`);
+  }
+  return { question, resources: [...new Set(args.resources)] };
+}
+
 export function toApiRequest(name: string, args: Record<string, unknown>): { resource: string; id?: string; query: URLSearchParams } {
   if (name !== "list_records" && name !== "get_record") throw new InvalidParams(`Unknown tool: ${name}`);
   if (!isResource(args.resource)) throw new InvalidParams(`resource must be one of: ${MCP_RESOURCES.join(", ")}`);
@@ -119,8 +168,49 @@ export function toApiRequest(name: string, args: Record<string, unknown>): { res
   return { resource: args.resource, query };
 }
 
+function textResult(value: unknown, isError: boolean) {
+  return { content: [{ type: "text", text: JSON.stringify(value) }], isError };
+}
+
+async function askAssistant(deps: McpServerDeps, args: Record<string, unknown>, authorization: string) {
+  const { question, resources } = toAssistantRequest(args);
+  // Read every chosen kind with the caller's own key: what the key can't read (module not
+  // licensed, no permission) is skipped and reported, never worked around.
+  const query = new URLSearchParams({ limit: String(ASSIST_ROWS_PER_RESOURCE) });
+  const reads = await Promise.all(
+    resources.map(async (resource) => {
+      const response = await deps.apiGet(resource, undefined, query, authorization);
+      if (!response.ok) return { resource, status: response.status, data: null };
+      const body = (await response.json().catch(() => null)) as { data?: unknown } | null;
+      return { resource, status: response.status, data: Array.isArray(body?.data) ? body.data : null };
+    }),
+  );
+  const records = reads.filter((r) => r.data !== null).map((r) => ({ resource: r.resource, data: r.data as unknown[] }));
+  const skipped = reads.filter((r) => r.data === null).map((r) => ({ resource: r.resource, status: r.status }));
+  if (records.length === 0) {
+    return textResult({ error: "This key can't read any of the records asked about, so there is nothing to answer from.", skipped }, true);
+  }
+  try {
+    const reply = await deps.askAssistant(question, records);
+    return textResult(
+      {
+        answer: reply.answer,
+        answered: reply.answered,
+        sources: reply.usedResources,
+        skipped,
+        provenance: "ai-generated",
+      },
+      false,
+    );
+  } catch (err) {
+    // A failed answer is reported as a failure, never as an answer.
+    return textResult({ error: err instanceof Error ? err.message : "The assistant could not answer.", skipped }, true);
+  }
+}
+
 async function callTool(deps: McpServerDeps, params: unknown, authorization: string) {
   const { name, args } = toolArgs(params);
+  if (name === "ask_assistant") return askAssistant(deps, args, authorization);
   const req = toApiRequest(name, args);
   const response = await deps.apiGet(req.resource, req.id, req.query, authorization);
   const text = await response.text();
@@ -148,7 +238,7 @@ async function handleOne(deps: McpServerDeps, message: JsonRpcMessage, authoriza
           capabilities: { tools: { listChanged: false }, resources: { listChanged: false, subscribe: false } },
           serverInfo: { name: "wonderark", title: "WonderArk", version: deps.version },
           instructions:
-            "Read-only access to one WonderArk business, scoped by the API key used to connect. Use list_records and get_record; nothing here changes any data.",
+            "Read-only access to one WonderArk business, scoped by the API key used to connect. Use list_records and get_record to read records, and ask_assistant to have WonderArk's AI assistant answer a question from them; nothing here changes any data.",
         });
       }
       case "ping":
