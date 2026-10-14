@@ -1,6 +1,6 @@
 # Organization addresses, environments and the vendor console
 
-Brings WonderID's 2026-10-13 work (repository `luvchakra/wonder-agent`, studied read-only on
+Brings WonderID's 2026-10-13 work (repository `luvchakra/wonder-id`, then named `wonder-agent`, studied read-only on
 2026-10-13 at `1bcb39f`) into WonderArk, fitted to WonderArk's own model. This note records what
 WonderID did, what each piece maps to here, and the decisions the owner must make before any of
 it changes WonderArk's tenancy, authorization or payments (CLAUDE.md: architecture is locked).

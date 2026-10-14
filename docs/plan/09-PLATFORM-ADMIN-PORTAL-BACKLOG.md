@@ -1857,7 +1857,7 @@ The central principle is:
 
 # 40. Organization Addresses and Environments (added 2026-10-13)
 
-Brought over from WonderID (`luvchakra/wonder-agent`, 2026-10-13). Mapping and the owner's
+Brought over from WonderID (`luvchakra/wonder-id`, then named `wonder-agent`, 2026-10-13). Mapping and the owner's
 decisions: `docs/design/organization-addresses-environments.md`. In WonderArk the organization
 is the **business**; each environment is a sibling business with its own data.
 

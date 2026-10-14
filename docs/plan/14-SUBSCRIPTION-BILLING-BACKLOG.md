@@ -1,7 +1,7 @@
 # WonderArk — Razorpay + Stripe Subscription & Licensing Integration
 ## Implementation-ready specification for Claude Code
 
-**Repository:** `https://github.com/luvchakra/founder-collab`  
+**Repository:** `https://github.com/luvchakra/wonder-ark`  
 **Branch:** `main`  
 **Purpose:** Allow WonderArk customers to purchase platform subscription plans, automatically provision the corresponding module licenses/entitlements, manage renewals/upgrades/downgrades/cancellations, and give Platform Admin complete control over pricing, payment providers, subscriptions, payments and billing operations.
 
