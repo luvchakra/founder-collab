@@ -1857,7 +1857,7 @@ The central principle is:
 
 # 40. Organization Addresses and Environments (added 2026-10-13)
 
-Brought over from WonderID (`luvchakra/wonder-agent`, 2026-10-13). Mapping and the owner's
+Brought over from WonderID (`luvchakra/wonder-id`, then named `wonder-agent`, 2026-10-13). Mapping and the owner's
 decisions: `docs/design/organization-addresses-environments.md`. In WonderArk the organization
 is the **business**; each environment is a sibling business with its own data.
 
@@ -1962,3 +1962,41 @@ names the records it drew on; a refused, unconfigured or failed answer is a tool
 answer. It changes nothing. Runs on the platform's AI credential (no signed-in session to read the
 business's own key with), records every call in `core.ai_runs`, and honours the AI feature kill
 switch (`answer_business_question`).
+
+---
+
+# 42. AI Replies on WhatsApp (added 2026-10-14)
+
+Design and owner decisions: `docs/design/crm-whatsapp-ai-replies.md`. Phase 1 (12.1–12.4)
+drafts only; phase 2 (12.5–12.6) sends on its own and is built after the owner reviews the
+drafts' quality.
+
+## PLATFORM-P1-12.1 — AI-drafted WhatsApp replies
+
+For a WhatsApp account in "draft and approve" mode, a new conversation's draft is a real
+answer written from the business's facts (falling back to today's acknowledgement when the
+model can't answer, the topic is sensitive, the output is invalid or the provider is down).
+A person edits or sends it.
+
+## PLATFORM-P1-12.2 — Business facts for replies
+
+The facts a reply may use, gathered by plain code with an id each: business profile (hours,
+address, contact, website), recorded products and prices, product knowledge.
+
+## PLATFORM-P1-12.3 — Order and job status facts
+
+The sender's own open orders and jobs, found by the phone number the message came from.
+
+## PLATFORM-P1-12.4 — Reply provenance
+
+Every AI draft records the facts it used and its AI run; the ticket thread labels it as AI.
+
+## PLATFORM-P1-12.5 — Auto-send mode
+
+Per WhatsApp account, opt-in: a confident answer on an allowed topic is sent without a person,
+after a saved, policy-checked, idempotent, audited proposal.
+
+## PLATFORM-P1-12.6 — Auto-reply limits
+
+100 auto-replies per business per day, 3 per conversation, the 24-hour window, opt-outs, and
+the AI kill switch.

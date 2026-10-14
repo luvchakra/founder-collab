@@ -111,3 +111,11 @@ export type OfferingSummary = {
   offeringType: string | null;
   status: string;
 };
+
+/** PLATFORM-P1-12.2: one saved knowledge entry about an offering, for a reply to quote. */
+export type OfferingKnowledgeEntry = {
+  id: string;
+  offeringName: string;
+  sourceName: string;
+  content: string;
+};

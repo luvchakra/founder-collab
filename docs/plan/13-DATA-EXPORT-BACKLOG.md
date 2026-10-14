@@ -6,7 +6,7 @@ This document is an implementation-ready specification for adding a **consistent
 
 It was prepared against the latest `main` branch of:
 
-`https://github.com/luvchakra/founder-collab/tree/main`
+`https://github.com/luvchakra/wonder-ark/tree/main`
 
 Repository snapshot inspected:
 

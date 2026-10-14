@@ -9,6 +9,7 @@ import { markInteractionNotActionable } from "@cofounderai/module-crm/lib/intera
 import { convertInteractionToLead, convertInteractionToOpportunity, convertInteractionToTask } from "@cofounderai/module-crm/lib/interactions/conversion-actions";
 import { addConversationProduct, createOutOfStockWaitlist, removeConversationProduct } from "@cofounderai/module-crm/lib/conversations/products";
 import { generateConversationSummary, type ConversationSummaryResult } from "@cofounderai/module-crm/lib/ai/conversation-summary";
+import { generateReplyDraft, type StoredReplyDraft } from "@cofounderai/module-crm/lib/ai/reply-draft";
 
 /** CRM-06.3's assign/reassign action -- ownerId "" unassigns (assignEntity treats
  * null the same as an explicit unassign). */
@@ -93,6 +94,17 @@ export async function generateConversationSummaryAction(businessId: string, conv
     return result;
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not generate a summary." };
+  }
+}
+
+/** PLATFORM-P1-12.1: "Draft with AI" -- writes (or returns the cached) draft for the latest
+ * customer message. Draft only; the person still sends. A failure says what failed (AI
+ * switched off, no key, provider down) rather than showing a generic error. */
+export async function generateReplyDraftAction(businessId: string, interactionId: string): Promise<StoredReplyDraft | { error: string }> {
+  try {
+    return await generateReplyDraft(businessId, interactionId);
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not draft a reply." };
   }
 }
 

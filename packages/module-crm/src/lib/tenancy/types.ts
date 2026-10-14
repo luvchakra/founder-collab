@@ -8,6 +8,11 @@ export type Business = {
   description: string | null;
   website: string | null;
   industry: string | null;
+  /** PLATFORM-P1-12.2: contact details a customer reply may quote; null when not recorded. */
+  contact_phone: string | null;
+  contact_email: string | null;
+  address: string | null;
+  opening_hours: string | null;
   created_at: string;
   updated_at: string;
 };

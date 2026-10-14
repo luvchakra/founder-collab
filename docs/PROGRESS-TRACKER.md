@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 559 |
+| ✅ Done | 563 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 0 |
+| ❔ Unverified | 2 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 2 |
-| **Total** | **643** |
+| **Total** | **649** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 117 | 7 | 2 | 126 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 121 | 7 | 4 | 132 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,12 +43,14 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-2 stories are neither built nor deliberately set aside:
+4 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
+| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 
 ## Platform build-out
 
@@ -458,6 +460,17 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 |---|---|---|---|
 | `PLATFORM-P1-11.1` | Read-only MCP Server | ✅ Done | `apps/web/app/api/mcp/route.ts` +2 |
 | `PLATFORM-P1-11.2` | AI Agent over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +5 |
+
+### AI Replies on WhatsApp (added 2026-10-14)
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `PLATFORM-P1-12.1` | AI-drafted WhatsApp replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/actions.ts` +8 |
+| `PLATFORM-P1-12.2` | Business facts for replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +10 |
+| `PLATFORM-P1-12.3` | Order and job status facts | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft-core.test.ts` +1 |
+| `PLATFORM-P1-12.4` | Reply provenance | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft.test.ts` +3 |
+| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 
 ## Discovery — offering-centric upgrade
 

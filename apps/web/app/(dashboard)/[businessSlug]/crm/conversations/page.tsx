@@ -40,6 +40,7 @@ import {
   createTaskFromInteractionAction,
   createWaitlistAction,
   generateConversationSummaryAction,
+  generateReplyDraftAction,
   markInteractionNotActionableAction,
   removeConversationProductAction,
   sendWhatsAppMediaAction,
@@ -48,6 +49,7 @@ import {
 } from "./actions";
 import { ConversationSummaryCard } from "./conversation-summary-card";
 import { WhatsAppReplyForm } from "./reply-form";
+import { getReplyDraft } from "@cofounderai/module-crm/lib/ai/reply-draft";
 import { WhatsAppMediaSendForm } from "./media-send-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
@@ -151,6 +153,7 @@ export default async function CrmConversationsPage({
   const lastInboundInteraction = selected ? [...selected.interactions].reverse().find((i) => i.direction === "inbound") : undefined;
   const suggestedReply =
     selected && whatsAppWindow?.withinWindow && lastInboundInteraction ? await getDraftReplyForInteraction(businessId, lastInboundInteraction.id) : null;
+  const replyDraft = whatsAppWindow?.withinWindow && lastInboundInteraction ? await getReplyDraft(businessId, lastInboundInteraction.id) : null;
   const conversationSummary = selected ? await getConversationSummary(businessId, selected.id) : null;
 
   // CRM-10.2: products this specific conversation has expressed interest in, each with
@@ -451,6 +454,8 @@ export default async function CrmConversationsPage({
                 checkAction={checkResponseQualityAction.bind(null, businessId, selected.id)}
                 suggestedDraft={suggestedReply?.draft || null}
                 suggestedDraftSources={suggestedReply?.sources}
+                aiDraft={replyDraft}
+                draftAction={lastInboundInteraction ? generateReplyDraftAction.bind(null, businessId, lastInboundInteraction.id) : undefined}
               />
               <WhatsAppMediaSendForm key={`media-${selected.interactions.length}`} action={sendWhatsAppMediaAction.bind(null, businessId, selected.id)} />
             </>
