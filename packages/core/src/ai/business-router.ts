@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { APICallError, NoObjectGeneratedError, RetryError, type LanguageModel } from "ai";
 import { createClient } from "../db/server";
+import { createAdminClient } from "../db/admin";
 import { decryptApiKey } from "../crypto/api-key";
 import { resolveModelId, type AiProvider, type AiQualityTier } from "./model-registry";
 import { getOperationSpec, type AiOperation } from "./operation-registry";
@@ -104,7 +105,10 @@ async function getAccountProviderCredential(businessId: string, client?: Supabas
   if (businessError) throw businessError;
   if (!business) return null;
 
-  const discoveryClient = await createClient({ schema: "discovery" });
+  // A caller with no session (an MCP call on a business API key) passes `client`; the session
+  // client would read nothing there, so the same one-row read runs as the service role,
+  // pinned to this business's own account.
+  const discoveryClient = client ? createAdminClient({ schema: "discovery" }) : await createClient({ schema: "discovery" });
   const { data, error } = await discoveryClient
     .from("ai_provider_credentials")
     .select("provider, encrypted_api_key")

@@ -100,6 +100,21 @@ const TOOLS = [
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
+  {
+    name: "draft_whatsapp_reply",
+    title: "Draft a WhatsApp reply",
+    description:
+      "Drafts an answer to the latest customer message in one of this business's WhatsApp conversations, written only from the business's own facts (opening hours, address, contact details, active products with recorded prices, the customer's own orders and jobs). Returns { status: \"answered\" | \"not_answerable\", answer, topic, facts_used, provenance: \"ai-generated\" }. The draft is saved for the team to review; nothing is sent to the customer.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        conversation_id: { type: "string", description: "The CRM conversation's id." },
+      },
+      required: ["conversation_id"],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
 ] as const;
 
 const OPENAPI_URI = "wonderark://api/openapi.json";
@@ -111,9 +126,14 @@ export type AssistantAnswer = { answer: string; answered: boolean; usedResources
  * whose message is safe to show when it can't (AI off, not configured, provider down). */
 export type AskAssistant = (question: string, records: { resource: string; data: unknown[] }[]) => Promise<AssistantAnswer>;
 
+/** PLATFORM-P1-12.7: drafts (never sends) a WhatsApp reply for one conversation of the key's
+ * own business. Throws an Error whose message is safe to show when it can't. */
+export type DraftWhatsAppReply = (conversationId: string, readList: (resource: "sales-orders" | "jobs") => Promise<Record<string, unknown>[] | null>) => Promise<unknown>;
+
 export type McpServerDeps = {
   apiGet: ApiGet;
   askAssistant: AskAssistant;
+  draftWhatsAppReply: DraftWhatsAppReply;
   /** The public API's OpenAPI document, offered as an MCP resource. */
   openApiSpec: () => unknown;
   version: string;
@@ -208,9 +228,37 @@ async function askAssistant(deps: McpServerDeps, args: Record<string, unknown>, 
   }
 }
 
+/** Validates draft_whatsapp_reply's arguments. Throws InvalidParams. */
+export function toDraftRequest(args: Record<string, unknown>): { conversationId: string } {
+  const id = args.conversation_id;
+  if (typeof id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    throw new InvalidParams("conversation_id must be a conversation's id (a UUID).");
+  }
+  return { conversationId: id };
+}
+
+async function draftWhatsAppReply(deps: McpServerDeps, args: Record<string, unknown>, authorization: string) {
+  const { conversationId } = toDraftRequest(args);
+  // Orders and jobs are read with the caller's own key, so their modules' licences apply.
+  const readList = async (resource: "sales-orders" | "jobs") => {
+    const response = await deps.apiGet(resource, undefined, new URLSearchParams({ limit: String(MAX_LIMIT) }), authorization);
+    if (!response.ok) return null;
+    const body = (await response.json().catch(() => null)) as { data?: unknown } | null;
+    return Array.isArray(body?.data) ? (body.data as Record<string, unknown>[]) : null;
+  };
+  try {
+    const draft = await deps.draftWhatsAppReply(conversationId, readList);
+    return textResult({ ...(draft as object), provenance: "ai-generated", sent: false }, false);
+  } catch (err) {
+    // A refused or failed draft is reported as a failure, never as a draft.
+    return textResult({ error: err instanceof Error ? err.message : "Could not draft a reply." }, true);
+  }
+}
+
 async function callTool(deps: McpServerDeps, params: unknown, authorization: string) {
   const { name, args } = toolArgs(params);
   if (name === "ask_assistant") return askAssistant(deps, args, authorization);
+  if (name === "draft_whatsapp_reply") return draftWhatsAppReply(deps, args, authorization);
   const req = toApiRequest(name, args);
   const response = await deps.apiGet(req.resource, req.id, req.query, authorization);
   const text = await response.text();

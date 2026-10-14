@@ -4,6 +4,7 @@ import { readReleaseInfo } from "@cofounderai/core/admin/platform-release";
 import { dispatchApiV1Request, serveOpenApiSpec } from "../v1/dispatch";
 import { answerBusinessQuestion } from "@cofounderai/core/ai/business-assistant";
 import { handleMcpBody, type McpServerDeps } from "@/lib/mcp/server";
+import { generateReplyDraftForApiKey } from "@cofounderai/module-crm/lib/ai/reply-draft-api";
 
 /**
  * PLATFORM-P1-11.1 -- the MCP endpoint (Streamable HTTP, stateless, JSON responses only).
@@ -17,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 const MAX_BODY_BYTES = 1_000_000;
 
-function deps(origin: string, businessId: string): McpServerDeps {
+function deps(origin: string, businessId: string, permissions: string[]): McpServerDeps {
   return {
     apiGet: (resource, id, query, authorization) => {
       const path = `/api/v1/${encodeURIComponent(resource)}${id ? `/${encodeURIComponent(id)}` : ""}`;
@@ -27,6 +28,8 @@ function deps(origin: string, businessId: string): McpServerDeps {
     },
     // PLATFORM-P1-11.2: the business is the API key's own, never one named by the caller.
     askAssistant: (question, records) => answerBusinessQuestion({ businessId, question, records }),
+    // PLATFORM-P1-12.7: likewise pinned to the key's business and its permission snapshot.
+    draftWhatsAppReply: (conversationId, readList) => generateReplyDraftForApiKey({ businessId, permissions, conversationId, readList }),
     openApiSpec: () => serveOpenApiSpec().json(),
     version: readReleaseInfo().version ?? "dev",
   };
@@ -34,8 +37,9 @@ function deps(origin: string, businessId: string): McpServerDeps {
 
 export async function POST(request: Request) {
   let businessId: string;
+  let permissions: string[];
   try {
-    businessId = (await resolveApiKey(request)).businessId;
+    ({ businessId, permissions } = await resolveApiKey(request));
   } catch (err) {
     const response = errorResponse(err);
     if (response.status === 401) response.headers.set("WWW-Authenticate", 'Bearer realm="wonderark"');
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   const authorization = request.headers.get("authorization") ?? "";
-  const reply = await handleMcpBody(deps(new URL(request.url).origin, businessId), body, authorization);
+  const reply = await handleMcpBody(deps(new URL(request.url).origin, businessId, permissions), body, authorization);
   if (reply === null) return new Response(null, { status: 202 });
   return Response.json(reply);
 }
