@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useRouter } from "next/navigation";
-import { OrgAddressProvider, useAppPathname } from "@cofounderai/core/shell/org-address-context";
-import { orgUrl } from "@cofounderai/core/lib/org-address";
+import { usePathname, useRouter } from "next/navigation";
+import { OrgAddressProvider } from "@cofounderai/core/shell/org-address-context";
+import { appPathname, orgUrl } from "@cofounderai/core/lib/org-address";
 import { AnnouncementBanner } from "@cofounderai/core/shell/announcement-banner";
 import type { CustomerAnnouncement } from "@cofounderai/core/announcements/active";
 import { DashboardShell } from "@cofounderai/core/shell/dashboard-shell";
@@ -80,7 +80,9 @@ export function DashboardChrome({
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
-  const pathname = useAppPathname();
+  // Not useAppPathname(): this component renders the OrgAddressProvider, so it sits above
+  // it and would read no address -- the active business on acme.<host>/admin/... was lost.
+  const pathname = appPathname(usePathname() ?? "", orgAddress?.hostSlug);
   const router = useRouter();
   const { businessSlug: activeBusinessSlug } = getActiveIdsFromPath(pathname ?? "");
   const activeBusinessId = activeBusinessSlug ? (businesses.find((b) => b.slug === activeBusinessSlug)?.id ?? null) : null;
