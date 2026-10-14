@@ -1951,3 +1951,14 @@ business's records. Authenticated with that business's API key as the bearer tok
 reads through the public API v1, so the key's business, module licences, permissions and rate
 limit apply unchanged. Tools: `list_records`, `get_record`; resource: the API's OpenAPI document.
 Nothing it exposes writes or acts.
+
+## PLATFORM-P1-11.2 — AI Agent over MCP
+
+WonderArk's AI assistant as the MCP tool `ask_assistant` (owner's choice 2026-10-14, "Ask the
+assistant"). The tool reads the latest records of the kinds asked for (all when omitted) through
+the public API v1 with the connecting key, skips and reports what the key can't read, and has the
+assistant answer only from those records, quoted as data. The answer is labelled AI-generated and
+names the records it drew on; a refused, unconfigured or failed answer is a tool error, never an
+answer. It changes nothing. Runs on the platform's AI credential (no signed-in session to read the
+business's own key with), records every call in `core.ai_runs`, and honours the AI feature kill
+switch (`answer_business_question`).

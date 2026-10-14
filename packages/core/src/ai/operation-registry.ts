@@ -25,6 +25,7 @@ export type AiOperation =
   | "generate_research_brief"
   | "extract_business_offerings"
   | "answer_help_question"
+  | "answer_business_question"
   | "marketing_strategy_draft"
   | "marketing_content_assist"
   | "funding_outreach_draft"
@@ -128,6 +129,11 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // own documentation, and a model that went looking elsewhere would answer about some
   // other product.
   answer_help_question: { qualityTier: "balanced", requiresWebSearch: false },
+  // PLATFORM-P1-11.2: the MCP server's ask_assistant tool. Balanced, same reasoning as
+  // answer_help_question: the records it answers from were already read deterministically
+  // through the public API with the caller's own key, so this is writing a short answer
+  // from data in hand. No web search: the business's own records are the only source.
+  answer_business_question: { qualityTier: "balanced", requiresWebSearch: false },
   // Discovery Marketing/Funding (MKT-04/09, FND-11/13/08). All draft-only: the result is
   // stored for a person to review and never acts by itself. Investor research is the one
   // that reads the live web, so it takes the reasoning tier with search, like
