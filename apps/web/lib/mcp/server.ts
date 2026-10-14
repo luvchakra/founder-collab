@@ -46,6 +46,16 @@ type JsonRpcResponse =
   | { jsonrpc: "2.0"; id: JsonRpcId; result: unknown }
   | { jsonrpc: "2.0"; id: JsonRpcId; error: { code: number; message: string } };
 
+/**
+ * PLATFORM-P1-11.3 -- what kind of entity each tool is, declared rather than left for a client
+ * to guess from its name or wording. MCP has no "agent" type of its own, so it goes in the
+ * tool's `_meta` (the spec's place for implementation-specific metadata), under our own
+ * prefix: "ai_agent" for a tool with a language model behind it, "tool" for a plain read.
+ * An AI agent also says how far it goes: it answers or drafts, and never acts.
+ */
+export const ENTITY_KEY = "wonderapps.biz/entity";
+export const AI_KEY = "wonderapps.biz/ai";
+
 const TOOLS = [
   {
     name: "list_records",
@@ -63,6 +73,7 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { [ENTITY_KEY]: "tool" },
   },
   {
     name: "get_record",
@@ -78,12 +89,13 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { [ENTITY_KEY]: "tool" },
   },
   {
     name: "ask_assistant",
     title: "Ask the WonderArk assistant",
     description:
-      "Asks WonderArk's AI assistant a question about this business. It reads the latest records of the chosen kinds (all kinds this key can read when omitted) and answers only from them. Returns { answer, answered, sources, skipped, provenance: \"ai-generated\" }. Changes nothing.",
+      "AI agent: asks WonderArk's AI assistant a question about this business. It reads the latest records of the chosen kinds (all kinds this key can read when omitted) and answers only from them. Returns { answer, answered, sources, skipped, provenance: \"ai-generated\" }. Changes nothing.",
     inputSchema: {
       type: "object",
       properties: {
@@ -99,12 +111,13 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    _meta: { [ENTITY_KEY]: "ai_agent", [AI_KEY]: { autonomy: "answer_only", output: "ai-generated", acts: false } },
   },
   {
     name: "draft_whatsapp_reply",
     title: "Draft a WhatsApp reply",
     description:
-      "Drafts an answer to the latest customer message in one of this business's WhatsApp conversations, written only from the business's own facts (opening hours, address, contact details, active products with recorded prices, the customer's own orders and jobs). Returns { status: \"answered\" | \"not_answerable\", answer, topic, facts_used, provenance: \"ai-generated\" }. The draft is saved for the team to review; nothing is sent to the customer.",
+      "AI agent: drafts an answer to the latest customer message in one of this business's WhatsApp conversations, written only from the business's own facts (opening hours, address, contact details, active products with recorded prices, the customer's own orders and jobs). Returns { status: \"answered\" | \"not_answerable\", answer, topic, facts_used, provenance: \"ai-generated\" }. The draft is saved for the team to review; nothing is sent to the customer.",
     inputSchema: {
       type: "object",
       properties: {
@@ -114,6 +127,7 @@ const TOOLS = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    _meta: { [ENTITY_KEY]: "ai_agent", [AI_KEY]: { autonomy: "draft_only", output: "ai-generated", acts: false } },
   },
 ] as const;
 
