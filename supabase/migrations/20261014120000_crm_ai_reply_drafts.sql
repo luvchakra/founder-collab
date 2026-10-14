@@ -1,4 +1,4 @@
--- PLATFORM-P1-12.1 / 12.2 / 12.4 (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §42; design and
+-- PLATFORM-P1-12.1/12.2/12.4 (docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md §42; design and
 -- owner decisions in docs/design/crm-whatsapp-ai-replies.md). Phase 1: AI-drafted WhatsApp
 -- replies that a person sends. Nothing here sends anything.
 

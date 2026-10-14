@@ -21,7 +21,7 @@ import {
 } from "./reply-draft-core";
 
 /**
- * PLATFORM-P1-12.1 / 12.4 -- an AI draft answer to one inbound message, written only from the
+ * PLATFORM-P1-12.1/12.4 -- an AI draft answer to one inbound message, written only from the
  * business's own facts (reply-draft-core.ts). Draft only: it is stored for a person to edit
  * and send; nothing here sends. Generated on demand ("Draft a reply"), never on page load, and
  * cached per message by input hash so reopening never pays for an identical second call.

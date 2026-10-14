@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// PLATFORM-P1-12.1 / 12.4: the server half of AI reply drafts -- licence and permission first,
+// PLATFORM-P1-12.1/12.4: the server half of AI reply drafts -- licence and permission first,
 // one AI call per unchanged message, a provider failure recorded and reported, never saved.
 
 const state = vi.hoisted(() => ({

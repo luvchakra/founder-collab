@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * PLATFORM-P1-12.1 / 12.2 / 12.3 -- the pure half of AI reply drafts
+ * PLATFORM-P1-12.1/12.2/12.3 -- the pure half of AI reply drafts
  * (docs/design/crm-whatsapp-ai-replies.md). Facts are gathered by plain code, each with an
  * id; the model may only answer from them and must say which it used; this file decides
  * whether its answer is usable. Nothing here reads, writes or sends.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildReplyFacts, decideReplyDraft, replyDraftPrompt, ReplyDraftOutputSchema, type ReplyFactSources } from "./reply-draft-core";
 
-// PLATFORM-P1-12.1 / 12.2 / 12.3: AI reply drafts answer only from the business's own facts.
+// PLATFORM-P1-12.1/12.2/12.3: AI reply drafts answer only from the business's own facts.
 
 const SOURCES: ReplyFactSources = {
   business: {

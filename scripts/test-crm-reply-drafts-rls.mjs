@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * DB test for AI reply drafts (PLATFORM-P1-12.1 / 12.2 / 12.4, migration 20261014120000):
+ * DB test for AI reply drafts (PLATFORM-P1-12.1/12.2/12.4, migration 20261014120000):
  *   - crm.reply_drafts is tenant AND licensed: another business can't read or write a draft,
  *     an unlicensed business can't write one, and a draft can't point at another business's
  *     message even with a forged business_id;
