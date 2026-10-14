@@ -3,6 +3,7 @@ import {
   baseAppHost,
   environmentSlug,
   orgAddressRequired,
+  appPathname,
   orgInternalPath,
   orgUrl,
   orgVisiblePath,
@@ -109,5 +110,19 @@ describe("orgInternalPath / orgVisiblePath", () => {
     expect(orgVisiblePath("/acme/discovery", "acme")).toBe("/discovery");
     expect(orgVisiblePath("/acme-test/discovery", "acme")).toBeNull();
     expect(orgVisiblePath("/discovery", "acme")).toBeNull();
+  });
+});
+
+describe("appPathname", () => {
+  it("gives the route-shaped path on an organization's address", () => {
+    expect(appPathname("/admin/api-keys", "wax-garden")).toBe("/wax-garden/admin/api-keys");
+    expect(appPathname("/", "wax-garden")).toBe("/wax-garden");
+    expect(appPathname("/wax-garden/discovery", "wax-garden")).toBe("/wax-garden/discovery");
+    expect(appPathname("/dashboard/organizations", "wax-garden")).toBe("/dashboard/organizations");
+  });
+
+  it("leaves the main address's paths alone", () => {
+    expect(appPathname("/wax-garden/admin", null)).toBe("/wax-garden/admin");
+    expect(appPathname("/dashboard", undefined)).toBe("/dashboard");
   });
 });

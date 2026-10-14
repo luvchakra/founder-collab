@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { orgInternalPath } from "../../lib/org-address";
+import { appPathname } from "../../lib/org-address";
 
 /**
  * PLATFORM-P1-10.1: on an organization's address the browser shows `/discovery` while the
@@ -23,8 +23,5 @@ export function useHostSlug(): string | null {
 
 /** `usePathname()`, in the app's route shape (`/<slug>/...`) on an organization's address too. */
 export function useAppPathname(): string {
-  const pathname = usePathname() ?? "";
-  const slug = useContext(OrgAddressContext);
-  if (!slug || pathname === `/${slug}` || pathname.startsWith(`/${slug}/`)) return pathname;
-  return orgInternalPath(pathname, slug) ?? pathname;
+  return appPathname(usePathname() ?? "", useContext(OrgAddressContext));
 }

@@ -130,6 +130,14 @@ export function orgInternalPath(pathname: string, slug: string): string | null {
   return `/${slug}${pathname}`;
 }
 
+/** The route-shaped path (`/<slug>/...`) for what the browser shows, on an organization's
+ * address or not (hostSlug null). Pure, so components that sit above the OrgAddressProvider
+ * (the dashboard chrome itself) can use it too. */
+export function appPathname(pathname: string, hostSlug: string | null | undefined): string {
+  if (!hostSlug || pathname === `/${hostSlug}` || pathname.startsWith(`/${hostSlug}/`)) return pathname;
+  return orgInternalPath(pathname, hostSlug) ?? pathname;
+}
+
 /** On an organization's address, a link that still carries the slug (`/acme/discovery`, built
  * the path-routing way) is redirected to the visible path (`/discovery`). Null otherwise. */
 export function orgVisiblePath(pathname: string, slug: string): string | null {
