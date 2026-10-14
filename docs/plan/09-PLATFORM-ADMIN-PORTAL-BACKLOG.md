@@ -2000,3 +2000,9 @@ after a saved, policy-checked, idempotent, audited proposal.
 
 100 auto-replies per business per day, 3 per conversation, the 24-hour window, opt-outs, and
 the AI kill switch.
+
+## PLATFORM-P1-12.7 — WhatsApp reply drafts over MCP
+
+The MCP server's `draft_whatsapp_reply` tool: the same draft for an agent connected with a
+business API key, pinned to the key's business, its CRM licence and its `crm.view` permission.
+Draft only; it is saved for the team and nothing is sent.

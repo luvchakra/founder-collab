@@ -6,10 +6,12 @@ import { handleMcpBody, MCP_RESOURCES, toApiRequest, toAssistantRequest, type Mc
 function makeDeps(response: Response = Response.json({ data: [], meta: { limit: 25, offset: 0, count: 0 } })) {
   const apiGet = vi.fn<McpServerDeps["apiGet"]>(async () => response.clone());
   const askAssistant = vi.fn<McpServerDeps["askAssistant"]>(async () => ({ answer: "Two customers.", answered: true, usedResources: ["customers"] }));
+  const draftWhatsAppReply = vi.fn<McpServerDeps["draftWhatsAppReply"]>(async () => ({ status: "answered", answer: "Open 10 to 7.", topic: "hours_location_contact", factsUsed: [] }));
   return {
-    deps: { apiGet, askAssistant, openApiSpec: () => ({ openapi: "3.0.0" }), version: "abc1234" } satisfies McpServerDeps,
+    deps: { apiGet, askAssistant, draftWhatsAppReply, openApiSpec: () => ({ openapi: "3.0.0" }), version: "abc1234" } satisfies McpServerDeps,
     apiGet,
     askAssistant,
+    draftWhatsAppReply,
   };
 }
 
@@ -30,11 +32,14 @@ describe("MCP protocol", () => {
     expect(await handleMcpBody(deps, [{ jsonrpc: "2.0", method: "notifications/initialized" }], AUTH)).toBeNull();
   });
 
-  it("lists only read-only tools", async () => {
+  it("lists the tools; only the reply draft writes (a draft), and nothing is destructive", async () => {
     const { deps } = makeDeps();
-    const reply = (await handleMcpBody(deps, { jsonrpc: "2.0", id: 3, method: "tools/list" }, AUTH)) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
-    expect(reply.result.tools.map((t) => t.name)).toEqual(["list_records", "get_record", "ask_assistant"]);
-    expect(reply.result.tools.every((t) => t.annotations.readOnlyHint)).toBe(true);
+    const reply = (await handleMcpBody(deps, { jsonrpc: "2.0", id: 3, method: "tools/list" }, AUTH)) as {
+      result: { tools: { name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }[] };
+    };
+    expect(reply.result.tools.map((t) => t.name)).toEqual(["list_records", "get_record", "ask_assistant", "draft_whatsapp_reply"]);
+    expect(reply.result.tools.filter((t) => !t.annotations.readOnlyHint).map((t) => t.name)).toEqual(["draft_whatsapp_reply"]);
+    expect(reply.result.tools.every((t) => !t.annotations.destructiveHint)).toBe(true);
   });
 
   it("serves the API's OpenAPI document as a resource", async () => {
@@ -154,5 +159,44 @@ describe("ask_assistant", () => {
     }
     expect(apiGet).not.toHaveBeenCalled();
     expect(toAssistantRequest({ question: " q ", resources: ["jobs", "jobs"] })).toEqual({ question: "q", resources: ["jobs"] });
+  });
+});
+
+// PLATFORM-P1-12.7: draft_whatsapp_reply drafts, never sends.
+describe("draft_whatsapp_reply", () => {
+  const CONV = "0f0e8a7c-1d2b-4c3d-9e8f-123456789abc";
+  const call = (args: Record<string, unknown>) => ({ jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "draft_whatsapp_reply", arguments: args } });
+
+  it("validates the conversation id before doing anything", async () => {
+    const { deps, draftWhatsAppReply } = makeDeps();
+    for (const conversation_id of [undefined, "abc", "../x", 42]) {
+      expect(await handleMcpBody(deps, call({ conversation_id }), AUTH)).toMatchObject({ error: { code: -32602 } });
+    }
+    expect(draftWhatsAppReply).not.toHaveBeenCalled();
+  });
+
+  it("returns the draft marked as AI-generated and not sent, reading orders and jobs with the caller's key", async () => {
+    const { deps, apiGet, draftWhatsAppReply } = makeDeps(Response.json({ data: [{ id: "o1", customer_id: "p1" }] }));
+    draftWhatsAppReply.mockImplementation(async (_id, readList) => ({ status: "answered", orders: await readList("sales-orders") }));
+    const reply = (await handleMcpBody(deps, call({ conversation_id: CONV }), AUTH)) as { result: { isError: boolean; content: { text: string }[] } };
+    expect(reply.result.isError).toBe(false);
+    expect(JSON.parse(reply.result.content[0]!.text)).toMatchObject({ status: "answered", provenance: "ai-generated", sent: false, orders: [{ id: "o1" }] });
+    expect(draftWhatsAppReply.mock.calls[0]![0]).toBe(CONV);
+    expect(apiGet).toHaveBeenCalledWith("sales-orders", undefined, expect.any(URLSearchParams), AUTH);
+  });
+
+  it("reports a refusal (no licence, no permission, AI off) as a tool error", async () => {
+    const { deps, draftWhatsAppReply } = makeDeps();
+    draftWhatsAppReply.mockRejectedValue(new Error("MODULE_NOT_LICENSED: this business doesn't have an active CRM licence."));
+    const reply = (await handleMcpBody(deps, call({ conversation_id: CONV }), AUTH)) as { result: { isError: boolean; content: { text: string }[] } };
+    expect(reply.result.isError).toBe(true);
+    expect(reply.result.content[0]!.text).toContain("MODULE_NOT_LICENSED");
+  });
+
+  it("treats an unreadable order or job list as no facts, not a failure", async () => {
+    const { deps, draftWhatsAppReply } = makeDeps(Response.json({ error: { code: "module_not_licensed" } }, { status: 403 }));
+    draftWhatsAppReply.mockImplementation(async (_id, readList) => ({ status: "answered", jobs: await readList("jobs") }));
+    const reply = (await handleMcpBody(deps, call({ conversation_id: CONV }), AUTH)) as { result: { content: { text: string }[] } };
+    expect(JSON.parse(reply.result.content[0]!.text)).toMatchObject({ jobs: null });
   });
 });

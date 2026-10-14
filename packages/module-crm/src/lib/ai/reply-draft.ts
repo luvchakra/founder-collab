@@ -81,36 +81,38 @@ async function gatherFacts(businessId: string, partyId: string | null) {
   };
 }
 
-/** Writes (or returns the cached) AI draft for one inbound message. Throws AiProviderError
- * when AI is unavailable (switched off, no key, provider down) -- the caller says so. */
-export async function generateReplyDraft(businessId: string, interactionId: string): Promise<StoredReplyDraft> {
-  await requireModule(businessId, "crm");
-  await requirePermission(businessId, "crm.view");
+type CrmDb = Awaited<ReturnType<typeof createClient>>;
 
-  const supabase = await createClient();
-  const { data: interaction, error } = await supabase
-    .from("interaction")
-    .select("party_id, direction, content_excerpt")
-    .eq("id", interactionId)
-    .eq("business_id", businessId)
-    .single();
-  if (error) throw error;
-  const message = (interaction.content_excerpt ?? "").trim();
-  if (interaction.direction !== "inbound" || !message) throw new Error("There's no customer message to reply to.");
-
-  const { businessName, facts } = await gatherFacts(businessId, interaction.party_id);
-  const prompt = replyDraftPrompt(businessName, facts, message);
+/**
+ * The shared half of every reply draft, whoever asks: prompt, cache check, one AI call
+ * (recorded in ai_runs), the code-side decision, and the stored draft. `db` is the crm client
+ * the caller already authorized with -- the signed-in person's session, or (MCP) the service
+ * role pinned to the API key's business; `aiClient` is passed through for the same reason.
+ */
+export async function runReplyDraft(input: {
+  db: CrmDb;
+  aiClient?: Parameters<typeof resolveBusinessAiModel>[2];
+  businessId: string;
+  interactionId: string;
+  message: string;
+  businessName: string;
+  facts: ReturnType<typeof buildReplyFacts>;
+  createdBy: string | null;
+}): Promise<StoredReplyDraft> {
+  const { db, businessId, interactionId, facts } = input;
+  const prompt = replyDraftPrompt(input.businessName, facts, input.message);
   const inputHash = hashInput({ prompt, version: REPLY_DRAFT_PROMPT_VERSION });
 
-  const { data: existing, error: existingError } = await supabase
+  const { data: existing, error: existingError } = await db
     .from("reply_drafts")
     .select("status, answer, topic, facts_used, created_at, input_hash")
+    .eq("business_id", businessId)
     .eq("interaction_id", interactionId)
     .maybeSingle();
   if (existingError) throw existingError;
   if (existing && (existing as DraftRow).input_hash === inputHash) return toStored(existing as DraftRow);
 
-  const { businessId: resolvedBusinessId, provider, modelId, model } = await resolveBusinessAiModel(businessId, OPERATION);
+  const { businessId: resolvedBusinessId, provider, modelId, model } = await resolveBusinessAiModel(businessId, OPERATION, input.aiClient);
   const startedAt = Date.now();
   let output;
   try {
@@ -127,6 +129,7 @@ export async function generateReplyDraft(businessId: string, interactionId: stri
       outputTokens: response.usage.outputTokens,
       status: "succeeded",
       durationMs: Date.now() - startedAt,
+      client: input.aiClient,
     });
   } catch (err) {
     const aiError = toAiProviderError(err, provider);
@@ -140,13 +143,13 @@ export async function generateReplyDraft(businessId: string, interactionId: stri
       status: "failed",
       durationMs: Date.now() - startedAt,
       errorCode: aiError.code,
+      client: input.aiClient,
     });
     throw aiError;
   }
 
   const decision = decideReplyDraft(output, facts);
-  const { data: user } = await supabase.auth.getUser();
-  const { data: saved, error: saveError } = await supabase
+  const { data: saved, error: saveError } = await db
     .from("reply_drafts")
     .upsert(
       {
@@ -158,7 +161,7 @@ export async function generateReplyDraft(businessId: string, interactionId: stri
         facts_used: decision.status === "answered" ? decision.factsUsed : [],
         input_hash: inputHash,
         prompt_version: REPLY_DRAFT_PROMPT_VERSION,
-        created_by: user.user?.id ?? null,
+        created_by: input.createdBy,
         created_at: new Date().toISOString(),
       },
       { onConflict: "interaction_id" },
@@ -167,4 +170,26 @@ export async function generateReplyDraft(businessId: string, interactionId: stri
     .single();
   if (saveError) throw saveError;
   return toStored(saved as DraftRow);
+}
+
+/** Writes (or returns the cached) AI draft for one inbound message, for the signed-in person.
+ * Throws AiProviderError when AI is unavailable (switched off, no key, provider down). */
+export async function generateReplyDraft(businessId: string, interactionId: string): Promise<StoredReplyDraft> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "crm.view");
+
+  const supabase = await createClient();
+  const { data: interaction, error } = await supabase
+    .from("interaction")
+    .select("party_id, direction, content_excerpt")
+    .eq("id", interactionId)
+    .eq("business_id", businessId)
+    .single();
+  if (error) throw error;
+  const message = (interaction.content_excerpt ?? "").trim();
+  if (interaction.direction !== "inbound" || !message) throw new Error("There's no customer message to reply to.");
+
+  const { businessName, facts } = await gatherFacts(businessId, interaction.party_id);
+  const { data: user } = await supabase.auth.getUser();
+  return runReplyDraft({ db: supabase, businessId, interactionId, message, businessName, facts, createdBy: user.user?.id ?? null });
 }
