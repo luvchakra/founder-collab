@@ -19,6 +19,8 @@ import {
   updateBusinessDescriptionAction,
   updateBusinessWebsiteAction,
   updateBusinessLogoAction,
+  updateBusinessContactAction,
+  type BusinessContactField,
   previewProductImportAction,
   importProductsAction,
   deleteProductAction,
@@ -40,6 +42,14 @@ import { AutoPopulateProductsButton } from "@cofounderai/module-discovery/compon
 import { OfferingsTable, type OfferingRow } from "@cofounderai/module-discovery/components/offerings/offerings-table";
 import { WebsiteOnboardingPanel } from "@cofounderai/module-discovery/components/website-onboarding/website-onboarding-panel";
 import type { Product } from "@cofounderai/module-discovery/lib/tenancy/types";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@cofounderai/core/ui/collapsible";
+
+const CONTACT_FIELDS: [BusinessContactField, string][] = [
+  ["opening_hours", "Add opening hours, e.g. Mon-Sat 10am-7pm"],
+  ["address", "Add an address"],
+  ["contact_phone", "Add a phone number"],
+  ["contact_email", "Add a contact email"],
+];
 
 async function loadOfferingRow(product: Product): Promise<OfferingRow> {
   const workspace = await getWorkspaceForProduct(product.id);
@@ -135,6 +145,22 @@ export default async function BusinessDetailPage({
             multiline
             textClassName="text-sm text-muted-foreground"
           />
+          {/* PLATFORM-P1-12.2: what AI reply drafts may quote; folded, like any rarely edited setting. */}
+          <Collapsible>
+            <CollapsibleTrigger className="text-sm text-muted-foreground hover:text-foreground">Contact details for customer replies</CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-1.5 pt-2">
+              {CONTACT_FIELDS.map(([field, placeholder]) => (
+                <EditableText
+                  key={field}
+                  value={business[field]}
+                  action={updateBusinessContactAction.bind(null, business.id, field)}
+                  placeholder={placeholder}
+                  multiline={field === "address" || field === "opening_hours"}
+                  textClassName="text-sm text-muted-foreground"
+                />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </div>
 

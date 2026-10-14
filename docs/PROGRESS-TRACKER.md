@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 559 |
+| ✅ Done | 561 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 1 |
+| ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 7 |
+| ⬜ Not started | 6 |
 | **Total** | **649** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 117 | 7 | 8 | 132 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 119 | 7 | 6 | 132 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,14 +43,12 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-8 stories are neither built nor deliberately set aside:
+6 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
-| `PLATFORM-P1-12.1` | AI-drafted WhatsApp replies | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.2` | Business facts for replies | ⬜ Not started | — |
 | `PLATFORM-P1-12.3` | Order and job status facts | ⬜ Not started | — |
 | `PLATFORM-P1-12.4` | Reply provenance | ⬜ Not started | — |
 | `PLATFORM-P1-12.5` | Auto-send mode | ⬜ Not started | — |
@@ -469,8 +467,8 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
-| `PLATFORM-P1-12.1` | AI-drafted WhatsApp replies | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.2` | Business facts for replies | ⬜ Not started | — |
+| `PLATFORM-P1-12.1` | AI-drafted WhatsApp replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/actions.ts` +8 |
+| `PLATFORM-P1-12.2` | Business facts for replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +6 |
 | `PLATFORM-P1-12.3` | Order and job status facts | ⬜ Not started | — |
 | `PLATFORM-P1-12.4` | Reply provenance | ⬜ Not started | — |
 | `PLATFORM-P1-12.5` | Auto-send mode | ⬜ Not started | — |

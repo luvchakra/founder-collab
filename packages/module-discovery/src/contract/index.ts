@@ -9,6 +9,7 @@ import { NEXT_BEST_ACTION_LABEL } from "../lib/opportunities/types";
 import { getDiscoveryDefinition } from "../lib/discovery-definitions/queries";
 import { getResearchBrief } from "../lib/research-briefs/queries";
 import { createClient } from "../db/server";
+import { listProductKnowledge } from "../lib/knowledge/queries";
 import type {
   ContractOpportunitySummary,
   ContractProspectSummary,
@@ -16,6 +17,7 @@ import type {
   CreateProductFromInventoryItemInput,
   CreateProspectFromExternalLeadInput,
   DiscoveryFunnelCounts,
+  OfferingKnowledgeEntry,
   OfferingSummary,
 } from "./types";
 
@@ -306,4 +308,30 @@ export async function listOfferingsForBusiness(businessId: string): Promise<Cont
     ok: true,
     data: offerings.map((o) => ({ offeringId: o.id, name: o.name, offeringType: o.offering_type, status: o.status })),
   };
+}
+
+/**
+ * PLATFORM-P1-12.2 -- the business's saved knowledge about its offerings (manual notes,
+ * website and document extracts), for CRM's AI reply drafts to quote. Read with the caller's
+ * session, so RLS decides what is visible; capped so a reply prompt stays bounded.
+ */
+export async function listOfferingKnowledgeForBusiness(
+  businessId: string,
+  limit = 20,
+): Promise<ContractResult<OfferingKnowledgeEntry[]>> {
+  const licenseError = await requireLicensed(businessId);
+  if (licenseError) return { ok: false, error: licenseError };
+
+  const offerings = await listProducts(businessId);
+  const workspaces = await listWorkspacesForProducts(offerings.map((o) => o.id));
+  const nameByProduct = new Map(offerings.map((o) => [o.id, o.name]));
+  const entries: OfferingKnowledgeEntry[] = [];
+  for (const workspace of workspaces) {
+    if (entries.length >= limit) break;
+    for (const k of await listProductKnowledge(workspace.id)) {
+      if (entries.length >= limit) break;
+      entries.push({ id: k.id, offeringName: nameByProduct.get(workspace.product_id) ?? "Offering", sourceName: k.source_name, content: k.content.slice(0, 2000) });
+    }
+  }
+  return { ok: true, data: entries };
 }

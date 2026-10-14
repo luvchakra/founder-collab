@@ -95,6 +95,31 @@ export async function updateBusinessWebsiteAction(
   return { success: true };
 }
 
+/** PLATFORM-P1-12.2: one of the business's contact details, edited inline like the website.
+ * The field is checked against a fixed list; RLS on core.businesses authorizes the write. */
+const CONTACT_FIELDS = ["contact_phone", "contact_email", "address", "opening_hours"] as const;
+export type BusinessContactField = (typeof CONTACT_FIELDS)[number];
+
+export async function updateBusinessContactAction(
+  businessId: string,
+  field: BusinessContactField,
+  _prevState: RenameActionState,
+  formData: FormData,
+): Promise<RenameActionState> {
+  if (!CONTACT_FIELDS.includes(field)) return { error: "Unknown field." };
+  const value = String(formData.get("value") ?? "");
+
+  try {
+    await updateBusiness(businessId, { [field]: value });
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "Something went wrong." };
+  }
+
+  revalidatePath(`${await businessPath(businessId)}`);
+  return { success: true };
+}
+
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/svg+xml"]);
 

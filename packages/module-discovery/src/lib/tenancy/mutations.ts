@@ -59,7 +59,17 @@ export async function createBusiness(
  * time (the inline rename/edit controls each own a single input), never the whole row. */
 export async function updateBusiness(
   businessId: string,
-  input: { name?: string; description?: string; website?: string; logoUrl?: string | null },
+  input: {
+    name?: string;
+    description?: string;
+    website?: string;
+    logoUrl?: string | null;
+    /** PLATFORM-P1-12.2: contact details a customer reply may quote. */
+    contact_phone?: string;
+    contact_email?: string;
+    address?: string;
+    opening_hours?: string;
+  },
 ): Promise<Business> {
   const patch: Record<string, string | null> = {};
   if (input.name !== undefined) {
@@ -72,6 +82,9 @@ export async function updateBusiness(
   }
   if (input.website !== undefined) {
     patch.website = input.website.trim() || null;
+  }
+  for (const key of ["contact_phone", "contact_email", "address", "opening_hours"] as const) {
+    if (input[key] !== undefined) patch[key] = input[key]!.trim() || null;
   }
   // Explicit null clears the logo (the "Remove" action); a string is the storage public
   // URL the upload just produced.
