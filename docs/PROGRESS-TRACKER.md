@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 557 |
+| ✅ Done | 558 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 2 |
-| **Total** | **641** |
+| **Total** | **642** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 115 | 7 | 2 | 124 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 116 | 7 | 2 | 125 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -451,6 +451,12 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P1-10.12` | Organization Details | ✅ Done | `apps/web/app/platform/(protected)/organizations/actions.ts` +4 |
 | `PLATFORM-P1-10.13` | Organization Announcements | ✅ Done | `apps/web/app/(dashboard)/layout.tsx` +8 |
 | `PLATFORM-P1-10.14` | Organization Onboarding | ✅ Done | `apps/web/app/(dashboard)/dashboard/actions.ts` +6 |
+
+### MCP Server (added 2026-10-14)
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `PLATFORM-P1-11.1` | Read-only MCP Server | ✅ Done | `apps/web/app/api/mcp/route.ts` +2 |
 
 ## Discovery — offering-centric upgrade
 

@@ -1939,3 +1939,15 @@ kept).
 
 Creating an organization asks for its name, an address prefix (follows the name until edited,
 with a live address preview) and its environment, with Back and Cancel.
+
+---
+
+# 41. MCP Server (added 2026-10-14)
+
+## PLATFORM-P1-11.1 — Read-only MCP Server
+
+An MCP endpoint (`/api/mcp`, Streamable HTTP, stateless, JSON responses) so an agent can read a
+business's records. Authenticated with that business's API key as the bearer token; every tool
+reads through the public API v1, so the key's business, module licences, permissions and rate
+limit apply unchanged. Tools: `list_records`, `get_record`; resource: the API's OpenAPI document.
+Nothing it exposes writes or acts.
