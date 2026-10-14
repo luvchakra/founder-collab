@@ -2006,3 +2006,9 @@ the AI kill switch.
 The MCP server's `draft_whatsapp_reply` tool: the same draft for an agent connected with a
 business API key, pinned to the key's business, its CRM licence and its `crm.view` permission.
 Draft only; it is saved for the team and nothing is sent.
+
+## PLATFORM-P1-11.3 — MCP entity types
+
+Each MCP tool declares what it is in its `_meta` (`wonderapps.biz/entity`: `ai_agent` or
+`tool`); AI agents also declare how far they go (`wonderapps.biz/ai`: answer-only or
+draft-only, AI-generated output, never acts), so a client lists them as agents without guessing.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleMcpBody, MCP_RESOURCES, toApiRequest, toAssistantRequest, type McpServerDeps } from "./server";
+import { AI_KEY, ENTITY_KEY, handleMcpBody, MCP_RESOURCES, toApiRequest, toAssistantRequest, type McpServerDeps } from "./server";
 
 // PLATFORM-P1-11.1: the MCP server is a read-only adapter over the public API v1.
 
@@ -198,5 +198,21 @@ describe("draft_whatsapp_reply", () => {
     draftWhatsAppReply.mockImplementation(async (_id, readList) => ({ status: "answered", jobs: await readList("jobs") }));
     const reply = (await handleMcpBody(deps, call({ conversation_id: CONV }), AUTH)) as { result: { content: { text: string }[] } };
     expect(JSON.parse(reply.result.content[0]!.text)).toMatchObject({ jobs: null });
+  });
+});
+
+// PLATFORM-P1-11.3: every tool declares what kind of entity it is.
+describe("entity types", () => {
+  it("declares the AI agents as ai_agent, with how far they go, and the reads as tools", async () => {
+    const { deps } = makeDeps();
+    const reply = (await handleMcpBody(deps, { jsonrpc: "2.0", id: 30, method: "tools/list" }, AUTH)) as {
+      result: { tools: { name: string; description: string; _meta: Record<string, unknown> }[] };
+    };
+    const byName = Object.fromEntries(reply.result.tools.map((t) => [t.name, t]));
+    expect(byName.list_records!._meta[ENTITY_KEY]).toBe("tool");
+    expect(byName.get_record!._meta[ENTITY_KEY]).toBe("tool");
+    expect(byName.ask_assistant!._meta).toEqual({ [ENTITY_KEY]: "ai_agent", [AI_KEY]: { autonomy: "answer_only", output: "ai-generated", acts: false } });
+    expect(byName.draft_whatsapp_reply!._meta).toEqual({ [ENTITY_KEY]: "ai_agent", [AI_KEY]: { autonomy: "draft_only", output: "ai-generated", acts: false } });
+    for (const name of ["ask_assistant", "draft_whatsapp_reply"]) expect(byName[name]!.description.startsWith("AI agent:")).toBe(true);
   });
 });
