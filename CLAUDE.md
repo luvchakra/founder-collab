@@ -306,8 +306,9 @@ against code that no longer exists.
 2026-09-18 "merge into `main` without asking" instruction, 2026-10-09). Create the branch
 from the latest `main`, push it and open a PR. Working branches don't deploy (see
 "Deployment budget" below), so the owner tries the change on production once it merges.
-Squash-merge once CI is green **and** the owner has said "merge now" or "build now" (see
-"Deployment budget"), then confirm the production deploy is ready. This does not extend to deleting branches or to force-pushing over someone else's
+Squash-merge your own PR as soon as CI is green and it's mergeable -- no need to wait for
+the owner (2026-10-15; see "Deployment budget") -- then confirm the production deploy is
+ready. This does not extend to deleting branches or to force-pushing over someone else's
 work.
 
 **Ship fast (pre-launch; revisit after launch).** The owner tests changes themselves, so
@@ -344,18 +345,17 @@ only one build runs at a time. Running out blocks production. The general rules 
   deploys. `apps/web/vercel-ignore-build.sh` then skips a `main` commit whose app inputs
   didn't change; when the app starts building from a new directory, add it to the script's
   `git diff` path list.
-- **Build only on "merge now" or "build now"** (2026-10-10). A merge to `main` creates a
-  Vercel deployment, even when the ignore step then cancels it. So do it only when the
-  owner's message contains the phrase "merge now" or "build now". The same goes for a
-  Redeploy or any other deployment you start. Until then, get the PR green and mergeable,
-  tell the owner it's ready, and leave it open. A green PR is not permission.
-  - **The phrase covers every PR waiting at that moment**, not just the one under
-    discussion. That means every open PR, from any session, that is green and mergeable when
-    the message arrives. A PR that is opened later, or is still red at that moment, waits for the next "merge now".
-  - **Spend one deployment on the batch, not one per PR.** Merge the waiting branches into
-    one of them, resolving conflicts, and let CI pass there. Squash-merge that single PR,
-    then close the others with a comment naming the PR that carried them. If that isn't
-    possible, merge them back to back, and still never more than once per PR.
+- **Merge automatically once green** (2026-10-15; replaces the 2026-10-10 "merge now" /
+  "build now" gate). When your PR's CI is green and it's mergeable, squash-merge it without
+  waiting for the owner, then confirm the production deploy is ready and tell the owner in
+  one line. Each merge to `main` still creates a Vercel deployment, so:
+  - **Merge your own PRs only.** Another session's PR is that session's to merge.
+  - **Batch when you have several ready.** If you hold more than one green PR at the same
+    time, fold them into one PR and merge once, closing the rest with a comment naming
+    the PR that carried them.
+  - **Redeploys and other manual deployments** still need the owner's "build now".
+  - **Budget limits below still apply**: above about 70% of the cap, auto-merge only
+    production fixes and hotfixes and leave the rest open, saying why.
 - **One request, one PR, one production deployment.** Several stories from one request go in
   one PR. Docs, tracker and test updates ride in the code PR they describe. No docs-only PR
   while a code PR is open or about to open.
