@@ -10,11 +10,10 @@ import { LandingButton } from "./landing-button";
 /**
  * Section links point at the landing page's own anchors (`/#modules`, not `#modules`), so
  * they still work from /help, /pricing and the legal pages, which share this bar; they are
- * plain anchors -- a hash jump on the landing page itself. `/pricing` and `/help` are real
- * routes, rendered with `next/link` below so they navigate client-side instead of
- * reloading the app. Help is in this bar rather than tucked into the footer because
- * someone who cannot sign in has nowhere else to look, and because the guides are worth
- * reading before signing up.
+ * plain anchors -- a hash jump on the landing page itself. `/pricing` is a real route,
+ * rendered with `next/link` below so it navigates client-side instead of reloading the
+ * app. The help guides are signed-in only (reached from the account menu), so this public
+ * bar doesn't link them.
  */
 const NAV_LINKS = [
   { href: "/#modules", label: "Modules" },
@@ -22,7 +21,6 @@ const NAV_LINKS = [
   { href: "/#benefits", label: "Benefits" },
   { href: "/pricing", label: "Pricing" },
   { href: "/#faq", label: "FAQ" },
-  { href: "/help", label: "Help" },
 ];
 
 const isRoute = (href: string) => !href.includes("#");

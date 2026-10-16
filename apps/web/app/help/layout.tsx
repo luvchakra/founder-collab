@@ -1,21 +1,19 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Navbar } from "@/components/marketing/navbar";
 import { Footer } from "@/components/marketing/footer";
 
+/** Signed-in only, so never in a search index (sitemap.ts and robots.ts leave it out too). */
+export const metadata: Metadata = { robots: { index: false, follow: false } };
+
 /**
- * The user guides are public, and they wear the public site's clothes: the same landing
- * theme, the same navbar, the same footer.
+ * The user guides are for signed-in users (2026-10-16). Each page checks the session on the
+ * server (./session.ts) after the proxy's own redirect, and the hub's ask box refuses
+ * without one (./actions.ts).
  *
- * Public because the person who most needs the documentation is often the one who cannot
- * get in — a founder locked out of their account, someone deciding whether to sign up at
- * all, or a team member sent a link to one section. Putting it behind the login it
- * explains would be a circular door. Nothing on these pages reads tenant data; the
- * content is our own product documentation, identical for every visitor.
- *
- * Signed-in visitors reach the same URLs from the avatar menu and keep the marketing
- * chrome. That is deliberate rather than an oversight: the alternative is rendering the
- * whole app shell around a page that has nothing to do with the business they happen to
- * have selected, and the navbar's own links take them back in one click.
+ * They keep the public site's chrome -- the landing theme, navbar and footer -- rather than
+ * the app shell: a guide has nothing to do with whichever business happens to be selected,
+ * and the navbar takes a reader back into the app in one click.
  */
 export default function HelpLayout({ children }: { children: ReactNode }) {
   return (

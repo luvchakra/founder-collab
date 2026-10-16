@@ -92,3 +92,49 @@ describe("updateSession — where a visitor is sent", () => {
     expect(response.headers.get("location")).toBeNull();
   });
 });
+
+describe("updateSession — the help guides are signed-in only", () => {
+  it.each(["/help", "/help/finance"])("sends a signed-out visitor on %s to sign-in, remembering the page", async (path) => {
+    signedIn(null);
+
+    const response = await updateSession(request(path));
+
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/login");
+    expect(location.searchParams.get("next")).toBe(path);
+  });
+
+  it("lets a signed-in visitor read the help guides", async () => {
+    signedIn({ sub: "user-1" });
+
+    const response = await updateSession(request("/help/finance"));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("sends a signed-in visitor on sign-in straight back to the help page they asked for", async () => {
+    signedIn({ sub: "user-1" });
+
+    const response = await updateSession(request("/login?next=%2Fhelp%2Ffinance"));
+
+    expect(response.headers.get("location")).toBe("https://app.example.com/help/finance");
+  });
+
+  it("never follows a `next` that isn't a help page", async () => {
+    signedIn({ sub: "user-1" });
+
+    for (const next of ["//evil.example", "https://evil.example/help", "/dashboard/settings", "/help/../platform"]) {
+      const response = await updateSession(request(`/login?next=${encodeURIComponent(next)}`));
+      const location = new URL(response.headers.get("location")!);
+      expect(`${location.origin}${location.pathname}`, next).toBe("https://app.example.com/dashboard");
+    }
+  });
+
+  it("keeps the plain sign-in redirect for other protected pages", async () => {
+    signedIn(null);
+
+    const response = await updateSession(request("/dashboard"));
+
+    expect(response.headers.get("location")).toBe("https://app.example.com/login");
+  });
+});

@@ -389,8 +389,11 @@ effect. No model names in commit messages or PR bodies.
 **Docs to keep current:** `docs/PROGRESS-TRACKER.md` (regenerate with
 `npm run build:progress`, never hand-edit; on a merge conflict, take either side and
 regenerate) and the relevant `docs/plan/` doc when a story shows the plan was wrong.
-**Don't update the user-facing help guide** (`docs/user-guides/`, and the in-app Get Help
-pages `npm run build:help` generates from it) unless asked.
+**A change that adds, removes or renames a user-facing feature updates the help content in the
+same PR** (`docs/user-guides/` and `packages/core/src/help/faq.ts`; regenerate with `npm run
+build:help`, bump the guide's "Last updated" date). Describe only what the code does, in the
+UI's own words; `scripts/check-help-links.mjs` fails CI on a link to a missing route or anchor.
+The guides are signed-in only (`packages/core/src/help/access.ts`).
 
 **Cite the story id** in the code, migration or test that implements it — a comment naming
 `COMPLY-P0-04.1` or `FIN-2` is what `docs/PROGRESS-TRACKER.md` reads to know the story is

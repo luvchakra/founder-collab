@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@cofounderai/core/db/server";
-import { answerHelpQuestion, searchHelpSections, type HelpAnswer } from "@cofounderai/core/help/assistant";
+import { answerHelpQuestion, type HelpAnswer } from "@cofounderai/core/help/assistant";
 
 export type HelpAskState =
   | { status: "idle" }
@@ -9,27 +9,21 @@ export type HelpAskState =
   | ({ status: "answered"; question: string } & HelpAnswer);
 
 /**
- * Open to everyone, but only a signed-in visitor gets an AI-written answer.
- *
- * `/help` is public, which means this action is reachable by anyone on the internet, and
- * writing an answer costs the platform's own AI credit. An open endpoint that spends
- * money per request is a bill somebody else gets to run up.
- *
- * The split falls out of how the assistant already works: finding the right guide sections
- * is deterministic keyword scoring over our own documentation — free, fast, and the half
- * that produces the links. So an anonymous visitor gets exactly that, labelled as what it
- * is, and signing in adds the written answer on top. Nobody is turned away from the
- * documentation; the only thing behind the session is the spend.
+ * Signed-in only, like the rest of help (2026-10-16). A server action can be posted to any
+ * page's URL, so the proxy's redirect on /help doesn't cover it: without a session this
+ * refuses and returns no help text at all -- neither the AI-written answer nor the guide
+ * sections the free keyword search would have found.
  */
 export async function askHelp(_prev: HelpAskState, formData: FormData): Promise<HelpAskState> {
   const question = String(formData.get("question") ?? "").trim();
   if (!question) return { status: "idle" };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims) {
+    return { status: "error", question, message: "Sign in to ask a question." };
+  }
 
-  const answer = user ? await answerHelpQuestion(question) : searchHelpSections(question);
+  const answer = await answerHelpQuestion(question);
   return { status: "answered", question, ...answer };
 }

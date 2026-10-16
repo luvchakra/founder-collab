@@ -5,6 +5,8 @@ runs your field-service business: turning a lead into a scheduled job, a
 completed visit, and an invoice — with crew dispatch and inventory
 parts-tracking built in.
 
+Last updated: 2026-10-16
+
 ## The Service dashboard
 
 Service opens on the **Service Dashboard**, the dispatcher's view of the day:
@@ -13,80 +15,84 @@ tiles for **Open jobs** (and how many are in progress), **Revenue (month)**,
 won + lost opportunities); an **Invoiced (30 days)** trend and **Jobs by
 status**; and working lists for **Today's schedule** (or this week's), the
 **Unassigned queue**, **Jobs in progress**, **Overdue invoices** and
-**Estimates awaiting response**.
+**Estimates awaiting response**. Switch the schedule between today and **This week**, and
+start work with **New opportunity**, **New job** or **Schedule**.
 
 ## Setup before you start
 
-All under **Service → Settings**:
+All under **Service → Settings** (needs the permission to manage settings; anyone else sees
+"You don't have permission to view FSM settings"). The page has four tabs:
 
-- **Service Types** — the categories your jobs and opportunities are tagged
-  with (e.g. "Repair," "Installation"). Only active ones show up when
-  creating a job or opportunity.
-- **Job Charge Types** — categories used for invoice and estimate line
-  items.
-- **Service Settings** — a single settings form covering:
-  - Reminder lead time and arrival-window length (for scheduling
-    communications)
-  - Whether to **auto-generate an invoice** the moment a job is marked
-    complete
-  - Default terms and estimate expiry (in days)
-  - Whether the **customer self-service portal** and **contact form** are
-    enabled
-- **Numbering** — a read-only view of your job/invoice number sequences.
+- **Document & reminders** — "Customer reminder lead time (hours)", "Default arrival window
+  (minutes)", "Estimate expiry (days, blank = never)", "Auto-generate an invoice when a job is
+  completed", "Enable Customer Center (tokenised customer self-serve portal)" and "Enable the
+  public contact/request-service form". Click **Save settings**.
+- **Service types** — the categories jobs and opportunities are tagged with (for example
+  "Repair" or "Installation"). Only active ones are offered when you create a job or
+  opportunity.
+- **Job charge types** — categories for invoice and estimate lines.
+- **Numbering** — read-only: each number series used this fiscal year and its next number
+  ("Next: PREFIX/FY/0001").
 
-**Crew and technicians** are set up from the **Schedule** page, not
-Settings: toggle which business members are technicians there. A user who
-isn't set up as a technician sees a friendly message on **My Day** telling
-them an owner/admin needs to add them first. There's no separate
-service-area/zone concept in this module today.
+**Technicians** are set up on the **Schedule** page, not in Settings: the **Technicians**
+panel chooses which members can be assigned schedule events. Someone who isn't a technician
+sees a message on **My Day** asking an owner or admin to add them. There are no service
+areas or zones today.
 
 ## The opportunity → job → invoice lifecycle
 
 1. **Opportunity** — capture a lead (new or existing customer), assign a
    service type, and write up the scope of work.
-2. **Estimate** — build a quote with charge lines and send it to the
-   customer (they get a link to approve or decline it themselves, or your
-   staff can record the decision internally).
+2. **Estimate** — build a quote with charge lines and **Send estimate** (or **Resend
+   estimate**). The customer gets a link to approve or decline it, or your staff can
+   **Approve internally** / **Decline internally**. **Mark lost** and **Reopen** close or
+   revive an opportunity.
 3. **Job** — approving an estimate creates the job automatically, with a
    generated job number. Re-approving an already-approved estimate won't
    create a duplicate job.
-4. **Invoice** — generate an invoice from a completed job (or let it
-   auto-generate, if you turned that setting on). Send it, record payments,
-   mark paid/void, and reorder line items. If Finance is licensed, an
-   e-invoice/e-way-bill panel appears here too. The customer gets a link to
-   a read-only page showing the invoice, the total and what is still owing.
+4. **Invoice** — click **Invoice** on the job (at any status), or let it be created on
+   completion if that setting is on. It copies the lines of an approved estimate; otherwise
+   it starts empty. Reorder lines with the up and down arrows. **Send invoice** emails the
+   customer a link to a read-only invoice page (valid for 90 days); sending is refused when
+   the invoice has no charges, the customer has no email, or email isn't set up. Record
+   payments against it. **Void** cancels the whole invoice with a credit note and can't be
+   undone. If Finance is licensed, an e-invoice / e-way bill panel appears here too.
 
 ### Working a job
 
-The job detail page is the busiest screen in the module. From here you can:
-mark it scheduled, start it, put it on hold and resume, complete it, cancel
-it, reopen it, duplicate it, or convert it back to an opportunity (only
-before it's invoiced). You can also clock time in and out, log expenses and
-notes, attach files, capture a customer signature, message the customer
-in-app, and grant "customer center" self-service access.
+The job page is the busiest screen in the module. Its tabs are **Job details**, **Field
+work**, **Materials** (with Inventory), **Messages** and **History**. Its actions are **Mark
+scheduled**, **Start job**, **Put on hold** / **Resume**, **Complete**, **Reopen** (needs the
+reopen permission), **Duplicate**, **Invoice**, **Convert to opportunity** (only before it's
+invoiced) and **Cancel** → **Cancel job**. You can also clock time in and out, log expenses,
+add notes (**Internal only** or **Visible to customer**), attach files, capture a signature
+and message the customer. **Send Customer Center access** emails the customer a link valid
+for 30 days; it needs the Customer Center setting on and an email address for the customer.
 
 **Completing a job** asks for an outcome from a fixed list: completed
-successfully, completed with a recommendation, additional work required,
-parts required later, customer declined additional work, **warranty revisit
-required**, or unresolved. Choosing "warranty revisit required" automatically
-creates a follow-up job linked back to the original — both jobs show a link
-to each other.
+successfully, completed with a recommendation, additional work required, parts required
+later, customer declined additional work, **Warranty/revisit required**, or unresolved.
+"Warranty/revisit required" creates an unscheduled follow-up job linked to the original (each
+links to the other). "Additional work required" lets CRM know, so a follow-up can be sold.
 
 ### Scheduling and dispatch
 
-- **Schedule** — a day/week dispatch calendar per technician. Create,
-  reschedule, reassign, cancel, or delete events, and print work orders. If
-  Inventory is licensed, a **low-stock banner** appears here so dispatchers
-  see supply problems before they send a crew out.
-- **My Day** — the technician's own mobile agenda for today: mark "on the
-  way," "arrived," or "done" on each event, and clock in/out.
+- **Schedule** — a dispatch calendar (**Today**, **Day**, **Week**) per technician. **New
+  event** → **Create event**; **Edit**, **Cancel event** or **Delete** an event; **Print work
+  orders** (needs its own permission). With Inventory, a **Low stock** banner warns
+  dispatchers before a crew goes out.
+- **My Day** — a technician's agenda for today, with **Open** and **Map** on each visit and
+  **Clock in** / **Clock out**. **Notify: on the way** (which also emails the customer when
+  email is set up), **Mark arrived** and **Mark done** need the permission to manage the
+  schedule — the built-in **Field Technician** template doesn't include it, so add it if your
+  technicians should use them.
 
 ## Correcting a payment: void, never edit
 
 A recorded payment can't be edited or deleted. If one was entered wrongly
 (a cheque that bounced, the wrong invoice), open the invoice and use **Void
 payment** on that payment's row (**Void** in the table on a wide screen). You
-must give a reason, and:
+must give a reason (at least 5 characters), and:
 
 - you need the permission to void payments — by default the Owner, Admin and
   Accountant roles have it;
@@ -108,15 +114,21 @@ link:
 - **Estimates** — the link in the estimate email opens a page where the
   customer can **Approve** or **Decline**.
 - **Invoices** — a read-only invoice page showing the total and balance.
-- **Customer center** — if you switched it on in Service Settings, a customer
-  who has been given access sees their **Upcoming work**, **My estimates**
-  (with Approve / Decline) and **My invoices** in one place. You grant access
-  from the job.
+- **Customer center** — if you switched it on in Settings, a customer you send access to
+  sees their **Upcoming work**, **My estimates** (with Approve / Decline) and **My invoices**
+  in one place. Send access from the job with **Send Customer Center access**; the emailed
+  link works for 30 days.
 - **Service request form** — if you switched the contact form on, your
   business has a public form at `/p/request/<your-business-slug>`. A
   visitor enters their name, email, phone, service address and what they
-  need; each submission arrives as a new **Opportunity** (attributed to the
-  business owner) for you to follow up.
+  need, then clicks **Send request**; each submission arrives as a new **Opportunity**
+  (credited to the business owner) for you to follow up.
+
+## Jobs and opportunities views
+
+**Jobs** and **Opportunities** each switch between a **Board** and a **Table** view.
+Assessments (site surveys) open from a CRM opportunity's link into Service. Overdue Service
+invoices also appear in the topbar bell.
 
 ## Customers
 
@@ -140,8 +152,8 @@ licensed, jobs just work as plain charges with no material tracking:
 
 - Scheduling a job **reserves** the parts it needs from your first active
   warehouse. Anything that can't be reserved shows up as a shortfall you can
-  resolve (wait for restock, substitute an item, reschedule, or source it
-  manually) and retry later.
+  resolve — **Wait for replenishment**, **Substitute item**, **Reschedule the job** or
+  **Obtain manually (outside this system)** — and retry later.
 - Completing a job **consumes** the reserved parts — unless a technician has
   already filed an explicit actual-usage report (actual used / returned /
   wasted), in which case that report is what moves stock, correctly

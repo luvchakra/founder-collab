@@ -6,7 +6,8 @@ import { CONTACT_EMAIL, WEBSITE_HOST, WEBSITE_URL } from "@/lib/legal";
 
 /** Real, working destinations only. Product/Modules links jump to sections already on
  * the landing page (absolute `/#...`, so they also work from /help, /pricing and the legal
- * pages, which share this footer); Pricing, Help and the Legal column are real routes.
+ * pages, which share this footer); Pricing and the Legal column are real routes. The help
+ * guides are signed-in only, so the public footer doesn't link them.
  * Pages that don't exist yet (About, Blog, Security) -- rather than ship dead "#" links
  * (CoFounderAI UI & CTA Enhancement doc §4: "remove or clearly mark any CTA whose
  * destination isn't implemented") -- are rendered as non-interactive, clearly-muted
@@ -24,7 +25,6 @@ const COLUMNS: { title: string; links: [string, string][] }[] = [
       ["Benefits", "/#benefits"],
       ["Pricing", "/pricing"],
       ["FAQ", "/#faq"],
-      ["Help & Guides", "/help"],
     ],
   },
   {

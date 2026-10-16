@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { helpReturnPath, isHelpPath } from "../help/access";
 import { moduleRegistry } from "@cofounderai/module-registry";
 import { MODULE_VIEW_PERMISSION } from "../rbac/module-permissions";
 import {
@@ -74,16 +75,18 @@ const AUTH_PATHS = new Set(["/login", "/signup"]);
  * -- i.e. it's presumed to be a business's own slug
  * (apps/web/app/(dashboard)/[businessSlug]/...), which is always behind auth. `/login`,
  * `/signup`, `/onboarding`, `/auth/callback`, `/api/*`, the public `/p/*` portal, the
- * public `/help` guides and the public `/terms`, `/privacy` and `/pricing` pages are each self-gated at the page/route level (see e.g.
+ * public `/terms`, `/privacy` and `/pricing` pages are each self-gated at the page/route level (see e.g.
  * apps/web/app/onboarding/page.tsx's own redirect) rather than here, same as before this
  * function grew a business-slug case at all.
  *
- * `/help` is deliberately open: it is the product's own documentation, and the person who
- * most needs it is often the one who cannot get in -- a locked-out founder, or somebody
- * deciding whether to sign up at all. Nothing on it reads tenant data. */
+ * `/help` is signed-in only (2026-10-16): the guides describe the product to its users,
+ * and a signed-out visitor is sent to sign-in and brought back (core/help/access.ts). The
+ * pages check the session themselves too. "help" stays in RESERVED_TOP_SEGMENTS so it is
+ * never read as a business slug. */
 export function isProtectedPath(pathname: string): boolean {
   if (pathname === "/") return false;
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/platform")) return true;
+  if (isHelpPath(pathname)) return true;
   const firstSegment = pathname.split("/")[1];
   if (!firstSegment || RESERVED_TOP_SEGMENTS.has(firstSegment)) return false;
   return true;
@@ -346,6 +349,18 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // A help page comes back after sign-in; other pages keep the existing landing.
+    const back = helpReturnPath(effectivePath);
+    if (back) url.search = `?next=${encodeURIComponent(back)}`;
+    return NextResponse.redirect(url);
+  }
+
+  // Signed in already and sent to sign-in on the way to a help page: go straight there.
+  const helpBack = user && isAuthPath ? helpReturnPath(request.nextUrl.searchParams.get("next")) : null;
+  if (helpBack) {
+    const url = request.nextUrl.clone();
+    url.pathname = helpBack;
+    url.search = "";
     return NextResponse.redirect(url);
   }
 

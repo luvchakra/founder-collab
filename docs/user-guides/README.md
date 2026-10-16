@@ -11,8 +11,8 @@ Start here if you're new to the platform:
   Google, Microsoft or LinkedIn), creating your first business, understanding
   businesses vs. offerings, the Executive Dashboard, licensing modules, plans,
   billing and AI credits, users, roles and invitations, API keys, exporting
-  your data, downloading your own data, and the setup an operator needs to
-  do before go-live.
+    your data, downloading your own data, organizations and environments, connecting an AI agent
+  (MCP), and the setup an operator needs to do before go-live.
 
 Then the module guides, each covering the screens a user works in day to day
 and the configuration a business admin must complete before the module is
@@ -34,6 +34,24 @@ usable:
   receivables and payables, financial statements with drill-down (including
   cash flow), operational reports, dimensions, and tax registration and
   filing prep (India GST, EU VAT, US sales tax).
+
+## Who can read the guides
+
+The in-app guides (**Get Help** in the avatar menu, at `/help`) are for signed-in users only.
+A signed-out visitor is sent to sign-in and brought back to the page they asked for, and
+the pages aren't in the sitemap or search indexes. What stays public: the landing page,
+pricing, sign-up and sign-in, password reset, the Terms and Privacy pages, and the support
+address (Contact support on the sign-in page).
+
+## Keeping them current
+
+- Each guide has a `Last updated: YYYY-MM-DD` line under its title; change it whenever you
+  change the guide. `npm run build:help` refuses a guide without one.
+- Link to other guides as `/help/<guide>#<section>` (that's what the in-app pages can open),
+  not `./NN-guide.md`. `node scripts/check-help-links.mjs` (run in CI) fails on a link to a
+  guide, section or app page that doesn't exist.
+- A change that adds, removes or renames a feature updates the guide and the FAQ
+  (`packages/core/src/help/faq.ts`) in the same pull request.
 
 ## A note on module names vs. URLs
 

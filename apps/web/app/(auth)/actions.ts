@@ -6,6 +6,7 @@ import { createClient } from "@cofounderai/core/db/server";
 import { recordSignupAcceptance } from "@cofounderai/core/privacy/legal-acceptance";
 import { orgAddressClosedReason, refuseNonMemberOnOrgAddress } from "@/lib/org-sign-in-gate";
 import { onOrgAddress } from "@/lib/org-host";
+import { helpReturnPath } from "@cofounderai/core/help/access";
 import {
   OAUTH_PROVIDER_LABELS,
   isOAuthProvider,
@@ -42,7 +43,10 @@ export async function login(
   const refused = await refuseNonMemberOnOrgAddress(supabase);
   if (refused) return { error: refused };
 
-  redirect((await onOrgAddress()) ? "/" : "/dashboard");
+  // Signed in from a help page's redirect: back to that page. Only a help page qualifies
+  // (core/help/access.ts), so the form field can't send anyone anywhere else.
+  const back = helpReturnPath(String(formData.get("next") ?? ""));
+  redirect(back ?? ((await onOrgAddress()) ? "/" : "/dashboard"));
 }
 
 export async function signup(
@@ -165,9 +169,10 @@ export async function updatePassword(
  * enabled" error rather than this failing silently.
  *
  * A server action's arguments arrive from the client, so the provider is checked against
- * the allowlist, and the post-auth destination is always the dashboard -- nothing the
- * client sends can steer the redirect. */
-export async function signInWithOAuthProvider(provider: OAuthProvider) {
+ * the allowlist, and the post-auth destination is the dashboard -- or, when sign-in started
+ * from a help page's redirect, that help page, checked against the fixed help-page shape
+ * (core/help/access.ts). Nothing else the client sends can steer the redirect. */
+export async function signInWithOAuthProvider(provider: OAuthProvider, returnTo?: string | null) {
   if (!isOAuthProvider(provider)) redirect(`/login?error=${encodeURIComponent("That sign-in method isn't available.")}`);
   const closed = await orgAddressClosedReason();
   if (closed) redirect(`/login?error=${encodeURIComponent(closed)}`);
@@ -178,7 +183,7 @@ export async function signInWithOAuthProvider(provider: OAuthProvider) {
     options: {
       // The request's own origin: on an organization's address, social sign-in returns there
       // (needs the wildcard in Supabase's redirect allow-list) and lands on its home.
-      redirectTo: `${origin}/auth/callback?next=${(await onOrgAddress()) ? "/" : "/dashboard"}`,
+      redirectTo: `${origin}/auth/callback?next=${helpReturnPath(returnTo) ?? ((await onOrgAddress()) ? "/" : "/dashboard")}`,
       // Microsoft only returns the address when asked for the `email` scope; without it
       // Supabase can't create the user (Supabase's Azure guide).
       ...(provider === "azure" ? { scopes: "email" } : {}),

@@ -7,6 +7,10 @@ import { searchHelp, stem, tokenize } from "./search";
 // docs/user-guides, are tested in scripts/build-help-content.test.mjs -- next to the
 // script, and able to import it without a TypeScript declaration for a .mjs file.
 describe("generated help content", () => {
+    it("dates every guide", () => {
+    for (const guide of listGuides()) expect(guide.lastUpdated, guide.slug).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
   it("has every guide, in reading order, each with sections", () => {
     const guides = listGuides();
     expect(guides.length).toBeGreaterThanOrEqual(6);
@@ -48,7 +52,10 @@ describe("recently shipped features are documented", () => {
     ["performance analysis and run history", "discovery", "performance-analysis-and-run-history"],
     ["customer-facing Service pages", "service-fsm", "customer-facing-pages"],
     ["the Service reports", "service-fsm", "reports"],
-    ["working a CRM sales opportunity", "crm", "working-a-sales-opportunity"],
+        ["working a CRM sales opportunity", "crm", "working-a-sales-opportunity"],
+    ["AI-drafted WhatsApp replies", "crm", "ai-drafted-whatsapp-replies"],
+    ["organizations, addresses and environments", "getting-started", "organizations-addresses-and-environments"],
+    ["connecting an AI agent over MCP", "getting-started", "connecting-an-ai-agent-mcp-server"],
   ];
 
   it.each(cases)("%s has a section", (_topic, guideSlug, sectionId) => {
@@ -70,7 +77,7 @@ describe("recently shipped features are documented", () => {
 // product ("... (for whoever deploys WonderArk)"); everything else, and every FAQ answer
 // outside the administrators' category, has to stay clear of them.
 describe("help text stays free of internal technology", () => {
-  const VENDORS = /supabase|postgres|razorpay|stripe|vercel|resend|next\.js|row level security|\bRLS\b/i;
+  const VENDORS = /supabase|postgres|razorpay|stripe|vercel|resend(?!\s+estimate)|next\.js|row level security|\bRLS\b/i;
 
   it("keeps vendor names out of the everyday guide sections", () => {
     for (const section of listSections()) {

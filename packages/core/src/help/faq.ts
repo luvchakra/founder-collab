@@ -38,7 +38,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Can I sign in with Google, Microsoft or LinkedIn instead of a password?",
     answer:
-      "Yes, when the deployment you're using has them switched on: the login and sign-up pages then show Continue with Google, Continue with Microsoft and Continue with LinkedIn. There is no separate sign-up step — your first sign-in creates the account and takes you to the onboarding wizard (or back to your invitation, if you came from one). You can add a password later with \"Forgot password?\".",
+      "Yes, when the deployment you're using has them switched on: the login and sign-up pages then show Continue with Google, Continue with Microsoft and Continue with LinkedIn. There is no separate sign-up step — your first sign-in creates the account and takes you to your dashboard (or back to your invitation, if you came from one). You can add a password later with \"Forgot password?\".",
     guideSlug: "getting-started",
     sectionId: "creating-an-account",
   },
@@ -70,7 +70,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Someone on my team can't see a page I can see. Why?",
     answer:
-      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. An unlicensed module shows \"not in your plan\"; a page their role doesn't allow shows \"you don't have permission\". Check the member's role under avatar menu → Admin → your business → Users & access.",
+      "Two things gate every page: whether the business has that module licensed, and whether the person's role carries the permission. In the sidebar both look the same — the module is locked. An unlicensed module's page says it \"isn't part of your plan yet\"; opening a page their role doesn't allow says they don't have permission. Check the member's role under avatar menu → Admin → your business → Users & access.",
     guideSlug: "getting-started",
     sectionId: "users-roles-and-invitations",
   },
@@ -86,7 +86,7 @@ export const FAQ: FaqEntry[] = [
     category: "Account & access",
     question: "Can I create a role that fits my team exactly?",
     answer:
-      "Yes. Under Users & access → Roles, Create role starts a custom role from a template (Sales Manager, Finance Manager, Field Technician and others) that you then adjust. You can't grant permissions you don't hold yourself.",
+      "Yes. Under Users & access → Roles, Create role starts a custom role, blank or from a template (Business Admin, Sales Manager, Finance Manager, Field Technician and others), that you then adjust. You can't grant permissions you don't hold yourself.",
     guideSlug: "getting-started",
     sectionId: "users-roles-and-invitations",
   },
@@ -102,7 +102,7 @@ export const FAQ: FaqEntry[] = [
     category: "Businesses & modules",
     question: "How do I switch between businesses?",
     answer:
-      "Use the business switcher in the top bar. It shows each business's own logo, or a generic icon for one that hasn't set one. The module rail and everything in it reloads for the business you pick.",
+      "Use the business switcher in the top bar. It shows each business's own logo (or a generic icon) and your role on it, and chips switch between an organization's environments. The sidebar and everything in it reloads for the business you pick.",
     guideSlug: "getting-started",
     sectionId: "switching-between-businesses-and-modules",
   },
@@ -110,7 +110,7 @@ export const FAQ: FaqEntry[] = [
     category: "Businesses & modules",
     question: "How do I turn a module on or off for a business?",
     answer:
-      "Open avatar menu → Admin (or Licenses on the Executive Dashboard) and use Activate, Cancel or Reactivate on the module. You need permission to manage billing, and once online checkout is available a module can only be switched on if your plan includes it — otherwise choose a plan that does. Cancelling never deletes data: you get 30 days of read-only grace, after which access stops but every row is kept. Reactivating restores everything, including events that were parked while it was off.",
+      "Open avatar menu → Admin (or Licenses on the Executive Dashboard), expand the business's Licenses chip and use Activate, Cancel or Reactivate on the module. You need permission to manage billing, and once online checkout is available a module can only be switched on if your plan includes it — otherwise choose a plan that does. Cancelling never deletes data: you get a read-only grace period (30 days unless the platform sets longer), after which access stops but every row is kept. Reactivating restores everything, including events that were parked while it was off.",
     guideSlug: "getting-started",
     sectionId: "licensing-a-module",
   },
@@ -126,7 +126,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "Do I need my own AI API key?",
     answer:
-      "Only if you want your AI usage billed to your own provider account, with no monthly cap from WonderArk. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected.",
+      "Only if you want your AI usage billed to your own provider account. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected. The monthly allowance (200 AI runs or $20 per offering) applies either way.",
     guideSlug: "discovery",
     sectionId: "connecting-an-ai-provider",
   },
@@ -142,7 +142,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "How do I change or cancel my plan?",
     answer:
-      "Open your business's Billing page. Change plan takes you through choosing a plan, reviewing it and paying securely; Cancel subscription keeps full access until the end of the paid period, then the modules become read-only for 30 days. Your data is never deleted.",
+      "Open your business's Billing page. Change plan (Upgrade plan on a free plan) takes you through choosing a plan, reviewing it and paying securely; Cancel subscription keeps full access until the end of the paid period, then the modules become read-only for 30 days. Your data is never deleted.",
     guideSlug: "getting-started",
     sectionId: "plans-billing-and-ai-credits",
   },
@@ -150,7 +150,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "What happens when I use up the free AI allowance, and how do I buy more?",
     answer:
-      "On the included credits, each workspace has a modest free allowance every month (the Billing page shows the limits). When it is used up, credits you have bought are spent automatically, one run at a time; with none left, AI features pause until next month. To buy more, open avatar menu → Billing and choose a credit pack — Starter, Growth or Scale. Credits are shared by every business and offering on your account. If you connect your own provider key there is no cap from WonderArk.",
+      "Each offering has a monthly allowance of 200 AI runs or $20 of AI cost, whichever comes first. When it is used up, credits you have bought are spent automatically, one run at a time; with none left, AI features pause until next month. To buy more, open avatar menu → Billing and choose a credit pack — Starter, Growth or Scale. Credits are shared by every business and offering on your account. If you connect your own provider key there is no cap from WonderArk.",
     guideSlug: "getting-started",
     sectionId: "plans-billing-and-ai-credits",
   },
@@ -174,7 +174,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "I made a mistake in a journal entry. Can I edit it?",
     answer:
-      "No, and that's deliberate. Correction is by reversal: reverse the entry and post a correct one, so both halves stay in the account's history where an audit can see them. A filed (locked) period is never reopened.",
+      "No, and that's deliberate. Correction is by reversal: reverse the entry and post a correct one, so both halves stay in the account's history where an audit can see them. A locked period can be reopened; a filed or closed one can't.",
     guideSlug: "finance",
     sectionId: "accounting-periods",
   },
@@ -206,7 +206,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How do I import my products or my prospect list?",
     answer:
-      "Both have a bulk import. Inventory takes a CSV with at least `sku` and `name`; Discovery accepts CSV, Excel or PDF and uses AI to map whatever columns your file has onto its own fields.",
+      "Both have a bulk import. Inventory takes pasted CSV text with at least `sku` and `name` (Products → Import); Discovery accepts CSV, Excel or PDF and uses AI to map whatever columns your file has onto its own fields.",
     guideSlug: "inventory",
     sectionId: "setup-order",
   },
@@ -238,7 +238,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How can customers request service or approve an estimate without an account?",
     answer:
-      "Through links. Estimates and invoices are sent as links to a page where the customer can approve or decline (estimates) or see what they owe (invoices). If you switch on the customer center in Service Settings, a customer you grant access can see their upcoming work, estimates and invoices in one place. Switch on the contact form and your business gets a public request form; each submission arrives as a new Service opportunity.",
+      "Through links. Estimates and invoices are sent as links to a page where the customer can approve or decline (estimates) or see what they owe (invoices). If you switch on the customer center in Service Settings, a customer you send access to (an emailed link that works for 30 days) can see their upcoming work, estimates and invoices in one place. Switch on the contact form and your business gets a public request form; each submission arrives as a new Service opportunity.",
     guideSlug: "service-fsm",
     sectionId: "customer-facing-pages",
   },
@@ -246,7 +246,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How do I see how quickly we respond to customers?",
     answer:
-      "CRM → Analytics shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
+      "CRM's Analytics page (not in the menu yet — open …/crm/analytics) shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
     guideSlug: "crm",
     sectionId: "daily-workflows",
   },
@@ -278,7 +278,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How do I share our data room with an investor?",
     answer:
-      "In Funding → Data Room, upload the documents, then share with the investor. The link expires and you can revoke it at any time. Sharing needs the funding.data_room.share permission.",
+      "In Funding → Data Room, upload the documents and mark them Ready (new uploads start as drafts), then share with the investor. The link lasts 1–90 days (14 by default), is shown once, and can be revoked at any time. Sharing needs the funding.approve and funding.data_room.share permissions.",
     guideSlug: "discovery",
     sectionId: "funding",
   },
@@ -294,7 +294,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "Can Finance remember how I categorise recurring bank lines?",
     answer:
-      "Yes — add a bank rule under Banking → Rules (for example, \"description contains AWS → Software expenses\"). Matching lines then show the rule, and Post and match posts and matches in one click. Rules only suggest; nothing posts until you confirm.",
+      "Yes — add a bank rule under Banking → Rules (for example, \"description contains AWS → Software\"). Matching lines then show the rule, and Post and match posts and matches in one click. Rules only suggest; nothing posts until you confirm.",
     guideSlug: "finance",
     sectionId: "banking",
   },
@@ -318,7 +318,7 @@ export const FAQ: FaqEntry[] = [
     category: "For administrators",
     question: "How do I connect WhatsApp or Instagram to the shared inbox?",
     answer:
-      "WhatsApp connects on CRM → WhatsApp (phone number ID and access token); Instagram and Facebook Messenger connect on CRM → Channels. You'll need a Meta app with the relevant webhook secrets set as environment variables on the deployment before the connection can verify. The WhatsApp screen also holds your message templates and click-to-chat links, which count the conversations each link brings in.",
+      "WhatsApp connects on CRM → WhatsApp (phone number ID and access token); Instagram and Facebook Messenger connect on CRM → Channels. Connecting checks the token with Meta straight away; incoming messages also need the Meta app's webhook secrets set as environment variables on the deployment. The WhatsApp screen also holds your message templates and click-to-chat links, which count the conversations each link brings in.",
     guideSlug: "crm",
     sectionId: "connecting-a-channel-whatsapp-instagram-facebook",
   },
@@ -326,7 +326,7 @@ export const FAQ: FaqEntry[] = [
     category: "For administrators",
     question: "Can I call WonderArk from my own systems?",
     answer:
-      "Yes — create an API key from a business's Admin → API Keys screen. Keys are business-scoped and carry the same permissions model as a person's role.",
+      "Yes — create an API key from a business's Admin → API Keys screen. A key belongs to one business and can do what its creator's role could do when it was created. The same key connects an AI agent through WonderArk's MCP server (/api/mcp).",
     guideSlug: "getting-started",
     sectionId: "api-keys",
   },

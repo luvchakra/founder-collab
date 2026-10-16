@@ -4,14 +4,12 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { getGuide, listGuides } from "@cofounderai/core/help/guides";
 import { Markdown } from "@/components/help/markdown";
 import { HelpAssistant } from "@/components/help/help-assistant";
-
-export function generateStaticParams() {
-  return listGuides().map((guide) => ({ slug: guide.slug }));
-}
+import { hasHelpSession, requireHelpSession } from "../session";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const guide = getGuide(slug);
+  // No guide title in the page head without a session.
+  const guide = (await hasHelpSession()) ? getGuide(slug) : undefined;
   return { title: guide ? `${guide.title} · Help` : "Help" };
 }
 
@@ -28,6 +26,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
  */
 export default async function HelpGuidePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  // Checked before the slug is looked up, so a signed-out visitor can't tell a real guide
+  // from a missing one.
+  await requireHelpSession(`/help/${slug}`);
   const guide = getGuide(slug);
   if (!guide) notFound();
 
@@ -62,7 +63,10 @@ export default async function HelpGuidePage({ params }: { params: Promise<{ slug
         </Link>
         <div>
           <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{guide.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{guide.summary}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{guide.summary}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Last updated <time dateTime={guide.lastUpdated}>{guide.lastUpdated}</time>
+          </p>
         </div>
       </div>
 

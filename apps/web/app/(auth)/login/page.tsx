@@ -4,6 +4,7 @@ import { AuthError } from "@/components/auth/auth-error";
 import { login } from "@/app/(auth)/actions";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
 import { getEnabledOAuthProviders } from "@cofounderai/core/auth/oauth-providers";
+import { helpReturnPath } from "@cofounderai/core/help/access";
 
 /**
  * PLATFORM-P0-03.3: `login_headline`/`login_support_text` (added by PLATFORM-P0-03.1)
@@ -13,11 +14,14 @@ import { getEnabledOAuthProviders } from "@cofounderai/core/auth/oauth-providers
  * render: a superadmin-configured URL wins, otherwise they point at the platform's own
  * /terms and /privacy pages.
  */
-export default async function LoginPage() {
-  const [branding, providers] = await Promise.all([
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
+  const [branding, providers, { next }] = await Promise.all([
     getPublicLoginBranding(),
     getEnabledOAuthProviders(),
+    searchParams,
   ]);
+  // Sent here from a help page: sign-in brings them back to it.
+  const returnTo = helpReturnPath(typeof next === "string" ? next : null);
   const termsUrl = branding.loginTermsUrl || "/terms";
   const privacyUrl = branding.loginPrivacyUrl || "/privacy";
 
@@ -31,7 +35,7 @@ export default async function LoginPage() {
         <AuthError />
       </Suspense>
       <div className="mt-8">
-        <AuthForm mode="login" action={login} providers={providers} />
+        <AuthForm mode="login" action={login} providers={providers} returnTo={returnTo} />
       </div>
       <p className="mt-6 text-center text-xs text-landing-muted">
         <a href={termsUrl} className="underline hover:text-landing-fg">

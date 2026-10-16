@@ -12,6 +12,8 @@ regardless of country; the tax half supports **India GST, US Sales Tax (plus
 (Germany, France, Belgium, Poland, Italy)** today, with more countries
 visible in the picker as "(Planned)" but not yet selectable.
 
+Last updated: 2026-10-16
+
 ## Navigation
 
 **Overview**: Dashboard, Exceptions
@@ -28,24 +30,21 @@ Finance opens on a dashboard that puts the money first: **Cash and bank**,
 **Owed to you**, **You owe**, **Profit this month** and **Net GST position**.
 Underneath are a notice of any **unposted documents** (see below), the
 month's GST snapshot, a **Compliance risk** list — each risk rated high,
-medium or low — and **Upcoming filings**. Until Finance is activated, a banner
-at the top walks you into **Activate Finance**. The whole dashboard exports to
+medium or low — and **Upcoming filings**. Until Finance is activated, a banner at the top says "Finish setting up Finance" with
+**Continue →**. The whole dashboard exports to
 Excel or CSV.
 
 ## Activating Finance
 
-The first time you open Finance, **Activate Finance** walks you through the
-setup in order and ticks each step off as you finish it: business profile,
-accounting method (accrual or cash), fiscal year, chart of accounts, tax
-profile, account mappings, opening balances, bank accounts, a final review,
-and activation. You can leave and come back; progress is kept.
-
-Activation offers a **Backfill**: Finance scans the invoices, bills,
-payments and expenses your other modules already recorded, shows you how many
-it can post before it posts anything, then posts the eligible ones. Anything
-it can't post safely — a document in a locked period, a missing account
-mapping — goes to **Exceptions** instead of stopping the run. Running it twice
-never posts anything twice.
+The setup checklist ticks each step off as you finish it: business profile, accounting
+method (accrual or cash), fiscal year, chart of accounts, tax profile, account mappings,
+opening balances and bank accounts. You can leave and come back; progress is kept. When
+you're ready, **Activate** (only Owner and Admin can) turns Finance on and immediately runs
+a **Backfill**: it posts the invoices, bills, payments and expenses your other modules
+already recorded. To see what it would post first, use the **Backfill** page ("What the scan
+found", then **Run backfill**). Anything it can't post safely — a document in a locked
+period, a missing account mapping — goes to **Exceptions** instead of stopping the run.
+Running it twice never posts anything twice; **Run again** repeats it.
 
 **Exceptions** is the one queue for anything that needs a person: unposted
 documents, input tax credit at risk, filing blockers. Each item says what
@@ -55,11 +54,11 @@ through **Open → In review → Resolved** (or **Ignored**).
 ## First run: set up your chart of accounts
 
 Nothing else in Finance works until there is somewhere for money to land.
-Open **Chart of Accounts** and use **Set up standard accounts** — this
-provisions a conventional chart (assets, liabilities, equity, income,
-expenses) including the handful of *system accounts* the platform posts into
-by itself: Accounts Receivable, Accounts Payable, Bank, Sales, Output GST,
-Input GST, Inventory Asset, and Cost of Goods Sold.
+Open **Chart of Accounts** and use **Set up chart of accounts** — this provisions a
+conventional chart (assets, liabilities, equity, income, expenses) including the *system
+accounts* the platform posts into by itself, such as Cash, Bank, Accounts Receivable,
+Accounts Payable, Product Sales, Service Revenue, GST Payable, Input GST, Inventory Asset,
+Product COGS and Retained Earnings.
 
 You can add your own accounts alongside them, rename anything, and group
 accounts under parents to whatever depth you like. What you cannot do is
@@ -69,13 +68,15 @@ is looking.
 
 ## Accounting periods
 
-Periods are how a set of books gets closed. Open **Accounting Periods**,
-generate the months (or quarters) for your financial year, and each one
-moves through **open → closed → locked**:
+Periods are how a set of books gets closed. Open **Accounting Periods** and add the months
+of a financial year (for example **Open FY 2026-27**). Each month moves through **Open → In
+review → Locked → Filed → Closed** with **Start review**, **Lock**, **Mark filed** and
+**Close**:
 
-- **Open** — entries can be added, edited and reversed freely.
-- **Closed** — the normal end-of-month state. No new entries.
-- **Locked** — the period is filed. It is never reopened.
+- **Open** — entries can be added and reversed.
+- **In review** — being checked before it's locked.
+- **Locked** — no new entries. A locked period can still be **Reopen**ed.
+- **Filed** and **Closed** — final; they can't be reopened.
 
 Correction is always by **reversal, never by edit**. Reversing an entry
 leaves both halves in the account's history, which is what an audit asks
@@ -93,8 +94,9 @@ its source document, and a **Reverse** action. When a recorded payment is
 voided (see "Payments are corrected by voiding" below), the journal gets the
 reversing entries for it automatically. To record something the
 platform cannot know about (a director's loan, a depreciation charge, an
-opening balance), use **New entry** and enter the lines yourself. Debits
-must equal credits before it will save.
+opening balance), use **New entry** and enter the lines yourself. **Save as draft** works at any time;
+**Post entry** needs debits to equal credits. Posted entries can't be edited — use
+**Reverse** on the entry's page.
 
 ### When a document doesn't post
 
@@ -128,7 +130,7 @@ reconciliations.
   into a spreadsheet nobody can see. "Reconciled" needs agreement *and*
   nothing left hanging.
 - **Bank rules** (**Banking → Rules**) remember how you categorise recurring
-  lines — "description contains AWS, money out → Software expenses". An
+  lines — "description contains AWS, money out → Software". An
   unmatched line shows the rule that fits it, and **Post and match** posts the
   entry and matches the line in one step. Rules only suggest: nothing is
   posted until you click, and a double-click can't post twice. Managing rules
@@ -138,8 +140,10 @@ reconciliations.
 
 A recorded payment can't be edited or deleted, so the books can't be changed
 quietly after the fact. A payment entered wrongly is **voided** with a reason
-(today from the payment list on a Service invoice, by someone allowed to void
-payments — see the Service guide). The documents it paid become owed again in
+(today with **Void payment** on a Service invoice). It needs the permission to void payments
+— Owner, Admin and Accountant have it — and a reason of at least 5 characters, and the
+person who recorded the payment can't void it unless they're an Owner or Admin. See
+[Correcting a payment](/help/service-fsm#correcting-a-payment-void-never-edit). The documents it paid become owed again in
 **Receivables**, and Finance reverses the settlement entries
 it had posted — as new entries, with the originals kept, exactly like any
 other correction. Voided payments stay visible, marked as voided, and are left
@@ -154,17 +158,15 @@ there is nothing to keep in sync.
 
 ## Money out: Payables, Bills, Expenses
 
-- **Bills** — enter a supplier bill by hand: supplier, bill date, due date,
-  line items, tax. Bills raised here are ordinary platform documents, so
-  payments, parties and allocations work on them exactly as they do on a
-  sales invoice. (A purchase order is deliberately *not* a payable — it
-  creates no liability and is routinely for a different amount than what
-  eventually gets billed.)
-- **Expenses** — a faster path for the small stuff: pick the expense
-  account, enter the amount, and optionally mark it paid on the spot, which
-  records the payment in the same step.
-- **Payables** — ages what you owe, by supplier and by bill, and is where you
-  **record a payment** covering several of one supplier's bills at once.
+- **Bills** — **New bill**: supplier, bill date, due date, the amount before GST, the GST
+  rate and the account it goes to; tick **Already paid** to record the payment too. Bills
+  raised here are ordinary platform documents, so payments, parties and allocations work on
+  them exactly as on a sales invoice. (A purchase order is deliberately *not* a payable — it
+  creates no liability.)
+- **Expenses** — **New expense**, a faster path for the small stuff: pick the account, enter
+  the amount, and optionally mark it paid on the spot.
+- **Payables** — ages what you owe, by supplier and by bill. **Pay {supplier}** → **Record
+  payment** covers several of one supplier's bills at once.
 
 ## Financial Reports
 
@@ -178,8 +180,8 @@ there is nothing to keep in sync.
   closed, nothing has moved trading results into retained earnings, and
   leaving that line out puts the sheet out by exactly the profit.
 - **Cash Flow** — where cash came from and went, grouped into operating,
-  investing and financing, read straight off the ledger. It always
-  reconciles opening cash to closing cash.
+  investing and financing, read straight off the ledger. When it doesn't reconcile to the cash accounts, the export
+says so.
 - **Trial Balance** — every account's debit and credit totals, which should
   agree.
 
@@ -187,15 +189,15 @@ there is nothing to keep in sync.
 account for the same period; the entries listed there add up to the figure
 you clicked. From an entry you can open the document that caused it.
 
-All four statements export to Excel together.
+Excel exports all four statements together; CSV exports the one you're viewing.
 
 ## Operational Reports
 
 **Operational Reports** answers the everyday questions from the same books:
 
 - **Sales** — by customer, and by product or service.
-- **Purchases** and **Expenses** — what you bought and spent in the period,
-  by supplier.
+- **Purchases** and **Expenses** — what you bought and spent in the period, by category and
+  by payee.
 - **Inventory valuation** — stock on hand at cost, if Inventory is licensed
   and your role can see costs (otherwise the tab says why). Oversold stock is
   flagged next to the total, never quietly subtracted.
@@ -235,11 +237,11 @@ needs `gst.dimensions.manage`.
 
 ## Budget and Recurring Entries
 
-- **Budget** — set a figure per account per period, then compare budget
-  against actual with the variance.
-- **Recurring Entries** — a journal template plus a schedule (monthly,
-  quarterly, and so on). Entries are generated on their due date; each one is
-  a normal journal entry you can review and reverse.
+- **Budget** — compares budget against actual with the variance, for budget figures already
+  recorded. WonderArk doesn't have a screen for entering budget figures yet.
+- **Recurring Entries** — a journal template plus a schedule: every month, every three
+  months, every six months or every year. Entries aren't posted automatically yet on their
+  due date; each one, once posted, is a normal journal entry you can review and reverse.
 
 Neither uses AI. Finance is deterministic arithmetic, and the platform's own
 engineering rules say not to put a language model where arithmetic belongs.
@@ -251,7 +253,8 @@ explicitly set one, your business defaults to **India / GST** — this is a
 default, not a real setting, and shows a "(default)" tag until you save an
 explicit choice.
 
-To change it (requires edit permission): pick your country from the
+To change it (needs the settings permission, which Owner and Admin have — not Accountant):
+pick your country from the
 dropdown; if that country has more than one regime (e.g. the US has both
 Sales Tax and 1099 Information Returns), a second dropdown appears. The
 selection saves and applies immediately across every tax page.
@@ -272,16 +275,19 @@ to add a registration:
 Check **"Set as primary"** (checked by default) — the primary registration
 is the one every other document (invoices, e-way bills, tax splitting) uses.
 A registration's number and jurisdiction can't be edited after creation; to
-fix a mistake, cancel it and add a new one. From the registrations list you
-can also Suspend, Reactivate, or Cancel a registration, and — for India/GST
+fix a mistake, cancel it and add a new one. Adding and editing registrations needs the same settings permission. From the
+registrations list you can also **Set primary**, Suspend, Reactivate, or Cancel a
+registration, and — for India/GST
 only — edit additional profile details (registration type, return
 frequency, e-invoice eligibility).
 
 ## Tax: day-to-day workflows
 
-- **GST Ledger** — your tax accounts in ledger form, reconciled against what
-  the return says. If the two disagree, that difference is the thing to look
-  at before filing.
+- **GST Profile** — your "GST registration type", "GSTIN" and "State (for GST place of
+  supply)".
+- **GST Ledger** — your tax accounts in ledger form, reconciled against what the return
+  says, and the input-tax-credit view (what is claimable and what is at risk). If the two
+  disagree, that difference is the thing to look at before filing.
 - **Filing Readiness** — one pre-flight check before you file, drawing on the
   ledger, the sales and purchase registers, GSTR-2B, your bank
   reconciliation and the period lock. It tells you what is not ready, not
@@ -291,10 +297,9 @@ frequency, e-invoice eligibility).
   anything to a tax authority on your behalf.
 - **GSTR-2B Reconciliation** — match your records against GSTR-2B/IMS-style
   exceptions for a chosen month. **Sync exceptions** pulls the latest, then
-  **Resolve** or **Dismiss** each one. The input-tax-credit view shows what
-  is claimable and what is at risk.
-- **e-Invoicing** and **e-Way Bill** — see GSP credentials below; each has its
-  own screen to issue and cancel documents.
+  **Resolve** or **Dismiss** each one.
+- **e-Invoicing** and **e-Way Bill** — these pages hold your GSP credentials (below).
+  e-Invoices and e-way bills are generated and cancelled from a Service invoice's page.
 - **Evidence** — return acknowledgments, government notices and payment
   challans kept on file for the business.
 - **Audit Log** — a read-only, chronological record of who changed what and
@@ -313,11 +318,13 @@ intermediary these documents must be submitted through. Enter these once on
 the **e-Invoicing** and **e-Way Bill** settings forms:
 
 - GSP provider name
-- Auth URL, Generate URL, Cancel URL (and optionally Status/Fetch URLs)
+- Auth URL, Generate URL, Cancel URL (and optionally Status/Fetch URLs; for e-way bills also
+  "Vehicle update URL" and "Extend validity URL")
 - GSP username and password
 - Client ID and client secret
 
-Your GSP issues all of these when you sign up with them — WonderArk doesn't
+Saving them needs the settings permission. Your GSP issues all of these when you sign up
+with them — WonderArk doesn't
 provide a GSP relationship itself. Your password and client secret are
 encrypted at rest and only briefly decrypted at the moment WonderArk makes
 the one outbound call to your GSP that needs them.
