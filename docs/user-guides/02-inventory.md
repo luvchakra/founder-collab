@@ -1,111 +1,104 @@
 # Inventory: Catalog, Purchasing & Stock
 
-Inventory manages your product catalog, warehouses, purchasing, sales
-orders, and stock levels — one shared inventory per business, regardless of
-how many Discovery offerings sit on top of it.
+Inventory manages your product catalog, warehouses, purchasing, sales orders and stock
+levels — one shared inventory per business, however many Discovery offerings sit on top of it.
+
+Last updated: 2026-10-16
 
 ## Setup order
 
-Set these up in this order — each later step references the ones before it:
+Set these up in this order — each later step uses the ones before it:
 
-1. **Warehouses** — create at least one location. Products, stock levels,
-   purchase orders, sales orders, and transfers all reference a warehouse.
-2. **Suppliers** and **Customers** — simple master-data lists. Set these up
-   before creating purchase orders (suppliers) or sales orders (customers).
-3. **Products** — create one by one, or bulk-import via **Products →
-   Import**. The CSV needs a header row with `sku` and `name` at minimum;
-   optional columns include `brand`, `category`, `supplier`, `unit`,
-   `hsn_code`, `tax_rate`, `cost_price`, `selling_price`, `reorder_point`,
-   `reorder_quantity`, `barcode`, `description`. The `supplier` column is
-   matched by name against suppliers you've already created — set those up
-   first if you're importing with supplier links. Note: this imports product
-   *masters*, not opening stock balances — bring in your starting stock
-   quantities via a purchase-order receipt or a manual stock movement (see
-   below).
+1. **Warehouses** — create at least one location. Stock levels, purchase orders, sales
+   orders and transfers all reference a warehouse.
+2. **Suppliers** and **Customers** — the master-data lists. Add suppliers before purchase
+   orders and customers before sales orders.
+3. **Products** — add them one by one with **New product**, or in bulk from **Products →
+   Import**: paste CSV text (with a header row) into the **CSV** box and click **Import**.
+   `sku` and `name` are required; optional columns are `brand`, `category`, `supplier`,
+   `unit`, `hsn_code`, `tax_rate`, `cost_price`, `selling_price`, `reorder_point`,
+   `reorder_quantity`, `barcode` and `description`. `supplier` is matched by name against
+   suppliers you've already created. Rows whose SKU is already in your catalog are skipped,
+   and the page tells you how many. Import (and the **Import** button) needs the
+   permission to edit products.
 
-There's no separate "settings" screen for units of measure or numbering —
-purchase order numbers auto-generate, units default to "pcs", and default
-tax rates come from your business's Finance (GST) profile.
+Import brings in product *masters*, not opening stock. Bring in starting quantities with a
+purchase-order receipt or a **Record movement** on the Inventory page.
+
+There's no settings screen for units or numbering: purchase order numbers are generated for
+you (`PO-…`), units default to "pcs", and a new product's GST rate defaults to 18% until you
+change it. Your business's Finance profile only decides whether tax is split into CGST/SGST
+or charged as IGST.
 
 ## Day-to-day workflows
 
-- **Products** — catalog grid with category/supplier filters. Cost fields
-  are only visible to users with cost-viewing permission; editing likewise
-  requires an edit permission. Create, update, toggle active/inactive, and
-  generate barcodes here.
-- **Purchase Orders** — create a PO, approve it, and receive stock against
-  it line by line (partial receipts are fine — receive what's arrived, and
-  come back for the rest later). Tax amounts on each line calculate
-  automatically from your business's tax profile and the supplier's
-  location/registration — you never enter them by hand. **Receiving a line
-  is the moment stock actually increases.**
-- **Sales Orders** — create, confirm, ship, or cancel. Shipping a sales
-  order is the outbound counterpart to receiving a PO: it's what reduces
-  on-hand stock.
-- **Sales Invoices** — **Generate invoice** from a confirmed sales order to
-  get a GST-compliant invoice. Open an invoice for its line items and totals;
-  set its payment status (**Unpaid**, **Partially paid** or **Paid**); and
-  **Record credit note** — full, or partial with an amount and a reason — which
-  needs the invoice-cancel permission. Credit notes are listed on the invoice
-  and net off what is payable. Invoices from here appear in Finance's
-  **Invoices** list and post to the ledger when Finance is licensed.
-- **Customers** and **Suppliers** — the master-data lists the orders above
-  draw on. Customers are the same list Service sees, when both are
-  licensed.
-- **Inventory (Stock)** — a live per-warehouse stock table, with a manual
-  stock-movement action for corrections or physical counts outside the
-  normal PO/SO flow.
-- **Stock Transfers** — move stock between two warehouses with a full
-  create → approve → ship → receive workflow, so you get an in-transit
-  audit trail (stock leaves warehouse A on ship, lands in warehouse B on
-  receive) rather than teleporting instantly.
-- **Sales Returns** — create a return against a shipped/delivered sales
-  order, then **approve** it. Approval — not creation — is the moment stock
-  is actually restocked (or written off as damaged) and a credit note is
-  issued against the original invoice.
-- **Alerts** — low-stock notifications, also surfaced in the shared topbar
-  bell across the whole platform.
-- **Audit Log** — a history of changes for accountability.
-- **Dashboard** — a summary view, filterable by warehouse once you have more
-  than one:
-  - tiles for **Inventory value** (only if your role can see costs),
-    **Available**, **Reserved** and **Incoming** stock, **Stockout risk**,
-    **Pending purchases** and **Sales today**;
-  - a **Daily brief** — a plain-language summary, a healthy / low-stock /
-    out-of-stock bar, and, when there is GST activity this month, the tax
-    paid on purchases and collected on sales with a link to Finance's filing
-    page;
-  - a **Reorder watchlist** of products below their reorder point;
-  - an **Attention center** listing overdue purchase orders, transfers in
-    transit, alerts, and tax setup or supplier-GSTIN problems that put input
-    tax credit at risk;
-  - charts of **stock movement (14 days)** and **units on hand by warehouse**.
+- **Products** — the catalog, with Category and Supplier columns. Cost fields are visible
+  only to roles that can see costs; editing needs the edit permission. **Deactivate** /
+  **Activate** a product, and print labels with **Barcode / QR** (Code 128, EAN-13 or QR
+  code; **Generate & preview**).
+- **Purchase Orders** — a PO goes Draft → **Approve** → **Mark as sent** → received →
+  **Close order**. Once approved (or sent), click **Receive** on each line as goods arrive;
+  partial receipts are fine. Each line's **GST %** is filled in from the product and can be
+  changed; the tax amounts are calculated for you. **Receiving a line is the moment stock
+  increases.**
+- **Sales Orders** — **Confirm order** → **Start processing** → **Mark as packed** →
+  **Ship order** → **Mark as delivered**. Confirming reserves the stock (and fails if there
+  isn't enough); shipping takes it out of stock and releases the reservation. You can cancel
+  until the order ships. Confirming and shipping are separate permissions.
+- **Sales Invoices** — **New invoice**, pick a confirmed or shipped order, then **Generate
+  invoice**. Open an invoice to see its lines and totals, set its payment status (needs the
+  invoice-edit permission), or **Record credit note**: full, or partial by **Taxable value**
+  with tax credited in proportion and an optional reason. Credit notes need the
+  invoice-cancel permission and net off what's payable.
+- **Customers** and **Suppliers** — the lists the orders above draw on. Customers are the
+  same list Service uses when both are licensed.
+- **Inventory** — live stock per warehouse: On hand, Available, Reserved, Damaged, Expired,
+  Incoming and In transit. **Record movement** corrects stock outside the PO/SO flow
+  (Inbound, Outbound, Adjustment, Reserve, Unreserve, Damage, Expired or Return).
+- **Stock Transfers** — move stock between warehouses with an in-transit record:
+  **Submit for approval** → **Approve** → **Mark in transit** → **Receive** each line (with
+  a Damaged count) → **Complete**. Stock leaves the first warehouse when it goes in transit
+  and arrives when it's received. You can cancel until it's received.
+- **Sales Returns** — **Create return** against a shipped or delivered order. Tick
+  **Restock** for items going back on the shelf (untick it for a credit-only return) and
+  **Damaged** for write-offs. **Approve return** is when stock moves and the credit note is
+  issued, so the order needs its sales invoice first. Finish with **Mark completed**.
+- **Alerts** — low-stock alerts, also in the topbar bell. **Acknowledge**, **Resolve** or
+  **Dismiss** each one.
+- **Audit Log** — a history of changes.
+- **Dashboard** — filter by warehouse once you have more than one:
+  - tiles for **Inventory value** (only if your role can see costs), **Available stock**,
+    **Reserved stock**, **Incoming stock**, **Stockout risk**, **Pending purchases** and
+    **Sales today**;
+  - a **Daily brief** with a healthy / low-stock / out-of-stock bar and, when there's GST
+    activity this month, **GST this month** (paid on purchases, collected on sales, net
+    position) with **View filing**;
+  - a **Reorder watchlist**, an **Attention center** (overdue POs, transfers in transit,
+    alerts, tax-setup and supplier-GSTIN problems) and **Quick links**;
+  - charts of stock movement over 14 days and, with more than one warehouse, units on hand
+    by warehouse.
 
-Every list has an **Export** button (CSV or Excel) that respects your
-filters — see Getting Started §10.
+Lists, the Dashboard and the Audit Log have an **Export** button (CSV or Excel (.xlsx)) that
+respects your filters — see [Exporting](/help/getting-started#exporting-your-data).
 
 ## Team & permissions
 
-Inventory has no Team page of its own — access is configured for the whole
-business under **Users & access** (avatar menu → **Admin** → the business's
-**Users & access** chip), alongside every other module. Three of the eight
-built-in roles are inventory-specific: **Inventory Manager**, **Procurement
-Manager**, and **Warehouse Operator**. Open **Roles** there to see exactly
-which of the workflows above each one can perform (e.g. who can approve a PO
-vs. just receive stock against one), or create a custom role. A person whose
-role has no Inventory permissions doesn't see the module at all, even when the
-business has it licensed.
+Inventory has no Team page of its own. Access is set for the whole business under **Users &
+access** (avatar menu → **Admin** → the business's **Users & access** chip). Three of the
+eight built-in roles are for Inventory: **Inventory Manager**, **Procurement Manager** and
+**Warehouse Operator**; the **Operations Manager** template also includes it. Open **Roles**
+to see what each can do (for example who can approve a PO versus only receive against one),
+or create a custom role. Someone whose role has no Inventory permissions doesn't see the
+module, even when the business has it licensed.
 
 ## How this connects to other modules
 
-- **Service (FSM)**: field jobs reserve parts from Inventory when scheduled,
-  consume them on job completion, and release the reservation if a job is
-  cancelled. This is entirely optional — jobs work fine without Inventory
-  licensed, they just skip material tracking.
-- **CRM**: an opportunity can turn into a real sales order (a "fulfillment
-  request") without leaving the CRM screen; CRM can also poll that order's
-  status and suggest in-stock substitutes when something's unavailable. A
-  customer's Inventory order history shows up on their CRM "Customer 360"
-  profile.
-- Cost data is never exposed to the platform's AI assistant, regardless of
-  the asking user's own permissions.
+- **Service**: field jobs reserve parts when scheduled, use them when the job is completed,
+  and release them if it's cancelled. Optional — jobs work without Inventory, they just
+  skip material tracking.
+- **CRM**: an opportunity can become a sales order without leaving CRM, CRM can follow that
+  order's status, and it suggests in-stock substitutes from the same category when
+  something is unavailable (matched by Inventory's own data, not guessed by AI). A
+  customer's order history appears on their CRM profile.
+- The platform's AI assistant gets a summary of your Inventory dashboard but never cost
+  data, whatever the asking user's own permissions.

@@ -47,7 +47,15 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/robots.txt")).toBe(false);
     expect(isProtectedPath("/manifest.webmanifest")).toBe(false);
     expect(isProtectedPath("/sitemap.xml")).toBe(false);
-    expect(isProtectedPath("/help")).toBe(false);
+  });
+
+  // The help guides are signed-in only (core/help/access.ts).
+  it("protects the help guides, without reading 'help' as a business slug", () => {
+    for (const path of ["/help", "/help/", "/help/finance", "/help/getting-started"]) {
+      expect(isProtectedPath(path), path).toBe(true);
+    }
+    expect(activeBusinessSlugFromPath("/help/finance")).toBeNull();
+    expect(isProtectedPath("/helpdesk-co")).toBe(true); // a business slug, not help
   });
 
   // The pages a signup/reset actually lands on mid-flow, before any session exists.

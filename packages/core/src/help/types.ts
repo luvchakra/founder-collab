@@ -20,8 +20,10 @@ export type HelpGuide = {
   /** The `NN-` file prefix, which is the reading order. */
   order: number;
   title: string;
-  /** First sentence of the guide's opening paragraph, in plain text. */
+    /** First sentence of the guide's opening paragraph, in plain text. */
   summary: string;
+  /** The guide's "Last updated: YYYY-MM-DD" line. */
+  lastUpdated: string;
   sections: HelpSection[];
 };
 
@@ -34,7 +36,7 @@ export type HelpSectionRef = {
   body: string;
 };
 
-/** Public, deliberately: `/help` needs no session (see core/db/middleware.ts). */
+/** Signed-in only, like all of `/help` (core/help/access.ts). */
 export function sectionHref(guideSlug: string, sectionId: string): string {
   return `/help/${guideSlug}#${sectionId}`;
 }

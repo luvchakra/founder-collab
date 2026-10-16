@@ -114,6 +114,24 @@ describe("login", () => {
   });
 });
 
+describe("login — back to the help page that sent you here", () => {
+  it("returns to the help page named in `next`", async () => {
+    mockAuth();
+
+    expect(await captureRedirect(() => login(null, form({ email: "a@b.com", password: "pw", next: "/help/finance" })))).toBe(
+      "/help/finance",
+    );
+  });
+
+  it("ignores a `next` that isn't a help page", async () => {
+    mockAuth();
+
+    for (const next of ["https://evil.example", "//evil.example", "/platform", "/help/../platform"]) {
+      expect(await captureRedirect(() => login(null, form({ email: "a@b.com", password: "pw", next }))), next).toBe("/dashboard");
+    }
+  });
+});
+
 describe("signup", () => {
   it("answers an already-registered email exactly like a new signup (no account enumeration)", async () => {
     mockAuth({
@@ -459,6 +477,24 @@ describe("signInWithOAuthProvider — Microsoft and LinkedIn", () => {
     // never bound with.
     const forged = signInWithOAuthProvider as (...args: unknown[]) => Promise<void>;
     await captureRedirect(() => forged("google", "https://evil.example"));
+
+    expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(`${ORIGIN}/auth/callback?next=/dashboard`);
+  });
+});
+
+describe("signInWithOAuthProvider — back to a help page", () => {
+  it("carries a help page through the callback", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithOAuthProvider("google", "/help/getting-started"));
+
+    expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(`${ORIGIN}/auth/callback?next=/help/getting-started`);
+  });
+
+  it("drops anything that isn't a help page", async () => {
+    const auth = mockAuth();
+
+    await captureRedirect(() => signInWithOAuthProvider("google", "/platform/settings"));
 
     expect(auth.signInWithOAuth.mock.calls[0]![0].options.redirectTo).toBe(`${ORIGIN}/auth/callback?next=/dashboard`);
   });

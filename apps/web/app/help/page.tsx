@@ -4,6 +4,7 @@ import { listGuides } from "@cofounderai/core/help/guides";
 import { FAQ, FAQ_CATEGORIES } from "@cofounderai/core/help/faq";
 import { sectionHref } from "@cofounderai/core/help/types";
 import { HelpAssistant } from "@/components/help/help-assistant";
+import { requireHelpSession } from "./session";
 
 export const metadata = { title: "Get Help" };
 
@@ -19,7 +20,8 @@ export const metadata = { title: "Get Help" };
  * hydration, and is searchable by the browser's own find-in-page. A question you cannot
  * Ctrl-F is a question nobody finds.
  */
-export default function HelpPage() {
+export default async function HelpPage() {
+  await requireHelpSession("/help");
   const guides = listGuides();
 
   return (
@@ -111,7 +113,8 @@ export default function HelpPage() {
               </div>
               <p className="line-clamp-3 text-sm text-muted-foreground">{guide.summary}</p>
               <span className="mt-auto text-xs text-muted-foreground">
-                {guide.sections.length} {guide.sections.length === 1 ? "section" : "sections"}
+                                {guide.sections.length} {guide.sections.length === 1 ? "section" : "sections"} · updated{" "}
+                <time dateTime={guide.lastUpdated}>{guide.lastUpdated}</time>
               </span>
             </Link>
           ))}

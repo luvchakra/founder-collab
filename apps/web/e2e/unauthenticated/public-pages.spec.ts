@@ -65,7 +65,8 @@ test.describe("Public pages (signed out)", () => {
     const response = await request.get("/sitemap.xml", { maxRedirects: 0 });
     expect(response.status()).toBe(200);
     const body = await response.text();
-    for (const path of ["/pricing", "/terms", "/privacy", "/help"]) expect(body).toContain(`${path}</loc>`);
-    expect(body).not.toContain("/dashboard");
+    for (const path of ["/pricing", "/terms", "/privacy"]) expect(body).toContain(`${path}</loc>`);
+    // The help guides are signed-in only (core/help/access.ts).
+    for (const path of ["/dashboard", "/help"]) expect(body).not.toContain(path);
   });
 });

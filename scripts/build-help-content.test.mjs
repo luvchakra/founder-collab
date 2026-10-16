@@ -34,12 +34,13 @@ test("toPlainText strips the markup a summary has no use for", () => {
 test("parseGuide splits a guide into linkable sections", () => {
   const guide = parseGuide(
     "05-finance.md",
-    ["# Finance", "", "Finance is your books. More text.", "", "## Banking", "", "Import a statement.", "", "## Reports", "", "P&L."].join("\n"),
+    ["# Finance", "", "Finance is your books. More text.", "", "Last updated: 2026-10-16", "", "## Banking", "", "Import a statement.", "", "## Reports", "", "P&L."].join("\n"),
   );
   assert.equal(guide.slug, "finance");
   assert.equal(guide.order, 5);
   assert.equal(guide.title, "Finance");
-  assert.equal(guide.summary, "Finance is your books.");
+    assert.equal(guide.summary, "Finance is your books.");
+  assert.equal(guide.lastUpdated, "2026-10-16");
   assert.deepEqual(
     guide.sections.map((section) => [section.id, section.heading, section.body]),
     [
@@ -50,15 +51,19 @@ test("parseGuide splits a guide into linkable sections", () => {
 });
 
 test("parseGuide takes a summary from the first section when there is no intro", () => {
-  const guide = parseGuide("00-getting-started.md", "# Getting Started\n\n## Step one\n\nGo to Sign up and do the thing.\n");
+  const guide = parseGuide("00-getting-started.md", "# Getting Started\n\nLast updated: 2026-10-16\n\n## Step one\n\nGo to Sign up and do the thing.\n");
   assert.equal(guide.summary, "Go to Sign up and do the thing.");
 });
 
 // Two sections that slugify the same would silently steal each other's anchor -- one of
 // them becomes permanently unlinkable, and nothing else would notice.
 test("parseGuide keeps colliding headings separately linkable", () => {
-  const guide = parseGuide("09-x.md", "# X\n\nIntro sentence here.\n\n## Setup\n\nA\n\n## Setup\n\nB\n");
+  const guide = parseGuide("09-x.md", "# X\n\nIntro sentence here.\n\nLast updated: 2026-10-16\n\n## Setup\n\nA\n\n## Setup\n\nB\n");
   assert.deepEqual(guide.sections.map((section) => section.id), ["setup", "setup-2"]);
+});
+
+test("parseGuide requires a Last updated date", () => {
+  assert.throws(() => parseGuide("08-x.md", "# X\n\nIntro.\n\n## A\n\nB\n"), /Last updated/);
 });
 
 test("parseGuide refuses a file with no title rather than producing a nameless guide", () => {

@@ -314,13 +314,23 @@ work.
 **Ship fast (pre-launch; revisit after launch).** The owner tests changes themselves, so
 getting a change in front of them quickly beats exhaustive local verification.
 
+**The app isn't live yet (owner, 2026-10-16).** Running any test suite in full (unit, DB,
+e2e -- nightly, by hand on a branch, or locally), creating test users and accounts, and
+seeding test data are all allowed without asking. Keep test data recognisable (the `e2e-qa`
+prefix) so it can be removed, and keep it out of anything a real customer would see.
+Revisit this rule at launch.
+
+**Every normal build goes through a PR, merged automatically.** Branch, push, open a PR, and
+squash-merge it yourself as soon as CI is green and it's mergeable -- never ask the owner
+first, and never push to `main` directly (see "Deployment budget").
+
 - **Before pushing, run only fast, relevant checks:** `npm run typecheck`, lint on the
   files you changed, and the unit tests for the areas you touched (`npx vitest run <paths>`
   inside the package). PR CI (`.github/workflows/ci.yml`) runs fast checks only, as
   parallel jobs (`scripts/ci-affected.mjs`): typecheck, ESLint on the changed files, the
   unit tests related to them, the audit, the DB tests for the migrated area, and the build
   only when app code changed; a merge to `main` runs every unit test and the whole lint.
-  E2E never runs on a PR: it runs nightly (`.github/workflows/e2e-nightly.yml`), and a
+  E2E never runs on a PR: it runs nightly at 03:00 IST (`.github/workflows/e2e-nightly.yml`), and a
   failed or flaky nightly opens an issue. What runs where: `docs/testing/what-runs-where.md`.
 - **Don't run** end-to-end, accessibility or full-app walkthroughs unless asked or the
   change is genuinely risky. A quick look at the one screen you changed is enough.
@@ -389,8 +399,11 @@ effect. No model names in commit messages or PR bodies.
 **Docs to keep current:** `docs/PROGRESS-TRACKER.md` (regenerate with
 `npm run build:progress`, never hand-edit; on a merge conflict, take either side and
 regenerate) and the relevant `docs/plan/` doc when a story shows the plan was wrong.
-**Don't update the user-facing help guide** (`docs/user-guides/`, and the in-app Get Help
-pages `npm run build:help` generates from it) unless asked.
+**A change that adds, removes or renames a user-facing feature updates the help content in the
+same PR** (`docs/user-guides/` and `packages/core/src/help/faq.ts`; regenerate with `npm run
+build:help`, bump the guide's "Last updated" date). Describe only what the code does, in the
+UI's own words; `scripts/check-help-links.mjs` fails CI on a link to a missing route or anchor.
+The guides are signed-in only (`packages/core/src/help/access.ts`).
 
 **Cite the story id** in the code, migration or test that implements it — a comment naming
 `COMPLY-P0-04.1` or `FIN-2` is what `docs/PROGRESS-TRACKER.md` reads to know the story is

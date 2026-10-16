@@ -6,6 +6,7 @@ import { AuthTabs } from "@/components/auth/auth-tabs";
 import { AuthInfoPanel } from "@/components/auth/auth-info-panel";
 import { backgroundStyleFor } from "@/lib/login-branding";
 import { getPublicLoginBranding } from "@cofounderai/core/admin/platform-branding";
+import { CONTACT_EMAIL } from "@/lib/legal";
 
 // Prerendered and revalidated every five minutes rather than rendered per request. This
 // used to be `force-dynamic` because the live `platform.branding` read below needs
@@ -63,13 +64,14 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
       <header className="landing-grid flex items-center justify-end px-6 py-6 sm:px-10">
         <div className="flex items-center gap-4">
           {/* Next to the sign-in toggle on purpose: somebody who cannot get in is the
-              likeliest person on the site to need the documentation, and it is public. */}
-          <Link
-            href="/help"
+              likeliest person on the site to need help, and the guides are signed-in only,
+              so this is the public way to reach a person. */}
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
             className="text-sm text-landing-muted transition-colors hover:text-landing-fg"
           >
-            Help
-          </Link>
+            Contact support
+          </a>
           <AuthTabs />
         </div>
       </header>

@@ -48,6 +48,8 @@ export function toPlainText(markdown) {
     .trim();
 }
 
+const LAST_UPDATED = /^Last updated: (\d{4}-\d{2}-\d{2})$/;
+
 export function parseGuide(fileName, source) {
   const lines = source.split("\n");
 
@@ -68,7 +70,15 @@ export function parseGuide(fileName, source) {
     }
     (current ? current.body : intro).push(line);
   }
-  if (current) sections.push(current);
+    if (current) sections.push(current);
+
+  // "Last updated: YYYY-MM-DD" in the intro: shown on the guide, and required, so an edit that
+  // forgets to bump it is at least visible in review. Taken out of the intro so it never
+  // becomes the summary.
+  const updatedIndex = intro.findIndex((line) => LAST_UPDATED.test(line.trim()));
+  if (updatedIndex === -1) throw new Error(`${fileName}: needs a "Last updated: YYYY-MM-DD" line before its first section`);
+  const lastUpdated = LAST_UPDATED.exec(intro[updatedIndex].trim())[1];
+  intro.splice(updatedIndex, 1);
 
   // Two sections that slugify the same would silently steal each other's anchor; a
   // numeric suffix keeps both reachable rather than one of them becoming unlinkable.
@@ -87,8 +97,9 @@ export function parseGuide(fileName, source) {
   return {
     slug: fileName.replace(/^\d+-/, "").replace(/\.md$/, ""),
     order: Number.parseInt(fileName.slice(0, 2), 10),
-    title,
+        title,
     summary,
+    lastUpdated,
     sections: sections.map((section) => ({
       id: section.id,
       heading: section.heading,

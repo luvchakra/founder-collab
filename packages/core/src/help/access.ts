@@ -1,0 +1,29 @@
+/**
+ * The help documentation is for signed-in users only (docs/user-guides/README.md, "Who can
+ * read the guides"). Every help page checks the
+ * session on the server, the proxy sends a signed-out visitor to sign-in, and sign-in
+ * brings them back to the help page they asked for.
+ *
+ * The way back is limited to help pages on purpose: `next` arrives on the URL, so it is
+ * attacker-controllable, and a fixed shape (`/help` or `/help/<guide-slug>`) can never
+ * name another host or an arbitrary page.
+ */
+
+const HELP_PATH = /^\/help(?:\/[a-z0-9-]+)?\/?$/;
+
+/** `/help` and everything under it. */
+export function isHelpPath(pathname: string): boolean {
+  return pathname === "/help" || pathname.startsWith("/help/");
+}
+
+/** The help page to return to after sign-in, or null when `next` isn't one. */
+export function helpReturnPath(next: string | null | undefined): string | null {
+  if (!next || !HELP_PATH.test(next)) return null;
+  return next.length > 5 && next.endsWith("/") ? next.slice(0, -1) : next;
+}
+
+/** `/login?next=<help page>` for a signed-out visitor who asked for `pathname`. */
+export function signInUrlFor(pathname: string): string {
+  const next = helpReturnPath(pathname);
+  return next ? `/login?next=${encodeURIComponent(next)}` : "/login";
+}

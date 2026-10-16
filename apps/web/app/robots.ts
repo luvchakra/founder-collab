@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@cofounderai/core/site";
 
 /**
- * Crawlers may index the public site -- the landing page, pricing, the legal pages and the
- * help guides -- and nothing else. Everything behind a login is disallowed by prefix where
+ * Crawlers may index the public site -- the landing page, pricing and the legal pages --
+ * and nothing else. The help guides are signed-in only (and marked noindex). Everything behind a login is disallowed by prefix where
  * it has one; a business's own pages live under its slug (/acme-hvac/...), which no crawler
  * can reach anyway since every such route redirects an anonymous visitor to /login. The
  * one-off public token pages under /p/ (estimates, invoices, data-room links) are
@@ -15,7 +15,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/dashboard", "/platform", "/api/", "/auth/", "/onboarding", "/p/", "/reset-password"],
+      disallow: ["/dashboard", "/platform", "/api/", "/auth/", "/onboarding", "/p/", "/reset-password", "/help"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

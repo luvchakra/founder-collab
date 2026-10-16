@@ -13,6 +13,7 @@ export function AuthForm({
   mode,
   action,
   providers,
+  returnTo = null,
 }: {
   mode: "login" | "signup";
   action: (
@@ -22,6 +23,9 @@ export function AuthForm({
   /** Which sign-in providers this deployment's Supabase project actually has turned on.
    * A button that cannot work is worse than no button -- see core/auth/oauth-providers.ts. */
   providers: Record<OAuthProvider, boolean>;
+  /** A help page to come back to after sign-in (core/help/access.ts); the server
+   * re-checks it, so nothing sent from here can steer the redirect elsewhere. */
+  returnTo?: string | null;
 }) {
   const [state, formAction] = useActionState<AuthActionState, FormData>(
     action,
@@ -34,6 +38,7 @@ export function AuthForm({
   return (
     <div className="flex w-full max-w-sm flex-col gap-6">
       <form action={formAction} className="flex flex-col gap-4">
+        {returnTo ? <input type="hidden" name="next" value={returnTo} /> : null}
         {!isLogin ? (
           <div className="flex flex-col gap-2">
             <Label htmlFor="name">Name</Label>
@@ -84,7 +89,7 @@ export function AuthForm({
 
           <div className="flex flex-col gap-2">
             {enabledProviders.map((provider) => (
-              <form key={provider} action={signInWithOAuthProvider.bind(null, provider)}>
+              <form key={provider} action={signInWithOAuthProvider.bind(null, provider, returnTo)}>
                 <SubmitButton variant="outline" className="w-full" pendingText="Redirecting…">
                   <ProviderMark provider={provider} />
                   Continue with {OAUTH_PROVIDER_LABELS[provider]}
