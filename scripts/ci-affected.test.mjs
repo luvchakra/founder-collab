@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { selectAffected } from "./ci-affected.mjs";
+import { lintTargets } from "./lint-changed.mjs";
 
 const DB = [
   "test-core-parties-rls.mjs",
@@ -12,25 +13,26 @@ const DB = [
   "test-sales-returns-workflow.mjs",
   "test-views-security-invoker.mjs",
 ];
-const select = (files, labels = []) => selectAffected(files, DB, labels);
+const select = (files, event) => selectAffected(files, DB, { event });
+const FULL = { code: true, unit: "all", lint: "all", build: true, db: "all" };
 
 test("docs-only changes skip typecheck, lint, unit tests, build and DB tests", () => {
   assert.deepEqual(select(["docs/plan/04-CLAUDE-CODE-BACKLOG.md", "CLAUDE.md"]), {
     code: false,
     unit: "changed",
+    lint: "changed",
     build: false,
     db: "",
-    e2e: false,
   });
 });
 
-test("app code runs affected unit tests and the build, but no DB tests", () => {
+test("app code runs related unit tests, a changed-files lint and the build, but no DB tests", () => {
   assert.deepEqual(select(["packages/module-fsm/src/lib/jobs.ts"]), {
     code: true,
     unit: "changed",
+    lint: "changed",
     build: true,
     db: "",
-    e2e: false,
   });
 });
 
@@ -59,21 +61,56 @@ test("an edited DB test script runs just that script", () => {
   assert.equal(select(["scripts/test-crm-rls.mjs"]).db, "test-crm-rls.mjs");
 });
 
-test("dependency and tooling changes run every unit test", () => {
-  assert.equal(select(["package-lock.json"]).unit, "all");
-  assert.equal(select(["apps/web/vitest.config.ts"]).unit, "all");
-  assert.equal(select(["packages/core/tsconfig.json"]).unit, "all");
+test("dependency, TypeScript, test, lint and build config run every unit test and the whole lint", () => {
+  for (const file of [
+    "package.json",
+    "package-lock.json",
+    "packages/core/package.json",
+    "packages/core/tsconfig.json",
+    "apps/web/vitest.config.ts",
+    "apps/web/eslint.config.mjs",
+    "apps/web/next.config.ts",
+    "apps/web/postcss.config.mjs",
+    "apps/web/playwright.config.ts",
+  ]) {
+    const result = select([file]);
+    assert.equal(result.unit, "all", file);
+    assert.equal(result.lint, "all", file);
+  }
 });
 
-test("changing CI itself runs everything", () => {
-  const full = { code: true, unit: "all", build: true, db: "all", e2e: true };
-  assert.deepEqual(select([".github/workflows/ci.yml"]), full);
-  assert.deepEqual(select(["scripts/lib/rls-test-harness.mjs"]), full);
-  assert.deepEqual(select(["supabase/tests/local-stub.sql"]), full);
+test("changing CI itself runs every unit test, the whole lint, every DB test and the build", () => {
+  assert.deepEqual(select([".github/workflows/ci.yml"]), FULL);
+  assert.deepEqual(select([".github/workflows/e2e-nightly.yml"]), FULL);
+  assert.deepEqual(select(["scripts/lint-changed.mjs"]), FULL);
+  assert.deepEqual(select(["scripts/lib/rls-test-harness.mjs"]), FULL);
+  assert.deepEqual(select(["supabase/tests/local-stub.sql"]), FULL);
 });
 
-test("e2e stays off the merge gate unless the pull request is labelled `e2e`", () => {
-  assert.equal(select(["packages/module-fsm/src/lib/jobs.ts"]).e2e, false);
-  assert.equal(select(["packages/module-fsm/src/lib/jobs.ts"], ["bug", "e2e"]).e2e, true);
-  assert.equal(select(["docs/plan/x.md"], ["e2e"]).e2e, true);
+test("a merge to main runs every unit test and the whole lint, and stays affected-only otherwise", () => {
+  assert.deepEqual(select(["packages/module-fsm/src/lib/jobs.ts"], "push"), {
+    code: true,
+    unit: "all",
+    lint: "all",
+    build: true,
+    db: "",
+  });
+  assert.equal(select(["docs/x.md"], "push").code, false);
+});
+
+test("nothing selects end-to-end tests: they run nightly", () => {
+  for (const files of [["packages/core/src/x.ts"], [".github/workflows/ci.yml"], ["apps/web/e2e/security/storage.spec.ts"]]) {
+    assert.equal("e2e" in select(files), false);
+  }
+});
+
+test("the changed-files lint looks only at present JS/TS files under apps/web", () => {
+  const present = new Set(["apps/web/app/page.tsx", "apps/web/lib/x.ts", "apps/web/e2e/a.spec.ts", "apps/web/eslint.config.mjs"]);
+  assert.deepEqual(
+    lintTargets(
+      ["apps/web/app/page.tsx", "apps/web/lib/x.ts", "apps/web/e2e/a.spec.ts", "apps/web/eslint.config.mjs", "apps/web/app/gone.ts", "apps/web/app/page.css", "packages/core/src/x.ts", "scripts/x.mjs"],
+      (file) => present.has(file),
+    ),
+    ["app/page.tsx", "lib/x.ts", "e2e/a.spec.ts", "eslint.config.mjs"],
+  );
 });

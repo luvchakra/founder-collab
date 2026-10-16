@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { refuseTarget } from "./e2e/support/target";
 
 // The test runner (not just `next dev`) needs the Supabase URL/keys for the two-tenant
 // fixtures (e2e/support/tenants.ts) and the API-level security specs. Values already in
@@ -23,6 +24,14 @@ if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 const isCI = Boolean(process.env.CI);
+// Never against production data: a local app and a local Supabase stack only
+// (e2e/support/target.ts, docs/testing/what-runs-where.md).
+const refused = refuseTarget({
+  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  baseUrl: baseURL,
+  remoteIsNotProduction: process.env.E2E_REMOTE_IS_NOT_PRODUCTION === "1",
+});
+if (refused) throw new Error(`Refusing to run E2E: ${refused}`);
 /** Seeding the e2e-qa fixtures needs the service-role key AND the explicit
  * E2E_ALLOW_FIXTURES=1 "this project is safe to seed" switch (support/tenants.ts). Without
  * both, every spec that needs a seeded account reports BLOCKED (its project isn't run)
@@ -53,9 +62,15 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: isCI,
-  retries: isCI ? 2 : 0,
+  // One retry in CI: a test that passes only on it is reported as flaky
+  // (scripts/e2e-summary.mjs) so it gets a root cause, never as a pass.
+  retries: isCI ? 1 : 0,
   workers: isCI ? 2 : undefined,
-  reporter: isCI ? [["list"], ["html", { open: "never" }]] : "list",
+  // results.json feeds the run summary (passed / failed / flaky / not run and the slowest
+  // spec files); it sits in the output folder, which is cleared at the start of a run.
+  reporter: isCI
+    ? [["list"], ["html", { open: "never" }], ["json", { outputFile: "test-results/results.json" }]]
+    : "list",
   timeout: 30_000,
   // E2E_EXPECT_TIMEOUT raises the per-assertion wait (still a wait on real UI state, never a
   // sleep) for environments far from the database region, where a server action's several

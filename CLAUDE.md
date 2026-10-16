@@ -316,11 +316,12 @@ getting a change in front of them quickly beats exhaustive local verification.
 
 - **Before pushing, run only fast, relevant checks:** `npm run typecheck`, lint on the
   files you changed, and the unit tests for the areas you touched (`npx vitest run <paths>`
-  inside the package). CI (`.github/workflows/ci.yml`) runs what the PR touches
-  (`scripts/ci-affected.mjs`): every lint, cached typecheck, `vitest --changed`, the DB
-  tests for the migrated area, and the build only when app code changed.
-  The same workflow's nightly run does everything plus e2e, which also runs on a PR
-  labelled `e2e`; a failed nightly opens an issue. Let them.
+  inside the package). PR CI (`.github/workflows/ci.yml`) runs fast checks only, as
+  parallel jobs (`scripts/ci-affected.mjs`): typecheck, ESLint on the changed files, the
+  unit tests related to them, the audit, the DB tests for the migrated area, and the build
+  only when app code changed; a merge to `main` runs every unit test and the whole lint.
+  E2E never runs on a PR: it runs nightly (`.github/workflows/e2e-nightly.yml`), and a
+  failed or flaky nightly opens an issue. What runs where: `docs/testing/what-runs-where.md`.
 - **Don't run** end-to-end, accessibility or full-app walkthroughs unless asked or the
   change is genuinely risky. A quick look at the one screen you changed is enough.
 - **Still required, because they're cheap and protect trust:** every rule in this file,
@@ -361,9 +362,12 @@ only one build runs at a time. Running out blocks production. The general rules 
   while a code PR is open or about to open.
 - **Verify before pushing** (typecheck, lint, touched tests) and push a branch once, when
   it's ready. Push to `main` only by merging a PR.
-- **e2e runs on the GitHub Actions runner,** never against a fresh Vercel deployment. Before
-  a merge it runs only for auth, permissions, database rules or integrations (label `e2e`);
-  otherwise it waits for the nightly. Never re-run a failure hoping it passes.
+- **e2e runs on the GitHub Actions runner or your machine,** against a local stack, never a
+  Vercel deployment or production. Before merging something risky (sign-in, permissions,
+  database migrations, payments, a new cross-feature flow), run the affected specs with
+  `npm run e2e:local -- <specs>` or Nightly E2E by hand on the branch; otherwise it waits
+  for the nightly. **A red nightly is fixed before other work merges** -- root cause, not
+  "flaky". Never re-run a failure hoping it passes.
 - **Watch the budget.** Before deployment-heavy work, count the team's deployments in the last
   24 hours. Above about 70% of the cap, merge only production work and hotfixes. At the cap,
   stop, wait until the oldest counted deployment is 24 hours old, then redeploy the latest

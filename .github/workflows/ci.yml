@@ -1,20 +1,21 @@
 name: CI
 
-# What runs when (scripts/ci-affected.mjs decides; same shape as WonderJobs' CI):
+# What runs where, and why: docs/testing/what-runs-where.md. In short --
 #
-#   pull request   only what the change touches: lints and cached typecheck, `vitest --changed`,
-#                  the DB/RLS scripts for the migrated area, the build when app code changed --
-#                  as parallel jobs. The `e2e` label, or any CI change, adds E2E.
-#   push to main   the same, for the merged commit.
-#   nightly        everything, E2E included. A failure opens (or comments on) one issue.
-#   manual         Actions -> CI -> Run workflow: everything, E2E included.
+#   pull request   fast checks only, as parallel jobs: typecheck, ESLint on the changed files,
+#                  the unit tests related to the changed files (`vitest --changed`), the
+#                  dependency audit -- plus the DB/RLS scripts for a migrated area and the
+#                  build when app code changed. A dependency, config or CI change runs every
+#                  unit test and the whole lint (scripts/ci-affected.mjs decides).
+#   push to main   the same jobs with every unit test and the whole lint.
+#   manual         Actions -> CI -> Run workflow: everything above, in full.
+#
+# No end-to-end tests here: they run nightly in e2e-nightly.yml.
 on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
-  schedule:
-    - cron: "30 20 * * *" # 02:00 IST
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 # Least privilege: jobs only read the repository (the alert job asks for issues: write itself).
@@ -33,82 +34,110 @@ jobs:
       base: ${{ steps.base.outputs.base }}
       code: ${{ steps.affected.outputs.code }}
       unit: ${{ steps.affected.outputs.unit }}
+      lint: ${{ steps.affected.outputs.lint }}
       build: ${{ steps.affected.outputs.build }}
       db: ${{ steps.affected.outputs.db }}
-      e2e: ${{ steps.affected.outputs.e2e }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - id: base
-        # PR: its base commit. Push to main: the previous head. Nightly/manual: none -> full run.
+        # PR: its base commit. Push to main: the previous head. Manual: none -> full run.
         run: echo "base=${{ github.event.pull_request.base.sha || (github.event_name == 'push' && github.event.before) || '' }}" >> "$GITHUB_OUTPUT"
       - id: affected
         run: node scripts/ci-affected.mjs "${{ steps.base.outputs.base }}"
         env:
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          CI_EVENT: ${{ github.event_name }}
 
-  checks:
+  typecheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # tsc build info from the latest run on any branch: it keys on file contents, so it
+      # only skips work whose inputs are unchanged.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/tsc
+          key: tsc-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: tsc-${{ hashFiles('package-lock.json') }}-
+      - run: npm run typecheck
+
+  lint:
     needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - run: npm ci
-
-      # SEC-1: fail on a known high/critical advisory in anything that ships to production
-      # (dev-only tooling never reaches a deployed bundle). This is what would have caught
-      # next@16.3.4's critical RCE advisory (GHSA-vcvr-r3jv-pc5j) before it sat on main.
-      - name: Dependency vulnerability audit
-        run: npm audit --omit=dev --audit-level=high
-
+      # The repo's own rules, whole-repo and quick (well under a second each).
       - name: Import boundary lint
         run: npm run lint:boundaries
-
       - name: Migration schema lint
         run: npm run lint:migrations
-
       - name: Migration grant lint
         run: npm run lint:migration-grants
-
       - name: Compliance (gst) no-duplicate-masters lint
         run: npm run lint:gst-no-duplicate-masters
+      - uses: actions/cache@v4
+        if: needs.changes.outputs.code == 'true'
+        with:
+          path: .cache/eslint
+          key: eslint-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: eslint-${{ hashFiles('package-lock.json') }}-
+      - name: ESLint (whole app)
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.lint == 'all'
+        run: npm run lint
+      - name: ESLint (changed files)
+        if: needs.changes.outputs.code == 'true' && needs.changes.outputs.lint == 'changed'
+        run: node scripts/lint-changed.mjs ${{ needs.changes.outputs.base }}
 
+  unit:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - name: Script tests (help content, progress tracker, linters, CI selection)
         run: npm run test:scripts
-
-      # tsc build info and the eslint cache, from the latest run on any branch: both key on
-      # file contents, so they only skip work whose inputs are unchanged.
-      - name: Restore typecheck + lint caches
-        if: needs.changes.outputs.code == 'true'
-        uses: actions/cache@v4
-        with:
-          path: .cache
-          key: tsc-eslint-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
-          restore-keys: tsc-eslint-${{ hashFiles('package-lock.json') }}-
-
-      - name: Typecheck
-        if: needs.changes.outputs.code == 'true'
-        run: npm run typecheck
-
-      - name: Lint
-        if: needs.changes.outputs.code == 'true'
-        run: npm run lint
-
       - name: Unit tests (all)
         if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'all'
         run: npm run test --workspaces --if-present
-
-      - name: Unit tests (affected by this change)
+      - name: Unit tests (related to the changed files)
         if: needs.changes.outputs.code == 'true' && needs.changes.outputs.unit == 'changed'
         run: npm run test --workspaces --if-present -- --changed ${{ needs.changes.outputs.base }}
+
+  audit:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # SEC-1: fail on a known high/critical advisory in anything that ships to production
+      # (dev-only tooling never reaches a deployed bundle). This is what would have caught
+      # next@16.3.4's critical RCE advisory (GHSA-vcvr-r3jv-pc5j) before it sat on main.
+      # Reads the lockfile only: no install needed.
+      - name: Dependency vulnerability audit
+        run: npm audit --omit=dev --audit-level=high
 
   db:
     needs: changes
@@ -169,103 +198,26 @@ jobs:
       - name: Build
         run: npm run build
 
-  # End-to-end + security suite (docs/testing/E2E_TEST_PLAN.md). Triggers as in WonderJobs'
-  # CI: nightly, manual, PRs labelled `e2e`, CI changes -- off the merge gate otherwise.
-  # Backend as in wonder-creator's: a throwaway local Supabase stack started on the runner
-  # with the whole migration timeline (scripts/start-local-supabase.sh) -- real Auth,
-  # PostgREST and Storage, no secrets, and never the hosted project. That stack is a
-  # disposable test database, so seeding the e2e-qa fixtures is safe
-  # (E2E_ALLOW_FIXTURES=1), and every run has its own, so runs don't need to queue.
-  e2e:
-    needs: changes
-    if: needs.changes.outputs.e2e == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      E2E_ALLOW_FIXTURES: "1"
-      E2E_SELF_PROVISION: "1"
-      E2E_TEST_BUSINESS_SLUG: acme-home-security-qa
-      PLAYWRIGHT_BASE_URL: http://localhost:3100
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - run: npm ci
-
-      # Writes apps/web/.env.local with the stack's local URL and keys, which `next build`,
-      # `next start` and playwright.config.ts all read.
-      - name: Start a local Supabase stack with every migration
-        run: bash scripts/start-local-supabase.sh
-
-      - id: pw
-        working-directory: apps/web
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
-
-      - name: Install Chromium
-        working-directory: apps/web
-        run: npx playwright install --with-deps chromium
-
-      - name: Restore Next.js build cache
-        uses: actions/cache/restore@v4
-        with:
-          path: apps/web/.next/cache
-          key: next-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
-          restore-keys: next-${{ hashFiles('package-lock.json') }}-
-
-      - name: Build
-        run: npm run build
-
-      - name: Start the app
-        working-directory: apps/web
-        run: |
-          nohup npx next start -p 3100 > next.log 2>&1 &
-          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3100/login && exit 0; sleep 1; done
-          echo "app did not start"; tail -50 next.log; exit 1
-
-      - name: E2E (security, multi-user, signed-out, desktop, mobile)
-        working-directory: apps/web
-        run: npx playwright test --timeout=90000
-
-      - name: Upload failure evidence (traces, screenshots, videos)
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-evidence
-          path: |
-            apps/web/playwright-report/
-            apps/web/test-results/
-            apps/web/next.log
-          retention-days: 14
-
   # The one check branch protection and the PR page look at: green only when every job
   # this change needed passed (a job skipped because the change didn't need it is fine).
   ci:
-    needs: [changes, checks, db, build, e2e]
+    needs: [changes, typecheck, lint, unit, audit, db, build]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Result
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          echo "changes=${{ needs.changes.result }} checks=${{ needs.checks.result }} db=${{ needs.db.result }} build=${{ needs.build.result }} e2e=${{ needs.e2e.result }}"
-          for r in "${{ needs.changes.result }}" "${{ needs.checks.result }}" "${{ needs.db.result }}" "${{ needs.build.result }}" "${{ needs.e2e.result }}"; do
-            case "$r" in success|skipped) ;; *) exit 1 ;; esac
-          done
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key)=\(.value.result)"'
+          echo "$NEEDS" | jq -e '[to_entries[] | select(.value.result != "success" and .value.result != "skipped")] | length == 0' > /dev/null
 
-  # Nightly and manual runs have nobody watching them: a failure opens one issue, or
-  # comments on the one already open, with the run link (as WonderJobs does).
+  # A red main or a red manual run has nobody watching it: a failure opens one issue, or
+  # comments on the one already open, with the run link.
   alert:
     name: Alert on failure
-    if: always() && needs.ci.result == 'failure' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    needs: [changes, checks, db, build, e2e, ci]
+    if: always() && needs.ci.result == 'failure' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [changes, typecheck, lint, unit, audit, db, build, ci]
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -277,7 +229,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EVENT: ${{ github.event_name }}
         run: |
-          title="CI failing on main (nightly / manual run)"
+          title="CI failing on main"
           failed=$(echo "$NEEDS" | jq -r '[to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key) (\(.value.result))"] | join(", ")')
           body=$(printf '%s run on `%s` failed: %s\n\n%s' "$EVENT" "${GITHUB_SHA:0:7}" "$failed" "$RUN_URL")
           n=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)

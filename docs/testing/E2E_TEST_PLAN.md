@@ -79,18 +79,20 @@ npx playwright test --project=security --project=multi-user \
 - `PLAYWRIGHT_CHROMIUM_PATH` points at a pre-installed Chromium when the pinned revision
   can't be downloaded (as in the cloud sandbox this suite was built in).
 
-CI: the `e2e` job in `.github/workflows/ci.yml` runs nightly (02:00 IST), on manual dispatch,
-on a pull request labelled `e2e`, and whenever CI itself changes -- otherwise off the merge
-gate, the way WonderJobs runs its own suite. Its backend is the one wonder-creator uses: a
-throwaway local Supabase stack started on the runner with the whole migration timeline
-(`scripts/start-local-supabase.sh`) -- real Auth, PostgREST and Storage, no secrets, never
-the hosted project. Because that database is disposable, the job sets `E2E_ALLOW_FIXTURES=1`
-itself. Traces, screenshots and videos are uploaded on failure, and a failed nightly opens
-(or comments on) one issue.
+CI: `.github/workflows/e2e-nightly.yml` runs the whole suite nightly (02:00 IST) and by hand
+(Actions -> Nightly E2E -> Run workflow, on any branch, optionally limited to some spec
+files); pull requests and merges to `main` never run it ([what-runs-where.md](what-runs-where.md)).
+Its backend is the one wonder-creator uses: a throwaway local Supabase stack started on the
+runner with the whole migration timeline (`scripts/start-local-supabase.sh`) -- real Auth,
+PostgREST and Storage, no secrets, never the hosted project (`playwright.config.ts` refuses
+production outright, `e2e/support/target.ts`). Because that database is disposable, the job
+sets `E2E_ALLOW_FIXTURES=1` itself. One retry; a test that passes only on it is reported as
+flaky. The HTML report, traces and the app log are always uploaded, and a failed or flaky
+nightly opens (or comments on) one issue.
 
-The same stack works locally (Docker required): move any `apps/web/.env.local` aside, run
-`bash scripts/start-local-supabase.sh`, build and start the app, then run the command in §4
-with `E2E_ALLOW_FIXTURES=1`; `npx supabase stop --no-backup` removes the stack. Anything the
+The same run works locally (Docker required): `npm run e2e:local -- <spec files>`
+(`scripts/e2e-local.sh`) moves `apps/web/.env.local` aside, starts a fresh stack, builds and
+starts the app on :3100, runs the specs, and puts everything back. Anything the
 environment can't support (no service-role key, or the switch unset) reports BLOCKED --
 listed, not run -- instead of failing (`apps/web/playwright.config.ts`).
 
