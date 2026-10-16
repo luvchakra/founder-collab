@@ -79,7 +79,7 @@ npx playwright test --project=security --project=multi-user \
 - `PLAYWRIGHT_CHROMIUM_PATH` points at a pre-installed Chromium when the pinned revision
   can't be downloaded (as in the cloud sandbox this suite was built in).
 
-CI: `.github/workflows/e2e-nightly.yml` runs the whole suite nightly (02:00 IST) and by hand
+CI: `.github/workflows/e2e-nightly.yml` runs the whole suite nightly (03:00 IST) and by hand
 (Actions -> Nightly E2E -> Run workflow, on any branch, optionally limited to some spec
 files); pull requests and merges to `main` never run it ([what-runs-where.md](what-runs-where.md)).
 Its backend is the one wonder-creator uses: a throwaway local Supabase stack started on the

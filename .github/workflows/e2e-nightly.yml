@@ -1,7 +1,7 @@
 name: Nightly E2E
 
 # The full end-to-end and security suite (docs/testing/E2E_TEST_PLAN.md), off the merge gate:
-# nightly at 02:00 IST, or by hand (Actions -> Nightly E2E -> Run workflow) on any branch,
+# nightly at 03:00 IST, or by hand (Actions -> Nightly E2E -> Run workflow) on any branch,
 # optionally limited to some spec files. What runs where, and why:
 # docs/testing/what-runs-where.md.
 #
@@ -16,7 +16,7 @@ name: Nightly E2E
 # 25-minute budget. If it outgrows that, split it by the per-file times in the run summary.
 on:
   schedule:
-    - cron: "30 20 * * *" # 02:00 IST
+    - cron: "30 21 * * *" # 03:00 IST (21:30 UTC)
   workflow_dispatch:
     inputs:
       specs:

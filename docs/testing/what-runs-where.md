@@ -11,7 +11,7 @@ labelled PR" rule.
 | Pull request that changes dependencies, TS/test/lint/build config or CI | `ci.yml` | As above, with **every** unit test and the **whole** lint. A CI change also runs every DB test and the build. | ~2–3 min |
 | Push to `main` (a merge) | `ci.yml` | The same jobs with every unit test and the whole lint. No E2E. | ~2–3 min |
 | Manual (Actions → CI → Run workflow) | `ci.yml` | Everything in `ci.yml`, in full. | ~3 min |
-| Nightly, 02:00 IST | `e2e-nightly.yml` | The full Playwright suite (security, multi-user, signed-out, desktop, mobile) against a fresh build and a fresh local Supabase stack. | ~9 min (~5 min of tests) |
+| Nightly, 03:00 IST | `e2e-nightly.yml` | The full Playwright suite (security, multi-user, signed-out, desktop, mobile) against a fresh build and a fresh local Supabase stack. | ~9 min (~5 min of tests) |
 | Manual (Actions → Nightly E2E → Run workflow) | `e2e-nightly.yml` | The same, on any branch. The optional **specs** input takes space-separated paths relative to `apps/web`, such as `e2e/security/storage.spec.ts`. | |
 | Your machine | `npm run e2e:local -- <specs>` | Chosen specs against a local production build and a fresh local stack (needs Docker). | |
 
