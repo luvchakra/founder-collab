@@ -1,31 +1,34 @@
 #!/usr/bin/env node
 /**
- * Decides which CI jobs a change actually needs, so a pull request runs the tests for the
- * feature it touches rather than the whole suite (the nightly run still does
- * everything, plus e2e). Prints `key=value` lines -- and appends them to $GITHUB_OUTPUT
- * when set:
+ * Decides which CI jobs a change actually needs, so a pull request runs the checks for the
+ * files it touches rather than the whole suite (docs/testing/what-runs-where.md). Prints
+ * `key=value` lines -- and appends them to $GITHUB_OUTPUT when set:
  *
  *   code   typecheck + lint + unit tests are needed (false when only docs changed)
- *   unit   "all" or "changed" -- `vitest --changed <base>` follows imports, so a change in
- *          packages/core still runs the apps/web tests that depend on it
+ *   unit   "all" or "changed" -- `vitest --changed <base>` runs the tests related to the
+ *          changed files by following imports, so a change in packages/core still runs the
+ *          apps/web tests that depend on it
+ *   lint   "all" or "changed" -- ESLint on the whole app, or on the changed files only
+ *          (scripts/lint-changed.mjs)
  *   build  `next build` is needed (something the deployed app is built from changed)
  *   db     DB/RLS test scripts to run: "all", a space-separated list, or empty
- *   e2e    the Playwright suite -- off the merge gate, as in WonderJobs: a full run (nightly,
- *          manual, no usable base, a CI change) or a pull request labelled `e2e`
+ *
+ * End-to-end tests never run here: they run nightly (.github/workflows/e2e-nightly.yml).
  *
  * Usage: node scripts/ci-affected.mjs <base-ref>   (no base, or an unknown one -> full run)
- * PR_LABELS (comma or newline separated) is read from the environment.
+ * CI_EVENT=push (a merge to main) always runs every unit test and the whole lint.
  */
 import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import { allDbTestScripts } from "./run-db-tests.mjs";
 
-const FULL = { code: true, unit: "all", build: true, db: "all", e2e: true };
+const FULL = { code: true, unit: "all", lint: "all", build: true, db: "all" };
 
 /** Changing any of these changes how everything else is tested, so it re-runs everything. */
 const FULL_RUN_TRIGGERS = [
   /^\.github\/workflows\//,
   /^scripts\/ci-affected\.mjs$/,
+  /^scripts\/lint-changed\.mjs$/,
   /^scripts\/run-db-tests\.mjs$/,
   /^scripts\/lib\//,
   /^supabase\/tests\//,
@@ -35,8 +38,21 @@ const FULL_RUN_TRIGGERS = [
  * (help content, progress tracker) still run for these -- they are always cheap. */
 const isDocsOnly = (file) => /^docs\//.test(file) || /\.md$/i.test(file);
 
-/** A dependency or tooling change can affect any test, which `vitest --changed` can't see. */
-const UNIT_FULL_TRIGGERS = [/(^|\/)package(-lock)?\.json$/, /(^|\/)tsconfig[^/]*\.json$/, /(^|\/)vitest\.config\.[cm]?[jt]s$/];
+/**
+ * Dependencies, TypeScript, test, lint and build config: a change here can affect any test
+ * or any file's lint result, which neither `vitest --changed` nor a changed-files lint can
+ * see, so it runs every unit test and the whole lint.
+ */
+const CONFIG_TRIGGERS = [
+  /(^|\/)package(-lock)?\.json$/,
+  /(^|\/)tsconfig[^/]*\.json$/,
+  /(^|\/)vitest\.(config|setup|workspace)[^/]*\.[cm]?[jt]s$/,
+  /(^|\/)eslint\.config\.[cm]?[jt]s$/,
+  /(^|\/)\.eslintrc/,
+  /(^|\/)next\.config\.[cm]?[jt]s$/,
+  /(^|\/)postcss\.config\.[cm]?[jt]s$/,
+  /(^|\/)playwright\.config\.[cm]?[jt]s$/,
+];
 
 /** What the deployed app is built from (apps/web imports every package as source). */
 const affectsBuild = (file) => /^(apps|packages)\//.test(file) || /^package(-lock)?\.json$/.test(file);
@@ -56,7 +72,7 @@ const MIGRATION_AREAS = {
   platform: ["platform"],
 };
 
-export function selectAffected(changedFiles, dbScripts = allDbTestScripts(), labels = []) {
+export function selectAffected(changedFiles, dbScripts = allDbTestScripts(), { event = "pull_request" } = {}) {
   const files = changedFiles.filter(Boolean);
   if (files.some((file) => FULL_RUN_TRIGGERS.some((re) => re.test(file)))) return { ...FULL };
 
@@ -82,12 +98,13 @@ export function selectAffected(changedFiles, dbScripts = allDbTestScripts(), lab
     if (script && dbScripts.includes(script[1])) db.add(script[1]);
   }
 
+  const everything = event === "push" || codeFiles.some((file) => CONFIG_TRIGGERS.some((re) => re.test(file)));
   return {
     code: codeFiles.length > 0,
-    unit: codeFiles.some((file) => UNIT_FULL_TRIGGERS.some((re) => re.test(file))) ? "all" : "changed",
+    unit: everything ? "all" : "changed",
+    lint: everything ? "all" : "changed",
     build: files.some(affectsBuild),
     db: allDb ? "all" : [...db].sort().join(" "),
-    e2e: labels.includes("e2e"),
   };
 }
 
@@ -103,10 +120,10 @@ function changedFilesSince(base) {
 function main() {
   const base = process.argv[2];
   const changed = base && !/^0+$/.test(base) ? changedFilesSince(base) : null;
-  const labels = (process.env.PR_LABELS ?? "").split(/[,\n]/).map((label) => label.trim()).filter(Boolean);
-  const result = changed ? selectAffected(changed, allDbTestScripts(), labels) : { ...FULL };
+  const event = process.env.CI_EVENT ?? "pull_request";
+  const result = changed ? selectAffected(changed, allDbTestScripts(), { event }) : { ...FULL };
   const lines = Object.entries(result).map(([key, value]) => `${key}=${value}`);
-  console.log(changed ? `${changed.filter(Boolean).length} file(s) changed since ${base}` : "No usable base: full run");
+  console.log(changed ? `${changed.filter(Boolean).length} file(s) changed since ${base} (${event})` : "No usable base: full run");
   console.log(lines.join("\n"));
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
 }

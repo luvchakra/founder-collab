@@ -1,0 +1,157 @@
+name: Nightly E2E
+
+# The full end-to-end and security suite (docs/testing/E2E_TEST_PLAN.md), off the merge gate:
+# nightly at 02:00 IST, or by hand (Actions -> Nightly E2E -> Run workflow) on any branch,
+# optionally limited to some spec files. What runs where, and why:
+# docs/testing/what-runs-where.md.
+#
+# Each run builds the app fresh and starts its own throwaway local Supabase stack with the
+# whole migration timeline (scripts/start-local-supabase.sh): real Auth, PostgREST and
+# Storage, no secrets, never the hosted project (playwright.config.ts refuses it). Nothing
+# survives from one run to the next, so a run killed halfway can't leave data or a changed
+# setting behind for the next one; within a run, the e2e-qa fixtures are removed before
+# seeding and after the last spec (e2e/support/tenants.ts).
+#
+# One part today: the suite takes about 5 minutes (about 9 with setup), well inside its
+# 25-minute budget. If it outgrows that, split it by the per-file times in the run summary.
+on:
+  schedule:
+    - cron: "30 20 * * *" # 02:00 IST
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: "Spec files to run, space-separated, relative to apps/web (e.g. e2e/security/storage.spec.ts). Empty runs everything."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    # Hard stop well past the suite's own budget (--global-timeout below), which ends the
+    # run cleanly with a summary first.
+    timeout-minutes: 45
+    outputs:
+      failed: ${{ steps.summary.outputs.failed }}
+      flaky: ${{ steps.summary.outputs.flaky }}
+    env:
+      E2E_ALLOW_FIXTURES: "1"
+      E2E_SELF_PROVISION: "1"
+      E2E_TEST_BUSINESS_SLUG: acme-home-security-qa
+      PLAYWRIGHT_BASE_URL: http://localhost:3100
+      # Per-part time budget: Playwright stops starting tests after this, reports the rest
+      # as not run, and still writes every report.
+      E2E_BUDGET_MS: "1500000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the spec list
+        id: specs
+        env:
+          SPECS: ${{ inputs.specs }}
+        run: |
+          list=""
+          for spec in $SPECS; do
+            case "$spec" in
+              *..*) echo "::error::Spec path may not contain '..': $spec"; exit 1 ;;
+            esac
+            if ! printf '%s' "$spec" | grep -Eq '^e2e/[A-Za-z0-9_./-]+\.ts$'; then
+              echo "::error::Not a spec path under apps/web/e2e: $spec"; exit 1
+            fi
+            [ -f "apps/web/$spec" ] || { echo "::error::No such spec: apps/web/$spec"; exit 1; }
+            list="$list $spec"
+          done
+          echo "list=${list# }" >> "$GITHUB_OUTPUT"
+          echo "Specs: ${list:-all}"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Writes apps/web/.env.local with the stack's local URL and keys, which `next build`,
+      # `next start` and playwright.config.ts all read.
+      - name: Start a fresh local Supabase stack with every migration
+        run: bash scripts/start-local-supabase.sh
+
+      - id: pw
+        working-directory: apps/web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build
+        run: npm run build
+
+      - name: Start the app
+        working-directory: apps/web
+        run: |
+          nohup npx next start -p 3100 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3100/login && exit 0; sleep 1; done
+          echo "app did not start"; tail -50 next.log; exit 1
+
+      # Never fails the step itself: the summary below decides, so the reports are always
+      # written and uploaded first.
+      - name: E2E (security, multi-user, signed-out, desktop, mobile)
+        working-directory: apps/web
+        env:
+          SPECS: ${{ steps.specs.outputs.list }}
+        run: |
+          set +e
+          # shellcheck disable=SC2086 -- SPECS is a checked, space-separated list
+          npx playwright test --timeout=90000 --global-timeout="$E2E_BUDGET_MS" $SPECS
+          echo "Playwright exited with $?"
+
+      - name: Summary (passed / failed / flaky / not run)
+        id: summary
+        if: always()
+        run: node scripts/e2e-summary.mjs apps/web/test-results/results.json
+
+      - name: Upload the HTML report, traces and app log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            apps/web/next.log
+          retention-days: 14
+
+  # A scheduled run has nobody watching it: a failure, or a test that passed only on retry,
+  # opens one issue (or comments on the one already open) with the run link.
+  alert:
+    name: Alert on failure or flaky tests
+    needs: e2e
+    if: always() && github.event_name == 'schedule' && (needs.e2e.result != 'success' || needs.e2e.outputs.flaky != '0')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULT: ${{ needs.e2e.result }}
+          FAILED: ${{ needs.e2e.outputs.failed }}
+          FLAKY: ${{ needs.e2e.outputs.flaky }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly E2E failing"
+          body=$(printf 'Nightly E2E on `%s`: %s (failed: %s, flaky: %s). Fix the root cause before other work merges.\n\n%s' "${GITHUB_SHA:0:7}" "$RESULT" "${FAILED:-?}" "${FLAKY:-?}" "$RUN_URL")
+          n=$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+          if [ -n "$n" ]; then gh issue comment "$n" --body "$body"; else gh issue create --title "$title" --body "$body"; fi

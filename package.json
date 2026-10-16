@@ -18,6 +18,7 @@
     "build:screens": "node scripts/build-landing-screens.mjs",
     "build:progress": "node scripts/build-progress-tracker.mjs",
     "test:db": "node scripts/run-db-tests.mjs",
+    "e2e:local": "bash scripts/e2e-local.sh",
     "test:module": "node scripts/test-module.mjs",
     "_comment:finance": "Finance lives in packages/module-gst (the module key stays 'gst'; only the display name is Finance). Further test:finance:* targets land with the phases that add their code, rather than being declared against tests that do not exist yet.",
     "test:finance": "npm run test -w packages/module-gst --",
