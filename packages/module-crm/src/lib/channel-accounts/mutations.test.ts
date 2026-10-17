@@ -12,7 +12,10 @@ const h = vi.hoisted(() => ({
 vi.mock("@cofounderai/core/rbac/require-permission", () => ({ requirePermission: h.requirePermission }));
 vi.mock("@cofounderai/core/licensing/queries", () => ({ requireModule: h.requireModule }));
 vi.mock("@cofounderai/core/crypto/api-key", () => ({ encryptApiKey: (v: string) => `enc:${v}` }));
-vi.mock("../../db/server", () => ({ createClient: async () => ({ from: h.from }) }));
+vi.mock("@cofounderai/core/audit/mutations", () => ({ writeAuditLog: vi.fn(async () => {}) }));
+vi.mock("../../db/server", () => ({
+  createClient: async () => ({ from: h.from, auth: { getUser: async () => ({ data: { user: { id: "u-1" } } }) } }),
+}));
 
 const { connectChannelAccount, disconnectChannelAccount, setInstantReplyMode } = await import("./mutations");
 const { createChannel, setChannelActive } = await import("../channels/mutations");
@@ -21,6 +24,7 @@ function chain(result: unknown) {
   const b: Record<string, unknown> = {};
   for (const m of ["update", "eq", "select"]) b[m] = vi.fn(() => b);
   b.insert = vi.fn(async () => ({ error: null }));
+  b.maybeSingle = vi.fn(async () => ({ data: { id: "acc-1", provider: "instagram", instant_reply_mode: "off" }, error: null }));
   b.then = (resolve: (v: unknown) => void) => resolve(result);
   return b;
 }

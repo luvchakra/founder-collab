@@ -5,6 +5,13 @@ import { createClient as createCoreClient } from "@cofounderai/core/db/server";
 import { createClient } from "../../db/server";
 import { listActivitiesForParty } from "../activities/queries";
 import { listInteractionsForParty } from "../interactions/queries";
+import { AUTO_ACK_INTERACTION_TYPE } from "../instant-reply/acknowledgement";
+
+/** CRM-INSTANT-ACK-01: the automatic acknowledgement says what it is, never "Sent". */
+function interactionLabel(interaction: { direction: string; channel: string; interaction_type?: string | null }): string {
+  if (interaction.interaction_type === AUTO_ACK_INTERACTION_TYPE) return `Automatic acknowledgement (${interaction.channel})`;
+  return `${interaction.direction === "inbound" ? "Received" : "Sent"} ${interaction.channel} message`;
+}
 import {
   getOpportunity,
   getFsmQuoteStatusForOpportunity,
@@ -57,7 +64,7 @@ export async function listRelationshipTimeline(businessId: string, partyId: stri
       id: `interaction-${interaction.id}`,
       source: "crm.interaction",
       occurredAt: interaction.occurred_at,
-      label: `${interaction.direction === "inbound" ? "Received" : "Sent"} ${interaction.channel} message`,
+      label: interactionLabel(interaction),
       detail: interaction.content_excerpt,
       detailHref: null,
     });
@@ -189,7 +196,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
   if (conversationIds.length > 0) {
     const { data: interactions, error: interactionsError } = await supabase
       .from("interaction")
-      .select("id, direction, channel, content_excerpt, occurred_at")
+      .select("id, direction, channel, interaction_type, content_excerpt, occurred_at")
       .eq("business_id", businessId)
       .in("conversation_id", conversationIds);
     if (interactionsError) throw interactionsError;
@@ -198,7 +205,7 @@ export async function listOpportunityJourneyHistory(businessId: string, opportun
         id: `interaction-${interaction.id}`,
         source: "crm.interaction",
         occurredAt: interaction.occurred_at,
-        label: `${interaction.direction === "inbound" ? "Received" : "Sent"} ${interaction.channel} message`,
+        label: interactionLabel(interaction),
         detail: interaction.content_excerpt,
         detailHref: null,
       });

@@ -2,6 +2,7 @@ import { cache } from "react";
 import { createClient } from "../../db/server";
 import { getAccountPeriodTotals } from "./report-queries";
 import { summariseBudget, type BudgetLine } from "./budgets";
+import { BUDGETABLE_ACCOUNT_TYPES } from "./budget-entry";
 import type { AccountType } from "./types";
 
 /**
@@ -53,4 +54,52 @@ export const getBudgetVsActual = cache(async (businessId: string, from: string, 
     .filter((line) => line.budgeted !== 0 || line.actual !== 0);
 
   return { ...summariseBudget(lines), hasBudget: budgetByAccount.size > 0 };
+});
+
+export interface BudgetGridAccount {
+  id: string;
+  accountNumber: string;
+  name: string;
+  type: AccountType;
+}
+
+/**
+ * FIN-BUDGET-ENTRY — what the entry grid needs for one fiscal year: the business's active
+ * income, cost of sales and expense accounts, and the figures already set for each month
+ * (keyed `accountId|periodStart`). An inactive account still shows when it has figures
+ * this year, so a saved budget never disappears from the screen that set it.
+ */
+export const getBudgetGrid = cache(async (businessId: string, from: string, to: string) => {
+  const supabase = await createClient();
+  const [{ data: accounts, error: accountsError }, { data: lines, error: linesError }] = await Promise.all([
+    supabase
+      .from("accounts")
+      .select("id, account_number, name, type, is_active")
+      .eq("business_id", businessId)
+      .in("type", BUDGETABLE_ACCOUNT_TYPES)
+      .order("account_number", { ascending: true }),
+    supabase
+      .from("budget_lines")
+      .select("account_id, period_start, amount")
+      .eq("business_id", businessId)
+      .gte("period_start", from)
+      .lte("period_start", to),
+  ]);
+  if (accountsError) throw accountsError;
+  if (linesError) throw linesError;
+
+  const amounts: Record<string, number> = {};
+  const budgeted = new Set<string>();
+  for (const row of (lines ?? []) as { account_id: string; period_start: string; amount: number | string }[]) {
+    amounts[`${row.account_id}|${row.period_start}`] = Number(row.amount);
+    budgeted.add(row.account_id);
+  }
+
+  const gridAccounts: BudgetGridAccount[] = (
+    (accounts ?? []) as { id: string; account_number: string; name: string; type: AccountType; is_active: boolean }[]
+  )
+    .filter((a) => a.is_active || budgeted.has(a.id))
+    .map((a) => ({ id: a.id, accountNumber: a.account_number, name: a.name, type: a.type }));
+
+  return { accounts: gridAccounts, amounts };
 });

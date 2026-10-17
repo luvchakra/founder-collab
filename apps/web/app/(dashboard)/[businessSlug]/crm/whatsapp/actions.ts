@@ -2,7 +2,8 @@
 
 import { businessPath } from "@/lib/business-path";
 import { revalidatePath } from "next/cache";
-import { connectWhatsApp, disconnectChannelConnection } from "@cofounderai/module-crm/lib/channel-connections/mutations";
+import { connectWhatsApp, disconnectChannelConnection, setWhatsAppInstantReplyMode } from "@cofounderai/module-crm/lib/channel-connections/mutations";
+import type { InstantReplyMode } from "@cofounderai/module-crm/lib/channel-accounts/types";
 import { createWhatsAppTemplate, deactivateWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { checkWhatsAppConnectionNow } from "@cofounderai/module-crm/lib/whatsapp/health";
 import { createClickToChatLink, deactivateClickToChatLink } from "@cofounderai/module-crm/lib/click-to-chat/mutations";
@@ -88,5 +89,11 @@ export async function createClickToChatLinkAction(businessId: string, _prevState
 
 export async function deactivateClickToChatLinkAction(businessId: string, linkId: string): Promise<void> {
   await deactivateClickToChatLink(businessId, linkId);
+  revalidatePath(await whatsappPath(businessId));
+}
+
+/** CRM-INSTANT-ACK-01: WhatsApp's instant-reply setting. */
+export async function setWhatsAppInstantReplyModeAction(businessId: string, connectionId: string, mode: InstantReplyMode): Promise<void> {
+  await setWhatsAppInstantReplyMode(businessId, connectionId, mode);
   revalidatePath(await whatsappPath(businessId));
 }

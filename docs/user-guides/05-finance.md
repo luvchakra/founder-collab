@@ -237,8 +237,13 @@ needs `gst.dimensions.manage`.
 
 ## Budget and Recurring Entries
 
-- **Budget** — compares budget against actual with the variance, for budget figures already
-  recorded. WonderArk doesn't have a screen for entering budget figures yet.
+- **Budget** — compares budget against actual with the variance, year to date. To enter the
+  figures, click **Set budget** (Owner, Admin, Accountant and Finance Manager roles — anyone
+  with permission to edit the chart of accounts). Pick the **Fiscal year**, type a monthly
+  amount for each income, cost of sales and expense account you want to track — a grid of
+  accounts and months on a wide screen, one card per account on a phone — and click **Save**.
+  A blank month means no budget for it; clearing a figure removes it. Each save is recorded in
+  the audit log.
 - **Recurring Entries** — a journal template plus a schedule: every month, every three
   months, every six months or every year. Due entries are posted automatically once a day (a missed day catches up, and nothing posts twice); each is a normal journal entry you can review and reverse.
 

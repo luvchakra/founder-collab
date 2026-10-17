@@ -10,6 +10,7 @@ import {
   setInstantReplyMode,
 } from "@cofounderai/module-crm/lib/channel-accounts/mutations";
 import type { ChannelProvider, InstantReplyMode } from "@cofounderai/module-crm/lib/channel-accounts/types";
+import { saveInstantAckText } from "@cofounderai/module-crm/lib/instant-reply/settings";
 
 async function detailPath(businessId: string) {
   return `${await businessPath(businessId)}/crm/channels`;
@@ -41,4 +42,11 @@ export async function disconnectChannelAccountAction(businessId: string, channel
 export async function setInstantReplyModeAction(businessId: string, channelAccountId: string, mode: InstantReplyMode): Promise<void> {
   await setInstantReplyMode(businessId, channelAccountId, mode);
   revalidatePath(await detailPath(businessId));
+}
+
+/** CRM-INSTANT-ACK-01: the acknowledgement text. */
+export async function saveInstantAckTextAction(businessId: string, text: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await saveInstantAckText(businessId, text);
+  if (result.ok) revalidatePath(await detailPath(businessId));
+  return result;
 }

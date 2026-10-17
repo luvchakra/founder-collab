@@ -20,7 +20,9 @@ import {
   deactivateClickToChatLinkAction,
   deactivateWhatsAppTemplateAction,
   disconnectWhatsAppAction,
+  setWhatsAppInstantReplyModeAction,
 } from "./actions";
+import { WhatsAppInstantReplySelect } from "./instant-reply-select";
 import { ConnectWhatsAppForm } from "./connect-form";
 import { CreateClickToChatLinkForm } from "./click-to-chat-form";
 import { AddWhatsAppTemplateForm } from "./template-form";
@@ -95,6 +97,20 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Phone number ID</span>
                 <span className="font-medium">{whatsapp.external_account_id}</span>
+              </div>
+              {/* CRM-INSTANT-ACK-01: the message itself is set on the Channels page. */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Instant reply{" "}
+                  <a href={`/${businessSlug}/crm/channels`} className="text-xs underline">
+                    (message)
+                  </a>
+                </span>
+                <WhatsAppInstantReplySelect
+                  value={whatsapp.instant_reply_mode}
+                  disabled={whatsapp.status !== "connected"}
+                  action={setWhatsAppInstantReplyModeAction.bind(null, businessId, whatsapp.id)}
+                />
               </div>
               {whatsapp.last_synced_at ? (
                 <div className="flex items-center justify-between">
