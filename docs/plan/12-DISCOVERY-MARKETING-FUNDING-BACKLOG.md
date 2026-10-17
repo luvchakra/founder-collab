@@ -88,3 +88,9 @@ stories and the decisions taken while building them.
 | `INT-03` | Recommendations | S |
 | `INT-04` | Notification integration | S |
 | `INT-05` | Scheduled intelligence | L |
+
+## AI governance
+
+| ID | Story | Size |
+|---|---|---|
+| `DISC-AI-APPROVAL-01` | Per-business AI approvals setting for Auto-Populate and Run AI Discovery ("Review each step" by default, or "Approve automatically") | M |

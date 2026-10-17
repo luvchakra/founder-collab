@@ -7,6 +7,8 @@ import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db
 import { createClient } from "../../db/server";
 import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
 import { classifyWhatsAppFailure } from "../whatsapp/failure-classification";
+import { isOfferedInstantReplyMode } from "../instant-reply/acknowledgement";
+import type { InstantReplyMode } from "../channel-accounts/types";
 import type { ChannelConnectionStatus } from "./types";
 
 /**
@@ -90,6 +92,86 @@ export async function disconnectChannelConnection(businessId: string, connection
     entityId: connectionId,
     after: { status: "disconnected" },
   });
+}
+
+/** CRM-INSTANT-ACK-01: WhatsApp's instant-reply setting, on the connection the WhatsApp
+ * webhook actually resolves (`crm.channel_connection`). */
+export async function setWhatsAppInstantReplyMode(businessId: string, connectionId: string, mode: InstantReplyMode): Promise<void> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
+  if (!isOfferedInstantReplyMode(mode)) throw new Error("That instant-reply option isn't available.");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("channel_connection")
+    .update({ instant_reply_mode: mode })
+    .eq("id", connectionId)
+    .eq("business_id", businessId)
+    .eq("channel", "whatsapp")
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This connection could not be updated -- it may have been removed, or your access to it may have changed.");
+  }
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_channel_connection.instant_reply_mode_changed",
+    entityType: "crm_channel_connection",
+    entityId: connectionId,
+    after: { instant_reply_mode: mode },
+  });
+}
+
+/**
+ * PLATFORM-P1-12.5/12.6: how WhatsApp AI replies go out -- "draft" (Draft for review, the
+ * default: a person sends every reply) or "auto" (Send automatically, within the limits in
+ * docs/design/crm-whatsapp-ai-replies.md). Needs channel_connections.manage, checked here and
+ * again by the database (crm.enforce_ai_reply_mode_permission()); every change is audited.
+ */
+export async function setWhatsAppAiReplyMode(businessId: string, connectionId: string, mode: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
+  if (mode !== "draft" && mode !== "auto") return { ok: false, error: "Choose Draft for review or Send automatically." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: before, error: beforeError } = await supabase
+    .from("channel_connection")
+    .select("ai_reply_mode")
+    .eq("id", connectionId)
+    .eq("business_id", businessId)
+    .eq("channel", "whatsapp")
+    .maybeSingle();
+  if (beforeError) throw beforeError;
+  if (!before) return { ok: false, error: "This WhatsApp connection wasn't found." };
+  if (before.ai_reply_mode === mode) return { ok: true };
+
+  const { data, error } = await supabase
+    .from("channel_connection")
+    .update({ ai_reply_mode: mode })
+    .eq("id", connectionId)
+    .eq("business_id", businessId)
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) return { ok: false, error: "This setting couldn't be saved -- your access to it may have changed." };
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_channel_connection.ai_reply_mode_changed",
+    entityType: "crm_channel_connection",
+    entityId: connectionId,
+    before: { ai_reply_mode: before.ai_reply_mode },
+    after: { ai_reply_mode: mode },
+  });
+  return { ok: true };
 }
 
 /**

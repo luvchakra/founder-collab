@@ -32,7 +32,12 @@ import {
   retryWebsiteOnboardingAction,
   applyWebsiteOnboardingProfileAction,
   createOfferingsFromWebsiteOnboardingAction,
+  updateAiApprovalModeAction,
 } from "../actions";
+import { hasPermission } from "@cofounderai/core/rbac/require-permission";
+import { getAiApprovalMode } from "@cofounderai/module-discovery/lib/ai-approval/queries";
+import { AI_APPROVAL_MODE_PERMISSION } from "@cofounderai/module-discovery/lib/ai-approval/types";
+import { AiApprovalModeSetting } from "@cofounderai/module-discovery/components/ai-approval/ai-approval-mode-setting";
 import { EditableName } from "@cofounderai/module-discovery/components/tenancy/editable-name";
 import { EditableText } from "@cofounderai/module-discovery/components/tenancy/editable-text";
 import { BusinessLogoField } from "@cofounderai/module-discovery/components/tenancy/business-logo-field";
@@ -77,6 +82,10 @@ export default async function BusinessDetailPage({
   const products = await listProducts(business.id);
   const rows = await Promise.all(products.map(loadOfferingRow));
   const websiteOnboardingRun = await getLatestWebsiteOnboardingRun(business.id);
+  const [aiApprovalMode, canManageAiApprovals] = await Promise.all([
+    getAiApprovalMode(business.id),
+    hasPermission(business.id, AI_APPROVAL_MODE_PERMISSION),
+  ]);
   const websiteOnboardingPages = websiteOnboardingRun
     ? await listWebsiteOnboardingPages(websiteOnboardingRun.id)
     : [];
@@ -161,6 +170,12 @@ export default async function BusinessDetailPage({
               ))}
             </CollapsibleContent>
           </Collapsible>
+          {/* DISC-AI-APPROVAL-01: whether Discovery's AI flows may approve their own results. */}
+          <AiApprovalModeSetting
+            mode={aiApprovalMode}
+            canManage={canManageAiApprovals}
+            action={updateAiApprovalModeAction.bind(null, business.id)}
+          />
         </div>
       </div>
 

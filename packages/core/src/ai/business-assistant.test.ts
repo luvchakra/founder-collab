@@ -6,7 +6,19 @@ const generateObject = vi.fn();
 vi.mock("ai", async (importOriginal) => ({ ...(await importOriginal<typeof import("ai")>()), generateObject: (...args: unknown[]) => generateObject(...args) }));
 const recordAiRun = vi.fn(async (_input: unknown) => {});
 vi.mock("../ai-usage/mutations", () => ({ recordAiRun: (input: unknown) => recordAiRun(input) }));
-vi.mock("../db/admin", () => ({ createAdminClient: () => ({}) }));
+// The business's own key, when a test sets one (AI-BYOK-ASSISTANT-01); otherwise none.
+const byok = vi.hoisted(() => ({ row: null as null | { provider: string; encrypted_api_key: string } }));
+vi.mock("../db/admin", () => ({
+  createAdminClient: () => ({
+    from: (table: string) => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: async () => ({ data: table === "ai_provider_credentials" ? byok.row : null, error: null }) }),
+      }),
+    }),
+  }),
+}));
+vi.mock("../crypto/api-key", () => ({ decryptApiKey: (v: string) => `decrypted:${v}` }));
+const createLanguageModel = vi.fn((..._args: unknown[]) => ({ model: "fake" }));
 const getPlatformAiCredential = vi.fn();
 vi.mock("./platform-credential", () => ({ getPlatformAiCredential: () => getPlatformAiCredential() }));
 const isAiOperationDisabled = vi.fn(async (_op: string) => false);
@@ -14,7 +26,7 @@ vi.mock("./feature-kill-switch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./feature-kill-switch")>()),
   isAiOperationDisabled: (op: string) => isAiOperationDisabled(op),
 }));
-vi.mock("./provider-factory", () => ({ createLanguageModel: () => ({ model: "fake" }) }));
+vi.mock("./provider-factory", () => ({ createLanguageModel: (...args: unknown[]) => createLanguageModel(...args) }));
 
 const { answerBusinessQuestion, businessAssistantPrompt, formatRecords, BUSINESS_ASSISTANT_SYSTEM } = await import("./business-assistant");
 const { AiProviderError } = await import("./business-router");
@@ -24,7 +36,8 @@ const records = [{ resource: "customers", data: [{ id: "c1", name: "Asha" }] }];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getPlatformAiCredential.mockResolvedValue({ provider: "openai", apiKey: "sk-test" });
+    getPlatformAiCredential.mockResolvedValue({ provider: "openai", apiKey: "sk-test" });
+  byok.row = null;
 });
 
 describe("the prompt", () => {
@@ -59,6 +72,20 @@ describe("answering", () => {
     const answer = await answerBusinessQuestion({ businessId: BIZ, question: "Who are my customers?", records });
     expect(answer).toEqual({ answer: "One customer, Asha.", answered: true, usedResources: ["customers"] });
     expect(recordAiRun).toHaveBeenCalledWith(expect.objectContaining({ businessId: BIZ, operation: "answer_business_question", status: "succeeded" }));
+  });
+
+    it("uses the business's own AI key when it has one, not the platform's", async () => {
+    byok.row = { provider: "anthropic", encrypted_api_key: "enc-key" };
+    generateObject.mockResolvedValue({ object: { answer: "a", answered: true, usedResources: [] }, usage: { inputTokens: 1, outputTokens: 1 } });
+    await answerBusinessQuestion({ businessId: BIZ, question: "q", records });
+    expect(createLanguageModel).toHaveBeenCalledWith("anthropic", "decrypted:enc-key", expect.any(String), expect.anything());
+    expect(recordAiRun).toHaveBeenCalledWith(expect.objectContaining({ provider: "anthropic" }));
+  });
+
+  it("falls back to the platform's key when the business has none", async () => {
+    generateObject.mockResolvedValue({ object: { answer: "a", answered: true, usedResources: [] }, usage: { inputTokens: 1, outputTokens: 1 } });
+    await answerBusinessQuestion({ businessId: BIZ, question: "q", records });
+    expect(createLanguageModel).toHaveBeenCalledWith("openai", "sk-test", expect.any(String), expect.anything());
   });
 
   it("refuses when a superadmin switched the feature off, without calling the model", async () => {

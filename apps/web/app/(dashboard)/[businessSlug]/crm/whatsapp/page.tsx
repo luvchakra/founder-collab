@@ -11,6 +11,9 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@cofounderai/core/ui/collapsible";
+import { AI_REPLY_MODE_LABELS } from "@cofounderai/module-crm/lib/ai/auto-reply-core";
+import { AiReplyModeForm } from "./ai-reply-mode-form";
 import { FileText, Link2 } from "lucide-react";
 import {
   checkWhatsAppConnectionNowAction,
@@ -20,7 +23,10 @@ import {
   deactivateClickToChatLinkAction,
   deactivateWhatsAppTemplateAction,
   disconnectWhatsAppAction,
+  setWhatsAppInstantReplyModeAction,
+  setAiReplyModeAction,
 } from "./actions";
+import { WhatsAppInstantReplySelect } from "./instant-reply-select";
 import { ConnectWhatsAppForm } from "./connect-form";
 import { CreateClickToChatLinkForm } from "./click-to-chat-form";
 import { AddWhatsAppTemplateForm } from "./template-form";
@@ -96,6 +102,20 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
                 <span className="text-muted-foreground">Phone number ID</span>
                 <span className="font-medium">{whatsapp.external_account_id}</span>
               </div>
+              {/* CRM-INSTANT-ACK-01: the message itself is set on the Channels page. */}
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Instant reply{" "}
+                  <a href={`/${businessSlug}/crm/channels`} className="text-xs underline">
+                    (message)
+                  </a>
+                </span>
+                <WhatsAppInstantReplySelect
+                  value={whatsapp.instant_reply_mode}
+                  disabled={whatsapp.status !== "connected"}
+                  action={setWhatsAppInstantReplyModeAction.bind(null, businessId, whatsapp.id)}
+                />
+              </div>
               {whatsapp.last_synced_at ? (
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Last checked</span>
@@ -116,6 +136,15 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
                   </SubmitButton>
                 </form>
               </div>
+              <Collapsible id="ai-replies" className="border-t pt-3">
+                <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
+                  <span className="text-muted-foreground">AI replies</span>
+                  <span className="font-medium">{AI_REPLY_MODE_LABELS[whatsapp.ai_reply_mode]}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <AiReplyModeForm action={setAiReplyModeAction.bind(null, businessId, whatsapp.id)} mode={whatsapp.ai_reply_mode} />
+                </CollapsibleContent>
+              </Collapsible>
               {whatsapp.status === "reauthorization_required" ? (
                 <div className="border-t pt-3">
                   <p className="pb-2 text-xs text-muted-foreground">Reconnect with a fresh access token:</p>

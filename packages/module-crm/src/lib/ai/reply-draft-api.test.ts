@@ -29,6 +29,9 @@ function builder(table: string) {
 vi.mock("@cofounderai/core/db/admin", () => ({
   createAdminClient: () => ({ from: builder, rpc: async () => ({ data: state.licensed, error: null }) }),
 }));
+const knowledge = vi.hoisted(() => ({ result: { ok: true, data: [{ id: "k1", offeringName: "Candles", sourceName: "FAQ", content: "Soy wax." }] } as unknown }));
+const listKnowledge = vi.fn(async (_businessId: string) => knowledge.result);
+vi.mock("@cofounderai/module-discovery/contract/index", () => ({ listOfferingKnowledgeForBusinessService: (id: string) => listKnowledge(id) }));
 const runReplyDraft = vi.fn(async (input: { facts: { id: string }[]; businessId: string }) => ({ status: "answered", answer: "x", topic: "order_job_status", factsUsed: [], createdAt: "t", _facts: input.facts.map((f) => f.id), _biz: input.businessId }));
 vi.mock("./reply-draft", () => ({ runReplyDraft: (input: never) => runReplyDraft(input) }));
 
@@ -78,6 +81,19 @@ describe("generateReplyDraftForApiKey", () => {
     expect(draft._facts).toContain("order.o-mine");
     expect(draft._facts).not.toContain("order.o-other");
     expect(draft._facts).not.toContain("job.j-other");
+  });
+
+    it("uses the business's own offering knowledge, read for the key's business", async () => {
+    const draft = (await call()) as unknown as { _facts: string[] };
+    expect(listKnowledge).toHaveBeenCalledWith("biz-1");
+    expect(draft._facts).toContain("knowledge.k1");
+  });
+
+  it("drafts without knowledge when Discovery isn't licensed", async () => {
+    knowledge.result = { ok: false, error: "MODULE_NOT_LICENSED" };
+    const draft = (await call()) as unknown as { _facts: string[] };
+    expect(draft._facts.some((f) => f.startsWith("knowledge."))).toBe(false);
+    knowledge.result = { ok: true, data: [] };
   });
 
   it("refuses a conversation with no customer message in this business, or not on WhatsApp", async () => {

@@ -6,7 +6,7 @@ differ, licensing the modules you need, plans and billing, and adding your
 team. The last four sections (§14 to §17) are for whoever operates the deployment rather
 than for everyday users.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## 1. Creating an account
 
@@ -235,16 +235,16 @@ also lists each business's current plan with a **Manage plan** (or **Choose
 a plan**) link:
 
 - **AI.** Connect your own AI provider key — OpenAI, Anthropic or Google Gemini — so AI
-  features run on your own provider account and bill straight to it. The monthly allowance
-  below still applies to every AI run, whichever key it uses. WonderArk tests the key before
+  features run on your own provider account and bill straight to it, with no monthly allowance
+from WonderArk. WonderArk tests the key before
   saving it and only ever shows back a fingerprint of it. Or choose
   **App Internal AI** to use WonderArk's included credits instead — no key
   needed. Switching providers is a matter of pasting a new key
   (**Replace key**); **Disconnect**, or choosing App Internal AI, goes back to
   the included credits.
-- **Monthly allowance.** Each offering (workspace) gets 200 AI runs or $20 of AI cost a
-  month, whichever is reached first; then AI features pause for it until next month — unless
-  you have bought credits.
+- **Monthly allowance.** On the included credits, each offering (workspace) gets 200 AI runs
+  or $20 of AI cost a month, whichever is reached first; then AI features pause for it until
+  next month — unless you have bought credits.
 - **AI credits.** Buy a credit pack — **Starter**, **Growth** or **Scale**;
   each card shows its price and how many AI runs it adds. Credits are spent
   automatically, one run at a time, only once a workspace has used up its
@@ -418,7 +418,16 @@ audit log and configuration history.
 A superadmin can also switch off a single AI feature for everyone (for
 example, AI outreach drafts) from **AI Feature Policies**, without turning
 off the module or any other AI feature — each switch needs a reason and is
-audited. It's not a licensable module and ordinary business admins never
+audited.
+
+On **Feature Flags**, each flag's **Rollout** opens its staged rollout: **Internal** (only the
+businesses you name by slug), **Pilot** (those plus a share of all businesses), **Selected
+Plans** (plus every business on the plans you tick) and **All Customers**. A business's place
+in the share is fixed, so raising it only adds businesses. **Roll back** returns the flag to
+its previous rollout, or turns it off when there is none, without a code change. Both need a
+reason and are recorded in the flag's history.
+
+It's not a licensable module and ordinary business admins never
 see it; it exists for whoever runs the WonderArk service itself.
 
 ## 15. Environment variables (for whoever deploys WonderArk)

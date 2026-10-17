@@ -9,6 +9,12 @@ import {
   type DeleteFeatureFlagInput,
   type UpdateFeatureFlagInput,
 } from "@cofounderai/core/admin/platform-feature-flags";
+import {
+  rollbackFeatureFlag,
+  setFeatureFlagRollout,
+  type RollbackFeatureFlagInput,
+  type SetFeatureFlagRolloutInput,
+} from "@cofounderai/core/admin/platform-feature-rollout";
 
 /**
  * PLATFORM-P0-08.1-08.4 ("Feature Flags", §12). Every action here is a thin
@@ -39,6 +45,26 @@ export async function deleteFeatureFlagAction(
   input: DeleteFeatureFlagInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const result = await deleteFeatureFlag(input);
+  if (!result.ok) return result;
+  revalidatePath("/platform/feature-flags");
+  return result;
+}
+
+/** PLATFORM-P1-08.2 -- set or advance a flag's staged rollout (reason required). */
+export async function setFeatureFlagRolloutAction(
+  input: SetFeatureFlagRolloutInput,
+): Promise<{ ok: true } | { ok: false; error: string; fieldErrors?: Record<string, string> }> {
+  const result = await setFeatureFlagRollout(input);
+  if (!result.ok) return result;
+  revalidatePath("/platform/feature-flags");
+  return result;
+}
+
+/** PLATFORM-P1-08.3 -- roll back to the last known-good rollout, or turn the flag off. */
+export async function rollbackFeatureFlagAction(
+  input: RollbackFeatureFlagInput,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const result = await rollbackFeatureFlag(input);
   if (!result.ok) return result;
   revalidatePath("/platform/feature-flags");
   return result;

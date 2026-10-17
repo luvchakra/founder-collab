@@ -167,7 +167,10 @@ export const moduleRegistry: ModuleManifest[] = [
           { label: "Inbox", slug: "", icon: "Inbox" },
           { label: "Conversations", slug: "conversations", icon: "MessageCircle" },
           { label: "Potential Lost Business", slug: "lost-business", icon: "AlertTriangle" },
-          { label: "Reviews", slug: "reviews", icon: "Star" },
+                    { label: "Reviews", slug: "reviews", icon: "Star" },
+          // CRM-NAV-01: built earlier, reachable only by address until now.
+          { label: "Analytics", slug: "analytics", icon: "BarChart3" },
+          { label: "Reactivation", slug: "reactivation", icon: "RefreshCw" },
         ],
       },
       {

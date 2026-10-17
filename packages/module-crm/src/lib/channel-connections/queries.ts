@@ -2,7 +2,7 @@ import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { createClient } from "../../db/server";
 import type { ChannelConnection } from "./types";
 
-const PUBLIC_COLUMNS = "id, business_id, channel, provider, external_account_id, status, last_synced_at, created_at, updated_at";
+const PUBLIC_COLUMNS = "id, business_id, channel, provider, external_account_id, status, instant_reply_mode, last_synced_at, ai_reply_mode, created_at, updated_at";
 
 export async function listChannelConnections(businessId: string): Promise<ChannelConnection[]> {
   const supabase = await createClient();

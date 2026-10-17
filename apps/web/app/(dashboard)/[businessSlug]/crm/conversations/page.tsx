@@ -1,3 +1,4 @@
+import { AUTO_ACK_INTERACTION_TYPE } from "@cofounderai/module-crm/lib/instant-reply/acknowledgement";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
@@ -50,6 +51,9 @@ import {
 import { ConversationSummaryCard } from "./conversation-summary-card";
 import { WhatsAppReplyForm } from "./reply-form";
 import { getReplyDraft } from "@cofounderai/module-crm/lib/ai/reply-draft";
+import { getAutoReplyForInteraction } from "@cofounderai/module-crm/lib/ai/auto-reply-queries";
+import { AI_REPLY_MODE_LABELS, AUTO_REPLY_REASON_LABELS } from "@cofounderai/module-crm/lib/ai/auto-reply-core";
+import { listChannelConnections } from "@cofounderai/module-crm/lib/channel-connections/queries";
 import { WhatsAppMediaSendForm } from "./media-send-form";
 import { WhatsAppTemplateSendForm } from "./template-send-form";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
@@ -155,6 +159,13 @@ export default async function CrmConversationsPage({
     selected && whatsAppWindow?.withinWindow && lastInboundInteraction ? await getDraftReplyForInteraction(businessId, lastInboundInteraction.id) : null;
   const replyDraft = whatsAppWindow?.withinWindow && lastInboundInteraction ? await getReplyDraft(businessId, lastInboundInteraction.id) : null;
   const conversationSummary = selected ? await getConversationSummary(businessId, selected.id) : null;
+  // PLATFORM-P1-12.5/12.6: the business's AI reply mode, and what happened to the automatic
+  // reply for the latest customer message (when one was attempted).
+  const aiReplyMode =
+    selected?.primary_channel === "whatsapp"
+      ? ((await listChannelConnections(businessId)).find((c) => c.channel === "whatsapp" && c.status !== "disconnected")?.ai_reply_mode ?? null)
+      : null;
+  const autoReply = aiReplyMode && lastInboundInteraction ? await getAutoReplyForInteraction(businessId, lastInboundInteraction.id) : null;
 
   // CRM-10.2: products this specific conversation has expressed interest in, each with
   // a live (never stored) Inventory availability figure -- ADR-10's degraded mode
@@ -382,19 +393,29 @@ export default async function CrmConversationsPage({
               // pushed sent/delivered/read/failed status onto metadata.providerStatus
               // (or the interaction's own `status='failed'`) whenever WhatsApp supplies
               // it; this is that data finally surfaced, not new backend logic.
+              // CRM-INSTANT-ACK-01: the one automatic message, labelled as such, with
+              // whether it actually went out.
+              const isAutoAck = interaction.interaction_type === AUTO_ACK_INTERACTION_TYPE;
               const deliveryStatus =
-                interaction.direction === "outbound" && interaction.channel === "whatsapp"
+                interaction.direction === "outbound" && (interaction.channel === "whatsapp" || isAutoAck)
                   ? interaction.status === "failed"
                     ? "Failed"
-                    : ((interaction.metadata as { providerStatus?: string } | null)?.providerStatus ?? null)
+                    : interaction.status === "processing"
+                      ? "Sending"
+                      : ((interaction.metadata as { providerStatus?: string } | null)?.providerStatus ?? null)
                   : null;
+              const aiAutoReply = (interaction.metadata as { aiAutoReply?: { factsUsed?: { id: string; label: string }[] } } | null)?.aiAutoReply ?? null;
               return (
                 <div key={interaction.id} className={`flex flex-col gap-1 rounded-lg border border-border p-2 text-sm ${interaction.direction === "outbound" ? "ml-6" : "mr-6"}`}>
                   <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="capitalize">
-                      {interaction.direction} -- {interaction.channel}
-                      {interaction.interaction_type === "comment" ? " comment" : ""}
-                    </span>
+                    {isAutoAck ? (
+                      <span>Automatic acknowledgement -- {interaction.channel}</span>
+                    ) : (
+                      <span className="capitalize">
+                        {interaction.direction} -- {interaction.channel}
+                        {interaction.interaction_type === "comment" ? " comment" : ""}
+                      </span>
+                    )}
                     <div className="flex items-center gap-2">
                       {deliveryStatus ? (
                         <Badge variant={deliveryStatus === "Failed" ? "destructive" : "outline"} className="capitalize">
@@ -405,6 +426,12 @@ export default async function CrmConversationsPage({
                     </div>
                   </div>
                   <p>{interaction.content_excerpt ?? "(no preview)"}</p>
+                  {aiAutoReply ? (
+                    <p className="text-xs text-muted-foreground">
+                      {interaction.status === "failed" ? "Automatic AI reply -- not sent" : "Sent automatically by AI"}
+                      {aiAutoReply.factsUsed?.length ? ` -- based on ${aiAutoReply.factsUsed.map((f) => f.label).join(", ")}` : ""}
+                    </p>
+                  ) : null}
                   {interaction.requires_response && !interaction.responded_at ? (
                     <div className="flex items-center gap-2">
                       <Badge variant="destructive">Needs response</Badge>
@@ -445,6 +472,16 @@ export default async function CrmConversationsPage({
           )}
         </div>
 
+        {aiReplyMode ? (
+          <p className="text-xs text-muted-foreground">
+            AI replies: {AI_REPLY_MODE_LABELS[aiReplyMode]}
+            {autoReply?.status === "requested" ? " -- automatic reply in progress" : null}
+            {(autoReply?.status === "skipped" || autoReply?.status === "failed") && autoReply.reason
+              ? ` -- not sent automatically: ${AUTO_REPLY_REASON_LABELS[autoReply.reason]}`
+              : null}{" "}
+            · <Link href={`/${businessSlug}/crm/whatsapp#ai-replies`} className="underline underline-offset-2">Change in settings</Link>
+          </p>
+        ) : null}
         {selected.primary_channel === "whatsapp" ? (
           whatsAppWindow?.withinWindow ? (
             <>

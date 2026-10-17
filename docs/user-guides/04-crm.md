@@ -4,11 +4,12 @@ CRM runs your pipeline from first message to won customer: conversations from Wh
 Instagram and Facebook, leads, opportunities, a lost-business recovery queue, reviews, and a
 customer profile that pulls in data from every other licensed module.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## Navigation
 
-**Overview**: Dashboard, Inbox, Conversations, Potential Lost Business, Reviews
+**Overview**: Dashboard, Inbox, Conversations, Potential Lost Business, Reviews, Analytics,
+Reactivation
 **Sales**: Leads, Sales Opportunities, Follow-ups, Exceptions
 **Administration**: Channels, WhatsApp, Routing Rules
 
@@ -40,7 +41,8 @@ Last updated: 2026-10-16
   - **Suggested reply (template)** is a canned reply picked by keyword — not AI.
   - **Check before sending** runs an AI check that flags things like "Unsupported claim" or
     "Overly long"; it never blocks **Send**.
-  - **Draft with AI** — see [AI-drafted WhatsApp replies](#ai-drafted-whatsapp-replies).
+  - **Draft with AI** — see [AI-drafted WhatsApp replies](#ai-drafted-whatsapp-replies), which
+    also covers **Send automatically**.
 - **Leads** — a list with inline status editing (10 stages from new through
   won/lost/disqualified) and inline owner reassignment, both directly in the
   row.
@@ -57,13 +59,12 @@ Last updated: 2026-10-16
 - **Reviews** — **Connect location** for your Google Business Profile and **Sync now** to
   pull reviews (both need the channel-connections permission), then **Generate AI draft**
   and **Approve & publish** a response (both need the review-publishing permission).
-- **Analytics** and **Reactivation** pages exist but aren't in the CRM menu yet; open
-  them from the address bar at `…/crm/analytics` and `…/crm/reactivation`. Analytics shows
-  30-day response performance (median first response, SLA compliance, unresolved by age, per
-  channel and per owner) and the Discovery → CRM and CRM → Service funnels when those modules
-  are licensed. Reactivation lists customers worth contacting again by simple rules (gone
-  quiet, an old lead with a new signal, a waited-for item back in stock, a service likely due
-  again). Nothing is sent automatically.
+- **Analytics** — 30-day response performance (median first response, SLA compliance,
+  unresolved by age, per channel and per owner), and the Discovery → CRM and CRM → Service
+  funnels when those modules are licensed. It can be exported as a report.
+- **Reactivation** — customers worth contacting again, found by simple rules (gone quiet, an
+  old lead with a new signal, a waited-for item back in stock, a service likely due again).
+  Nothing is sent automatically.
 - **Exceptions** — open cross-module problems that need a decision: a
   Service job with a parts shortage (choose how to resolve it, with an
   optional note) and an opportunity that needs an assessment (**Request
@@ -106,12 +107,65 @@ recorded prices, saved offering knowledge, and that customer's own recent orders
   refund, payment, cancellation, order change or opt-out, it says "AI couldn't answer this
   from your business details — reply yourself."
 - **Use this draft** only puts the text in the reply box. Nothing is sent until a person
-  clicks **Send** (which needs the permission to send messages). WonderArk never sends an AI
-  draft on its own.
+  clicks **Send** (which needs the permission to send messages).
 - Each message is drafted once and kept; it uses AI credits.
 - Anyone who can open CRM can draft. An agent connected to WonderArk's MCP server with a
   business API key can request the same draft (`draft_whatsapp_reply`); it is saved for the
   team, never sent.
+
+### Draft for review or Send automatically
+
+On CRM → WhatsApp, open **AI replies** under the connection and choose:
+
+- **Draft for review** (the default) — nothing is sent without a person, as above.
+- **Send automatically** — each new customer message is answered by AI straight away, and
+  the answer is sent without a person, but only when all of these hold:
+  - the answer comes from your business details or your products and prices (questions
+    about orders, jobs or anything else stay for a person);
+  - the AI is confident, and the message isn't about a complaint, refund, payment,
+    cancellation, order change or opt-out;
+  - it is inside WhatsApp's 24-hour window, it's the customer's latest message and nobody
+    has replied yet;
+  - fewer than 100 automatic replies were sent by your business today, and fewer than 3 in
+    that conversation;
+  - the customer hasn't opted out: a customer who sends just **STOP** (or UNSUBSCRIBE /
+    OPT OUT) gets no automatic replies again;
+  - your CRM licence is active and AI replies haven't been switched off for the platform.
+
+Each message gets at most one automatic reply, even if WhatsApp delivers it twice. In the
+conversation, an automatic reply is labelled "Sent automatically by AI — based on …" with
+the facts it used; if WhatsApp refuses it, it shows **Failed**. A message that wasn't
+answered automatically stays for a person, and **Draft with AI** works as usual. On CRM → Conversations, a
+WhatsApp conversation shows one line with the current mode (and, for the latest message,
+why it wasn't sent automatically) and a **Change in settings** link. Changing the mode needs
+the channel-connections permission and is recorded in the audit log; so is every automatic
+reply. Automatic replies use AI credits.
+
+## Instant acknowledgement
+
+Basic for now — more instant-reply options are coming. An account's **Instant reply** setting
+has two choices: **Off** (the default) and **Instant acknowledgment, then human**.
+
+- **Where to set it:** for WhatsApp, on **CRM → WhatsApp** (the **Instant reply** row of the
+  connection). For Instagram and Facebook Messenger, on **CRM → Channels** under
+  "Connected accounts". Google Business Messages shows "Not supported yet".
+- **What it sends:** one fixed message, the first time a contact messages you in a 24-hour
+  period. The default is "Thanks for your message — we'll reply shortly."; change it under
+  **Acknowledgement message** on **CRM → Channels** (one message for all accounts) and
+  **Save message**. No AI writes or changes it.
+- **When it doesn't send:** the setting is Off; the contact was already acknowledged on that
+  channel in the last 24 hours; the message reached WonderArk more than 24 hours after it was
+  sent (WhatsApp's and Messenger's reply window); or the contact opted out by sending a message
+  that is just "STOP", "unsubscribe" or similar (a later "START" undoes that). A message Meta
+  delivers twice is acknowledged once.
+- **In the conversation:** it appears as **Automatic acknowledgement**, marked **Failed** if
+  Meta refused it. The customer's message still shows **Needs response** — the
+  acknowledgement isn't an answer, a person still replies.
+
+Every acknowledgement sent, or failed, and every change to the setting is in the audit log.
+Drafting a real answer is **Draft with AI** in Conversations. On WhatsApp, if **AI replies** is
+also set to **Send automatically**, the customer can get the acknowledgement first and then the
+AI's answer.
 
 ## Connecting a channel (WhatsApp / Instagram / Facebook)
 
@@ -154,8 +208,8 @@ connects to it.
      if you don't have one, then under "Connected accounts" pick the provider
           and paste in the Page ID (the "Page/number/location ID" field) and an access token from
      Meta's dashboard. Google Business Messages is listed there too, but WonderArk doesn't
-     receive messages from it. The channel's "instant reply" setting currently has no effect:
-     incoming messages always wait for a person.
+     receive messages from it. Each account's **Instant reply** setting is described in
+     [Instant acknowledgement](#instant-acknowledgement).
 7. **WhatsApp templates**: on the WhatsApp screen, register any templates
    you've already had approved in Meta's dashboard (name, language, variable
    count) so the reply composer can use them once the 24-hour free window
@@ -191,15 +245,15 @@ staging area, not a working automation, for now.
 **Escalation**, on the same page, is a fixed three-step ladder for
 unanswered commercial messages (reminder → owner escalation → manager escalation). The delay
 times are pre-set, and the one thing you configure here is **who the escalation manager
-is**. Escalations aren't run automatically yet, so treat this as setup for now too.
+is**. WonderArk checks for messages due to escalate once a day, so an escalation can arrive up to a day after its delay has passed.
 
 ## Who can configure what
 
 CRM access is controlled by the business's shared **Users & access** pages (avatar menu →
 **Admin** → the business's **Users & access** chip; see [Users, roles and
-invitations](/help/getting-started#users-roles-and-invitations)). Connecting WhatsApp, its templates and click-to-chat links, and connecting or syncing
-Google reviews need the channel-connections permission, which **Owner** and **Admin** have. **Sales Manager** works the day-to-day pipeline (leads,
+invitations](/help/getting-started#users-roles-and-invitations)). Connecting WhatsApp, its templates and click-to-chat links, creating channels and connecting
+Instagram or Messenger accounts on **Channels**, and connecting or syncing Google reviews all
+need the channel-connections permission, which **Owner** and **Admin** have. **Sales Manager** works the day-to-day pipeline (leads,
 opportunities, follow-ups, messaging, review responses) but can't connect channels or sync
-reviews. Creating channels and connected Instagram or Messenger accounts on **Channels**
-currently isn't limited by role: any CRM member can do it.
+reviews.
 

@@ -126,7 +126,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "Do I need my own AI API key?",
     answer:
-      "Only if you want your AI usage billed to your own provider account. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected. The monthly allowance (200 AI runs or $20 per offering) applies either way.",
+      "Only if you want your AI usage billed to your own provider account. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected. With your own key there's no monthly allowance; on the included credits it's 200 AI runs or $20 per offering.",
     guideSlug: "discovery",
     sectionId: "connecting-an-ai-provider",
   },
@@ -228,6 +228,14 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "Day to day",
+    question: "Why did Run AI Discovery stop and leave my ICP as a draft?",
+    answer:
+      "Your business's AI approvals setting is Review each step (the default), so the AI's own results wait for you: approve the ICP on the ICP page, add the accounts it found on the Discover page, then click Resume AI Discovery. An owner or admin can switch to Approve automatically on the Business page under AI approvals. Nothing is sent to anyone in either mode.",
+    guideSlug: "discovery",
+    sectionId: "ai-approvals",
+  },
+  {
+    category: "Day to day",
     question: "How do I keep an eye on one particular account?",
     answer:
       "Open the account from Prospects and use Watch this account, with a reason and, if you like, a next review date. The offering's Watchlist tab then lists it with its watch reason, current score, latest signal and next review date. This is separate from the Watch action on an opportunity, which only changes that opportunity's status.",
@@ -244,9 +252,25 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "Day to day",
+    question: "How do I enter a budget?",
+    answer:
+      "Finance → Budget → Set budget. Pick the fiscal year, type a monthly amount for each income, cost of sales and expense account you want to track, and click Save. A blank month means no budget. You need permission to edit the chart of accounts (Owner, Admin, Accountant and Finance Manager have it).",
+    guideSlug: "finance",
+    sectionId: "budget-and-recurring-entries",
+  },
+  {
+    category: "Day to day",
+    question: "Can WonderArk reply to customers automatically?",
+    answer:
+      "Only with one fixed acknowledgement, and only if you turn it on: set Instant reply to \"Instant acknowledgment, then human\" (CRM → WhatsApp for WhatsApp, CRM → Channels for Instagram and Messenger). The first message from a contact in 24 hours gets your acknowledgement text; a person still answers. AI never sends anything on its own.",
+    guideSlug: "crm",
+    sectionId: "instant-acknowledgement",
+  },
+  {
+    category: "Day to day",
     question: "How do I see how quickly we respond to customers?",
     answer:
-      "CRM's Analytics page (not in the menu yet — open …/crm/analytics) shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
+      "CRM → Analytics shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
     guideSlug: "crm",
     sectionId: "daily-workflows",
   },
@@ -300,6 +324,14 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "For administrators",
+    question: "Can I release a feature to a few businesses first, and undo it?",
+    answer:
+      "Yes, if you're a platform superadmin. On Platform → Feature Flags, open a flag's Rollout and pick a stage: Internal, Pilot, Selected Plans or All Customers. Roll back returns it to the previous rollout, or turns it off when there is none. Each change needs a reason and is recorded.",
+    guideSlug: "getting-started",
+    sectionId: "the-superadmin-platform-portal",
+  },
+  {
+    category: "For administrators",
     question: "What's the difference between Admin and the Platform portal?",
     answer:
       "Admin (in the avatar menu) is your own account's business and module configuration. The Platform portal is the superadmin control plane for the whole deployment — branding, plans, feature flags, AI providers — and only platform superadmins can reach it.",
@@ -313,6 +345,14 @@ export const FAQ: FaqEntry[] = [
       "The Platform portal's AI Providers page. A key set there is used by every account that hasn't connected its own, and takes precedence over the PLATFORM_AI_API_KEY environment variable — so you can change it without a redeploy.",
     guideSlug: "getting-started",
     sectionId: "environment-variables-for-whoever-deploys-wonderark",
+  },
+  {
+    category: "Day to day",
+    question: "Can WhatsApp AI replies be sent without a person?",
+    answer:
+      "Only if you turn it on: CRM → WhatsApp → AI replies → Send automatically (needs the channel-connections permission). The default, Draft for review, never sends on its own. Automatic replies answer only from your business details and products and prices, only when the AI is confident and the topic isn't a complaint, refund, payment, cancellation, order change or opt-out, inside WhatsApp's 24-hour window, at most 100 a day per business and 3 a day per conversation, never to a customer who sent STOP, and at most once per message. Anything not sent automatically stays for a person, as in Draft for review.",
+    guideSlug: "crm",
+    sectionId: "ai-drafted-whatsapp-replies",
   },
   {
     category: "For administrators",

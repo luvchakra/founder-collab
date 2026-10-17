@@ -19,23 +19,23 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 565 |
+| ✅ Done | 570 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 2 |
+| ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 2 |
-| **Total** | **651** |
+| ⬜ Not started | 0 |
+| **Total** | **652** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 123 | 7 | 4 | 134 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 127 | 7 | 0 | 134 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
-| [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
+| [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 44 | 1 | 0 | 45 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 40 | 0 | 0 | 40 |
 | [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 39 | 0 | 0 | 39 |
@@ -43,14 +43,7 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-4 stories are neither built nor deliberately set aside:
-
-| ID | Story | Status | Note |
-|---|---|---|---|
-| `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
-| `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
-| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
+Nothing outstanding — every story in every backlog is done, deferred or superseded.
 
 ## Platform build-out
 
@@ -256,7 +249,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P0-08.1` | Global Feature Flags | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +7 |
-| `PLATFORM-P0-08.2` | Feature Flag Scope | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +7 |
+| `PLATFORM-P0-08.2` | Feature Flag Scope | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 | `PLATFORM-P0-08.3` | Kill Switches | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +5 |
 | `PLATFORM-P0-08.4` | Feature Flag Audit | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 
@@ -404,8 +397,8 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P1-08.1` | Platform Version | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +3 |
-| `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
-| `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
+| `PLATFORM-P1-08.2` | Feature Rollout | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
+| `PLATFORM-P1-08.3` | Rollback Flag | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 
 ### Legal / Policy Configuration
 
@@ -469,9 +462,9 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P1-12.2` | Business facts for replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +10 |
 | `PLATFORM-P1-12.3` | Order and job status facts | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft-core.test.ts` +1 |
 | `PLATFORM-P1-12.4` | Reply provenance | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft.test.ts` +3 |
-| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.7` | WhatsApp reply drafts over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +4 |
+| `PLATFORM-P1-12.5` | Auto-send mode | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/page.tsx` +20 |
+| `PLATFORM-P1-12.6` | Auto-reply limits | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/page.tsx` +20 |
+| `PLATFORM-P1-12.7` | WhatsApp reply drafts over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +6 |
 | `PLATFORM-P1-11.3` | MCP entity types | ✅ Done | `apps/web/lib/mcp/server.test.ts` +1 |
 
 ## Discovery — offering-centric upgrade
@@ -1024,6 +1017,12 @@ Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOV
 | `INT-03` | Recommendations | ✅ Done | `packages/module-discovery/src/lib/funding/attention.ts` +2 |
 | `INT-04` | Notification integration | ✅ Done | `packages/module-crm/src/lib/timeline/queries.ts` +1 |
 | `INT-05` | Scheduled intelligence | ⏸️ Deferred | Spec §57–§58: not to be built until an unattended-execution design exists — see `docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md` |
+
+### AI governance
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `DISC-AI-APPROVAL-01` | Per-business AI approvals setting for Auto-Populate and Run AI Discovery | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +23 |
 
 ## CSV / Excel export
 

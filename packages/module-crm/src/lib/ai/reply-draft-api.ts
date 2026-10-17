@@ -1,4 +1,5 @@
 import { createAdminClient } from "@cofounderai/core/db/admin";
+import { listOfferingKnowledgeForBusinessService } from "@cofounderai/module-discovery/contract/index";
 import { buildReplyFacts } from "./reply-draft-core";
 import { runReplyDraft, type StoredReplyDraft } from "./reply-draft";
 
@@ -10,8 +11,9 @@ import { runReplyDraft, type StoredReplyDraft } from "./reply-draft";
  * do: every read and write is pinned to the API key's own business, the CRM licence is checked
  * explicitly (as the public API's routers do), and the key must carry `crm.view`. Orders and
  * jobs are read through the public API with the caller's own key (`readList`), so Inventory
- * and FSM keep checking their own licences. Offering knowledge isn't read here: Discovery
- * exposes it only to a signed-in session. Draft only -- nothing is sent.
+  * and FSM keep checking their own licences. Offering knowledge comes from Discovery's
+ * no-session contract read, pinned to the same business (empty when Discovery isn't
+ * licensed). Draft only -- nothing is sent.
  */
 
 export class ReplyDraftRefused extends Error {}
@@ -52,12 +54,13 @@ export async function generateReplyDraftForApiKey(input: {
   const message = (interaction.content_excerpt ?? "").trim();
   if (!message) throw new ReplyDraftRefused("The latest customer message has no text to answer.");
 
-  const [business, settings, items, orders, jobs] = await Promise.all([
+    const [business, settings, items, orders, jobs, knowledge] = await Promise.all([
     core.from("businesses").select("name, description, website, contact_phone, contact_email, address, opening_hours").eq("id", businessId).single(),
     core.from("business_settings").select("currency").eq("business_id", businessId).maybeSingle(),
     core.from("items").select("id, name, description, unit, selling_price, status").eq("business_id", businessId).eq("status", "active").limit(100),
     interaction.party_id ? input.readList("sales-orders") : Promise.resolve(null),
-    interaction.party_id ? input.readList("jobs") : Promise.resolve(null),
+        interaction.party_id ? input.readList("jobs") : Promise.resolve(null),
+    listOfferingKnowledgeForBusinessService(businessId),
   ]);
   if (business.error || !business.data) throw new Error("Could not read the business.");
 
@@ -66,7 +69,7 @@ export async function generateReplyDraftForApiKey(input: {
     business: business.data,
     currency: (settings.data as { currency?: string } | null)?.currency ?? null,
     items: items.data ?? [],
-    knowledge: [],
+        knowledge: knowledge.ok ? knowledge.data : [],
     orders: (orders ?? [])
       .filter((o) => partyId && o.customer_id === partyId)
       .map((o) => ({ id: String(o.id), number: String(o.so_number ?? ""), status: String(o.status ?? ""), orderDate: String(o.order_date ?? o.created_at ?? "") })),

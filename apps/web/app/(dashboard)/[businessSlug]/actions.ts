@@ -28,6 +28,8 @@ import {
 } from "@cofounderai/module-discovery/lib/tenancy/parse-products-import";
 import type { RenameActionState } from "@cofounderai/module-discovery/lib/tenancy/types";
 import { getBusiness } from "@cofounderai/module-discovery/lib/tenancy/queries";
+import { setAiApprovalMode } from "@cofounderai/module-discovery/lib/ai-approval/mutations";
+import type { AiApprovalMode } from "@cofounderai/module-discovery/lib/ai-approval/types";
 import { getLatestWebsiteOnboardingRun } from "@cofounderai/module-discovery/lib/website-onboarding/queries";
 import {
   createWebsiteOnboardingRun,
@@ -117,6 +119,24 @@ export async function updateBusinessContactAction(
   }
 
   revalidatePath(`${await businessPath(businessId)}`);
+  return { success: true };
+}
+
+/** DISC-AI-APPROVAL-01: the business's Discovery "AI approvals" setting.
+ * `setAiApprovalMode` checks the Discovery licence and `business.settings.manage`
+ * (requirePermission) before writing; RLS on core.business_settings checks the same key,
+ * and a database trigger audits the change. */
+export async function updateAiApprovalModeAction(
+  businessId: string,
+  mode: AiApprovalMode,
+): Promise<{ error: string } | { success: true }> {
+  try {
+    await setAiApprovalMode(businessId, mode);
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: error instanceof Error ? error.message : "This setting could not be saved." };
+  }
+  revalidatePath(`${await businessPath(businessId)}`, "layout");
   return { success: true };
 }
 

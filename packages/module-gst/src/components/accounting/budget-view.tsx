@@ -20,7 +20,7 @@ const TONE: Record<VarianceDirection, string> = {
   on_budget: "text-muted-foreground",
 };
 
-export function BudgetView({ summary, basePath }: { summary: BudgetSummary & { hasBudget: boolean }; basePath: string }) {
+export function BudgetView({ summary }: { summary: BudgetSummary & { hasBudget: boolean } }) {
   if (!summary.hasBudget) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-12 text-center">
@@ -28,8 +28,8 @@ export function BudgetView({ summary, basePath }: { summary: BudgetSummary & { h
         <div className="max-w-md">
           <p className="font-medium">No budget set for this period</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Set a monthly figure against the income and cost accounts you want to watch, and
-            this fills in from the ledger as the period runs.
+            Use Set budget to enter a monthly figure for the income and cost accounts you want
+            to watch; this fills in from the ledger as the period runs.
           </p>
         </div>
       </div>
@@ -130,11 +130,7 @@ export function BudgetView({ summary, basePath }: { summary: BudgetSummary & { h
 
       <p className="text-xs text-muted-foreground">
         Actuals come from the same ledger totals the profit and loss account reads, so the two
-        can never disagree. Set budgets from the{" "}
-        <a href={`${basePath}/accounts`} className="underline">
-          chart of accounts
-        </a>
-        .
+        can never disagree.
       </p>
     </div>
   );

@@ -3,12 +3,7 @@ import { z } from "zod";
 import { createAdminClient } from "../db/admin";
 import { recordAiRun } from "../ai-usage/mutations";
 import { hashInput } from "./hash";
-import { getPlatformAiCredential } from "./platform-credential";
-import { resolveModelId } from "./model-registry";
-import { getOperationSpec } from "./operation-registry";
-import { createLanguageModel } from "./provider-factory";
-import { AI_FEATURE_DISABLED_MESSAGE, isAiOperationDisabled } from "./feature-kill-switch";
-import { AiProviderError, toAiProviderError } from "./business-router";
+import { resolveBusinessAiModel, toAiProviderError } from "./business-router";
 
 /**
  * PLATFORM-P1-11.2 -- WonderArk's AI agent, as the MCP server's `ask_assistant` tool:
@@ -20,8 +15,10 @@ import { AiProviderError, toAiProviderError } from "./business-router";
  * see; this file only writes the answer. Records are quoted data inside the prompt,
  * never instructions (CLAUDE.md "AI, untrusted input and governed actions" rule 1).
  *
- * Runs on the platform's own AI credential: the caller has no signed-in session, and the
- * session-scoped BYOK lookup (business-router.ts) can't run without one.
+  * Runs on the business's own AI key when it has one (the business's key, then its
+ * account's), else the platform's included credit -- the same order as every other
+ * business-scoped AI feature (resolveBusinessAiModel). The caller has no session, so the
+ * lookup runs as the service role pinned to this business (AI-BYOK-ASSISTANT-01).
  */
 
 export const BUSINESS_ASSISTANT_PROMPT_VERSION = "business-assistant-1";
@@ -90,24 +87,16 @@ export async function answerBusinessQuestion(input: {
 }): Promise<BusinessAnswer> {
   const question = input.question.trim().slice(0, MAX_QUESTION_LENGTH);
 
-  if (await isAiOperationDisabled(OPERATION)) {
-    throw new AiProviderError("feature_disabled", AI_FEATURE_DISABLED_MESSAGE);
-  }
-  const credential = await getPlatformAiCredential();
-  if (!credential) {
-    throw new AiProviderError("no_provider_connected", "The AI assistant isn't configured on this deployment.");
-  }
-
-  const modelId = resolveModelId(credential.provider, getOperationSpec(OPERATION).qualityTier);
-  const model = createLanguageModel(credential.provider, credential.apiKey, modelId);
+    const client = createAdminClient({ schema: "core" });
+  // Kill switch, then the business's own key, its account's, or the platform's.
+  const { provider, modelId, model } = await resolveBusinessAiModel(input.businessId, OPERATION, client);
   const prompt = businessAssistantPrompt(question, input.records);
   const inputHash = hashInput({ prompt, version: BUSINESS_ASSISTANT_PROMPT_VERSION, model: modelId });
-  const client = createAdminClient({ schema: "core" });
   const run = {
     businessId: input.businessId,
     operation: OPERATION,
     model: modelId,
-    provider: credential.provider,
+    provider,
     promptVersion: BUSINESS_ASSISTANT_PROMPT_VERSION,
     inputHash,
     client,
@@ -131,7 +120,7 @@ export async function answerBusinessQuestion(input: {
       usedResources: response.object.usedResources.filter((r) => given.has(r)),
     };
   } catch (error) {
-    const aiError = toAiProviderError(error, credential.provider);
+        const aiError = toAiProviderError(error, provider);
     await recordAiRun({ ...run, status: "failed", durationMs: Date.now() - startedAt, errorCode: aiError.code });
     throw aiError;
   }

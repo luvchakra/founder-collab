@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { consumePurchasedAiCredit } from "@cofounderai/core/billing/queries";
 import { createAdminClient } from "@cofounderai/core/db/admin";
+import { createClient } from "../../db/server";
 import { getWorkspaceUsage } from "./queries";
 import { getAccountIdForWorkspace } from "../tenancy/queries";
 
@@ -50,7 +51,12 @@ export async function assertWithinUsageLimit(
   const overCost = usage.totalCost >= FREE_TIER_MONTHLY_COST_LIMIT_USD;
   if (!overRuns && !overCost) return;
 
-  const accountId = await getAccountIdForWorkspace(workspaceId, client);
+    const accountId = await getAccountIdForWorkspace(workspaceId, client);
+  // AI-BYOK-NO-CAP-01: the allowance protects the platform's included credit. An account
+  // with its own provider key connected runs on that key (lib/ai/router.ts: an account's
+  // own key always wins), and bills its own provider account, so it isn't capped -- and
+  // must not spend purchased credits it isn't using either.
+  if (accountId && (await hasOwnProviderKey(accountId, client))) return;
   if (accountId) {
     // `client`, when passed, is a discovery-schema admin client (the no-session webhook
     // path, e.g. classify-reply.ts) -- consume_purchased_ai_credit() lives in `core` and
@@ -63,4 +69,17 @@ export async function assertWithinUsageLimit(
 
   if (overRuns) throw new UsageLimitExceededError("runs");
   throw new UsageLimitExceededError("cost");
+}
+
+/** Whether the account has its own AI provider key connected -- the same row
+ * lib/ai/router.ts#getProviderCredential reads to decide that the account's key wins. */
+async function hasOwnProviderKey(accountId: string, client?: SupabaseClient): Promise<boolean> {
+  const supabase = client ?? (await createClient());
+  const { data, error } = await supabase
+    .from("ai_provider_credentials")
+    .select("account_id")
+    .eq("account_id", accountId)
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }

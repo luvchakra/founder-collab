@@ -117,7 +117,11 @@ export default async function ProspectsPage({
         replace
       />
 
-      <AutoPopulateCompleteDialog resultCount={autopopulated} basePath={basePath} />
+      <AutoPopulateCompleteDialog
+        resultCount={autopopulated}
+        basePath={basePath}
+        icpHref={`/${businessSlug}/discovery/offerings/${productId}/icp`}
+      />
 
       {imported ? (
         <p className="rounded-md border bg-muted p-3 text-sm">

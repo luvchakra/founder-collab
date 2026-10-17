@@ -1,11 +1,13 @@
 import { createAdminClient } from "@cofounderai/core/db/admin";
 import { getConnectedChannelAccountByExternalId } from "../channel-accounts/queries";
 import { recordInteraction } from "../interactions/mutations";
+import { sendCrmChannelMessage } from "../channel-accounts/send-message";
+import { maybeSendInstantAcknowledgement, type AckOutcome } from "../instant-reply/acknowledgement";
 
 export type SocialProvider = "instagram" | "facebook_messenger";
 
 export type IngestSocialResult =
-  | { ok: true; interactionId: string; conversationId: string }
+  | { ok: true; interactionId: string; conversationId: string; acknowledgement: AckOutcome | { status: "error"; error: string } }
   | { ok: false; reason: "unknown_external_account_id"; provider: SocialProvider; externalAccountId: string }
   | { ok: false; reason: "empty_message" };
 
@@ -24,13 +26,14 @@ export type IngestSocialResult =
  * exactly this "no session" reason) -- once the owning business is known, everything
  * downstream (`recordInteraction()`) writes to the new model, not `crm.tickets`.
  *
- * Deliberately drops the old function's `instant_reply_mode` auto-reply/auto-routing
- * behavior: CRM-08.2/08.3's own acceptance criteria don't ask for either, and the
- * platform's post-CRM-09 direction is human-in-the-loop by design (CRM-09.6's own "draft
- * only, no auto-send"; backlog rule #11) -- an unconditional automatic reply on first
- * contact would cut against that, not merely be an unbuilt nice-to-have. Auto-routing on
- * ingest is the same already-accepted gap CRM-07.3/07.4 left for WhatsApp (CRM-06.3's own
- * "Conversation Assignment" is manual/audited, not rule-based-on-ingest).
+ * CRM-INSTANT-ACK-01: the account's `instant_reply_mode` is honoured again, in its one
+ * offered form -- "Instant acknowledgment, then human" sends the business's own fixed
+ * acknowledgement once per contact per 24 hours through the Meta Send API
+ * (`sendCrmChannelMessage()`), and the conversation stays with a person
+ * (`instant-reply/acknowledgement.ts`). No AI drafts or sends anything on ingest.
+ * Auto-routing on ingest is still the same already-accepted gap CRM-07.3/07.4 left for
+ * WhatsApp (CRM-06.3's own "Conversation Assignment" is manual/audited, not
+ * rule-based-on-ingest).
  */
 export async function ingestInboundSocialMessage(input: {
   provider: SocialProvider;
@@ -72,7 +75,21 @@ export async function ingestInboundSocialMessage(input: {
     { crm: crmAdmin, core: coreAdmin },
   );
 
-  return { ok: true, interactionId: interaction.id, conversationId: interaction.conversation_id };
+  let acknowledgement: AckOutcome | { status: "error"; error: string };
+  try {
+    acknowledgement = await maybeSendInstantAcknowledgement({
+      businessId: account.business_id,
+      channel: input.provider,
+      mode: account.instant_reply_mode,
+      inbound: interaction,
+      clients: { crm: crmAdmin, core: coreAdmin },
+      send: (ackText) => sendCrmChannelMessage(input.provider, account.external_account_id, account.accessTokenEncrypted, senderHandle, ackText),
+    });
+  } catch (err) {
+    acknowledgement = { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
+
+  return { ok: true, interactionId: interaction.id, conversationId: interaction.conversation_id, acknowledgement };
 }
 
 export type IngestInstagramCommentResult =
