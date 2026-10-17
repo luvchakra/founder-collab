@@ -32,6 +32,7 @@ import {
 import { computeHandoffStatus } from "@cofounderai/module-discovery/lib/opportunities/handoff";
 import { getDiscoveryHandoffLead } from "@cofounderai/module-crm/contract/index";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
+import { getAiApprovalMode } from "@cofounderai/module-discovery/lib/ai-approval/queries";
 
 /**
  * DISC-OFFER-P0-10.1: "Run AI Discovery CTA" -- runs exactly one pipeline stage per
@@ -116,21 +117,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ bus
   const runId = run?.id ?? null;
 
   const key = stageKey as PipelineStageKey;
-  const ctx: StageContext = { workspaceId: workspace.id, productId: product.id };
   const isLastStage = key === PIPELINE_STAGE_KEYS[PIPELINE_STAGE_KEYS.length - 1];
 
   await markPipelineStageRunning(workspace.id, key);
 
   try {
+    // DISC-AI-APPROVAL-01: whether stages may approve their own results is the business's
+    // own setting, read here on the server -- the request body can't set it. Inside the
+    // try, so a failed lookup fails the stage instead of assuming either mode.
+    const aiApprovalMode = await getAiApprovalMode(businessId);
+    const ctx: StageContext = { workspaceId: workspace.id, productId: product.id, aiApprovalMode };
     const result = await runStage(key, ctx, businessId);
     const stage =
       result.outcome === "skipped"
         ? await markPipelineStageSkipped(workspace.id, key, runId)
         : await markPipelineStageCompleted(workspace.id, key, undefined, runId, result.reviewLevel);
-    if (runId && isLastStage) {
+    if (runId && result.awaitingApproval) {
+      await completePipelineRun(workspace.id, runId, "awaiting_approval", null);
+    } else if (runId && isLastStage) {
       await completePipelineRun(workspace.id, runId, "completed", null);
     }
-    return NextResponse.json({ ok: true, stage, detail: result.detail });
+    return NextResponse.json({ ok: true, stage, detail: result.detail, awaitingApproval: result.awaitingApproval === true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Something went wrong.";
     const stage = await markPipelineStageFailed(workspace.id, key, message, runId);

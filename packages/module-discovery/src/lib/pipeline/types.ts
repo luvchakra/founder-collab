@@ -129,7 +129,9 @@ export const PIPELINE_RUN_TRIGGERS: PipelineRunTrigger[] = [
   "save_and_run_downstream",
 ];
 
-export type PipelineRunStatus = "running" | "completed" | "failed";
+/** DISC-AI-APPROVAL-01: `awaiting_approval` -- a run that stopped at a proposal left for
+ * a person to approve ("Review each step"); neither completed nor failed. */
+export type PipelineRunStatus = "running" | "completed" | "failed" | "awaiting_approval";
 
 /** DISC-OFFER-P0-14.1: "Discovery Run History" -- one row per client-driven walk through
  * some contiguous suffix of the fourteen technical stages (`run-ai-discovery-panel.tsx`'s

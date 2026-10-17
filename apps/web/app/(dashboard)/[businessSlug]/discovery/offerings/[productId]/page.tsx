@@ -21,6 +21,7 @@ import { getTopGateOpportunity } from "@cofounderai/module-discovery/lib/opportu
 import { getBuyerIntelligenceForProspect } from "@cofounderai/module-discovery/lib/buyer-intelligence/queries";
 import { computeBuyerFitScores } from "@cofounderai/module-discovery/lib/buyer-intelligence/scoring";
 import { classifyExistingRelationship } from "@cofounderai/module-crm/contract/index";
+import { getAiApprovalMode } from "@cofounderai/module-discovery/lib/ai-approval/queries";
 import {
   addFileSourceAction,
   addTextSourceAction,
@@ -76,6 +77,9 @@ export default async function ProductPage({
     : [null, [], null, null];
   const pipelineStages = await listPipelineStages(workspace.id);
   const lastRun = await getLastCompletedPipelineRun(workspace.id);
+  // DISC-AI-APPROVAL-01: shown where the AI flows start; each flow re-reads it itself.
+  const aiApprovalMode = await getAiApprovalMode(businessId);
+  const aiApprovalSettingsHref = `/${businessSlug}/business#ai-approvals`;
 
   // DISC-OFFER-P0-15.1: "Final Human Action Gate" -- only fetched once there's real
   // opportunity data to gate on at all (same profile-gated condition as the summary
@@ -158,7 +162,13 @@ export default async function ProductPage({
           updateIntervalAction={updateRediscoveryIntervalAction.bind(null, businessId, productId, workspace.id)}
         />
         <SavedDiscoveryCriteria workspace={workspace} updateCriteriaAction={updateDiscoveryCriteriaAction.bind(null, businessId, productId, workspace.id)} />
-        <RunAiDiscoveryPanel businessSlug={businessSlug} productId={productId} initialStages={pipelineStages} />
+        <RunAiDiscoveryPanel
+          businessSlug={businessSlug}
+          productId={productId}
+          initialStages={pipelineStages}
+          aiApprovalMode={aiApprovalMode}
+          aiApprovalSettingsHref={aiApprovalSettingsHref}
+        />
       </section>
 
       <CollapsibleCard label="Offering setup & sources" defaultOpen={!product.product_profile}>
@@ -173,6 +183,8 @@ export default async function ProductPage({
           updateSourceAction={updateSourceAction.bind(null, businessId, productId)}
           deleteSourceAction={deleteSourceAction.bind(null, businessId, productId)}
           nextHref={`${icpPath(businessSlug, productId)}?autopopulate=1`}
+          aiApprovalMode={aiApprovalMode}
+          aiApprovalSettingsHref={aiApprovalSettingsHref}
         />
       </CollapsibleCard>
     </div>
