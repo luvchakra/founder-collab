@@ -469,7 +469,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P1-12.4` | Reply provenance | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft.test.ts` +3 |
 | `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 | `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.7` | WhatsApp reply drafts over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +5 |
+| `PLATFORM-P1-12.7` | WhatsApp reply drafts over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +6 |
 | `PLATFORM-P1-11.3` | MCP entity types | ✅ Done | `apps/web/lib/mcp/server.test.ts` +1 |
 
 ## Discovery — offering-centric upgrade
