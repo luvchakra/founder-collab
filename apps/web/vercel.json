@@ -52,6 +52,14 @@
     {
       "path": "/api/cron/ops-alerts",
       "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/cron/post-recurring-entries",
+      "schedule": "15 6 * * *"
+    },
+    {
+      "path": "/api/cron/escalate-conversations",
+      "schedule": "45 6 * * *"
     }
   ]
 }

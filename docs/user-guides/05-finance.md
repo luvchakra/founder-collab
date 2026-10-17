@@ -12,7 +12,7 @@ regardless of country; the tax half supports **India GST, US Sales Tax (plus
 (Germany, France, Belgium, Poland, Italy)** today, with more countries
 visible in the picker as "(Planned)" but not yet selectable.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## Navigation
 
@@ -240,8 +240,7 @@ needs `gst.dimensions.manage`.
 - **Budget** — compares budget against actual with the variance, for budget figures already
   recorded. WonderArk doesn't have a screen for entering budget figures yet.
 - **Recurring Entries** — a journal template plus a schedule: every month, every three
-  months, every six months or every year. Entries aren't posted automatically yet on their
-  due date; each one, once posted, is a normal journal entry you can review and reverse.
+  months, every six months or every year. Due entries are posted automatically once a day (a missed day catches up, and nothing posts twice); each is a normal journal entry you can review and reverse.
 
 Neither uses AI. Finance is deterministic arithmetic, and the platform's own
 engineering rules say not to put a language model where arithmetic belongs.

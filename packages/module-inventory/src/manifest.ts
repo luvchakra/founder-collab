@@ -39,16 +39,12 @@ export const inventoryManifest: ModuleManifest = {
         { label: "Sales Returns", slug: "sales-returns", icon: "RotateCcw" },
       ],
     },
-    {
+        {
       heading: "Purchasing",
       items: [
         { label: "Suppliers", slug: "suppliers", icon: "Truck" },
         { label: "Purchase Orders", slug: "purchase-orders", icon: "ClipboardList" },
       ],
-    },
-    {
-      heading: "Administration",
-      items: [{ label: "API Keys", slug: "api-keys", icon: "KeyRound" }],
     },
   ],
   features: [

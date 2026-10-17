@@ -11,7 +11,7 @@ offerings and data:
 - **Funding** — your funding profile, investor readiness, rounds, investors,
   outreach, data room and due diligence.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 
 ## How Discovery is organised
@@ -73,10 +73,10 @@ briefs) need an AI provider. Go to avatar menu → **Billing → AI**:
 WonderArk tests the connection live before saving. Your key is encrypted at
 rest; only a fingerprint and connection status are ever shown back to you.
 If you don't connect a key and the deployment has a platform-owned key, WonderArk uses that.
-Each offering has a monthly allowance of 200 AI runs or $20 of AI cost, whichever comes
-first. Every successful run counts, whichever key it used — connecting your own key doesn't
-lift the allowance. A notification in the bell warns you at 80% and again at 100%; at 100%
-AI features pause until next month. If WonderArk switches an AI feature off platform-wide,
+On the included credits, each offering has a monthly allowance of 200 AI runs or $20 of AI
+cost, whichever comes first; with your own key connected there is no allowance, since your
+provider bills you directly. A notification in the bell warns you at 80% and again at 100%;
+at 100% AI features pause until next month unless you have bought credits. If WonderArk switches an AI feature off platform-wide,
 it says "This AI feature is temporarily unavailable. Please try again later."
 
 ## The Discovery Dashboard

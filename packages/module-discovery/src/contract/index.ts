@@ -1,4 +1,5 @@
 import { hasModule } from "@cofounderai/core/licensing/queries";
+import { createAdminClient } from "@cofounderai/core/db/admin";
 import { addPartyContact, addPartyRole } from "@cofounderai/core/parties/mutations";
 import { getFirstWorkspaceForBusiness, getProduct, getWorkspace, listProducts, listWorkspacesForProducts } from "../lib/tenancy/queries";
 import { createProspect } from "../lib/prospects/mutations";
@@ -334,4 +335,56 @@ export async function listOfferingKnowledgeForBusiness(
     }
   }
   return { ok: true, data: entries };
+}
+
+/**
+ * PLATFORM-P1-12.7 -- the same offering knowledge as `listOfferingKnowledgeForBusiness`, for a
+ * caller with no session (the MCP server's `draft_whatsapp_reply`, on a business API key).
+ * There is no RLS to lean on, so every read runs as the service role pinned to this one
+ * business, and the Discovery licence is checked explicitly first.
+ */
+export async function listOfferingKnowledgeForBusinessService(
+  businessId: string,
+  limit = 20,
+): Promise<ContractResult<OfferingKnowledgeEntry[]>> {
+  const core = createAdminClient({ schema: "core" });
+  const { data: licensed, error: licenseError } = await core.rpc("has_module", { p_business_id: businessId, p_key: "discovery" });
+  if (licenseError) throw licenseError;
+  if (!licensed) return { ok: false, error: "MODULE_NOT_LICENSED" };
+
+  const discovery = createAdminClient({ schema: "discovery" });
+  const { data: offerings, error: offeringsError } = await discovery
+    .from("products")
+    .select("id, name")
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: true });
+  if (offeringsError) throw offeringsError;
+  if (!offerings || offerings.length === 0) return { ok: true, data: [] };
+
+  const { data: workspaces, error: workspacesError } = await discovery
+    .from("workspaces")
+    .select("id, product_id")
+    .in("product_id", offerings.map((o) => o.id));
+  if (workspacesError) throw workspacesError;
+  if (!workspaces || workspaces.length === 0) return { ok: true, data: [] };
+
+  const { data: knowledge, error: knowledgeError } = await discovery
+    .from("product_knowledge")
+    .select("id, workspace_id, source_name, content")
+    .in("workspace_id", workspaces.map((w) => w.id))
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (knowledgeError) throw knowledgeError;
+
+  const nameByProduct = new Map(offerings.map((o) => [o.id as string, o.name as string]));
+  const productByWorkspace = new Map(workspaces.map((w) => [w.id as string, w.product_id as string]));
+  return {
+    ok: true,
+    data: (knowledge ?? []).map((k) => ({
+      id: k.id as string,
+      offeringName: nameByProduct.get(productByWorkspace.get(k.workspace_id as string) ?? "") ?? "Offering",
+      sourceName: k.source_name as string,
+      content: String(k.content ?? "").slice(0, 2000),
+    })),
+  };
 }

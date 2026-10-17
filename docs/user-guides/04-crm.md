@@ -4,11 +4,12 @@ CRM runs your pipeline from first message to won customer: conversations from Wh
 Instagram and Facebook, leads, opportunities, a lost-business recovery queue, reviews, and a
 customer profile that pulls in data from every other licensed module.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## Navigation
 
-**Overview**: Dashboard, Inbox, Conversations, Potential Lost Business, Reviews
+**Overview**: Dashboard, Inbox, Conversations, Potential Lost Business, Reviews, Analytics,
+Reactivation
 **Sales**: Leads, Sales Opportunities, Follow-ups, Exceptions
 **Administration**: Channels, WhatsApp, Routing Rules
 
@@ -57,13 +58,12 @@ Last updated: 2026-10-16
 - **Reviews** — **Connect location** for your Google Business Profile and **Sync now** to
   pull reviews (both need the channel-connections permission), then **Generate AI draft**
   and **Approve & publish** a response (both need the review-publishing permission).
-- **Analytics** and **Reactivation** pages exist but aren't in the CRM menu yet; open
-  them from the address bar at `…/crm/analytics` and `…/crm/reactivation`. Analytics shows
-  30-day response performance (median first response, SLA compliance, unresolved by age, per
-  channel and per owner) and the Discovery → CRM and CRM → Service funnels when those modules
-  are licensed. Reactivation lists customers worth contacting again by simple rules (gone
-  quiet, an old lead with a new signal, a waited-for item back in stock, a service likely due
-  again). Nothing is sent automatically.
+- **Analytics** — 30-day response performance (median first response, SLA compliance,
+  unresolved by age, per channel and per owner), and the Discovery → CRM and CRM → Service
+  funnels when those modules are licensed. It can be exported as a report.
+- **Reactivation** — customers worth contacting again, found by simple rules (gone quiet, an
+  old lead with a new signal, a waited-for item back in stock, a service likely due again).
+  Nothing is sent automatically.
 - **Exceptions** — open cross-module problems that need a decision: a
   Service job with a parts shortage (choose how to resolve it, with an
   optional note) and an opportunity that needs an assessment (**Request
@@ -191,15 +191,15 @@ staging area, not a working automation, for now.
 **Escalation**, on the same page, is a fixed three-step ladder for
 unanswered commercial messages (reminder → owner escalation → manager escalation). The delay
 times are pre-set, and the one thing you configure here is **who the escalation manager
-is**. Escalations aren't run automatically yet, so treat this as setup for now too.
+is**. WonderArk checks for messages due to escalate once a day, so an escalation can arrive up to a day after its delay has passed.
 
 ## Who can configure what
 
 CRM access is controlled by the business's shared **Users & access** pages (avatar menu →
 **Admin** → the business's **Users & access** chip; see [Users, roles and
-invitations](/help/getting-started#users-roles-and-invitations)). Connecting WhatsApp, its templates and click-to-chat links, and connecting or syncing
-Google reviews need the channel-connections permission, which **Owner** and **Admin** have. **Sales Manager** works the day-to-day pipeline (leads,
+invitations](/help/getting-started#users-roles-and-invitations)). Connecting WhatsApp, its templates and click-to-chat links, creating channels and connecting
+Instagram or Messenger accounts on **Channels**, and connecting or syncing Google reviews all
+need the channel-connections permission, which **Owner** and **Admin** have. **Sales Manager** works the day-to-day pipeline (leads,
 opportunities, follow-ups, messaging, review responses) but can't connect channels or sync
-reviews. Creating channels and connected Instagram or Messenger accounts on **Channels**
-currently isn't limited by role: any CRM member can do it.
+reviews.
 

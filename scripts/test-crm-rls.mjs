@@ -15,6 +15,7 @@ const STUB_FILE = join(ROOT, "supabase", "tests", "local-stub.sql");
 
 const ALICE = "11111111-1111-1111-1111-111111111111";
 const BOB = "22222222-2222-2222-2222-222222222222";
+const CAROL = "33333333-3333-3333-3333-333333333333"; // sales manager in Alice's business: CRM write access, no channel_connections.manage
 
 async function main() {
   await withTestDatabase({
@@ -144,6 +145,40 @@ async function main() {
       assertThrows(
         () => psqlAsBob(`insert into crm.routing_rules (business_id, name, assign_to_employee_id) values ('${bobBusiness}', 'Sneaky', '${aliceEmployee}')`),
         "Bob cannot create a routing rule assigning to Alice's employee",
+      );
+
+            // CRM-SEC-CHANNELS-01: channels and connected accounts are configuration, managed by
+      // `channel_connections.manage` (Owner/Admin); a plain member can still read them.
+      console.log("Verifying a sales manager can read channels but not create, change or connect them...");
+      psql(`
+        insert into auth.users (id, email) values ('${CAROL}', 'carol@example.com');
+        insert into core.business_members (business_id, user_id, role) values ('${aliceBusiness}', '${CAROL}', 'sales_manager') on conflict do nothing;
+      `);
+      const psqlAsCarol = (sql) => psqlAs(CAROL, sql);
+      assertEqual(psqlAsCarol(`select count(*) from crm.channels where id = '${aliceChannel}'`), "1", "a sales manager can read the business's channels");
+      assertThrows(
+        () => psqlAsCarol(`insert into crm.channels (business_id, kind, name) values ('${aliceBusiness}', 'social', 'Viewer channel')`),
+        "a sales manager cannot create a channel (no channel_connections.manage)",
+      );
+      assertEqual(
+        psqlAsCarol(`with u as (update crm.channels set is_active = false where id = '${aliceChannel}' returning id) select count(*) from u`),
+        "0",
+        "a sales manager's update of a channel matches no rows",
+      );
+      assertThrows(
+        () => psqlAsCarol(`
+          insert into crm.channel_accounts (business_id, channel_id, provider, external_account_id, access_token_encrypted, status)
+          values ('${aliceBusiness}', '${aliceChannel}', 'instagram', 'ig-viewer', 'x', 'connected')`),
+        "a sales manager cannot connect a channel account",
+      );
+      const ownerAccount = psqlAsAlice(`
+        insert into crm.channel_accounts (business_id, channel_id, provider, external_account_id, access_token_encrypted, status)
+        values ('${aliceBusiness}', '${aliceChannel}', 'instagram', 'ig-owner', 'x', 'connected') returning id`);
+      assertEqual(ownerAccount.length, 36, "the owner can connect a channel account");
+      assertEqual(
+        psqlAsCarol(`with u as (update crm.channel_accounts set status = 'revoked' where id = '${ownerAccount}' returning id) select count(*) from u`),
+        "0",
+        "a sales manager cannot disconnect a channel account",
       );
 
       console.log("\nAll crm schema RLS checks passed.");

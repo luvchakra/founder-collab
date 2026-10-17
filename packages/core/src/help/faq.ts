@@ -126,7 +126,7 @@ export const FAQ: FaqEntry[] = [
     category: "Billing & AI",
     question: "Do I need my own AI API key?",
     answer:
-      "Only if you want your AI usage billed to your own provider account. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected. The monthly allowance (200 AI runs or $20 per offering) applies either way.",
+      "Only if you want your AI usage billed to your own provider account. Otherwise the included credits are used automatically. Connect your own OpenAI, Anthropic or Google Gemini key from avatar menu → Billing if you'd rather use it; your own key always wins when one is connected. With your own key there's no monthly allowance; on the included credits it's 200 AI runs or $20 per offering.",
     guideSlug: "discovery",
     sectionId: "connecting-an-ai-provider",
   },
@@ -246,7 +246,7 @@ export const FAQ: FaqEntry[] = [
     category: "Day to day",
     question: "How do I see how quickly we respond to customers?",
     answer:
-      "CRM's Analytics page (not in the menu yet — open …/crm/analytics) shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
+      "CRM → Analytics shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",
     guideSlug: "crm",
     sectionId: "daily-workflows",
   },

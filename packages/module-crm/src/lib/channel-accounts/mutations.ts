@@ -1,4 +1,5 @@
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { encryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { createClient } from "../../db/server";
 import type { ChannelProvider, InstantReplyMode } from "./types";
@@ -24,6 +25,8 @@ export async function connectChannelAccount(
   },
 ): Promise<void> {
   await requireModule(businessId, "crm");
+  // CRM-SEC-CHANNELS-01: connecting an account is a configuration change, like WhatsApp's.
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { error } = await supabase.from("channel_accounts").insert({
     business_id: businessId,
@@ -40,12 +43,14 @@ export async function connectChannelAccount(
 /** See tickets/mutations.ts#updateTicketStatus's own doc comment for why this checks
  * the row actually came back instead of trusting a plain `.update()` with no
  * `.select()`. */
-export async function disconnectChannelAccount(channelAccountId: string): Promise<void> {
+export async function disconnectChannelAccount(businessId: string, channelAccountId: string): Promise<void> {
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("channel_accounts")
     .update({ status: "revoked" })
     .eq("id", channelAccountId)
+    .eq("business_id", businessId)
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
@@ -53,12 +58,14 @@ export async function disconnectChannelAccount(channelAccountId: string): Promis
   }
 }
 
-export async function setInstantReplyMode(channelAccountId: string, mode: InstantReplyMode): Promise<void> {
+export async function setInstantReplyMode(businessId: string, channelAccountId: string, mode: InstantReplyMode): Promise<void> {
+  await requirePermission(businessId, "channel_connections.manage");
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("channel_accounts")
     .update({ instant_reply_mode: mode })
     .eq("id", channelAccountId)
+    .eq("business_id", businessId)
     .select("id");
   if (error) throw error;
   if (!data || data.length === 0) {
