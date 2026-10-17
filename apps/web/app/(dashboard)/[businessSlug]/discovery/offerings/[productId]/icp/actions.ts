@@ -11,6 +11,7 @@ import {
   parseListField,
 } from "@cofounderai/module-discovery/lib/icp/mutations";
 import { invalidateDownstreamStages } from "@cofounderai/module-discovery/lib/pipeline/invalidate";
+import { autoPopulateIcp } from "@cofounderai/module-discovery/lib/ai-approval/auto-populate";
 import { getWorkspaceForProduct } from "@cofounderai/module-discovery/lib/tenancy/queries";
 import { runAiAction, type AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import { createBuyerPersona, updateBuyerPersona, deleteBuyerPersona } from "@cofounderai/module-discovery/lib/personas/mutations";
@@ -115,15 +116,14 @@ export async function approveIcpAction(
 
 /**
  * The ICP step of the Overview page's "Let AI Auto-Populate Info" flow (called directly
- * from the client `AutoPopulateRunner` as it walks Overview -> ICP -> Prospects, not
- * through a `<form>`): generates a fresh ICP and immediately approves it, so
- * `discoverProspects()` (which requires an approved ICP) can run right after without a
- * separate manual approval click. Thrown errors propagate to the caller as-is -- the
- * runner's own try/catch turns them into its step-failed UI.
+ * from the client `AutoPopulateStepBanner` as it walks Overview -> ICP -> Prospects, not
+ * through a `<form>`): generates a fresh ICP, and approves it only when the business chose
+ * "Approve automatically" -- read on the server from the offering's own business
+ * (DISC-AI-APPROVAL-01, `autoPopulateIcp`). Thrown errors propagate to the caller as-is --
+ * the banner's own try/catch turns them into its step-failed UI.
  */
 export async function autoPopulateIcpAction(businessId: string, productId: string): Promise<void> {
-  const icp = await generateIcp(productId, { force: true });
-  await approveIcpProfile(icp.id);
+  await autoPopulateIcp(productId);
   revalidatePath(await icpPath(businessId, productId));
 }
 

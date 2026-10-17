@@ -38,10 +38,15 @@ import {
   type StageReviewLevel,
 } from "./review";
 import { passesIcpPreFilter } from "./icp-pre-filter";
+import type { AiApprovalMode } from "../ai-approval/types";
 
+/** DISC-AI-APPROVAL-01: `aiApprovalMode` is the business's own setting, read on the
+ * server by the route (never taken from the request body) -- it decides whether the ICP
+ * and account-discovery stages approve their own results. */
 export type StageContext = {
   workspaceId: string;
   productId: string;
+  aiApprovalMode: AiApprovalMode;
 };
 
 /** DISC-OFFER-P1-02.1: `reviewLevel` is undefined for a stage with no confidence-bearing
@@ -49,7 +54,15 @@ export type StageContext = {
  * discovery strategy, account discovery, CRM handoff -- have nothing an AI judged
  * uncertain to flag); `run-ai-discovery/route.ts` treats an undefined level exactly like
  * `"automated"` (write `completed`, not `needs_review`/`insufficient_evidence`). */
-export type StageOutcome = { outcome: "completed" | "skipped"; detail: string; reviewLevel?: StageReviewLevel };
+export type StageOutcome = {
+  outcome: "completed" | "skipped";
+  detail: string;
+  reviewLevel?: StageReviewLevel;
+  /** DISC-AI-APPROVAL-01: true when this stage left a proposal for a person to approve
+   * ("Review each step") and the run should stop here rather than carry on as if it had
+   * been approved. The route records the run as `awaiting_approval`. */
+  awaitingApproval?: boolean;
+};
 
 const ACCOUNT_DISCOVERY_MAX = 10;
 const RESEARCH_TOP_N = 3;
@@ -98,16 +111,27 @@ export async function runOfferingProfileStage(ctx: StageContext): Promise<StageO
 }
 
 /** DISC-OFFER-P0-10.1: "Build / Refine ICP". Generates (or reuses an already-approved)
- * ICP, then approves it -- automation runs the pipeline through to a human decision point
- * near the very end (§13's own diagram: Offering Profile -> ICP -> ... -> Human Approval
- * -> CRM Handoff), not a gate at every intermediate step, and every downstream automated
- * function in this module already hard-requires an *approved* ICP to do anything
- * (`discoverProspects`, `detectNegativeSignals`, `generateOutreachStrategy`). A founder
- * can still edit/re-approve it by hand afterward like any other ICP (DISC-OFFER-P0-02.2) --
- * this doesn't remove that, it only unblocks the rest of this run. */
+ * ICP. DISC-AI-APPROVAL-01: approves it only when the business chose "Approve
+ * automatically" -- every downstream automated function in this module hard-requires an
+ * *approved* ICP (`discoverProspects`, `detectNegativeSignals`, `generateOutreachStrategy`),
+ * so that mode lets the run carry on unattended. In "Review each step" a fresh ICP stays a
+ * draft version, the stage is recorded as needing review, and the run stops here until the
+ * founder approves it on the ICP page and resumes. An ICP the founder already approved is
+ * reused untouched (generateIcp's own freshness check) and the run continues in both modes.
+ * A founder can still edit/re-approve it by hand afterward like any other ICP
+ * (DISC-OFFER-P0-02.2). */
 export async function runIcpStage(ctx: StageContext): Promise<StageOutcome> {
-  const icp = await generateIcp(ctx.productId);
-  if (icp.status !== "approved") await approveIcpProfile(icp.id);
+  const generated = await generateIcp(ctx.productId);
+  const icp = generated.status !== "approved" && ctx.aiApprovalMode === "auto" ? await approveIcpProfile(generated.id) : generated;
+  const summary = `${icp.industries.length} industries, ${icp.roles.length} roles`;
+  if (icp.status !== "approved") {
+    return {
+      outcome: "completed",
+      detail: `ICP saved as a draft for your review (${summary}). Approve it on the ICP page, then resume AI Discovery.`,
+      reviewLevel: "needs_review",
+      awaitingApproval: true,
+    };
+  }
   // DISC-OFFER-P1-02.1: `confidence` is null when this run reused an already-approved
   // ICP untouched (generateIcp's own freshness check) or the ICP was last written by a
   // founder's own manual edit (updateIcpProfile clears it -- see icp/types.ts's own
@@ -116,7 +140,7 @@ export async function runIcpStage(ctx: StageContext): Promise<StageOutcome> {
   // (always a real 0-1 number per IcpProfileSchema) gets classified.
   return {
     outcome: "completed",
-    detail: `ICP ready (${icp.industries.length} industries, ${icp.roles.length} roles).`,
+    detail: `ICP ready (${summary}).`,
     reviewLevel: icp.confidence === null ? "automated" : classifyNumericConfidence(icp.confidence),
   };
 }
@@ -141,18 +165,27 @@ export async function runDiscoveryStrategyStage(ctx: StageContext): Promise<Stag
 
 /** DISC-OFFER-P0-10.1: "Find & Enrich Accounts" -- `discoverProspects()` already returns
  * enriched fields (industry/size/location/description) per candidate in the same search
- * call, so there's no separate enrichment pass to run. Automatically approves every
- * suggestion this run found (§25 allows automation to "create/update Discovery records";
- * duplicate accounts are already excluded by `discoverProspects`' own
- * `findDuplicateProspect` check) -- unlike the founder-facing manual "Discover" page,
- * where a human reviews each suggestion before it becomes a real prospect, this
- * autonomous run needs real prospect rows for the downstream signal/scoring/research
- * stages to act on; nothing here is sent anywhere external (§25's actual line in the
- * sand), it is purely an internal Discovery record. */
+ * call, so there's no separate enrichment pass to run. Duplicate accounts are already
+ * excluded by `discoverProspects`' own `findDuplicateProspect` check.
+ *
+ * DISC-AI-APPROVAL-01: "Approve automatically" approves every suggestion this run found
+ * into a real prospect, so the downstream signal/scoring/research stages have rows to act
+ * on (nothing here is sent anywhere external). "Review each step" keeps them as
+ * suggestions -- the same review queue the manual Discover page uses -- records the stage
+ * as needing review, and stops the run; once the founder approves the ones they want and
+ * resumes, the later stages pick those prospects up. */
 export async function runAccountDiscoveryStage(ctx: StageContext): Promise<StageOutcome> {
   const suggestions = await discoverProspects(ctx.workspaceId, undefined, ACCOUNT_DISCOVERY_MAX);
   if (suggestions.length === 0) {
     return { outcome: "skipped", detail: "No new accounts found this run." };
+  }
+  if (ctx.aiApprovalMode !== "auto") {
+    return {
+      outcome: "completed",
+      detail: `${suggestions.length} account(s) suggested for your review. Approve the ones you want on the Discover page, then resume AI Discovery.`,
+      reviewLevel: "needs_review",
+      awaitingApproval: true,
+    };
   }
   const approved = await approveProspectSuggestions(
     ctx.workspaceId,

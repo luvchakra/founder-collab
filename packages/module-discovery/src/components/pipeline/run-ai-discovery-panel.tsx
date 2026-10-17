@@ -15,8 +15,12 @@ import {
   type PipelineStage,
   type PipelineStageKey,
 } from "../../lib/pipeline/types";
+import type { AiApprovalMode } from "../../lib/ai-approval/types";
+import { AiApprovalModeLine } from "../ai-approval/ai-approval-mode-line";
 
-type StageResponse = { ok: true; stage: PipelineStage; detail: string } | { ok: false; stage: PipelineStage; error: string };
+type StageResponse =
+  | { ok: true; stage: PipelineStage; detail: string; awaitingApproval?: boolean }
+  | { ok: false; stage: PipelineStage; error: string };
 type StartRunResponse = { ok: true; run: PipelineRun } | { ok: false; error: string };
 
 function firstIncompleteIndex(stages: PipelineStage[]): number {
@@ -69,10 +73,15 @@ export function RunAiDiscoveryPanel({
   businessSlug,
   productId,
   initialStages,
+  aiApprovalMode,
+  aiApprovalSettingsHref,
 }: {
   businessSlug: string;
   productId: string;
   initialStages: PipelineStage[];
+  /** DISC-AI-APPROVAL-01: shown only -- the route reads the mode itself on every stage. */
+  aiApprovalMode: AiApprovalMode;
+  aiApprovalSettingsHref: string;
 }) {
   const [stages, setStages] = useState(initialStages);
   const [runningKey, setRunningKey] = useState<PipelineStageKey | null>(null);
@@ -90,6 +99,8 @@ export function RunAiDiscoveryPanel({
   // for stages this browser session actually ran, which is the honest scope of what's
   // knowable without inventing a new persisted column for a value nothing else needs.
   const [stageDetails, setStageDetails] = useState<Partial<Record<PipelineStageKey, string>>>({});
+  // DISC-AI-APPROVAL-01: what the last run stopped to wait for ("Review each step").
+  const [awaitingDetail, setAwaitingDetail] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const autoRunStarted = useRef(false);
@@ -118,7 +129,9 @@ export function RunAiDiscoveryPanel({
     return stages.find((s) => s.stage_key === key) ?? null;
   }
 
-  async function runOneStage(key: PipelineStageKey, runId: string | null): Promise<boolean> {
+  /** "continue" moves on to the next stage; "stop" ends the walk -- a failure, or a
+   * stage that left its result for the founder to approve (DISC-AI-APPROVAL-01). */
+  async function runOneStage(key: PipelineStageKey, runId: string | null): Promise<"continue" | "stop"> {
     setRunningKey(key);
     try {
       const response = await fetch(endpoint, {
@@ -128,10 +141,15 @@ export function RunAiDiscoveryPanel({
       });
       const result = (await response.json()) as StageResponse;
       setStages((prev) => prev.map((s) => (s.stage_key === key ? result.stage : s)));
-      if (result.ok) setStageDetails((prev) => ({ ...prev, [key]: result.detail }));
-      return result.ok;
+      if (!result.ok) return "stop";
+      setStageDetails((prev) => ({ ...prev, [key]: result.detail }));
+      if (result.awaitingApproval) {
+        setAwaitingDetail(result.detail);
+        return "stop";
+      }
+      return "continue";
     } catch {
-      return false;
+      return "stop";
     } finally {
       setRunningKey(null);
     }
@@ -148,6 +166,7 @@ export function RunAiDiscoveryPanel({
     if (startIndex >= PIPELINE_STAGE_KEYS.length) return;
 
     setAutoRunning(true);
+    setAwaitingDetail(null);
     try {
       let runId: string | null = null;
       try {
@@ -163,8 +182,8 @@ export function RunAiDiscoveryPanel({
       }
 
       for (let i = startIndex; i < PIPELINE_STAGE_KEYS.length; i += 1) {
-        const ok = await runOneStage(PIPELINE_STAGE_KEYS[i]!, runId);
-        if (!ok) break;
+        const next = await runOneStage(PIPELINE_STAGE_KEYS[i]!, runId);
+        if (next === "stop") break;
       }
     } finally {
       setAutoRunning(false);
@@ -201,12 +220,20 @@ export function RunAiDiscoveryPanel({
             Automatically research this offering, build its ICP, identify buyers and signals, find opportunities, and prepare
             recommended actions.
           </p>
+          <AiApprovalModeLine mode={aiApprovalMode} settingsHref={aiApprovalSettingsHref} />
         </div>
         <Button onClick={() => runFrom(undefined, "run_ai_discovery_cta")} disabled={autoRunning} className="shrink-0">
           {autoRunning ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
           {allDone ? "Run AI Discovery Again" : hasStarted ? "Resume AI Discovery" : "Run AI Discovery"}
         </Button>
       </div>
+
+      {awaitingDetail ? (
+        <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden="true" />
+          {awaitingDetail}
+        </p>
+      ) : null}
 
       <ol className="flex flex-col gap-1">
         {groups.map((group) => {

@@ -14,6 +14,8 @@ import { ExpandableBox } from "../ui/expandable-box";
 import type { AiActionState } from "@cofounderai/core/actions/ai-action-state";
 import type { Product, RenameActionState } from "../../lib/tenancy/types";
 import type { ProductKnowledge } from "../../lib/knowledge/types";
+import type { AiApprovalMode } from "../../lib/ai-approval/types";
+import { AiApprovalModeLine } from "../ai-approval/ai-approval-mode-line";
 
 type BoundAction = (prevState: AiActionState, formData: FormData) => Promise<AiActionState>;
 type RenameAction = (prevState: RenameActionState, formData: FormData) => Promise<RenameActionState>;
@@ -41,6 +43,8 @@ export function ProductOverviewShell({
   updateSourceAction,
   deleteSourceAction,
   nextHref,
+  aiApprovalMode,
+  aiApprovalSettingsHref,
 }: {
   product: Product;
   sources: ProductKnowledge[];
@@ -56,6 +60,9 @@ export function ProductOverviewShell({
   ) => Promise<RenameActionState>;
   deleteSourceAction: (sourceId: string) => Promise<{ error: string } | { success: true }>;
   nextHref: string;
+  /** DISC-AI-APPROVAL-01: shown only -- each auto-populate step reads the mode itself. */
+  aiApprovalMode: AiApprovalMode;
+  aiApprovalSettingsHref: string;
 }) {
   const [isPopulating, setIsPopulating] = useState(false);
   const profile = product.product_profile;
@@ -76,6 +83,7 @@ export function ProductOverviewShell({
           nextHref={nextHref}
           onPendingChange={setIsPopulating}
         />
+        <AiApprovalModeLine mode={aiApprovalMode} settingsHref={aiApprovalSettingsHref} />
       </section>
 
       <section className="flex flex-col gap-2">

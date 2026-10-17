@@ -8,6 +8,8 @@ export const ACTION_LABEL: Record<string, string> = {
   "stock.adjusted": "Stock adjusted",
   "stock.contract_adjusted": "Stock adjusted via module contract",
   "business_settings.updated": "Business settings changed",
+  // DISC-AI-APPROVAL-01
+  "discovery.ai_approval_mode_changed": "Discovery AI approvals changed",
   "crm_lead.status_changed": "CRM lead status changed",
   "crm_opportunity.stage_changed": "CRM opportunity stage changed",
   "crm_lead.assigned": "CRM lead assigned",

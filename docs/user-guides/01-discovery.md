@@ -11,7 +11,7 @@ offerings and data:
 - **Funding** — your funding profile, investor readiness, rounds, investors,
   outreach, data room and due diligence.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 
 ## How Discovery is organised
@@ -79,6 +79,15 @@ lift the allowance. A notification in the bell warns you at 80% and again at 100
 AI features pause until next month. If WonderArk switches an AI feature off platform-wide,
 it says "This AI feature is temporarily unavailable. Please try again later."
 
+## AI approvals
+
+On the **Business** page, **AI approvals** sets how Discovery's AI flows (Let AI
+Auto-Populate Info and Run AI Discovery) treat their own results, for the whole business:
+**Review each step** (the default) or **Approve automatically**. The Overview shows the
+current choice ("AI suggestions wait for your review" or "AI approves steps automatically")
+with a **Change in settings** link. Changing it needs `business.settings.manage` (owners and
+admins by default); every change is recorded in the audit log.
+
 ## The Discovery Dashboard
 
 Your GTM home for the business: KPI tiles (offerings, prospects, reply rate,
@@ -115,18 +124,28 @@ The offering's hub page:
 - **Discovery pipeline** — saved discovery criteria (minimum score, geography, industries,
   buyer roles, exclusions), a rediscovery schedule (Off, Daily or Weekly; WonderArk records
   the next date but doesn't start runs on its own yet) and a **Run AI Discovery** panel with
-  live progress. **Run AI Discovery is automatic once started:** it approves the ICP it
-  generates and adds up to 10 accounts it finds as prospects without asking you first.
-  Nothing is sent to anyone.
+  live progress. What it may approve depends on your [AI approvals](#ai-approvals) setting,
+  shown under the panel. With **Review each step** it stops when the ICP it generates needs
+  your approval, and again when it finds accounts: they wait on the **Discover** page and
+  become prospects only when you add them; click **Resume AI Discovery** after each review.
+  With **Approve automatically** it approves the ICP and adds up to 10 accounts as prospects
+  without asking. Nothing is sent to anyone either way.
 - **Offering setup & sources** — website and description, knowledge sources (up to 20 MB
   each, including DOCX), and **Let AI Auto-Populate Info** (**Regenerate** once a profile
   exists). Expanded until a profile exists.
 
-**Let AI Auto-Populate Info does several steps for you:** it writes the offering profile,
-generates and approves an ICP, finds one prospect and adds it, researches and scores it,
-approves an outreach strategy for it and drafts a first message. Review each of these
-afterwards — it's all AI-generated. Nothing is sent: the message stays a draft until you
-send it.
+**Let AI Auto-Populate Info does several steps for you,** following your
+[AI approvals](#ai-approvals) setting (shown under the button):
+
+- **Review each step** (the default): it writes the offering profile and generates an ICP,
+  which stays a draft until you approve it. If the ICP was already approved, it also finds
+  one company and leaves it on the **Discover** page for you to add or discard.
+- **Approve automatically**: it writes the offering profile, generates and approves an ICP,
+  finds one prospect and adds it, researches and scores it, approves an outreach strategy
+  for it and drafts a first message.
+
+Review what it produced either way — it's all AI-generated. Nothing is sent: a message stays
+a draft until you send it.
 
 ### Discovery (definitions)
 
@@ -204,9 +223,10 @@ page. If Service isn't licensed, the button says so and offers **Go to licenses*
 
 ## Outreach, replies and unsubscribes
 
-Every outreach message is drafted by AI and sent only when a person sends it. (One step is
-approved for you: **Let AI Auto-Populate Info** approves the outreach strategy for the one
-prospect it adds — see Overview.)
+Every outreach message is drafted by AI and sent only when a person sends it. With
+[AI approvals](#ai-approvals) set to **Approve automatically**, **Let AI Auto-Populate Info**
+approves the outreach strategy for the one prospect it adds so it can draft a message; with
+**Review each step** it approves no strategy — see Overview.
 
 On a prospect's page you generate an **Outreach strategy** (why, channel, key message, call
 to action), edit it and **Approve strategy**; only then can you **Generate message**. An email
@@ -265,7 +285,8 @@ best. It can be exported as a report.
 
 The **History** tab is the audit list of every AI Discovery run for the
 offering — what started it (Run AI Discovery, Retry failed stage, or Save &
-Run Downstream), its status (Running, Completed or Failed) and how long it
+Run Downstream), its status (Running, Completed, Failed, or Waiting for review when it
+stopped for your approval) and how long it
 took. Open a run for the stages it executed and the full error text if it
 failed.
 

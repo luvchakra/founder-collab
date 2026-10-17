@@ -19,14 +19,14 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 565 |
+| ✅ Done | 566 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 2 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 2 |
-| **Total** | **651** |
+| **Total** | **652** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
@@ -35,7 +35,7 @@ file is stale, so it cannot quietly drift out of date.
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
-| [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 43 | 1 | 0 | 44 |
+| [Discovery — Marketing, Customer Acquisition & Funding](./plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md) | 44 | 1 | 0 | 45 |
 | [CSV / Excel export](./plan/13-DATA-EXPORT-BACKLOG.md) | 89 | 1 | 0 | 90 |
 | [Subscriptions & billing (Razorpay + Stripe)](./plan/14-SUBSCRIPTION-BILLING-BACKLOG.md) | 40 | 0 | 0 | 40 |
 | [Multi-user / multi-business RBAC](./plan/15-MULTI-USER-RBAC-BACKLOG.md) | 39 | 0 | 0 | 39 |
@@ -1024,6 +1024,12 @@ Source: [`docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md`](./plan/12-DISCOV
 | `INT-03` | Recommendations | ✅ Done | `packages/module-discovery/src/lib/funding/attention.ts` +2 |
 | `INT-04` | Notification integration | ✅ Done | `packages/module-crm/src/lib/timeline/queries.ts` +1 |
 | `INT-05` | Scheduled intelligence | ⏸️ Deferred | Spec §57–§58: not to be built until an unattended-execution design exists — see `docs/plan/12-DISCOVERY-MARKETING-FUNDING-BACKLOG.md` |
+
+### AI governance
+
+| ID | Story | Status | Evidence / note |
+|---|---|---|---|
+| `DISC-AI-APPROVAL-01` | Per-business AI approvals setting for Auto-Populate and Run AI Discovery | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +23 |
 
 ## CSV / Excel export
 

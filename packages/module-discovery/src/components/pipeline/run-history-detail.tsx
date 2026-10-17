@@ -13,12 +13,14 @@ const STATUS_BADGE_VARIANT: Record<PipelineRunStatus, "secondary" | "outline" | 
   running: "secondary",
   completed: "outline",
   failed: "destructive",
+  awaiting_approval: "secondary",
 };
 
 const STATUS_LABEL: Record<PipelineRunStatus, string> = {
   running: "Running",
   completed: "Completed",
   failed: "Failed",
+  awaiting_approval: "Waiting for review",
 };
 
 const STAGE_RUN_BADGE_VARIANT: Record<PipelineStageRun["status"], "secondary" | "outline" | "destructive"> = {
