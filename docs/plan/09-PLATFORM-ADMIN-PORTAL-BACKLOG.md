@@ -1968,8 +1968,8 @@ switch (`answer_business_question`).
 # 42. AI Replies on WhatsApp (added 2026-10-14)
 
 Design and owner decisions: `docs/design/crm-whatsapp-ai-replies.md`. Phase 1 (12.1–12.4)
-drafts only; phase 2 (12.5–12.6) sends on its own and is built after the owner reviews the
-drafts' quality.
+drafts only; phase 2 (12.5–12.6) sends on its own -- built 2026-10-17 after the owner approved
+it.
 
 ## PLATFORM-P1-12.1 — AI-drafted WhatsApp replies
 
@@ -1996,10 +1996,19 @@ Every AI draft records the facts it used and its AI run; the ticket thread label
 Per WhatsApp account, opt-in: a confident answer on an allowed topic is sent without a person,
 after a saved, policy-checked, idempotent, audited proposal.
 
+Status: built 2026-10-17 (`crm.channel_connection.ai_reply_mode`, `crm.ai_auto_replies`,
+`processWhatsAppAutoReply()`). Auto mode answers from the business profile and products only;
+order/job status stays with a person.
+
 ## PLATFORM-P1-12.6 — Auto-reply limits
 
 100 auto-replies per business per day, 3 per conversation, the 24-hour window, opt-outs, and
 the AI kill switch.
+
+Status: built 2026-10-17, enforced in `crm.claim_ai_auto_reply()` (limits, one per message,
+licence) and `preClaimSkipReason()` (window, opt-out, kill switches). Over the limit nothing is
+sent automatically; the "someone will reply" acknowledgement from the design's decision 4 is
+not sent either.
 
 ## PLATFORM-P1-12.7 — WhatsApp reply drafts over MCP
 

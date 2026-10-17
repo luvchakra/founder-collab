@@ -2,7 +2,7 @@
 
 import { businessPath } from "@/lib/business-path";
 import { revalidatePath } from "next/cache";
-import { connectWhatsApp, disconnectChannelConnection } from "@cofounderai/module-crm/lib/channel-connections/mutations";
+import { connectWhatsApp, disconnectChannelConnection, setWhatsAppAiReplyMode } from "@cofounderai/module-crm/lib/channel-connections/mutations";
 import { createWhatsAppTemplate, deactivateWhatsAppTemplate } from "@cofounderai/module-crm/lib/whatsapp/templates";
 import { checkWhatsAppConnectionNow } from "@cofounderai/module-crm/lib/whatsapp/health";
 import { createClickToChatLink, deactivateClickToChatLink } from "@cofounderai/module-crm/lib/click-to-chat/mutations";
@@ -89,4 +89,19 @@ export async function createClickToChatLinkAction(businessId: string, _prevState
 export async function deactivateClickToChatLinkAction(businessId: string, linkId: string): Promise<void> {
   await deactivateClickToChatLink(businessId, linkId);
   revalidatePath(await whatsappPath(businessId));
+}
+
+export type AiReplyModeActionState = { error: string } | { saved: true } | null;
+
+/** PLATFORM-P1-12.5/12.6: "Draft for review" or "Send automatically". The permission check
+ * (channel_connections.manage) is in setWhatsAppAiReplyMode() and in the database. */
+export async function setAiReplyModeAction(businessId: string, connectionId: string, _prevState: AiReplyModeActionState, formData: FormData): Promise<AiReplyModeActionState> {
+  try {
+    const result = await setWhatsAppAiReplyMode(businessId, connectionId, String(formData.get("mode") || ""));
+    if (!result.ok) return { error: result.error };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Could not save this setting." };
+  }
+  revalidatePath(await whatsappPath(businessId));
+  return { saved: true };
 }

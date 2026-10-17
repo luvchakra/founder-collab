@@ -32,9 +32,19 @@ import {
 
 const OPERATION = "draft_customer_reply" as const;
 
+/** PLATFORM-P1-12.5/12.6: an automatic reply runs the same pipeline under its own operation,
+ * so Platform -> AI can switch automatic sending off while drafts keep working. */
+export type ReplyDraftOperation = typeof OPERATION | "auto_send_customer_reply";
+
 export type StoredReplyDraft =
   | { status: "answered"; answer: string; topic: ReplyTopic; factsUsed: { id: string; label: string }[]; createdAt: string }
-  | { status: "not_answerable"; topic: ReplyTopic; createdAt: string };
+  | {
+      status: "not_answerable";
+      topic: ReplyTopic;
+      createdAt: string;
+      /** Why, when this call made the decision (a cached draft doesn't store it). */
+      reason?: "cannot_answer" | "low_confidence" | "needs_person" | "invalid_output";
+    };
 
 type DraftRow = { status: "answered" | "not_answerable"; answer: string | null; topic: ReplyTopic; facts_used: { id: string; label: string }[]; created_at: string; input_hash: string };
 
@@ -98,8 +108,10 @@ export async function runReplyDraft(input: {
   businessName: string;
   facts: ReturnType<typeof buildReplyFacts>;
   createdBy: string | null;
+  operation?: ReplyDraftOperation;
 }): Promise<StoredReplyDraft> {
   const { db, businessId, interactionId, facts } = input;
+  const operation = input.operation ?? OPERATION;
   const prompt = replyDraftPrompt(input.businessName, facts, input.message);
   const inputHash = hashInput({ prompt, version: REPLY_DRAFT_PROMPT_VERSION });
 
@@ -112,7 +124,7 @@ export async function runReplyDraft(input: {
   if (existingError) throw existingError;
   if (existing && (existing as DraftRow).input_hash === inputHash) return toStored(existing as DraftRow);
 
-  const { businessId: resolvedBusinessId, provider, modelId, model } = await resolveBusinessAiModel(businessId, OPERATION, input.aiClient);
+  const { businessId: resolvedBusinessId, provider, modelId, model } = await resolveBusinessAiModel(businessId, operation, input.aiClient);
   const startedAt = Date.now();
   let output;
   try {
@@ -120,7 +132,7 @@ export async function runReplyDraft(input: {
     output = response.object;
     await recordAiRun({
       businessId: resolvedBusinessId,
-      operation: OPERATION,
+      operation,
       model: modelId,
       provider,
       promptVersion: REPLY_DRAFT_PROMPT_VERSION,
@@ -135,7 +147,7 @@ export async function runReplyDraft(input: {
     const aiError = toAiProviderError(err, provider);
     await recordAiRun({
       businessId: resolvedBusinessId,
-      operation: OPERATION,
+      operation,
       model: modelId,
       provider,
       promptVersion: REPLY_DRAFT_PROMPT_VERSION,
@@ -169,7 +181,8 @@ export async function runReplyDraft(input: {
     .select("status, answer, topic, facts_used, created_at, input_hash")
     .single();
   if (saveError) throw saveError;
-  return toStored(saved as DraftRow);
+  const stored = toStored(saved as DraftRow);
+  return stored.status === "not_answerable" && decision.status === "not_answerable" ? { ...stored, reason: decision.reason } : stored;
 }
 
 /** Writes (or returns the cached) AI draft for one inbound message, for the signed-in person.

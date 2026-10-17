@@ -27,6 +27,7 @@ export type AiOperation =
   | "answer_help_question"
   | "answer_business_question"
   | "draft_customer_reply"
+  | "auto_send_customer_reply"
   | "marketing_strategy_draft"
   | "marketing_content_assist"
   | "funding_outreach_draft"
@@ -140,6 +141,10 @@ const OPERATION_REGISTRY: Record<AiOperation, AiOperationSpec> = {
   // sender's own orders/jobs). Balanced, same bounded "write from data in hand" task; no web
   // search, since anything not in the business's own facts must not be said to a customer.
   draft_customer_reply: { qualityTier: "balanced", requiresWebSearch: false },
+  // PLATFORM-P1-12.5/12.6: the same answer, for a business that turned on "Send
+  // automatically" -- a separate operation so Platform -> AI can switch automatic sending off
+  // on its own while drafts keep working. Same tier and no web search, for the same reason.
+  auto_send_customer_reply: { qualityTier: "balanced", requiresWebSearch: false },
   // Discovery Marketing/Funding (MKT-04/09, FND-11/13/08). All draft-only: the result is
   // stored for a person to review and never acts by itself. Investor research is the one
   // that reads the live web, so it takes the reasoning tier with search, like

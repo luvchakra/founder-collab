@@ -315,6 +315,14 @@ export const FAQ: FaqEntry[] = [
     sectionId: "environment-variables-for-whoever-deploys-wonderark",
   },
   {
+    category: "Day to day",
+    question: "Can WhatsApp AI replies be sent without a person?",
+    answer:
+      "Only if you turn it on: CRM → WhatsApp → AI replies → Send automatically (needs the channel-connections permission). The default, Draft for review, never sends on its own. Automatic replies answer only from your business details and products and prices, only when the AI is confident and the topic isn't a complaint, refund, payment, cancellation, order change or opt-out, inside WhatsApp's 24-hour window, at most 100 a day per business and 3 a day per conversation, never to a customer who sent STOP, and at most once per message. Anything not sent automatically stays for a person, as in Draft for review.",
+    guideSlug: "crm",
+    sectionId: "ai-drafted-whatsapp-replies",
+  },
+  {
     category: "For administrators",
     question: "How do I connect WhatsApp or Instagram to the shared inbox?",
     answer:

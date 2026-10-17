@@ -14,6 +14,8 @@ export type ChannelConnection = {
   external_account_id: string;
   status: ChannelConnectionStatus;
   last_synced_at: string | null;
+  /** PLATFORM-P1-12.5/12.6: "draft" (Draft for review, the default) or "auto" (Send automatically). */
+  ai_reply_mode: "draft" | "auto";
   created_at: string;
   updated_at: string;
 };

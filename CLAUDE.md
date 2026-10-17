@@ -187,6 +187,8 @@ and feeds most of it to a model, across the couple of dozen call sites under
    it comes, the proposal gets persisted, authorised against the acting user, validated,
    made idempotent and recorded *before* anything happens; a failed policy lookup means
    "do not execute", never "assume permission".
+   Owner-approved exception (2026-10-17): WhatsApp AI replies may auto-send when a business
+   turns on 'Send automatically', within the limits in docs/design/crm-whatsapp-ai-replies.md.
 4. **Untrusted intake is verified at the door, and safe to redeliver.** Every webhook
    already checks a signature or shared secret before trusting a payload
    (`verify-meta-signature.ts` for Meta/WhatsApp, `x-webhook-secret` for inbound email,

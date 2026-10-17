@@ -75,6 +75,7 @@ export const CORE_AI_RUN_OPERATION_MODULE: Record<string, ModuleKey> = {
   check_response_quality: "crm",
   draft_review_response: "crm",
   draft_customer_reply: "crm",
+  auto_send_customer_reply: "crm",
 };
 
 type CoreAiRunRow = {

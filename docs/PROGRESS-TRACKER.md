@@ -19,11 +19,11 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 565 |
+| ✅ Done | 567 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
-| ❔ Unverified | 2 |
+| ❔ Unverified | 0 |
 | ⛔ Blocked | 0 |
 | ⬜ Not started | 2 |
 | **Total** | **651** |
@@ -31,7 +31,7 @@ file is stale, so it cannot quietly drift out of date.
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 123 | 7 | 4 | 134 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 125 | 7 | 2 | 134 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,14 +43,12 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-4 stories are neither built nor deliberately set aside:
+2 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
 | `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
 | `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
-| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 
 ## Platform build-out
 
@@ -469,8 +467,8 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | `PLATFORM-P1-12.2` | Business facts for replies | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/actions.ts` +10 |
 | `PLATFORM-P1-12.3` | Order and job status facts | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft-core.test.ts` +1 |
 | `PLATFORM-P1-12.4` | Reply provenance | ✅ Done | `packages/module-crm/src/lib/ai/reply-draft.test.ts` +3 |
-| `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
-| `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
+| `PLATFORM-P1-12.5` | Auto-send mode | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/page.tsx` +11 |
+| `PLATFORM-P1-12.6` | Auto-reply limits | ✅ Done | `apps/web/app/(dashboard)/[businessSlug]/crm/conversations/page.tsx` +11 |
 | `PLATFORM-P1-12.7` | WhatsApp reply drafts over MCP | ✅ Done | `apps/web/app/api/mcp/route.ts` +4 |
 | `PLATFORM-P1-11.3` | MCP entity types | ✅ Done | `apps/web/lib/mcp/server.test.ts` +1 |
 

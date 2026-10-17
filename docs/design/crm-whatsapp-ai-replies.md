@@ -34,11 +34,58 @@ PLATFORM-P1-12.1–12.6 in `docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md` §42.
    opt-out, the output fails validation, or the provider is down.
 5. Phase 1: the answer is stored as the ticket's draft, labelled "AI draft" with the facts it
    used; a person edits or sends it. Every call is recorded in `core.ai_runs`.
-6. Phase 2 (not built yet): with the account's mode set to auto, the proposal is saved, checked
-   (mode on, CRM licensed, account connected, inside WhatsApp's 24-hour window, the daily
-   limit, at most 3 auto-replies per conversation, sender not opted out), keyed to the inbound
-   message id so a redelivery can't send twice, written to `core.audit_log`, then sent. A
-   failed send is recorded as failed. The AI kill switch (Platform → AI) stops it everywhere.
+6. Phase 2 (built 2026-10-17, owner-approved; PLATFORM-P1-12.5/12.6): see below.
+
+## Phase 2: "Send automatically"
+
+The setting is `crm.channel_connection.ai_reply_mode` on the business's WhatsApp account:
+`draft` ("Draft for review", the default) or `auto` ("Send automatically"), on CRM → WhatsApp
+under **AI replies**. Changing it needs `channel_connections.manage`, checked in
+`setWhatsAppAiReplyMode()` and again by a trigger, and is audited.
+
+For a business in auto mode, each inbound message runs `processWhatsAppAutoReply()`
+(`packages/module-crm/src/lib/ai/auto-reply.ts`), stopping at the first "no":
+
+1. **Plain-code checks** (`preClaimSkipReason()`): CRM licence active; the AI switches
+   `draft_customer_reply` and `auto_send_customer_reply` on and the platform-wide AI policy
+   on (a failed read of any of them is "no"); WhatsApp connected; inside the 24-hour window;
+   the sender hasn't opted out; it is still the conversation's newest inbound message and
+   nobody has replied.
+2. **The claim** (`crm.claim_ai_auto_reply()`): one `crm.ai_auto_replies` row per inbound
+   message (unique), created before anything is sent, under a per-business lock that counts
+   the limits: **100 per business and 3 per conversation per business day** (the business's
+   timezone), counting `requested` and `sent`. A redelivered webhook or re-drained event gets
+   the existing row back and stops, so at most one reply is ever sent per message.
+3. **The answer**: the same `runReplyDraft()` pipeline as a draft (facts only, confidence
+   ≥ 0.7, no needs_person topics, cited fact ids must exist), run as
+   `auto_send_customer_reply` and recorded in `core.ai_runs`. Only an `answered` draft on
+   hours/address/contact, products and prices, or product information is sent; the proposal
+   (answer, topic, facts) is saved on the claim first.
+4. **The send** through the WhatsApp Cloud API (`sendWhatsAppTextAsSystem()`, the free-form
+   send path on service-role clients), recorded as an outbound interaction labelled "Sent
+   automatically by AI" with the facts used, then the claim marked `sent` or `failed` with
+   WhatsApp's reason. Triggers write every claim and outcome to `core.audit_log`.
+
+Anything not sent is `skipped` with its reason and stays for a person; CRM → Conversations
+shows the mode and, for the latest message, why it wasn't sent.
+
+**Facts in auto mode** are the business profile and recorded products and prices only. Order
+and job status and offering knowledge are read through other modules' session-scoped
+contracts, which a webhook has no session for, so those questions stay with a person (and
+`order_job_status` is never auto-sent).
+
+**Opt-outs**: WhatsApp has no opt-out webhook, so a customer who sends just STOP,
+UNSUBSCRIBE or OPT OUT is recorded in `core.communication_suppressions` (channel
+`whatsapp`, a namespaced one-way hash of the number) and gets no automatic replies again. A
+person can still reply.
+
+**Timing**: the drain cron runs once a day, so the webhook route answers right after Meta
+gets its 200 (Next's `after()`), and ingest also publishes `crm.whatsapp.auto_reply_requested`
+as a fallback for the drain. Both are keyed to the message by the claim.
+
+**Over the limit** the message is simply left for a person; the decision-4 "someone will
+reply" acknowledgement is not sent automatically (no automatic acknowledgement exists on the
+WhatsApp path today, and adding one would be a second automatic send).
 
 ## Out of scope
 

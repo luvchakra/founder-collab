@@ -38,7 +38,8 @@ export type CrmEventType =
   | "crm.conversation.updated"
   | "crm.channel.connected"
   | "crm.review.received"
-  | "crm.product_interest.stockout_requested";
+  | "crm.product_interest.stockout_requested"
+  | "crm.whatsapp.auto_reply_requested";
 
 export type CrmLeadCreatedPayloadV1 = { v: 1; leadId: string; partyId: string; source: string };
 export type CrmLeadUpdatedPayloadV1 = { v: 1; leadId: string; changedFields: string[] };
@@ -69,6 +70,12 @@ export type CrmReviewReceivedPayloadV1 = { v: 1; reviewItemId: string; provider:
  * ever needing to change). */
 export type CrmProductInterestStockoutRequestedPayloadV1 = { v: 1; productInterestId: string; itemId: string; partyId: string | null; quantity: number | null };
 
+/** PLATFORM-P1-12.5/12.6: the fallback for an automatic WhatsApp AI reply. The webhook
+ * tries the reply straight after storing the message; this event is drained in case that
+ * attempt never ran. crm.claim_ai_auto_reply() keys both to the inbound message, so at most
+ * one of them can ever send. */
+export type CrmWhatsAppAutoReplyRequestedPayloadV1 = { v: 1; interactionId: string };
+
 /** Maps each event type to its (current-version) payload shape -- `publishCrmEvent()`
  * uses this to type-check the payload against the event name at the call site. */
 export type CrmEventPayloads = {
@@ -88,4 +95,5 @@ export type CrmEventPayloads = {
   "crm.channel.connected": CrmChannelConnectedPayloadV1;
   "crm.review.received": CrmReviewReceivedPayloadV1;
   "crm.product_interest.stockout_requested": CrmProductInterestStockoutRequestedPayloadV1;
+  "crm.whatsapp.auto_reply_requested": CrmWhatsAppAutoReplyRequestedPayloadV1;
 };
