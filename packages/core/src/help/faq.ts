@@ -300,6 +300,14 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "For administrators",
+    question: "Can I release a feature to a few businesses first, and undo it?",
+    answer:
+      "Yes, if you're a platform superadmin. On Platform → Feature Flags, open a flag's Rollout and pick a stage: Internal, Pilot, Selected Plans or All Customers. Roll back returns it to the previous rollout, or turns it off when there is none. Each change needs a reason and is recorded.",
+    guideSlug: "getting-started",
+    sectionId: "the-superadmin-platform-portal",
+  },
+  {
+    category: "For administrators",
     question: "What's the difference between Admin and the Platform portal?",
     answer:
       "Admin (in the avatar menu) is your own account's business and module configuration. The Platform portal is the superadmin control plane for the whole deployment — branding, plans, feature flags, AI providers — and only platform superadmins can reach it.",

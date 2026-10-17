@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PlatformImpactBanner } from "../../impact-banner";
 import { DeleteFlagDialog } from "./delete-flag-dialog";
 import { FeatureFlagDialog } from "./feature-flag-dialog";
+import { RolloutDialog } from "./rollout-dialog";
 import { ExportMenu } from "@cofounderai/core/export-ui/export-menu";
 import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
 
@@ -22,6 +23,9 @@ import { PLATFORM_EXPORT_BUTTON_CLASS } from "@/lib/exports/platform/ui";
  * into any specific subsystem (AI research, WhatsApp, government submission, etc.) is
  * built this story -- this run's own workstream boundary forbids touching those modules'
  * files regardless, and no such wiring story exists in this backlog yet.
+ *
+ * PLATFORM-P1-08.2/08.3 -- each row's rollout summary opens the rollout dialog: set or
+ * advance the stage (Internal -> Pilot -> Selected Plans -> All Customers) or roll back.
  *
  * Desktop table / mobile card split per CLAUDE.md development principle #12 and
  * docs/design/claude-ui-design-rules.md rule 5, mirroring `plans/page.tsx`'s own
@@ -65,6 +69,9 @@ export default async function PlatformFeatureFlagsPage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
                     <span>Scope: {scopeLabel(flag)}</span>
+                    <span className="flex items-center gap-1">
+                      Rollout: <RolloutDialog flag={flag} plans={scopeOptions.plans} />
+                    </span>
                     {(flag.effectiveFrom || flag.effectiveTo) && <span>Window: {windowLabel(flag)}</span>}
                   </div>
                   <div className="flex items-center gap-1">
@@ -80,6 +87,7 @@ export default async function PlatformFeatureFlagsPage() {
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-400">Flag</TableHead>
                   <TableHead className="text-zinc-400">Scope</TableHead>
+                  <TableHead className="text-zinc-400">Rollout</TableHead>
                   <TableHead className="text-zinc-400">Status</TableHead>
                   <TableHead className="text-zinc-400">Effective window</TableHead>
                   <TableHead className="text-right text-zinc-400">
@@ -95,6 +103,9 @@ export default async function PlatformFeatureFlagsPage() {
                       {flag.description ? <p className="text-xs text-zinc-500">{flag.description}</p> : null}
                     </TableCell>
                     <TableCell className="text-zinc-300">{scopeLabel(flag)}</TableCell>
+                    <TableCell>
+                      <RolloutDialog flag={flag} plans={scopeOptions.plans} />
+                    </TableCell>
                     <TableCell>
                       <StatusBadge flag={flag} />
                     </TableCell>

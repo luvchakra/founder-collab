@@ -1,7 +1,9 @@
 import { z } from "zod";
+import { createAdminClient } from "../db/admin";
 import { createClient } from "../db/server";
 import { requireSuperadmin } from "../rbac/platform-admin";
 import type { ModuleKey } from "../licensing/types";
+import { rolloutFromSnapshot, type FeatureRollout, type RolloutStage } from "./platform-feature-rollout-rules";
 
 /**
  * PLATFORM-P0-08.1/08.2/08.3/08.4 ("Feature Flags", docs/plan/09-PLATFORM-ADMIN-PORTAL-
@@ -39,6 +41,14 @@ export type FeatureFlag = {
   scopePlan: { id: string; name: string } | null;
   scopeModule: { key: ModuleKey; name: string } | null;
   scopeCountryCode: string | null;
+  /** PLATFORM-P1-08.2 -- the staged rollout. */
+  rollout: FeatureRollout;
+  /** Slugs of the named businesses, same order as `rollout.businessIds` (the id when a
+   * business has no slug). */
+  rolloutBusinessSlugs: string[];
+  /** PLATFORM-P1-08.3 -- the rollout a rollback would restore; null when a rollback would
+   * turn the flag off instead. */
+  lastGoodRollout: FeatureRollout | null;
   createdAt: string;
   updatedAt: string;
   updatedBy: string | null;
@@ -55,17 +65,22 @@ type FeatureFlagRow = {
   scope_plan_id: string | null;
   scope_module_key: ModuleKey | null;
   scope_country_code: string | null;
+  rollout_stage: RolloutStage;
+  rollout_percentage: number;
+  rollout_business_ids: string[] | null;
+  rollout_plan_keys: string[] | null;
+  last_good_rollout: unknown;
   created_at: string;
   updated_at: string;
   updated_by: string | null;
 };
 
-type PlanRow = { id: string; name: string };
+type PlanRow = { id: string; key: string; name: string };
 type CoreModuleRow = { key: ModuleKey; name: string };
 
 async function listAllPlans(): Promise<PlanRow[]> {
   const supabase = await createClient({ schema: "platform" });
-  const { data, error } = await supabase.from("plans").select("id, name").order("display_order");
+  const { data, error } = await supabase.from("plans").select("id, key, name").order("display_order");
   if (error) throw error;
   return data as PlanRow[];
 }
@@ -81,7 +96,9 @@ function toFeatureFlag(
   row: FeatureFlagRow,
   plansById: Map<string, PlanRow>,
   modulesByKey: Map<ModuleKey, CoreModuleRow>,
+  slugsById: Map<string, string>,
 ): FeatureFlag {
+  const businessIds = row.rollout_business_ids ?? [];
   const plan = row.scope_plan_id ? plansById.get(row.scope_plan_id) : undefined;
   const module_ = row.scope_module_key ? modulesByKey.get(row.scope_module_key) : undefined;
   return {
@@ -97,6 +114,14 @@ function toFeatureFlag(
       ? { key: row.scope_module_key, name: module_?.name ?? row.scope_module_key }
       : null,
     scopeCountryCode: row.scope_country_code,
+    rollout: {
+      stage: row.rollout_stage ?? "all",
+      percentage: row.rollout_percentage ?? 0,
+      businessIds,
+      planKeys: row.rollout_plan_keys ?? [],
+    },
+    rolloutBusinessSlugs: businessIds.map((id) => slugsById.get(id) ?? id),
+    lastGoodRollout: rolloutFromSnapshot(row.last_good_rollout),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     updatedBy: row.updated_by,
@@ -115,14 +140,31 @@ export async function listFeatureFlags(): Promise<FeatureFlag[]> {
   const { data, error } = await supabase.from("feature_flags").select("*").order("created_at", { ascending: false });
   if (error) throw error;
 
+  const rows = data as FeatureFlagRow[];
   const plansById = new Map(plans.map((p) => [p.id, p]));
   const modulesByKey = new Map(modules.map((m) => [m.key, m]));
-  return (data as FeatureFlagRow[]).map((row) => toFeatureFlag(row, plansById, modulesByKey));
+  const slugsById = await slugsForBusinesses([...new Set(rows.flatMap((r) => r.rollout_business_ids ?? []))]);
+  return rows.map((row) => toFeatureFlag(row, plansById, modulesByKey, slugsById));
+}
+
+/** PLATFORM-P1-08.2 -- slugs for a rollout's named businesses, so the admin sees names,
+ * not ids. Superadmin-only caller (`listFeatureFlags()`); service role because
+ * `core.business_settings` is tenant-scoped. */
+async function slugsForBusinesses(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+  const { data, error } = await createAdminClient({ schema: "core" })
+    .from("business_settings")
+    .select("business_id, slug")
+    .in("business_id", ids);
+  if (error) throw error;
+  return new Map(
+    (data ?? []).filter((r) => r.slug).map((r) => [String(r.business_id), String(r.slug)]),
+  );
 }
 
 /** For the "Add a flag" dialog's scope-target dropdowns. */
 export async function listFeatureFlagScopeOptions(): Promise<{
-  plans: { id: string; name: string }[];
+  plans: { id: string; key: string; name: string }[];
   modules: { key: ModuleKey; name: string }[];
 }> {
   await requireSuperadmin();
