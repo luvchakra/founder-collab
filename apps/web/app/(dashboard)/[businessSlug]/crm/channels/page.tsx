@@ -3,6 +3,7 @@ import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
 import { getBusiness } from "@cofounderai/module-crm/lib/tenancy/queries";
 import { listChannels } from "@cofounderai/module-crm/lib/channels/queries";
 import { listChannelAccounts } from "@cofounderai/module-crm/lib/channel-accounts/queries";
+import { getInstantAckText } from "@cofounderai/module-crm/lib/instant-reply/settings";
 import { ChannelsView } from "@cofounderai/module-crm/components/channels/channels-view";
 import { ChannelAccountsPanel } from "@cofounderai/module-crm/components/channels/channel-accounts-panel";
 import {
@@ -11,6 +12,7 @@ import {
   connectChannelAccountAction,
   disconnectChannelAccountAction,
   setInstantReplyModeAction,
+  saveInstantAckTextAction,
 } from "./actions";
 
 export default async function CrmChannelsPage({ params }: { params: Promise<{ businessSlug: string }> }) {
@@ -20,7 +22,7 @@ export default async function CrmChannelsPage({ params }: { params: Promise<{ bu
   const business = await getBusiness(businessId);
   if (!business) notFound();
 
-  const [channels, accounts] = await Promise.all([listChannels(businessId), listChannelAccounts(businessId)]);
+  const [channels, accounts, ack] = await Promise.all([listChannels(businessId), listChannelAccounts(businessId), getInstantAckText(businessId)]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,6 +45,9 @@ export default async function CrmChannelsPage({ params }: { params: Promise<{ bu
         connectAction={connectChannelAccountAction.bind(null, businessId)}
         disconnectAction={disconnectChannelAccountAction.bind(null, businessId)}
         setInstantReplyModeAction={setInstantReplyModeAction.bind(null, businessId)}
+        ackText={ack.text}
+        saveAckTextAction={saveInstantAckTextAction.bind(null, businessId)}
+        whatsappHref={`/${businessSlug}/crm/whatsapp`}
       />
     </div>
   );

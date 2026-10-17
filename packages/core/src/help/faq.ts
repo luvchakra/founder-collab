@@ -244,6 +244,22 @@ export const FAQ: FaqEntry[] = [
   },
   {
     category: "Day to day",
+    question: "How do I enter a budget?",
+    answer:
+      "Finance → Budget → Set budget. Pick the fiscal year, type a monthly amount for each income, cost of sales and expense account you want to track, and click Save. A blank month means no budget. You need permission to edit the chart of accounts (Owner, Admin, Accountant and Finance Manager have it).",
+    guideSlug: "finance",
+    sectionId: "budget-and-recurring-entries",
+  },
+  {
+    category: "Day to day",
+    question: "Can WonderArk reply to customers automatically?",
+    answer:
+      "Only with one fixed acknowledgement, and only if you turn it on: set Instant reply to \"Instant acknowledgment, then human\" (CRM → WhatsApp for WhatsApp, CRM → Channels for Instagram and Messenger). The first message from a contact in 24 hours gets your acknowledgement text; a person still answers. AI never sends anything on its own.",
+    guideSlug: "crm",
+    sectionId: "instant-acknowledgement",
+  },
+  {
+    category: "Day to day",
     question: "How do I see how quickly we respond to customers?",
     answer:
       "CRM's Analytics page (not in the menu yet — open …/crm/analytics) shows the last 30 days: median first response, SLA compliance, unresolved interactions by age, and response time per channel and per team member. CRM → Potential Lost Business lists the unanswered commercial messages that might be lost if nobody replies.",

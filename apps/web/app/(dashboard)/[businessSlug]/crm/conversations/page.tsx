@@ -1,3 +1,4 @@
+import { AUTO_ACK_INTERACTION_TYPE } from "@cofounderai/module-crm/lib/instant-reply/acknowledgement";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolveBusinessIdBySlug } from "@cofounderai/core/businesses/resolve";
@@ -382,19 +383,28 @@ export default async function CrmConversationsPage({
               // pushed sent/delivered/read/failed status onto metadata.providerStatus
               // (or the interaction's own `status='failed'`) whenever WhatsApp supplies
               // it; this is that data finally surfaced, not new backend logic.
+              // CRM-INSTANT-ACK-01: the one automatic message, labelled as such, with
+              // whether it actually went out.
+              const isAutoAck = interaction.interaction_type === AUTO_ACK_INTERACTION_TYPE;
               const deliveryStatus =
-                interaction.direction === "outbound" && interaction.channel === "whatsapp"
+                interaction.direction === "outbound" && (interaction.channel === "whatsapp" || isAutoAck)
                   ? interaction.status === "failed"
                     ? "Failed"
-                    : ((interaction.metadata as { providerStatus?: string } | null)?.providerStatus ?? null)
+                    : interaction.status === "processing"
+                      ? "Sending"
+                      : ((interaction.metadata as { providerStatus?: string } | null)?.providerStatus ?? null)
                   : null;
               return (
                 <div key={interaction.id} className={`flex flex-col gap-1 rounded-lg border border-border p-2 text-sm ${interaction.direction === "outbound" ? "ml-6" : "mr-6"}`}>
                   <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="capitalize">
-                      {interaction.direction} -- {interaction.channel}
-                      {interaction.interaction_type === "comment" ? " comment" : ""}
-                    </span>
+                    {isAutoAck ? (
+                      <span>Automatic acknowledgement -- {interaction.channel}</span>
+                    ) : (
+                      <span className="capitalize">
+                        {interaction.direction} -- {interaction.channel}
+                        {interaction.interaction_type === "comment" ? " comment" : ""}
+                      </span>
+                    )}
                     <div className="flex items-center gap-2">
                       {deliveryStatus ? (
                         <Badge variant={deliveryStatus === "Failed" ? "destructive" : "outline"} className="capitalize">

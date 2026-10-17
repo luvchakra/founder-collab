@@ -4,7 +4,7 @@ CRM runs your pipeline from first message to won customer: conversations from Wh
 Instagram and Facebook, leads, opportunities, a lost-business recovery queue, reviews, and a
 customer profile that pulls in data from every other licensed module.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## Navigation
 
@@ -113,6 +113,30 @@ recorded prices, saved offering knowledge, and that customer's own recent orders
   business API key can request the same draft (`draft_whatsapp_reply`); it is saved for the
   team, never sent.
 
+## Instant acknowledgement
+
+Basic for now — more instant-reply options are coming. An account's **Instant reply** setting
+has two choices: **Off** (the default) and **Instant acknowledgment, then human**.
+
+- **Where to set it:** for WhatsApp, on **CRM → WhatsApp** (the **Instant reply** row of the
+  connection). For Instagram and Facebook Messenger, on **CRM → Channels** under
+  "Connected accounts". Google Business Messages shows "Not supported yet".
+- **What it sends:** one fixed message, the first time a contact messages you in a 24-hour
+  period. The default is "Thanks for your message — we'll reply shortly."; change it under
+  **Acknowledgement message** on **CRM → Channels** (one message for all accounts) and
+  **Save message**. No AI writes or changes it.
+- **When it doesn't send:** the setting is Off; the contact was already acknowledged on that
+  channel in the last 24 hours; the message reached WonderArk more than 24 hours after it was
+  sent (WhatsApp's and Messenger's reply window); or the contact opted out by sending a message
+  that is just "STOP", "unsubscribe" or similar (a later "START" undoes that). A message Meta
+  delivers twice is acknowledged once.
+- **In the conversation:** it appears as **Automatic acknowledgement**, marked **Failed** if
+  Meta refused it. The customer's message still shows **Needs response** — the
+  acknowledgement isn't an answer, a person still replies.
+
+Every acknowledgement sent, or failed, and every change to the setting is in the audit log.
+Drafting a real answer is **Draft with AI** in Conversations, which never sends on its own.
+
 ## Connecting a channel (WhatsApp / Instagram / Facebook)
 
 This is the one genuinely technical setup step in the platform, and it
@@ -154,8 +178,8 @@ connects to it.
      if you don't have one, then under "Connected accounts" pick the provider
           and paste in the Page ID (the "Page/number/location ID" field) and an access token from
      Meta's dashboard. Google Business Messages is listed there too, but WonderArk doesn't
-     receive messages from it. The channel's "instant reply" setting currently has no effect:
-     incoming messages always wait for a person.
+     receive messages from it. Each account's **Instant reply** setting is described in
+     [Instant acknowledgement](#instant-acknowledgement).
 7. **WhatsApp templates**: on the WhatsApp screen, register any templates
    you've already had approved in Meta's dashboard (name, language, variable
    count) so the reply composer can use them once the 24-hour free window

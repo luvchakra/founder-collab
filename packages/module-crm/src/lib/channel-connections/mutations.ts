@@ -7,6 +7,8 @@ import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db
 import { createClient } from "../../db/server";
 import { whatsAppCloudApiAdapter } from "../whatsapp/cloud-api-adapter";
 import { classifyWhatsAppFailure } from "../whatsapp/failure-classification";
+import { isOfferedInstantReplyMode } from "../instant-reply/acknowledgement";
+import type { InstantReplyMode } from "../channel-accounts/types";
 import type { ChannelConnectionStatus } from "./types";
 
 /**
@@ -89,6 +91,39 @@ export async function disconnectChannelConnection(businessId: string, connection
     entityType: "crm_channel_connection",
     entityId: connectionId,
     after: { status: "disconnected" },
+  });
+}
+
+/** CRM-INSTANT-ACK-01: WhatsApp's instant-reply setting, on the connection the WhatsApp
+ * webhook actually resolves (`crm.channel_connection`). */
+export async function setWhatsAppInstantReplyMode(businessId: string, connectionId: string, mode: InstantReplyMode): Promise<void> {
+  await requireModule(businessId, "crm");
+  await requirePermission(businessId, "channel_connections.manage");
+  if (!isOfferedInstantReplyMode(mode)) throw new Error("That instant-reply option isn't available.");
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("channel_connection")
+    .update({ instant_reply_mode: mode })
+    .eq("id", connectionId)
+    .eq("business_id", businessId)
+    .eq("channel", "whatsapp")
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error("This connection could not be updated -- it may have been removed, or your access to it may have changed.");
+  }
+
+  await writeAuditLog({
+    businessId,
+    actorId: user?.id ?? null,
+    action: "crm_channel_connection.instant_reply_mode_changed",
+    entityType: "crm_channel_connection",
+    entityId: connectionId,
+    after: { instant_reply_mode: mode },
   });
 }
 

@@ -3,13 +3,18 @@ import { recordInteraction, markInteractionFailed } from "../interactions/mutati
 import { captureLeadFromWhatsAppMessage } from "./lead-capture";
 import { parseWhatsAppWebhookPayload } from "./cloud-api-adapter";
 import { extractClickToChatRef, stripClickToChatRef } from "../click-to-chat/link";
+import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
+import { whatsAppCloudApiAdapter } from "./cloud-api-adapter";
+import { applyChannelConnectionHealthResult } from "../channel-connections/mutations";
+import { maybeSendInstantAcknowledgement, type AckOutcome } from "../instant-reply/acknowledgement";
+import type { InstantReplyMode } from "../channel-accounts/types";
 import type { WhatsAppWebhookEvent } from "./types";
 
 type WhatsAppEntryChange = { field?: string; value?: { metadata?: { phone_number_id?: string } } };
 type WhatsAppWebhookPayload = { entry?: { changes?: WhatsAppEntryChange[] }[] };
 
 export type IngestWhatsAppResult =
-  | { ok: true; kind: "message"; interactionId: string; conversationId: string; leadId: string }
+  | { ok: true; kind: "message"; interactionId: string; conversationId: string; leadId: string; acknowledgement: AckOutcome | { status: "error"; error: string } }
   | { ok: true; kind: "status"; externalMessageId: string; matched: boolean }
   | { ok: false; reason: "unknown_phone_number_id"; phoneNumberId: string };
 
@@ -45,7 +50,7 @@ export async function ingestInboundWhatsAppMessage(rawPayload: unknown): Promise
 
       const { data: connection, error: connectionError } = await crmAdmin
         .from("channel_connection")
-        .select("business_id")
+        .select("id, business_id, status, external_account_id, instant_reply_mode, access_token_encrypted")
         .eq("channel", "whatsapp")
         .eq("provider", "whatsapp_cloud_api")
         .eq("external_account_id", phoneNumberId)
@@ -60,7 +65,7 @@ export async function ingestInboundWhatsAppMessage(rawPayload: unknown): Promise
       }
 
       for (const event of events) {
-        results.push(await ingestEvent(connection.business_id, event, crmAdmin, coreAdmin));
+        results.push(await ingestEvent(connection.business_id, event, crmAdmin, coreAdmin, connection as AckConnection));
       }
     }
   }
@@ -68,11 +73,20 @@ export async function ingestInboundWhatsAppMessage(rawPayload: unknown): Promise
   return results;
 }
 
+type AckConnection = {
+  id: string;
+  status: string;
+  external_account_id: string;
+  instant_reply_mode: InstantReplyMode;
+  access_token_encrypted: string | null;
+};
+
 async function ingestEvent(
   businessId: string,
   event: WhatsAppWebhookEvent,
   crmAdmin: ReturnType<typeof createAdminClient>,
   coreAdmin: ReturnType<typeof createAdminClient>,
+  connection: AckConnection,
 ): Promise<IngestWhatsAppResult> {
   if (event.kind === "message") {
     // CRM-07.10: a click-to-chat link's pre-filled text carries its attribution as a
@@ -138,7 +152,28 @@ async function ingestEvent(
         .is("party_id", null);
     }
 
-    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id, leadId: capture.leadId };
+    // CRM-INSTANT-ACK-01: the one automatic acknowledgement, when the business turned it
+    // on for this number. Never allowed to fail the ingest: the message is already safe.
+    let acknowledgement: AckOutcome | { status: "error"; error: string };
+    try {
+      const token = connection.status === "connected" && connection.access_token_encrypted ? decryptApiKey(connection.access_token_encrypted) : null;
+      acknowledgement = await maybeSendInstantAcknowledgement({
+        businessId,
+        channel: "whatsapp",
+        mode: token ? connection.instant_reply_mode : "off",
+        inbound: { ...interaction, party_id: interaction.party_id ?? capture.partyId },
+        clients: { crm: crmAdmin, core: coreAdmin },
+        send: async (text) => {
+          const sent = await whatsAppCloudApiAdapter.sendText({ phoneNumberId: connection.external_account_id, accessToken: token! }, event.externalActorId, text);
+          await applyChannelConnectionHealthResult(businessId, connection.id, sent.ok ? { ok: true } : { ok: false, statusCode: sent.statusCode }, crmAdmin);
+          return sent;
+        },
+      });
+    } catch (err) {
+      acknowledgement = { status: "error", error: err instanceof Error ? err.message : String(err) };
+    }
+
+    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id, leadId: capture.leadId, acknowledgement };
   }
 
   // event.kind === "status": find the outbound interaction this status belongs to by its
