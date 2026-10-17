@@ -19,19 +19,19 @@ file is stale, so it cannot quietly drift out of date.
 
 | | Stories |
 |---|---|
-| ✅ Done | 565 |
+| ✅ Done | 567 |
 | 🟡 In progress | 0 |
 | ⏸️ Deferred | 52 |
 | 🔁 Superseded | 30 |
 | ❔ Unverified | 2 |
 | ⛔ Blocked | 0 |
-| ⬜ Not started | 2 |
+| ⬜ Not started | 0 |
 | **Total** | **651** |
 
 | Backlog | Done | Set aside | Remaining | Total |
 |---|---|---|---|---|
 | [Platform build-out](./plan/04-CLAUDE-CODE-BACKLOG.md) | 74 | 1 | 0 | 75 |
-| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 123 | 7 | 4 | 134 |
+| [Platform Administration Portal](./plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md) | 125 | 7 | 2 | 134 |
 | [Discovery — offering-centric upgrade](./plan/10-DISCOVERY-OFFERING-CENTRIC-BACKLOG.md) | 57 | 1 | 0 | 58 |
 | [Discovery — opportunity intelligence](./plan/08-DISCOVERY-OPPORTUNITY-INTELLIGENCE-BACKLOG.md) | 0 | 30 | 0 | 30 |
 | [Compliance / Finance — global tax](./plan/11-COMPLIANCE-GLOBAL-TAX-BACKLOG.md) | 87 | 41 | 0 | 128 |
@@ -43,12 +43,10 @@ file is stale, so it cannot quietly drift out of date.
 
 ## What is left
 
-4 stories are neither built nor deliberately set aside:
+2 stories are neither built nor deliberately set aside:
 
 | ID | Story | Status | Note |
 |---|---|---|---|
-| `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
-| `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
 | `PLATFORM-P1-12.5` | Auto-send mode | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 | `PLATFORM-P1-12.6` | Auto-reply limits | ❔ Unverified | Discussed in `docs/design/crm-whatsapp-ai-replies.md`, but no code cites it — confirm before relying on this |
 
@@ -256,7 +254,7 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P0-08.1` | Global Feature Flags | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +7 |
-| `PLATFORM-P0-08.2` | Feature Flag Scope | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +7 |
+| `PLATFORM-P0-08.2` | Feature Flag Scope | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 | `PLATFORM-P0-08.3` | Kill Switches | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +5 |
 | `PLATFORM-P0-08.4` | Feature Flag Audit | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 
@@ -404,8 +402,8 @@ Source: [`docs/plan/09-PLATFORM-ADMIN-PORTAL-BACKLOG.md`](./plan/09-PLATFORM-ADM
 | ID | Story | Status | Evidence / note |
 |---|---|---|---|
 | `PLATFORM-P1-08.1` | Platform Version | ✅ Done | `apps/web/app/platform/(protected)/health/page.tsx` +3 |
-| `PLATFORM-P1-08.2` | Feature Rollout | ⬜ Not started | — |
-| `PLATFORM-P1-08.3` | Rollback Flag | ⬜ Not started | — |
+| `PLATFORM-P1-08.2` | Feature Rollout | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
+| `PLATFORM-P1-08.3` | Rollback Flag | ✅ Done | `apps/web/app/platform/(protected)/feature-flags/actions.ts` +8 |
 
 ### Legal / Policy Configuration
 

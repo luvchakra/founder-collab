@@ -6,7 +6,7 @@ differ, licensing the modules you need, plans and billing, and adding your
 team. The last four sections (§14 to §17) are for whoever operates the deployment rather
 than for everyday users.
 
-Last updated: 2026-10-16
+Last updated: 2026-10-17
 
 ## 1. Creating an account
 
@@ -418,7 +418,16 @@ audit log and configuration history.
 A superadmin can also switch off a single AI feature for everyone (for
 example, AI outreach drafts) from **AI Feature Policies**, without turning
 off the module or any other AI feature — each switch needs a reason and is
-audited. It's not a licensable module and ordinary business admins never
+audited.
+
+On **Feature Flags**, each flag's **Rollout** opens its staged rollout: **Internal** (only the
+businesses you name by slug), **Pilot** (those plus a share of all businesses), **Selected
+Plans** (plus every business on the plans you tick) and **All Customers**. A business's place
+in the share is fixed, so raising it only adds businesses. **Roll back** returns the flag to
+its previous rollout, or turns it off when there is none, without a code change. Both need a
+reason and are recorded in the flag's history.
+
+It's not a licensable module and ordinary business admins never
 see it; it exists for whoever runs the WonderArk service itself.
 
 ## 15. Environment variables (for whoever deploys WonderArk)
