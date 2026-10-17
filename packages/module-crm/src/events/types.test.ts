@@ -28,6 +28,7 @@ describe("CRM domain event vocabulary", () => {
     "crm.channel.connected",
     "crm.review.received",
     "crm.product_interest.stockout_requested",
+    "crm.whatsapp.auto_reply_requested",
   ];
 
   it("declares exactly the currently-required event names", () => {
@@ -48,6 +49,7 @@ describe("CRM domain event vocabulary", () => {
       "crm.channel.connected": { v: 1, channelConnectionId: "cc", channel: "whatsapp", provider: "whatsapp_business" },
       "crm.review.received": { v: 1, reviewItemId: "r", provider: "google_business_profile", rating: 5 },
       "crm.product_interest.stockout_requested": { v: 1, productInterestId: "pi", itemId: "it", partyId: "p", quantity: null },
+      "crm.whatsapp.auto_reply_requested": { v: 1, interactionId: "i" },
     };
 
     for (const type of REQUIRED_EVENT_TYPES) {

@@ -275,7 +275,7 @@ export async function recordInteraction(
       conversationId,
       channel: input.channel,
       requiresResponse: row.requires_response,
-    });
+    }, undefined, clients?.core);
   } else {
     // CRM-09.1's fourth rule, the other half of `evaluateRequiresResponse()`: "no
     // qualifying business response exists." An inbound message can't know at the moment
@@ -294,7 +294,10 @@ export async function recordInteraction(
       .is("responded_at", null);
     if (respondedError) throw respondedError;
   }
-  await publishCrmEvent(businessId, "crm.conversation.updated", { v: 1, conversationId, status: conversation.status });
+  // A session-less caller (the WhatsApp webhook) passes its own core client: the session
+  // one has no member to publish as, so the insert would be refused after the message row
+  // was already written (PLATFORM-P1-12.5/12.6 found this on the auto-reply path).
+  await publishCrmEvent(businessId, "crm.conversation.updated", { v: 1, conversationId, status: conversation.status }, undefined, clients?.core);
 
   return data as Interaction;
 }

@@ -9,12 +9,14 @@ import { applyChannelConnectionHealthResult } from "../channel-connections/mutat
 import { maybeSendInstantAcknowledgement, type AckOutcome } from "../instant-reply/acknowledgement";
 import type { InstantReplyMode } from "../channel-accounts/types";
 import type { WhatsAppWebhookEvent } from "./types";
+import { publishCrmEvent } from "../../events/publish";
+import { isWhatsAppOptOutMessage, whatsAppContactHash } from "../ai/auto-reply-core";
 
 type WhatsAppEntryChange = { field?: string; value?: { metadata?: { phone_number_id?: string } } };
 type WhatsAppWebhookPayload = { entry?: { changes?: WhatsAppEntryChange[] }[] };
 
 export type IngestWhatsAppResult =
-  | { ok: true; kind: "message"; interactionId: string; conversationId: string; leadId: string; acknowledgement: AckOutcome | { status: "error"; error: string } }
+  | { ok: true; kind: "message"; interactionId: string; conversationId: string; leadId: string; businessId: string; autoReply: boolean; acknowledgement: AckOutcome | { status: "error"; error: string } }
   | { ok: true; kind: "status"; externalMessageId: string; matched: boolean }
   | { ok: false; reason: "unknown_phone_number_id"; phoneNumberId: string };
 
@@ -50,7 +52,7 @@ export async function ingestInboundWhatsAppMessage(rawPayload: unknown): Promise
 
       const { data: connection, error: connectionError } = await crmAdmin
         .from("channel_connection")
-        .select("id, business_id, status, external_account_id, instant_reply_mode, access_token_encrypted")
+        .select("id, business_id, status, external_account_id, instant_reply_mode, ai_reply_mode, access_token_encrypted")
         .eq("channel", "whatsapp")
         .eq("provider", "whatsapp_cloud_api")
         .eq("external_account_id", phoneNumberId)
@@ -65,7 +67,7 @@ export async function ingestInboundWhatsAppMessage(rawPayload: unknown): Promise
       }
 
       for (const event of events) {
-        results.push(await ingestEvent(connection.business_id, event, crmAdmin, coreAdmin, connection as AckConnection));
+        results.push(await ingestEvent(connection.business_id, event, crmAdmin, coreAdmin, connection as AckConnection, (connection as AckConnection).ai_reply_mode === "auto"));
       }
     }
   }
@@ -78,6 +80,7 @@ type AckConnection = {
   status: string;
   external_account_id: string;
   instant_reply_mode: InstantReplyMode;
+  ai_reply_mode: string;
   access_token_encrypted: string | null;
 };
 
@@ -87,6 +90,7 @@ async function ingestEvent(
   crmAdmin: ReturnType<typeof createAdminClient>,
   coreAdmin: ReturnType<typeof createAdminClient>,
   connection: AckConnection,
+  autoReplyMode = false,
 ): Promise<IngestWhatsAppResult> {
   if (event.kind === "message") {
     // CRM-07.10: a click-to-chat link's pre-filled text carries its attribution as a
@@ -173,7 +177,26 @@ async function ingestEvent(
       acknowledgement = { status: "error", error: err instanceof Error ? err.message : String(err) };
     }
 
-    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id, leadId: capture.leadId, acknowledgement };
+    // PLATFORM-P1-12.5/12.6: a customer who sends STOP (on its own) is recorded as opted out
+    // of automatic replies, in the canonical suppression table, as a one-way hash.
+    if (isWhatsAppOptOutMessage(event.text)) {
+      const { error: optOutError } = await coreAdmin
+        .from("communication_suppressions")
+        .upsert(
+          { business_id: businessId, channel: "whatsapp", email_hash: whatsAppContactHash(event.externalActorId), reason: "unsubscribe" },
+          { onConflict: "business_id,email_hash", ignoreDuplicates: true },
+        );
+      if (optOutError) throw optOutError;
+    }
+
+    // In "Send automatically" mode the route tries the reply straight after responding to
+    // Meta; this event is the fallback if that attempt never runs. Both are keyed to this
+    // message by crm.claim_ai_auto_reply(), so at most one reply is ever sent.
+    if (autoReplyMode) {
+      await publishCrmEvent(businessId, "crm.whatsapp.auto_reply_requested", { v: 1, interactionId: interaction.id }, "crm", coreAdmin);
+    }
+
+    return { ok: true, kind: "message", interactionId: interaction.id, conversationId: interaction.conversation_id, leadId: capture.leadId, businessId, autoReply: autoReplyMode, acknowledgement };
   }
 
   // event.kind === "status": find the outbound interaction this status belongs to by its

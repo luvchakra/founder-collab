@@ -2,6 +2,7 @@ import { registerEventHandler } from "@cofounderai/core/events/registry";
 import { createAdminClient as createCoreAdminClient } from "@cofounderai/core/db/admin";
 import type { DomainEvent } from "@cofounderai/core/events/types";
 import { createAdminClient as createCrmAdminClient } from "../db/admin";
+import { processWhatsAppAutoReply } from "../lib/ai/auto-reply";
 
 /**
  * module-crm's own event subscriptions (00-MASTER-PLAN.md's module contract layout;
@@ -236,3 +237,14 @@ export const ACKNOWLEDGED_TICKET_EVENTS = ["ticket.created", "ticket.resolved", 
 for (const type of ACKNOWLEDGED_TICKET_EVENTS) {
   registerEventHandler(type, async () => undefined);
 }
+
+/**
+ * PLATFORM-P1-12.5/12.6: the fallback for an automatic WhatsApp AI reply the webhook's own
+ * after-response attempt didn't complete. Safe to run any number of times: the claim is keyed
+ * to the inbound message, so a message already handled returns "duplicate" and sends nothing.
+ */
+registerEventHandler("crm.whatsapp.auto_reply_requested", async (event: DomainEvent) => {
+  const payload = event.payload as { interactionId?: string };
+  if (!payload.interactionId) return;
+  await processWhatsAppAutoReply(event.business_id, payload.interactionId);
+});

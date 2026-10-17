@@ -11,6 +11,9 @@ import { Badge } from "@cofounderai/core/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@cofounderai/core/ui/card";
 import { EmptyState } from "@cofounderai/core/ui/empty-state";
 import { SubmitButton } from "@cofounderai/core/ui/submit-button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@cofounderai/core/ui/collapsible";
+import { AI_REPLY_MODE_LABELS } from "@cofounderai/module-crm/lib/ai/auto-reply-core";
+import { AiReplyModeForm } from "./ai-reply-mode-form";
 import { FileText, Link2 } from "lucide-react";
 import {
   checkWhatsAppConnectionNowAction,
@@ -21,6 +24,7 @@ import {
   deactivateWhatsAppTemplateAction,
   disconnectWhatsAppAction,
   setWhatsAppInstantReplyModeAction,
+  setAiReplyModeAction,
 } from "./actions";
 import { WhatsAppInstantReplySelect } from "./instant-reply-select";
 import { ConnectWhatsAppForm } from "./connect-form";
@@ -132,6 +136,15 @@ export default async function CrmWhatsAppPage({ params }: { params: Promise<{ bu
                   </SubmitButton>
                 </form>
               </div>
+              <Collapsible id="ai-replies" className="border-t pt-3">
+                <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
+                  <span className="text-muted-foreground">AI replies</span>
+                  <span className="font-medium">{AI_REPLY_MODE_LABELS[whatsapp.ai_reply_mode]}</span>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <AiReplyModeForm action={setAiReplyModeAction.bind(null, businessId, whatsapp.id)} mode={whatsapp.ai_reply_mode} />
+                </CollapsibleContent>
+              </Collapsible>
               {whatsapp.status === "reauthorization_required" ? (
                 <div className="border-t pt-3">
                   <p className="pb-2 text-xs text-muted-foreground">Reconnect with a fresh access token:</p>

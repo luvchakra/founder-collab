@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireModule } from "@cofounderai/core/licensing/queries";
+import { decryptApiKey } from "@cofounderai/core/crypto/api-key";
 import { requirePermission } from "@cofounderai/core/rbac/require-permission";
 import { writeAuditLog } from "@cofounderai/core/audit/mutations";
 import { createClient } from "../../db/server";
@@ -264,6 +266,70 @@ export async function sendWhatsAppTemplate(businessId: string, conversationId: s
     after: { conversationId, channel: "whatsapp", kind: "template", templateId: template.id, templateName: template.name },
   });
 
+  return { ok: true, interactionId: interaction.id };
+}
+
+/**
+ * PLATFORM-P1-12.5/12.6: the free-form send above, for an automatic AI reply -- there is no
+ * signed-in person, so it runs on the caller's service-role clients, pinned to `businessId`.
+ * The caller (`ai/auto-reply.ts`) has already claimed the reply in `crm.ai_auto_replies` and
+ * checked the window, the opt-out and the limits; this only records and sends. Same
+ * record-before-send shape: the outbound row is written first under `dedupeKey` (one per
+ * claimed reply), then marked sent or failed. Never throws for a provider refusal -- that is
+ * a result the caller records, not an exception.
+ */
+export async function sendWhatsAppTextAsSystem(input: {
+  businessId: string;
+  conversationId: string;
+  recipientPhone: string;
+  text: string;
+  dedupeKey: string;
+  metadata: Record<string, unknown>;
+  crm: SupabaseClient;
+  core: SupabaseClient;
+}): Promise<{ ok: true; interactionId: string } | { ok: false; error: string; interactionId?: string }> {
+  const { businessId, crm } = input;
+  const { data: connection, error: connectionError } = await crm
+    .from("channel_connection")
+    .select("id, external_account_id, access_token_encrypted")
+    .eq("business_id", businessId)
+    .eq("channel", "whatsapp")
+    .eq("status", "connected")
+    .limit(1)
+    .maybeSingle();
+  if (connectionError) throw connectionError;
+  if (!connection?.access_token_encrypted) return { ok: false, error: "WhatsApp isn't connected for this business." };
+
+  const clients = { crm, core: input.core };
+  const interaction = await recordInteraction(
+    businessId,
+    {
+      conversationId: input.conversationId,
+      channel: "whatsapp",
+      externalActorId: input.recipientPhone,
+      direction: "outbound",
+      contentExcerpt: input.text,
+      clientDedupeKey: input.dedupeKey,
+      sourceModule: "crm_ai_auto_reply",
+      metadata: input.metadata,
+    },
+    clients,
+  );
+  // Already sent under this key (a retried call): never send twice.
+  if (interaction.external_message_id) return { ok: true, interactionId: interaction.id };
+
+  const sendResult = await whatsAppCloudApiAdapter.sendText(
+    { phoneNumberId: connection.external_account_id, accessToken: decryptApiKey(connection.access_token_encrypted) },
+    input.recipientPhone,
+    input.text,
+  );
+  if (!sendResult.ok) {
+    await markInteractionFailed(businessId, interaction.id, sendResult.error, clients);
+    await applyChannelConnectionHealthResult(businessId, connection.id, { ok: false, statusCode: sendResult.statusCode }, crm);
+    return { ok: false, error: sendResult.error, interactionId: interaction.id };
+  }
+  if (sendResult.providerMessageId) await attachOutboundMessageId(businessId, interaction.id, sendResult.providerMessageId, clients);
+  await applyChannelConnectionHealthResult(businessId, connection.id, { ok: true }, crm);
   return { ok: true, interactionId: interaction.id };
 }
 

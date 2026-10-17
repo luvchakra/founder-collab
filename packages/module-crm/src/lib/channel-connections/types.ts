@@ -17,6 +17,8 @@ export type ChannelConnection = {
   /** CRM-INSTANT-ACK-01: "off" or "instant_ack_then_human". */
   instant_reply_mode: InstantReplyMode;
   last_synced_at: string | null;
+  /** PLATFORM-P1-12.5/12.6: "draft" (Draft for review, the default) or "auto" (Send automatically). */
+  ai_reply_mode: "draft" | "auto";
   created_at: string;
   updated_at: string;
 };

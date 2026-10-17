@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { verifyMetaSignature, verifyMetaSubscription } from "@cofounderai/module-crm/lib/webhooks/verify-meta-signature";
 import { ingestInboundWhatsAppMessage } from "@cofounderai/module-crm/lib/whatsapp/ingest-inbound-message";
+import { processWhatsAppAutoReply } from "@cofounderai/module-crm/lib/ai/auto-reply";
 
 /**
  * WhatsApp Business Platform (Cloud API) inbound webhook (docs/design/
@@ -41,6 +42,23 @@ export async function POST(request: Request) {
 
   const payload = JSON.parse(rawBody) as unknown;
   const results = await ingestInboundWhatsAppMessage(payload);
+
+  // PLATFORM-P1-12.5/12.6: for a business in "Send automatically" mode, answer straight after
+  // Meta gets its 200 (the drain cron runs once a day). Best-effort: a failure here is logged
+  // and the crm.whatsapp.auto_reply_requested event ingest published retries it; the claim in
+  // crm.claim_ai_auto_reply() means the two can never both send.
+  const autoReplies = results.flatMap((r) => (r.ok && r.kind === "message" && r.autoReply ? [{ businessId: r.businessId, interactionId: r.interactionId }] : []));
+  if (autoReplies.length > 0) {
+    after(async () => {
+      for (const { businessId, interactionId } of autoReplies) {
+        try {
+          await processWhatsAppAutoReply(businessId, interactionId);
+        } catch (error) {
+          console.error("[crm-whatsapp] automatic reply attempt failed; the queued event will retry it", error instanceof Error ? error.message : error);
+        }
+      }
+    });
+  }
 
   // 200 regardless -- same "don't make Meta retry forever over an unmatched account"
   // reasoning as crm-meta's own route.

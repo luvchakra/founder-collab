@@ -41,7 +41,8 @@ Reactivation
   - **Suggested reply (template)** is a canned reply picked by keyword — not AI.
   - **Check before sending** runs an AI check that flags things like "Unsupported claim" or
     "Overly long"; it never blocks **Send**.
-  - **Draft with AI** — see [AI-drafted WhatsApp replies](#ai-drafted-whatsapp-replies).
+  - **Draft with AI** — see [AI-drafted WhatsApp replies](#ai-drafted-whatsapp-replies), which
+    also covers **Send automatically**.
 - **Leads** — a list with inline status editing (10 stages from new through
   won/lost/disqualified) and inline owner reassignment, both directly in the
   row.
@@ -106,12 +107,39 @@ recorded prices, saved offering knowledge, and that customer's own recent orders
   refund, payment, cancellation, order change or opt-out, it says "AI couldn't answer this
   from your business details — reply yourself."
 - **Use this draft** only puts the text in the reply box. Nothing is sent until a person
-  clicks **Send** (which needs the permission to send messages). WonderArk never sends an AI
-  draft on its own.
+  clicks **Send** (which needs the permission to send messages).
 - Each message is drafted once and kept; it uses AI credits.
 - Anyone who can open CRM can draft. An agent connected to WonderArk's MCP server with a
   business API key can request the same draft (`draft_whatsapp_reply`); it is saved for the
   team, never sent.
+
+### Draft for review or Send automatically
+
+On CRM → WhatsApp, open **AI replies** under the connection and choose:
+
+- **Draft for review** (the default) — nothing is sent without a person, as above.
+- **Send automatically** — each new customer message is answered by AI straight away, and
+  the answer is sent without a person, but only when all of these hold:
+  - the answer comes from your business details or your products and prices (questions
+    about orders, jobs or anything else stay for a person);
+  - the AI is confident, and the message isn't about a complaint, refund, payment,
+    cancellation, order change or opt-out;
+  - it is inside WhatsApp's 24-hour window, it's the customer's latest message and nobody
+    has replied yet;
+  - fewer than 100 automatic replies were sent by your business today, and fewer than 3 in
+    that conversation;
+  - the customer hasn't opted out: a customer who sends just **STOP** (or UNSUBSCRIBE /
+    OPT OUT) gets no automatic replies again;
+  - your CRM licence is active and AI replies haven't been switched off for the platform.
+
+Each message gets at most one automatic reply, even if WhatsApp delivers it twice. In the
+conversation, an automatic reply is labelled "Sent automatically by AI — based on …" with
+the facts it used; if WhatsApp refuses it, it shows **Failed**. A message that wasn't
+answered automatically stays for a person, and **Draft with AI** works as usual. On CRM → Conversations, a
+WhatsApp conversation shows one line with the current mode (and, for the latest message,
+why it wasn't sent automatically) and a **Change in settings** link. Changing the mode needs
+the channel-connections permission and is recorded in the audit log; so is every automatic
+reply. Automatic replies use AI credits.
 
 ## Instant acknowledgement
 
@@ -135,7 +163,9 @@ has two choices: **Off** (the default) and **Instant acknowledgment, then human*
   acknowledgement isn't an answer, a person still replies.
 
 Every acknowledgement sent, or failed, and every change to the setting is in the audit log.
-Drafting a real answer is **Draft with AI** in Conversations, which never sends on its own.
+Drafting a real answer is **Draft with AI** in Conversations. On WhatsApp, if **AI replies** is
+also set to **Send automatically**, the customer can get the acknowledgement first and then the
+AI's answer.
 
 ## Connecting a channel (WhatsApp / Instagram / Facebook)
 
